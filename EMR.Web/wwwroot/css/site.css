@@ -19,6 +19,9 @@ body {
 .emr-topbar {
   background: linear-gradient(90deg, #0d3b8e 0%, #1a5cb5 55%, #0a8a8a 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  position: sticky;
+  top: 0;
+  z-index: 1030;
 }
 
 .emr-brand {
