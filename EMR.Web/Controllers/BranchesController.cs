@@ -3,6 +3,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using EMR.Web.Services.Geography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,13 @@ using Microsoft.EntityFrameworkCore;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class BranchesController(ApplicationDbContext dbContext, IAuditLogService auditLogService) : Controller
+public class BranchesController(
+    ApplicationDbContext dbContext,
+    IAuditLogService auditLogService,
+    ICountryService countryService,
+    IStateService stateService,
+    IDistrictService districtService,
+    ICityService cityService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -205,4 +212,85 @@ public class BranchesController(ApplicationDbContext dbContext, IAuditLogService
     }
 
     private bool CanManage() => true; // TODO: re-enable role check when authorization is implemented
+
+    // ── Geography AJAX search ──────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> SearchCountries(string term)
+    {
+        if (string.IsNullOrWhiteSpace(term)) return Json(Array.Empty<string>());
+        var all = await countryService.GetActiveAsync();
+        var results = all
+            .Where(c => c.CountryName.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => c.CountryName)
+            .Take(10)
+            .Select(c => new { c.CountryId, c.CountryName })
+            .ToList();
+        return Json(results);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> SearchStates(string term, string? country = null)
+    {
+        IEnumerable<StateMaster> states;
+        if (!string.IsNullOrWhiteSpace(country))
+        {
+            var allCountries = await countryService.GetActiveAsync();
+            var matched = allCountries.FirstOrDefault(c =>
+                c.CountryName.Equals(country, StringComparison.OrdinalIgnoreCase));
+            states = matched is not null
+                ? await stateService.GetByCountryAsync(matched.CountryId)
+                : await stateService.GetAllAsync();
+        }
+        else
+        {
+            states = await stateService.GetAllAsync();
+        }
+
+        if (string.IsNullOrWhiteSpace(term)) return Json(Array.Empty<string>());
+        var results = states
+            .Where(s => s.StateName.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.StateName)
+            .Take(10)
+            .Select(s => new { s.StateId, s.StateName })
+            .ToList();
+        return Json(results);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> SearchCities(string term, string? state = null)
+    {
+        IEnumerable<CityMaster> cities;
+        if (!string.IsNullOrWhiteSpace(state))
+        {
+            var allStates = await stateService.GetAllAsync();
+            var matchedState = allStates.FirstOrDefault(s =>
+                s.StateName.Equals(state, StringComparison.OrdinalIgnoreCase));
+            if (matchedState is not null)
+            {
+                var districts = await districtService.GetByStateAsync(matchedState.StateId);
+                var allCities = new List<CityMaster>();
+                foreach (var d in districts)
+                    allCities.AddRange(await cityService.GetByDistrictAsync(d.DistrictId));
+                cities = allCities;
+            }
+            else
+            {
+                cities = await cityService.GetAllAsync();
+            }
+        }
+        else
+        {
+            cities = await cityService.GetAllAsync();
+        }
+
+        if (string.IsNullOrWhiteSpace(term)) return Json(Array.Empty<string>());
+        var results = cities
+            .Where(c => c.CityName.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => c.CityName)
+            .Take(10)
+            .Select(c => new { c.CityId, c.CityName })
+            .ToList();
+        return Json(results);
+    }
 }

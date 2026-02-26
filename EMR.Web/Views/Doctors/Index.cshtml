@@ -77,16 +77,26 @@
                     <td>@item.PrimarySpecialityName</td>
                     <td>@item.DepartmentNames</td>
                     <td>
-                        @if (!string.IsNullOrWhiteSpace(item.ConsultingFeeNames))
+                        @{
+                            var cfFees = string.IsNullOrWhiteSpace(item.ConsultingFeeNames)
+                                ? Array.Empty<string>()
+                                : item.ConsultingFeeNames.Split(", ", StringSplitOptions.RemoveEmptyEntries);
+                        }
+                        @if (cfFees.Length == 0)
                         {
-                            foreach (var fee in item.ConsultingFeeNames.Split(", ", StringSplitOptions.RemoveEmptyEntries))
-                            {
-                                <span class="badge text-bg-info text-white me-1 mb-1">@fee</span>
-                            }
+                            <span class="text-muted small fst-italic">None</span>
                         }
                         else
                         {
-                            <span class="text-muted small fst-italic">None</span>
+                            <span class="badge text-bg-info text-white">@cfFees[0]</span>
+                            @if (cfFees.Length > 1)
+                            {
+                                <button class="btn btn-sm btn-info rounded-pill ms-1 py-0 px-2 text-white"
+                                        data-doctor="@item.FullName"
+                                        data-fees="@System.Text.Json.JsonSerializer.Serialize(cfFees)"
+                                        onclick="showAllFees(this)"
+                                        title="View all @cfFees.Length fees">+@(cfFees.Length - 1)</button>
+                            }
                         }
                     </td>
                     <td>@item.PhoneNumber</td>
@@ -144,6 +154,28 @@
             }
         </tbody>
     </table>
+</div>
+
+@* ═══════════════════ VIEW ALL FEES MODAL ═══════════════════ *@
+<div class="modal fade" id="viewFeesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-currency-rupee me-2"></i>Consulting Fees &mdash; <span id="vfDoctorName"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="vfFeesList" class="d-flex flex-wrap gap-2 py-1"></div>
+            </div>
+            <div class="modal-footer border-0 bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>Close
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 @* ═══════════════════ CONSULTING FEES MODAL ═══════════════════ *@
@@ -235,6 +267,18 @@
     function antiForgeryToken() {
         return document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
     }
+
+    // ── View-all fees ──────────────────────────────────────────────
+    window.showAllFees = function (btn) {
+        const doctorName = btn.dataset.doctor;
+        const fees = JSON.parse(btn.dataset.fees);
+        document.getElementById('vfDoctorName').textContent = doctorName;
+        const list = document.getElementById('vfFeesList');
+        list.innerHTML = fees.map(f =>
+            `<span class="badge text-bg-info fs-6 px-3 py-2">${f}</span>`
+        ).join('');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('viewFeesModal')).show();
+    };
 
     const modalEl       = document.getElementById('consultingFeeModal');
     const bsModal       = new bootstrap.Modal(modalEl);
