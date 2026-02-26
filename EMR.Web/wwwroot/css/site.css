@@ -1,7 +1,7 @@
 :root {
-  --emr-primary: #1f3b91;
-  --emr-accent: #f3b022;
-  --emr-gradient: linear-gradient(160deg, #283377 0%, #c81d3b 55%, #f3b022 100%);
+  --emr-primary: #0d3b8e;
+  --emr-accent: #f3c94e;
+  --emr-gradient: linear-gradient(135deg, #0d3b8e 0%, #1a5cb5 50%, #0a8a8a 100%);
 }
 
 html {
@@ -17,8 +17,8 @@ body {
 }
 
 .emr-topbar {
-  background: linear-gradient(90deg, #2e357b 0%, #6c284f 55%, #af2f39 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  background: linear-gradient(90deg, #0d3b8e 0%, #1a5cb5 55%, #0a8a8a 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .emr-brand {
@@ -30,7 +30,7 @@ body {
 }
 
 .emr-brand span {
-  color: #f3b022;
+  color: #f3c94e;
 }
 
 .emr-main-menu .nav-link {
@@ -45,7 +45,7 @@ body {
 .emr-main-menu .nav-link:focus,
 .emr-main-menu .nav-link.active {
   color: #fff;
-  border-bottom-color: #f3b022;
+  border-bottom-color: #f3c94e;
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -104,7 +104,7 @@ body {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: #f3b022;
+  background: #f3c94e;
   color: #11243f;
   font-weight: 800;
   display: inline-flex;
@@ -594,7 +594,7 @@ body {
 }
 
 .emr-footer-brand span {
-  color: #f3b022;
+  color: #f3c94e;
 }
 
 .emr-footer-copy {
@@ -621,7 +621,7 @@ body {
 }
 
 .emr-footer-link:hover {
-  color: #f3b022;
+  color: #f3c94e;
 }
 
 .emr-footer-divider {
@@ -631,7 +631,7 @@ body {
 .emr-footer-version {
   display: inline-block;
   background: #2e3f60;
-  color: #f3b022;
+  color: #f3c94e;
   font-size: 0.72rem;
   font-weight: 700;
   padding: 0.15rem 0.6rem;
