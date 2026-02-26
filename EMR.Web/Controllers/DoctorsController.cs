@@ -210,11 +210,15 @@ public class DoctorsController(
         var allBranches = await dbContext.BranchMasters
             .Where(x => x.IsActive)
             .OrderBy(x => x.BranchName)
-            .Select(x => new { x.BranchId, x.BranchName })
+            .Select(x => new { x.BranchId, x.BranchName, x.BranchCode })
             .ToListAsync();
 
         model.BranchOptions = allBranches
-            .Select(x => new SelectListItem(x.BranchName, x.BranchId.ToString()))
+            .Select(x => new SelectListItem(
+                string.IsNullOrWhiteSpace(x.BranchCode)
+                    ? x.BranchName
+                    : $"{x.BranchCode} - {x.BranchName}",
+                x.BranchId.ToString()))
             .ToList();
 
         if (!model.CanAssignMultipleBranches)

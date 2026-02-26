@@ -147,7 +147,11 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
 
         var branchOptions = user.UserBranches
             .Where(x => x.Branch.IsActive)
-            .Select(x => new SelectListItem(x.Branch.BranchName, x.BranchId.ToString()))
+            .Select(x => new SelectListItem(
+                string.IsNullOrWhiteSpace(x.Branch.BranchCode)
+                    ? x.Branch.BranchName
+                    : $"{x.Branch.BranchCode} - {x.Branch.BranchName}",
+                x.BranchId.ToString()))
             .ToList();
 
         var selectedBranchId = branchId ?? user.UserBranches.FirstOrDefault()?.BranchId ?? 0;

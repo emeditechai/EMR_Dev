@@ -322,11 +322,15 @@ public class UsersController(
         var branches = await dbContext.BranchMasters
             .Where(x => x.IsActive)
             .OrderBy(x => x.BranchName)
-            .Select(x => new { x.BranchId, x.BranchName })
+            .Select(x => new { x.BranchId, x.BranchName, x.BranchCode })
             .ToListAsync();
 
         model.BranchOptions = branches
-            .Select(x => new SelectListItem(x.BranchName, x.BranchId.ToString()))
+            .Select(x => new SelectListItem(
+                string.IsNullOrWhiteSpace(x.BranchCode)
+                    ? x.BranchName
+                    : $"{x.BranchCode} - {x.BranchName}",
+                x.BranchId.ToString()))
             .ToList();
 
         var allRoles = await dbContext.Roles

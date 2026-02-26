@@ -50,6 +50,7 @@
                                         <li><a class="dropdown-item" asp-controller="Doctors" asp-action="Index"><i class="bi bi-heart-pulse-fill me-2"></i>Doctor Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="DoctorSpecialities" asp-action="Index"><i class="bi bi-award-fill me-2"></i>Doctor Speciality Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Departments" asp-action="Index"><i class="bi bi-building me-2"></i>Department Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Floors" asp-action="Index"><i class="bi bi-layers-fill me-2"></i>Floor Master</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="Countries" asp-action="Index"><i class="bi bi-globe me-2"></i>Country Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="States" asp-action="Index"><i class="bi bi-map me-2"></i>State Master</a></li>
@@ -67,6 +68,7 @@
                                     </a>
                                     <ul class="dropdown-menu dropdown-submenu-menu">
                                         <li><a class="dropdown-item" asp-controller="Services" asp-action="Index"><i class="bi bi-clipboard2-check me-2"></i>Service Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorRooms" asp-action="Index"><i class="bi bi-door-open-fill me-2"></i>Doctor Room</a></li>
                                     </ul>
                                 </li>
 
@@ -144,7 +146,7 @@
                     <div class="d-flex align-items-center gap-2 ms-xl-3 emr-top-actions">
                         <button type="button" class="btn btn-sm emr-icon-btn" title="Fullscreen"><i class="bi bi-fullscreen"></i></button>
                         <button type="button" class="btn btn-sm emr-icon-btn" title="Notifications"><i class="bi bi-bell-fill"></i></button>
-                        <span class="emr-branch-pill"><i class="bi bi-building me-2"></i>@User.FindFirst("BranchName")?.Value</span>
+                        <span class="emr-branch-pill"><i class="bi bi-building me-2"></i>@(User.FindFirst("BranchCode")?.Value ?? User.FindFirst("BranchName")?.Value)</span>
 
                         <div class="dropdown">
                             <button class="btn emr-profile-btn dropdown-toggle" type="button" id="profileMenu" data-bs-toggle="dropdown" aria-expanded="false">
@@ -295,5 +297,40 @@
             }
         })();
     </script>
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <script>
+            (function () {
+                var idleLimitMs = 5 * 60 * 1000;
+                var lastActivityAt = Date.now();
+                var idleExceeded = false;
+                var redirecting = false;
+                var logoutUrl = '@Url.Action("SessionTimeoutLogout", "Account")';
+
+                function handleInteraction() {
+                    if (redirecting) return;
+
+                    var now = Date.now();
+                    if (idleExceeded || (now - lastActivityAt) >= idleLimitMs) {
+                        redirecting = true;
+                        window.location.href = logoutUrl;
+                        return;
+                    }
+
+                    lastActivityAt = now;
+                }
+
+                setInterval(function () {
+                    if ((Date.now() - lastActivityAt) >= idleLimitMs) {
+                        idleExceeded = true;
+                    }
+                }, 1000);
+
+                ['click', 'keydown', 'mousedown', 'touchstart'].forEach(function (evt) {
+                    document.addEventListener(evt, handleInteraction, true);
+                });
+            })();
+        </script>
+    }
 </body>
 </html>

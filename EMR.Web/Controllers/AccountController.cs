@@ -73,6 +73,24 @@ public class AccountController(
         }
 
         var isSuperAdmin = IsSuperAdminUser(user);
+
+        if (!isSuperAdmin)
+        {
+            var hasAnyActiveRole = await dbContext.UserRoles
+                .Join(dbContext.Roles,
+                    ur => ur.RoleId,
+                    r => r.Id,
+                    (ur, r) => new { ur.UserId, ur.IsActive, r.Name })
+                .AnyAsync(x => x.UserId == user.Id && x.IsActive && !string.IsNullOrWhiteSpace(x.Name));
+
+            if (!hasAnyActiveRole)
+            {
+                await auditLogService.LogAsync("AuthFailure", "Login", $"No active roles for user: {user.Username}", user.Id);
+                ModelState.AddModelError(string.Empty, "No active role mapping found for this user.");
+                return View(model);
+            }
+        }
+
         await SignInUserAsync(user, null, isSuperAdmin, model.RememberMe);
 
         if (activeBranches.Count == 1)
@@ -107,7 +125,9 @@ public class AccountController(
 
         var branchOptions = user.UserBranches
             .Where(x => x.Branch.IsActive)
-            .Select(x => new SelectListItem(x.Branch.BranchName, x.BranchId.ToString()))
+            .Select(x => new SelectListItem(
+                $"{x.Branch.BranchCode} - {x.Branch.BranchName}",
+                x.BranchId.ToString()))
             .ToList();
 
         var viewModel = new BranchSelectionViewModel
@@ -149,6 +169,15 @@ public class AccountController(
         return RedirectToAction(nameof(Login));
     }
 
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> SessionTimeoutLogout()
+    {
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        TempData["Warning"] = "Session expired due to inactivity. Please login again.";
+        return RedirectToAction(nameof(Login));
+    }
+
     private async Task<IActionResult> CompleteBranchSelection(int userId, int branchId, bool rememberMe)
     {
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId);
@@ -174,11 +203,20 @@ public class AccountController(
             .Join(dbContext.Roles,
                 userRole => userRole.RoleId,
                 role => role.Id,
-                (userRole, role) => role.Name)
+                (userRole, role) => new { role.Name, role.BranchId })
+            .Where(x => !x.BranchId.HasValue || x.BranchId == branchId)
+            .Select(x => x.Name)
             .Distinct()
             .ToListAsync();
 
         var isSuperAdmin = IsSuperAdminUser(user);
+
+        if (!isSuperAdmin && roleNames.Count == 0)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            TempData["Error"] = "No active role mapping found for selected branch.";
+            return RedirectToAction(nameof(Login));
+        }
 
         // Sign in immediately, then fire-and-forget the DB write + audit log
         // so the user is not blocked waiting for non-critical DB operations
@@ -235,10 +273,18 @@ public class AccountController(
             .Join(dbContext.Roles,
                 ur => ur.RoleId,
                 r => r.Id,
-                (ur, r) => new { r.Id, r.Name })
+                (ur, r) => new { r.Id, r.Name, r.BranchId })
+            .Where(x => !x.BranchId.HasValue || x.BranchId == branchId)
             .Distinct()
             .OrderBy(x => x.Name)
             .ToListAsync();
+
+        if (!User.IsSuperAdmin() && roleNames.Count == 0)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            TempData["Error"] = "Role mapping not found for selected branch.";
+            return RedirectToAction(nameof(Login));
+        }
 
         if (roleNames.Count == 1)
         {
@@ -303,11 +349,28 @@ public class AccountController(
 
         var allRoleNames = await dbContext.UserRoles
             .Where(x => x.UserId == userId && x.IsActive)
-            .Join(dbContext.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+            .Join(dbContext.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => new { r.Name, r.BranchId })
+            .Where(x => !x.BranchId.HasValue || x.BranchId == branchId)
+            .Select(x => x.Name)
             .Distinct()
             .ToListAsync();
 
         var isSuperAdmin = IsSuperAdminUser(user);
+
+        if (!isSuperAdmin && allRoleNames.Count == 0)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            TempData["Error"] = "Role mapping not found for selected branch.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        if (!isSuperAdmin && !allRoleNames.Contains(selectedRole, StringComparer.OrdinalIgnoreCase))
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            TempData["Error"] = "Invalid role selection. Please login again.";
+            return RedirectToAction(nameof(Login));
+        }
+
         await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, allRoleNames, selectedRole);
 
         await auditLogService.LogAsync("Auth", "SelectRole", $"Active role set to: {selectedRole}", userId, branchId);
@@ -347,6 +410,7 @@ public class AccountController(
         {
             claims.Add(new Claim("BranchId", branch.BranchId.ToString()));
             claims.Add(new Claim("BranchName", branch.BranchName));
+            claims.Add(new Claim("BranchCode", branch.BranchCode));
         }
 
         if (!string.IsNullOrWhiteSpace(activeRole))
@@ -384,3 +448,4 @@ public class AccountController(
                string.Equals(user.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
     }
 }
+
