@@ -1,0 +1,91 @@
+@model EMR.Web.Models.ViewModels.DoctorDetailsViewModel
+@{
+    ViewData["Title"] = "Doctor Details";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Doctor Details</h1>
+        <small class="text-muted">Viewing: @Model.FullName</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.DoctorId" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="dashboard-panel">
+    <div class="row g-4">
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Doctor Name</p>
+            <p class="fw-semibold fs-5 mb-0">@Model.FullName</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Gender</p>
+            <p class="fw-semibold mb-0">@Model.Gender</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Date of Birth</p>
+            <p class="fw-semibold mb-0">@(Model.DateOfBirth?.ToString("dd MMM yyyy") ?? "-")</p>
+        </div>
+
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Email ID</p>
+            <p class="fw-semibold mb-0">@Model.EmailId</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Phone Number</p>
+            <p class="fw-semibold mb-0">@Model.PhoneNumber</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Medical License / MMC</p>
+            <p class="fw-semibold mb-0">@(string.IsNullOrWhiteSpace(Model.MedicalLicenseNo) ? "-" : Model.MedicalLicenseNo)</p>
+        </div>
+
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Primary Speciality</p>
+            <p class="fw-semibold mb-0">@Model.PrimarySpecialityName</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Secondary Speciality</p>
+            <p class="fw-semibold mb-0">@(string.IsNullOrWhiteSpace(Model.SecondarySpecialityName) ? "-- none --" : Model.SecondarySpecialityName)</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Joining Date</p>
+            <p class="fw-semibold mb-0">@(Model.JoiningDate?.ToString("dd MMM yyyy") ?? "-")</p>
+        </div>
+
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Status</p>
+            @if (Model.IsActive)
+            {
+                <span class="badge text-bg-success px-3 py-2">Active</span>
+            }
+            else
+            {
+                <span class="badge text-bg-secondary px-3 py-2">Inactive</span>
+            }
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Created On</p>
+            <p class="fw-semibold mb-0">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Last Modified</p>
+            <p class="fw-semibold mb-0">@(Model.ModifiedDate?.ToString("dd MMM yyyy, HH:mm") ?? "-")</p>
+        </div>
+
+        <div class="col-md-6">
+            <p class="text-muted small mb-1">Assigned Branches</p>
+            <p class="fw-semibold mb-0">@(Model.BranchNames.Any() ? string.Join(", ", Model.BranchNames) : "-")</p>
+        </div>
+        <div class="col-md-6">
+            <p class="text-muted small mb-1">Departments</p>
+            <p class="fw-semibold mb-0">@(Model.DepartmentNames.Any() ? string.Join(", ", Model.DepartmentNames) : "-")</p>
+        </div>
+    </div>
+</div>

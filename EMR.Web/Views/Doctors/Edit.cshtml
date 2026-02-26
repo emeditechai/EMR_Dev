@@ -1,0 +1,169 @@
+@model EMR.Web.Models.ViewModels.DoctorFormViewModel
+@{
+    ViewData["Title"] = "Edit Doctor";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Doctor</h1>
+        <small class="text-muted">Update doctor profile, branch assignment and departments</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to List
+    </a>
+</div>
+
+<form asp-action="Edit" method="post">
+    @Html.AntiForgeryToken()
+    <input asp-for="DoctorId" type="hidden" />
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+
+    <div class="dashboard-panel mb-4">
+        <h5 class="fw-bold mb-3"><i class="bi bi-person-vcard me-2 text-primary"></i>Personal Information</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="FullName" class="form-label fw-semibold">Doctor Name <span class="text-danger">*</span></label>
+                <input asp-for="FullName" class="form-control" maxlength="150" />
+                <span asp-validation-for="FullName" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Gender" class="form-label fw-semibold">Gender <span class="text-danger">*</span></label>
+                <select asp-for="Gender" class="form-select">
+                    <option value="">-- Select Gender --</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+                <span asp-validation-for="Gender" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="DateOfBirth" class="form-label fw-semibold">Date of Birth</label>
+                <input asp-for="DateOfBirth" type="date" class="form-control" />
+                <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="EmailId" class="form-label fw-semibold">Email ID <span class="text-danger">*</span></label>
+                <input asp-for="EmailId" class="form-control" maxlength="150" />
+                <span asp-validation-for="EmailId" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="PhoneNumber" class="form-label fw-semibold">Phone Number <span class="text-danger">*</span></label>
+                <input asp-for="PhoneNumber" class="form-control" maxlength="20" />
+                <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-panel mb-4">
+        <h5 class="fw-bold mb-3"><i class="bi bi-heart-pulse me-2 text-primary"></i>Professional & Branch Mapping</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="MedicalLicenseNo" class="form-label fw-semibold">Medical License / MMC</label>
+                <input asp-for="MedicalLicenseNo" class="form-control" maxlength="80" />
+                <span asp-validation-for="MedicalLicenseNo" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label asp-for="PrimarySpecialityId" class="form-label fw-semibold">Speciality (Primary) <span class="text-danger">*</span></label>
+                <select asp-for="PrimarySpecialityId" class="form-select" id="primarySpeciality"
+                        asp-items="Model.SpecialityOptions">
+                    <option value="">-- Select Primary Speciality --</option>
+                </select>
+                <span asp-validation-for="PrimarySpecialityId" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label asp-for="SecondarySpecialityId" class="form-label fw-semibold">Secondary Speciality</label>
+                <select asp-for="SecondarySpecialityId" class="form-select" id="secondarySpeciality">
+                    <option value="">-- none --</option>
+                    @foreach (var item in Model.SpecialityOptions)
+                    {
+                        <option value="@item.Value" selected="@(Model.SecondarySpecialityId?.ToString() == item.Value ? "selected" : null)">@item.Text</option>
+                    }
+                </select>
+                <span asp-validation-for="SecondarySpecialityId" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Department <span class="text-danger">*</span></label>
+                <select asp-for="SelectedDepartmentIds" class="form-select" id="departmentMulti" multiple>
+                    @foreach (var dept in Model.DepartmentOptions)
+                    {
+                        <option value="@dept.Value" selected="@(Model.SelectedDepartmentIds.Contains(int.Parse(dept.Value!)) ? "selected" : null)">@dept.Text</option>
+                    }
+                </select>
+                <span asp-validation-for="SelectedDepartmentIds" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="JoiningDate" class="form-label fw-semibold">Joining Date</label>
+                <input asp-for="JoiningDate" type="date" class="form-control" />
+                <span asp-validation-for="JoiningDate" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="IsActive" class="form-label fw-semibold d-block">Status</label>
+                <div class="form-check form-switch mt-2">
+                    <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" />
+                    <label asp-for="IsActive" class="form-check-label">Active / Inactive</label>
+                </div>
+            </div>
+
+            <div class="col-md-12">
+                <label class="form-label fw-semibold">Assign Branch</label>
+                @if (Model.CanAssignMultipleBranches)
+                {
+                    <select asp-for="SelectedBranchIds" class="form-select" id="branchMulti" multiple>
+                        @foreach (var branch in Model.BranchOptions)
+                        {
+                            <option value="@branch.Value" selected="@(Model.SelectedBranchIds.Contains(int.Parse(branch.Value!)) ? "selected" : null)">@branch.Text</option>
+                        }
+                    </select>
+                    <div class="form-text">Administrator from HO branch can assign multiple branches. Current branch stays included.</div>
+                }
+                else
+                {
+                    <input type="text" class="form-control" value="@Model.CurrentBranchName" readonly />
+                    <input type="hidden" name="SelectedBranchIds" value="@Model.CurrentBranchId" />
+                    <div class="form-text">Doctor is assigned to login branch by default.</div>
+                }
+                <span asp-validation-for="SelectedBranchIds" class="text-danger small"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-save me-1"></i>Update</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <script>
+        new TomSelect('#primarySpeciality', { create: false, sortField: { field: 'text', direction: 'asc' } });
+        new TomSelect('#secondarySpeciality', { create: false, allowEmptyOption: true });
+        new TomSelect('#departmentMulti', {
+            create: false,
+            plugins: ['remove_button'],
+            maxItems: null,
+            hideSelected: true,
+            placeholder: 'Select one or more departments'
+        });
+
+        const branchElement = document.getElementById('branchMulti');
+        if (branchElement) {
+            new TomSelect('#branchMulti', {
+                create: false,
+                plugins: ['remove_button'],
+                maxItems: null,
+                hideSelected: true,
+                placeholder: 'Assign one or more branches'
+            });
+        }
+    </script>
+}

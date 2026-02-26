@@ -26,6 +26,7 @@ builder.Services.AddScoped<IAreaService, AreaService>();
 // Clinical Masters (Dapper)
 builder.Services.AddScoped<IDoctorSpecialityService, DoctorSpecialityService>();
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
+builder.Services.AddScoped<IDoctorService, DoctorService>();
 
 builder.Services.AddHttpContextAccessor();
 

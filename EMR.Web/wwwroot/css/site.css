@@ -252,6 +252,18 @@ body {
 .stat-teal   { background: linear-gradient(135deg, #0a7f8a 0%, #12b3c2 100%); }
 .stat-purple { background: linear-gradient(135deg, #6a3fbc 0%, #9164e0 100%); }
 
+.doctor-table-panel .table,
+.doctor-table-panel tbody,
+.doctor-table-panel tr,
+.doctor-table-panel td {
+  overflow: visible;
+}
+
+.doctor-action-dropdown .dropdown-menu {
+  z-index: 2000;
+  min-width: 9rem;
+}
+
 .chart-placeholder {
   border: 1px dashed #d2dbec;
   border-radius: 10px;
