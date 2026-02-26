@@ -8,7 +8,7 @@ public class ServiceFormViewModel
 
     [Required(ErrorMessage = "Item Code is required.")]
     [MaxLength(20, ErrorMessage = "Maximum 20 characters allowed.")]
-    [RegularExpression(@"^[A-Za-z0-9\-]+$", ErrorMessage = "Only letters, numbers and hyphens are allowed.")]
+    [RegularExpression(@"^[A-Za-z0-9_\-]+$", ErrorMessage = "Only letters, numbers, hyphens and underscores are allowed.")]
     [Display(Name = "Item Code")]
     public string ItemCode { get; set; } = string.Empty;
 
