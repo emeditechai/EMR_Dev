@@ -5,41 +5,80 @@
 }
 
 <div class="auth-card">
-    <div class="row g-0">
-        <div class="col-lg-6 auth-left d-none d-lg-block">
-            <h1 class="display-5 fw-bold mb-4">Welcome, @Model.DisplayName!</h1>
-            <p class="fs-5 mb-4">Your credentials have been verified. Select the branch you want to access for this session.</p>
-            <ul class="list-unstyled fs-5">
-                <li class="mb-2">● Credentials verified</li>
-                <li class="mb-2">● Multi-branch access</li>
-                <li class="mb-2">● Secure branch session</li>
-                <li class="mb-2">● Branch-specific data visibility</li>
-            </ul>
+    <div class="row g-0 h-100">
+
+        @* LEFT PANEL *@
+        <div class="col-lg-6 auth-left d-none d-lg-flex">
+            <div class="auth-icon-float" style="top:7%;left:8%"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div class="auth-icon-float" style="top:12%;right:10%"><i class="bi bi-capsule"></i></div>
+            <div class="auth-icon-float" style="top:38%;left:5%"><i class="bi bi-bandaid-fill"></i></div>
+            <div class="auth-icon-float" style="top:62%;right:8%"><i class="bi bi-thermometer-half"></i></div>
+            <div class="auth-icon-float" style="bottom:14%;left:12%"><i class="bi bi-lungs-fill"></i></div>
+            <div class="auth-icon-float" style="bottom:8%;right:14%"><i class="bi bi-activity"></i></div>
+
+            <div class="auth-left-content">
+                <div class="auth-medical-cross">
+                    <i class="bi bi-building-check"></i>
+                </div>
+                <h1 class="auth-left-title">Welcome,<br /><span>@Model.DisplayName</span>!</h1>
+                <p class="auth-left-sub">Branch Selection</p>
+                <hr class="auth-left-divider" />
+                <ul class="auth-feature-list">
+                    <li><i class="bi bi-check-circle-fill"></i> Credentials verified</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Multi-branch access</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Secure branch session</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Branch-specific data visibility</li>
+                </ul>
+            </div>
         </div>
+
+        @* RIGHT PANEL *@
         <div class="col-12 col-lg-6 auth-right">
-            <h2 class="brand-title mb-3">eMedi<span>EMR</span></h2>
-            <h3 class="h2 mb-4">Select Branch</h3>
+            <div class="auth-right-inner">
 
-            <form asp-action="SelectBranch" method="post" novalidate>
-                @Html.AntiForgeryToken()
-                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-                <div class="mb-4">
-                    <label asp-for="BranchId" class="form-label"></label>
-                    <select asp-for="BranchId" asp-items="Model.Branches" class="form-select form-select-lg">
-                        <option value="">-- Select Branch --</option>
-                    </select>
-                    <span asp-validation-for="BranchId" class="text-danger"></span>
+                <div class="auth-logo-badge d-flex d-lg-none">
+                    <i class="bi bi-plus-lg"></i>
                 </div>
 
-                <button type="submit" class="btn btn-lg w-100 text-white" style="background: var(--emr-gradient)">Continue to Dashboard</button>
-            </form>
+                <div class="auth-welcome">
+                    <h2 class="auth-right-title">Select Branch <i class="bi bi-building"></i></h2>
+                    <p class="auth-right-sub">Choose the branch you want to access for this session</p>
+                </div>
 
-            <form asp-controller="Account" asp-action="Logout" method="post" class="mt-3 text-center">
-                @Html.AntiForgeryToken()
-                <button class="btn btn-link text-decoration-none" type="submit">Back to Login</button>
-            </form>
+                <form asp-action="SelectBranch" method="post" novalidate>
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small mb-3"></div>
+
+                    <div class="auth-input-group mb-4">
+                        <span class="auth-input-icon" style="padding-top:1.55rem"><i class="bi bi-diagram-3-fill"></i></span>
+                        <div class="flex-grow-1">
+                            <label asp-for="BranchId" class="auth-label">Available Branches</label>
+                            <select asp-for="BranchId" asp-items="Model.Branches" class="form-select auth-input" style="padding-left:0">
+                                <option value="">-- Select Branch --</option>
+                            </select>
+                            <span asp-validation-for="BranchId" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn auth-signin-btn w-100">
+                        <i class="bi bi-arrow-right-circle me-2"></i>Continue to Dashboard
+                    </button>
+                </form>
+
+                <form asp-controller="Account" asp-action="Logout" method="post" class="mt-3 text-center">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-link text-decoration-none auth-back-link" type="submit">
+                        <i class="bi bi-box-arrow-left me-1"></i>Back to Login
+                    </button>
+                </form>
+
+                <p class="auth-footer-note">
+                    <i class="bi bi-shield-lock-fill me-1"></i>
+                    Secured &amp; HIPAA-compliant access
+                </p>
+            </div>
         </div>
+
     </div>
 </div>
 

@@ -5,50 +5,112 @@
 }
 
 <div class="auth-card">
-    <div class="row g-0">
-        <div class="col-lg-6 auth-left d-none d-lg-block">
-            <h1 class="display-5 fw-bold mb-4">Welcome to EMR System</h1>
-            <p class="fs-5 mb-4">Secure electronic medical records with branch-wise role-based access control.</p>
-            <ul class="list-unstyled fs-5">
-                <li class="mb-2">● Multi-branch user access</li>
-                <li class="mb-2">● Role-based permissions</li>
-                <li class="mb-2">● Centralized user master</li>
-                <li class="mb-2">● Secure authentication flow</li>
-            </ul>
+    <div class="row g-0 h-100">
+
+        @* LEFT PANEL: Healthcare Icons *@
+        <div class="col-lg-6 auth-left d-none d-lg-flex">
+            <!-- Floating decorative medical icons -->
+            <div class="auth-icon-float" style="top:7%;left:8%"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div class="auth-icon-float" style="top:12%;right:10%"><i class="bi bi-capsule"></i></div>
+            <div class="auth-icon-float" style="top:38%;left:5%"><i class="bi bi-bandaid-fill"></i></div>
+            <div class="auth-icon-float" style="top:62%;right:8%"><i class="bi bi-thermometer-half"></i></div>
+            <div class="auth-icon-float" style="bottom:14%;left:12%"><i class="bi bi-lungs-fill"></i></div>
+            <div class="auth-icon-float" style="bottom:8%;right:14%"><i class="bi bi-activity"></i></div>
+            <div class="auth-icon-float" style="top:50%;left:50%;transform:translate(-50%,-50%) scale(1.6);"><i class="bi bi-heart-fill" style="color:rgba(255,255,255,0.07)"></i></div>
+
+            <!-- Center content -->
+            <div class="auth-left-content">
+                <div class="auth-medical-cross">
+                    <i class="bi bi-plus-lg"></i>
+                </div>
+                <h1 class="auth-left-title">eMedi<span>EMR</span></h1>
+                <p class="auth-left-sub">Electronic Medical Records</p>
+                <hr class="auth-left-divider" />
+                <ul class="auth-feature-list">
+                    <li><i class="bi bi-check-circle-fill"></i> Multi-branch user access</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Role-based permissions</li>
+                    <li><i class="bi bi-check-circle-fill"></i> Centralized patient records</li>
+                    <li><i class="bi bi-check-circle-fill"></i> OPD &amp; IPD management</li>
+                </ul>
+            </div>
         </div>
+
+        @* RIGHT PANEL: Login Form *@
         <div class="col-12 col-lg-6 auth-right">
-            <h2 class="brand-title mb-3">eMedi<span>EMR</span></h2>
-            <h3 class="h2 mb-4">Member Login</h3>
 
-            <form asp-action="Login" method="post" novalidate>
-                @Html.AntiForgeryToken()
-                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-                <div class="mb-3">
-                    <label asp-for="Username" class="form-label"></label>
-                    <input asp-for="Username" class="form-control form-control-lg" placeholder="Enter username" />
-                    <span asp-validation-for="Username" class="text-danger"></span>
+            <div class="auth-right-inner">
+                <!-- Logo badge -->
+                <div class="auth-logo-badge d-flex d-lg-none">
+                    <i class="bi bi-plus-lg"></i>
                 </div>
 
-                <div class="mb-3">
-                    <label asp-for="Password" class="form-label"></label>
-                    <input asp-for="Password" class="form-control form-control-lg" placeholder="Enter password" />
-                    <span asp-validation-for="Password" class="text-danger"></span>
+                <div class="auth-welcome">
+                    <h2 class="auth-right-title">Welcome Back <i class="bi bi-hand-wave"></i></h2>
+                    <p class="auth-right-sub">Sign in to your eMediEMR account</p>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <div class="form-check">
-                        <input asp-for="RememberMe" class="form-check-input" />
-                        <label asp-for="RememberMe" class="form-check-label">Remember me</label>
+                <form asp-action="Login" method="post" novalidate>
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small mb-3"></div>
+
+                    <div class="auth-input-group mb-3">
+                        <span class="auth-input-icon"><i class="bi bi-person-fill"></i></span>
+                        <div class="flex-grow-1">
+                            <label asp-for="Username" class="auth-label"></label>
+                            <input asp-for="Username" class="form-control auth-input" placeholder="Enter your username" autocomplete="username" />
+                            <span asp-validation-for="Username" class="text-danger small"></span>
+                        </div>
                     </div>
-                </div>
 
-                <button type="submit" class="btn btn-lg w-100 text-white" style="background: var(--emr-gradient)">Sign In</button>
-            </form>
+                    <div class="auth-input-group mb-3">
+                        <span class="auth-input-icon"><i class="bi bi-lock-fill"></i></span>
+                        <div class="flex-grow-1">
+                            <label asp-for="Password" class="auth-label"></label>
+                            <div class="position-relative">
+                                <input asp-for="Password" id="passwordInput" class="form-control auth-input pe-5" placeholder="Enter your password" autocomplete="current-password" />
+                                <button type="button" class="auth-eye-btn" onclick="togglePassword()" tabindex="-1">
+                                    <i class="bi bi-eye" id="eyeIcon"></i>
+                                </button>
+                            </div>
+                            <span asp-validation-for="Password" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div class="form-check">
+                            <input asp-for="RememberMe" class="form-check-input" />
+                            <label asp-for="RememberMe" class="form-check-label auth-remember">Remember me</label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn auth-signin-btn w-100">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                    </button>
+                </form>
+
+                <p class="auth-footer-note">
+                    <i class="bi bi-shield-lock-fill me-1"></i>
+                    Secured &amp; HIPAA-compliant access
+                </p>
+            </div>
         </div>
+
     </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        function togglePassword() {
+            const input = document.getElementById('passwordInput');
+            const icon  = document.getElementById('eyeIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
+    </script>
 }
