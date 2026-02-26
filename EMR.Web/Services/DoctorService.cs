@@ -18,7 +18,16 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                 ISNULL(dep.DepartmentNames, '') AS DepartmentNames,
                 d.PhoneNumber,
                 d.EmailId,
-                d.IsActive
+                d.IsActive,
+                ISNULL(fees.ConsultingFeeNames, '') AS ConsultingFeeNames,
+                CAST(CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM DoctorDepartmentMap ddm2
+                    INNER JOIN DepartmentMaster dm2 ON dm2.DeptId = ddm2.DeptId
+                    WHERE ddm2.DoctorId = d.DoctorId
+                      AND ddm2.IsActive = 1
+                      AND dm2.DeptType  = 'OPD'
+                ) THEN 1 ELSE 0 END AS BIT) AS HasOPDDept
             FROM DoctorMaster d
             INNER JOIN DoctorSpecialityMaster ps ON ps.SpecialityId = d.PrimarySpecialityId
             OUTER APPLY
@@ -31,6 +40,18 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     FOR XML PATH(''), TYPE
                 ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS DepartmentNames
             ) dep
+            OUTER APPLY
+            (
+                SELECT STUFF((
+                    SELECT ', ' + s.ItemName + ' (₹' + CAST(CAST(s.ItemCharges AS DECIMAL(18,0)) AS NVARCHAR) + ')'
+                    FROM DoctorConsultingFeeMap m
+                    INNER JOIN ServiceMaster s ON s.ServiceId = m.ServiceId
+                    WHERE m.DoctorId = d.DoctorId
+                      AND m.BranchId = ISNULL(@branchId, m.BranchId)
+                      AND m.IsActive = 1
+                    FOR XML PATH(''), TYPE
+                ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS ConsultingFeeNames
+            ) fees
             WHERE @branchId IS NULL
                OR d.CreatedBranchId = @branchId
                OR EXISTS (

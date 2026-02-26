@@ -52,7 +52,7 @@
     </div>
 </div>
 
-<div class="dashboard-panel doctor-table-panel">
+<div class="dashboard-panel doctor-table-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
@@ -60,6 +60,7 @@
                 <th>Doctor Name</th>
                 <th>Speciality</th>
                 <th>Departments</th>
+                <th>Consulting Fees</th>
                 <th>Phone</th>
                 <th>Email ID</th>
                 <th>Status</th>
@@ -75,6 +76,19 @@
                     <td class="fw-semibold"><i class="bi bi-person-badge text-primary me-2"></i>@item.FullName</td>
                     <td>@item.PrimarySpecialityName</td>
                     <td>@item.DepartmentNames</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(item.ConsultingFeeNames))
+                        {
+                            foreach (var fee in item.ConsultingFeeNames.Split(", ", StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                <span class="badge text-bg-info text-white me-1 mb-1">@fee</span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted small fst-italic">None</span>
+                        }
+                    </td>
                     <td>@item.PhoneNumber</td>
                     <td>@item.EmailId</td>
                     <td>
@@ -89,10 +103,11 @@
                     </td>
                     <td class="text-end">
                         <div class="dropdown doctor-action-dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                    data-bs-toggle="dropdown" data-bs-strategy="fixed" aria-expanded="false">
                                 <i class="bi bi-three-dots-vertical"></i>
                             </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                 <li>
                                     <a class="dropdown-item" asp-action="Details" asp-route-id="@item.DoctorId">
                                         <i class="bi bi-eye me-2"></i>View
@@ -103,6 +118,16 @@
                                         <i class="bi bi-pencil me-2"></i>Edit
                                     </a>
                                 </li>
+                                @if (item.HasOPDDept)
+                                {
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <button class="dropdown-item text-primary fw-semibold"
+                                                onclick="openConsultingModal(@item.DoctorId, '@Html.Raw(item.FullName.Replace("'","\\'"))')">
+                                            <i class="bi bi-currency-rupee me-2"></i>Add Consulting Charges
+                                        </button>
+                                    </li>
+                                }
                             </ul>
                         </div>
                     </td>
@@ -111,7 +136,7 @@
             @if (!Model.Any())
             {
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-5">
+                    <td colspan="9" class="text-center text-muted py-5">
                         <i class="bi bi-person-vcard fs-2 d-block mb-2 opacity-50"></i>
                         No doctors found for this branch.
                     </td>
@@ -121,4 +146,265 @@
     </table>
 </div>
 
+@* ═══════════════════ CONSULTING FEES MODAL ═══════════════════ *@
+<div class="modal fade" id="consultingFeeModal" tabindex="-1" aria-labelledby="consultingFeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="consultingFeeModalLabel">
+                    <i class="bi bi-currency-rupee me-2"></i>
+                    Consulting Charges &mdash; <span id="cfDoctorName"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
 
+                @* Search + Add row *@
+                <div class="card mb-4 border-0 bg-light rounded-3">
+                    <div class="card-body py-3">
+                        <label class="form-label fw-semibold mb-2">
+                            <i class="bi bi-search me-1 text-primary"></i>Search &amp; Add Consulting Fee
+                        </label>
+                        <div style="position:relative">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white"><i class="bi bi-stethoscope text-primary"></i></span>
+                                <input type="text" id="cfSearchInput" class="form-control"
+                                       placeholder="Type item code or service name…" autocomplete="off" />
+                                <button class="btn btn-primary px-3" id="cfAddBtn" disabled>
+                                    <i class="bi bi-plus-lg me-1"></i>Add
+                                </button>
+                            </div>
+                            <div id="cfSuggestions" class="list-group shadow"
+                                 style="position:absolute;left:0;right:0;top:100%;z-index:1060;max-height:220px;overflow-y:auto;display:none"></div>
+                        </div>
+                        <div id="cfSelectedPreview" class="mt-2 d-none">
+                            <span class="badge text-bg-primary px-3 py-2 fs-6" id="cfSelectedLabel"></span>
+                        </div>
+                        <div id="cfNoServices" class="alert alert-warning mt-2 mb-0 py-2 d-none">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            No consulting services available. Add them in
+                            <a href="/Services/Index" target="_blank">Service Master</a> first.
+                        </div>
+                    </div>
+                </div>
+
+                @* Mapped fees table *@
+                <h6 class="fw-bold mb-2">
+                    <i class="bi bi-list-check me-2 text-primary"></i>Mapped Consulting Fees
+                </h6>
+                <div id="cfTableWrapper">
+                    <p class="text-muted text-center py-3" id="cfLoadingMsg">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading…
+                    </p>
+                    <table class="table table-sm table-bordered table-hover align-middle mb-0 d-none" id="cfTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Item Code</th>
+                                <th>Item Name</th>
+                                <th class="text-end">Charges (₹)</th>
+                                <th class="text-center" style="width:70px">Remove</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cfTableBody"></tbody>
+                    </table>
+                    <p class="text-muted text-center py-3 fst-italic d-none" id="cfEmptyMsg">
+                        <i class="bi bi-inbox fs-4 d-block mb-1 opacity-50"></i>
+                        No consulting fees mapped yet.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+@Html.AntiForgeryToken()
+<script>
+(function () {
+    'use strict';
+
+    let currentDoctorId = 0;
+    let allServices     = [];
+    let selectedService = null;
+
+    function antiForgeryToken() {
+        return document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+    }
+
+    const modalEl       = document.getElementById('consultingFeeModal');
+    const bsModal       = new bootstrap.Modal(modalEl);
+    const nameEl        = document.getElementById('cfDoctorName');
+    const searchInput   = document.getElementById('cfSearchInput');
+    const suggestions   = document.getElementById('cfSuggestions');
+    const addBtn        = document.getElementById('cfAddBtn');
+    const selectedPrev  = document.getElementById('cfSelectedPreview');
+    const selectedLabel = document.getElementById('cfSelectedLabel');
+    const noServices    = document.getElementById('cfNoServices');
+    const loadingMsg    = document.getElementById('cfLoadingMsg');
+    const cfTable       = document.getElementById('cfTable');
+    const cfTableBody   = document.getElementById('cfTableBody');
+    const emptyMsg      = document.getElementById('cfEmptyMsg');
+
+    window.openConsultingModal = async function (doctorId, doctorName) {
+        currentDoctorId   = doctorId;
+        selectedService   = null;
+        nameEl.textContent = doctorName;
+        searchInput.value  = '';
+        suggestions.style.display = 'none';
+        suggestions.innerHTML = '';
+        selectedPrev.classList.add('d-none');
+        noServices.classList.add('d-none');
+        addBtn.disabled = true;
+        bsModal.show();
+        await loadServices();
+        await loadFees();
+    };
+
+    async function loadServices() {
+        try {
+            const res = await fetch('/Doctors/GetConsultingServices');
+            allServices = await res.json();
+            if (allServices.length === 0) noServices.classList.remove('d-none');
+        } catch { noServices.classList.remove('d-none'); }
+    }
+
+    async function loadFees() {
+        loadingMsg.classList.remove('d-none');
+        cfTable.classList.add('d-none');
+        emptyMsg.classList.add('d-none');
+        const res  = await fetch('/Doctors/GetDoctorFees?doctorId=' + currentDoctorId);
+        const fees = await res.json();
+        renderFees(fees);
+    }
+
+    function renderFees(fees) {
+        loadingMsg.classList.add('d-none');
+        cfTableBody.innerHTML = '';
+        if (!fees || fees.length === 0) {
+            cfTable.classList.add('d-none');
+            emptyMsg.classList.remove('d-none');
+            return;
+        }
+        emptyMsg.classList.add('d-none');
+        cfTable.classList.remove('d-none');
+        fees.forEach(f => {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td><span class="badge text-bg-light border font-monospace text-dark">' + f.itemCode + '</span></td>' +
+                '<td class="fw-semibold">' + f.itemName + '</td>' +
+                '<td class="text-end fw-semibold text-success">₹' + Number(f.itemCharges).toFixed(2) + '</td>' +
+                '<td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="window.removeFee(' + f.mappingId + ')" title="Remove"><i class="bi bi-trash3"></i></button></td>';
+            cfTableBody.appendChild(tr);
+        });
+    }
+
+    searchInput.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        selectedService = null;
+        addBtn.disabled = true;
+        selectedPrev.classList.add('d-none');
+        if (!q) { suggestions.style.display = 'none'; return; }
+        const matches = allServices.filter(s =>
+            s.itemCode.toLowerCase().includes(q) || s.itemName.toLowerCase().includes(q));
+        if (!matches.length) {
+            suggestions.innerHTML = '<div class="list-group-item text-muted fst-italic">No matches found</div>';
+            suggestions.style.display = 'block';
+            return;
+        }
+        suggestions.innerHTML = matches.map(s =>
+            '<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-id="' + s.serviceId + '">' +
+            '<span><span class="badge text-bg-light border font-monospace text-dark me-2">' + s.itemCode + '</span>' + s.itemName + '</span>' +
+            '<span class="text-success fw-semibold">₹' + Number(s.itemCharges).toFixed(2) + '</span>' +
+            '</button>'
+        ).join('');
+        suggestions.style.display = 'block';
+    });
+
+    suggestions.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-id]');
+        if (!btn) return;
+        const svc = allServices.find(s => s.serviceId == btn.dataset.id);
+        if (!svc) return;
+        selectedService = svc;
+        searchInput.value = svc.itemCode + ' — ' + svc.itemName;
+        suggestions.style.display = 'none';
+        selectedLabel.textContent = svc.itemCode + ' — ' + svc.itemName + ' (₹' + Number(svc.itemCharges).toFixed(2) + ')';
+        selectedPrev.classList.remove('d-none');
+        addBtn.disabled = false;
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!suggestions.contains(e.target) && e.target !== searchInput)
+            suggestions.style.display = 'none';
+    });
+
+    addBtn.addEventListener('click', async function () {
+        if (!selectedService) return;
+        addBtn.disabled = true;
+        addBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
+        try {
+            const res  = await fetch('/Doctors/AddConsultingFee', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgeryToken() },
+                body: JSON.stringify({ doctorId: currentDoctorId, serviceId: selectedService.serviceId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                renderFees(data.fees);
+                searchInput.value = '';
+                selectedService   = null;
+                selectedPrev.classList.add('d-none');
+                refreshRowFees(currentDoctorId, data.fees);
+            }
+        } finally {
+            addBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i>Add';
+            addBtn.disabled  = true;
+        }
+    });
+
+    window.removeFee = async function (mappingId) {
+        if (!confirm('Remove this consulting fee from the doctor?')) return;
+        const res  = await fetch('/Doctors/RemoveConsultingFee', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgeryToken() },
+            body: JSON.stringify({ mappingId: mappingId, doctorId: currentDoctorId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            renderFees(data.fees);
+            refreshRowFees(currentDoctorId, data.fees);
+        }
+    };
+
+    function refreshRowFees(doctorId, fees) {
+        const btn = document.querySelector('button[onclick*="openConsultingModal(' + doctorId + ',"]');
+        if (!btn) return;
+        const row = btn.closest('tr');
+        if (!row) return;
+        const td = row.querySelectorAll('td')[4];
+        if (!td) return;
+        if (!fees || fees.length === 0) {
+            td.innerHTML = '<span class="text-muted small fst-italic">None</span>';
+        } else {
+            td.innerHTML = fees.map(f =>
+                '<span class="badge text-bg-info text-white me-1 mb-1">' + f.itemName + ' (₹' + Number(f.itemCharges).toFixed(0) + ')</span>'
+            ).join('');
+        }
+    }
+
+    // reset state when modal closes
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        searchInput.value = '';
+        suggestions.style.display = 'none';
+        selectedPrev.classList.add('d-none');
+        addBtn.disabled = true;
+        selectedService = null;
+    });
+})();
+</script>
+}

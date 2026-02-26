@@ -70,6 +70,28 @@ public class DoctorListItemViewModel
     public string PhoneNumber { get; set; } = string.Empty;
     public string EmailId { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    /// <summary>Comma-separated "ItemName (₹Charges)" for all mapped consulting fees.</summary>
+    public string ConsultingFeeNames { get; set; } = string.Empty;
+    /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
+    public bool HasOPDDept { get; set; }
+}
+
+public class ConsultingFeeItemDto
+{
+    public int MappingId   { get; set; }
+    public int ServiceId   { get; set; }
+    public string ItemCode  { get; set; } = string.Empty;
+    public string ItemName  { get; set; } = string.Empty;
+    public decimal ItemCharges { get; set; }
+}
+
+public class ConsultingServiceOptionDto
+{
+    public int ServiceId    { get; set; }
+    public string ItemCode   { get; set; } = string.Empty;
+    public string ItemName   { get; set; } = string.Empty;
+    public decimal ItemCharges { get; set; }
+    public string Label => $"{ItemCode} — {ItemName} (₹{ItemCharges:N2})";
 }
 
 public class DoctorDetailsViewModel
@@ -93,6 +115,7 @@ public class DoctorDetailsViewModel
 
     public List<string> BranchNames { get; set; } = [];
     public List<string> DepartmentNames { get; set; } = [];
+    public List<ConsultingFeeItemDto> ConsultingFees { get; set; } = [];
 
     public DateTime CreatedDate { get; set; }
     public DateTime? ModifiedDate { get; set; }

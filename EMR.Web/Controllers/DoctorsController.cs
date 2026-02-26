@@ -15,6 +15,7 @@ public class DoctorsController(
     IDoctorService doctorService,
     IDoctorSpecialityService doctorSpecialityService,
     IDepartmentService departmentService,
+    IDoctorConsultingFeeService consultingFeeService,
     ApplicationDbContext dbContext) : Controller
 {
     public async Task<IActionResult> Index()
@@ -161,8 +162,12 @@ public class DoctorsController(
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
-        var model = await doctorService.GetDetailsAsync(id, User.GetCurrentBranchId());
+        var branchId = User.GetCurrentBranchId();
+        var model = await doctorService.GetDetailsAsync(id, branchId);
         if (model is null) return NotFound();
+
+        if (branchId.HasValue)
+            model.ConsultingFees = (await consultingFeeService.GetByDoctorAsync(id, branchId.Value)).ToList();
 
         return View(model);
     }
@@ -291,4 +296,59 @@ public class DoctorsController(
 
         return branch?.IsHOBranch == true;
     }
+
+    // ──────────────────────────────────────────────────────────
+    // Consulting Fees AJAX endpoints
+    // ──────────────────────────────────────────────────────────
+
+    /// GET /Doctors/GetConsultingServices?branchId=x
+    [HttpGet]
+    public async Task<IActionResult> GetConsultingServices()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Unauthorized();
+        var list = await consultingFeeService.GetConsultingServicesAsync(branchId.Value);
+        return Json(list.Select(x => new { x.ServiceId, x.ItemCode, x.ItemName, x.ItemCharges, x.Label }));
+    }
+
+    /// GET /Doctors/GetDoctorFees?doctorId=x
+    [HttpGet]
+    public async Task<IActionResult> GetDoctorFees(int doctorId)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Unauthorized();
+        var list = await consultingFeeService.GetByDoctorAsync(doctorId, branchId.Value);
+        return Json(list);
+    }
+
+    /// POST /Doctors/AddConsultingFee
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddConsultingFee([FromBody] ConsultingFeeRequest req)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Unauthorized();
+        if (req.DoctorId <= 0 || req.ServiceId <= 0)
+            return BadRequest(new { error = "Invalid request." });
+
+        await consultingFeeService.AddAsync(req.DoctorId, req.ServiceId, branchId.Value, User.GetUserId());
+        var fees = await consultingFeeService.GetByDoctorAsync(req.DoctorId, branchId.Value);
+        return Json(new { success = true, fees });
+    }
+
+    /// POST /Doctors/RemoveConsultingFee
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveConsultingFee([FromBody] ConsultingFeeRemoveRequest req)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Unauthorized();
+        if (req.MappingId <= 0 || req.DoctorId <= 0)
+            return BadRequest(new { error = "Invalid request." });
+
+        await consultingFeeService.RemoveAsync(req.MappingId, req.DoctorId, branchId.Value);
+        var fees = await consultingFeeService.GetByDoctorAsync(req.DoctorId, branchId.Value);
+        return Json(new { success = true, fees });
+    }
 }
+
+public record ConsultingFeeRequest(int DoctorId, int ServiceId);
+public record ConsultingFeeRemoveRequest(int MappingId, int DoctorId);
