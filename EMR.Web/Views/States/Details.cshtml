@@ -1,0 +1,65 @@
+@model EMR.Web.Models.Entities.StateMaster
+@{
+    ViewData["Title"] = "State Details";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 m-0">State Details</h1>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.StateId" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="card-soft p-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Country</p>
+            <p class="fw-semibold">@(Model.Country?.CountryName ?? "—")</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">State Code</p>
+            <p class="fw-semibold"><code>@Model.StateCode</code></p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">State Name</p>
+            <p class="fw-semibold">@Model.StateName</p>
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Status</p>
+            @if (Model.IsActive)
+            {
+                <span class="badge text-bg-success">Active</span>
+            }
+            else
+            {
+                <span class="badge text-bg-secondary">Inactive</span>
+            }
+        </div>
+        <div class="col-md-4">
+            <p class="text-muted small mb-1">Created</p>
+            <p class="fw-semibold">@Model.CreatedDate.ToString("dd MMM yyyy HH:mm")</p>
+        </div>
+        @if (Model.ModifiedDate.HasValue)
+        {
+            <div class="col-md-4">
+                <p class="text-muted small mb-1">Last Modified</p>
+                <p class="fw-semibold">@Model.ModifiedDate.Value.ToString("dd MMM yyyy HH:mm")</p>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="mt-3">
+    <form asp-action="Delete" asp-route-id="@Model.StateId" method="post"
+          onsubmit="return confirm('Delete this state? This cannot be undone.');">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-trash me-1"></i>Delete
+        </button>
+    </form>
+</div>

@@ -1,0 +1,103 @@
+@model EMR.Web.Models.ViewModels.CityFormViewModel
+@{
+    ViewData["Title"] = "Edit City";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 m-0">Edit City</h1>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<div class="card-soft p-4">
+    <form asp-action="Edit" method="post">
+        @Html.AntiForgeryToken()
+        <input asp-for="CityId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label asp-for="CountryId" class="form-label">Country <span class="text-danger">*</span></label>
+                <select asp-for="CountryId" asp-items="Model.Countries" class="form-select" id="CountryId">
+                    <option value="">-- Select Country --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="StateId" class="form-label">State <span class="text-danger">*</span></label>
+                <select asp-for="StateId" asp-items="Model.States" class="form-select" id="StateId">
+                    <option value="">-- Select State --</option>
+                </select>
+                <span asp-validation-for="StateId" class="text-danger small"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="DistrictId" class="form-label">District <span class="text-danger">*</span></label>
+                <select asp-for="DistrictId" asp-items="Model.Districts" class="form-select" id="DistrictId">
+                    <option value="">-- Select District --</option>
+                </select>
+                <span asp-validation-for="DistrictId" class="text-danger small"></span>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="CityCode" class="form-label">City Code <span class="text-danger">*</span></label>
+                <input asp-for="CityCode" class="form-control text-uppercase" maxlength="10" />
+                <span asp-validation-for="CityCode" class="text-danger small"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="CityName" class="form-label">City Name <span class="text-danger">*</span></label>
+                <input asp-for="CityName" class="form-control" maxlength="100" />
+                <span asp-validation-for="CityName" class="text-danger small"></span>
+            </div>
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" />
+                    <label asp-for="IsActive" class="form-check-label">Active</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save me-1"></i>Update
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script>
+        document.getElementById('CountryId').addEventListener('change', function () {
+            const countryId = this.value;
+            const stateSelect = document.getElementById('StateId');
+            const districtSelect = document.getElementById('DistrictId');
+            stateSelect.innerHTML = '<option value="">-- Select State --</option>';
+            districtSelect.innerHTML = '<option value="">-- Select District --</option>';
+            if (!countryId) return;
+            fetch(`/States/GetByCountry?countryId=${countryId}`)
+                .then(r => r.json())
+                .then(data => data.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.stateId; opt.text = s.stateName;
+                    stateSelect.appendChild(opt);
+                }));
+        });
+
+        document.getElementById('StateId').addEventListener('change', function () {
+            const stateId = this.value;
+            const districtSelect = document.getElementById('DistrictId');
+            districtSelect.innerHTML = '<option value="">-- Select District --</option>';
+            if (!stateId) return;
+            fetch(`/Districts/GetByState?stateId=${stateId}`)
+                .then(r => r.json())
+                .then(data => data.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.districtId; opt.text = d.districtName;
+                    districtSelect.appendChild(opt);
+                }));
+        });
+    </script>
+}

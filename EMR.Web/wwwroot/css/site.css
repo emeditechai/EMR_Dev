@@ -559,6 +559,60 @@ body {
   color: var(--emr-accent);
 }
 
+/* ── Master Grouped Dropdown ─────────────────────────────────────── */
+.dropdown-menu-master {
+  min-width: 200px;
+  padding: 0.4rem 0;
+  border: 1px solid #e0e6f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(13, 27, 62, 0.13);
+}
+
+/* Submenu parent row */
+.dropdown-submenu {
+  position: relative;
+}
+
+.dropdown-submenu-toggle {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--emr-primary) !important;
+}
+
+.submenu-arrow {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Flyout submenu panel */
+.dropdown-submenu-menu {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  min-width: 210px;
+  padding: 0.4rem 0;
+  border: 1px solid #e0e6f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(13, 27, 62, 0.13);
+  background: #fff;
+  z-index: 1055;
+  margin-left: 2px;
+}
+
+.dropdown-submenu-menu.show {
+  display: block;
+}
+
+/* Highlight parent row when submenu is open */
+.dropdown-submenu:hover > .dropdown-submenu-toggle,
+.dropdown-submenu:focus-within > .dropdown-submenu-toggle {
+  background: #eef3ff;
+}
+
 .card-soft {
   border: 1px solid #e6e9f2;
   border-radius: 12px;
