@@ -41,7 +41,7 @@ public class CountryService(IDbConnectionFactory db) : ICountryService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO CountryMaster (CountryCode, CountryName, Currency, IsActive, CreatedBy, CreatedDate)
-            VALUES (@CountryCode, @CountryName, @Currency, @IsActive, @userId, GETUTCDATE());
+            VALUES (@CountryCode, @CountryName, @Currency, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
             new { m.CountryCode, m.CountryName, m.Currency, m.IsActive, userId });
     }
@@ -56,7 +56,7 @@ public class CountryService(IDbConnectionFactory db) : ICountryService
                 Currency = @Currency,
                 IsActive = @IsActive,
                 ModifiedBy = @userId,
-                ModifiedDate = GETUTCDATE()
+                ModifiedDate = GETDATE()
             WHERE CountryId = @CountryId",
             new { m.CountryCode, m.CountryName, m.Currency, m.IsActive, userId, m.CountryId });
     }

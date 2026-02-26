@@ -51,7 +51,7 @@ public class CityService(IDbConnectionFactory db) : ICityService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO CityMaster (CityCode, CityName, DistrictId, IsActive, CreatedBy, CreatedDate)
-            VALUES (@CityCode, @CityName, @DistrictId, @IsActive, @userId, GETUTCDATE());
+            VALUES (@CityCode, @CityName, @DistrictId, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
             new { m.CityCode, m.CityName, m.DistrictId, m.IsActive, userId });
     }
@@ -63,7 +63,7 @@ public class CityService(IDbConnectionFactory db) : ICityService
             UPDATE CityMaster SET
                 CityCode = @CityCode, CityName = @CityName,
                 DistrictId = @DistrictId, IsActive = @IsActive,
-                ModifiedBy = @userId, ModifiedDate = GETUTCDATE()
+                ModifiedBy = @userId, ModifiedDate = GETDATE()
             WHERE CityId = @CityId",
             new { m.CityCode, m.CityName, m.DistrictId, m.IsActive, userId, m.CityId });
     }

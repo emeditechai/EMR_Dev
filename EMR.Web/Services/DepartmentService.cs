@@ -43,7 +43,7 @@ public class DepartmentService(IDbConnectionFactory db) : IDepartmentService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO DepartmentMaster (DeptCode, DeptName, DeptType, IsActive, CreatedBy, CreatedDate)
-            VALUES (@DeptCode, @DeptName, @DeptType, @IsActive, @userId, GETUTCDATE());
+            VALUES (@DeptCode, @DeptName, @DeptType, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
             new { m.DeptCode, m.DeptName, m.DeptType, m.IsActive, userId });
     }
@@ -58,7 +58,7 @@ public class DepartmentService(IDbConnectionFactory db) : IDepartmentService
                 DeptType     = @DeptType,
                 IsActive     = @IsActive,
                 ModifiedBy   = @userId,
-                ModifiedDate = GETUTCDATE()
+                ModifiedDate = GETDATE()
             WHERE DeptId = @DeptId",
             new { m.DeptCode, m.DeptName, m.DeptType, m.IsActive, userId, m.DeptId });
     }

@@ -51,7 +51,7 @@ public class AreaService(IDbConnectionFactory db) : IAreaService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO AreaMaster (AreaCode, AreaName, CityId, IsActive, CreatedBy, CreatedDate)
-            VALUES (@AreaCode, @AreaName, @CityId, @IsActive, @userId, GETUTCDATE());
+            VALUES (@AreaCode, @AreaName, @CityId, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
             new { m.AreaCode, m.AreaName, m.CityId, m.IsActive, userId });
     }
@@ -63,7 +63,7 @@ public class AreaService(IDbConnectionFactory db) : IAreaService
             UPDATE AreaMaster SET
                 AreaCode = @AreaCode, AreaName = @AreaName,
                 CityId = @CityId, IsActive = @IsActive,
-                ModifiedBy = @userId, ModifiedDate = GETUTCDATE()
+                ModifiedBy = @userId, ModifiedDate = GETDATE()
             WHERE AreaId = @AreaId",
             new { m.AreaCode, m.AreaName, m.CityId, m.IsActive, userId, m.AreaId });
     }

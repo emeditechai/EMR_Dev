@@ -51,7 +51,7 @@ public class StateService(IDbConnectionFactory db) : IStateService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO StateMaster (StateCode, StateName, CountryId, IsActive, CreatedBy, CreatedDate)
-            VALUES (@StateCode, @StateName, @CountryId, @IsActive, @userId, GETUTCDATE());
+            VALUES (@StateCode, @StateName, @CountryId, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
             new { m.StateCode, m.StateName, m.CountryId, m.IsActive, userId });
     }
@@ -63,7 +63,7 @@ public class StateService(IDbConnectionFactory db) : IStateService
             UPDATE StateMaster SET
                 StateCode = @StateCode, StateName = @StateName,
                 CountryId = @CountryId, IsActive = @IsActive,
-                ModifiedBy = @userId, ModifiedDate = GETUTCDATE()
+                ModifiedBy = @userId, ModifiedDate = GETDATE()
             WHERE StateId = @StateId",
             new { m.StateCode, m.StateName, m.CountryId, m.IsActive, userId, m.StateId });
     }

@@ -15,7 +15,7 @@ BEGIN
         DeptType     NVARCHAR(20)  NOT NULL,   -- OPD | IPD | Lab | Med
         IsActive     BIT           NOT NULL DEFAULT 1,
         CreatedBy    INT           NULL,
-        CreatedDate  DATETIME      NOT NULL DEFAULT GETUTCDATE(),
+        CreatedDate  DATETIME      NOT NULL DEFAULT GETDATE(),
         ModifiedBy   INT           NULL,
         ModifiedDate DATETIME      NULL,
 
@@ -57,7 +57,7 @@ USING (VALUES
 ON target.DeptId = source.DeptId
 WHEN NOT MATCHED THEN
     INSERT (DeptId, DeptCode, DeptName, DeptType, IsActive, CreatedDate)
-    VALUES (source.DeptId, source.DeptCode, source.DeptName, source.DeptType, 1, GETUTCDATE());
+    VALUES (source.DeptId, source.DeptCode, source.DeptName, source.DeptType, 1, GETDATE());
 
 SET IDENTITY_INSERT DepartmentMaster OFF;
 GO

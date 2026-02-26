@@ -51,7 +51,7 @@ public class DistrictService(IDbConnectionFactory db) : IDistrictService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO DistrictMaster (DistrictCode, DistrictName, StateId, IsActive, CreatedBy, CreatedDate)
-            VALUES (@DistrictCode, @DistrictName, @StateId, @IsActive, @userId, GETUTCDATE());
+            VALUES (@DistrictCode, @DistrictName, @StateId, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
             new { m.DistrictCode, m.DistrictName, m.StateId, m.IsActive, userId });
     }
@@ -63,7 +63,7 @@ public class DistrictService(IDbConnectionFactory db) : IDistrictService
             UPDATE DistrictMaster SET
                 DistrictCode = @DistrictCode, DistrictName = @DistrictName,
                 StateId = @StateId, IsActive = @IsActive,
-                ModifiedBy = @userId, ModifiedDate = GETUTCDATE()
+                ModifiedBy = @userId, ModifiedDate = GETDATE()
             WHERE DistrictId = @DistrictId",
             new { m.DistrictCode, m.DistrictName, m.StateId, m.IsActive, userId, m.DistrictId });
     }

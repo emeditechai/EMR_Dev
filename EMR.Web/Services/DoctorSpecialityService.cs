@@ -43,7 +43,7 @@ public class DoctorSpecialityService(IDbConnectionFactory db) : IDoctorSpecialit
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO DoctorSpecialityMaster (SpecialityName, IsActive, CreatedBy, CreatedDate)
-            VALUES (@SpecialityName, @IsActive, @userId, GETUTCDATE());
+            VALUES (@SpecialityName, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
             new { m.SpecialityName, m.IsActive, userId });
     }
@@ -56,7 +56,7 @@ public class DoctorSpecialityService(IDbConnectionFactory db) : IDoctorSpecialit
                 SpecialityName = @SpecialityName,
                 IsActive       = @IsActive,
                 ModifiedBy     = @userId,
-                ModifiedDate   = GETUTCDATE()
+                ModifiedDate   = GETDATE()
             WHERE SpecialityId = @SpecialityId",
             new { m.SpecialityName, m.IsActive, userId, m.SpecialityId });
     }
