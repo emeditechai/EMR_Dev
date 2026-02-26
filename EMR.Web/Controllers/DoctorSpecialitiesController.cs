@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class DoctorSpecialitiesController(IDoctorSpecialityService specialityService) : Controller
+public class DoctorSpecialitiesController(IDoctorSpecialityService specialityService, IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -33,6 +33,7 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
             IsActive       = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "DoctorSpecialities.Create", $"Created speciality: {model.SpecialityName.Trim()}");
         TempData["Success"] = "Doctor Speciality created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -66,6 +67,7 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
             IsActive       = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "DoctorSpecialities.Edit", $"Updated speciality: {model.SpecialityName.Trim()}");
         TempData["Success"] = "Doctor Speciality updated successfully.";
         return RedirectToAction(nameof(Index));
     }

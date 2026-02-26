@@ -2,6 +2,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services.Geography;
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -14,7 +15,8 @@ public class AreasController(
     ICityService cityService,
     IDistrictService districtService,
     IStateService stateService,
-    ICountryService countryService) : Controller
+    ICountryService countryService,
+    IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(int? countryId, int? stateId, int? districtId, int? cityId)
     {
@@ -95,6 +97,7 @@ public class AreasController(
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Areas.Create", $"Created area: {model.AreaCode.Trim().ToUpper()} - {model.AreaName.Trim()}");
         TempData["Success"] = "Area created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -154,6 +157,7 @@ public class AreasController(
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Areas.Edit", $"Updated area: {model.AreaCode.Trim().ToUpper()} - {model.AreaName.Trim()}");
         TempData["Success"] = "Area updated successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -170,6 +174,7 @@ public class AreasController(
     public async Task<IActionResult> Delete(int id)
     {
         await areaService.DeleteAsync(id);
+        await auditLogService.LogAsync("MasterData", "Areas.Delete", $"Deleted area ID: {id}");
         TempData["Success"] = "Area deleted successfully.";
         return RedirectToAction(nameof(Index));
     }

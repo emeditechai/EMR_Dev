@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class FloorsController(IFloorService floorService) : Controller
+public class FloorsController(IFloorService floorService, IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -34,6 +34,7 @@ public class FloorsController(IFloorService floorService) : Controller
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Floors.Create", $"Created floor: {model.FloorCode.Trim().ToUpper()} - {model.FloorName.Trim()}");
         TempData["Success"] = "Floor created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -69,6 +70,7 @@ public class FloorsController(IFloorService floorService) : Controller
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Floors.Edit", $"Updated floor: {model.FloorCode.Trim().ToUpper()} - {model.FloorName.Trim()}");
         TempData["Success"] = "Floor updated successfully.";
         return RedirectToAction(nameof(Index));
     }

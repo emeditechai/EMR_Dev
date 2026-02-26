@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class ServicesController(IServiceService serviceService) : Controller
+public class ServicesController(IServiceService serviceService, IAuditLogService auditLogService) : Controller
 {
     private static readonly List<string> ServiceTypes = ["Consulting", "Service"];
 
@@ -59,6 +59,7 @@ public class ServicesController(IServiceService serviceService) : Controller
             IsActive    = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Services.Create", $"Created service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}");
         TempData["Success"] = "Service created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -115,6 +116,7 @@ public class ServicesController(IServiceService serviceService) : Controller
             IsActive    = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Services.Edit", $"Updated service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}");
         TempData["Success"] = "Service updated successfully.";
         return RedirectToAction(nameof(Index));
     }

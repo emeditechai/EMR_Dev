@@ -16,7 +16,8 @@ public class DoctorsController(
     IDoctorSpecialityService doctorSpecialityService,
     IDepartmentService departmentService,
     IDoctorConsultingFeeService consultingFeeService,
-    ApplicationDbContext dbContext) : Controller
+    ApplicationDbContext dbContext,
+    IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -78,6 +79,7 @@ public class DoctorsController(
 
         await doctorService.CreateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Doctors.Create", $"Created doctor: {doctor.FullName} ({doctor.EmailId})");
         TempData["Success"] = "Doctor created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -155,6 +157,7 @@ public class DoctorsController(
 
         await doctorService.UpdateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Doctors.Edit", $"Updated doctor: {doctor.FullName} ({doctor.EmailId})");
         TempData["Success"] = "Doctor updated successfully.";
         return RedirectToAction(nameof(Index));
     }

@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class DepartmentsController(IDepartmentService departmentService) : Controller
+public class DepartmentsController(IDepartmentService departmentService, IAuditLogService auditLogService) : Controller
 {
     // ── Dept Type options (hardcoded) ──────────────────────────────────────
     private static readonly List<string> DeptTypes = ["OPD", "IPD", "Lab", "Med"];
@@ -46,6 +46,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Departments.Create", $"Created department: {model.DeptCode.Trim().ToUpper()} - {model.DeptName.Trim()} ({model.DeptType})");
         TempData["Success"] = "Department created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -88,6 +89,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Departments.Edit", $"Updated department: {model.DeptCode.Trim().ToUpper()} - {model.DeptName.Trim()} ({model.DeptType})");
         TempData["Success"] = "Department updated successfully.";
         return RedirectToAction(nameof(Index));
     }

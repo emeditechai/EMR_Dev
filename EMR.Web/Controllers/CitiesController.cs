@@ -2,6 +2,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services.Geography;
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -13,7 +14,8 @@ public class CitiesController(
     ICityService cityService,
     IDistrictService districtService,
     IStateService stateService,
-    ICountryService countryService) : Controller
+    ICountryService countryService,
+    IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(int? countryId, int? stateId, int? districtId)
     {
@@ -88,6 +90,7 @@ public class CitiesController(
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Cities.Create", $"Created city: {model.CityCode.Trim().ToUpper()} - {model.CityName.Trim()}");
         TempData["Success"] = "City created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -143,6 +146,7 @@ public class CitiesController(
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Cities.Edit", $"Updated city: {model.CityCode.Trim().ToUpper()} - {model.CityName.Trim()}");
         TempData["Success"] = "City updated successfully.";
         return RedirectToAction(nameof(Index));
     }

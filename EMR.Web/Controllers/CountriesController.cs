@@ -2,13 +2,14 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services.Geography;
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class CountriesController(ICountryService countryService) : Controller
+public class CountriesController(ICountryService countryService, IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -35,6 +36,7 @@ public class CountriesController(ICountryService countryService) : Controller
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Countries.Create", $"Created country: {model.CountryCode.Trim().ToUpper()} - {model.CountryName.Trim()}");
         TempData["Success"] = "Country created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -72,6 +74,7 @@ public class CountriesController(ICountryService countryService) : Controller
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "Countries.Edit", $"Updated country: {model.CountryCode.Trim().ToUpper()} - {model.CountryName.Trim()}");
         TempData["Success"] = "Country updated successfully.";
         return RedirectToAction(nameof(Index));
     }

@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class DoctorRoomsController(IDoctorRoomService doctorRoomService, IFloorService floorService) : Controller
+public class DoctorRoomsController(IDoctorRoomService doctorRoomService, IFloorService floorService, IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -61,6 +61,7 @@ public class DoctorRoomsController(IDoctorRoomService doctorRoomService, IFloorS
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "DoctorRooms.Create", $"Created doctor room: {roomName}");
         TempData["Success"] = "Doctor Room created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -116,6 +117,7 @@ public class DoctorRoomsController(IDoctorRoomService doctorRoomService, IFloorS
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "DoctorRooms.Edit", $"Updated doctor room: {roomName}");
         TempData["Success"] = "Doctor Room updated successfully.";
         return RedirectToAction(nameof(Index));
     }

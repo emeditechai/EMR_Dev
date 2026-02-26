@@ -2,6 +2,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services.Geography;
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -9,7 +10,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class StatesController(IStateService stateService, ICountryService countryService) : Controller
+public class StatesController(IStateService stateService, ICountryService countryService, IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(int? countryId)
     {
@@ -54,6 +55,7 @@ public class StatesController(IStateService stateService, ICountryService countr
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "States.Create", $"Created state: {model.StateCode.Trim().ToUpper()} - {model.StateName.Trim()}");
         TempData["Success"] = "State created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -96,6 +98,7 @@ public class StatesController(IStateService stateService, ICountryService countr
             IsActive = model.IsActive
         }, User.GetUserId());
 
+        await auditLogService.LogAsync("MasterData", "States.Edit", $"Updated state: {model.StateCode.Trim().ToUpper()} - {model.StateName.Trim()}");
         TempData["Success"] = "State updated successfully.";
         return RedirectToAction(nameof(Index));
     }
