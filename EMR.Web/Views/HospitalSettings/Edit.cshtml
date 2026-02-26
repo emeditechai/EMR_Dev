@@ -1,0 +1,207 @@
+@model EMR.Web.Models.ViewModels.HospitalSettingsViewModel
+@{
+    ViewData["Title"] = "Edit Hospital Settings";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-hospital-fill fs-4" style="color:var(--emr-primary)"></i>
+        <div>
+            <h1 class="h3 mb-0">Edit Hospital Settings</h1>
+            <small class="text-muted">Branch: <strong>@Model.BranchName</strong></small>
+        </div>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<form asp-action="Edit" method="post">
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="BranchId" />
+    <input type="hidden" asp-for="BranchName" />
+
+    <!-- Basic Information -->
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-info-circle-fill me-2"></i>Basic Information</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="HospitalName" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-building input-icon"></i>
+                        <input asp-for="HospitalName" class="form-control ps-icon" placeholder="Enter hospital name" />
+                    </div>
+                    <span asp-validation-for="HospitalName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Address" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-geo-alt input-icon"></i>
+                        <textarea asp-for="Address" class="form-control ps-icon" rows="2" placeholder="Full address"></textarea>
+                    </div>
+                    <span asp-validation-for="Address" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="ContactNumber1" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-telephone input-icon"></i>
+                        <input asp-for="ContactNumber1" class="form-control ps-icon" placeholder="Primary contact" />
+                    </div>
+                    <span asp-validation-for="ContactNumber1" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="ContactNumber2" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-telephone input-icon"></i>
+                        <input asp-for="ContactNumber2" class="form-control ps-icon" placeholder="Secondary contact" />
+                    </div>
+                    <span asp-validation-for="ContactNumber2" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="EmailAddress" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-envelope input-icon"></i>
+                        <input asp-for="EmailAddress" class="form-control ps-icon" placeholder="email@hospital.com" />
+                    </div>
+                    <span asp-validation-for="EmailAddress" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Website" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-globe input-icon"></i>
+                        <input asp-for="Website" class="form-control ps-icon" placeholder="https://www.hospital.com" />
+                    </div>
+                    <span asp-validation-for="Website" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="GSTCode" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-receipt input-icon"></i>
+                        <input asp-for="GSTCode" class="form-control ps-icon" placeholder="GST number" />
+                    </div>
+                    <span asp-validation-for="GSTCode" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="LogoPath" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-image input-icon"></i>
+                        <input asp-for="LogoPath" class="form-control ps-icon" placeholder="/uploads/logos/logo.png" />
+                    </div>
+                    <span asp-validation-for="LogoPath" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Status</label>
+                    <div class="uf-toggle-row border rounded px-3 py-2">
+                        <span class="uf-toggle-label">Active</span>
+                        <label class="ios-toggle ms-auto">
+                            <input type="checkbox" asp-for="IsActive" />
+                            <span class="ios-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timing -->
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-clock-fill me-2"></i>Timing</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="CheckInTime" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-box-arrow-in-right input-icon"></i>
+                        <input asp-for="CheckInTime" type="time" class="form-control ps-icon" />
+                    </div>
+                    <span asp-validation-for="CheckInTime" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="CheckOutTime" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-box-arrow-right input-icon"></i>
+                        <input asp-for="CheckOutTime" type="time" class="form-control ps-icon" />
+                    </div>
+                    <span asp-validation-for="CheckOutTime" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking & Policies -->
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-shield-check-fill me-2"></i>Booking &amp; Policies</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="uf-toggle-row border rounded px-3 py-2">
+                        <span class="uf-toggle-label">Bypass Actual Day Rate</span>
+                        <label class="ios-toggle ms-auto">
+                            <input type="checkbox" asp-for="ByPassActualDayRate" />
+                            <span class="ios-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="uf-toggle-row border rounded px-3 py-2">
+                        <span class="uf-toggle-label">Discount Approval Required</span>
+                        <label class="ios-toggle ms-auto">
+                            <input type="checkbox" asp-for="DiscountApprovalRequired" />
+                            <span class="ios-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="uf-toggle-row border rounded px-3 py-2">
+                        <span class="uf-toggle-label">Min. Booking Amount Required</span>
+                        <label class="ios-toggle ms-auto">
+                            <input type="checkbox" asp-for="MinimumBookingAmountRequired" />
+                            <span class="ios-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="MinimumBookingAmount" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-currency-rupee input-icon"></i>
+                        <input asp-for="MinimumBookingAmount" type="number" min="0" step="0.01"
+                               class="form-control ps-icon" placeholder="0.00" />
+                    </div>
+                    <span asp-validation-for="MinimumBookingAmount" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="NoShowGraceHours" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-hourglass-split input-icon"></i>
+                        <input asp-for="NoShowGraceHours" type="number" min="0" max="72"
+                               class="form-control ps-icon" placeholder="0" />
+                    </div>
+                    <span asp-validation-for="NoShowGraceHours" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="CancellationRefundApprovalThreshold" class="form-label fw-semibold"></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-currency-rupee input-icon"></i>
+                        <input asp-for="CancellationRefundApprovalThreshold" type="number" min="0" step="0.01"
+                               class="form-control ps-icon" placeholder="Optional" />
+                    </div>
+                    <span asp-validation-for="CancellationRefundApprovalThreshold" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </a>
+        <button type="submit" class="btn btn-primary px-4">
+            <i class="bi bi-floppy-fill me-1"></i>Save Settings
+        </button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

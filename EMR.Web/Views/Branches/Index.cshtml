@@ -1,0 +1,44 @@
+@model IEnumerable<EMR.Web.Models.Entities.BranchMaster>
+@{
+    ViewData["Title"] = "Branch Master";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 m-0">Branch Master</h1>
+    <a asp-action="Create" class="btn btn-primary"><i class="bi bi-building-add me-1"></i>Add Branch</a>
+</div>
+
+<div class="card-soft p-3 table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Branch Name</th>
+                <th>Code</th>
+                <th>Location</th>
+                <th>HO</th>
+                <th>Status</th>
+                <th class="text-end">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var branch in Model)
+            {
+                <tr>
+                    <td>@branch.BranchName</td>
+                    <td>@branch.BranchCode</td>
+                    <td>@string.Join(", ", new[] { branch.City, branch.State, branch.Country }.Where(x => !string.IsNullOrWhiteSpace(x)))</td>
+                    <td>@(branch.IsHOBranch ? "Yes" : "No")</td>
+                    <td>
+                        <span class="badge @(branch.IsActive ? "text-bg-success" : "text-bg-secondary")">
+                            @(branch.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@branch.BranchId" class="btn btn-sm btn-outline-secondary" title="View"><i class="bi bi-eye-fill"></i></a>
+                        <a asp-action="Edit" asp-route-id="@branch.BranchId" class="btn btn-sm btn-outline-primary">Edit</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

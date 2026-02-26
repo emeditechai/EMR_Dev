@@ -1,0 +1,218 @@
+@model EMR.Web.Models.ViewModels.AuditLogPagedResult
+@{
+    ViewData["Title"] = "Audit Logs";
+    var f = Model.Filter;
+
+    string Q(int? pg = null, int? ps = null) {
+        var p = pg ?? f.Page;
+        var s = ps ?? f.PageSize;
+        var parts = new List<string> { $"page={p}", $"pageSize={s}" };
+        if (!string.IsNullOrWhiteSpace(f.Search))    parts.Add($"search={Uri.EscapeDataString(f.Search)}");
+        if (!string.IsNullOrWhiteSpace(f.EventType)) parts.Add($"eventType={Uri.EscapeDataString(f.EventType)}");
+        if (f.DateFrom.HasValue) parts.Add($"dateFrom={f.DateFrom.Value:yyyy-MM-dd}");
+        if (f.DateTo.HasValue)   parts.Add($"dateTo={f.DateTo.Value:yyyy-MM-dd}");
+        return "?" + string.Join("&", parts);
+    }
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h3 mb-0">Audit Logs</h1>
+    <span class="text-muted small"><strong>@Model.TotalCount.ToString("N0")</strong> records found</span>
+</div>
+
+<form method="get" asp-action="Index" class="card-soft p-3 mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1">Search</label>
+            <div class="input-icon-wrap">
+                <i class="bi bi-search input-icon"></i>
+                <input type="text" name="search" value="@f.Search" class="form-control ps-icon form-control-sm"
+                       placeholder="Username / action / description" />
+            </div>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-semibold small mb-1">Event Type</label>
+            <select name="eventType" class="form-select form-select-sm">
+                <option value="">All Events</option>
+                @foreach (var et in Model.AvailableEventTypes)
+                {
+                    if (f.EventType == et)
+                    { <option value="@et" selected>@et</option> }
+                    else
+                    { <option value="@et">@et</option> }
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-semibold small mb-1">From Date</label>
+            <input type="date" name="dateFrom" value="@(f.DateFrom?.ToString("yyyy-MM-dd"))"
+                   class="form-control form-control-sm" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-semibold small mb-1">To Date</label>
+            <input type="date" name="dateTo" value="@(f.DateTo?.ToString("yyyy-MM-dd"))"
+                   class="form-control form-control-sm" />
+        </div>
+        <div class="col-md-1">
+            <label class="form-label fw-semibold small mb-1">Per Page</label>
+            <select name="pageSize" class="form-select form-select-sm">
+                @if (f.PageSize == 25)  { <option value="25"  selected>25</option>  } else { <option value="25">25</option>  }
+                @if (f.PageSize == 50)  { <option value="50"  selected>50</option>  } else { <option value="50">50</option>  }
+                @if (f.PageSize == 100) { <option value="100" selected>100</option> } else { <option value="100">100</option> }
+            </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm w-100">
+                <i class="bi bi-funnel-fill me-1"></i>Filter
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm" title="Clear filters">
+                <i class="bi bi-x-lg"></i>
+            </a>
+        </div>
+    </div>
+    <input type="hidden" name="page" value="1" />
+</form>
+
+<div class="card-soft p-3 table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Timestamp (UTC)</th>
+                <th>Event</th>
+                <th>Action</th>
+                <th>User</th>
+                <th>Branch</th>
+                <th>IP</th>
+                <th>Description</th>
+                <th class="text-end">View</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Items.Any())
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-journal-x fs-3 d-block mb-2"></i>No audit logs match the selected filters.
+                    </td>
+                </tr>
+            }
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td class="text-nowrap">@item.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td><span class="badge text-bg-light border">@item.EventType</span></td>
+                    <td>@item.ActionName</td>
+                    <td>@item.Username</td>
+                    <td>@item.BranchName</td>
+                    <td>@item.IpAddress</td>
+                    <td class="text-truncate" style="max-width:220px">@item.Description</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                title="View Details"
+                                data-bs-toggle="modal"
+                                data-bs-target="#auditModal"
+                                data-ts="@item.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss") UTC"
+                                data-event="@item.EventType"
+                                data-action="@item.ActionName"
+                                data-controller="@(item.ControllerName ?? "—")"
+                                data-route="@(item.RoutePath ?? "—")"
+                                data-method="@(item.HttpMethod ?? "—")"
+                                data-user="@item.Username"
+                                data-branch="@item.BranchName"
+                                data-ip="@(item.IpAddress ?? "—")"
+                                data-agent="@(item.UserAgent ?? "—")"
+                                data-desc="@(item.Description ?? "—")">
+                            <i class="bi bi-eye-fill"></i>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.TotalPages > 1)
+{
+    <div class="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
+        <small class="text-muted">
+            Showing @(((f.Page - 1) * f.PageSize) + 1)–@(Math.Min(f.Page * f.PageSize, Model.TotalCount))
+            of @Model.TotalCount.ToString("N0") records
+        </small>
+        <nav aria-label="Audit log pagination">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(f.Page == 1 ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: 1)" title="First">&laquo;</a>
+                </li>
+                <li class="page-item @(f.Page == 1 ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: f.Page - 1)">&lsaquo;</a>
+                </li>
+                @{
+                    int start = Math.Max(1, f.Page - 2);
+                    int end   = Math.Min(Model.TotalPages, f.Page + 2);
+                }
+                @for (int pg = start; pg <= end; pg++)
+                {
+                    <li class="page-item @(pg == f.Page ? "active" : "")">
+                        <a class="page-link" href="@Q(pg: pg)">@pg</a>
+                    </li>
+                }
+                <li class="page-item @(f.Page == Model.TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: f.Page + 1)">&rsaquo;</a>
+                </li>
+                <li class="page-item @(f.Page == Model.TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: Model.TotalPages)" title="Last">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
+<div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" style="background: linear-gradient(90deg, #f0f4ff 0%, #eaf2ff 100%); border-bottom: 1px solid #d8e4f5;">
+                <h5 class="modal-title fw-bold" id="auditModalLabel" style="color:var(--emr-primary)">
+                    <i class="bi bi-journal-text me-2"></i>Audit Log Detail
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Timestamp</div><div class="detail-value" id="am-ts"></div></div></div>
+                    <div class="col-md-3"><div class="detail-field"><div class="detail-label">Event Type</div><div class="detail-value" id="am-event"></div></div></div>
+                    <div class="col-md-3"><div class="detail-field"><div class="detail-label">HTTP Method</div><div class="detail-value" id="am-method"></div></div></div>
+                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Action</div><div class="detail-value" id="am-action"></div></div></div>
+                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Controller</div><div class="detail-value" id="am-controller"></div></div></div>
+                    <div class="col-12"><div class="detail-field"><div class="detail-label">Route Path</div><div class="detail-value" id="am-route"></div></div></div>
+                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">User</div><div class="detail-value" id="am-user"></div></div></div>
+                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Branch</div><div class="detail-value" id="am-branch"></div></div></div>
+                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">IP Address</div><div class="detail-value" id="am-ip"></div></div></div>
+                    <div class="col-12"><div class="detail-field"><div class="detail-label">User Agent</div><div class="detail-value small" id="am-agent" style="word-break:break-all"></div></div></div>
+                    <div class="col-12"><div class="detail-field"><div class="detail-label">Description</div><div class="detail-value" id="am-desc"></div></div></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+document.getElementById('auditModal').addEventListener('show.bs.modal', function (e) {
+    const b = e.relatedTarget;
+    document.getElementById('am-ts').textContent         = b.dataset.ts;
+    document.getElementById('am-event').textContent      = b.dataset.event;
+    document.getElementById('am-method').textContent     = b.dataset.method;
+    document.getElementById('am-action').textContent     = b.dataset.action;
+    document.getElementById('am-controller').textContent = b.dataset.controller;
+    document.getElementById('am-route').textContent      = b.dataset.route;
+    document.getElementById('am-user').textContent       = b.dataset.user;
+    document.getElementById('am-branch').textContent     = b.dataset.branch;
+    document.getElementById('am-ip').textContent         = b.dataset.ip;
+    document.getElementById('am-agent').textContent      = b.dataset.agent;
+    document.getElementById('am-desc').textContent       = b.dataset.desc;
+});
+</script>
+}

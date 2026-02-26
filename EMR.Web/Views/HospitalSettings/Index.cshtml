@@ -1,0 +1,214 @@
+@model EMR.Web.Models.ViewModels.HospitalSettingsViewModel
+@{
+    ViewData["Title"] = "Hospital Settings";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-hospital-fill fs-4" style="color:var(--emr-primary)"></i>
+        <div>
+            <h1 class="h3 mb-0">Hospital Settings</h1>
+            <small class="text-muted">Branch: <strong>@Model.BranchName</strong></small>
+        </div>
+    </div>
+    <a asp-action="Edit" class="btn btn-primary">
+        <i class="bi bi-pencil-square me-1"></i>Edit Settings
+    </a>
+</div>
+
+@if (Model.Id == 0)
+{
+    <div class="uf-section mb-3">
+        <div class="uf-section-body text-center py-5">
+            <i class="bi bi-exclamation-circle fs-1 text-warning d-block mb-3"></i>
+            <h5 class="text-muted">No settings configured for this branch yet.</h5>
+            <a asp-action="Edit" class="btn btn-primary mt-2">
+                <i class="bi bi-plus-circle me-1"></i>Configure Now
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Basic Information -->
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-info-circle-fill me-2"></i>Basic Information</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-building me-1"></i>Hospital Name</div>
+                        <div class="detail-value">@(Model.HospitalName ?? "—")</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-geo-alt me-1"></i>Address</div>
+                        <div class="detail-value">@(Model.Address ?? "—")</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-telephone me-1"></i>Contact Number 1</div>
+                        <div class="detail-value">@(Model.ContactNumber1 ?? "—")</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-telephone me-1"></i>Contact Number 2</div>
+                        <div class="detail-value">@(Model.ContactNumber2 ?? "—")</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-envelope me-1"></i>Email Address</div>
+                        <div class="detail-value">@(Model.EmailAddress ?? "—")</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-globe me-1"></i>Website</div>
+                        <div class="detail-value">
+                            @if (!string.IsNullOrWhiteSpace(Model.Website))
+                            {
+                                <a href="@Model.Website" target="_blank">@Model.Website</a>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-receipt me-1"></i>GST Code</div>
+                        <div class="detail-value"><code>@(Model.GSTCode ?? "—")</code></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-toggles me-1"></i>Status</div>
+                        <div class="detail-value">
+                            <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary") fs-6">
+                                @(Model.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timing -->
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-clock-fill me-2"></i>Timing</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-box-arrow-in-right me-1"></i>Check-In Time</div>
+                        <div class="detail-value">@(Model.CheckInTime ?? "—")</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-box-arrow-right me-1"></i>Check-Out Time</div>
+                        <div class="detail-value">@(Model.CheckOutTime ?? "—")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking & Policies -->
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-shield-check-fill me-2"></i>Booking &amp; Policies</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label">Bypass Actual Day Rate</div>
+                        <div class="detail-value">
+                            @if (Model.ByPassActualDayRate)
+                            {
+                                <span class="badge text-bg-warning">Enabled</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary">Disabled</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label">Discount Approval Required</div>
+                        <div class="detail-value">
+                            @if (Model.DiscountApprovalRequired)
+                            {
+                                <span class="badge text-bg-warning">Yes</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary">No</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label">Min. Booking Amount Required</div>
+                        <div class="detail-value">
+                            @if (Model.MinimumBookingAmountRequired)
+                            {
+                                <span class="badge text-bg-info">Yes — ₹@Model.MinimumBookingAmount.ToString("N2")</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary">No</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-hourglass-split me-1"></i>No-Show Grace Hours</div>
+                        <div class="detail-value">@Model.NoShowGraceHours hrs</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label"><i class="bi bi-currency-rupee me-1"></i>Cancellation Refund Approval Threshold</div>
+                        <div class="detail-value">
+                            @(Model.CancellationRefundApprovalThreshold.HasValue
+                                ? "₹" + Model.CancellationRefundApprovalThreshold.Value.ToString("N2")
+                                : "—")
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit -->
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-clock-history me-2"></i>Activity</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label">Created On</div>
+                        <div class="detail-value">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="detail-field">
+                        <div class="detail-label">Last Modified</div>
+                        <div class="detail-value">@(Model.LastModifiedDate?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}

@@ -1,0 +1,47 @@
+## .NET / ASP.NET Core
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Rider / Visual Studio / VS Code
+.vs/
+.vscode/
+.idea/
+*.DS_Store
+*.swp
+
+# Publish output
+[Pp]ublish/
+PublishProfiles/
+
+# Runtime / temp
+*.log
+*.tmp
+*.temp
+*.cache
+
+# User secrets
+secrets.json
+appsettings.Development.json
+
+# wwwroot uploads (user-generated, not source)
+wwwroot/uploads/
+
+# EF Core migration snapshots are tracked — no exclusion needed

@@ -1,0 +1,257 @@
+@model EMR.Web.Models.ViewModels.UserFormViewModel
+
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header">
+        <i class="bi bi-shield-lock-fill me-2"></i>Account Information
+    </div>
+    <div class="uf-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-person input-icon"></i>
+                    <input asp-for="Username" class="form-control ps-icon" placeholder="Enter username" autocomplete="off" />
+                </div>
+                <span asp-validation-for="Username" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Email</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-envelope input-icon"></i>
+                    <input asp-for="Email" class="form-control ps-icon" placeholder="user@example.com" />
+                </div>
+                <span asp-validation-for="Email" class="text-danger small"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header">
+        <i class="bi bi-person-lines-fill me-2"></i>Personal Information
+    </div>
+    <div class="uf-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-layout-text-sidebar input-icon"></i>
+                    <input asp-for="FirstName" class="form-control ps-icon" placeholder="Enter first name" />
+                </div>
+                <span asp-validation-for="FirstName" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-layout-text-sidebar input-icon"></i>
+                    <input asp-for="LastName" class="form-control ps-icon" placeholder="Enter last name" />
+                </div>
+                <span asp-validation-for="LastName" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Phone Number</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-telephone input-icon"></i>
+                    <input asp-for="PhoneNumber" class="form-control ps-icon" placeholder="Enter phone number" />
+                </div>
+                <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Branch Access</label>
+                <div class="cms-wrap" id="branchWrap">
+                    <div class="cms-trigger" id="branchTrigger" onclick="toggleCms('branchWrap')">
+                        <span id="branchLabel">Select branches...</span>
+                        <i class="bi bi-chevron-down cms-arrow"></i>
+                    </div>
+                    <div class="cms-dropdown" id="branchDropdown">
+                        @foreach (var branch in Model.BranchOptions)
+                        {
+                            <label class="cms-option">
+                                <input type="checkbox" name="SelectedBranchIds" value="@branch.Value"
+                                    @(Model.SelectedBranchIds.Contains(int.Parse(branch.Value)) ? "checked" : "")
+                                    onchange="onBranchChange()">
+                                <span>@branch.Text</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+                <small class="text-muted">Select one or more branches from the dropdown</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header">
+        <i class="bi bi-diagram-3-fill me-2"></i>Branch-wise Roles
+    </div>
+    <div class="uf-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Assign Roles</label>
+                <div class="cms-wrap" id="roleWrap">
+                    <div class="cms-trigger" id="roleTrigger" onclick="toggleCms('roleWrap')">
+                        <span id="roleLabel">Select branch-wise roles</span>
+                        <i class="bi bi-chevron-down cms-arrow"></i>
+                    </div>
+                    <div class="cms-dropdown" id="roleDropdown">
+                        @foreach (var group in Model.BranchRoleGroups)
+                        {
+                            <div class="cms-group" data-branch-id="@group.BranchId">
+                                <div class="cms-group-header">@group.BranchName</div>
+                                @foreach (var role in group.Roles)
+                                {
+                                    <label class="cms-option ps-3">
+                                        <input type="checkbox" name="SelectedRoleIds" value="@role.Id"
+                                            @(Model.SelectedRoleIds.Contains(role.Id) ? "checked" : "")
+                                            onchange="updateRoleLabel()">
+                                        <span>@role.Name</span>
+                                    </label>
+                                }
+                            </div>
+                        }
+                        @if (!Model.BranchRoleGroups.Any())
+                        {
+                            <div class="text-muted small px-3 py-2">No roles available. Add roles in Branch Master first.</div>
+                        }
+                    </div>
+                </div>
+                <small class="text-muted">Select role(s) for each selected branch</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header">
+        <i class="bi bi-lock-fill me-2"></i>Security
+    </div>
+    <div class="uf-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">
+                    Password @(Model.Id == 0 ? Html.Raw("<span class=\"text-danger\">*</span>") : Html.Raw("<small class=\"text-muted fw-normal\">(leave blank to keep current)</small>"))
+                </label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-lock input-icon"></i>
+                    <input asp-for="Password" class="form-control ps-icon pe-eye" id="pwdInput" 
+                           placeholder="Enter password" autocomplete="new-password" />
+                    <button type="button" class="eye-btn" onclick="togglePwd('pwdInput','eyePwd')" tabindex="-1">
+                        <i class="bi bi-eye" id="eyePwd"></i>
+                    </button>
+                </div>
+                <span asp-validation-for="Password" class="text-danger small"></span>
+                @if (Model.Id == 0)
+                {
+                    <small class="text-muted">Min 8 characters</small>
+                }
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Confirm Password @(Model.Id == 0 ? Html.Raw("<span class=\"text-danger\">*</span>") : "")</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-lock input-icon"></i>
+                    <input asp-for="ConfirmPassword" class="form-control ps-icon pe-eye" id="cpwdInput"
+                           placeholder="Re-enter password" autocomplete="new-password" />
+                    <button type="button" class="eye-btn" onclick="togglePwd('cpwdInput','eyeCpwd')" tabindex="-1">
+                        <i class="bi bi-eye" id="eyeCpwd"></i>
+                    </button>
+                </div>
+                <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header">
+        <i class="bi bi-toggles me-2"></i>Status
+    </div>
+    <div class="uf-section-body">
+        <div class="uf-toggle-row">
+            <div class="form-check form-switch mb-0">
+                <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
+            </div>
+            <div>
+                <div class="fw-semibold">Account Active</div>
+                <div class="text-muted small">Enable or disable user access</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Custom multi-select dropdown ─────────────────────────────
+function toggleCms(wrapId) {
+    const wrap = document.getElementById(wrapId);
+    const isOpen = wrap.classList.contains('cms-open');
+    // close all
+    document.querySelectorAll('.cms-wrap.cms-open').forEach(w => w.classList.remove('cms-open'));
+    if (!isOpen) wrap.classList.add('cms-open');
+}
+
+document.addEventListener('click', function (e) {
+    document.querySelectorAll('.cms-wrap.cms-open').forEach(wrap => {
+        if (!wrap.contains(e.target)) wrap.classList.remove('cms-open');
+    });
+});
+
+// ── Branch change handler ────────────────────────────────────
+function onBranchChange() {
+    const checkedBranches = [...document.querySelectorAll('input[name="SelectedBranchIds"]:checked')]
+        .map(cb => parseInt(cb.value));
+
+    // Show/hide role groups
+    document.querySelectorAll('.cms-group[data-branch-id]').forEach(group => {
+        const bid = parseInt(group.dataset.branchId);
+        const visible = checkedBranches.includes(bid);
+        group.style.display = visible ? '' : 'none';
+        if (!visible) {
+            group.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+    });
+
+    updateBranchLabel();
+    updateRoleLabel();
+}
+
+function updateBranchLabel() {
+    const checked = [...document.querySelectorAll('input[name="SelectedBranchIds"]:checked')];
+    const lbl = document.getElementById('branchLabel');
+    if (checked.length === 0) {
+        lbl.textContent = 'Select branches...';
+    } else {
+        lbl.textContent = checked.map(cb => cb.nextElementSibling.textContent.trim()).join(', ');
+    }
+}
+
+function updateRoleLabel() {
+    const checked = [...document.querySelectorAll('input[name="SelectedRoleIds"]:checked')];
+    const lbl = document.getElementById('roleLabel');
+    lbl.textContent = checked.length === 0 ? 'Select branch-wise roles' : checked.length + ' role(s) selected';
+}
+
+// ── Password eye toggle ──────────────────────────────────────
+function togglePwd(inputId, iconId) {
+    const inp = document.getElementById(inputId);
+    const ico = document.getElementById(iconId);
+    if (inp.type === 'password') {
+        inp.type = 'text';
+        ico.classList.replace('bi-eye', 'bi-eye-slash');
+    } else {
+        inp.type = 'password';
+        ico.classList.replace('bi-eye-slash', 'bi-eye');
+    }
+}
+
+// ── Init on load ─────────────────────────────────────────────
+(function () {
+    onBranchChange(); // set initial visibility of role groups
+    updateBranchLabel();
+    updateRoleLabel();
+})();
+</script>

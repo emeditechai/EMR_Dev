@@ -1,0 +1,27 @@
+@model EMR.Web.Models.ViewModels.UserFormViewModel
+@{
+    ViewData["Title"] = "Create User";
+}
+
+<div class="d-flex align-items-center mb-4">
+    <i class="bi bi-person-plus-fill fs-4 me-2" style="color:var(--emr-primary)"></i>
+    <h1 class="h3 mb-0">Create User</h1>
+</div>
+
+<form asp-action="Create" method="post" novalidate>
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+    <partial name="_Form" model="Model" />
+    <div class="mt-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary px-4">
+            <i class="bi bi-check-lg me-1"></i>Save
+        </button>
+        <a asp-action="Index" class="btn btn-outline-secondary px-4">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+        </a>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

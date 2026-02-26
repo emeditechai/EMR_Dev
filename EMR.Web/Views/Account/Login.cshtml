@@ -1,0 +1,54 @@
+@model EMR.Web.Models.ViewModels.LoginViewModel
+@{
+    Layout = "_AuthLayout";
+    ViewData["Title"] = "Login";
+}
+
+<div class="auth-card">
+    <div class="row g-0">
+        <div class="col-lg-6 auth-left d-none d-lg-block">
+            <h1 class="display-5 fw-bold mb-4">Welcome to EMR System</h1>
+            <p class="fs-5 mb-4">Secure electronic medical records with branch-wise role-based access control.</p>
+            <ul class="list-unstyled fs-5">
+                <li class="mb-2">● Multi-branch user access</li>
+                <li class="mb-2">● Role-based permissions</li>
+                <li class="mb-2">● Centralized user master</li>
+                <li class="mb-2">● Secure authentication flow</li>
+            </ul>
+        </div>
+        <div class="col-12 col-lg-6 auth-right">
+            <h2 class="brand-title mb-3">eMedi<span>EMR</span></h2>
+            <h3 class="h2 mb-4">Member Login</h3>
+
+            <form asp-action="Login" method="post" novalidate>
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Username" class="form-label"></label>
+                    <input asp-for="Username" class="form-control form-control-lg" placeholder="Enter username" />
+                    <span asp-validation-for="Username" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label"></label>
+                    <input asp-for="Password" class="form-control form-control-lg" placeholder="Enter password" />
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="form-check">
+                        <input asp-for="RememberMe" class="form-check-input" />
+                        <label asp-for="RememberMe" class="form-check-label">Remember me</label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-lg w-100 text-white" style="background: var(--emr-gradient)">Sign In</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

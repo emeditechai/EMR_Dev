@@ -1,0 +1,22 @@
+@model EMR.Web.Models.ViewModels.BranchFormViewModel
+@{
+    ViewData["Title"] = "Create Branch";
+}
+
+<h1 class="h3 mb-3">Create Branch</h1>
+
+<div class="card-soft p-4">
+    <form asp-action="Create" method="post" novalidate>
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <partial name="_Form" model="Model" />
+        <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

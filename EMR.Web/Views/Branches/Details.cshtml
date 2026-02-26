@@ -1,0 +1,186 @@
+@model EMR.Web.Models.ViewModels.BranchDetailsViewModel
+@{
+    ViewData["Title"] = "Branch Details";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-building-fill fs-4" style="color:var(--emr-primary)"></i>
+        <h1 class="h3 mb-0">Branch Details</h1>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.BranchId" class="btn btn-primary">
+            <i class="bi bi-pencil-square me-1"></i>Edit
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to List
+        </a>
+    </div>
+</div>
+
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header"><i class="bi bi-info-circle-fill me-2"></i>Branch Information</div>
+    <div class="uf-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="detail-field">
+                    <div class="detail-label">Branch Name</div>
+                    <div class="detail-value">@Model.BranchName</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="detail-field">
+                    <div class="detail-label">Branch Code</div>
+                    <div class="detail-value">@Model.BranchCode</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-geo-alt me-1"></i>City</div>
+                    <div class="detail-value">@(Model.City ?? "—")</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label">State</div>
+                    <div class="detail-value">@(Model.State ?? "—")</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label">Country</div>
+                    <div class="detail-value">@(Model.Country ?? "—")</div>
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.Address))
+            {
+                <div class="col-md-8">
+                    <div class="detail-field">
+                        <div class="detail-label">Address</div>
+                        <div class="detail-value">@Model.Address</div>
+                    </div>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.Pincode))
+            {
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label">Pincode</div>
+                        <div class="detail-value">@Model.Pincode</div>
+                    </div>
+                </div>
+            }
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label">Head Office Branch</div>
+                    <div class="detail-value">
+                        @if (Model.IsHOBranch)
+                        {
+                            <span class="badge text-bg-warning"><i class="bi bi-star-fill me-1"></i>Yes</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">No</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label">Status</div>
+                    <div class="detail-value">
+                        <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary") fs-6">
+                            @(Model.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label">Created On</div>
+                    <div class="detail-value">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</div>
+                </div>
+            </div>
+            @if (Model.ModifiedDate.HasValue)
+            {
+                <div class="col-md-4">
+                    <div class="detail-field">
+                        <div class="detail-label">Last Modified</div>
+                        <div class="detail-value">@Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm")</div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="uf-section h-100">
+            <div class="uf-section-header"><i class="bi bi-people-fill me-2"></i>Mapped Users (@Model.MappedUsersCount)</div>
+            <div class="uf-section-body">
+                @if (!Model.MappedUsers.Any())
+                {
+                    <div class="text-muted small">No users mapped to this branch.</div>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var user in Model.MappedUsers)
+                        {
+                            <span class="badge text-bg-light border text-dark fw-semibold">
+                                <i class="bi bi-person me-1"></i>@user
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="uf-section h-100">
+            <div class="uf-section-header"><i class="bi bi-diagram-2-fill me-2"></i>Branch Roles (@Model.Roles.Count)</div>
+            <div class="uf-section-body">
+                @if (!Model.Roles.Any())
+                {
+                    <div class="text-muted small">No roles defined for this branch.</div>
+                }
+                else
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var role in Model.Roles)
+                        {
+                            <span class="badge text-bg-primary fw-semibold">
+                                <i class="bi bi-shield-check me-1"></i>@role
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.detail-field {
+    background: #f8faff;
+    border: 1px solid #e8eef8;
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+}
+.detail-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #7a8aaa;
+    margin-bottom: 0.25rem;
+}
+.detail-value {
+    font-size: 0.97rem;
+    color: #1e2a3b;
+    font-weight: 500;
+}
+</style>

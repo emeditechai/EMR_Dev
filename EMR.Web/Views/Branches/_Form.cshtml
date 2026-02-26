@@ -1,0 +1,47 @@
+@model EMR.Web.Models.ViewModels.BranchFormViewModel
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="BranchName" class="form-label"></label>
+        <input asp-for="BranchName" class="form-control" />
+        <span asp-validation-for="BranchName" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="BranchCode" class="form-label"></label>
+        <input asp-for="BranchCode" class="form-control" />
+        <span asp-validation-for="BranchCode" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-4">
+        <label asp-for="Country" class="form-label"></label>
+        <input asp-for="Country" class="form-control" />
+    </div>
+    <div class="col-md-4">
+        <label asp-for="State" class="form-label"></label>
+        <input asp-for="State" class="form-control" />
+    </div>
+    <div class="col-md-4">
+        <label asp-for="City" class="form-label"></label>
+        <input asp-for="City" class="form-control" />
+    </div>
+
+    <div class="col-md-8">
+        <label asp-for="Address" class="form-label"></label>
+        <input asp-for="Address" class="form-control" />
+    </div>
+    <div class="col-md-4">
+        <label asp-for="Pincode" class="form-label"></label>
+        <input asp-for="Pincode" class="form-control" />
+    </div>
+
+    <div class="col-12 d-flex gap-4">
+        <div class="form-check">
+            <input asp-for="IsHOBranch" class="form-check-input" />
+            <label asp-for="IsHOBranch" class="form-check-label"></label>
+        </div>
+        <div class="form-check">
+            <input asp-for="IsActive" class="form-check-input" />
+            <label asp-for="IsActive" class="form-check-label"></label>
+        </div>
+    </div>
+</div>

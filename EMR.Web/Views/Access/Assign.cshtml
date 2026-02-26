@@ -1,0 +1,56 @@
+@model EMR.Web.Models.ViewModels.UserRoleAssignmentViewModel
+@{
+    ViewData["Title"] = "Assign Branch Roles";
+}
+
+<h1 class="h3 mb-1">Assign Roles</h1>
+<p class="text-muted">User: <strong>@Model.FullName</strong> (@Model.Username)</p>
+
+<div class="card-soft p-4">
+    <form asp-action="Assign" method="post">
+        @Html.AntiForgeryToken()
+        <input asp-for="UserId" type="hidden" />
+
+        <div class="mb-3">
+            <label asp-for="BranchId" class="form-label"></label>
+            <select asp-for="BranchId" asp-items="Model.UserBranchOptions" class="form-select" id="branchSelect"></select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Roles for selected branch</label>
+            <div class="row g-2">
+                @if (Model.RoleOptions.Count == 0)
+                {
+                    <div class="col-12 text-muted">No roles configured for this branch in roles master.</div>
+                }
+                else
+                {
+                    @for (var i = 0; i < Model.RoleOptions.Count; i++)
+                    {
+                        <div class="col-12 col-md-6">
+                            <div class="form-check border rounded p-2">
+                                <input type="hidden" asp-for="RoleOptions[i].RoleId" />
+                                <input type="hidden" asp-for="RoleOptions[i].RoleName" />
+                                <input class="form-check-input" asp-for="RoleOptions[i].IsSelected" />
+                                <label class="form-check-label" asp-for="RoleOptions[i].IsSelected">@Model.RoleOptions[i].RoleName</label>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Mapping</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('branchSelect')?.addEventListener('change', function () {
+            const branchId = this.value;
+            const userId = '@Model.UserId';
+            window.location.href = `/Access/Assign?userId=${userId}&branchId=${branchId}`;
+        });
+    </script>
+}
