@@ -1,0 +1,73 @@
+@model EMR.Web.Models.ViewModels.DepartmentFormViewModel
+@{
+    ViewData["Title"] = "Add Department";
+    var deptTypes = ViewBag.DeptTypes as List<string> ?? new List<string>();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Department</h1>
+        <small class="text-muted">Create a new hospital department</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to List
+    </a>
+</div>
+
+<div class="dashboard-panel" style="max-width:600px;">
+    <form asp-action="Create" method="post">
+        @Html.AntiForgeryToken()
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-sm-4">
+                <label asp-for="DeptCode" class="form-label fw-semibold">
+                    Dept Code <span class="text-danger">*</span>
+                </label>
+                <input asp-for="DeptCode" class="form-control text-uppercase"
+                       maxlength="20" placeholder="e.g. OPD-GEN" autofocus
+                       oninput="this.value=this.value.toUpperCase()" />
+                <span asp-validation-for="DeptCode" class="text-danger small"></span>
+            </div>
+            <div class="col-sm-8">
+                <label asp-for="DeptName" class="form-label fw-semibold">
+                    Dept Name <span class="text-danger">*</span>
+                </label>
+                <input asp-for="DeptName" class="form-control"
+                       maxlength="150" placeholder="e.g. General OPD" />
+                <span asp-validation-for="DeptName" class="text-danger small"></span>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="DeptType" class="form-label fw-semibold">
+                Type <span class="text-danger">*</span>
+            </label>
+            <select asp-for="DeptType" class="form-select">
+                <option value="">-- Select Type --</option>
+                @foreach (var t in deptTypes)
+                {
+                    <option value="@t">@t</option>
+                }
+            </select>
+            <span asp-validation-for="DeptType" class="text-danger small"></span>
+        </div>
+
+        <div class="mb-4">
+            <div class="form-check form-switch">
+                <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" checked />
+                <label asp-for="IsActive" class="form-check-label">Active</label>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary px-4">
+                <i class="bi bi-save me-1"></i>Save
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

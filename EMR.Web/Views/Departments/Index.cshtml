@@ -1,0 +1,153 @@
+@model IEnumerable<EMR.Web.Models.Entities.DepartmentMaster>
+@{
+    ViewData["Title"] = "Department Master";
+    var total    = Model.Count();
+    var active   = Model.Count(x => x.IsActive);
+    var inactive = total - active;
+    var opdCount = Model.Count(x => x.DeptType == "OPD");
+    var ipdCount = Model.Count(x => x.DeptType == "IPD");
+    var labCount = Model.Count(x => x.DeptType == "Lab");
+    var medCount = Model.Count(x => x.DeptType == "Med");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Department Master</h1>
+        <small class="text-muted">Manage hospital departments (OPD / IPD / Lab / Med)</small>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Add Department
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-building-fill"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@inactive</div>
+                <div class="stat-label">Inactive</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="stat-card stat-teal">
+            <div class="stat-icon"><i class="bi bi-person-walking"></i></div>
+            <div>
+                <div class="stat-value">@opdCount</div>
+                <div class="stat-label">OPD</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="stat-card stat-purple">
+            <div class="stat-icon"><i class="bi bi-hospital-fill"></i></div>
+            <div>
+                <div class="stat-value">@ipdCount</div>
+                <div class="stat-label">IPD</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-2">
+        <div class="stat-card stat-yellow">
+            <div class="stat-icon"><i class="bi bi-eyedropper"></i></div>
+            <div>
+                <div class="stat-value">@labCount</div>
+                <div class="stat-label">Lab / Med</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Dept Code</th>
+                <th>Dept Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="badge text-bg-light border text-dark font-monospace fs-6">@item.DeptCode</span>
+                    </td>
+                    <td class="fw-semibold">
+                        <i class="bi bi-building text-primary me-2"></i>@item.DeptName
+                    </td>
+                    <td>
+                        @{
+                            var (typeBadge, typeIcon) = item.DeptType switch {
+                                "OPD" => ("text-bg-info",    "bi-person-walking"),
+                                "IPD" => ("text-bg-primary", "bi-hospital-fill"),
+                                "Lab" => ("text-bg-warning", "bi-eyedropper"),
+                                "Med" => ("text-bg-success", "bi-capsule"),
+                                _     => ("text-bg-secondary","bi-question")
+                            };
+                        }
+                        <span class="badge @typeBadge">
+                            <i class="bi @typeIcon me-1"></i>@item.DeptType
+                        </span>
+                    </td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.DeptId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.DeptId"
+                           class="btn btn-sm btn-outline-primary" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="bi bi-building fs-2 d-block mb-2 opacity-50"></i>
+                        No departments found. <a asp-action="Create">Add one now.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
