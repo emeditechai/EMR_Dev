@@ -10,4 +10,16 @@ public class OPDController : Controller
     {
         return View();
     }
+
+    public IActionResult PatientRegistration()
+    {
+        ViewData["Title"] = "Patient Registration";
+        return View();
+    }
+
+    public IActionResult ServiceBooking()
+    {
+        ViewData["Title"] = "Service Booking";
+        return View();
+    }
 }
