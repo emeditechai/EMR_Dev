@@ -11,9 +11,17 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class StatesController(IStateService stateService, ICountryService countryService) : Controller
 {
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(int? countryId)
     {
-        var list = await stateService.GetAllAsync();
+        var all = await stateService.GetAllAsync();
+        var list = countryId.HasValue
+            ? all.Where(s => s.CountryId == countryId.Value)
+            : all;
+
+        ViewBag.Countries = (await countryService.GetActiveAsync())
+            .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), c.CountryId == countryId))
+            .ToList();
+        ViewBag.SelectedCountryId = countryId;
         return View(list);
     }
 

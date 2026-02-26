@@ -1,6 +1,10 @@
 @model IEnumerable<EMR.Web.Models.Entities.DistrictMaster>
 @{
     ViewData["Title"] = "District Master";
+    var countries = ViewBag.Countries as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var states   = ViewBag.States   as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    int? selCountry = ViewBag.SelectedCountryId;
+    int? selState   = ViewBag.SelectedStateId;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -8,6 +12,64 @@
     <a asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add District
     </a>
+</div>
+
+@* Filter Panel *@
+<div class="card-soft p-3 mb-3">
+    <form method="get" asp-action="Index" id="filterForm">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1"><i class="bi bi-globe me-1"></i>Country</label>
+                <select id="fCountry" name="countryId">
+                    <option value="">All Countries</option>
+                    @foreach (var c in countries)
+                    {
+                        if (c.Selected)
+                        {
+                            <option value="@c.Value" selected="selected">@c.Text</option>
+                        }
+                        else
+                        {
+                            <option value="@c.Value">@c.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1"><i class="bi bi-map me-1"></i>State</label>
+                <select id="fState" name="stateId">
+                    <option value="">All States</option>
+                    @foreach (var s in states)
+                    {
+                        if (s.Selected)
+                        {
+                            <option value="@s.Value" selected="selected">@s.Text</option>
+                        }
+                        else
+                        {
+                            <option value="@s.Value">@s.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-auto d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-funnel me-1"></i>Filter
+                </button>
+                <a asp-action="Index" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle me-1"></i>Clear
+                </a>
+            </div>
+            @if (selCountry.HasValue || selState.HasValue)
+            {
+                <div class="col-md-auto">
+                    <span class="badge text-bg-info py-2 px-3">
+                        <i class="bi bi-table me-1"></i>@Model.Count() record(s)
+                    </span>
+                </div>
+            }
+        </div>
+    </form>
 </div>
 
 <div class="card-soft p-3 table-responsive">
@@ -58,3 +120,28 @@
         </tbody>
     </table>
 </div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <script>
+        const tsCountry = new TomSelect('#fCountry', {
+            placeholder: 'Search country...', allowEmptyOption: true,
+            onChange: function (val) {
+                tsState.clear(); tsState.clearOptions();
+                tsState.addOption({ value: '', text: 'All States' });
+                if (!val) return;
+                fetch(`/States/GetByCountry?countryId=${val}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        data.forEach(s => tsState.addOption({ value: s.stateId, text: s.stateName }));
+                        tsState.refreshOptions(false);
+                    });
+            }
+        });
+        const tsState = new TomSelect('#fState', {
+            placeholder: 'Search state...', allowEmptyOption: true,
+            onChange: function () { document.getElementById('filterForm').submit(); }
+        });
+    </script>
+}

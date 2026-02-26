@@ -16,9 +16,53 @@ public class AreasController(
     IStateService stateService,
     ICountryService countryService) : Controller
 {
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(int? countryId, int? stateId, int? districtId, int? cityId)
     {
-        var list = await areaService.GetAllAsync();
+        var all = await areaService.GetAllAsync();
+        IEnumerable<AreaMaster> list = all;
+        if (cityId.HasValue)
+        {
+            list = all.Where(a => a.CityId == cityId.Value);
+        }
+        else if (districtId.HasValue)
+        {
+            var cities = await cityService.GetByDistrictAsync(districtId.Value);
+            var cityIds = cities.Select(c => c.CityId).ToHashSet();
+            list = all.Where(a => cityIds.Contains(a.CityId));
+        }
+        else if (stateId.HasValue)
+        {
+            var districts = await districtService.GetByStateAsync(stateId.Value);
+            var districtIds = districts.Select(d => d.DistrictId).ToHashSet();
+            var cityIds = new HashSet<int>();
+            foreach (var did in districtIds)
+                foreach (var c in await cityService.GetByDistrictAsync(did))
+                    cityIds.Add(c.CityId);
+            list = all.Where(a => cityIds.Contains(a.CityId));
+        }
+
+        ViewBag.Countries = (await countryService.GetActiveAsync())
+            .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), c.CountryId == countryId))
+            .ToList();
+        ViewBag.States = countryId.HasValue
+            ? (await stateService.GetByCountryAsync(countryId.Value))
+                .Select(s => new SelectListItem(s.StateName, s.StateId.ToString(), s.StateId == stateId))
+                .ToList()
+            : new List<SelectListItem>();
+        ViewBag.Districts = stateId.HasValue
+            ? (await districtService.GetByStateAsync(stateId.Value))
+                .Select(d => new SelectListItem(d.DistrictName, d.DistrictId.ToString(), d.DistrictId == districtId))
+                .ToList()
+            : new List<SelectListItem>();
+        ViewBag.Cities = districtId.HasValue
+            ? (await cityService.GetByDistrictAsync(districtId.Value))
+                .Select(c => new SelectListItem(c.CityName, c.CityId.ToString(), c.CityId == cityId))
+                .ToList()
+            : new List<SelectListItem>();
+        ViewBag.SelectedCountryId = countryId;
+        ViewBag.SelectedStateId = stateId;
+        ViewBag.SelectedDistrictId = districtId;
+        ViewBag.SelectedCityId = cityId;
         return View(list);
     }
 

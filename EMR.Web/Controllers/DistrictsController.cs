@@ -14,9 +14,31 @@ public class DistrictsController(
     IStateService stateService,
     ICountryService countryService) : Controller
 {
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(int? countryId, int? stateId)
     {
-        var list = await districtService.GetAllAsync();
+        var all = await districtService.GetAllAsync();
+        IEnumerable<DistrictMaster> list = all;
+        if (stateId.HasValue)
+        {
+            list = all.Where(d => d.StateId == stateId.Value);
+        }
+        else if (countryId.HasValue)
+        {
+            var states = await stateService.GetByCountryAsync(countryId.Value);
+            var stateIds = states.Select(s => s.StateId).ToHashSet();
+            list = all.Where(d => stateIds.Contains(d.StateId));
+        }
+
+        ViewBag.Countries = (await countryService.GetActiveAsync())
+            .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), c.CountryId == countryId))
+            .ToList();
+        ViewBag.States = countryId.HasValue
+            ? (await stateService.GetByCountryAsync(countryId.Value))
+                .Select(s => new SelectListItem(s.StateName, s.StateId.ToString(), s.StateId == stateId))
+                .ToList()
+            : new List<SelectListItem>();
+        ViewBag.SelectedCountryId = countryId;
+        ViewBag.SelectedStateId = stateId;
         return View(list);
     }
 
