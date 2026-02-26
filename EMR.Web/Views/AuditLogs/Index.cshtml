@@ -27,21 +27,30 @@
 
 <div class="row g-3 mb-4">
     <div class="col-sm-4">
-        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
-            <i class="bi bi-journal-text fs-2"></i>
-            <div><h2 class="mb-0">@Model.TotalCount.ToString("N0")</h2><small>Total Log Entries</small></div>
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-journal-text"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalCount.ToString("N0")</div>
+                <div class="stat-label">Total Log Entries</div>
+            </div>
         </div>
     </div>
     <div class="col-sm-4">
-        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
-            <i class="bi bi-tags-fill fs-2"></i>
-            <div><h2 class="mb-0">@Model.AvailableEventTypes.Count()</h2><small>Event Types</small></div>
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-tags-fill"></i></div>
+            <div>
+                <div class="stat-value">@Model.AvailableEventTypes.Count()</div>
+                <div class="stat-label">Event Types</div>
+            </div>
         </div>
     </div>
     <div class="col-sm-4">
-        <div class="kpi-card kpi-yellow d-flex align-items-center gap-3">
-            <i class="bi bi-file-earmark-text fs-2"></i>
-            <div><h2 class="mb-0">@Model.TotalPages</h2><small>Total Pages</small></div>
+        <div class="stat-card stat-yellow">
+            <div class="stat-icon"><i class="bi bi-file-earmark-text"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalPages</div>
+                <div class="stat-label">Total Pages</div>
+            </div>
         </div>
     </div>
 </div>
