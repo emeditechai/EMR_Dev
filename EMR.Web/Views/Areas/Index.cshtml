@@ -1,25 +1,52 @@
 @model IEnumerable<EMR.Web.Models.Entities.AreaMaster>
 @{
     ViewData["Title"] = "Area Master";
-    var countries = ViewBag.Countries as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-    var states    = ViewBag.States    as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-    var districts = ViewBag.Districts as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-    var cities    = ViewBag.Cities    as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var countries    = ViewBag.Countries  as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var states       = ViewBag.States     as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var districts    = ViewBag.Districts  as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var cities       = ViewBag.Cities     as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
     int? selCountry  = ViewBag.SelectedCountryId;
     int? selState    = ViewBag.SelectedStateId;
     int? selDistrict = ViewBag.SelectedDistrictId;
     int? selCity     = ViewBag.SelectedCityId;
+    var total        = Model.Count();
+    var active       = Model.Count(x => x.IsActive);
+    var inactive     = total - active;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 m-0">Area Master</h1>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Area Master</h1>
+        <small class="text-muted">Manage locality areas within cities</small>
+    </div>
     <a asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add Area
     </a>
 </div>
 
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-pin-map-fill fs-2"></i>
+            <div><h2 class="mb-0">@total</h2><small>Total Areas</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-check-circle fs-2"></i>
+            <div><h2 class="mb-0">@active</h2><small>Active</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-red d-flex align-items-center gap-3">
+            <i class="bi bi-x-circle fs-2"></i>
+            <div><h2 class="mb-0">@inactive</h2><small>Inactive</small></div>
+        </div>
+    </div>
+</div>
+
 @* Filter Panel *@
-<div class="card-soft p-3 mb-3">
+<div class="dashboard-panel mb-3">
     <form method="get" asp-action="Index" id="filterForm">
         <div class="row g-2 align-items-end">
             <div class="col-md-3 col-lg-2">
@@ -86,7 +113,7 @@
     </form>
 </div>
 
-<div class="card-soft p-3 table-responsive">
+<div class="dashboard-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
@@ -103,9 +130,9 @@
             @foreach (var item in Model)
             {
                 <tr>
-                    <td>@(i++)</td>
+                    <td class="text-muted small">@(i++)</td>
                     <td><code>@item.AreaCode</code></td>
-                    <td>@item.AreaName</td>
+                    <td class="fw-semibold">@item.AreaName</td>
                     <td>@(item.City?.CityName ?? "—")</td>
                     <td>
                         @if (item.IsActive)
@@ -129,7 +156,7 @@
             }
             @if (!Model.Any())
             {
-                <tr><td colspan="6" class="text-center text-muted py-4">No areas found.</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-pin-map fs-3 d-block mb-2"></i>No areas found.</td></tr>
             }
         </tbody>
     </table>
@@ -142,34 +169,49 @@
         const tsCountry = new TomSelect('#fCountry', {
             placeholder: 'Search country...', allowEmptyOption: true,
             onChange: function (val) {
-                tsState.clear(); tsState.clearOptions(); tsState.addOption({ value: '', text: 'All States' });
-                tsDistrict.clear(); tsDistrict.clearOptions(); tsDistrict.addOption({ value: '', text: 'All Districts' });
-                tsCity.clear(); tsCity.clearOptions(); tsCity.addOption({ value: '', text: 'All Cities' });
+                tsState.clear(); tsState.clearOptions();
+                tsState.addOption({ value: '', text: 'All States' });
+                tsDistrict.clear(); tsDistrict.clearOptions();
+                tsDistrict.addOption({ value: '', text: 'All Districts' });
+                tsCity.clear(); tsCity.clearOptions();
+                tsCity.addOption({ value: '', text: 'All Cities' });
                 if (!val) return;
                 fetch(`/States/GetByCountry?countryId=${val}`)
                     .then(r => r.json())
-                    .then(data => { data.forEach(s => tsState.addOption({ value: s.stateId, text: s.stateName })); tsState.refreshOptions(false); });
+                    .then(data => {
+                        data.forEach(s => tsState.addOption({ value: s.stateId, text: s.stateName }));
+                        tsState.refreshOptions(false);
+                    });
             }
         });
         const tsState = new TomSelect('#fState', {
             placeholder: 'Search state...', allowEmptyOption: true,
             onChange: function (val) {
-                tsDistrict.clear(); tsDistrict.clearOptions(); tsDistrict.addOption({ value: '', text: 'All Districts' });
-                tsCity.clear(); tsCity.clearOptions(); tsCity.addOption({ value: '', text: 'All Cities' });
+                tsDistrict.clear(); tsDistrict.clearOptions();
+                tsDistrict.addOption({ value: '', text: 'All Districts' });
+                tsCity.clear(); tsCity.clearOptions();
+                tsCity.addOption({ value: '', text: 'All Cities' });
                 if (!val) return;
                 fetch(`/Districts/GetByState?stateId=${val}`)
                     .then(r => r.json())
-                    .then(data => { data.forEach(d => tsDistrict.addOption({ value: d.districtId, text: d.districtName })); tsDistrict.refreshOptions(false); });
+                    .then(data => {
+                        data.forEach(d => tsDistrict.addOption({ value: d.districtId, text: d.districtName }));
+                        tsDistrict.refreshOptions(false);
+                    });
             }
         });
         const tsDistrict = new TomSelect('#fDistrict', {
             placeholder: 'Search district...', allowEmptyOption: true,
             onChange: function (val) {
-                tsCity.clear(); tsCity.clearOptions(); tsCity.addOption({ value: '', text: 'All Cities' });
+                tsCity.clear(); tsCity.clearOptions();
+                tsCity.addOption({ value: '', text: 'All Cities' });
                 if (!val) return;
                 fetch(`/Cities/GetByDistrict?districtId=${val}`)
                     .then(r => r.json())
-                    .then(data => { data.forEach(c => tsCity.addOption({ value: c.cityId, text: c.cityName })); tsCity.refreshOptions(false); });
+                    .then(data => {
+                        data.forEach(c => tsCity.addOption({ value: c.cityId, text: c.cityName }));
+                        tsCity.refreshOptions(false);
+                    });
             }
         });
         const tsCity = new TomSelect('#fCity', {

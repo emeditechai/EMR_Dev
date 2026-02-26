@@ -1,20 +1,48 @@
 @model IEnumerable<EMR.Web.Models.ViewModels.UserListItemViewModel>
 @{
     ViewData["Title"] = "User Master";
+    var total    = Model.Count();
+    var active   = Model.Count(x => x.IsActive);
+    var inactive = total - active;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h3 mb-0">User Master</h1>
+        <h1 class="h3 mb-0 fw-bold">User Master</h1>
         @if (ViewBag.BranchName is string bn)
         {
-            <small class="text-muted"><i class="bi bi-building me-1"></i>Showing users for branch: <strong>@bn</strong></small>
+            <small class="text-muted"><i class="bi bi-building me-1"></i>Branch: <strong>@bn</strong></small>
+        }
+        else
+        {
+            <small class="text-muted">Manage system users and their accounts</small>
         }
     </div>
     <a asp-action="Create" class="btn btn-primary"><i class="bi bi-person-plus-fill me-1"></i>Add User</a>
 </div>
 
-<div class="card-soft p-3 table-responsive">
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-people-fill fs-2"></i>
+            <div><h2 class="mb-0">@total</h2><small>Total Users</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-person-check-fill fs-2"></i>
+            <div><h2 class="mb-0">@active</h2><small>Active</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-red d-flex align-items-center gap-3">
+            <i class="bi bi-person-x-fill fs-2"></i>
+            <div><h2 class="mb-0">@inactive</h2><small>Inactive</small></div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead>
             <tr>
@@ -30,7 +58,7 @@
             @foreach (var item in Model)
             {
                 <tr>
-                    <td>@item.Username</td>
+                    <td class="fw-semibold">@item.Username</td>
                     <td>@item.FullName</td>
                     <td>@item.Email</td>
                     <td>@item.Branches</td>
@@ -41,14 +69,18 @@
                     </td>
                     <td class="text-end">
                         <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="View"><i class="bi bi-eye-fill"></i></a>
-                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Edit</a>
-                        <form asp-action="ToggleStatus" method="post" class="d-inline">
+                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary ms-1">Edit</a>
+                        <form asp-action="ToggleStatus" method="post" class="d-inline ms-1">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="id" value="@item.Id" />
                             <button type="submit" class="btn btn-sm btn-outline-warning">Toggle</button>
                         </form>
                     </td>
                 </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-people fs-3 d-block mb-2"></i>No users found.</td></tr>
             }
         </tbody>
     </table>

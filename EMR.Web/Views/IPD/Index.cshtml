@@ -2,12 +2,39 @@
     ViewData["Title"] = "IPD";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 m-0">IPD</h1>
-    <span class="badge text-bg-light border">Inpatient Department</span>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Inpatient Department</h1>
+        <small class="text-muted">IPD admissions, bed allocation, treatment charting &amp; discharge</small>
+    </div>
+    <span class="badge text-bg-success fs-6 px-3 py-2">IPD</span>
 </div>
 
-<div class="card-soft p-4">
-    <h2 class="h5 mb-2">IPD Module</h2>
-    <p class="text-muted mb-0">This is the IPD landing page. IPD workflows (admissions, bed allocation, treatment charting, discharge) can be added next.</p>
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-person-plus fs-2"></i>
+            <div><h2 class="mb-0">0</h2><small>Admitted Today</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-bed fs-2"></i>
+            <div><h2 class="mb-0">0</h2><small>Occupied Beds</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-red d-flex align-items-center gap-3">
+            <i class="bi bi-box-arrow-right fs-2"></i>
+            <div><h2 class="mb-0">0</h2><small>Discharged Today</small></div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel p-4">
+    <div class="text-center py-5">
+        <i class="bi bi-hospital2 fs-1 text-success mb-3 d-block"></i>
+        <h5 class="fw-bold mb-1">IPD Module</h5>
+        <p class="text-muted mb-0">IPD workflows — admissions, bed allocation, treatment charting and discharge — can be built here.</p>
+    </div>
 </div>

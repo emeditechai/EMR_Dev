@@ -1,11 +1,40 @@
 @model IEnumerable<EMR.Web.Models.ViewModels.AccessListItemViewModel>
 @{
     ViewData["Title"] = "Branch-wise Role Mapping";
+    var total    = Model.Count();
+    var assigned = Model.Count(x => !string.IsNullOrWhiteSpace(x.BranchRoleSummary));
+    var unassigned = total - assigned;
 }
 
-<h1 class="h3 mb-3">User Role Mapping (Branch Wise)</h1>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">User Role Mapping</h1>
+        <small class="text-muted">Assign roles to users across branches</small>
+    </div>
+</div>
 
-<div class="card-soft p-3 table-responsive">
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-people-fill fs-2"></i>
+            <div><h2 class="mb-0">@total</h2><small>Total Users</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-shield-check fs-2"></i>
+            <div><h2 class="mb-0">@assigned</h2><small>Roles Assigned</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-yellow d-flex align-items-center gap-3">
+            <i class="bi bi-shield-exclamation fs-2"></i>
+            <div><h2 class="mb-0">@unassigned</h2><small>Pending Assignment</small></div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead>
             <tr>
@@ -19,13 +48,28 @@
             @foreach (var item in Model)
             {
                 <tr>
-                    <td>@item.Username</td>
+                    <td class="fw-semibold">@item.Username</td>
                     <td>@item.FullName</td>
-                    <td>@item.BranchRoleSummary</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(item.BranchRoleSummary))
+                        {
+                            <span class="text-success small">@item.BranchRoleSummary</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted fst-italic small">No roles assigned</span>
+                        }
+                    </td>
                     <td class="text-end">
-                        <a asp-action="Assign" asp-route-userId="@item.UserId" class="btn btn-sm btn-outline-primary">Assign Roles</a>
+                        <a asp-action="Assign" asp-route-userId="@item.UserId" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-shield-plus me-1"></i>Assign Roles
+                        </a>
                     </td>
                 </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr><td colspan="4" class="text-center text-muted py-4"><i class="bi bi-shield-x fs-3 d-block mb-2"></i>No users found.</td></tr>
             }
         </tbody>
     </table>

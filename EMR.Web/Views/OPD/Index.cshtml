@@ -2,12 +2,39 @@
     ViewData["Title"] = "OPD";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 m-0">OPD</h1>
-    <span class="badge text-bg-light border">Outpatient Department</span>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Outpatient Department</h1>
+        <small class="text-muted">OPD patient registration, appointments &amp; consultation queue</small>
+    </div>
+    <span class="badge text-bg-primary fs-6 px-3 py-2">OPD</span>
 </div>
 
-<div class="card-soft p-4">
-    <h2 class="h5 mb-2">OPD Module</h2>
-    <p class="text-muted mb-0">This is the OPD landing page. OPD workflows (patient registration, appointments, consultation queue, prescriptions) can be added next.</p>
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-calendar-check fs-2"></i>
+            <div><h2 class="mb-0">0</h2><small>Today's Appointments</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-person-check fs-2"></i>
+            <div><h2 class="mb-0">0</h2><small>Consulted Today</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-yellow d-flex align-items-center gap-3">
+            <i class="bi bi-hourglass-split fs-2"></i>
+            <div><h2 class="mb-0">0</h2><small>Waiting</small></div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel p-4">
+    <div class="text-center py-5">
+        <i class="bi bi-hospital fs-1 text-primary mb-3 d-block"></i>
+        <h5 class="fw-bold mb-1">OPD Module</h5>
+        <p class="text-muted mb-0">OPD workflows — patient registration, appointments, consultation queue and prescriptions — can be built here.</p>
+    </div>
 </div>

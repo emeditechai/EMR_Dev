@@ -1,14 +1,48 @@
 @model IEnumerable<EMR.Web.Models.Entities.BranchMaster>
 @{
     ViewData["Title"] = "Branch Master";
+    var total    = Model.Count();
+    var active   = Model.Count(x => x.IsActive);
+    var inactive = total - active;
+    var ho       = Model.Count(x => x.IsHOBranch);
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 m-0">Branch Master</h1>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Branch Master</h1>
+        <small class="text-muted">Manage and configure all hospital branches</small>
+    </div>
     <a asp-action="Create" class="btn btn-primary"><i class="bi bi-building-add me-1"></i>Add Branch</a>
 </div>
 
-<div class="card-soft p-3 table-responsive">
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-building fs-2"></i>
+            <div><h2 class="mb-0">@total</h2><small>Total Branches</small></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-check-circle fs-2"></i>
+            <div><h2 class="mb-0">@active</h2><small>Active</small></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card kpi-red d-flex align-items-center gap-3">
+            <i class="bi bi-x-circle fs-2"></i>
+            <div><h2 class="mb-0">@inactive</h2><small>Inactive</small></div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card kpi-yellow d-flex align-items-center gap-3">
+            <i class="bi bi-star-fill fs-2"></i>
+            <div><h2 class="mb-0">@ho</h2><small>Head Office</small></div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead>
             <tr>
@@ -24,20 +58,38 @@
             @foreach (var branch in Model)
             {
                 <tr>
-                    <td>@branch.BranchName</td>
-                    <td>@branch.BranchCode</td>
+                    <td class="fw-semibold">@branch.BranchName</td>
+                    <td><code>@branch.BranchCode</code></td>
                     <td>@string.Join(", ", new[] { branch.City, branch.State, branch.Country }.Where(x => !string.IsNullOrWhiteSpace(x)))</td>
-                    <td>@(branch.IsHOBranch ? "Yes" : "No")</td>
                     <td>
-                        <span class="badge @(branch.IsActive ? "text-bg-success" : "text-bg-secondary")">
-                            @(branch.IsActive ? "Active" : "Inactive")
-                        </span>
+                        @if (branch.IsHOBranch)
+                        {
+                            <span class="badge text-bg-warning">HO</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td>
+                        @if (branch.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
                     </td>
                     <td class="text-end">
                         <a asp-action="Details" asp-route-id="@branch.BranchId" class="btn btn-sm btn-outline-secondary" title="View"><i class="bi bi-eye-fill"></i></a>
-                        <a asp-action="Edit" asp-route-id="@branch.BranchId" class="btn btn-sm btn-outline-primary">Edit</a>
+                        <a asp-action="Edit" asp-route-id="@branch.BranchId" class="btn btn-sm btn-outline-primary ms-1">Edit</a>
                     </td>
                 </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-building-x fs-3 d-block mb-2"></i>No branches found.</td></tr>
             }
         </tbody>
     </table>

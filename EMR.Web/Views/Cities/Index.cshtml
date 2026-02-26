@@ -1,23 +1,50 @@
 @model IEnumerable<EMR.Web.Models.Entities.CityMaster>
 @{
     ViewData["Title"] = "City Master";
-    var countries = ViewBag.Countries as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-    var states    = ViewBag.States    as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-    var districts = ViewBag.Districts as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var countries    = ViewBag.Countries  as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var states       = ViewBag.States     as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var districts    = ViewBag.Districts  as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
     int? selCountry  = ViewBag.SelectedCountryId;
     int? selState    = ViewBag.SelectedStateId;
     int? selDistrict = ViewBag.SelectedDistrictId;
+    var total        = Model.Count();
+    var active       = Model.Count(x => x.IsActive);
+    var inactive     = total - active;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 m-0">City Master</h1>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">City Master</h1>
+        <small class="text-muted">Manage cities within districts</small>
+    </div>
     <a asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add City
     </a>
 </div>
 
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-buildings-fill fs-2"></i>
+            <div><h2 class="mb-0">@total</h2><small>Total Cities</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-check-circle fs-2"></i>
+            <div><h2 class="mb-0">@active</h2><small>Active</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-red d-flex align-items-center gap-3">
+            <i class="bi bi-x-circle fs-2"></i>
+            <div><h2 class="mb-0">@inactive</h2><small>Inactive</small></div>
+        </div>
+    </div>
+</div>
+
 @* Filter Panel *@
-<div class="card-soft p-3 mb-3">
+<div class="dashboard-panel mb-3">
     <form method="get" asp-action="Index" id="filterForm">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
@@ -73,7 +100,7 @@
     </form>
 </div>
 
-<div class="card-soft p-3 table-responsive">
+<div class="dashboard-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
@@ -90,9 +117,9 @@
             @foreach (var item in Model)
             {
                 <tr>
-                    <td>@(i++)</td>
+                    <td class="text-muted small">@(i++)</td>
                     <td><code>@item.CityCode</code></td>
-                    <td>@item.CityName</td>
+                    <td class="fw-semibold">@item.CityName</td>
                     <td>@(item.District?.DistrictName ?? "—")</td>
                     <td>
                         @if (item.IsActive)
@@ -116,7 +143,7 @@
             }
             @if (!Model.Any())
             {
-                <tr><td colspan="6" class="text-center text-muted py-4">No cities found.</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-buildings fs-3 d-block mb-2"></i>No cities found.</td></tr>
             }
         </tbody>
     </table>

@@ -1,21 +1,48 @@
 @model IEnumerable<EMR.Web.Models.Entities.DistrictMaster>
 @{
     ViewData["Title"] = "District Master";
-    var countries = ViewBag.Countries as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
-    var states   = ViewBag.States   as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var countries   = ViewBag.Countries as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+    var states      = ViewBag.States    as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
     int? selCountry = ViewBag.SelectedCountryId;
     int? selState   = ViewBag.SelectedStateId;
+    var total       = Model.Count();
+    var active      = Model.Count(x => x.IsActive);
+    var inactive    = total - active;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 m-0">District Master</h1>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">District Master</h1>
+        <small class="text-muted">Manage districts within states</small>
+    </div>
     <a asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add District
     </a>
 </div>
 
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-blue d-flex align-items-center gap-3">
+            <i class="bi bi-geo-alt-fill fs-2"></i>
+            <div><h2 class="mb-0">@total</h2><small>Total Districts</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-green d-flex align-items-center gap-3">
+            <i class="bi bi-check-circle fs-2"></i>
+            <div><h2 class="mb-0">@active</h2><small>Active</small></div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="kpi-card kpi-red d-flex align-items-center gap-3">
+            <i class="bi bi-x-circle fs-2"></i>
+            <div><h2 class="mb-0">@inactive</h2><small>Inactive</small></div>
+        </div>
+    </div>
+</div>
+
 @* Filter Panel *@
-<div class="card-soft p-3 mb-3">
+<div class="dashboard-panel mb-3">
     <form method="get" asp-action="Index" id="filterForm">
         <div class="row g-2 align-items-end">
             <div class="col-md-3">
@@ -24,14 +51,8 @@
                     <option value="">All Countries</option>
                     @foreach (var c in countries)
                     {
-                        if (c.Selected)
-                        {
-                            <option value="@c.Value" selected="selected">@c.Text</option>
-                        }
-                        else
-                        {
-                            <option value="@c.Value">@c.Text</option>
-                        }
+                        if (c.Selected) { <option value="@c.Value" selected="selected">@c.Text</option> }
+                        else { <option value="@c.Value">@c.Text</option> }
                     }
                 </select>
             </div>
@@ -41,14 +62,8 @@
                     <option value="">All States</option>
                     @foreach (var s in states)
                     {
-                        if (s.Selected)
-                        {
-                            <option value="@s.Value" selected="selected">@s.Text</option>
-                        }
-                        else
-                        {
-                            <option value="@s.Value">@s.Text</option>
-                        }
+                        if (s.Selected) { <option value="@s.Value" selected="selected">@s.Text</option> }
+                        else { <option value="@s.Value">@s.Text</option> }
                     }
                 </select>
             </div>
@@ -72,7 +87,7 @@
     </form>
 </div>
 
-<div class="card-soft p-3 table-responsive">
+<div class="dashboard-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
@@ -89,9 +104,9 @@
             @foreach (var item in Model)
             {
                 <tr>
-                    <td>@(i++)</td>
+                    <td class="text-muted small">@(i++)</td>
                     <td><code>@item.DistrictCode</code></td>
-                    <td>@item.DistrictName</td>
+                    <td class="fw-semibold">@item.DistrictName</td>
                     <td>@(item.State?.StateName ?? "—")</td>
                     <td>
                         @if (item.IsActive)
@@ -115,7 +130,7 @@
             }
             @if (!Model.Any())
             {
-                <tr><td colspan="6" class="text-center text-muted py-4">No districts found.</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-geo-alt fs-3 d-block mb-2"></i>No districts found.</td></tr>
             }
         </tbody>
     </table>
