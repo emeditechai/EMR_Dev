@@ -23,6 +23,9 @@ builder.Services.AddScoped<IDistrictService, DistrictService>();
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<IAreaService, AreaService>();
 
+// Clinical Masters (Dapper)
+builder.Services.AddScoped<IDoctorSpecialityService, DoctorSpecialityService>();
+
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
