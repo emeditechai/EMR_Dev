@@ -111,6 +111,13 @@ body {
   align-items: center;
   justify-content: center;
 }
+.emr-avatar-img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+}
 
 .emr-profile-card {
   width: 340px;
@@ -133,6 +140,84 @@ body {
 .dashboard-subtitle {
   font-size: 1.6rem;
   color: #2b3445;
+}
+
+.dashboard-hero-card {
+  background: var(--emr-gradient);
+  border-radius: 22px;
+  padding: 1.6rem 1.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 14px 34px rgba(13, 59, 142, 0.28);
+}
+
+.dashboard-hero-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-hero-subtitle {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 1.25rem;
+}
+
+.dashboard-hero-label {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.dashboard-hero-pill {
+  color: #0d3b8e;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  padding: 0.25rem 0.85rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.dashboard-hero-brand {
+  min-width: 300px;
+  max-width: 420px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  padding: 0.75rem 1rem;
+}
+
+.dashboard-hero-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 12px;
+  padding: 0.35rem;
+}
+
+.dashboard-hero-logo-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0d3b8e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.dashboard-hero-hospital {
+  color: #fff;
+  font-weight: 800;
+  font-size: 2rem;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
 }
 
 .kpi-card {
@@ -293,7 +378,7 @@ body {
 /* ── Auth / Login Page ─────────────────────────────────────────── */
 .auth-body {
   background: linear-gradient(rgba(13, 27, 62, 0.68), rgba(13, 27, 62, 0.68)),
-              url('/images/login-bg.jpeg') center/cover no-repeat;
+              url('/Images/login-bg.jpg') center/cover no-repeat;
 }
 
 .auth-main {
@@ -352,6 +437,36 @@ body {
   margin: 0 auto 1.2rem;
   border: 2px solid rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(6px);
+}
+.role-left-profile-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+}
+.role-top-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-bottom: 0.8rem;
+}
+.role-top-profile-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #d8e4f5;
+}
+.role-top-profile-name {
+  font-weight: 700;
+  color: #0d1b3e;
+  line-height: 1.1;
+}
+.role-top-profile-branch {
+  font-size: 0.8rem;
+  color: #6b7a99;
 }
 
 .auth-left-title {

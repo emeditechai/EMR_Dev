@@ -7,7 +7,7 @@
     </div>
     <div class="uf-section-body">
         <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
                 <div class="input-icon-wrap">
                     <i class="bi bi-person input-icon"></i>
@@ -15,7 +15,15 @@
                 </div>
                 <span asp-validation-for="Username" class="text-danger small"></span>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Employee Code</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-upc-scan input-icon"></i>
+                    <input asp-for="EmployeeCode" class="form-control ps-icon text-uppercase" placeholder="Enter employee code" oninput="this.value=this.value.toUpperCase()" />
+                </div>
+                <span asp-validation-for="EmployeeCode" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
                 <label class="form-label fw-semibold">Email</label>
                 <div class="input-icon-wrap">
                     <i class="bi bi-envelope input-icon"></i>
@@ -59,6 +67,24 @@
                 <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
             </div>
             <div class="col-md-6">
+                <label class="form-label fw-semibold">Profile Picture</label>
+                <div class="d-flex align-items-center gap-3">
+                    <div>
+                        <img id="profilePreview"
+                             src="@(string.IsNullOrWhiteSpace(Model.ExistingProfilePicturePath) ? "/Images/default-avatar.svg" : Model.ExistingProfilePicturePath)"
+                             alt="Profile"
+                             style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #d8e4f5;"
+                             onerror="this.src='/Images/default-avatar.svg'" />
+                    </div>
+                    <div class="flex-grow-1">
+                        <input asp-for="ProfilePictureFile" type="file" accept=".jpg,.jpeg,.png,.webp" class="form-control" onchange="previewProfilePicture(this)" />
+                        <input asp-for="ExistingProfilePicturePath" type="hidden" />
+                        <small class="text-muted">JPG, JPEG, PNG, WEBP (max 2 MB)</small>
+                        <div><span asp-validation-for="ProfilePictureFile" class="text-danger small"></span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
                 <label class="form-label fw-semibold">Branch Access</label>
                 <div class="cms-wrap" id="branchWrap">
                     <div class="cms-trigger" id="branchTrigger" onclick="toggleCms('branchWrap')">
@@ -78,6 +104,7 @@
                     </div>
                 </div>
                 <small class="text-muted">Select one or more branches from the dropdown</small>
+                <div><span asp-validation-for="SelectedBranchIds" class="text-danger small"></span></div>
             </div>
         </div>
     </div>
@@ -246,6 +273,14 @@ function togglePwd(inputId, iconId) {
         inp.type = 'password';
         ico.classList.replace('bi-eye-slash', 'bi-eye');
     }
+}
+
+function previewProfilePicture(input) {
+    const preview = document.getElementById('profilePreview');
+    if (!preview || !input.files || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = e => preview.src = e.target.result;
+    reader.readAsDataURL(input.files[0]);
 }
 
 // ── Init on load ─────────────────────────────────────────────

@@ -16,7 +16,7 @@
     </a>
 </div>
 
-<form asp-action="Edit" method="post">
+<form asp-action="Edit" method="post" enctype="multipart/form-data">
     <input type="hidden" asp-for="Id" />
     <input type="hidden" asp-for="BranchId" />
     <input type="hidden" asp-for="BranchName" />
@@ -83,12 +83,20 @@
                     <span asp-validation-for="GSTCode" class="text-danger small"></span>
                 </div>
                 <div class="col-md-3">
-                    <label asp-for="LogoPath" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-image input-icon"></i>
-                        <input asp-for="LogoPath" class="form-control ps-icon" placeholder="/uploads/logos/logo.png" />
-                    </div>
-                    <span asp-validation-for="LogoPath" class="text-danger small"></span>
+                        <label asp-for="LogoFile" class="form-label fw-semibold">Logo Upload</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-image input-icon"></i>
+                            <input asp-for="LogoFile" type="file" class="form-control ps-icon" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
+                        </div>
+                        <span asp-validation-for="LogoFile" class="text-danger small"></span>
+                        <input asp-for="LogoPath" type="hidden" />
+                        @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
+                        {
+                            <div class="mt-2 d-flex align-items-center gap-2">
+                                <img src="@Model.LogoPath" alt="Hospital Logo" style="width: 48px; height: 48px; object-fit: contain; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: #fff;" />
+                                <small class="text-muted">Current logo</small>
+                            </div>
+                        }
                 </div>
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">Status</label>
@@ -124,69 +132,6 @@
                         <input asp-for="CheckOutTime" type="time" class="form-control ps-icon" />
                     </div>
                     <span asp-validation-for="CheckOutTime" class="text-danger small"></span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Booking & Policies -->
-    <div class="uf-section mb-3">
-        <div class="uf-section-header"><i class="bi bi-shield-check-fill me-2"></i>Booking &amp; Policies</div>
-        <div class="uf-section-body">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <div class="uf-toggle-row border rounded px-3 py-2">
-                        <span class="uf-toggle-label">Bypass Actual Day Rate</span>
-                        <label class="ios-toggle ms-auto">
-                            <input type="checkbox" asp-for="ByPassActualDayRate" />
-                            <span class="ios-slider"></span>
-                        </label>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="uf-toggle-row border rounded px-3 py-2">
-                        <span class="uf-toggle-label">Discount Approval Required</span>
-                        <label class="ios-toggle ms-auto">
-                            <input type="checkbox" asp-for="DiscountApprovalRequired" />
-                            <span class="ios-slider"></span>
-                        </label>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="uf-toggle-row border rounded px-3 py-2">
-                        <span class="uf-toggle-label">Min. Booking Amount Required</span>
-                        <label class="ios-toggle ms-auto">
-                            <input type="checkbox" asp-for="MinimumBookingAmountRequired" />
-                            <span class="ios-slider"></span>
-                        </label>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <label asp-for="MinimumBookingAmount" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-currency-rupee input-icon"></i>
-                        <input asp-for="MinimumBookingAmount" type="number" min="0" step="0.01"
-                               class="form-control ps-icon" placeholder="0.00" />
-                    </div>
-                    <span asp-validation-for="MinimumBookingAmount" class="text-danger small"></span>
-                </div>
-                <div class="col-md-4">
-                    <label asp-for="NoShowGraceHours" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-hourglass-split input-icon"></i>
-                        <input asp-for="NoShowGraceHours" type="number" min="0" max="72"
-                               class="form-control ps-icon" placeholder="0" />
-                    </div>
-                    <span asp-validation-for="NoShowGraceHours" class="text-danger small"></span>
-                </div>
-                <div class="col-md-4">
-                    <label asp-for="CancellationRefundApprovalThreshold" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-currency-rupee input-icon"></i>
-                        <input asp-for="CancellationRefundApprovalThreshold" type="number" min="0" step="0.01"
-                               class="form-control ps-icon" placeholder="Optional" />
-                    </div>
-                    <span asp-validation-for="CancellationRefundApprovalThreshold" class="text-danger small"></span>
                 </div>
             </div>
         </div>

@@ -65,12 +65,6 @@ BEGIN
         [CreatedBy]                           INT              NULL,
         [LastModifiedDate]                    DATETIME2        NULL,
         [LastModifiedBy]                      INT              NULL,
-        [ByPassActualDayRate]                 BIT              NOT NULL DEFAULT(0),
-        [DiscountApprovalRequired]            BIT              NOT NULL DEFAULT(0),
-        [MinimumBookingAmountRequired]        BIT              NOT NULL DEFAULT(0),
-        [MinimumBookingAmount]                DECIMAL(18,2)    NOT NULL DEFAULT(0),
-        [NoShowGraceHours]                    INT              NOT NULL DEFAULT(0),
-        [CancellationRefundApprovalThreshold] DECIMAL(18,2)    NULL,
 
         CONSTRAINT [PK_HospitalSettings] PRIMARY KEY ([Id]),
 
@@ -113,17 +107,14 @@ GO
 --     (New branches created going forward will get auto-seeded by the app)
 -- -----------------------------------------------------------------------------
 INSERT INTO [dbo].[HospitalSettings] (
-    [BranchID], [HotelName], [IsActive], [CreatedDate], [CreatedBy],
-    [ByPassActualDayRate], [DiscountApprovalRequired],
-    [MinimumBookingAmountRequired], [MinimumBookingAmount], [NoShowGraceHours]
+    [BranchID], [HotelName], [IsActive], [CreatedDate], [CreatedBy]
 )
 SELECT
     b.[BranchID],
     b.[BranchName],
     1,
     GETDATE(),
-    0,
-    0, 0, 0, 0, 0
+    0
 FROM [dbo].[Branchmaster] b
 WHERE NOT EXISTS (
     SELECT 1 FROM [dbo].[HospitalSettings] hs WHERE hs.[BranchID] = b.[BranchID]

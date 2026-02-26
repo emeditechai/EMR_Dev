@@ -56,6 +56,7 @@
         <thead>
             <tr>
                 <th>Username</th>
+                <th>Employee Code</th>
                 <th>Full Name</th>
                 <th>Email</th>
                 <th>Branches</th>
@@ -68,6 +69,7 @@
             {
                 <tr>
                     <td class="fw-semibold">@item.Username</td>
+                    <td><span class="badge text-bg-light border text-dark">@item.EmployeeCode</span></td>
                     <td>@item.FullName</td>
                     <td>@item.Email</td>
                     <td>@item.Branches</td>
@@ -89,7 +91,7 @@
             }
             @if (!Model.Any())
             {
-                <tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-people fs-3 d-block mb-2"></i>No users found.</td></tr>
+                <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-people fs-3 d-block mb-2"></i>No users found.</td></tr>
             }
         </tbody>
     </table>

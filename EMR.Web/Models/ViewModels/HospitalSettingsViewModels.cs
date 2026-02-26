@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace EMR.Web.Models.ViewModels;
 
@@ -41,6 +42,9 @@ public class HospitalSettingsViewModel
     [MaxLength(500)]
     public string? LogoPath { get; set; }
 
+    [Display(Name = "Upload Logo")]
+    public IFormFile? LogoFile { get; set; }
+
     [Display(Name = "Check-In Time")]
     public string? CheckInTime { get; set; }   // "HH:mm" string for HTML time input
 
@@ -49,27 +53,6 @@ public class HospitalSettingsViewModel
 
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
-
-    [Display(Name = "Bypass Actual Day Rate")]
-    public bool ByPassActualDayRate { get; set; }
-
-    [Display(Name = "Discount Approval Required")]
-    public bool DiscountApprovalRequired { get; set; }
-
-    [Display(Name = "Minimum Booking Amount Required")]
-    public bool MinimumBookingAmountRequired { get; set; }
-
-    [Display(Name = "Minimum Booking Amount")]
-    [Range(0, 9999999)]
-    public decimal MinimumBookingAmount { get; set; }
-
-    [Display(Name = "No-Show Grace Hours")]
-    [Range(0, 72)]
-    public int NoShowGraceHours { get; set; }
-
-    [Display(Name = "Cancellation Refund Approval Threshold")]
-    [Range(0, 9999999)]
-    public decimal? CancellationRefundApprovalThreshold { get; set; }
 
     public DateTime CreatedDate { get; set; }
     public DateTime? LastModifiedDate { get; set; }

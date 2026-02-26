@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EMR.Web.Models.Entities;
 
@@ -43,18 +42,6 @@ public class HospitalSettings
     public int? CreatedBy { get; set; }
     public DateTime? LastModifiedDate { get; set; }
     public int? LastModifiedBy { get; set; }
-
-    public bool ByPassActualDayRate { get; set; }
-    public bool DiscountApprovalRequired { get; set; }
-    public bool MinimumBookingAmountRequired { get; set; }
-
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal MinimumBookingAmount { get; set; }
-
-    public int NoShowGraceHours { get; set; }
-
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal? CancellationRefundApprovalThreshold { get; set; }
 
     public BranchMaster? Branch { get; set; }
 }

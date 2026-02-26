@@ -4,6 +4,7 @@ using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +13,8 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class HospitalSettingsController(
     ApplicationDbContext dbContext,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IWebHostEnvironment webHostEnvironment) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index()
@@ -80,6 +82,8 @@ public class HospitalSettingsController(
         // Ensure the model is always tied to the session branch (no tampering)
         model.BranchId = branchId.Value;
 
+        ValidateLogoFile(model);
+
         if (!ModelState.IsValid)
         {
             var br = await dbContext.BranchMasters.FindAsync(branchId.Value);
@@ -94,6 +98,7 @@ public class HospitalSettingsController(
         if (existing is null)
         {
             var entity = MapToEntity(model, userId);
+            entity.LogoPath = await SaveLogoFileAsync(model.LogoFile, entity.LogoPath);
             dbContext.HospitalSettings.Add(entity);
             await dbContext.SaveChangesAsync();
             await auditLogService.LogAsync("Create", "HospitalSettings",
@@ -109,16 +114,10 @@ public class HospitalSettingsController(
             existing.EmailAddress = model.EmailAddress;
             existing.Website = model.Website;
             existing.GSTCode = model.GSTCode;
-            existing.LogoPath = model.LogoPath;
+            existing.LogoPath = await SaveLogoFileAsync(model.LogoFile, existing.LogoPath);
             existing.CheckInTime = TimeSpan.TryParse(model.CheckInTime, out var cin) ? cin : null;
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
             existing.IsActive = model.IsActive;
-            existing.ByPassActualDayRate = model.ByPassActualDayRate;
-            existing.DiscountApprovalRequired = model.DiscountApprovalRequired;
-            existing.MinimumBookingAmountRequired = model.MinimumBookingAmountRequired;
-            existing.MinimumBookingAmount = model.MinimumBookingAmount;
-            existing.NoShowGraceHours = model.NoShowGraceHours;
-            existing.CancellationRefundApprovalThreshold = model.CancellationRefundApprovalThreshold;
             existing.LastModifiedDate = DateTime.UtcNow;
             existing.LastModifiedBy = userId;
 
@@ -152,12 +151,6 @@ public class HospitalSettingsController(
             CheckOutTime = s.CheckOutTime.HasValue
                 ? s.CheckOutTime.Value.ToString(@"hh\:mm") : null,
             IsActive = s.IsActive,
-            ByPassActualDayRate = s.ByPassActualDayRate,
-            DiscountApprovalRequired = s.DiscountApprovalRequired,
-            MinimumBookingAmountRequired = s.MinimumBookingAmountRequired,
-            MinimumBookingAmount = s.MinimumBookingAmount,
-            NoShowGraceHours = s.NoShowGraceHours,
-            CancellationRefundApprovalThreshold = s.CancellationRefundApprovalThreshold,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
         };
@@ -177,13 +170,63 @@ public class HospitalSettingsController(
             CheckInTime = TimeSpan.TryParse(m.CheckInTime, out var cin) ? cin : null,
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
             IsActive = m.IsActive,
-            ByPassActualDayRate = m.ByPassActualDayRate,
-            DiscountApprovalRequired = m.DiscountApprovalRequired,
-            MinimumBookingAmountRequired = m.MinimumBookingAmountRequired,
-            MinimumBookingAmount = m.MinimumBookingAmount,
-            NoShowGraceHours = m.NoShowGraceHours,
-            CancellationRefundApprovalThreshold = m.CancellationRefundApprovalThreshold,
             CreatedDate = DateTime.UtcNow,
             CreatedBy = userId
         };
+
+    private void ValidateLogoFile(HospitalSettingsViewModel model)
+    {
+        if (model.LogoFile is null || model.LogoFile.Length == 0)
+        {
+            return;
+        }
+
+        var ext = Path.GetExtension(model.LogoFile.FileName).ToLowerInvariant();
+        var allowed = new[] { ".png", ".jpg", ".jpeg" };
+        if (!allowed.Contains(ext))
+        {
+            ModelState.AddModelError(nameof(model.LogoFile), "Supported formats: png, jpg, jpeg.");
+        }
+
+        const long maxBytes = 2 * 1024 * 1024;
+        if (model.LogoFile.Length > maxBytes)
+        {
+            ModelState.AddModelError(nameof(model.LogoFile), "Logo file size must be up to 2 MB.");
+        }
+    }
+
+    private async Task<string?> SaveLogoFileAsync(IFormFile? file, string? existingPath)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return existingPath;
+        }
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var fileName = $"hospital_logo_{Guid.NewGuid():N}{ext}";
+        var relativePath = $"/uploads/logos/{fileName}";
+        var saveDir = Path.Combine(webHostEnvironment.WebRootPath, "uploads", "logos");
+        Directory.CreateDirectory(saveDir);
+        var savePath = Path.Combine(saveDir, fileName);
+
+        await using (var stream = new FileStream(savePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        DeleteFileIfExists(existingPath);
+        return relativePath;
+    }
+
+    private void DeleteFileIfExists(string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return;
+
+        var cleanPath = relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var physicalPath = Path.Combine(webHostEnvironment.WebRootPath, cleanPath);
+        if (System.IO.File.Exists(physicalPath))
+        {
+            System.IO.File.Delete(physicalPath);
+        }
+    }
 }

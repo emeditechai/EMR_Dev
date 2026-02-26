@@ -4,6 +4,7 @@ using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,8 @@ namespace EMR.Web.Controllers;
 public class UsersController(
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasherService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IWebHostEnvironment webHostEnvironment) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -42,6 +44,9 @@ public class UsersController(
             {
                 Id = x.Id,
                 Username = x.Username,
+                EmployeeCode = branchId.HasValue
+                    ? (x.UserBranches.Where(ub => ub.IsActive && ub.BranchId == branchId.Value).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty)
+                    : (x.UserBranches.Where(ub => ub.IsActive).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty),
                 FullName = x.FullName ?? string.Concat(x.FirstName, " ", x.LastName),
                 Email = x.Email ?? string.Empty,
                 IsActive = x.IsActive,
@@ -80,6 +85,7 @@ public class UsersController(
             .Select(ub => new BranchRoleDetailItem
             {
                 BranchName = ub.Branch.BranchName,
+                EmployeeCode = ub.EmployeeCode,
                 Roles = allUserRoles
             }).ToList();
 
@@ -87,6 +93,7 @@ public class UsersController(
         {
             Id = user.Id,
             Username = user.Username,
+            EmployeeCode = user.UserBranches.Where(ub => ub.IsActive).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty,
             Email = user.Email,
             FirstName = user.FirstName ?? string.Empty,
             LastName = user.LastName ?? string.Empty,
@@ -96,6 +103,7 @@ public class UsersController(
             LastLoginDate = user.LastLoginDate,
             CreatedDate = user.CreatedDate,
             LastModifiedDate = user.LastModifiedDate,
+            ProfilePicturePath = user.ProfilePicturePath,
             Branches = user.UserBranches.Select(b => b.Branch.BranchName).ToList(),
             BranchRoleMappings = branchRoleMappings
         };
@@ -135,11 +143,24 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.Username), "Username already exists.");
         }
 
+        if (!model.SelectedBranchIds.Any())
+        {
+            ModelState.AddModelError(nameof(model.SelectedBranchIds), "Select at least one branch.");
+        }
+
+        await ValidateEmployeeCodeUniquenessAsync(model);
+        ValidateProfilePicture(model);
+
         if (!ModelState.IsValid)
         {
             await PopulateSelections(model);
             return View(model);
         }
+
+        var normalizedEmployeeCode = string.IsNullOrWhiteSpace(model.EmployeeCode)
+            ? null
+            : model.EmployeeCode.Trim().ToUpperInvariant();
+        var profilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, null);
 
         var (hash, salt) = passwordHasherService.HashPassword(model.Password!);
         var user = new User
@@ -153,6 +174,7 @@ public class UsersController(
             FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim()),
             PhoneNumber = model.PhoneNumber,
             Phone = model.PhoneNumber,
+            ProfilePicturePath = profilePicturePath,
             IsActive = model.IsActive,
             PasswordLastChanged = DateTime.UtcNow,
             CreatedDate = DateTime.UtcNow,
@@ -162,7 +184,7 @@ public class UsersController(
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        await SaveMappings(model, user.Id);
+        await SaveMappings(model, user.Id, normalizedEmployeeCode);
         await auditLogService.LogAsync("MasterData", "Users.Create", $"Created user: {user.Username}", user.Id);
         TempData["Success"] = "User created successfully.";
         return RedirectToAction(nameof(Index));
@@ -194,6 +216,8 @@ public class UsersController(
             FirstName = user.FirstName ?? string.Empty,
             LastName = user.LastName ?? string.Empty,
             PhoneNumber = user.PhoneNumber,
+            EmployeeCode = user.UserBranches.Where(x => x.IsActive).Select(x => x.EmployeeCode).FirstOrDefault() ?? string.Empty,
+            ExistingProfilePicturePath = user.ProfilePicturePath,
             IsActive = user.IsActive,
             SelectedBranchIds = user.UserBranches.Where(x => x.IsActive).Select(x => x.BranchId).ToList(),
             SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList()
@@ -223,11 +247,23 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.Username), "Username already exists.");
         }
 
+        if (!model.SelectedBranchIds.Any())
+        {
+            ModelState.AddModelError(nameof(model.SelectedBranchIds), "Select at least one branch.");
+        }
+
+        await ValidateEmployeeCodeUniquenessAsync(model);
+        ValidateProfilePicture(model);
+
         if (!ModelState.IsValid)
         {
             await PopulateSelections(model);
             return View(model);
         }
+
+        var normalizedEmployeeCode = string.IsNullOrWhiteSpace(model.EmployeeCode)
+            ? null
+            : model.EmployeeCode.Trim().ToUpperInvariant();
 
         user.Username = model.Username.Trim();
         user.Email = model.Email?.Trim();
@@ -239,6 +275,8 @@ public class UsersController(
         user.IsActive = model.IsActive;
         user.LastModifiedDate = DateTime.UtcNow;
 
+        user.ProfilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, user.ProfilePicturePath);
+
         if (!string.IsNullOrWhiteSpace(model.Password))
         {
             var (hash, salt) = passwordHasherService.HashPassword(model.Password);
@@ -247,7 +285,7 @@ public class UsersController(
             user.PasswordLastChanged = DateTime.UtcNow;
         }
 
-        await SaveMappings(model, user.Id);
+        await SaveMappings(model, user.Id, normalizedEmployeeCode);
         await dbContext.SaveChangesAsync();
         await auditLogService.LogAsync("MasterData", "Users.Edit", $"Updated user: {user.Username}", user.Id);
         TempData["Success"] = "User updated successfully.";
@@ -306,7 +344,7 @@ public class UsersController(
         }).ToList();
     }
 
-    private async Task SaveMappings(UserFormViewModel model, int userId)
+    private async Task SaveMappings(UserFormViewModel model, int userId, string? normalizedEmployeeCode)
     {
         var existingBranches = await dbContext.UserBranches.Where(x => x.UserId == userId).ToListAsync();
         dbContext.UserBranches.RemoveRange(existingBranches);
@@ -317,6 +355,7 @@ public class UsersController(
             {
                 UserId = userId,
                 BranchId = branchId,
+                EmployeeCode = normalizedEmployeeCode,
                 IsActive = true,
                 CreatedDate = DateTime.UtcNow,
                 ModifiedDate = DateTime.UtcNow,
@@ -343,6 +382,95 @@ public class UsersController(
                 ModifiedBy = User.GetUserId()
             });
         dbContext.UserRoles.AddRange(roleMappings);
+    }
+
+    private async Task ValidateEmployeeCodeUniquenessAsync(UserFormViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.EmployeeCode) || !model.SelectedBranchIds.Any())
+        {
+            return;
+        }
+
+        var normalizedEmployeeCode = model.EmployeeCode.Trim().ToUpperInvariant();
+        var selectedBranchIds = model.SelectedBranchIds.Distinct().ToList();
+
+        var conflict = await dbContext.UserBranches
+            .Include(x => x.Branch)
+            .Include(x => x.User)
+            .Where(x => x.IsActive
+                        && x.UserId != model.Id
+                        && x.EmployeeCode != null
+                        && x.EmployeeCode.ToUpper() == normalizedEmployeeCode
+                        && selectedBranchIds.Contains(x.BranchId))
+            .Select(x => new { x.Branch.BranchName, Username = x.User.Username })
+            .FirstOrDefaultAsync();
+
+        if (conflict is not null)
+        {
+            ModelState.AddModelError(nameof(model.EmployeeCode),
+                $"Employee Code already exists in branch '{conflict.BranchName}' (User: {conflict.Username}).");
+        }
+    }
+
+    private void ValidateProfilePicture(UserFormViewModel model)
+    {
+        if (model.ProfilePictureFile is null || model.ProfilePictureFile.Length == 0)
+        {
+            return;
+        }
+
+        var ext = Path.GetExtension(model.ProfilePictureFile.FileName).ToLowerInvariant();
+        var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+
+        if (!allowed.Contains(ext))
+        {
+            ModelState.AddModelError(nameof(model.ProfilePictureFile), "Only JPG, JPEG, PNG, WEBP files are allowed.");
+        }
+
+        const long maxBytes = 2 * 1024 * 1024;
+        if (model.ProfilePictureFile.Length > maxBytes)
+        {
+            ModelState.AddModelError(nameof(model.ProfilePictureFile), "Profile picture size must be up to 2 MB.");
+        }
+    }
+
+    private async Task<string?> SaveProfilePictureAsync(IFormFile? file, string? existingPath)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return existingPath;
+        }
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var fileName = $"user_{Guid.NewGuid():N}{ext}";
+        var relativePath = $"/uploads/profiles/{fileName}";
+        var uploadRoot = Path.Combine(webHostEnvironment.WebRootPath, "uploads", "profiles");
+
+        Directory.CreateDirectory(uploadRoot);
+        var physicalPath = Path.Combine(uploadRoot, fileName);
+
+        await using (var stream = new FileStream(physicalPath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        DeleteProfilePictureIfExists(existingPath);
+        return relativePath;
+    }
+
+    private void DeleteProfilePictureIfExists(string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
+        var cleanPath = relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.Combine(webHostEnvironment.WebRootPath, cleanPath);
+        if (System.IO.File.Exists(fullPath))
+        {
+            System.IO.File.Delete(fullPath);
+        }
     }
 
     private bool CanManage() => true; // TODO: re-enable role check when authorization is implemented

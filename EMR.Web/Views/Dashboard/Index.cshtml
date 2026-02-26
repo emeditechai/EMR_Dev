@@ -4,12 +4,24 @@
 }
 
 <div class="dashboard-page">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <div>
-            <h1 class="dashboard-title mb-1">Dashboard Overview</h1>
-            <p class="dashboard-subtitle mb-0">Welcome back, @Model.UserDisplayName! Here's what's happening today in @Model.CurrentBranchName.</p>
+    <div class="dashboard-hero-card mb-4">
+        <div class="dashboard-hero-content">
+            <div>
+                <h1 class="dashboard-title text-white mb-2">@Model.CurrentHospitalName Dashboard</h1>
+                <p class="dashboard-hero-subtitle mb-3">Welcome back, @Model.UserDisplayName!</p>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="dashboard-hero-label">Active Branch:</span>
+                    <span class="dashboard-hero-pill">@Model.CurrentBranchName</span>
+                </div>
+            </div>
+            <div class="dashboard-hero-brand">
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalLogoPath))
+                {
+                    <img src="@Model.HospitalLogoPath" alt="Hospital Logo" class="dashboard-hero-logo" />
+                }
+                <div class="dashboard-hero-hospital">@Model.CurrentHospitalName</div>
+            </div>
         </div>
-        <a asp-controller="Account" asp-action="SelectBranch" class="btn btn-outline-primary"><i class="bi bi-arrow-repeat me-1"></i>Switch Branch</a>
     </div>
 
     <div class="row g-3 mb-4">
@@ -51,37 +63,6 @@
                 </div>
                 <h2>@Model.ActiveMappings</h2>
                 <small>User-branch assignments</small>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-xl-8">
-            <div class="dashboard-panel h-100">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="h5 m-0">Patient Flow Overview</h3>
-                    <select class="form-select form-select-sm w-auto">
-                        <option>Last 7 Days</option>
-                        <option>Last 30 Days</option>
-                    </select>
-                </div>
-                <div class="chart-placeholder">
-                    <div class="chart-line"></div>
-                    <div class="chart-line"></div>
-                    <div class="chart-line"></div>
-                    <div class="chart-line"></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <h3 class="h5 mb-3">Department Load</h3>
-                <ul class="list-unstyled m-0 d-grid gap-3">
-                    <li class="dept-item"><span>OPD</span><strong>@(Model.TotalUsers + 12)</strong></li>
-                    <li class="dept-item"><span>IPD</span><strong>@(Model.ActiveMappings + 6)</strong></li>
-                    <li class="dept-item"><span>Lab</span><strong>@(Model.TotalBranches + 3)</strong></li>
-                    <li class="dept-item"><span>Pharmacy</span><strong>@(Model.TotalUsers + 4)</strong></li>
-                </ul>
             </div>
         </div>
     </div>

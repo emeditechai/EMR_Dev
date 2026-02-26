@@ -8,7 +8,7 @@
     <h1 class="h3 mb-0">Create User</h1>
 </div>
 
-<form asp-action="Create" method="post" novalidate>
+<form asp-action="Create" method="post" novalidate enctype="multipart/form-data">
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
     <partial name="_Form" model="Model" />

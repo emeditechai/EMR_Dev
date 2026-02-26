@@ -148,7 +148,15 @@
 
                         <div class="dropdown">
                             <button class="btn emr-profile-btn dropdown-toggle" type="button" id="profileMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                                <span class="emr-avatar">@((User.FindFirst("DisplayName")?.Value ?? "U").Substring(0, 1).ToUpper())</span>
+                                @if (User.FindFirst("ProfilePicturePath")?.Value is { Length: > 0 } profilePicturePath)
+                                {
+                                    <img src="@profilePicturePath" alt="Profile" class="emr-avatar-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex';" />
+                                    <span class="emr-avatar" style="display:none">@((User.FindFirst("DisplayName")?.Value ?? "U").Substring(0, 1).ToUpper())</span>
+                                }
+                                else
+                                {
+                                    <span class="emr-avatar">@((User.FindFirst("DisplayName")?.Value ?? "U").Substring(0, 1).ToUpper())</span>
+                                }
                                 <span class="text-start">
                                     <strong>@User.FindFirst("DisplayName")?.Value</strong>
                                     <small>@(User.GetActiveRole() is { Length: > 0 } r ? r : "—")</small>

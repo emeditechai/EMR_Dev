@@ -253,6 +253,7 @@ public class AccountController(
         {
             DisplayName = displayName,
             BranchName = branchName,
+            ProfilePicturePath = User.FindFirstValue("ProfilePicturePath"),
             RememberMe = TempData["RememberMe"] is bool rm && rm,
             Roles = roleNames.Select(r => new RoleCardItem
             {
@@ -336,6 +337,11 @@ public class AccountController(
             new("DisplayName", string.IsNullOrWhiteSpace(user.FullName) ? user.Username : user.FullName),
             new("IsSuperAdmin", isSuperAdmin ? "true" : "false")
         };
+
+        if (!string.IsNullOrWhiteSpace(user.ProfilePicturePath))
+        {
+            claims.Add(new Claim("ProfilePicturePath", user.ProfilePicturePath));
+        }
 
         if (branch is not null)
         {

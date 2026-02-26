@@ -73,6 +73,7 @@ public class RoleSelectionViewModel
 {
     public string DisplayName { get; set; } = string.Empty;
     public string BranchName { get; set; } = string.Empty;
+    public string? ProfilePicturePath { get; set; }
     public bool RememberMe { get; set; }
     public List<RoleCardItem> Roles { get; set; } = new();
 }

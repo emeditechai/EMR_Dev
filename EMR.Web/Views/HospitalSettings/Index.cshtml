@@ -30,184 +30,86 @@
 }
 else
 {
-    <!-- Basic Information -->
-    <div class="uf-section mb-3">
-        <div class="uf-section-header"><i class="bi bi-info-circle-fill me-2"></i>Basic Information</div>
-        <div class="uf-section-body">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-building me-1"></i>Hospital Name</div>
-                        <div class="detail-value">@(Model.HospitalName ?? "—")</div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-geo-alt me-1"></i>Address</div>
-                        <div class="detail-value">@(Model.Address ?? "—")</div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-telephone me-1"></i>Contact Number 1</div>
-                        <div class="detail-value">@(Model.ContactNumber1 ?? "—")</div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-telephone me-1"></i>Contact Number 2</div>
-                        <div class="detail-value">@(Model.ContactNumber2 ?? "—")</div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-envelope me-1"></i>Email Address</div>
-                        <div class="detail-value">@(Model.EmailAddress ?? "—")</div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-globe me-1"></i>Website</div>
-                        <div class="detail-value">
-                            @if (!string.IsNullOrWhiteSpace(Model.Website))
-                            {
-                                <a href="@Model.Website" target="_blank">@Model.Website</a>
-                            }
-                            else
-                            {
-                                <span>—</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-receipt me-1"></i>GST Code</div>
-                        <div class="detail-value"><code>@(Model.GSTCode ?? "—")</code></div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-toggles me-1"></i>Status</div>
-                        <div class="detail-value">
-                            <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary") fs-6">
-                                @(Model.IsActive ? "Active" : "Inactive")
-                            </span>
-                        </div>
-                    </div>
-                </div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-building me-1"></i>Hospital Name</p>
+                <h5 class="mb-0 fw-bold">@(Model.HospitalName ?? "—")</h5>
             </div>
         </div>
-    </div>
-
-    <!-- Timing -->
-    <div class="uf-section mb-3">
-        <div class="uf-section-header"><i class="bi bi-clock-fill me-2"></i>Timing</div>
-        <div class="uf-section-body">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-box-arrow-in-right me-1"></i>Check-In Time</div>
-                        <div class="detail-value">@(Model.CheckInTime ?? "—")</div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-box-arrow-right me-1"></i>Check-Out Time</div>
-                        <div class="detail-value">@(Model.CheckOutTime ?? "—")</div>
-                    </div>
-                </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-telephone me-1"></i>Contact Number 1</p>
+                <h5 class="mb-0 fw-semibold">@(Model.ContactNumber1 ?? "—")</h5>
             </div>
         </div>
-    </div>
-
-    <!-- Booking & Policies -->
-    <div class="uf-section mb-3">
-        <div class="uf-section-header"><i class="bi bi-shield-check-fill me-2"></i>Booking &amp; Policies</div>
-        <div class="uf-section-body">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <div class="detail-field">
-                        <div class="detail-label">Bypass Actual Day Rate</div>
-                        <div class="detail-value">
-                            @if (Model.ByPassActualDayRate)
-                            {
-                                <span class="badge text-bg-warning">Enabled</span>
-                            }
-                            else
-                            {
-                                <span class="badge text-bg-secondary">Disabled</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="detail-field">
-                        <div class="detail-label">Discount Approval Required</div>
-                        <div class="detail-value">
-                            @if (Model.DiscountApprovalRequired)
-                            {
-                                <span class="badge text-bg-warning">Yes</span>
-                            }
-                            else
-                            {
-                                <span class="badge text-bg-secondary">No</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="detail-field">
-                        <div class="detail-label">Min. Booking Amount Required</div>
-                        <div class="detail-value">
-                            @if (Model.MinimumBookingAmountRequired)
-                            {
-                                <span class="badge text-bg-info">Yes — ₹@Model.MinimumBookingAmount.ToString("N2")</span>
-                            }
-                            else
-                            {
-                                <span class="badge text-bg-secondary">No</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-hourglass-split me-1"></i>No-Show Grace Hours</div>
-                        <div class="detail-value">@Model.NoShowGraceHours hrs</div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label"><i class="bi bi-currency-rupee me-1"></i>Cancellation Refund Approval Threshold</div>
-                        <div class="detail-value">
-                            @(Model.CancellationRefundApprovalThreshold.HasValue
-                                ? "₹" + Model.CancellationRefundApprovalThreshold.Value.ToString("N2")
-                                : "—")
-                        </div>
-                    </div>
-                </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-telephone me-1"></i>Contact Number 2</p>
+                <h5 class="mb-0 fw-semibold">@(Model.ContactNumber2 ?? "—")</h5>
             </div>
         </div>
-    </div>
-
-    <!-- Audit -->
-    <div class="uf-section mb-3">
-        <div class="uf-section-header"><i class="bi bi-clock-history me-2"></i>Activity</div>
-        <div class="uf-section-body">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label">Created On</div>
-                        <div class="detail-value">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="detail-field">
-                        <div class="detail-label">Last Modified</div>
-                        <div class="detail-value">@(Model.LastModifiedDate?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div>
-                    </div>
-                </div>
+        <div class="col-md-6 col-xl-8">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i>Address</p>
+                <p class="mb-0 fw-semibold">@(Model.Address ?? "—")</p>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-envelope me-1"></i>Email</p>
+                <p class="mb-0 fw-semibold">@(Model.EmailAddress ?? "—")</p>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-globe me-1"></i>Website</p>
+                @if (!string.IsNullOrWhiteSpace(Model.Website))
+                {
+                    <a href="@Model.Website" target="_blank" class="fw-semibold">@Model.Website</a>
+                }
+                else
+                {
+                    <p class="mb-0 fw-semibold">—</p>
+                }
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-receipt me-1"></i>GST Code</p>
+                <p class="mb-0 fw-semibold">@(Model.GSTCode ?? "—")</p>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-toggles me-1"></i>Status</p>
+                <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary") fs-6">
+                    @(Model.IsActive ? "Active" : "Inactive")
+                </span>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-6">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-box-arrow-in-right me-1"></i>Check-In Time</p>
+                <h5 class="mb-0 fw-semibold">@(Model.CheckInTime ?? "—")</h5>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-6">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-box-arrow-right me-1"></i>Check-Out Time</p>
+                <h5 class="mb-0 fw-semibold">@(Model.CheckOutTime ?? "—")</h5>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-clock-history me-1"></i>Created On</p>
+                <p class="mb-0 fw-semibold">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="dashboard-panel h-100">
+                <p class="text-muted small mb-1"><i class="bi bi-clock-history me-1"></i>Last Modified</p>
+                <p class="mb-0 fw-semibold">@(Model.LastModifiedDate?.ToString("dd MMM yyyy, HH:mm") ?? "—")</p>
             </div>
         </div>
     </div>

@@ -34,6 +34,9 @@ public class User
     [MaxLength(200)]
     public string? FullName { get; set; }
 
+    [MaxLength(300)]
+    public string? ProfilePicturePath { get; set; }
+
     [MaxLength(100)]
     public string? Role { get; set; }
 

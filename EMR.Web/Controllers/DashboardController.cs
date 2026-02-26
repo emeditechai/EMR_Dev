@@ -18,11 +18,25 @@ public class DashboardController(ApplicationDbContext dbContext) : Controller
         }
 
         var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+        var branchId = int.TryParse(User.FindFirstValue("BranchId"), out var bid) ? bid : 0;
+
+        var hospitalSettings = branchId > 0
+            ? await dbContext.HospitalSettings
+                .Where(x => x.BranchId == branchId)
+                .Select(x => new { x.HospitalName, x.LogoPath })
+                .FirstOrDefaultAsync()
+            : null;
+
+        var currentBranchName = User.FindFirstValue("BranchName") ?? "N/A";
 
         var model = new DashboardViewModel
         {
             UserDisplayName = User.FindFirstValue("DisplayName") ?? User.Identity?.Name ?? "User",
-            CurrentBranchName = User.FindFirstValue("BranchName") ?? "N/A",
+            CurrentBranchName = currentBranchName,
+            CurrentHospitalName = string.IsNullOrWhiteSpace(hospitalSettings?.HospitalName)
+                ? currentBranchName
+                : hospitalSettings.HospitalName!,
+            HospitalLogoPath = hospitalSettings?.LogoPath,
             TotalUsers = await dbContext.Users.CountAsync(),
             TotalBranches = await dbContext.BranchMasters.CountAsync(x => x.IsActive),
             ActiveMappings = await dbContext.UserBranches.CountAsync(x => x.IsActive),

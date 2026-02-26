@@ -18,7 +18,10 @@
 
             <div class="auth-left-content">
                 <div class="auth-medical-cross">
-                    <i class="bi bi-person-badge"></i>
+                    <img src="@(string.IsNullOrWhiteSpace(Model.ProfilePicturePath) ? "/Images/default-avatar.svg" : Model.ProfilePicturePath)"
+                         alt="Profile"
+                         class="role-left-profile-img"
+                         onerror="this.src='/Images/default-avatar.svg'" />
                 </div>
                 <h1 class="auth-left-title">Hello,<br /><span>@Model.DisplayName</span>!</h1>
                 <p class="auth-left-sub">Role Selection</p>
@@ -34,6 +37,17 @@
         @* RIGHT PANEL *@
         <div class="col-12 col-lg-6 auth-right">
             <div class="auth-right-inner">
+
+                <div class="role-top-profile">
+                    <img src="@(string.IsNullOrWhiteSpace(Model.ProfilePicturePath) ? "/Images/default-avatar.svg" : Model.ProfilePicturePath)"
+                         alt="Profile"
+                         class="role-top-profile-img"
+                         onerror="this.src='/Images/default-avatar.svg'" />
+                    <div>
+                        <div class="role-top-profile-name">@Model.DisplayName</div>
+                        <div class="role-top-profile-branch"><i class="bi bi-building me-1"></i>@Model.BranchName</div>
+                    </div>
+                </div>
 
                 <div class="auth-logo-badge d-flex d-lg-none">
                     <i class="bi bi-plus-lg"></i>

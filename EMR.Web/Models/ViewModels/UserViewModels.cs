@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace EMR.Web.Models.ViewModels;
@@ -7,6 +8,7 @@ public class UserListItemViewModel
 {
     public int Id { get; set; }
     public string Username { get; set; } = string.Empty;
+    public string EmployeeCode { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public bool IsActive { get; set; }
@@ -16,6 +18,10 @@ public class UserListItemViewModel
 public class UserFormViewModel
 {
     public int Id { get; set; }
+
+    [MaxLength(50)]
+    [Display(Name = "Employee Code")]
+    public string? EmployeeCode { get; set; }
 
     [Required]
     [MaxLength(100)]
@@ -48,6 +54,11 @@ public class UserFormViewModel
     [Display(Name = "Phone Number")]
     public string? PhoneNumber { get; set; }
 
+    [Display(Name = "Profile Picture")]
+    public IFormFile? ProfilePictureFile { get; set; }
+
+    public string? ExistingProfilePicturePath { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public List<int> SelectedBranchIds { get; set; } = new();
@@ -74,6 +85,7 @@ public class UserDetailsViewModel
 {
     public int Id { get; set; }
     public string Username { get; set; } = string.Empty;
+    public string EmployeeCode { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
@@ -83,6 +95,7 @@ public class UserDetailsViewModel
     public DateTime? LastLoginDate { get; set; }
     public DateTime CreatedDate { get; set; }
     public DateTime? LastModifiedDate { get; set; }
+    public string? ProfilePicturePath { get; set; }
     public List<string> Branches { get; set; } = new();
     public List<BranchRoleDetailItem> BranchRoleMappings { get; set; } = new();
 }
@@ -90,5 +103,6 @@ public class UserDetailsViewModel
 public class BranchRoleDetailItem
 {
     public string BranchName { get; set; } = string.Empty;
+    public string? EmployeeCode { get; set; }
     public List<string> Roles { get; set; } = new();
 }
