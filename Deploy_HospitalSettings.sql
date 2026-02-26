@@ -61,7 +61,7 @@ BEGIN
         [CheckInTime]                         TIME             NULL,
         [CheckOutTime]                        TIME             NULL,
         [IsActive]                            BIT              NOT NULL DEFAULT(1),
-        [CreatedDate]                         DATETIME2        NOT NULL DEFAULT(GETUTCDATE()),
+        [CreatedDate]                         DATETIME2        NOT NULL DEFAULT(GETDATE()),
         [CreatedBy]                           INT              NULL,
         [LastModifiedDate]                    DATETIME2        NULL,
         [LastModifiedBy]                      INT              NULL,
@@ -121,7 +121,7 @@ SELECT
     b.[BranchID],
     b.[BranchName],
     1,
-    GETUTCDATE(),
+    GETDATE(),
     0,
     0, 0, 0, 0, 0
 FROM [dbo].[Branchmaster] b

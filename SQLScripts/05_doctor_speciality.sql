@@ -13,7 +13,7 @@ BEGIN
         SpecialityName  NVARCHAR(100) NOT NULL,
         IsActive        BIT           NOT NULL DEFAULT 1,
         CreatedBy       INT           NULL,
-        CreatedDate     DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
+        CreatedDate     DATETIME2     NOT NULL DEFAULT GETDATE(),
         ModifiedBy      INT           NULL,
         ModifiedDate    DATETIME2     NULL
     );

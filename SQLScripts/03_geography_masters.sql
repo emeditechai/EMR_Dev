@@ -11,7 +11,7 @@ CREATE TABLE CountryMaster (
     Currency     NVARCHAR(10)  NULL,
     IsActive     BIT           NOT NULL DEFAULT 1,
     CreatedBy    INT           NULL,
-    CreatedDate  DATETIME      NOT NULL DEFAULT GETUTCDATE(),
+    CreatedDate  DATETIME      NOT NULL DEFAULT GETDATE(),
     ModifiedBy   INT           NULL,
     ModifiedDate DATETIME      NULL,
     CONSTRAINT UQ_CountryCode UNIQUE (CountryCode)
@@ -25,7 +25,7 @@ CREATE TABLE StateMaster (
     CountryId    INT           NOT NULL REFERENCES CountryMaster(CountryId),
     IsActive     BIT           NOT NULL DEFAULT 1,
     CreatedBy    INT           NULL,
-    CreatedDate  DATETIME      NOT NULL DEFAULT GETUTCDATE(),
+    CreatedDate  DATETIME      NOT NULL DEFAULT GETDATE(),
     ModifiedBy   INT           NULL,
     ModifiedDate DATETIME      NULL,
     CONSTRAINT UQ_StateCode UNIQUE (StateCode)
@@ -39,7 +39,7 @@ CREATE TABLE DistrictMaster (
     StateId      INT           NOT NULL REFERENCES StateMaster(StateId),
     IsActive     BIT           NOT NULL DEFAULT 1,
     CreatedBy    INT           NULL,
-    CreatedDate  DATETIME      NOT NULL DEFAULT GETUTCDATE(),
+    CreatedDate  DATETIME      NOT NULL DEFAULT GETDATE(),
     ModifiedBy   INT           NULL,
     ModifiedDate DATETIME      NULL,
     CONSTRAINT UQ_DistrictCode UNIQUE (DistrictCode)
@@ -53,7 +53,7 @@ CREATE TABLE CityMaster (
     DistrictId   INT           NOT NULL REFERENCES DistrictMaster(DistrictId),
     IsActive     BIT           NOT NULL DEFAULT 1,
     CreatedBy    INT           NULL,
-    CreatedDate  DATETIME      NOT NULL DEFAULT GETUTCDATE(),
+    CreatedDate  DATETIME      NOT NULL DEFAULT GETDATE(),
     ModifiedBy   INT           NULL,
     ModifiedDate DATETIME      NULL,
     CONSTRAINT UQ_CityCode UNIQUE (CityCode)
@@ -67,7 +67,7 @@ CREATE TABLE AreaMaster (
     CityId       INT           NOT NULL REFERENCES CityMaster(CityId),
     IsActive     BIT           NOT NULL DEFAULT 1,
     CreatedBy    INT           NULL,
-    CreatedDate  DATETIME      NOT NULL DEFAULT GETUTCDATE(),
+    CreatedDate  DATETIME      NOT NULL DEFAULT GETDATE(),
     ModifiedBy   INT           NULL,
     ModifiedDate DATETIME      NULL,
     CONSTRAINT UQ_AreaCode UNIQUE (AreaCode)
