@@ -130,8 +130,8 @@ app.Use(async (context, next) =>
                     hasValidRole = !string.IsNullOrWhiteSpace(activeRole)
                         && await db.UserRoles
                             .Where(x => x.UserId == userId && x.IsActive)
-                            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => new { r.Name, r.BranchId })
-                            .AnyAsync(x => x.Name == activeRole && (!x.BranchId.HasValue || x.BranchId == branchId));
+                            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+                            .AnyAsync(x => x == activeRole);
                 }
 
                 if (!hasValidRole)

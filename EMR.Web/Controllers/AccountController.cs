@@ -203,9 +203,7 @@ public class AccountController(
             .Join(dbContext.Roles,
                 userRole => userRole.RoleId,
                 role => role.Id,
-                (userRole, role) => new { role.Name, role.BranchId })
-            .Where(x => !x.BranchId.HasValue || x.BranchId == branchId)
-            .Select(x => x.Name)
+                (userRole, role) => role.Name)
             .Distinct()
             .ToListAsync();
 
@@ -273,8 +271,7 @@ public class AccountController(
             .Join(dbContext.Roles,
                 ur => ur.RoleId,
                 r => r.Id,
-                (ur, r) => new { r.Id, r.Name, r.BranchId })
-            .Where(x => !x.BranchId.HasValue || x.BranchId == branchId)
+                (ur, r) => new { r.Id, r.Name })
             .Distinct()
             .OrderBy(x => x.Name)
             .ToListAsync();
@@ -349,9 +346,7 @@ public class AccountController(
 
         var allRoleNames = await dbContext.UserRoles
             .Where(x => x.UserId == userId && x.IsActive)
-            .Join(dbContext.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => new { r.Name, r.BranchId })
-            .Where(x => !x.BranchId.HasValue || x.BranchId == branchId)
-            .Select(x => x.Name)
+            .Join(dbContext.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
             .Distinct()
             .ToListAsync();
 
