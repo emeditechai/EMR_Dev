@@ -1,0 +1,73 @@
+@model EMR.Web.Models.Entities.ServiceMaster
+@{
+    ViewData["Title"] = "Service Details";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Service Details</h1>
+        <small class="text-muted">Viewing: @Model.ItemName</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.ServiceId" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="dashboard-panel" style="max-width:600px;">
+    <div class="row g-4">
+        <div class="col-sm-6">
+            <p class="text-muted small mb-1">Item Code</p>
+            <p class="fw-semibold fs-6 mb-0 font-monospace">
+                <i class="bi bi-upc-scan text-primary me-2"></i>@Model.ItemCode
+            </p>
+        </div>
+        <div class="col-sm-6">
+            <p class="text-muted small mb-1">Service Type</p>
+            @if (Model.ServiceType == "Consulting")
+            {
+                <span class="badge text-bg-info text-white px-3 py-2">Consulting</span>
+            }
+            else
+            {
+                <span class="badge text-bg-secondary px-3 py-2">Service</span>
+            }
+        </div>
+        <div class="col-12">
+            <p class="text-muted small mb-1">Item Name</p>
+            <p class="fw-semibold fs-5 mb-0">
+                <i class="bi bi-clipboard2-check text-primary me-2"></i>@Model.ItemName
+            </p>
+        </div>
+        <div class="col-sm-6">
+            <p class="text-muted small mb-1">Item Charges</p>
+            <p class="fw-bold fs-5 mb-0 text-success">₹ @Model.ItemCharges.ToString("N2")</p>
+        </div>
+        <div class="col-sm-6">
+            <p class="text-muted small mb-1">Status</p>
+            @if (Model.IsActive)
+            {
+                <span class="badge text-bg-success px-3 py-2">Active</span>
+            }
+            else
+            {
+                <span class="badge text-bg-secondary px-3 py-2">Inactive</span>
+            }
+        </div>
+        <div class="col-sm-6">
+            <p class="text-muted small mb-1">Created On</p>
+            <p class="fw-semibold mb-0">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm") UTC</p>
+        </div>
+        @if (Model.ModifiedDate.HasValue)
+        {
+            <div class="col-sm-6">
+                <p class="text-muted small mb-1">Last Modified</p>
+                <p class="fw-semibold mb-0">@Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm") UTC</p>
+            </div>
+        }
+    </div>
+</div>

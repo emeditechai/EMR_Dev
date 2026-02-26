@@ -31,6 +31,7 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
 builder.Services.AddScoped<IFloorService, FloorService>();
 builder.Services.AddScoped<IDoctorRoomService, DoctorRoomService>();
+builder.Services.AddScoped<IServiceService, ServiceService>();
 
 builder.Services.AddHttpContextAccessor();
 

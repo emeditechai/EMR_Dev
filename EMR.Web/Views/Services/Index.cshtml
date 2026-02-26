@@ -1,0 +1,139 @@
+@model IEnumerable<EMR.Web.Models.Entities.ServiceMaster>
+@{
+    ViewData["Title"] = "Service Master";
+    var total    = Model.Count();
+    var active   = Model.Count(x => x.IsActive);
+    var inactive = total - active;
+    var consulting = Model.Count(x => x.ServiceType == "Consulting");
+    var service    = Model.Count(x => x.ServiceType == "Service");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Service Master</h1>
+        <small class="text-muted">Branch-wise service &amp; charge setup</small>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Add Service
+    </a>
+</div>
+
+@if (TempData["Success"] is string msg)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i>@msg
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-sm-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-clipboard2-check-fill"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Services</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-3">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@inactive</div>
+                <div class="stat-label">Inactive</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-3">
+        <div class="stat-card stat-purple">
+            <div class="stat-icon"><i class="bi bi-stethoscope"></i></div>
+            <div>
+                <div class="stat-value">@consulting</div>
+                <div class="stat-label">Consulting</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Item Code</th>
+                <th>Item Name</th>
+                <th>Service Type</th>
+                <th class="text-end">Charges (₹)</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{ int i = 1; }
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="badge text-bg-light border text-dark font-monospace">@item.ItemCode</span>
+                    </td>
+                    <td class="fw-semibold">
+                        <i class="bi bi-clipboard2-check text-primary me-2"></i>@item.ItemName
+                    </td>
+                    <td>
+                        @if (item.ServiceType == "Consulting")
+                        {
+                            <span class="badge text-bg-info text-white">Consulting</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Service</span>
+                        }
+                    </td>
+                    <td class="text-end fw-semibold">@item.ItemCharges.ToString("N2")</td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.ServiceId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.ServiceId"
+                           class="btn btn-sm btn-outline-primary" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-5">
+                        <i class="bi bi-clipboard2-check fs-2 d-block mb-2 opacity-50"></i>
+                        No services found for this branch. <a asp-action="Create">Add one now.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
