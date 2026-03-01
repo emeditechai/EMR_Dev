@@ -1,17 +1,989 @@
+@model EMR.Web.Models.ViewModels.PatientRegistrationViewModel
 @{
-    ViewData["Title"] = "Patient Registration";
+    ViewData["Title"] = Model.PatientId > 0 ? "Edit Patient" : "Patient Registration";
+    bool isEdit = Model.PatientId > 0;
+    bool registered = ViewContext.HttpContext.Request.Query.ContainsKey("registered");
+    string? newCode = TempData["NewPatientCode"] as string;
+    string? newName = TempData["NewPatientName"] as string;
+    bool isBooking = TempData["IsBooking"] as bool? ?? false;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+    <style>
+        /* ── Select2 overrides to match Bootstrap form-select height & font ── */
+        .select2-container--bootstrap-5 .select2-selection {
+            min-height: calc(1.5em + 0.75rem + 2px);
+            font-size: 0.9rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+            line-height: 1.5;
+            padding-top: 0.375rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+            height: calc(1.5em + 0.75rem + 2px);
+        }
+        .select2-container { width: 100% !important; }
+
+        /* ── Section card styling ── */
+        .reg-section {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+        .reg-section-header {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            padding: 1rem 1.4rem;
+            border-bottom: 1px solid #e9ecef;
+            background: #f8f9fc;
+        }
+        .reg-section-header .sec-icon {
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+        .reg-section-header .sec-icon.blue  { background: #e8f0fe; color: #1967d2; }
+        .reg-section-header .sec-icon.green { background: #e6f4ea; color: #137333; }
+        .reg-section-header .sec-icon.red   { background: #fce8e6; color: #c5221f; }
+        .reg-section-body { padding: 1.4rem; }
+
+        /* ── Identification sub-block ── */
+        .id-block {
+            background: #f8f9fc;
+            border: 1px dashed #ced4da;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin-top: .25rem;
+        }
+
+        /* ── Service sub-block ── */
+        .service-block {
+            background: #f8f9fc;
+            border: 1px solid #e0e7ef;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin-top: .25rem;
+        }
+        .charges-display {
+            background: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            color: #2e7d32;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: .5px;
+        }
+        /* ── Search panel ── */
+        .search-panel {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.1rem 1.4rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+        .search-panel .search-label-strip {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: .75rem;
+        }
+        /* ── Phone suggestion dropdown ── */
+        #phoneSearchDropdown .list-group-item:hover { background: #e8f0fe; }
+        /* ── Action bar ── */
+        .action-bar {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1rem 1.4rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: .75rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+    </style>
+}
+
+@* ══════════════════════════════════════════════════════════════
+   PAGE HEADER
+══════════════════════════════════════════════════════════════ *@
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-        <h1 class="h3 mb-0 fw-bold">Patient Registration</h1>
-        <small class="text-muted">Register new patients for OPD visits</small>
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="bi bi-person-plus-fill me-2 text-primary"></i>
+            @(isEdit ? "Edit Patient" : "Patient Registration")
+        </h1>
+        <small class="text-muted">
+            @(isEdit ? "Modify existing patient demographics and visit details" : "Register new patients for OPD visits")
+        </small>
     </div>
-    <span class="badge text-bg-primary fs-6 px-3 py-2">OPD</span>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge text-bg-primary fs-6 px-3 py-2"><i class="bi bi-hospital me-1"></i>OPD</span>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-list-ul me-1"></i>Patient List
+        </a>
+    </div>
 </div>
 
-<div class="card-soft p-5 text-center">
-    <i class="bi bi-person-plus-fill fs-1 text-primary opacity-50 d-block mb-3"></i>
-    <h4 class="fw-semibold text-muted">Patient Registration</h4>
-    <p class="text-muted mb-0">Business logic will be implemented here.</p>
+@* ── Alerts ── *@
+@if (!string.IsNullOrEmpty(TempData["Error"] as string))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(TempData["Success"] as string))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@* ══════════════════════════════════════════════════════════════
+   SEARCH EXISTING PATIENT  (optional)
+══════════════════════════════════════════════════════════════ *@
+@if (!isEdit)
+{
+    <div class="search-panel" id="searchPanel">
+        <div class="search-label-strip">
+            <i class="bi bi-search text-primary fs-6"></i>
+            Search Existing Patient
+            <span class="badge text-bg-warning text-dark ms-1">Optional</span>
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label fw-semibold small mb-1">Search By</label>
+                <select id="searchType" class="form-select form-select-sm">
+                    <option value="phone">Mobile No</option>
+                    <option value="code">Patient ID</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label fw-semibold small mb-1" id="searchLabel">Enter Mobile Number</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text" id="searchIcon"><i class="bi bi-telephone"></i></span>
+                    <input type="text" id="searchInput" class="form-control"
+                           placeholder="Type to search…" maxlength="30" autocomplete="off" />
+                    <button class="btn btn-primary px-3" type="button" id="btnSearch">
+                        <i class="bi bi-search me-1"></i>Search
+                    </button>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="alert alert-info py-2 mb-0 small" role="alert">
+                    <i class="bi bi-info-circle me-1"></i>Auto-populates form on selection
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ══════════════════════════════════════════════════════════════
+   MAIN FORM
+══════════════════════════════════════════════════════════════ *@
+<form asp-action="PatientRegistration" method="post" enctype="multipart/form-data"
+      id="patientForm" novalidate>
+    @Html.AntiForgeryToken()
+    <input asp-for="PatientId"              type="hidden" />
+    <input asp-for="PatientCode"            type="hidden" />
+    <input asp-for="OPDServiceId"           type="hidden" id="hdnOPDServiceId" />
+    <input asp-for="IdentificationFilePath" type="hidden" id="existingFilePath" />
+    <input asp-for="DemographicsOnly"       type="hidden" />
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+
+    @* ════════════════════════════════════════════════════════════
+       SECTION 1 — PATIENT DEMOGRAPHY
+    ════════════════════════════════════════════════════════════ *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon blue"><i class="bi bi-person-vcard-fill"></i></div>
+            <div class="flex-grow-1">
+                <h6 class="fw-bold mb-0">
+                    Patient Demography
+                    @if (isEdit && !string.IsNullOrEmpty(Model.PatientCode))
+                    {
+                        <span class="badge text-bg-primary ms-2 font-monospace">@Model.PatientCode</span>
+                    }
+                    <span id="loadedPatientBadge" class="badge text-bg-primary ms-2 font-monospace d-none"></span>
+                </h6>
+                <small class="text-muted">Basic personal, contact and address information</small>
+            </div>
+            <span class="badge text-bg-danger">* Required Fields</span>
+        </div>
+        <div class="reg-section-body">
+
+            @* ── Row 1: Salutation | First Name | Middle Name | Last Name ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-sm-4 col-md-2">
+                    <label asp-for="Salutation" class="form-label fw-semibold small">Title</label>
+                    <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic">
+                        <option value="">--</option>
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Master">Master</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Dr.">Dr.</option>
+                    </select>
+                </div>
+                <div class="col-6 col-sm-8 col-md-4">
+                    <label asp-for="FirstName" class="form-label fw-semibold small">
+                        First Name <span class="text-danger">*</span>
+                    </label>
+                    <input asp-for="FirstName" class="form-control" maxlength="100" placeholder="Enter first name" />
+                    <span asp-validation-for="FirstName" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
+                    <input asp-for="MiddleName" class="form-control" maxlength="100" placeholder="Optional" />
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="LastName" class="form-label fw-semibold small">
+                        Last Name <span class="text-danger">*</span>
+                    </label>
+                    <input asp-for="LastName" class="form-control" maxlength="100" placeholder="Enter last name" />
+                    <span asp-validation-for="LastName" class="text-danger small"></span>
+                </div>
+            </div>
+
+            @* ── Row 2: Phone | Secondary | Email | Gender ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6 col-md-3 position-relative">
+                    <label asp-for="PhoneNumber" class="form-label fw-semibold small">
+                        Phone Number <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
+                        <input asp-for="PhoneNumber" id="phoneNumber" class="form-control"
+                               maxlength="15" placeholder="10-digit mobile" autocomplete="off" />
+                    </div>
+                    <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    <div id="phoneSearchDropdown"
+                         class="list-group position-absolute shadow"
+                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
+                        <input asp-for="SecondaryPhoneNumber" class="form-control"
+                               maxlength="15" placeholder="Optional" />
+                    </div>
+                    <span asp-validation-for="SecondaryPhoneNumber" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="EmailId" class="form-label fw-semibold small">Email ID</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-envelope text-secondary"></i></span>
+                        <input asp-for="EmailId" class="form-control" maxlength="150" placeholder="Optional" />
+                    </div>
+                    <span asp-validation-for="EmailId" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="Gender" class="form-label fw-semibold small">
+                        Gender <span class="text-danger">*</span>
+                    </label>
+                    <select asp-for="Gender" id="ddlGender" class="form-select s2-basic">
+                        <option value="">-- Select Gender --</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <span asp-validation-for="Gender" class="text-danger small"></span>
+                </div>
+            </div>
+
+            @* ── Row 3: Religion | Blood Group | Guardian Name ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="ReligionId" class="form-label fw-semibold small">Religion</label>
+                    <select asp-for="ReligionId" id="ddlReligion" class="form-select s2-search"
+                            asp-items="Model.ReligionOptions">
+                        <option value="">-- Select Religion --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
+                    <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
+                        <option value="">-- Select --</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                        <option value="Unknown">Unknown</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-12 col-md-6">
+                    <label asp-for="GuardianName" class="form-label fw-semibold small">Guardian / Relative Name</label>
+                    <input asp-for="GuardianName" class="form-control" maxlength="200" placeholder="Optional" />
+                </div>
+            </div>
+
+            @* ── Row 4: Address — Country | State | District | City | Area ── *@
+            <div class="row g-3 mb-1">
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="CountryId" class="form-label fw-semibold small">Country</label>
+                    <select asp-for="CountryId" id="ddlCountry" class="form-select s2-search"
+                            asp-items="Model.CountryOptions">
+                        <option value="">-- Select Country --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="StateId" class="form-label fw-semibold small">State</label>
+                    <select asp-for="StateId" id="ddlState" class="form-select s2-search"
+                            asp-items="Model.StateOptions">
+                        <option value="">-- Select State --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-4 col-md-2">
+                    <label asp-for="DistrictId" class="form-label fw-semibold small">District</label>
+                    <select asp-for="DistrictId" id="ddlDistrict" class="form-select s2-search"
+                            asp-items="Model.DistrictOptions">
+                        <option value="">-- Select District --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-4 col-md-2">
+                    <label asp-for="CityId" class="form-label fw-semibold small">City</label>
+                    <select asp-for="CityId" id="ddlCity" class="form-select s2-search"
+                            asp-items="Model.CityOptions">
+                        <option value="">-- Select City --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-4 col-md-2">
+                    <label asp-for="AreaId" class="form-label fw-semibold small">Area</label>
+                    <select asp-for="AreaId" id="ddlArea" class="form-select s2-search"
+                            asp-items="Model.AreaOptions">
+                        <option value="">-- Select Area --</option>
+                    </select>
+                </div>
+            </div>
+
+            @* ── Identification sub-block ── *@
+            <div class="id-block mt-3">
+                <p class="text-muted small fw-bold mb-3">
+                    <i class="bi bi-shield-check-fill me-1 text-secondary"></i>
+                    Identification Details <span class="fw-normal">(Optional)</span>
+                </p>
+                <div class="row g-3">
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <label asp-for="IdentificationTypeId" class="form-label fw-semibold small">ID Type</label>
+                        <select asp-for="IdentificationTypeId" id="ddlIdType" class="form-select s2-search"
+                                asp-items="Model.IdentificationTypeOptions">
+                            <option value="">-- Select ID Type --</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <label asp-for="IdentificationNumber" class="form-label fw-semibold small">ID Number</label>
+                        <input asp-for="IdentificationNumber" class="form-control" maxlength="100"
+                               placeholder="Enter identification number" />
+                    </div>
+                    <div class="col-12 col-md-5">
+                        <label class="form-label fw-semibold small">
+                            Upload ID Document
+                            <span class="text-muted fw-normal">(PDF / JPG / JPEG / PNG)</span>
+                        </label>
+                        <input type="file" name="identificationFile" id="idFileUpload"
+                               class="form-control" accept=".pdf,.jpg,.jpeg,.png" />
+                        @if (!string.IsNullOrEmpty(Model.IdentificationFilePath))
+                        {
+                            <div class="mt-1">
+                                <a href="@Model.IdentificationFilePath" target="_blank" class="small text-primary">
+                                    <i class="bi bi-eye me-1"></i>View uploaded file
+                                </a>
+                            </div>
+                        }
+                        <span asp-validation-for="IdentificationFilePath" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    @* ════════════════════════════════════════════════════════════
+       SECTION 2 — OTHER INFORMATION
+    ════════════════════════════════════════════════════════════ *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon green"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+            <div>
+                <h6 class="fw-bold mb-0">Other Information</h6>
+                <small class="text-muted">Occupation, marital status &amp; medical notes</small>
+            </div>
+        </div>
+        <div class="reg-section-body">
+
+            @* ── Row 1: Occupation | Marital Status ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="OccupationId" class="form-label fw-semibold small">Occupation</label>
+                    <select asp-for="OccupationId" id="ddlOccupation" class="form-select s2-search"
+                            asp-items="Model.OccupationOptions">
+                        <option value="">-- Select Occupation --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="MaritalStatusId" class="form-label fw-semibold small">Marital Status</label>
+                    <select asp-for="MaritalStatusId" id="ddlMaritalStatus" class="form-select s2-search"
+                            asp-items="Model.MaritalStatusOptions">
+                        <option value="">-- Select Status --</option>
+                    </select>
+                </div>
+            </div>
+
+            @* ── Row 2: Allergies | Remarks ── *@
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label asp-for="KnownAllergies" class="form-label fw-semibold small">Known Allergies</label>
+                    <textarea asp-for="KnownAllergies" class="form-control" rows="3" maxlength="500"
+                              placeholder="List any known allergies (optional)"></textarea>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label asp-for="Remarks" class="form-label fw-semibold small">Remarks</label>
+                    <textarea asp-for="Remarks" class="form-control" rows="3" maxlength="1000"
+                              placeholder="Any additional notes (optional)"></textarea>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    @* ════════════════════════════════════════════════════════════
+       SECTION 3 — DOCTOR & SERVICES  (hidden when editing demographics directly)
+    ════════════════════════════════════════════════════════════ *@
+    @if (!isEdit)
+    {
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon red"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div>
+                <h6 class="fw-bold mb-0">Doctor &amp; Services</h6>
+                <small class="text-muted">Assign consulting doctor and select the service or consultation</small>
+            </div>
+        </div>
+        <div class="reg-section-body">
+
+            @* ── Row 1: Consulting Doctor ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-md-6">
+                    <label asp-for="ConsultingDoctorId" class="form-label fw-semibold small">
+                        Consulting Doctor
+                        <span class="badge text-bg-info text-dark ms-1">OPD Doctors Only</span>
+                    </label>
+                    <select asp-for="ConsultingDoctorId" id="ddlDoctor" class="form-select s2-search"
+                            asp-items="Model.DoctorOptions">
+                        <option value="" disabled>-- Select Doctor --</option>
+                    </select>
+                </div>
+            </div>
+
+            @* ── Service sub-block ── *@
+            <div class="service-block">
+                <p class="fw-bold text-secondary small mb-3">
+                    <i class="bi bi-receipt-cutoff me-1"></i>Service / Consultation Fee
+                </p>
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-sm-4 col-md-3">
+                        <label asp-for="ServiceType" class="form-label fw-semibold small">Service Type</label>
+                        <select asp-for="ServiceType" id="ddlServiceType" class="form-select s2-basic">
+                            <option value="">-- Select Type --</option>
+                            <option value="Consulting">Consulting</option>
+                            <option value="Service">Services</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-8 col-md-5">
+                        <label asp-for="ServiceId" class="form-label fw-semibold small">Item / Service Name</label>
+                        <select asp-for="ServiceId" id="ddlServiceItem" class="form-select s2-search"
+                                asp-items="Model.ServiceOptions">
+                            <option value="">-- Select Service Type first --</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <label class="form-label fw-semibold small">Charges (₹)</label>
+                        <div class="input-group">
+                            <span class="input-group-text fw-bold">₹</span>
+                            <input type="text" id="serviceCharges"
+                                   class="form-control charges-display"
+                                   readonly placeholder="Auto-filled on item selection" />
+                        </div>
+                        <input asp-for="ServiceCharges" type="hidden" id="hiddenServiceCharges" />
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    } @* end @if (!isEdit) — Doctor & Services section *@
+
+    @* ── Action bar ── *@
+    <div class="action-bar">
+        <a asp-action="Index" class="btn btn-outline-secondary px-4">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </a>
+        <button type="reset" class="btn btn-outline-warning px-4" id="btnReset">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+        </button>
+        <button type="submit" class="btn btn-primary px-5 fw-semibold" id="btnSave"
+                data-default-label="@(isEdit ? "Save Changes" : "Register Patient")"
+                data-default-icon="bi-save2-fill">
+            <i class="bi @(isEdit ? "bi-floppy-fill" : "bi-save2-fill") me-2" id="btnSaveIcon"></i>
+            <span id="btnSaveLabel">@(isEdit ? "Save Changes" : "Register Patient")</span>
+        </button>
+    </div>
+
+</form>
+
+@* ══════════════════════════════════════════════════════════════
+   PATIENT SEARCH RESULTS MODAL
+══════════════════════════════════════════════════════════════ *@
+<div class="modal fade" id="searchResultModal" tabindex="-1"
+     aria-labelledby="searchResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-people-fill me-2"></i>Matching Patients Found
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>Patient ID</th>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Gender</th>
+                            <th>Blood Group</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="searchResultsBody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
 </div>
+
+@* ══════════════════════════════════════════════════════════════
+   SUCCESS MODAL  (shown after save)
+══════════════════════════════════════════════════════════════ *@
+<div class="modal fade" id="registrationSuccessModal" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-body text-center py-5 px-4">
+                <div id="successIconWrap" class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                     style="width:72px;height:72px;background:@(isBooking ? "#0d6efd" : "#198754")">
+                    <i id="successIcon" class="@(isBooking ? "bi bi-calendar2-check-fill" : "bi bi-check-lg") text-white fs-1"></i>
+                </div>
+                <h4 class="fw-bold mb-1" id="successTitle"
+                    style="color:@(isBooking ? "#0d6efd" : "#198754")">
+                    @(isBooking ? "Service Booked!" : "Patient Registered!")
+                </h4>
+                <p class="text-muted mb-3" id="successDesc">
+                    @(isBooking ? $"Service booked for patient ID #{newCode}" : "Patient has been successfully registered.")
+                </p>
+                <div class="alert alert-primary py-3 px-4 mx-auto" style="max-width:260px;">
+                    <p class="text-muted small mb-1 fw-semibold">PATIENT ID</p>
+                    <h2 class="fw-bold text-primary mb-0 font-monospace" id="successPatientCode">---</h2>
+                </div>
+                <p class="text-muted small mt-2" id="successPatientName"></p>
+                <div class="d-flex gap-2 justify-content-center mt-4">
+                    <button class="btn btn-outline-secondary btn-sm"
+                            onclick="location.href='@Url.Action("Index")'">
+                        <i class="bi bi-list-ul me-1"></i>All Patients
+                    </button>
+                    <button class="btn btn-primary btn-sm"
+                            onclick="location.href='@Url.Action("PatientRegistration")'">
+                        <i class="bi bi-person-plus-fill me-1"></i>Register Another
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    (function () {
+        'use strict';
+
+        const opdBase = '@Url.Content("~/OPD/")';
+
+        // ── Utility ───────────────────────────────────────────────────────────
+        async function fetchJson(url) {
+            try {
+                const r = await fetch(url);
+                return r.ok ? await r.json() : null;
+            } catch { return null; }
+        }
+
+        function setVal(nameOrId, val) {
+            if (val === null || val === undefined) return;
+            // Try by id first, then by name attribute
+            let el = document.getElementById(nameOrId) ?? document.querySelector(`[name="${nameOrId}"]`);
+            if (!el) return;
+            el.value = val;
+            // If it is a Select2-enhanced select, update Select2 display as well
+            if (el.tagName === 'SELECT' && el.classList.contains('select2-hidden-accessible')) {
+                $(el).val(val).trigger('change.select2');
+            }
+        }
+
+        function resetS2(selectId, placeholder) {
+            const $sel = $(`#${selectId}`);
+            $sel.empty().append(new Option(placeholder, '', true, true)).trigger('change');
+        }
+
+        function showToast(msg, type = 'success') {
+            const el = document.createElement('div');
+            el.className = `toast align-items-center text-bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
+            el.style.zIndex = 9999;
+            el.setAttribute('role', 'alert');
+            el.innerHTML = `<div class="d-flex">
+                <div class="toast-body fw-semibold"><i class="bi bi-check-circle me-2"></i>${msg}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>`;
+            document.body.appendChild(el);
+            new bootstrap.Toast(el, { delay: 3000 }).show();
+            el.addEventListener('hidden.bs.toast', () => el.remove());
+        }
+
+        // ── Initialise Select2 ────────────────────────────────────────────────
+        // s2-basic  → dropdown only (no search box for short lists)
+        // s2-search → includes search box (for long lists like geography, doctors…)
+
+        const commonOpts = {
+            theme: 'bootstrap-5',
+            width: '100%',
+            dropdownParent: document.body   // avoids z-index issues inside panels
+        };
+
+        $('.s2-basic').select2({ ...commonOpts, minimumResultsForSearch: Infinity });
+
+        $('.s2-search').select2({ ...commonOpts, minimumResultsForSearch: 1 });
+
+        // ── Success modal ─────────────────────────────────────────────────────
+        @if (registered && !string.IsNullOrEmpty(newCode))
+        {
+            <text>
+            document.getElementById('successPatientCode').textContent = '@newCode';
+            document.getElementById('successPatientName').textContent  = '@newName';
+            new bootstrap.Modal(document.getElementById('registrationSuccessModal')).show();
+            </text>
+        }
+
+        // ── Search panel – label / icon switching ─────────────────────────────
+        const searchType  = document.getElementById('searchType');
+        const searchLabel = document.getElementById('searchLabel');
+        const searchIcon  = document.querySelector('#searchIcon i');
+        if (searchType) {
+            searchType.addEventListener('change', () => {
+                if (searchType.value === 'phone') {
+                    searchLabel.textContent = 'Enter Mobile Number';
+                    if (searchIcon) { searchIcon.className = 'bi bi-telephone'; }
+                } else {
+                    searchLabel.textContent = 'Enter Patient ID';
+                    if (searchIcon) { searchIcon.className = 'bi bi-hash'; }
+                }
+            });
+        }
+
+        // ── Top search button ─────────────────────────────────────────────────
+        const btnSearch   = document.getElementById('btnSearch');
+        const searchInput = document.getElementById('searchInput');
+        if (btnSearch) {
+            btnSearch.addEventListener('click', async () => {
+                const val = searchInput.value.trim();
+                if (!val) return;
+                const url = searchType.value === 'phone'
+                    ? opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val)
+                    : opdBase + 'SearchPatientByCode?code='  + encodeURIComponent(val);
+                await openSearchModal(url);
+            });
+            searchInput?.addEventListener('keypress', e => {
+                if (e.key === 'Enter') { e.preventDefault(); btnSearch.click(); }
+            });
+        }
+
+        // ── Phone live-suggest (inside form) ──────────────────────────────────
+        const phoneInput = document.getElementById('phoneNumber');
+        const phoneDrop  = document.getElementById('phoneSearchDropdown');
+        let debounce;
+
+        if (phoneInput && phoneDrop) {
+            phoneInput.addEventListener('input', function () {
+                clearTimeout(debounce);
+                const val = this.value.trim();
+                if (val.length < 3) { phoneDrop.style.display = 'none'; return; }
+                debounce = setTimeout(async () => {
+                    const data = await fetchJson(opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val));
+                    if (data?.length) {
+                        phoneDrop.innerHTML = data.map(p => `
+                            <button type="button"
+                                    class="list-group-item list-group-item-action py-2 px-3 phone-sug"
+                                    data-id="${p.patientId}">
+                                <span class="fw-semibold">${p.fullName}</span>
+                                <span class="badge text-bg-info text-dark ms-1 font-monospace">${p.patientCode}</span>
+                                <br>
+                                <small class="text-muted">${p.phoneNumber} &nbsp;·&nbsp; ${p.gender || ''} &nbsp;·&nbsp; ${p.bloodGroup || '--'}</small>
+                            </button>`).join('');
+                        phoneDrop.style.display = 'block';
+                        phoneDrop.querySelectorAll('.phone-sug').forEach(btn => {
+                            btn.addEventListener('click', () => populatePatient(btn.dataset.id));
+                        });
+                    } else {
+                        phoneDrop.style.display = 'none';
+                    }
+                }, 350);
+            });
+            document.addEventListener('click', e => {
+                if (!phoneDrop.contains(e.target) && e.target !== phoneInput)
+                    phoneDrop.style.display = 'none';
+            });
+        }
+
+        // ── Cascading geography dropdowns ─────────────────────────────────────
+        function setupCascade(parentId, qsParam, action, childId, valProp, textProp, placeholder) {
+            $(`#${parentId}`).on('change', async function () {
+                const val = $(this).val();
+                resetS2(childId, placeholder);
+                // Also clear downstream cascades
+                const chain = ['ddlState','ddlDistrict','ddlCity','ddlArea'];
+                const startIdx = chain.indexOf(childId);
+                if (startIdx >= 0) {
+                    for (let i = startIdx + 1; i < chain.length; i++) {
+                        resetS2(chain[i], placeholderFor(chain[i]));
+                    }
+                }
+                if (!val) return;
+                const data = await fetchJson(opdBase + action + '?' + qsParam + '=' + val);
+                if (!data?.length) return;
+                const $child = $(`#${childId}`);
+                data.forEach(item => $child.append(new Option(item[textProp], item[valProp])));
+                $child.trigger('change.select2');
+            });
+        }
+
+        function placeholderFor(id) {
+            return { ddlState: '-- Select State --', ddlDistrict: '-- Select District --',
+                     ddlCity:  '-- Select City --',  ddlArea:     '-- Select Area --' }[id] || '--';
+        }
+
+        setupCascade('ddlCountry',  'countryId',  'GetStatesByCountry',   'ddlState',    'stateId',    'stateName',    '-- Select State --');
+        setupCascade('ddlState',    'stateId',    'GetDistrictsByState',  'ddlDistrict', 'districtId', 'districtName', '-- Select District --');
+        setupCascade('ddlDistrict', 'districtId', 'GetCitiesByDistrict',  'ddlCity',     'cityId',     'cityName',     '-- Select City --');
+        setupCascade('ddlCity',     'cityId',     'GetAreasByCity',       'ddlArea',     'areaId',     'areaName',     '-- Select Area --');
+
+        // ── Service type → item cascade ───────────────────────────────────────
+        const $doctor      = $('#ddlDoctor');
+        const $serviceType = $('#ddlServiceType');
+        const $serviceItem = $('#ddlServiceItem');
+
+        // Shared helper: fetch items for the current type/doctor and populate ddlServiceItem
+        async function loadServiceItems() {
+            resetS2('ddlServiceItem', '-- Select Item --');
+            document.getElementById('serviceCharges').value       = '';
+            document.getElementById('hiddenServiceCharges').value = '';
+
+            const type     = $serviceType.val();
+            const doctorId = $doctor.val();
+            if (!type) return;
+
+            let url;
+            if (type === 'Consulting') {
+                if (!doctorId) {
+                    resetS2('ddlServiceItem', '-- Select a Doctor first --');
+                    return;
+                }
+                url = opdBase + 'GetConsultingFeesByDoctor?doctorId=' + doctorId;
+            } else {
+                url = opdBase + 'GetServicesByType?type=' + encodeURIComponent(type);
+            }
+
+            const data = await fetchJson(url);
+            if (!data?.length) return;
+            data.forEach(s => {
+                const opt = new Option(`${s.itemName}  (₹${parseFloat(s.itemCharges).toLocaleString('en-IN', {minimumFractionDigits:2})})`, s.serviceId);
+                opt.dataset.charges = s.itemCharges;
+                $serviceItem.append(opt);
+            });
+            $serviceItem.trigger('change.select2');
+        }
+
+        $serviceType.on('change', () => loadServiceItems());
+
+        // When doctor changes, refresh item list if type is already 'Consulting'
+        $doctor.on('change', () => {
+            if ($serviceType.val() === 'Consulting') loadServiceItems();
+        });
+
+        $serviceItem.on('change', function () {
+            const sel = this.options[this.selectedIndex];
+            const charges = sel?.dataset?.charges;
+            document.getElementById('serviceCharges').value = charges
+                ? '₹ ' + parseFloat(charges).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                : '';
+            const hid = document.getElementById('hiddenServiceCharges');
+            if (hid) hid.value = charges || '';
+        });
+
+        // ── Auto-populate patient data ─────────────────────────────────────────
+        async function populatePatient(patientId) {
+            if (phoneDrop) phoneDrop.style.display = 'none';
+            const p = await fetchJson(opdBase + 'GetPatientDetails?id=' + patientId);
+            if (!p) return;
+
+            // ── Critical: mark form as UPDATE mode for this patient ───────────
+            document.getElementById('PatientId').value    = p.patientId;
+            document.getElementById('PatientCode').value  = p.patientCode ?? '';
+            // Preserve existing ID file so it isn't wiped if user doesn't re-upload
+            document.getElementById('existingFilePath').value = p.identificationFilePath ?? '';
+            // Always create a NEW OPD service row on search-load (new visit)
+            document.getElementById('hdnOPDServiceId').value = 0;
+
+            // ── Show patient code badge in Demography header ──────────────────
+            const badge = document.getElementById('loadedPatientBadge');
+            badge.textContent = p.patientCode;
+            badge.classList.remove('d-none');
+
+            // ── Switch submit button to "Book Service" ────────────────────────
+            document.getElementById('btnSaveIcon').className  = 'bi bi-calendar2-check-fill me-2';
+            document.getElementById('btnSaveLabel').textContent = 'Book Service';
+            document.getElementById('btnSave').classList.replace('btn-primary', 'btn-success');
+
+            // Plain text inputs (demographics)
+            ['PhoneNumber','SecondaryPhoneNumber','FirstName','MiddleName','LastName',
+             'EmailId','GuardianName','IdentificationNumber','KnownAllergies','Remarks'
+            ].forEach(f => setVal(f, p[f.charAt(0).toLowerCase() + f.slice(1)]));
+
+            // Select2 selects (demographics)
+            const s2Map = {
+                'ddlSalutation':    p.salutation,
+                'ddlGender':        p.gender,
+                'ddlReligion':      p.religionId,
+                'ddlBloodGroup':    p.bloodGroup,
+                'ddlOccupation':    p.occupationId,
+                'ddlMaritalStatus': p.maritalStatusId,
+                'ddlIdType':        p.identificationTypeId,
+            };
+            Object.entries(s2Map).forEach(([id, val]) => {
+                if (val !== null && val !== undefined) $(`#${id}`).val(val).trigger('change');
+            });
+
+            // Cascading geography chain
+            if (p.countryId) {
+                $('#ddlCountry').val(p.countryId).trigger('change.select2');
+                await loadAndSet('ddlState',    'countryId',  'GetStatesByCountry',   p.countryId,  'stateId',    'stateName',    p.stateId);
+                if (p.stateId) {
+                    await loadAndSet('ddlDistrict','stateId',  'GetDistrictsByState',  p.stateId,    'districtId', 'districtName', p.districtId);
+                    if (p.districtId) {
+                        await loadAndSet('ddlCity','districtId','GetCitiesByDistrict', p.districtId, 'cityId',     'cityName',     p.cityId);
+                        if (p.cityId) {
+                            await loadAndSet('ddlArea','cityId','GetAreasByCity',      p.cityId,     'areaId',     'areaName',     p.areaId);
+                        }
+                    }
+                }
+            }
+
+            // ── Section 3: always reset for new visit ────────────────────────
+            // Deselect Doctor & Service Type (keep their option lists intact).
+            // Full-empty resetS2 is only correct for Service Item since its
+            // options are built dynamically per service-type selection.
+            $('#ddlDoctor').val('').trigger('change');
+            $('#ddlServiceType').val('').trigger('change');   // cascades → clears item list via existing handler
+            resetS2('ddlServiceItem', '-- Select Service Type first --');
+            document.getElementById('serviceCharges').value       = '';
+            document.getElementById('hiddenServiceCharges').value = '';
+
+            showToast(`Patient loaded (${p.patientCode}) — select Doctor & Service for new visit`);
+        }
+
+        async function loadAndSet(childId, qsParam, action, parentVal, valProp, textProp, toSelect) {
+            const data = await fetchJson(opdBase + action + '?' + qsParam + '=' + parentVal);
+            resetS2(childId, placeholderFor(childId));
+            if (!data?.length) return;
+            const $child = $(`#${childId}`);
+            data.forEach(item => $child.append(new Option(item[textProp], item[valProp])));
+            if (toSelect) $child.val(toSelect);
+            $child.trigger('change.select2');
+        }
+
+        // ── Open search-result modal ──────────────────────────────────────────
+        async function openSearchModal(url) {
+            const data = await fetchJson(url);
+            const tbody = document.getElementById('searchResultsBody');
+            if (!data?.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No matching patients found.</td></tr>';
+            } else {
+                tbody.innerHTML = data.map(p => `
+                    <tr>
+                        <td><span class="badge text-bg-info text-dark font-monospace">${p.patientCode}</span></td>
+                        <td class="fw-semibold">${p.fullName}</td>
+                        <td>${p.phoneNumber}</td>
+                        <td>${p.gender || '--'}</td>
+                        <td>${p.bloodGroup ? '<span class="badge text-bg-danger">' + p.bloodGroup + '</span>' : '--'}</td>
+                        <td><button type="button" class="btn btn-sm btn-primary"
+                                onclick="selectPatient(${p.patientId})" data-bs-dismiss="modal">
+                            <i class="bi bi-person-check-fill me-1"></i>Select
+                        </button></td>
+                    </tr>`).join('');
+            }
+            new bootstrap.Modal(document.getElementById('searchResultModal')).show();
+        }
+
+        window.selectPatient = id => populatePatient(id);
+
+        // ── Reset button – re-init Select2 after reset ────────────────────────
+        document.getElementById('btnReset')?.addEventListener('click', () => {
+            // Restore submit button to default label
+            const btn = document.getElementById('btnSave');
+            const defaultLabel = btn?.dataset.defaultLabel ?? 'Register Patient';
+            document.getElementById('btnSaveIcon').className  = 'bi bi-save2-fill me-2';
+            document.getElementById('btnSaveLabel').textContent = defaultLabel;
+            btn?.classList.replace('btn-success', 'btn-primary');
+            // Hide patient code badge
+            const badge = document.getElementById('loadedPatientBadge');
+            badge.textContent = '';
+            badge.classList.add('d-none');
+            setTimeout(() => {
+                $('.s2-basic, .s2-search').trigger('change.select2');
+            }, 50);
+        });
+
+        // ── Client-side validation highlight ─────────────────────────────────
+        document.getElementById('patientForm')?.addEventListener('submit', function (e) {
+            if (!this.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            this.classList.add('was-validated');
+        });
+
+    })();
+    </script>
+}

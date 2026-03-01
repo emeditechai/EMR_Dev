@@ -34,6 +34,9 @@ builder.Services.AddScoped<IDoctorRoomService, DoctorRoomService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IDoctorConsultingFeeService, DoctorConsultingFeeService>();
 
+// Patient Registration (Dapper)
+builder.Services.AddScoped<IPatientService, PatientService>();
+
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

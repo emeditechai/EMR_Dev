@@ -13,6 +13,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<HospitalSettings> HospitalSettings => Set<HospitalSettings>();
 
+    // Patient Registration masters
+    public DbSet<ReligionMaster> ReligionMasters => Set<ReligionMaster>();
+    public DbSet<IdentificationTypeMaster> IdentificationTypeMasters => Set<IdentificationTypeMaster>();
+    public DbSet<OccupationMaster> OccupationMasters => Set<OccupationMaster>();
+    public DbSet<MaritalStatusMaster> MaritalStatusMasters => Set<MaritalStatusMaster>();
+    public DbSet<PatientMaster> PatientMasters => Set<PatientMaster>();
+    public DbSet<PatientOPDService> PatientOPDServices => Set<PatientOPDService>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -89,6 +97,50 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.CreatedDate);
             entity.HasIndex(x => new { x.UserId, x.BranchId, x.CreatedDate });
+        });
+
+        // ── Patient Registration Masters ─────────────────────────────────────
+
+        modelBuilder.Entity<ReligionMaster>(entity =>
+        {
+            entity.ToTable("ReligionMaster");
+            entity.HasKey(x => x.ReligionId);
+        });
+
+        modelBuilder.Entity<IdentificationTypeMaster>(entity =>
+        {
+            entity.ToTable("IdentificationTypeMaster");
+            entity.HasKey(x => x.IdentificationTypeId);
+        });
+
+        modelBuilder.Entity<OccupationMaster>(entity =>
+        {
+            entity.ToTable("OccupationMaster");
+            entity.HasKey(x => x.OccupationId);
+        });
+
+        modelBuilder.Entity<MaritalStatusMaster>(entity =>
+        {
+            entity.ToTable("MaritalStatusMaster");
+            entity.HasKey(x => x.MaritalStatusId);
+        });
+
+        modelBuilder.Entity<PatientMaster>(entity =>
+        {
+            entity.ToTable("PatientMaster");
+            entity.HasKey(x => x.PatientId);
+            entity.HasIndex(x => x.PatientCode).IsUnique();
+            entity.HasIndex(x => x.PhoneNumber);
+        });
+
+        modelBuilder.Entity<PatientOPDService>(entity =>
+        {
+            entity.ToTable("PatientOPDService");
+            entity.HasKey(x => x.OPDServiceId);
+            entity.HasOne(x => x.Patient)
+                  .WithMany()
+                  .HasForeignKey(x => x.PatientId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
