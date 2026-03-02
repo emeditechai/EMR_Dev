@@ -165,6 +165,8 @@ public class PatientRegistrationViewModel
     // ── After-save info (used by success modal) ───────────────────────────────
     public string? OPDBillNo { get; set; }
     public string? TokenNo { get; set; }
+    /// <summary>ID of the newly created OPDService row — used to build Print Bill URL.</summary>
+    public int? NewOPDServiceId { get; set; }
 
     /// <summary>
     /// True when opened via direct edit (edit button on list) — only demographics
@@ -254,6 +256,7 @@ public class ServiceBookingDetailViewModel
     public string? TokenNo { get; set; }
     public string PatientCode { get; set; } = string.Empty;
     public string PatientName { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
     public string? Gender { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public int? Age => DateOfBirth.HasValue

@@ -647,11 +647,19 @@
                     </div>
                 </div>
                 <p class="text-muted small mt-2" id="successPatientName"></p>
-                <div class="d-flex gap-2 justify-content-center mt-4">
+                <div class="d-flex gap-2 justify-content-center mt-4 flex-wrap">
                     <button class="btn btn-outline-secondary btn-sm"
                             onclick="location.href='@Url.Action("Index")'">
                         <i class="bi bi-list-ul me-1"></i>All Patients
                     </button>
+                    @if (Model.NewOPDServiceId.HasValue && Model.NewOPDServiceId.Value > 0)
+                    {
+                        <a class="btn btn-success btn-sm"
+                           href="@Url.Action("PrintBill", "OPD", new { id = Model.NewOPDServiceId.Value })"
+                           target="_blank">
+                            <i class="bi bi-printer-fill me-1"></i>Print Bill
+                        </a>
+                    }
                     <button class="btn btn-primary btn-sm"
                             onclick="location.href='@Url.Action("PatientRegistration")'">
                         <i class="bi bi-person-plus-fill me-1"></i>Register Another

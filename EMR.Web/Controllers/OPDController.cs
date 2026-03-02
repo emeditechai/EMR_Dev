@@ -58,8 +58,9 @@ public class OPDController(
         }
 
         // Pass bill/token info for success modal after redirect
-        model.OPDBillNo = TempData["OPDBillNo"] as string;
-        model.TokenNo   = TempData["TokenNo"]   as string;
+        model.OPDBillNo       = TempData["OPDBillNo"]       as string;
+        model.TokenNo         = TempData["TokenNo"]         as string;
+        model.NewOPDServiceId = int.TryParse(TempData["NewOPDServiceId"] as string, out var sid) ? sid : null;
 
         await PopulateSelectLists(model);
         return View(model);
@@ -113,15 +114,16 @@ public class OPDController(
         {
             var opdBill = MapViewModelToOPDBill(model);
             opdBill.BranchId = branchId;
-            var (patientCode, billNo, tokenNo, _, _) = await patientService.CreateAsync(
+            var (patientCode, billNo, tokenNo, _, newSvcId) = await patientService.CreateAsync(
                 patient, opdBill, model.LineItemsJson, User.GetUserId());
             await auditLogService.LogAsync("OPD", "Patient.Create",
                 $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
 
-            TempData["NewPatientCode"] = patientCode;
-            TempData["NewPatientName"] = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
-            TempData["OPDBillNo"]      = billNo;
-            TempData["TokenNo"]        = tokenNo;
+            TempData["NewPatientCode"]  = patientCode;
+            TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            TempData["OPDBillNo"]       = billNo;
+            TempData["TokenNo"]         = tokenNo;
+            TempData["NewOPDServiceId"] = newSvcId.ToString();
             return RedirectToAction(nameof(PatientRegistration), new { registered = true });
         }
         else   // UPDATE — existing patient
@@ -155,11 +157,12 @@ public class OPDController(
 
             if (model.OPDServiceId == 0)   // new visit for returning patient
             {
-                TempData["NewPatientCode"] = patient.PatientCode;
-                TempData["NewPatientName"] = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
-                TempData["OPDBillNo"]      = billNo;
-                TempData["TokenNo"]        = tokenNo;
-                TempData["IsBooking"]      = true;
+                TempData["NewPatientCode"]  = patient.PatientCode;
+                TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+                TempData["OPDBillNo"]       = billNo;
+                TempData["TokenNo"]         = tokenNo;
+                TempData["IsBooking"]       = true;
+                TempData["NewOPDServiceId"] = newSvcId.ToString();
                 return RedirectToAction(nameof(PatientRegistration), new { registered = true });
             }
 
@@ -258,7 +261,7 @@ public class OPDController(
         var bill      = MapViewModelToOPDBill(model);
         bill.BranchId = branchId;
 
-        var (billNo, tokenNo, _) = await patientService.CreateServiceBookingOnlyAsync(
+        var (billNo, tokenNo, newSvcId) = await patientService.CreateServiceBookingOnlyAsync(
             bill, model.LineItemsJson ?? "[]", userId);
 
         TempData["OPDBillNo"]      = billNo;
@@ -266,6 +269,7 @@ public class OPDController(
         TempData["NewPatientCode"] = model.PatientCode;
         TempData["NewPatientName"] = $"{model.FirstName} {model.LastName}".Trim();
         TempData["IsBooking"]      = true;
+        TempData["NewOPDServiceId"] = newSvcId.ToString();
 
         await auditLogService.LogAsync("OPD", "ServiceBooking.New",
             $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {tokenNo}");
@@ -409,6 +413,27 @@ public class OPDController(
     {
         var areas = await areaService.GetByCityAsync(cityId);
         return Json(areas.Where(a => a.IsActive).Select(a => new { a.AreaId, a.AreaName }));
+    }
+
+    // ─── Print Bill ───────────────────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> PrintBill(int id)
+    {
+        var detail = await patientService.GetServiceBookingDetailAsync(id);
+        if (detail is null) return NotFound();
+
+        var branchId = User.GetCurrentBranchId();
+        var settings = branchId.HasValue
+            ? await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId.Value)
+            : null;
+        var branch = branchId.HasValue
+            ? await dbContext.BranchMasters.FindAsync(branchId.Value)
+            : null;
+
+        ViewBag.Settings   = settings;
+        ViewBag.BranchName = branch?.BranchName ?? string.Empty;
+        return View(detail);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

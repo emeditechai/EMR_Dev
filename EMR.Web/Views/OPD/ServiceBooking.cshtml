@@ -6,9 +6,11 @@
     var from      = (Model.Page - 1) * Model.PageSize + 1;
     var to        = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
 
-    string? newBillNo  = TempData["OPDBillNo"] as string;
-    string? newToken   = TempData["TokenNo"]    as string;
-    bool    showSuccess = !string.IsNullOrEmpty(newBillNo);
+    string? newBillNo    = TempData["OPDBillNo"]       as string;
+    string? newToken     = TempData["TokenNo"]          as string;
+    string? newSvcIdStr  = TempData["NewOPDServiceId"]  as string;
+    int     newSvcId     = int.TryParse(newSvcIdStr, out var sid) ? sid : 0;
+    bool    showSuccess  = !string.IsNullOrEmpty(newBillNo);
 }
 
 @section HeadStyles {
@@ -35,6 +37,13 @@
             <div class="toast-body fw-semibold">
                 <i class="bi bi-check-circle-fill me-2"></i>
                 Booking saved — Bill <strong>@newBillNo</strong> · Token <strong>@newToken</strong>
+                @if (newSvcId > 0)
+                {
+                    <a href="@Url.Action("PrintBill", "OPD", new { id = newSvcId })" target="_blank"
+                       class="btn btn-sm btn-light ms-2 py-0 px-2" style="font-size:.78rem">
+                        <i class="bi bi-printer-fill me-1"></i>Print Bill
+                    </a>
+                }
             </div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
         </div>
@@ -321,6 +330,10 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-success btn-sm" id="btnPrintBillFromModal"
+                        onclick="printBillFromModal()" style="display:none">
+                    <i class="bi bi-printer-fill me-1"></i>Print Bill
+                </button>
             </div>
         </div>
     </div>
@@ -391,12 +404,21 @@
         const modal = new bootstrap.Modal(document.getElementById('viewBookingModal'));
         document.getElementById('viewBookingBody').innerHTML =
             '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+
+        // Reset print button while loading
+        const printBtn = document.getElementById('btnPrintBillFromModal');
+        if (printBtn) { printBtn.style.display = 'none'; printBtn.dataset.svcId = ''; }
+
         modal.show();
 
         try {
             const r = await fetch('@Url.Action("GetServiceBookingDetail", "OPD")' + '?id=' + id);
             if (!r.ok) throw new Error('Not found');
             const d = await r.json();
+
+            // Show print button now that we have a valid record
+            if (printBtn) { printBtn.style.display = ''; printBtn.dataset.svcId = id; }
+
             console.log('Booking detail keys:', Object.keys(d), d);
 
             const statusBadge = d.status === 'Completed'
@@ -474,6 +496,12 @@
             document.getElementById('viewBookingBody').innerHTML =
                 '<div class="alert alert-danger">Failed to load booking details.</div>';
         }
+    }
+
+    function printBillFromModal() {
+        const btn = document.getElementById('btnPrintBillFromModal');
+        const svcId = btn?.dataset?.svcId;
+        if (svcId) window.open('@Url.Action("PrintBill", "OPD")?id=' + svcId, '_blank');
     }
     </script>
 }

@@ -411,6 +411,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                     ISNULL(p.MiddleName + ' ', '') +
                     p.LastName
                 ))                        AS PatientName,
+                p.PhoneNumber,
                 p.Gender,
                 p.DateOfBirth,
                 d.FullName                AS ConsultingDoctorName,

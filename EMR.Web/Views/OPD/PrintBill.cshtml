@@ -1,0 +1,425 @@
+@model EMR.Web.Models.ViewModels.ServiceBookingDetailViewModel
+@{
+    Layout = null;
+    var settings   = ViewBag.Settings   as EMR.Web.Models.Entities.HospitalSettings;
+    var branchName = ViewBag.BranchName as string;
+
+    var hospName    = settings?.HospitalName  ?? branchName ?? "Hospital";
+    var hospAddress = settings?.Address       ?? string.Empty;
+    var hospPhone1  = settings?.ContactNumber1 ?? string.Empty;
+    var hospPhone2  = settings?.ContactNumber2 ?? string.Empty;
+    var hospEmail   = settings?.EmailAddress  ?? string.Empty;
+    var hospGST     = settings?.GSTCode       ?? string.Empty;
+    var hospLogo    = settings?.LogoPath       ?? string.Empty;
+    var phones      = string.Join(" / ", new[] { hospPhone1, hospPhone2 }.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+    var ageStr = Model.Age.HasValue ? Model.Age.Value + " Yrs" : "—";
+    var visitDate = Model.VisitDate.ToString("dd MMM yyyy, hh:mm tt");
+    decimal subTotal = Model.Items.Sum(i => i.ServiceCharges);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OPD Bill — @Model.OPDBillNo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+    <style>
+        /* ─── Page & A4 Setup ─── */
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            background: #e9ecef;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Top action bar (hidden on print) */
+        #billActionBar {
+            background: #212529;
+            padding: .65rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        /* A4 sheet wrapper */
+        .bill-sheet {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 20px auto;
+            background: #fff;
+            padding: 14mm 14mm 12mm;
+            box-shadow: 0 4px 20px rgba(0,0,0,.18);
+            position: relative;
+        }
+
+        /* ─── Header ─── */
+        .bill-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+        }
+        .bill-logo {
+            width: 70px; height: 70px;
+            object-fit: contain;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .bill-logo-placeholder {
+            width: 70px; height: 70px;
+            background: #e8f0fe;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: #0d6efd;
+            flex-shrink: 0;
+        }
+        .bill-hosp-info { flex: 1; }
+        .bill-hosp-name {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #0d4ea6;
+            letter-spacing: .02em;
+            line-height: 1.2;
+            margin-bottom: 2px;
+        }
+        .bill-branch-name {
+            font-size: .88rem;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 4px;
+        }
+        .bill-contact-row {
+            font-size: .78rem;
+            color: #6c757d;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 18px;
+            margin-top: 3px;
+        }
+        .bill-contact-row span { display: inline-flex; align-items: center; gap: 4px; }
+
+        /* ─── Bill title strip ─── */
+        .bill-title-strip {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+            color: #fff;
+            padding: 7px 14px;
+            border-radius: 7px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .bill-title-strip .bill-name { font-size: 1rem; font-weight: 700; letter-spacing: .04em; }
+        .bill-title-strip .bill-meta { font-size: .78rem; opacity: .9; text-align: right; }
+
+        /* ─── Sections ─── */
+        .bill-section {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        .bill-section-head {
+            background: #f1f3f5;
+            padding: 5px 12px;
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .bill-section-body { padding: 10px 12px; }
+
+        /* Patient info grid */
+        .pat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px 12px;
+        }
+        .pat-field label {
+            font-size: .68rem;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            color: #adb5bd;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 1px;
+        }
+        .pat-field .pat-val {
+            font-weight: 600;
+            font-size: .88rem;
+            color: #212529;
+        }
+        .pat-field .pat-val.highlight {
+            color: #0d6efd;
+            font-family: 'Courier New', monospace;
+            font-size: .95rem;
+        }
+
+        /* Services table */
+        .svc-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+        .svc-table thead th {
+            background: #0d6efd;
+            color: #fff;
+            padding: 6px 10px;
+            font-weight: 600;
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .svc-table tbody td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
+        .svc-table tbody tr:last-child td { border-bottom: none; }
+        .svc-table tbody tr:nth-child(even) { background: #fafbfc; }
+        .svc-table tfoot td {
+            padding: 7px 10px;
+            font-weight: 700;
+            border-top: 2px solid #dee2e6;
+        }
+        .svc-badge {
+            display: inline-block;
+            font-size: .67rem;
+            padding: 2px 7px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        .svc-badge.consulting { background:#dbeafe; color:#1e40af; }
+        .svc-badge.service    { background:#d1fae5; color:#065f46; }
+
+        /* Financial section */
+        .fin-total-box {
+            background: #f0fdf4;
+            border: 2px solid #22c55e;
+            border-radius: 8px;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .fin-total-label { font-size: .8rem; color: #6c757d; font-weight: 600; }
+        .fin-total-value { font-size: 1.4rem; font-weight: 800; color: #16a34a; }
+
+        /* Footer */
+        .bill-footer {
+            margin-top: 24px;
+            padding-top: 10px;
+            border-top: 1px dashed #adb5bd;
+            display: flex;
+            justify-content: space-between;
+            font-size: .72rem;
+            color: #adb5bd;
+        }
+
+        /* ─── Print styles ─── */
+        @@media print {
+            #billActionBar { display: none !important; }
+            body { background: #fff; }
+            .bill-sheet {
+                width: 100%;
+                min-height: auto;
+                margin: 0;
+                padding: 10mm 12mm;
+                box-shadow: none;
+            }
+            @@page { size: A4 portrait; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    @* ── Action bar (hidden on print) ── *@
+    <div id="billActionBar">
+        <button class="btn btn-sm btn-primary px-3 fw-semibold" onclick="window.print()">
+            <i class="bi bi-printer-fill me-2"></i>Print Bill
+        </button>
+        <a href="javascript:window.close()" class="btn btn-sm btn-outline-light px-3">
+            <i class="bi bi-x-circle me-1"></i>Close
+        </a>
+        <span class="text-white-50 ms-2 small">OPD Bill: <strong class="text-white">@Model.OPDBillNo</strong></span>
+    </div>
+
+    @* ── A4 Sheet ── *@
+    <div class="bill-sheet">
+
+        @* ── Hospital Header ── *@
+        <div class="bill-header">
+            @if (!string.IsNullOrWhiteSpace(hospLogo))
+            {
+                <img src="@hospLogo" class="bill-logo" alt="@hospName Logo" />
+            }
+            else
+            {
+                <div class="bill-logo-placeholder"><i class="bi bi-hospital-fill"></i></div>
+            }
+            <div class="bill-hosp-info">
+                <div class="bill-hosp-name">@hospName</div>
+                @if (!string.IsNullOrWhiteSpace(branchName))
+                {
+                    <div class="bill-branch-name"><i class="bi bi-building me-1"></i>@branchName</div>
+                }
+                <div class="bill-contact-row">
+                    @if (!string.IsNullOrWhiteSpace(hospAddress))
+                    {
+                        <span><i class="bi bi-geo-alt-fill"></i>@hospAddress</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(phones))
+                    {
+                        <span><i class="bi bi-telephone-fill"></i>@phones</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(hospEmail))
+                    {
+                        <span><i class="bi bi-envelope-fill"></i>@hospEmail</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(hospGST))
+                    {
+                        <span><i class="bi bi-receipt"></i>GST: @hospGST</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ── Bill Title Strip ── *@
+        <div class="bill-title-strip">
+            <span class="bill-name"><i class="bi bi-receipt-cutoff me-2"></i>OPD SERVICE BILL</span>
+            <span class="bill-meta">
+                Bill No: <strong>@(Model.OPDBillNo ?? "—")</strong><br />
+                Token: <strong>@(Model.TokenNo ?? "—")</strong> &nbsp;·&nbsp;
+                Date: <strong>@visitDate</strong>
+            </span>
+        </div>
+
+        @* ── Patient Details ── *@
+        <div class="bill-section">
+            <div class="bill-section-head"><i class="bi bi-person-fill me-1"></i>Patient Information</div>
+            <div class="bill-section-body">
+                <div class="pat-grid">
+                    <div class="pat-field">
+                        <label>Patient ID</label>
+                        <div class="pat-val highlight">@Model.PatientCode</div>
+                    </div>
+                    <div class="pat-field">
+                        <label>Patient Name</label>
+                        <div class="pat-val">@Model.PatientName</div>
+                    </div>
+                    <div class="pat-field">
+                        <label>Mobile</label>
+                        <div class="pat-val">@(string.IsNullOrWhiteSpace(Model.PhoneNumber) ? "—" : Model.PhoneNumber)</div>
+                    </div>
+                    <div class="pat-field">
+                        <label>Age</label>
+                        <div class="pat-val">@ageStr</div>
+                    </div>
+                    <div class="pat-field">
+                        <label>Gender</label>
+                        <div class="pat-val">@(Model.Gender ?? "—")</div>
+                    </div>
+                    <div class="pat-field">
+                        <label>Consulting Doctor</label>
+                        <div class="pat-val">@(Model.ConsultingDoctorName ?? "—")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Service Line Items ── *@
+        <div class="bill-section">
+            <div class="bill-section-head"><i class="bi bi-list-check me-1"></i>Services / Consulting</div>
+            <div class="bill-section-body p-0">
+                @if (Model.Items.Any())
+                {
+                    <table class="svc-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px">#</th>
+                                <th style="width:120px">Type</th>
+                                <th>Item / Service Description</th>
+                                <th style="width:110px" class="text-end">Charges (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ int rowNo = 0; }
+                            @foreach (var item in Model.Items)
+                            {
+                                rowNo++;
+                                var badgeCls = item.ServiceType == "Consulting" ? "consulting" : "service";
+                                <tr>
+                                    <td class="text-muted">@rowNo</td>
+                                    <td><span class="svc-badge @badgeCls">@(item.ServiceType ?? "—")</span></td>
+                                    <td>@(item.ItemName ?? "—")</td>
+                                    <td class="text-end fw-semibold">₹@item.ServiceCharges.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold text-secondary">Sub Total</td>
+                                <td class="text-end text-success fw-bold">₹@subTotal.ToString("N2")</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                }
+                else
+                {
+                    <div class="text-center text-muted py-3 small">No service items recorded.</div>
+                }
+            </div>
+        </div>
+
+        @* ── Financial Summary ── *@
+        <div class="bill-section mb-3">
+            <div class="bill-section-head"><i class="bi bi-cash-stack me-1"></i>Financial Summary</div>
+            <div class="bill-section-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="p-2 border rounded text-center">
+                            <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Sub Total</div>
+                            <div style="font-size:1rem;font-weight:700">₹@subTotal.ToString("N2")</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 border rounded text-center">
+                            <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Discount</div>
+                            <div style="font-size:1rem;font-weight:700">—</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2 border rounded text-center">
+                            <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Tax (GST)</div>
+                            <div style="font-size:1rem;font-weight:700">—</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="fin-total-box">
+                    <div>
+                        <div class="fin-total-label">NET AMOUNT PAYABLE</div>
+                        <div style="font-size:.72rem;color:#adb5bd">(Discount &amp; Tax module coming soon)</div>
+                    </div>
+                    <div class="fin-total-value">₹@subTotal.ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Bill Footer ── *@
+        <div class="bill-footer">
+            <span>Generated: @DateTime.Now.ToString("dd MMM yyyy, hh:mm tt")</span>
+            <span>Powered by EMR System</span>
+            <span>@hospName</span>
+        </div>
+
+    </div><!-- end bill-sheet -->
+
+</body>
+</html>
