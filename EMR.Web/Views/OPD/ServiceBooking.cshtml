@@ -1,17 +1,479 @@
+@model EMR.Web.Models.ViewModels.ServiceBookingPagedListViewModel
 @{
     ViewData["Title"] = "Service Booking";
+    var fromDate  = Model.FromDate ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var toDate    = Model.ToDate   ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var from      = (Model.Page - 1) * Model.PageSize + 1;
+    var to        = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
+
+    string? newBillNo  = TempData["OPDBillNo"] as string;
+    string? newToken   = TempData["TokenNo"]    as string;
+    bool    showSuccess = !string.IsNullOrEmpty(newBillNo);
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="h3 mb-0 fw-bold">Service Booking</h1>
-        <small class="text-muted">Book OPD services for registered patients</small>
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+    <style>
+        .stat-card { border-radius:12px; border:1px solid #e9ecef; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:1rem 1.4rem; }
+        .stat-card .stat-icon { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem; }
+        .stat-card .stat-val  { font-size:1.6rem;font-weight:700;line-height:1; }
+        .table>thead>tr>th { font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; border-bottom:2px solid #dee2e6; white-space:nowrap; }
+        .table>tbody>tr>td { font-size:.88rem; vertical-align:middle; }
+        .badge-status-R { background:#cfe2ff;color:#084298; }
+        .badge-status-C { background:#d1e7dd;color:#0a3622; }
+        .badge-status-X { background:#f8d7da;color:#842029; }
+    </style>
+}
+
+@* ── Success toast after redirect ── *@
+@if (showSuccess)
+{
+    <div id="bookingSuccessToast" class="toast align-items-center text-bg-success border-0 position-fixed bottom-0 end-0 m-3"
+         role="alert" style="z-index:9999">
+        <div class="d-flex">
+            <div class="toast-body fw-semibold">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                Booking saved — Bill <strong>@newBillNo</strong> · Token <strong>@newToken</strong>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
     </div>
-    <span class="badge text-bg-primary fs-6 px-3 py-2">OPD</span>
+}
+
+@* ── Page header ── *@
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold"><i class="bi bi-calendar2-check-fill me-2 text-primary"></i>Service Booking</h1>
+        <small class="text-muted">OPD service bookings for your branch</small>
+    </div>
+    <a asp-action="NewServiceBooking" class="btn btn-primary px-4 fw-semibold">
+        <i class="bi bi-plus-circle-fill me-2"></i>New Service Book
+    </a>
 </div>
 
-<div class="card-soft p-5 text-center">
-    <i class="bi bi-calendar2-check-fill fs-1 text-primary opacity-50 d-block mb-3"></i>
-    <h4 class="fw-semibold text-muted">Service Booking</h4>
-    <p class="text-muted mb-0">Business logic will be implemented here.</p>
+@* ── Stat cards ── *@
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#e8f0fe;color:#1967d2"><i class="bi bi-receipt-cutoff"></i></div>
+            <div>
+                <div class="stat-val text-primary">@Model.TotalCount</div>
+                <div class="text-muted small">Total Bills</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#fff3cd;color:#664d03"><i class="bi bi-clock-history"></i></div>
+            <div>
+                <div class="stat-val text-warning-emphasis">@Model.RegisteredCount</div>
+                <div class="text-muted small">Registered</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#d1e7dd;color:#0a3622"><i class="bi bi-check2-circle"></i></div>
+            <div>
+                <div class="stat-val text-success">@Model.CompletedCount</div>
+                <div class="text-muted small">Completed</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#e6f4ea;color:#137333"><i class="bi bi-currency-rupee"></i></div>
+            <div>
+                <div class="stat-val text-success">₹@Model.TotalFeesAll.ToString("N2")</div>
+                <div class="text-muted small">Total Fees</div>
+            </div>
+        </div>
+    </div>
 </div>
+
+@* ── Filter bar ── *@
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3">
+        <form method="get" asp-action="ServiceBooking" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">From Date</label>
+                <input type="date" name="fromDate" value="@fromDate" class="form-control form-control-sm" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">To Date</label>
+                <input type="date" name="toDate" value="@toDate" class="form-control form-control-sm" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">Search</label>
+                <div class="input-group input-group-sm" style="min-width:240px">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" id="bookingSearchInput" value="@Model.Search"
+                           class="form-control" placeholder="Patient, bill no, doctor…"
+                           autocomplete="off" />
+                    <button type="button" id="btnClearSearch" class="btn btn-outline-secondary"
+                            title="Clear search" style="display:@(string.IsNullOrEmpty(Model.Search) ? "none" : "")">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">Per page</label>
+                <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var ps in new[] { 10, 25, 50, 100 })
+                    {
+                        <option value="@ps" selected="@(Model.PageSize == ps ? "selected" : null)">@ps</option>
+                    }
+                </select>
+            </div>
+            <input type="hidden" name="page" value="1" />
+            <div class="col-auto d-flex gap-2 align-items-end">
+                <button type="submit" class="btn btn-sm btn-primary px-3">
+                    <i class="bi bi-funnel-fill me-1"></i>Filter
+                </button>
+                <a asp-action="ServiceBooking"
+                   asp-route-fromDate="@fromDate"
+                   asp-route-toDate="@toDate"
+                   asp-route-pageSize="@Model.PageSize"
+                   class="btn btn-sm btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@* ── Bookings table ── *@
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        @if (!Model.Items.Any())
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-calendar2-x fs-1 opacity-50 d-block mb-2"></i>
+                @if (!string.IsNullOrEmpty(Model.Search))
+                {
+                    <span>No bookings matched "@Model.Search" for the selected date range.</span>
+                }
+                else
+                {
+                    <span>No bookings found for the selected date range.</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>OPD Bill No</th>
+                            <th>Token</th>
+                            <th>Patient ID</th>
+                            <th>Patient Name</th>
+                            <th>Gender</th>
+                            <th>Age</th>
+                            <th>Service Type</th>
+                            <th>Consulting Doctor</th>
+                            <th class="text-end">Total Fees</th>
+                            <th>Status</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingTbody">
+                        @foreach (var b in Model.Items)
+                        {
+                            var badgeCls = b.Status switch { "Completed" => "badge-status-C", "Cancelled" => "badge-status-X", _ => "badge-status-R" };
+                            var searchText = string.Join(" ", b.PatientName, b.PatientCode, b.OPDBillNo, b.TokenNo, b.Gender, b.ConsultingDoctorName, b.Status, b.ServiceTypesSummary).ToLower();
+                            <tr data-search="@searchText">
+                                <td class="text-nowrap">@b.VisitDate.ToString("dd MMM yyyy")</td>
+                                <td><span class="badge text-bg-light font-monospace border">@(b.OPDBillNo ?? "—")</span></td>
+                                <td><span class="badge text-bg-light font-monospace border">@(b.TokenNo ?? "—")</span></td>
+                                <td><span class="badge text-bg-info text-dark font-monospace">@b.PatientCode</span></td>
+                                <td class="fw-semibold">@b.PatientName</td>
+                                <td>@(b.Gender ?? "—")</td>
+                                <td>@(b.Age.HasValue ? b.Age.Value + " yrs" : "—")</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(b.ServiceTypesSummary))
+                                    {
+                                        foreach (var t in b.ServiceTypesSummary.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct())
+                                        {
+                                            <span class="badge @(t == "Consulting" ? "text-bg-primary" : "text-bg-secondary") me-1">@t</span>
+                                        }
+                                    }
+                                    else { <span class="text-muted small">—</span> }
+                                </td>
+                                <td>@(b.ConsultingDoctorName ?? "—")</td>
+                                <td class="text-end fw-semibold">₹@b.TotalAmount.ToString("N2")</td>
+                                <td><span class="badge rounded-pill @badgeCls">@b.Status</span></td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            onclick="viewBooking(@b.OPDServiceId)"
+                                            title="View Details">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        <tr id="noFilterMatch" style="display:none">
+                            <td colspan="12" class="text-center text-muted py-4">
+                                <i class="bi bi-search me-2"></i>No rows matched your search.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            @* ── Pagination ── *@
+            @if (Model.TotalPages > 1 || Model.TotalCount > 0)
+            {
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-2 border-top">
+                    <small class="text-muted">
+                        @if (Model.TotalCount > 0)
+                        {
+                            <span id="showingCount">Showing @from–@to of @Model.TotalCount records</span>
+                        }
+                    </small>
+                    @if (Model.TotalPages > 1)
+                    {
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item @(!Model.HasPrev ? "disabled" : "")">
+                                    <a class="page-link"
+                                       asp-action="ServiceBooking"
+                                       asp-route-page="@(Model.Page - 1)"
+                                       asp-route-pageSize="@Model.PageSize"
+                                       asp-route-fromDate="@fromDate"
+                                       asp-route-toDate="@toDate"
+                                       asp-route-search="@Model.Search">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                                @{
+                                    int startPage = Math.Max(1, Model.Page - 2);
+                                    int endPage   = Math.Min(Model.TotalPages, startPage + 4);
+                                    startPage     = Math.Max(1, endPage - 4);
+                                }
+                                @if (startPage > 1)
+                                {
+                                    <li class="page-item">
+                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="1"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
+                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
+                                    </li>
+                                    @if (startPage > 2)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                }
+                                @for (int pg = startPage; pg <= endPage; pg++)
+                                {
+                                    <li class="page-item @(pg == Model.Page ? "active" : "")">
+                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="@pg"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
+                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
+                                    </li>
+                                }
+                                @if (endPage < Model.TotalPages)
+                                {
+                                    @if (endPage < Model.TotalPages - 1)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                    <li class="page-item">
+                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="@Model.TotalPages"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
+                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                    </li>
+                                }
+                                <li class="page-item @(!Model.HasNext ? "disabled" : "")">
+                                    <a class="page-link"
+                                       asp-action="ServiceBooking"
+                                       asp-route-page="@(Model.Page + 1)"
+                                       asp-route-pageSize="@Model.PageSize"
+                                       asp-route-fromDate="@fromDate"
+                                       asp-route-toDate="@toDate"
+                                       asp-route-search="@Model.Search">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@* ── View Detail Modal ── *@
+<div class="modal fade" id="viewBookingModal" tabindex="-1" aria-labelledby="viewBookingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="viewBookingModalLabel">
+                    <i class="bi bi-receipt-cutoff me-2"></i>Booking Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewBookingBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    // ── Show success toast on redirect ────────────────────────────────────────
+    @if (showSuccess)
+    {
+        <text>
+        const toastEl = document.getElementById('bookingSuccessToast');
+        if (toastEl) new bootstrap.Toast(toastEl, { delay: 5000 }).show();
+        </text>
+    }
+
+    // ── View booking details popup ────────────────────────────────────────────
+    // ── Live row filter ───────────────────────────────────────────────────────
+    (function () {
+        const input     = document.getElementById('bookingSearchInput');
+        const btnClear  = document.getElementById('btnClearSearch');
+        const tbody     = document.getElementById('bookingTbody');
+        const noMatch   = document.getElementById('noFilterMatch');
+        const countEl   = document.getElementById('showingCount');
+        if (!input || !tbody) return;
+
+        const totalText = countEl?.textContent ?? '';
+
+        function filterRows(q) {
+            const term = q.trim().toLowerCase();
+            const rows = tbody.querySelectorAll('tr[data-search]');
+            let visible = 0;
+
+            rows.forEach(tr => {
+                const match = !term || tr.dataset.search.includes(term);
+                tr.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+
+            // show/hide "no match" placeholder
+            if (noMatch) noMatch.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
+
+            // update counter
+            if (countEl) {
+                countEl.textContent = term
+                    ? `Showing ${visible} of ${rows.length} records (filtered)`
+                    : totalText;
+            }
+
+            // show/hide clear button
+            if (btnClear) btnClear.style.display = q ? '' : 'none';
+        }
+
+        input.addEventListener('input', function () { filterRows(this.value); });
+
+        btnClear?.addEventListener('click', function () {
+            input.value = '';
+            filterRows('');
+            input.focus();
+        });
+
+        // Apply filter on page load if value already populated (server-side search)
+        if (input.value) filterRows(input.value);
+    })();
+
+    async function viewBooking(id) {
+        const modal = new bootstrap.Modal(document.getElementById('viewBookingModal'));
+        document.getElementById('viewBookingBody').innerHTML =
+            '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+        modal.show();
+
+        try {
+            const r = await fetch('@Url.Action("GetServiceBookingDetail", "OPD")' + '?id=' + id);
+            if (!r.ok) throw new Error('Not found');
+            const d = await r.json();
+            console.log('Booking detail keys:', Object.keys(d), d);
+
+            const statusBadge = d.status === 'Completed'
+                ? '<span class="badge text-bg-success">Completed</span>'
+                : d.status === 'Cancelled'
+                    ? '<span class="badge text-bg-danger">Cancelled</span>'
+                    : '<span class="badge text-bg-warning text-dark">Registered</span>';
+
+            const rows = (d.items || []).map(it => `
+                <tr>
+                    <td><span class="badge ${it.serviceType === 'Consulting' ? 'text-bg-primary' : 'text-bg-secondary'}">${it.serviceType || '—'}</span></td>
+                    <td>${it.itemName || '—'}</td>
+                    <td class="text-end fw-semibold">₹${parseFloat(it.serviceCharges).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                </tr>`).join('');
+
+            const visitDate = new Date(d.visitDate).toLocaleDateString('en-IN',
+                { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+            document.getElementById('viewBookingBody').innerHTML = `
+                <div class="row g-3 mb-3">
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">PATIENT ID</div>
+                            <div class="fw-bold font-monospace text-primary fs-6">${d.patientCode}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">OPD BILL NO</div>
+                            <div class="fw-bold font-monospace fs-6">${d.opdBillNo || d.oPDBillNo || '—'}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">TOKEN NO</div>
+                            <div class="fw-bold font-monospace text-success fs-6">${d.tokenNo || '—'}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">PATIENT NAME</div>
+                            <div class="fw-semibold">${d.patientName}</div>
+                            <div class="text-muted small">${d.gender || ''}${d.age != null ? ' · ' + d.age + ' yrs' : ''}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">CONSULTING DOCTOR</div>
+                            <div class="fw-semibold">${d.consultingDoctorName || '—'}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">VISIT DATE</div>
+                            <div class="fw-semibold">${visitDate}</div>
+                        </div>
+                    </div>
+                </div>
+                <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-receipt me-1"></i>Service Line Items</h6>
+                <table class="table table-sm table-bordered mb-2">
+                    <thead class="table-light">
+                        <tr><th>Type</th><th>Item / Service</th><th class="text-end">Charges (₹)</th></tr>
+                    </thead>
+                    <tbody>${rows || '<tr><td colspan="3" class="text-center text-muted">No items recorded</td></tr>'}</tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="2" class="text-end fw-bold">Total</td>
+                            <td class="text-end fw-bold text-success">₹${parseFloat(d.totalAmount).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="text-end">${statusBadge}</div>`;
+
+        } catch {
+            document.getElementById('viewBookingBody').innerHTML =
+                '<div class="alert alert-danger">Failed to load booking details.</div>';
+        }
+    }
+    </script>
+}

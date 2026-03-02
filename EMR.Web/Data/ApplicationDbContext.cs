@@ -20,6 +20,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<MaritalStatusMaster> MaritalStatusMasters => Set<MaritalStatusMaster>();
     public DbSet<PatientMaster> PatientMasters => Set<PatientMaster>();
     public DbSet<PatientOPDService> PatientOPDServices => Set<PatientOPDService>();
+    public DbSet<PatientOPDServiceItem> PatientOPDServiceItems => Set<PatientOPDServiceItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -140,6 +141,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasOne(x => x.Patient)
                   .WithMany()
                   .HasForeignKey(x => x.PatientId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PatientOPDServiceItem>(entity =>
+        {
+            entity.ToTable("PatientOPDServiceItem");
+            entity.HasKey(x => x.ItemId);
+            entity.HasOne(x => x.OPDService)
+                  .WithMany(x => x.Items)
+                  .HasForeignKey(x => x.OPDServiceId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
     }

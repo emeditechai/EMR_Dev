@@ -1,0 +1,1004 @@
+@model EMR.Web.Models.ViewModels.PatientRegistrationViewModel
+@{
+    ViewData["Title"] = "New Service Booking";
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+    <style>
+        .select2-container--bootstrap-5 .select2-selection {
+            min-height: calc(1.5em + 0.75rem + 2px);
+            font-size: 0.9rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+            line-height: 1.5;
+            padding-top: 0.375rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+            height: calc(1.5em + 0.75rem + 2px);
+        }
+        .select2-container { width: 100% !important; }
+
+        .reg-section {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+        .reg-section-header {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            padding: 1rem 1.4rem;
+            border-bottom: 1px solid #e9ecef;
+            background: #f8f9fc;
+        }
+        .reg-section-header .sec-icon {
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+        .reg-section-header .sec-icon.blue  { background: #e8f0fe; color: #1967d2; }
+        .reg-section-header .sec-icon.green { background: #e6f4ea; color: #137333; }
+        .reg-section-body { padding: 1.4rem; }
+
+        .service-block {
+            background: #f8f9fc;
+            border: 1px solid #e0e7ef;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin-top: .25rem;
+        }
+        .charges-display {
+            background: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            color: #2e7d32;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: .5px;
+        }
+
+        /* Search panel */
+        .search-panel {
+            background: #fff;
+            border: 2px solid #0d6efd;
+            border-radius: 12px;
+            padding: 1.1rem 1.4rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 4px rgba(13,110,253,.15);
+        }
+        .search-panel .search-label-strip {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #0d6efd;
+            margin-bottom: .75rem;
+        }
+
+        /* Patient info card shown after load */
+        #patientInfoCard {
+            background: linear-gradient(135deg, #e8f0fe 0%, #f0fff4 100%);
+            border: 1px solid #0d6efd;
+            border-radius: 12px;
+            padding: 1rem 1.4rem;
+            margin-bottom: 1.5rem;
+        }
+
+        #phoneSearchDropdown .list-group-item:hover { background: #e8f0fe; }
+
+        /* Auto-suggest dropdown on search input */
+        #searchAutoDropdown {
+            position: absolute;
+            top: calc(100% + 2px);
+            left: 0;
+            right: 0;
+            z-index: 1060;
+            background: #fff;
+            border: 1px solid #c6d4f5;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 6px 20px rgba(13,110,253,.13);
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        #searchAutoDropdown .suggest-item {
+            padding: .55rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f3f3f3;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5rem;
+            transition: background .12s;
+        }
+        #searchAutoDropdown .suggest-item:last-child { border-bottom: none; }
+        #searchAutoDropdown .suggest-item:hover,
+        #searchAutoDropdown .suggest-item.active { background: #e8f0fe; }
+        #searchAutoDropdown .suggest-no-result {
+            padding: .7rem 1rem;
+            color: #888;
+            font-size: .84rem;
+            text-align: center;
+        }
+
+        .action-bar {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1rem 1.4rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: .75rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+
+        /* Guard overlay when patient not loaded */
+        #formGuard {
+            pointer-events: none;
+            opacity: .4;
+            transition: opacity .3s;
+        }
+        #formGuard.unlocked {
+            pointer-events: auto;
+            opacity: 1;
+        }
+    </style>
+}
+
+@* ── Page header ── *@
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="bi bi-calendar2-plus-fill me-2 text-primary"></i>New Service Booking
+        </h1>
+        <small class="text-muted">Search an existing patient and book OPD services</small>
+    </div>
+    <a asp-action="ServiceBooking" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back to Bookings
+    </a>
+</div>
+
+@* ══════════════════════════════════════════════════════════════
+   MANDATORY PATIENT SEARCH
+══════════════════════════════════════════════════════════════ *@
+<div class="search-panel" id="searchPanel">
+    <div class="search-label-strip">
+        <i class="bi bi-search fs-6"></i>
+        Search Existing Patient
+        <span class="badge text-bg-danger ms-1">Required</span>
+    </div>
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+            <label class="form-label fw-semibold small mb-1">Search By</label>
+            <select id="searchType" class="form-select form-select-sm">
+                <option value="phone">Mobile No</option>
+                <option value="code">Patient ID</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-6 position-relative">
+            <label class="form-label fw-semibold small mb-1" id="searchLabel">Enter Mobile Number</label>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text" id="searchIconWrap"><i class="bi bi-telephone"></i></span>
+                <input type="text" id="searchInput" class="form-control"
+                       placeholder="Type to search…" maxlength="30" autocomplete="off" />
+                <button class="btn btn-primary px-3" type="button" id="btnSearch">
+                    <i class="bi bi-search me-1"></i>Search
+                </button>
+            </div>
+            <div id="searchAutoDropdown"></div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="alert alert-warning py-2 mb-0 small" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>Must search and select patient first
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Loaded patient card (hidden until patient selected) ── *@
+<div id="patientInfoCard" style="display:none" class="mb-3">
+    <div class="d-flex align-items-start gap-3 flex-wrap">
+        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+             style="width:52px;height:52px;font-size:1.3rem" id="patientAvatar">?</div>
+        <div class="flex-grow-1">
+            <div class="d-flex gap-2 align-items-center flex-wrap mb-1">
+                <h5 class="mb-0 fw-bold" id="infoPatientName">—</h5>
+                <span class="badge text-bg-primary font-monospace" id="infoPatientCode">—</span>
+                <span class="badge text-bg-secondary" id="infoPatientGender">—</span>
+                <span class="badge text-bg-danger" id="infoPatientBloodGroup" style="display:none">—</span>
+                <span class="text-muted small" id="infoPatientAge"></span>
+            </div>
+            <div class="row g-2 text-muted small mt-0">
+                <div class="col-auto"><i class="bi bi-telephone me-1"></i><span id="infoPatientPhone">—</span></div>
+                <div class="col-auto" id="infoPhone2Wrap" style="display:none"><i class="bi bi-telephone-plus me-1"></i><span id="infoPatientPhone2">—</span></div>
+                <div class="col-auto" id="infoEmailWrap" style="display:none"><i class="bi bi-envelope me-1"></i><span id="infoPatientEmail">—</span></div>
+                <div class="col-auto" id="infoDobWrap" style="display:none"><i class="bi bi-calendar-date me-1"></i><span id="infoPatientDob">—</span></div>
+                <div class="col-auto" id="infoGuardianWrap" style="display:none"><i class="bi bi-person-heart me-1"></i><span id="infoPatientGuardian">—</span></div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" id="btnClearPatient">
+            <i class="bi bi-x-circle me-1"></i>Change Patient
+        </button>
+    </div>
+    @* Identification section — shown only when data is present *@
+    <div id="infoIdSection" style="display:none" class="border-top pt-2 mt-2">
+        <small class="text-muted fw-semibold d-block mb-1">
+            <i class="bi bi-shield-check me-1"></i>Identification
+        </small>
+        <div class="d-flex gap-3 flex-wrap align-items-center small">
+            <span id="infoIdType" class="text-secondary"></span>
+            <span id="infoIdNumber" class="fw-semibold font-monospace"></span>
+            <button type="button" id="btnViewIdDoc" class="btn btn-sm btn-outline-primary" style="display:none">
+                <i class="bi bi-file-earmark-text me-1"></i>View Document
+            </button>
+        </div>
+    </div>
+</div>
+
+@* ── "No patient loaded" notice ── *@
+<div id="noPatientNotice" class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
+    <i class="bi bi-info-circle-fill fs-5"></i>
+    <span>Search and select a patient above. The booking form will unlock after selection.</span>
+</div>
+
+@* ══════════════════════════════════════════════════════════════
+   FORM  (guarded until patient loaded)
+══════════════════════════════════════════════════════════════ *@
+<form asp-action="NewServiceBooking" method="post" enctype="multipart/form-data"
+      id="bookingForm" novalidate>
+    @Html.AntiForgeryToken()
+    <input asp-for="PatientId"              type="hidden" id="hdnPatientId" />
+    <input asp-for="PatientCode"            type="hidden" id="hdnPatientCode" />
+    <input asp-for="OPDServiceId"           type="hidden" id="hdnOPDServiceId" value="0" />
+    <input asp-for="IdentificationFilePath" type="hidden" id="existingFilePath" />
+    <input asp-for="DemographicsOnly"       type="hidden" value="false" />
+    <input asp-for="FirstName"              type="hidden" id="hdnFirstName" />
+    <input asp-for="LastName"               type="hidden" id="hdnLastName" />
+    <input asp-for="Gender"                 type="hidden" id="hdnGender" />
+    <input asp-for="PhoneNumber"            type="hidden" id="hdnPhone" />
+    <input id="hdnLineItemsJson" name="LineItemsJson" type="hidden" />
+
+    <div id="formGuard">
+
+        @* ════════════════════════════════════════════════════════════
+           SECTION — DOCTOR & SERVICES
+        ════════════════════════════════════════════════════════════ *@
+        <div class="reg-section">
+            <div class="reg-section-header">
+                <div class="sec-icon green"><i class="bi bi-heart-pulse-fill"></i></div>
+                <div class="flex-grow-1">
+                    <h6 class="fw-bold mb-0">Doctor & Services</h6>
+                    <small class="text-muted">Select consulting doctor and add service/consultation items</small>
+                </div>
+            </div>
+            <div class="reg-section-body">
+
+                @* Doctor row *@
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label fw-semibold small">
+                            Consulting Doctor <span class="text-danger">*</span>
+                        </label>
+                        <select asp-for="ConsultingDoctorId" id="ddlDoctor" class="form-select s2-search"
+                                asp-items="Model.DoctorOptions">
+                            <option value="">-- Select Doctor --</option>
+                        </select>
+                        <span asp-validation-for="ConsultingDoctorId" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label fw-semibold small">Remarks</label>
+                        <input asp-for="Remarks" class="form-control" maxlength="500" placeholder="Optional" />
+                    </div>
+                </div>
+
+                @* Service line items *@
+                <div class="service-block">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-semibold small text-secondary">
+                            <i class="bi bi-list-check me-1"></i>Service / Consulting Items
+                        </span>
+                        <button type="button" id="btnAddItem" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-plus-lg me-1"></i>Add Item
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-2" id="lineItemTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:30%">Type</th>
+                                    <th style="width:40%">Item / Procedure</th>
+                                    <th style="width:20%">Charges (₹)</th>
+                                    <th style="width:10%" class="text-center">Del</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lineItemTbody">
+                                <tr id="emptyRow">
+                                    <td colspan="4" class="text-center text-muted small py-2">
+                                        <i class="bi bi-info-circle me-1"></i>Click "Add Item" to add a service line
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="2" class="text-end fw-bold small text-secondary">Total Charges</td>
+                                    <td colspan="2" class="fw-bold charges-display text-center rounded-1" id="lineItemTotal">₹ 0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        @* ── Action bar ── *@
+        <div class="action-bar">
+            <a asp-action="ServiceBooking" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-x-circle me-1"></i>Cancel
+            </a>
+            <button type="submit" class="btn btn-primary px-5 fw-semibold" id="btnBook" disabled>
+                <i class="bi bi-calendar2-check-fill me-2"></i>Book Service
+            </button>
+        </div>
+
+    </div>
+</form>
+
+@* ══════════════════════════════════════════════════════════════
+   PATIENT SEARCH RESULTS MODAL
+══════════════════════════════════════════════════════════════ *@
+<div class="modal fade" id="searchResultModal" tabindex="-1"
+     aria-labelledby="searchResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-primary text-white py-2 px-3">
+                <span class="modal-title fw-semibold small">
+                    <i class="bi bi-people-fill me-2"></i>Matching Patients
+                </span>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" style="max-height:60vh;overflow-y:auto">
+                <table class="table table-hover table-sm mb-0 small">
+                    <thead class="table-light sticky-top">
+                        <tr class="text-uppercase text-muted" style="font-size:.7rem;letter-spacing:.04em">
+                            <th class="ps-3">Patient</th>
+                            <th>Contact</th>
+                            <th>Profile</th>
+                            <th class="pe-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="searchResultsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Document Viewer Modal ────────────────────────────────────────────── *@
+<div class="modal fade" id="docViewerModal" tabindex="-1" aria-labelledby="docViewerLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-semibold" id="docViewerLabel">
+                    <i class="bi bi-shield-check me-2"></i>Identification Document
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 text-center bg-dark" style="min-height:70vh">
+                @* Image viewer (shown for jpg/png) *@
+                <img id="docViewerImg" src="" alt="Identification document"
+                     class="img-fluid" style="display:none;max-height:80vh;object-fit:contain" />
+                @* PDF viewer (shown for pdf) *@
+                <iframe id="docViewerFrame" src="" title="Identification document"
+                        style="display:none;width:100%;height:80vh;border:0"></iframe>
+                @* Fallback for unsupported types *@
+                <div id="docViewerFallback" style="display:none" class="p-5 text-light">
+                    <i class="bi bi-file-earmark-x display-4 d-block mb-3"></i>
+                    <p>Preview not available for this file type.</p>
+                    <a id="docViewerDownload" href="#" target="_blank" class="btn btn-outline-light">
+                        <i class="bi bi-download me-1"></i>Download / Open
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer py-2 justify-content-between">
+                <small class="text-muted" id="docViewerFileName"></small>
+                <a id="docViewerOpenLink" href="#" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Open in new tab
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    (function () {
+        'use strict';
+
+        const opdBase = '@Url.Content("~/OPD/")';
+
+        // ── Utilities ─────────────────────────────────────────────────────────
+        async function fetchJson(url) {
+            try { const r = await fetch(url); return r.ok ? await r.json() : null; }
+            catch { return null; }
+        }
+
+        function showToast(msg, type = 'success') {
+            const el = document.createElement('div');
+            el.className = `toast align-items-center text-bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
+            el.style.zIndex = 9999;
+            el.setAttribute('role', 'alert');
+            el.innerHTML = `<div class="d-flex">
+                <div class="toast-body fw-semibold"><i class="bi bi-check-circle me-2"></i>${msg}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>`;
+            document.body.appendChild(el);
+            new bootstrap.Toast(el, { delay: 4000 }).show();
+            el.addEventListener('hidden.bs.toast', () => el.remove());
+        }
+
+        // ── Select2 init ──────────────────────────────────────────────────────
+        const commonOpts = { theme: 'bootstrap-5', width: '100%', dropdownParent: document.body };
+        $('.s2-search').select2({ ...commonOpts, minimumResultsForSearch: 1 });
+
+        // ── Search panel interactions ─────────────────────────────────────────
+        const searchType  = document.getElementById('searchType');
+        const searchLabel = document.getElementById('searchLabel');
+        const searchIconI = document.querySelector('#searchIconWrap i');
+
+        searchType.addEventListener('change', () => {
+            if (searchType.value === 'phone') {
+                searchLabel.textContent = 'Enter Mobile Number';
+                searchIconI.className = 'bi bi-telephone';
+            } else {
+                searchLabel.textContent = 'Enter Patient ID';
+                searchIconI.className = 'bi bi-hash';
+            }
+        });
+
+        // ── Auto-suggest as user types ─────────────────────────────────────
+        const searchInput   = document.getElementById('searchInput');
+        const autoDropdown  = document.getElementById('searchAutoDropdown');
+        let   suggestTimer  = null;
+
+        function closeAutoDropdown() {
+            autoDropdown.style.display = 'none';
+            autoDropdown.innerHTML = '';
+        }
+
+        function renderAutoDropdown(data) {
+            if (!data?.length) {
+                autoDropdown.innerHTML = '<div class="suggest-no-result"><i class="bi bi-search me-1"></i>No patients found</div>';
+                autoDropdown.style.display = 'block';
+                return;
+            }
+            autoDropdown.innerHTML = data.map(p => {
+                const age = p.dateOfBirth
+                    ? (() => { const d = new Date(p.dateOfBirth), t = new Date(); let a = t.getFullYear()-d.getFullYear(); if(t.getMonth()<d.getMonth()||(t.getMonth()===d.getMonth()&&t.getDate()<d.getDate())) a--; return a; })()
+                    : null;
+                const ageStr  = age !== null ? age + ' yrs' : '';
+                const bg      = p.bloodGroup ? `<span class="badge text-bg-danger ms-1" style="font-size:.63rem">${p.bloodGroup}</span>` : '';
+                const meta    = [p.gender, ageStr].filter(Boolean).join(' · ');
+                return `<div class="suggest-item" data-id="${p.patientId}">
+                    <div style="min-width:0">
+                        <div class="fw-semibold" style="font-size:.87rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                            ${p.fullName}
+                            <span class="badge text-bg-secondary font-monospace ms-1" style="font-size:.63rem">${p.patientCode}</span>
+                            ${bg}
+                        </div>
+                        <div class="text-muted" style="font-size:.76rem">
+                            <i class="bi bi-telephone me-1"></i>${p.phoneNumber || ''}${meta ? ' &nbsp;·&nbsp; ' + meta : ''}
+                        </div>
+                    </div>
+                    <i class="bi bi-arrow-return-left text-primary flex-shrink-0" style="font-size:.85rem"></i>
+                </div>`;
+            }).join('');
+            autoDropdown.style.display = 'block';
+        }
+
+        searchInput.addEventListener('input', () => {
+            clearTimeout(suggestTimer);
+            const val = searchInput.value.trim();
+            if (val.length < 2) { closeAutoDropdown(); return; }
+            suggestTimer = setTimeout(async () => {
+                const url = searchType.value === 'phone'
+                    ? opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val)
+                    : opdBase + 'SearchPatientByCode?code='  + encodeURIComponent(val);
+                const data = await fetchJson(url);
+                renderAutoDropdown(data);
+            }, 300);
+        });
+
+        autoDropdown.addEventListener('click', e => {
+            const item = e.target.closest('.suggest-item');
+            if (!item) return;
+            closeAutoDropdown();
+            searchInput.value = '';
+            selectPatient(+item.dataset.id);
+        });
+
+        // Close dropdown when clicking outside the search panel
+        document.addEventListener('click', e => {
+            if (!document.getElementById('searchPanel').contains(e.target)) closeAutoDropdown();
+        });
+
+        // Keep manual Search button / Enter key for full modal fallback
+        document.getElementById('btnSearch').addEventListener('click', async () => {
+            closeAutoDropdown();
+            const val = searchInput.value.trim();
+            if (!val) return;
+            const url = searchType.value === 'phone'
+                ? opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val)
+                : opdBase + 'SearchPatientByCode?code='  + encodeURIComponent(val);
+            await openSearchModal(url);
+        });
+
+        searchInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnSearch').click(); }
+        });
+
+        // ── Patient info display helpers ──────────────────────────────────────
+        function unlockForm() {
+            document.getElementById('formGuard').classList.add('unlocked');
+            document.getElementById('btnBook').disabled = false;
+            document.getElementById('noPatientNotice').style.display = 'none';
+        }
+
+        function lockForm() {
+            document.getElementById('formGuard').classList.remove('unlocked');
+            document.getElementById('btnBook').disabled = true;
+            document.getElementById('noPatientNotice').style.display = '';
+            document.getElementById('patientInfoCard').style.display = 'none';
+        }
+
+        function showPatientCard(p) {
+            const initials = ((p.firstName?.[0] ?? '') + (p.lastName?.[0] ?? '')).toUpperCase() || '?';
+            document.getElementById('patientAvatar').textContent = initials;
+
+            // Full name from parts (API returns individual parts, not a joined fullName)
+            const fullName = [p.salutation, p.firstName, p.middleName, p.lastName].filter(Boolean).join(' ');
+            document.getElementById('infoPatientName').textContent = fullName || '—';
+            document.getElementById('infoPatientCode').textContent = p.patientCode ?? '';
+            document.getElementById('infoPatientGender').textContent = p.gender ?? '—';
+
+            // Blood group badge
+            const bgEl = document.getElementById('infoPatientBloodGroup');
+            if (p.bloodGroup) { bgEl.textContent = p.bloodGroup; bgEl.style.display = ''; }
+            else bgEl.style.display = 'none';
+
+            // Age from DOB
+            const ageEl = document.getElementById('infoPatientAge');
+            if (p.dateOfBirth) {
+                const dob = new Date(p.dateOfBirth);
+                const today = new Date();
+                let age = today.getFullYear() - dob.getFullYear();
+                const hasBirthdayPassed = today.getMonth() > dob.getMonth() ||
+                    (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
+                if (!hasBirthdayPassed) age--;
+                ageEl.textContent = age + ' yrs';
+            } else ageEl.textContent = '';
+
+            // Primary phone (always shown)
+            document.getElementById('infoPatientPhone').textContent = p.phoneNumber ?? '—';
+
+            // Secondary phone
+            const ph2Wrap = document.getElementById('infoPhone2Wrap');
+            if (p.secondaryPhoneNumber) {
+                document.getElementById('infoPatientPhone2').textContent = p.secondaryPhoneNumber;
+                ph2Wrap.style.display = '';
+            } else ph2Wrap.style.display = 'none';
+
+            // Email
+            const emailWrap = document.getElementById('infoEmailWrap');
+            if (p.emailId) {
+                document.getElementById('infoPatientEmail').textContent = p.emailId;
+                emailWrap.style.display = '';
+            } else emailWrap.style.display = 'none';
+
+            // Date of birth
+            const dobWrap = document.getElementById('infoDobWrap');
+            if (p.dateOfBirth) {
+                document.getElementById('infoPatientDob').textContent =
+                    new Date(p.dateOfBirth).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                dobWrap.style.display = '';
+            } else dobWrap.style.display = 'none';
+
+            // Guardian
+            const guardianWrap = document.getElementById('infoGuardianWrap');
+            if (p.guardianName) {
+                document.getElementById('infoPatientGuardian').textContent = p.guardianName;
+                guardianWrap.style.display = '';
+            } else guardianWrap.style.display = 'none';
+
+            // Identification section
+            const hasId = p.identificationNumber || p.identificationTypeName || p.identificationFilePath;
+            const idSection = document.getElementById('infoIdSection');
+            if (hasId) {
+                document.getElementById('infoIdType').textContent = p.identificationTypeName ?? '';
+                document.getElementById('infoIdNumber').textContent = p.identificationNumber ?? '';
+                const btnView = document.getElementById('btnViewIdDoc');
+                if (p.identificationFilePath) {
+                    // Store the path (already starts with /) as a data attribute for the modal opener
+                    btnView.dataset.docPath = p.identificationFilePath;
+                    btnView.style.display = '';
+                } else {
+                    btnView.dataset.docPath = '';
+                    btnView.style.display = 'none';
+                }
+                idSection.style.display = '';
+            } else idSection.style.display = 'none';
+
+            document.getElementById('patientInfoCard').style.display = '';
+        }
+
+        // ── Load patient into form + card ──────────────────────────────────────
+        async function populatePatient(patientId) {
+            const p = await fetchJson(opdBase + 'GetPatientDetails?id=' + patientId);
+            if (!p) { showToast('Could not load patient data.', 'danger'); return; }
+
+            // Set hidden fields for POST
+            document.getElementById('hdnPatientId').value   = p.patientId;
+            document.getElementById('hdnPatientCode').value = p.patientCode ?? '';
+            document.getElementById('hdnOPDServiceId').value = 0;
+            document.getElementById('existingFilePath').value = p.identificationFilePath ?? '';
+            document.getElementById('hdnFirstName').value  = p.firstName ?? '';
+            document.getElementById('hdnLastName').value   = p.lastName  ?? '';
+            document.getElementById('hdnGender').value     = p.gender    ?? '';
+            document.getElementById('hdnPhone').value      = p.phoneNumber ?? '';
+
+            // Show patient info card and unlock form
+            showPatientCard(p);
+            unlockForm();
+
+            // Pre-select last consulting doctor; clear line items for fresh visit
+            if (p.consultingDoctorId) {
+                $('#ddlDoctor').val(p.consultingDoctorId).trigger('change');
+            } else {
+                $('#ddlDoctor').val('').trigger('change');
+            }
+            lineItems = [];
+            renderRows();
+            saveJson();
+
+            showToast(`Patient loaded — ${p.patientCode} · ${p.fullName ?? ''}`);
+        }
+
+        // Clear patient selection
+        document.getElementById('btnClearPatient').addEventListener('click', () => {
+            document.getElementById('hdnPatientId').value  = '0';
+            document.getElementById('hdnPatientCode').value = '';
+            searchInput.value  = '';
+            closeAutoDropdown();
+            lockForm();
+            lineItems = [];
+            renderRows();
+            saveJson();
+        });
+
+        // ── Search modal ──────────────────────────────────────────────────────
+        async function openSearchModal(url) {
+            const data = await fetchJson(url);
+            const tbody = document.getElementById('searchResultsBody');
+            if (!data?.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No matching patients found.</td></tr>';
+            } else {
+                tbody.innerHTML = data.map(p => {
+                    const age = p.dateOfBirth
+                        ? (() => { const d = new Date(p.dateOfBirth), t = new Date(); let a = t.getFullYear()-d.getFullYear(); if(t.getMonth()<d.getMonth()||(t.getMonth()===d.getMonth()&&t.getDate()<d.getDate())) a--; return a; })()
+                        : null;
+                    const phone2 = p.secondaryPhoneNumber
+                        ? `<div class="text-muted" style="font-size:.78rem"><i class="bi bi-telephone-plus me-1"></i>${p.secondaryPhoneNumber}</div>`
+                        : '';
+                    const bg = p.bloodGroup
+                        ? `<span class="badge text-bg-danger ms-1" style="font-size:.7rem">${p.bloodGroup}</span>` : '';
+                    const ageStr = age !== null
+                        ? `<span class="text-muted ms-1" style="font-size:.78rem">${age} yrs</span>` : '';
+                    return `
+                    <tr>
+                        <td class="ps-3 py-2">
+                            <div class="fw-semibold">${p.fullName}</div>
+                            <div><span class="badge text-bg-secondary font-monospace" style="font-size:.68rem">${p.patientCode}</span></div>
+                        </td>
+                        <td class="py-2">
+                            <div><i class="bi bi-telephone me-1 text-muted"></i>${p.phoneNumber || '--'}</div>
+                            ${phone2}
+                        </td>
+                        <td class="py-2">
+                            <div>${p.gender ? `<span class="badge text-bg-light border text-dark" style="font-size:.7rem">${p.gender}</span>` : ''}${bg}${ageStr}</div>
+                        </td>
+                        <td class="pe-3 py-2 text-end">
+                            <button type="button" class="btn btn-sm btn-primary px-3"
+                                    onclick="selectPatient(${p.patientId})" data-bs-dismiss="modal">
+                                <i class="bi bi-person-check-fill me-1"></i>Select
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            }
+            new bootstrap.Modal(document.getElementById('searchResultModal')).show();
+        }
+
+        window.selectPatient = id => populatePatient(id);
+
+        // ── Line-item management ──────────────────────────────────────────────
+        let lineItems  = [];
+        let rowCounter = 0;
+        const $doctor  = $('#ddlDoctor');
+
+        function saveJson() {
+            document.getElementById('hdnLineItemsJson').value = JSON.stringify(lineItems);
+        }
+
+        function updateTotal() {
+            const total = lineItems.reduce((s, r) => s + (parseFloat(r.serviceCharges) || 0), 0);
+            document.getElementById('lineItemTotal').textContent =
+                '₹ ' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        async function loadItemsForRow(rowId, type, selectedId) {
+            const $row  = $(`#row-${rowId}`);
+            const $item = $row.find('.row-item');
+            const doctorId = $doctor.val();
+
+            if ($item.hasClass('select2-hidden-accessible')) $item.select2('destroy');
+            $item.empty().append(new Option('-- loading… --', ''));
+
+            let url;
+            if (type === 'Consulting') {
+                if (!doctorId) {
+                    $item.empty().append(new Option('-- Select Doctor first --', ''));
+                    initRowS2($item);
+                    return;
+                }
+                url = opdBase + 'GetConsultingFeesByDoctor?doctorId=' + doctorId;
+            } else if (type === 'Service') {
+                url = opdBase + 'GetServicesByType?type=Service';
+            } else {
+                $item.empty().append(new Option('-- Select Type first --', ''));
+                initRowS2($item);
+                return;
+            }
+
+            const data = await fetchJson(url);
+            $item.empty().append(new Option('-- Select item --', ''));
+            (data || []).forEach(s => {
+                const o = new Option(s.itemName, s.serviceId);
+                o.dataset.charges = s.itemCharges;
+                $item.append(o);
+            });
+            if (selectedId) $item.val(selectedId);
+            initRowS2($item);
+
+            const sel = $item[0].options[$item[0].selectedIndex];
+            setRowCharges($row, rowId, sel?.dataset?.charges || '');
+        }
+
+        function initRowS2($el) {
+            $el.select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: document.body });
+            $el.on('change', function () {
+                const rid = parseInt(this.closest('tr').id.replace('row-', ''));
+                const sel = this.options[this.selectedIndex];
+                const row = lineItems.find(r => r.rowId === rid);
+                if (row) {
+                    row.serviceId      = parseInt(this.value) || null;
+                    row.itemName       = sel?.text ?? '';
+                    row.serviceCharges = parseFloat(sel?.dataset?.charges) || 0;
+                }
+                setRowCharges($(this).closest('tr'), rid, sel?.dataset?.charges || '');
+                updateTotal();
+                saveJson();
+            });
+        }
+
+        function setRowCharges($row, rowId, chargesStr) {
+            const val = parseFloat(chargesStr) || 0;
+            $row.find('.row-charges').val(val > 0
+                ? '₹ ' + val.toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                : '');
+            const row = lineItems.find(r => r.rowId === rowId);
+            if (row) row.serviceCharges = val;
+        }
+
+        function renderRows() {
+            const tbody = document.getElementById('lineItemTbody');
+            if (!lineItems.length) {
+                tbody.innerHTML = `<tr id="emptyRow"><td colspan="4" class="text-center text-muted small py-2">
+                    <i class="bi bi-info-circle me-1"></i>Click "Add Item" to add a service line</td></tr>`;
+                updateTotal();
+                return;
+            }
+            tbody.innerHTML = lineItems.map(r => `
+                <tr id="row-${r.rowId}">
+                    <td>
+                        <select class="form-select form-select-sm row-type">
+                            <option value="">-- Type --</option>
+                            <option value="Consulting"${r.serviceType === 'Consulting' ? ' selected' : ''}>Consulting</option>
+                            <option value="Service"${r.serviceType === 'Service' ? ' selected' : ''}>Services</option>
+                        </select>
+                    </td>
+                    <td><select class="form-select form-select-sm row-item"></select></td>
+                    <td><input type="text" class="form-control form-control-sm row-charges" readonly placeholder="₹ 0.00" /></td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-del"
+                                data-rowid="${r.rowId}"><i class="bi bi-trash3"></i></button>
+                    </td>
+                </tr>`).join('');
+
+            lineItems.forEach(r => {
+                const $row    = $(`#row-${r.rowId}`);
+                const $typeEl = $row.find('.row-type');
+
+                $typeEl.select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: document.body,
+                                   minimumResultsForSearch: Infinity });
+                $typeEl.on('change', function () {
+                    const rid  = parseInt(this.closest('tr').id.replace('row-', ''));
+                    const row2 = lineItems.find(x => x.rowId === rid);
+                    if (row2) { row2.serviceType = this.value; row2.serviceId = null; row2.itemName = ''; row2.serviceCharges = 0; }
+                    loadItemsForRow(rid, this.value, null);
+                    updateTotal(); saveJson();
+                });
+
+                loadItemsForRow(r.rowId, r.serviceType, r.serviceId);
+
+                $row.find('.btn-del').on('click', function () {
+                    lineItems = lineItems.filter(x => x.rowId !== parseInt($(this).data('rowid')));
+                    renderRows();
+                    updateTotal(); saveJson();
+                });
+            });
+        }
+
+        document.getElementById('btnAddItem').addEventListener('click', () => {
+            lineItems.push({ rowId: ++rowCounter, serviceType: '', serviceId: null, itemName: '', serviceCharges: 0 });
+            renderRows();
+            saveJson();
+        });
+
+        $doctor.on('change', () => {
+            lineItems.forEach(r => {
+                if (r.serviceType === 'Consulting') loadItemsForRow(r.rowId, 'Consulting', r.serviceId);
+            });
+        });
+
+        // ── Form submission guard + confirmation ─────────────────────────────
+        document.getElementById('bookingForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const pid = parseInt(document.getElementById('hdnPatientId').value || '0');
+            if (pid <= 0) {
+                Swal.fire({ icon: 'warning', title: 'No Patient Selected', text: 'Please search and select a patient before booking.', confirmButtonColor: '#0d6efd' });
+                return;
+            }
+
+            if (!lineItems.length || lineItems.every(r => !r.serviceId)) {
+                Swal.fire({ icon: 'warning', title: 'No Services Added', text: 'Please add at least one service or consulting item.', confirmButtonColor: '#0d6efd' });
+                return;
+            }
+
+            // ── Build summary ──────────────────────────────────────────────
+            const patientName = document.getElementById('infoPatientName').textContent.trim();
+            const patientCode = document.getElementById('hdnPatientCode').value.trim();
+            const doctorText  = $('#ddlDoctor option:selected').text().trim() || '—';
+            const remarksVal  = document.getElementById('Remarks')?.value?.trim() || '';
+
+            const rowsHtml = lineItems
+                .filter(r => r.serviceId)
+                .map(r => `<tr>
+                    <td style="padding:4px 8px;font-size:.82rem">${r.serviceType}</td>
+                    <td style="padding:4px 8px;font-size:.82rem">${r.itemName}</td>
+                    <td style="padding:4px 8px;font-size:.82rem;text-align:right;font-weight:600">
+                        ₹ ${(r.serviceCharges||0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+                    </td>
+                </tr>`).join('');
+
+            const total = lineItems.reduce((s, r) => s + (parseFloat(r.serviceCharges) || 0), 0);
+            const totalFmt = '₹ ' + total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+            const summaryHtml = `
+                <div style="text-align:left;font-family:inherit">
+                    <div style="background:#f0f4ff;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+                        <div style="font-size:.78rem;color:#6c757d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Patient</div>
+                        <div style="font-weight:700;font-size:.95rem">${patientName}
+                            <span style="font-size:.75rem;color:#6c757d;font-weight:400;font-family:monospace"> &nbsp;${patientCode}</span>
+                        </div>
+                    </div>
+                    <div style="background:#f0f4ff;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+                        <div style="font-size:.78rem;color:#6c757d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Consulting Doctor</div>
+                        <div style="font-weight:600;font-size:.9rem">${doctorText}</div>
+                    </div>
+                    <div style="background:#f8f9fa;border-radius:8px;overflow:hidden;margin-bottom:12px">
+                        <table style="width:100%;border-collapse:collapse">
+                            <thead>
+                                <tr style="background:#e9ecef">
+                                    <th style="padding:5px 8px;font-size:.75rem;text-align:left;font-weight:700;color:#495057">Type</th>
+                                    <th style="padding:5px 8px;font-size:.75rem;text-align:left;font-weight:700;color:#495057">Item</th>
+                                    <th style="padding:5px 8px;font-size:.75rem;text-align:right;font-weight:700;color:#495057">Charges</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                            <tfoot>
+                                <tr style="background:#e8f5e9;border-top:2px solid #a5d6a7">
+                                    <td colspan="2" style="padding:6px 8px;font-size:.85rem;font-weight:700;color:#2e7d32">Total</td>
+                                    <td style="padding:6px 8px;font-size:.9rem;font-weight:800;text-align:right;color:#1b5e20">${totalFmt}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    ${remarksVal ? `<div style="font-size:.8rem;color:#6c757d"><b>Remarks:</b> ${remarksVal}</div>` : ''}
+                </div>`;
+
+            const form = this;
+            Swal.fire({
+                title: '<span style="font-size:1.05rem;font-weight:700">Confirm Booking</span>',
+                html: summaryHtml,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: '<i class="bi bi-calendar2-check-fill me-1"></i> Book Now',
+                cancelButtonText:  '<i class="bi bi-x me-1"></i> Cancel',
+                confirmButtonColor: '#0d6efd',
+                cancelButtonColor:  '#6c757d',
+                width: '480px',
+                reverseButtons: true,
+                focusConfirm: false
+            }).then(result => {
+                if (result.isConfirmed) {
+                    saveJson();
+                    form.submit();
+                }
+            });
+        });
+
+    // ── Document viewer modal ─────────────────────────────────────────────
+        document.getElementById('btnViewIdDoc').addEventListener('click', openDocModal);
+
+        function openDocModal() {
+            const btn  = document.getElementById('btnViewIdDoc');
+            const path = btn?.dataset.docPath ?? '';
+            if (!path) return;
+
+            const url  = path;                         // already absolute from root e.g. /uploads/patients/...
+            const ext  = path.split('.').pop().toLowerCase();
+            const isImg = ['jpg','jpeg','png','gif','webp','bmp'].includes(ext);
+            const isPdf = ext === 'pdf';
+
+            // Reset previous content
+            document.getElementById('docViewerImg').style.display     = 'none';
+            document.getElementById('docViewerFrame').style.display   = 'none';
+            document.getElementById('docViewerFallback').style.display = 'none';
+            document.getElementById('docViewerImg').src   = '';
+            document.getElementById('docViewerFrame').src = '';
+
+            if (isImg) {
+                const img = document.getElementById('docViewerImg');
+                img.src = url;
+                img.style.display = '';
+            } else if (isPdf) {
+                const frame = document.getElementById('docViewerFrame');
+                frame.src = url;
+                frame.style.display = '';
+            } else {
+                const fb = document.getElementById('docViewerFallback');
+                document.getElementById('docViewerDownload').href = url;
+                fb.style.display = '';
+            }
+
+            document.getElementById('docViewerFileName').textContent = path.split('/').pop();
+            document.getElementById('docViewerOpenLink').href = url;
+
+            new bootstrap.Modal(document.getElementById('docViewerModal')).show();
+        }
+
+    })();
+    </script>
+}

@@ -101,6 +101,22 @@
         }
         /* ── Phone suggestion dropdown ── */
         #phoneSearchDropdown .list-group-item:hover { background: #e8f0fe; }
+
+        /* ── Collapsible section headers ── */
+        .reg-section-header.collapsed-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+        .reg-section-header.collapsed-toggle:hover { background: #f0f3fa; }
+        .sec-chevron {
+            font-size: 1rem;
+            color: #6c757d;
+            transition: transform .25s ease;
+            flex-shrink: 0;
+        }
+        .reg-section-header.collapsed-toggle[aria-expanded="false"] .sec-chevron {
+            transform: rotate(-90deg);
+        }
         /* ── Action bar ── */
         .action-bar {
             background: #fff;
@@ -136,22 +152,6 @@
         </a>
     </div>
 </div>
-
-@* ── Alerts ── *@
-@if (!string.IsNullOrEmpty(TempData["Error"] as string))
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-@if (!string.IsNullOrEmpty(TempData["Success"] as string))
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
 
 @* ══════════════════════════════════════════════════════════════
    SEARCH EXISTING PATIENT  (optional)
@@ -210,7 +210,9 @@
        SECTION 1 — PATIENT DEMOGRAPHY
     ════════════════════════════════════════════════════════════ *@
     <div class="reg-section">
-        <div class="reg-section-header">
+        <div class="reg-section-header collapsed-toggle" role="button"
+             data-bs-toggle="collapse" data-bs-target="#secDemography"
+             aria-expanded="true" aria-controls="secDemography">
             <div class="sec-icon blue"><i class="bi bi-person-vcard-fill"></i></div>
             <div class="flex-grow-1">
                 <h6 class="fw-bold mb-0">
@@ -223,15 +225,33 @@
                 </h6>
                 <small class="text-muted">Basic personal, contact and address information</small>
             </div>
-            <span class="badge text-bg-danger">* Required Fields</span>
+            <span class="badge text-bg-danger me-2">* Required Fields</span>
+            <i class="bi bi-chevron-down sec-chevron"></i>
         </div>
+        <div id="secDemography" class="collapse show">
         <div class="reg-section-body">
 
-            @* ── Row 1: Salutation | First Name | Middle Name | Last Name ── *@
+            @* ── Row 1: Phone Number | Title | First Name | Middle Name | Last Name ── *@
             <div class="row g-3 mb-3">
-                <div class="col-6 col-sm-4 col-md-2">
+                <div class="col-12 col-sm-6 col-md-3 position-relative">
+                    <label asp-for="PhoneNumber" class="form-label fw-semibold small">
+                        Phone Number <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
+                        <input asp-for="PhoneNumber" id="phoneNumber" class="form-control"
+                               maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
+                               placeholder="10-digit mobile" autocomplete="off" />
+                    </div>
+                    <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    <div id="phoneError" class="text-danger small" style="display:none"></div>
+                    <div id="phoneSearchDropdown"
+                         class="list-group position-absolute shadow"
+                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
+                </div>
+                <div class="col-4 col-sm-3 col-md-1">
                     <label asp-for="Salutation" class="form-label fw-semibold small">Title</label>
-                    <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic">
+                    <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic px-1">
                         <option value="">--</option>
                         <option value="Mr.">Mr.</option>
                         <option value="Mrs.">Mrs.</option>
@@ -240,14 +260,14 @@
                         <option value="Dr.">Dr.</option>
                     </select>
                 </div>
-                <div class="col-6 col-sm-8 col-md-4">
+                <div class="col-8 col-sm-9 col-md-3">
                     <label asp-for="FirstName" class="form-label fw-semibold small">
                         First Name <span class="text-danger">*</span>
                     </label>
                     <input asp-for="FirstName" class="form-control" maxlength="100" placeholder="Enter first name" />
                     <span asp-validation-for="FirstName" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-md-2">
                     <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
                     <input asp-for="MiddleName" class="form-control" maxlength="100" placeholder="Optional" />
                 </div>
@@ -260,22 +280,8 @@
                 </div>
             </div>
 
-            @* ── Row 2: Phone | Secondary | Email | Gender ── *@
+            @* ── Row 2: Secondary Number | Email | Gender | Date of Birth | Age ── *@
             <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-3 position-relative">
-                    <label asp-for="PhoneNumber" class="form-label fw-semibold small">
-                        Phone Number <span class="text-danger">*</span>
-                    </label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
-                        <input asp-for="PhoneNumber" id="phoneNumber" class="form-control"
-                               maxlength="15" placeholder="10-digit mobile" autocomplete="off" />
-                    </div>
-                    <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
-                    <div id="phoneSearchDropdown"
-                         class="list-group position-absolute shadow"
-                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
-                </div>
                 <div class="col-12 col-sm-6 col-md-3">
                     <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
                     <div class="input-group">
@@ -293,21 +299,32 @@
                     </div>
                     <span asp-validation-for="EmailId" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-4 col-md-2">
                     <label asp-for="Gender" class="form-label fw-semibold small">
                         Gender <span class="text-danger">*</span>
                     </label>
                     <select asp-for="Gender" id="ddlGender" class="form-select s2-basic">
-                        <option value="">-- Select Gender --</option>
+                        <option value="">-- Select --</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                     </select>
                     <span asp-validation-for="Gender" class="text-danger small"></span>
                 </div>
+                <div class="col-9 col-sm-5 col-md-3">
+                    <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
+                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
+                           max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+                </div>
+                <div class="col-3 col-sm-3 col-md-1">
+                    <label class="form-label fw-semibold small">Age</label>
+                    <input type="number" id="AgeDisplay" class="form-control" min="0" max="150"
+                           placeholder="Yrs" title="Enter age to auto-fill DOB (approx.)" />
+                </div>
             </div>
 
-            @* ── Row 3: Religion | Blood Group | Guardian Name ── *@
+            @* ── Row 3: Religion | Blood Group | Guardian / Relative Name ── *@
             <div class="row g-3 mb-3">
                 <div class="col-12 col-sm-6 col-md-3">
                     <label asp-for="ReligionId" class="form-label fw-semibold small">Religion</label>
@@ -416,19 +433,24 @@
             </div>
 
         </div>
+        </div>@* /#secDemography *@
     </div>
 
     @* ════════════════════════════════════════════════════════════
        SECTION 2 — OTHER INFORMATION
     ════════════════════════════════════════════════════════════ *@
     <div class="reg-section">
-        <div class="reg-section-header">
+        <div class="reg-section-header collapsed-toggle" role="button"
+             data-bs-toggle="collapse" data-bs-target="#secOtherInfo"
+             aria-expanded="false" aria-controls="secOtherInfo">
             <div class="sec-icon green"><i class="bi bi-clipboard2-pulse-fill"></i></div>
-            <div>
+            <div class="flex-grow-1">
                 <h6 class="fw-bold mb-0">Other Information</h6>
                 <small class="text-muted">Occupation, marital status &amp; medical notes</small>
             </div>
+            <i class="bi bi-chevron-down sec-chevron"></i>
         </div>
+        <div id="secOtherInfo" class="collapse">
         <div class="reg-section-body">
 
             @* ── Row 1: Occupation | Marital Status ── *@
@@ -464,6 +486,7 @@
             </div>
 
         </div>
+        </div>@* /#secOtherInfo *@
     </div>
 
     @* ════════════════════════════════════════════════════════════
@@ -490,43 +513,46 @@
                     </label>
                     <select asp-for="ConsultingDoctorId" id="ddlDoctor" class="form-select s2-search"
                             asp-items="Model.DoctorOptions">
-                        <option value="" disabled>-- Select Doctor --</option>
+                        <option value="">-- Select Doctor --</option>
                     </select>
                 </div>
             </div>
 
-            @* ── Service sub-block ── *@
+            @* ── Line-item table ── *@
             <div class="service-block">
-                <p class="fw-bold text-secondary small mb-3">
-                    <i class="bi bi-receipt-cutoff me-1"></i>Service / Consultation Fee
-                </p>
-                <div class="row g-3 align-items-end">
-                    <div class="col-12 col-sm-4 col-md-3">
-                        <label asp-for="ServiceType" class="form-label fw-semibold small">Service Type</label>
-                        <select asp-for="ServiceType" id="ddlServiceType" class="form-select s2-basic">
-                            <option value="">-- Select Type --</option>
-                            <option value="Consulting">Consulting</option>
-                            <option value="Service">Services</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-sm-8 col-md-5">
-                        <label asp-for="ServiceId" class="form-label fw-semibold small">Item / Service Name</label>
-                        <select asp-for="ServiceId" id="ddlServiceItem" class="form-select s2-search"
-                                asp-items="Model.ServiceOptions">
-                            <option value="">-- Select Service Type first --</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-sm-6 col-md-4">
-                        <label class="form-label fw-semibold small">Charges (₹)</label>
-                        <div class="input-group">
-                            <span class="input-group-text fw-bold">₹</span>
-                            <input type="text" id="serviceCharges"
-                                   class="form-control charges-display"
-                                   readonly placeholder="Auto-filled on item selection" />
-                        </div>
-                        <input asp-for="ServiceCharges" type="hidden" id="hiddenServiceCharges" />
-                    </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <p class="fw-bold text-secondary small mb-0">
+                        <i class="bi bi-receipt-cutoff me-1"></i>Service / Consultation Fee
+                    </p>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddItem">
+                        <i class="bi bi-plus-circle me-1"></i>Add Item
+                    </button>
                 </div>
+                <input asp-for="LineItemsJson" type="hidden" id="hdnLineItemsJson" value="[]" />
+                <table class="table table-sm table-bordered mb-1" id="lineItemTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:22%">Type</th>
+                            <th>Item / Service Name</th>
+                            <th style="width:18%">Charges (₹)</th>
+                            <th style="width:4%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="lineItemTbody">
+                        <tr id="emptyRow">
+                            <td colspan="4" class="text-center text-muted small py-2">
+                                <i class="bi bi-info-circle me-1"></i>Click "Add Item" to add a service line
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <td colspan="2" class="text-end fw-semibold small">Total</td>
+                            <td class="fw-bold text-success" id="lineItemTotal">₹ 0.00</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
 
         </div>
@@ -572,6 +598,7 @@
                             <th>Name</th>
                             <th>Phone</th>
                             <th>Gender</th>
+                            <th>Age</th>
                             <th>Blood Group</th>
                             <th></th>
                         </tr>
@@ -605,9 +632,19 @@
                 <p class="text-muted mb-3" id="successDesc">
                     @(isBooking ? $"Service booked for patient ID #{newCode}" : "Patient has been successfully registered.")
                 </p>
-                <div class="alert alert-primary py-3 px-4 mx-auto" style="max-width:260px;">
-                    <p class="text-muted small mb-1 fw-semibold">PATIENT ID</p>
-                    <h2 class="fw-bold text-primary mb-0 font-monospace" id="successPatientCode">---</h2>
+                <div class="d-flex gap-2 justify-content-center mt-2 mb-1 flex-wrap">
+                    <div class="alert alert-primary py-2 px-3 mb-0 text-center" style="min-width:115px;">
+                        <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">PATIENT ID</p>
+                        <h4 class="fw-bold text-primary mb-0 font-monospace" id="successPatientCode">---</h4>
+                    </div>
+                    <div class="alert alert-success py-2 px-3 mb-0 text-center" style="min-width:115px;">
+                        <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">TOKEN NO</p>
+                        <h4 class="fw-bold text-success mb-0 font-monospace" id="successTokenNo">---</h4>
+                    </div>
+                    <div class="alert alert-warning py-2 px-3 mb-0 text-center" style="min-width:130px;">
+                        <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">OPD BILL NO</p>
+                        <h5 class="fw-bold text-warning-emphasis mb-0 font-monospace" id="successBillNo">---</h5>
+                    </div>
                 </div>
                 <p class="text-muted small mt-2" id="successPatientName"></p>
                 <div class="d-flex gap-2 justify-content-center mt-4">
@@ -648,9 +685,14 @@
             let el = document.getElementById(nameOrId) ?? document.querySelector(`[name="${nameOrId}"]`);
             if (!el) return;
             el.value = val;
-            // If it is a Select2-enhanced select, update Select2 display as well
             if (el.tagName === 'SELECT' && el.classList.contains('select2-hidden-accessible')) {
+                // If it is a Select2-enhanced select, update Select2 display as well
                 $(el).val(val).trigger('change.select2');
+            } else if (el.type !== 'hidden') {
+                // Notify jQuery Unobtrusive Validation to re-evaluate so stale
+                // errors (e.g. "Enter a valid 10-digit mobile number.") are cleared
+                // when the field is populated programmatically.
+                $(el).trigger('focusout');
             }
         }
 
@@ -693,6 +735,8 @@
             <text>
             document.getElementById('successPatientCode').textContent = '@newCode';
             document.getElementById('successPatientName').textContent  = '@newName';
+            @if (!string.IsNullOrEmpty(Model.TokenNo))   { <text>document.getElementById('successTokenNo').textContent = '@Model.TokenNo';</text> }
+            @if (!string.IsNullOrEmpty(Model.OPDBillNo)) { <text>document.getElementById('successBillNo').textContent  = '@Model.OPDBillNo';</text> }
             new bootstrap.Modal(document.getElementById('registrationSuccessModal')).show();
             </text>
         }
@@ -712,6 +756,13 @@
                 }
             });
         }
+
+        // ── Title → Gender auto-populate ─────────────────────────────────────
+        const titleGenderMap = { 'Mr.': 'Male', 'Mrs.': 'Female', 'Master': 'Male', 'Ms.': 'Female' };
+        $('#ddlSalutation').on('change', function () {
+            const mapped = titleGenderMap[$(this).val()];
+            if (mapped) setVal('ddlGender', mapped);
+        });
 
         // ── Top search button ─────────────────────────────────────────────────
         const btnSearch   = document.getElementById('btnSearch');
@@ -799,57 +850,154 @@
         setupCascade('ddlDistrict', 'districtId', 'GetCitiesByDistrict',  'ddlCity',     'cityId',     'cityName',     '-- Select City --');
         setupCascade('ddlCity',     'cityId',     'GetAreasByCity',       'ddlArea',     'areaId',     'areaName',     '-- Select Area --');
 
-        // ── Service type → item cascade ───────────────────────────────────────
-        const $doctor      = $('#ddlDoctor');
-        const $serviceType = $('#ddlServiceType');
-        const $serviceItem = $('#ddlServiceItem');
+        // ── Line-item management ──────────────────────────────────────────────
+        let lineItems  = [];   // { rowId, serviceType, serviceId, itemName, serviceCharges }
+        let rowCounter = 0;
 
-        // Shared helper: fetch items for the current type/doctor and populate ddlServiceItem
-        async function loadServiceItems() {
-            resetS2('ddlServiceItem', '-- Select Item --');
-            document.getElementById('serviceCharges').value       = '';
-            document.getElementById('hiddenServiceCharges').value = '';
+        const $doctor = $('#ddlDoctor');
 
-            const type     = $serviceType.val();
+        function saveJson() {
+            document.getElementById('hdnLineItemsJson').value = JSON.stringify(lineItems);
+        }
+
+        function updateTotal() {
+            const total = lineItems.reduce((s, r) => s + (parseFloat(r.serviceCharges) || 0), 0);
+            document.getElementById('lineItemTotal').textContent =
+                '₹ ' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        async function loadItemsForRow(rowId, type, selectedId, selectedName) {
+            const $row    = $(`#row-${rowId}`);
+            const $item   = $row.find('.row-item');
             const doctorId = $doctor.val();
-            if (!type) return;
+
+            // destroy existing Select2 on row-item if present
+            if ($item.hasClass('select2-hidden-accessible')) $item.select2('destroy');
+            $item.empty().append(new Option('-- loading… --', ''));
 
             let url;
             if (type === 'Consulting') {
                 if (!doctorId) {
-                    resetS2('ddlServiceItem', '-- Select a Doctor first --');
+                    $item.empty().append(new Option('-- Select Doctor first --', ''));
+                    initRowS2($item);
                     return;
                 }
                 url = opdBase + 'GetConsultingFeesByDoctor?doctorId=' + doctorId;
+            } else if (type === 'Service') {
+                url = opdBase + 'GetServicesByType?type=Service';
             } else {
-                url = opdBase + 'GetServicesByType?type=' + encodeURIComponent(type);
+                $item.empty().append(new Option('-- Select Type first --', ''));
+                initRowS2($item);
+                return;
             }
 
             const data = await fetchJson(url);
-            if (!data?.length) return;
-            data.forEach(s => {
-                const opt = new Option(`${s.itemName}  (₹${parseFloat(s.itemCharges).toLocaleString('en-IN', {minimumFractionDigits:2})})`, s.serviceId);
-                opt.dataset.charges = s.itemCharges;
-                $serviceItem.append(opt);
+            $item.empty().append(new Option('-- Select item --', ''));
+            (data || []).forEach(s => {
+                const o = new Option(s.itemName, s.serviceId);
+                o.dataset.charges = s.itemCharges;
+                $item.append(o);
             });
-            $serviceItem.trigger('change.select2');
+            if (selectedId) $item.val(selectedId);
+            initRowS2($item);
+
+            // if selectedId not in list, set charges from name lookup
+            const sel = $item[0].options[$item[0].selectedIndex];
+            const charges = sel?.dataset?.charges;
+            setRowCharges($row, rowId, charges || '');
         }
 
-        $serviceType.on('change', () => loadServiceItems());
+        function initRowS2($el) {
+            $el.select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: document.body });
+            $el.on('change', function () {
+                const rid  = parseInt(this.closest('tr').id.replace('row-',''));
+                const sel  = this.options[this.selectedIndex];
+                const row  = lineItems.find(r => r.rowId === rid);
+                if (row) {
+                    row.serviceId      = parseInt(this.value) || null;
+                    row.itemName       = sel?.text ?? '';
+                    row.serviceCharges = parseFloat(sel?.dataset?.charges) || 0;
+                }
+                setRowCharges($(this).closest('tr'), rid, sel?.dataset?.charges || '');
+                updateTotal();
+                saveJson();
+            });
+        }
 
-        // When doctor changes, refresh item list if type is already 'Consulting'
-        $doctor.on('change', () => {
-            if ($serviceType.val() === 'Consulting') loadServiceItems();
+        function setRowCharges($row, rowId, chargesStr) {
+            const val = parseFloat(chargesStr) || 0;
+            $row.find('.row-charges').val(val > 0
+                ? '₹ ' + val.toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                : '');
+            const row = lineItems.find(r => r.rowId === rowId);
+            if (row) row.serviceCharges = val;
+        }
+
+        function renderRows() {
+            const tbody = document.getElementById('lineItemTbody');
+            if (!lineItems.length) {
+                tbody.innerHTML = `<tr id="emptyRow"><td colspan="4" class="text-center text-muted small py-2">
+                    <i class="bi bi-info-circle me-1"></i>Click "Add Item" to add a service line</td></tr>`;
+                updateTotal();
+                return;
+            }
+            tbody.innerHTML = lineItems.map(r => `
+                <tr id="row-${r.rowId}">
+                    <td>
+                        <select class="form-select form-select-sm row-type">
+                            <option value="">-- Type --</option>
+                            <option value="Consulting"${r.serviceType==='Consulting'?' selected':''}>Consulting</option>
+                            <option value="Service"${r.serviceType==='Service'?' selected':''}>Services</option>
+                        </select>
+                    </td>
+                    <td><select class="form-select form-select-sm row-item"></select></td>
+                    <td><input type="text" class="form-control form-control-sm row-charges" readonly placeholder="₹ 0.00" /></td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-del"
+                                data-rowid="${r.rowId}"><i class="bi bi-trash3"></i></button>
+                    </td>
+                </tr>`).join('');
+
+            lineItems.forEach(r => {
+                const $row     = $(`#row-${r.rowId}`);
+                const $typeEl  = $row.find('.row-type');
+
+                // Init row-type Select2
+                $typeEl.select2({ theme:'bootstrap-5', width:'100%', dropdownParent:document.body,
+                                   minimumResultsForSearch: Infinity });
+                $typeEl.on('change', function () {
+                    const rid  = parseInt(this.closest('tr').id.replace('row-',''));
+                    const row2 = lineItems.find(x => x.rowId === rid);
+                    if (row2) { row2.serviceType = this.value; row2.serviceId = null; row2.itemName = ''; row2.serviceCharges = 0; }
+                    loadItemsForRow(rid, this.value, null, '');
+                    updateTotal(); saveJson();
+                });
+
+                // Load items for existing type
+                loadItemsForRow(r.rowId, r.serviceType, r.serviceId, r.itemName);
+
+                // Delete button
+                $row.find('.btn-del').on('click', function () {
+                    const rid = parseInt($(this).data('rowid'));
+                    lineItems = lineItems.filter(x => x.rowId !== rid);
+                    renderRows();
+                    updateTotal(); saveJson();
+                });
+            });
+        }
+
+        // Add Item button
+        document.getElementById('btnAddItem')?.addEventListener('click', () => {
+            lineItems.push({ rowId: ++rowCounter, serviceType: '', serviceId: null, itemName: '', serviceCharges: 0 });
+            renderRows();
+            saveJson();
         });
 
-        $serviceItem.on('change', function () {
-            const sel = this.options[this.selectedIndex];
-            const charges = sel?.dataset?.charges;
-            document.getElementById('serviceCharges').value = charges
-                ? '₹ ' + parseFloat(charges).toLocaleString('en-IN', { minimumFractionDigits: 2 })
-                : '';
-            const hid = document.getElementById('hiddenServiceCharges');
-            if (hid) hid.value = charges || '';
+        // When doctor changes, reload all Consulting rows
+        $doctor.on('change', () => {
+            lineItems.forEach(r => {
+                if (r.serviceType === 'Consulting') loadItemsForRow(r.rowId, 'Consulting', r.serviceId, r.itemName);
+            });
         });
 
         // ── Auto-populate patient data ─────────────────────────────────────────
@@ -881,6 +1029,14 @@
              'EmailId','GuardianName','IdentificationNumber','KnownAllergies','Remarks'
             ].forEach(f => setVal(f, p[f.charAt(0).toLowerCase() + f.slice(1)]));
 
+            // Date of Birth & Age
+            const dobRaw = p.dateOfBirth;
+            const dobEl  = document.getElementById('DateOfBirth');
+            if (dobEl) {
+                dobEl.value = dobRaw ? dobRaw.substring(0, 10) : '';
+                window._refreshAge?.();
+            }
+
             // Select2 selects (demographics)
             const s2Map = {
                 'ddlSalutation':    p.salutation,
@@ -911,14 +1067,11 @@
             }
 
             // ── Section 3: always reset for new visit ────────────────────────
-            // Deselect Doctor & Service Type (keep their option lists intact).
-            // Full-empty resetS2 is only correct for Service Item since its
-            // options are built dynamically per service-type selection.
+            // Reset doctor and clear all line items for fresh visit booking
             $('#ddlDoctor').val('').trigger('change');
-            $('#ddlServiceType').val('').trigger('change');   // cascades → clears item list via existing handler
-            resetS2('ddlServiceItem', '-- Select Service Type first --');
-            document.getElementById('serviceCharges').value       = '';
-            document.getElementById('hiddenServiceCharges').value = '';
+            lineItems = [];
+            renderRows();
+            saveJson();
 
             showToast(`Patient loaded (${p.patientCode}) — select Doctor & Service for new visit`);
         }
@@ -946,6 +1099,7 @@
                         <td class="fw-semibold">${p.fullName}</td>
                         <td>${p.phoneNumber}</td>
                         <td>${p.gender || '--'}</td>
+                        <td>${p.age != null ? p.age + ' yrs' : '--'}</td>
                         <td>${p.bloodGroup ? '<span class="badge text-bg-danger">' + p.bloodGroup + '</span>' : '--'}</td>
                         <td><button type="button" class="btn btn-sm btn-primary"
                                 onclick="selectPatient(${p.patientId})" data-bs-dismiss="modal">
@@ -970,13 +1124,126 @@
             const badge = document.getElementById('loadedPatientBadge');
             badge.textContent = '';
             badge.classList.add('d-none');
+            // Clear line items
+            lineItems = [];
+            renderRows();
+            saveJson();
             setTimeout(() => {
                 $('.s2-basic, .s2-search').trigger('change.select2');
             }, 50);
         });
 
+        // ── DOB ↔ Age bidirectional auto-calculation ─────────────────────────
+        (function () {
+            const dobInput = document.getElementById('DateOfBirth');
+            const ageInput = document.getElementById('AgeDisplay');
+
+            function calcAgeFromDob(dobValue) {
+                if (!dobValue) return '';
+                const dob  = new Date(dobValue);
+                const today = new Date();
+                let age = today.getFullYear() - dob.getFullYear();
+                const m = today.getMonth() - dob.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+                return age >= 0 ? age : '';
+            }
+
+            dobInput?.addEventListener('change', function () {
+                ageInput.value = calcAgeFromDob(this.value);
+            });
+
+            ageInput?.addEventListener('change', function () {
+                const age = parseInt(this.value, 10);
+                if (!isNaN(age) && age >= 0 && age <= 150) {
+                    const year = new Date().getFullYear() - age;
+                    // Set to January 1st of the estimated birth year
+                    dobInput.value = year + '-01-01';
+                } else {
+                    dobInput.value = '';
+                }
+            });
+
+            // Expose helper for populatePatient to trigger DOB→Age recalc
+            window._refreshAge = function () {
+                ageInput.value = calcAgeFromDob(dobInput?.value);
+            };
+
+            // On page load: if a DOB is already set (edit mode), compute age immediately
+            window._refreshAge();
+        })();
+
+        // ── Phone Number — exactly 10 digits ─────────────────────────────────
+        (function () {
+            var ph    = document.getElementById('phoneNumber');
+            var phErr = document.getElementById('phoneError');
+            if (!ph) return;
+
+            function setPhoneError(msg) {
+                if (msg) {
+                    ph.classList.add('is-invalid');
+                    ph.classList.remove('is-valid');
+                    phErr.textContent = msg;
+                    phErr.style.display = 'block';
+                } else {
+                    ph.classList.remove('is-invalid');
+                    ph.classList.add('is-valid');
+                    phErr.style.display = 'none';
+                }
+            }
+
+            function clearPhoneState() {
+                ph.classList.remove('is-invalid', 'is-valid');
+                phErr.style.display = 'none';
+            }
+
+            // Block non-digit keystrokes in real time
+            ph.addEventListener('keydown', function (e) {
+                var allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End'];
+                if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
+                if (!/^[0-9]$/.test(e.key)) e.preventDefault();
+            });
+
+            // Strip non-digits and enforce max 10 (handles paste / autofill)
+            ph.addEventListener('input', function () {
+                var cleaned = ph.value.replace(/\D/g, '').slice(0, 10);
+                if (ph.value !== cleaned) ph.value = cleaned;
+                if (cleaned.length === 0)  { clearPhoneState(); return; }
+                if (cleaned.length === 10) { setPhoneError(null); }
+                else                       { ph.classList.remove('is-invalid','is-valid'); phErr.style.display='none'; }
+            });
+
+            // Show error when leaving the field with fewer than 10 digits
+            ph.addEventListener('blur', function () {
+                var v = ph.value.replace(/\D/g, '');
+                if (v.length === 0)  { clearPhoneState(); return; }
+                if (v.length < 10)   { setPhoneError('Phone number must be exactly 10 digits.'); }
+                else                 { setPhoneError(null); }
+            });
+        })();
+
         // ── Client-side validation highlight ─────────────────────────────────
         document.getElementById('patientForm')?.addEventListener('submit', function (e) {
+            saveJson();
+            // Phone: must be exactly 10 digits
+            var ph    = document.getElementById('phoneNumber');
+            var phErr = document.getElementById('phoneError');
+            if (ph) {
+                var digits = ph.value.replace(/\D/g, '');
+                if (digits.length !== 10) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    ph.classList.add('is-invalid');
+                    if (phErr) {
+                        phErr.textContent = digits.length === 0
+                            ? 'Phone number is required.'
+                            : 'Phone number must be exactly 10 digits.';
+                        phErr.style.display = 'block';
+                    }
+                    ph.focus();
+                    this.classList.add('was-validated');
+                    return;
+                }
+            }
             if (!this.checkValidity()) {
                 e.preventDefault();
                 e.stopPropagation();

@@ -12,9 +12,29 @@ public class PatientListItemViewModel
     public string PhoneNumber { get; set; } = string.Empty;
     public string? Gender { get; set; }
     public string? BloodGroup { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    /// <summary>Computed from DateOfBirth; not stored in DB.</summary>
+    public int? Age => DateOfBirth.HasValue
+        ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
+        : null;
     public DateTime CreatedDate { get; set; }
     public bool IsActive { get; set; }
     public string? ConsultingDoctorName { get; set; }
+    /// <summary>Populated by usp_GetPatientListPaged via COUNT(*) OVER().</summary>
+    public int TotalCount { get; set; }
+}
+
+// ─── Paged wrapper for OPD Index ──────────────────────────────────────────────
+public class PatientPagedListViewModel
+{
+    public List<PatientListItemViewModel> Items { get; set; } = [];
+    public int TotalCount { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
+    public string? Search { get; set; }
+    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 1;
+    public bool HasPrev => Page > 1;
+    public bool HasNext => Page < TotalPages;
 }
 
 // ─── Full Form ViewModel ───────────────────────────────────────────────────────
@@ -57,6 +77,9 @@ public class PatientRegistrationViewModel
     [Required(ErrorMessage = "Gender is required.")]
     [Display(Name = "Gender")]
     public string Gender { get; set; } = string.Empty;
+
+    [Display(Name = "Date of Birth")]
+    public DateTime? DateOfBirth { get; set; }
 
     [Display(Name = "Religion")]
     public int? ReligionId { get; set; }
@@ -117,20 +140,14 @@ public class PatientRegistrationViewModel
 
     // ── Section 3: Doctor & Services ─────────────────────────────────────────
 
-    /// <summary>ID of the PatientOPDService row being edited; 0 = new visit.</summary>
+    /// <summary>ID of the PatientOPDService (bill header) row; 0 = new visit.</summary>
     public int OPDServiceId { get; set; }
 
     [Display(Name = "Consulting Doctor")]
     public int? ConsultingDoctorId { get; set; }
 
-    [MaxLength(20)]
-    [Display(Name = "Service Type")]
-    public string? ServiceType { get; set; }   // "Consulting" or "Services"
-
-    [Display(Name = "Service / Item")]
-    public int? ServiceId { get; set; }
-
-    public decimal? ServiceCharges { get; set; }
+    /// <summary>Line items — serialised to JSON and sent as a single hidden field.</summary>
+    public string LineItemsJson { get; set; } = "[]";
 
     // ── Select Lists (populated from server) ─────────────────────────────────
 
@@ -144,7 +161,10 @@ public class PatientRegistrationViewModel
     public List<SelectListItem> CityOptions { get; set; } = [];
     public List<SelectListItem> AreaOptions { get; set; } = [];
     public List<SelectListItem> DoctorOptions { get; set; } = [];
-    public List<SelectListItem> ServiceOptions { get; set; } = [];
+
+    // ── After-save info (used by success modal) ───────────────────────────────
+    public string? OPDBillNo { get; set; }
+    public string? TokenNo { get; set; }
 
     /// <summary>
     /// True when opened via direct edit (edit button on list) — only demographics
@@ -160,6 +180,88 @@ public class PatientQuickSearchResult
     public string PatientCode { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public string? SecondaryPhoneNumber { get; set; }
     public string? Gender { get; set; }
     public string? BloodGroup { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    /// <summary>Computed from DateOfBirth.</summary>
+    public int? Age => DateOfBirth.HasValue
+        ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
+        : null;
+}
+
+// ─── OPD Service Line Item DTO (used for JSON serialization) ─────────────────
+public class OPDServiceLineItem
+{
+    public string? ServiceType { get; set; }
+    public int? ServiceId { get; set; }
+    public string? ItemName { get; set; }
+    public decimal ServiceCharges { get; set; }
+}
+
+// ─── Service Booking List Item (for ServiceBooking grid) ─────────────────────
+public class ServiceBookingListItem
+{
+    public int OPDServiceId { get; set; }
+    public DateTime VisitDate { get; set; }
+    public string? OPDBillNo { get; set; }
+    public string? TokenNo { get; set; }
+    public string PatientCode { get; set; } = string.Empty;
+    public int PatientId { get; set; }
+    public string PatientName { get; set; } = string.Empty;
+    public string? Gender { get; set; }
+    public int? Age { get; set; }
+    public string? ConsultingDoctorName { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = string.Empty;
+    // Line items (comma-joined for display)
+    public string ServiceTypesSummary { get; set; } = string.Empty;    // Window-function aggregates from usp_GetServiceBookingsPaged
+    public int TotalCount { get; set; }
+    public decimal TotalFeesAll { get; set; }
+    public int RegisteredCount { get; set; }
+    public int CompletedCount { get; set; }
+}
+
+// ─── Paged wrapper for ServiceBooking list ───────────────────────────────────────
+public class ServiceBookingPagedListViewModel
+{
+    public List<ServiceBookingListItem> Items { get; set; } = [];
+    public int TotalCount { get; set; }
+    public decimal TotalFeesAll { get; set; }
+    public int RegisteredCount { get; set; }
+    public int CompletedCount { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
+    public string? Search { get; set; }
+    public string? FromDate { get; set; }
+    public string? ToDate { get; set; }
+    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 1;
+    public bool HasPrev => Page > 1;
+    public bool HasNext => Page < TotalPages;}
+
+// ─── Detail popup DTO ─────────────────────────────────────────────────────────
+public class ServiceBookingDetailItem
+{
+    public string? ServiceType { get; set; }
+    public string? ItemName { get; set; }
+    public decimal ServiceCharges { get; set; }
+}
+
+public class ServiceBookingDetailViewModel
+{
+    public int OPDServiceId { get; set; }
+    public string? OPDBillNo { get; set; }
+    public string? TokenNo { get; set; }
+    public string PatientCode { get; set; } = string.Empty;
+    public string PatientName { get; set; } = string.Empty;
+    public string? Gender { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public int? Age => DateOfBirth.HasValue
+        ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
+        : null;
+    public string? ConsultingDoctorName { get; set; }
+    public DateTime VisitDate { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public List<ServiceBookingDetailItem> Items { get; set; } = [];
 }

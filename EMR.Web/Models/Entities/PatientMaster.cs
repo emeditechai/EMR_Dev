@@ -6,7 +6,7 @@ public class PatientMaster
 {
     public int PatientId { get; set; }
 
-    [Required, MaxLength(20)]
+    [Required, MaxLength(30)]
     public string PatientCode { get; set; } = string.Empty;
 
     [Required, MaxLength(15)]
@@ -29,6 +29,8 @@ public class PatientMaster
 
     [Required, MaxLength(10)]
     public string Gender { get; set; } = string.Empty;
+
+    public DateTime? DateOfBirth { get; set; }
 
     public int? ReligionId { get; set; }
 

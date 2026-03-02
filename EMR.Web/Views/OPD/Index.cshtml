@@ -1,167 +1,11 @@
-@model IEnumerable<EMR.Web.Models.ViewModels.PatientListItemViewModel>
+@model EMR.Web.Models.ViewModels.PatientPagedListViewModel
 @{
     ViewData["Title"] = "Patient List";
-    var patients = Model?.ToList() ?? [];
+    var from = (Model.Page - 1) * Model.PageSize + 1;
+    var to   = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-        <h1 class="h3 mb-0 fw-bold"><i class="bi bi-people-fill me-2 text-primary"></i>Patient Master</h1>
-        <small class="text-muted">All registered OPD patients — @patients.Count record(s)</small>
-    </div>
-
-</div>
-
-@if (!string.IsNullOrEmpty(TempData["Success"] as string))
-{
-    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
-        <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-<div class="dashboard-panel">
-    @if (!patients.Any())
-    {
-        <div class="text-center py-5">
-            <i class="bi bi-person-slash fs-1 text-muted mb-3 d-block opacity-50"></i>
-            <h5 class="fw-semibold text-muted">No patients registered yet</h5>
-            <p class="text-muted">Start by registering the first patient.</p>
-            <a asp-action="PatientRegistration" class="btn btn-primary mt-2">
-                <i class="bi bi-person-plus-fill me-1"></i>Register Patient
-            </a>
-        </div>
-    }
-    else
-    {
-        <div class="mb-3">
-            <input type="text" id="tableSearch" class="form-control form-control-sm w-auto d-inline-block"
-                   placeholder="Filter patients..." style="min-width:220px;" />
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle" id="patientTable">
-                <thead class="table-light">
-                    <tr>
-                        <th>Patient ID</th>
-                        <th>Name</th>
-                        <th>Phone</th>
-                        <th>Gender</th>
-                        <th>Blood Group</th>
-                        <th>Doctor</th>
-                        <th>Registered</th>
-                        <th>Status</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in patients)
-                    {
-                        <tr>
-                            <td><span class="badge text-bg-info text-dark font-monospace">@p.PatientCode</span></td>
-                            <td class="fw-semibold">@p.FullName</td>
-                            <td>@p.PhoneNumber</td>
-                            <td>
-                                @if (p.Gender == "Male")
-                                {
-                                    <span class="badge text-bg-primary"><i class="bi bi-gender-male me-1"></i>Male</span>
-                                }
-                                else if (p.Gender == "Female")
-                                {
-                                    <span class="badge text-bg-danger"><i class="bi bi-gender-female me-1"></i>Female</span>
-                                }
-                                else
-                                {
-                                    <span class="badge text-bg-secondary">@(p.Gender ?? "--")</span>
-                                }
-                            </td>
-                            <td>
-                                @if (!string.IsNullOrEmpty(p.BloodGroup))
-                                {
-                                    <span class="badge text-bg-danger fw-bold">@p.BloodGroup</span>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">--</span>
-                                }
-                            </td>
-                            <td>@(p.ConsultingDoctorName ?? "--")</td>
-                            <td class="text-muted small">@p.CreatedDate.ToString("dd MMM yyyy")</td>
-                            <td>
-                                @if (p.IsActive)
-                                {
-                                    <span class="badge text-bg-success">Active</span>
-                                }
-                                else
-                                {
-                                    <span class="badge text-bg-secondary">Inactive</span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                <a asp-action="PatientRegistration" asp-route-id="@p.PatientId"
-                                   class="btn btn-sm btn-outline-primary me-1" title="Edit">
-                                    <i class="bi bi-pencil-fill"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                        data-bs-toggle="modal" data-bs-target="#deleteModal"
-                                        data-id="@p.PatientId" data-name="@p.FullName" title="Delete">
-                                    <i class="bi bi-trash-fill"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
-</div>
-
-@* Delete Confirmation Modal *@
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete Patient</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete patient <strong id="deletePatientName"></strong>?</p>
-                <p class="text-muted small">This will mark the patient as inactive. The record will not be permanently removed.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form asp-action="DeletePatient" method="post" id="deleteForm">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="id" id="deletePatientId" />
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash-fill me-1"></i>Delete
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-@section Scripts {
-<script>
-    // Delete modal
-    document.getElementById('deleteModal')?.addEventListener('show.bs.modal', function (e) {
-        const btn = e.relatedTarget;
-        document.getElementById('deletePatientId').value = btn.dataset.id;
-        document.getElementById('deletePatientName').textContent = btn.dataset.name;
-    });
-
-    // Table filter
-    document.getElementById('tableSearch')?.addEventListener('input', function () {
-        const val = this.value.toLowerCase();
-        document.querySelectorAll('#patientTable tbody tr').forEach(row => {
-            row.style.display = row.textContent.toLowerCase().includes(val) ? '' : 'none';
-        });
-    });
-</script>
-}
-
-
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h1 class="h3 mb-0 fw-bold">Outpatient Department</h1>
         <small class="text-muted">OPD patient registration, appointments &amp; consultation queue</small>
@@ -199,10 +43,576 @@
     </div>
 </div>
 
-<div class="dashboard-panel p-4">
-    <div class="text-center py-5">
-        <i class="bi bi-hospital fs-1 text-primary mb-3 d-block"></i>
-        <h5 class="fw-bold mb-1">OPD Module</h5>
-        <p class="text-muted mb-0">OPD workflows — patient registration, appointments, consultation queue and prescriptions — can be built here.</p>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h2 class="h5 mb-0 fw-bold"><i class="bi bi-people-fill me-2 text-primary"></i>Patient Master</h2>
+        <small class="text-muted">
+            @if (Model.TotalCount > 0)
+            {
+                <span>Showing @from–@to of @Model.TotalCount record(s)</span>
+            }
+            else
+            {
+                <span>No patients found</span>
+            }
+        </small>
     </div>
 </div>
+
+<div class="dashboard-panel">
+
+    @* ── Search / Filter bar ──────────────────────────────────────────────── *@
+    <form method="get" asp-action="Index" class="row g-2 align-items-center mb-3">
+        <div class="col-auto">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" name="search" value="@Model.Search"
+                       class="form-control" placeholder="Patient ID, name or phone…" style="min-width:220px;" />
+            </div>
+        </div>
+        <div class="col-auto">
+            <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
+                @foreach (var ps in new[] { 10, 25, 50, 100 })
+                {
+                    <option value="@ps" selected="@(Model.PageSize == ps ? "selected" : null)">@ps / page</option>
+                }
+            </select>
+        </div>
+        <input type="hidden" name="page" value="1" />
+        <div class="col-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-search me-1"></i>Search
+            </button>
+            @if (!string.IsNullOrEmpty(Model.Search))
+            {
+                <a asp-action="Index" asp-route-pageSize="@Model.PageSize" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x-lg me-1"></i>Clear
+                </a>
+            }
+        </div>
+    </form>
+
+    @if (!Model.Items.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-person-slash fs-1 text-muted mb-3 d-block opacity-50"></i>
+            @if (!string.IsNullOrEmpty(Model.Search))
+            {
+                <h5 class="fw-semibold text-muted">No patients matched "@Model.Search"</h5>
+                <p class="text-muted">Try a different name, phone number or patient code.</p>
+            }
+            else
+            {
+                <h5 class="fw-semibold text-muted">No patients registered yet</h5>
+                <p class="text-muted">Start by registering the first patient.</p>
+                <a asp-action="PatientRegistration" class="btn btn-primary mt-2">
+                    <i class="bi bi-person-plus-fill me-1"></i>Register Patient
+                </a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="patientTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Patient ID</th>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Gender</th>
+                        <th>Age</th>
+                        <th>Blood Group</th>
+                        <th>Doctor</th>
+                        <th>Registered</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Model.Items)
+                    {
+                        <tr>
+                            <td><span class="badge text-bg-info text-dark font-monospace">@p.PatientCode</span></td>
+                            <td class="fw-semibold">@p.FullName</td>
+                            <td>@p.PhoneNumber</td>
+                            <td>
+                                @if (p.Gender == "Male")
+                                {
+                                    <span class="badge text-bg-primary"><i class="bi bi-gender-male me-1"></i>Male</span>
+                                }
+                                else if (p.Gender == "Female")
+                                {
+                                    <span class="badge text-bg-danger"><i class="bi bi-gender-female me-1"></i>Female</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-secondary">@(p.Gender ?? "--")</span>
+                                }
+                            </td>
+                            <td>@(p.Age.HasValue ? p.Age.Value + " yrs" : "--")</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(p.BloodGroup))
+                                {
+                                    <span class="badge text-bg-danger fw-bold">@p.BloodGroup</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">--</span>
+                                }
+                            </td>
+                            <td>@(p.ConsultingDoctorName ?? "--")</td>
+                            <td class="text-muted small">@p.CreatedDate.ToString("dd MMM yyyy")</td>
+                            <td>
+                                @if (p.IsActive)
+                                {
+                                    <span class="badge text-bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-secondary">Inactive</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-info me-1"
+                                        onclick="viewPatient(@p.PatientId)" title="View Details">
+                                    <i class="bi bi-eye-fill"></i>
+                                </button>
+                                <a asp-action="PatientRegistration" asp-route-id="@p.PatientId"
+                                   class="btn btn-sm btn-outline-primary me-1" title="Edit">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                        data-id="@p.PatientId" data-name="@p.FullName" title="Delete">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @* ── Pagination controls ──────────────────────────────────────────── *@
+        @if (Model.TotalPages > 1)
+        {
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3 pt-2 border-top">
+                <small class="text-muted">
+                    Page @Model.Page of @Model.TotalPages
+                </small>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        @* Previous *@
+                        <li class="page-item @(!Model.HasPrev ? "disabled" : "")">
+                            <a class="page-link"
+                               asp-action="Index"
+                               asp-route-page="@(Model.Page - 1)"
+                               asp-route-pageSize="@Model.PageSize"
+                               asp-route-search="@Model.Search">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+
+                        @* Page number buttons (window of 5 around current) *@
+                        @{
+                            int startPage = Math.Max(1, Model.Page - 2);
+                            int endPage   = Math.Min(Model.TotalPages, startPage + 4);
+                            startPage     = Math.Max(1, endPage - 4);
+                        }
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link"
+                                   asp-action="Index"
+                                   asp-route-page="1"
+                                   asp-route-pageSize="@Model.PageSize"
+                                   asp-route-search="@Model.Search">1</a>
+                            </li>
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+                        }
+                        @for (int pg = startPage; pg <= endPage; pg++)
+                        {
+                            <li class="page-item @(pg == Model.Page ? "active" : "")">
+                                <a class="page-link"
+                                   asp-action="Index"
+                                   asp-route-page="@pg"
+                                   asp-route-pageSize="@Model.PageSize"
+                                   asp-route-search="@Model.Search">@pg</a>
+                            </li>
+                        }
+                        @if (endPage < Model.TotalPages)
+                        {
+                            @if (endPage < Model.TotalPages - 1)
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+                            <li class="page-item">
+                                <a class="page-link"
+                                   asp-action="Index"
+                                   asp-route-page="@Model.TotalPages"
+                                   asp-route-pageSize="@Model.PageSize"
+                                   asp-route-search="@Model.Search">@Model.TotalPages</a>
+                            </li>
+                        }
+
+                        @* Next *@
+                        <li class="page-item @(!Model.HasNext ? "disabled" : "")">
+                            <a class="page-link"
+                               asp-action="Index"
+                               asp-route-page="@(Model.Page + 1)"
+                               asp-route-pageSize="@Model.PageSize"
+                               asp-route-search="@Model.Search">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    }
+</div>
+
+@* ── Patient Detail View Modal ─────────────────────────────────────────── *@
+<div class="modal fade" id="patientViewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow">
+
+            @* Header *@
+            <div class="modal-header bg-primary text-white py-2 px-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div id="pvAvatar"
+                         class="rounded-circle bg-white text-primary d-flex align-items-center justify-content-center fw-bold flex-shrink-0"
+                         style="width:42px;height:42px;font-size:1.1rem">?</div>
+                    <div>
+                        <div class="fw-bold" id="pvFullName" style="font-size:1.05rem">—</div>
+                        <div class="d-flex gap-2 align-items-center flex-wrap" style="font-size:.8rem">
+                            <span class="badge bg-white text-primary font-monospace" id="pvCode">—</span>
+                            <span class="badge bg-white bg-opacity-25" id="pvGender">—</span>
+                            <span id="pvAge" class="opacity-75"></span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body px-4 py-3" id="pvBody">
+
+                @* Spinner while loading *@
+                <div id="pvSpinner" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+
+                @* Content (hidden until loaded) *@
+                <div id="pvContent" style="display:none">
+
+                    @* ── Row 1: Vital badges ─────────────────── *@
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <span class="badge text-bg-danger fs-6 px-3" id="pvBloodGroup" style="display:none"></span>
+                        <span class="badge text-bg-secondary px-3" id="pvMarital" style="display:none"></span>
+                        <span class="badge text-bg-warning text-dark px-3" id="pvOccupation" style="display:none"></span>
+                    </div>
+
+                    <div class="row g-3">
+
+                        @* ── Contact ─────────────────────────────── *@
+                        <div class="col-sm-6">
+                            <div class="p-3 rounded border h-100">
+                                <div class="fw-semibold text-muted small text-uppercase mb-2" style="letter-spacing:.05em">
+                                    <i class="bi bi-telephone-fill me-1 text-primary"></i>Contact
+                                </div>
+                                <div class="mb-1"><i class="bi bi-telephone me-2 text-muted"></i><span id="pvPhone">—</span></div>
+                                <div class="mb-1" id="pvPhone2Row" style="display:none"><i class="bi bi-telephone-plus me-2 text-muted"></i><span id="pvPhone2">—</span></div>
+                                <div id="pvEmailRow" style="display:none"><i class="bi bi-envelope me-2 text-muted"></i><span id="pvEmail">—</span></div>
+                            </div>
+                        </div>
+
+                        @* ── Personal ────────────────────────────── *@
+                        <div class="col-sm-6">
+                            <div class="p-3 rounded border h-100">
+                                <div class="fw-semibold text-muted small text-uppercase mb-2" style="letter-spacing:.05em">
+                                    <i class="bi bi-person-lines-fill me-1 text-primary"></i>Personal
+                                </div>
+                                <div class="mb-1" id="pvDobRow" style="display:none"><i class="bi bi-calendar-date me-2 text-muted"></i><span id="pvDob">—</span></div>
+                                <div class="mb-1" id="pvGuardianRow" style="display:none"><i class="bi bi-person-heart me-2 text-muted"></i><span id="pvGuardian">—</span></div>
+                                <div id="pvReligionRow" style="display:none"><i class="bi bi-brightness-high me-2 text-muted"></i><span id="pvReligion">—</span></div>
+                            </div>
+                        </div>
+
+                        @* ── Address ────────────────────────────── *@
+                        <div class="col-12" id="pvAddressSection" style="display:none">
+                            <div class="p-3 rounded border">
+                                <div class="fw-semibold text-muted small text-uppercase mb-2" style="letter-spacing:.05em">
+                                    <i class="bi bi-geo-alt-fill me-1 text-primary"></i>Address
+                                </div>
+                                <div class="small text-dark" id="pvAddressText"></div>
+                            </div>
+                        </div>
+
+                        @* ── Identification ───────────────────────── *@
+                        <div class="col-12" id="pvIdSection" style="display:none">
+                            <div class="p-3 rounded border">
+                                <div class="fw-semibold text-muted small text-uppercase mb-2" style="letter-spacing:.05em">
+                                    <i class="bi bi-shield-check me-1 text-primary"></i>Identification
+                                </div>
+                                <div class="d-flex gap-3 flex-wrap align-items-center">
+                                    <span id="pvIdType" class="text-secondary"></span>
+                                    <span id="pvIdNumber" class="fw-semibold font-monospace"></span>
+                                    <button type="button" id="pvIdDocBtn" class="btn btn-sm btn-outline-primary" style="display:none"
+                                            onclick="openPvDocModal()">
+                                        <i class="bi bi-file-earmark-text me-1"></i>View Document
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        @* ── Medical Notes ────────────────────────── *@
+                        <div class="col-12" id="pvNotesSection" style="display:none">
+                            <div class="p-3 rounded border">
+                                <div class="fw-semibold text-muted small text-uppercase mb-2" style="letter-spacing:.05em">
+                                    <i class="bi bi-clipboard2-pulse me-1 text-primary"></i>Medical Notes
+                                </div>
+                                <div class="mb-1" id="pvAllergyRow" style="display:none">
+                                    <span class="text-danger fw-semibold small me-2">Allergies:</span><span id="pvAllergy"></span>
+                                </div>
+                                <div id="pvRemarksRow" style="display:none">
+                                    <span class="text-muted fw-semibold small me-2">Remarks:</span><span id="pvRemarks"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /row -->
+                </div><!-- /pvContent -->
+            </div>
+
+            <div class="modal-footer py-2 justify-content-between">
+                <small class="text-muted" id="pvStatus"></small>
+                <div class="d-flex gap-2">
+                    <a id="pvEditLink" href="#" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil-fill me-1"></i>Edit
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Document Viewer Modal (reused for patient view) ───────────────────── *@
+<div class="modal fade" id="pvDocViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-semibold"><i class="bi bi-shield-check me-2"></i>Identification Document</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 text-center bg-dark" style="min-height:70vh">
+                <img id="pvDocImg" src="" alt="" class="img-fluid" style="display:none;max-height:80vh;object-fit:contain" />
+                <iframe id="pvDocFrame" src="" title="" style="display:none;width:100%;height:80vh;border:0"></iframe>
+                <div id="pvDocFallback" style="display:none" class="p-5 text-light">
+                    <i class="bi bi-file-earmark-x display-4 d-block mb-3"></i>
+                    <a id="pvDocDownload" href="#" target="_blank" class="btn btn-outline-light"><i class="bi bi-download me-1"></i>Download / Open</a>
+                </div>
+            </div>
+            <div class="modal-footer py-2 justify-content-between">
+                <small class="text-muted" id="pvDocFileName"></small>
+                <a id="pvDocOpenLink" href="#" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Open in new tab
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Delete Confirmation Modal *@
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete Patient</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete patient <strong id="deletePatientName"></strong>?</p>
+                <p class="text-muted small">This will mark the patient as inactive. The record will not be permanently removed.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form asp-action="DeletePatient" method="post" id="deleteForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" id="deletePatientId" />
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash-fill me-1"></i>Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // ── Delete modal ─────────────────────────────────────────────────────────
+    document.getElementById('deleteModal')?.addEventListener('show.bs.modal', function (e) {
+        const btn = e.relatedTarget;
+        document.getElementById('deletePatientId').value = btn.dataset.id;
+        document.getElementById('deletePatientName').textContent = btn.dataset.name;
+    });
+
+    // ── Patient view modal ───────────────────────────────────────────────────
+    let _pvDocPath = '';
+
+    async function viewPatient(id) {
+        // Reset state
+        document.getElementById('pvContent').style.display  = 'none';
+        document.getElementById('pvSpinner').style.display  = '';
+        document.getElementById('pvAvatar').textContent     = '?';
+        document.getElementById('pvFullName').textContent   = 'Loading…';
+        document.getElementById('pvCode').textContent       = '';
+        document.getElementById('pvGender').textContent     = '';
+        document.getElementById('pvAge').textContent        = '';
+        document.getElementById('pvStatus').textContent     = '';
+        _pvDocPath = '';
+
+        new bootstrap.Modal(document.getElementById('patientViewModal')).show();
+
+        let p;
+        try {
+            const res = await fetch('/OPD/GetPatientDetails?id=' + id);
+            if (!res.ok) throw new Error('Not found');
+            p = await res.json();
+        } catch {
+            document.getElementById('pvSpinner').style.display = 'none';
+            document.getElementById('pvFullName').textContent  = 'Could not load patient data.';
+            return;
+        }
+
+        // ── Header ────────────────────────────────────────────────────────────
+        const initials = ((p.firstName?.[0] ?? '') + (p.lastName?.[0] ?? '')).toUpperCase() || '?';
+        document.getElementById('pvAvatar').textContent = initials;
+
+        const fullName = [p.salutation, p.firstName, p.middleName, p.lastName].filter(Boolean).join(' ');
+        document.getElementById('pvFullName').textContent = fullName || '—';
+        document.getElementById('pvCode').textContent    = p.patientCode ?? '';
+        document.getElementById('pvGender').textContent  = p.gender ?? '';
+
+        if (p.dateOfBirth) {
+            const dob = new Date(p.dateOfBirth);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            if (today.getMonth() < dob.getMonth() ||
+               (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) age--;
+            document.getElementById('pvAge').textContent = age + ' yrs';
+        }
+
+        // ── Vital badges ──────────────────────────────────────────────────────
+        setElText('pvBloodGroup', p.bloodGroup);
+        setElText('pvMarital',    p.maritalStatusName);
+        setElText('pvOccupation', p.occupationName);
+
+        // ── Contact ───────────────────────────────────────────────────────────
+        document.getElementById('pvPhone').textContent = p.phoneNumber || '—';
+        showRow('pvPhone2Row', 'pvPhone2', p.secondaryPhoneNumber);
+        showRow('pvEmailRow',  'pvEmail',  p.emailId);
+
+        // ── Personal ─────────────────────────────────────────────────────────
+        if (p.dateOfBirth) {
+            const formatted = new Date(p.dateOfBirth)
+                .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const ageEl = document.getElementById('pvAge').textContent;
+            document.getElementById('pvDob').textContent = formatted + (ageEl ? '  (' + ageEl + ')' : '');
+            document.getElementById('pvDobRow').style.display = '';
+        } else {
+            document.getElementById('pvDobRow').style.display = 'none';
+        }
+        showRow('pvGuardianRow',  'pvGuardian', p.guardianName);
+        showRow('pvReligionRow',  'pvReligion', p.religionName);
+
+        // ── Address ─────────────────────────────────────────────────────────
+        const addrParts = [p.areaName, p.cityName, p.districtName, p.stateName, p.countryName]
+            .filter(Boolean);
+        const addrSection = document.getElementById('pvAddressSection');
+        if (addrParts.length) {
+            document.getElementById('pvAddressText').textContent = addrParts.join(', ');
+            addrSection.style.display = '';
+        } else {
+            addrSection.style.display = 'none';
+        }
+
+        // ── Identification ────────────────────────────────────────────────────
+        const hasId = p.identificationNumber || p.identificationTypeName || p.identificationFilePath;
+        document.getElementById('pvIdSection').style.display = hasId ? '' : 'none';
+        if (hasId) {
+            document.getElementById('pvIdType').textContent   = p.identificationTypeName ?? '';
+            document.getElementById('pvIdNumber').textContent = p.identificationNumber ?? '';
+            const docBtn = document.getElementById('pvIdDocBtn');
+            if (p.identificationFilePath) {
+                _pvDocPath = p.identificationFilePath;
+                docBtn.style.display = '';
+            } else {
+                docBtn.style.display = 'none';
+            }
+        }
+
+        // ── Medical notes ─────────────────────────────────────────────────────
+        const hasNotes = p.knownAllergies || p.remarks;
+        document.getElementById('pvNotesSection').style.display = hasNotes ? '' : 'none';
+        showRow('pvAllergyRow', 'pvAllergy', p.knownAllergies);
+        showRow('pvRemarksRow', 'pvRemarks', p.remarks);
+
+        // ── Footer ────────────────────────────────────────────────────────────
+        document.getElementById('pvStatus').textContent = 'Patient ID: ' + (p.patientId ?? '');
+        document.getElementById('pvEditLink').href = '/OPD/PatientRegistration/' + p.patientId;
+
+        document.getElementById('pvSpinner').style.display = 'none';
+        document.getElementById('pvContent').style.display = '';
+    }
+
+    function setElText(id, val) {
+        const el = document.getElementById(id);
+        if (val) { el.textContent = val; el.style.display = ''; }
+        else el.style.display = 'none';
+    }
+
+    function showRow(rowId, spanId, val) {
+        const row = document.getElementById(rowId);
+        if (val) {
+            document.getElementById(spanId).textContent = val;
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    }
+
+    // ── Document viewer (re-implemented for pvDocViewerModal) ────────────────
+    function openPvDocModal() {
+        const path = _pvDocPath;
+        if (!path) return;
+        const ext   = path.split('.').pop().toLowerCase();
+        const isImg = ['jpg','jpeg','png','gif','webp','bmp'].includes(ext);
+        const isPdf = ext === 'pdf';
+
+        document.getElementById('pvDocImg').style.display      = 'none';
+        document.getElementById('pvDocFrame').style.display    = 'none';
+        document.getElementById('pvDocFallback').style.display = 'none';
+        document.getElementById('pvDocImg').src   = '';
+        document.getElementById('pvDocFrame').src = '';
+
+        if (isImg) {
+            const img = document.getElementById('pvDocImg'); img.src = path; img.style.display = '';
+        } else if (isPdf) {
+            const fr  = document.getElementById('pvDocFrame'); fr.src = path; fr.style.display = '';
+        } else {
+            document.getElementById('pvDocDownload').href = path;
+            document.getElementById('pvDocFallback').style.display = '';
+        }
+        document.getElementById('pvDocFileName').textContent = path.split('/').pop();
+        document.getElementById('pvDocOpenLink').href = path;
+
+        new bootstrap.Modal(document.getElementById('pvDocViewerModal')).show();
+    }
+</script>
+}

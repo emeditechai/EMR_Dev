@@ -1,5 +1,9 @@
 namespace EMR.Web.Models.Entities;
 
+/// <summary>
+/// OPD Bill header — one row per visit/bill.
+/// Line items are in PatientOPDServiceItem.
+/// </summary>
 public class PatientOPDService
 {
     public int OPDServiceId { get; set; }
@@ -10,11 +14,13 @@ public class PatientOPDService
 
     public int? ConsultingDoctorId { get; set; }
 
-    public string? ServiceType { get; set; }      // "Consulting" or "Services"
+    /// <summary>Generated bill number: OP&lt;FY&gt;&lt;6-digit seq&gt; e.g. OP2526000001</summary>
+    public string? OPDBillNo { get; set; }
 
-    public int? ServiceId { get; set; }
+    /// <summary>Day-wise token: OPD-0042</summary>
+    public string? TokenNo { get; set; }
 
-    public decimal? ServiceCharges { get; set; }
+    public decimal? TotalAmount { get; set; }
 
     public DateTime VisitDate { get; set; } = DateTime.UtcNow;
 
@@ -30,4 +36,5 @@ public class PatientOPDService
 
     // Navigation
     public PatientMaster? Patient { get; set; }
+    public List<PatientOPDServiceItem> Items { get; set; } = [];
 }

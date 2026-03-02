@@ -24,14 +24,16 @@ public class OPDController(
     ApplicationDbContext dbContext,
     IWebHostEnvironment env) : Controller
 {
-    // ─── Index (patient list) ─────────────────────────────────────────────────
+    // ─── Index (patient list – server-side paged) ─────────────────────────────
 
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(int page = 1, int pageSize = 10, string? search = null)
     {
         var branchId = User.GetCurrentBranchId();
-        var patients = await patientService.GetListForBranchAsync(branchId);
+        if (page < 1) page = 1;
+        if (pageSize is < 5 or > 100) pageSize = 10;
+        var paged = await patientService.GetPagedListAsync(branchId, page, pageSize, search?.Trim());
         ViewData["Title"] = "Patient List";
-        return View(patients);
+        return View(paged);
     }
 
     // ─── Patient Registration (GET) ───────────────────────────────────────────
@@ -47,13 +49,17 @@ public class OPDController(
             var patient = await patientService.GetByIdAsync(id.Value);
             if (patient is null) return NotFound();
             model = MapPatientToViewModel(patient);
-            // Direct-edit via list: demographics only — no OPD service data loaded
+            // Direct-edit via list: demographics only — no OPD bill data loaded
             model.DemographicsOnly = true;
         }
         else
         {
             model = new PatientRegistrationViewModel();
         }
+
+        // Pass bill/token info for success modal after redirect
+        model.OPDBillNo = TempData["OPDBillNo"] as string;
+        model.TokenNo   = TempData["TokenNo"]   as string;
 
         await PopulateSelectLists(model);
         return View(model);
@@ -105,14 +111,17 @@ public class OPDController(
 
         if (model.PatientId == 0)   // CREATE — new patient + first OPD visit
         {
-            var opdService = MapViewModelToOPDService(model);
-            opdService.BranchId = branchId;
-            var patientCode = await patientService.CreateAsync(patient, opdService, User.GetUserId());
+            var opdBill = MapViewModelToOPDBill(model);
+            opdBill.BranchId = branchId;
+            var (patientCode, billNo, tokenNo, _, _) = await patientService.CreateAsync(
+                patient, opdBill, model.LineItemsJson, User.GetUserId());
             await auditLogService.LogAsync("OPD", "Patient.Create",
-                $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode})");
+                $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
 
             TempData["NewPatientCode"] = patientCode;
             TempData["NewPatientName"] = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            TempData["OPDBillNo"]      = billNo;
+            TempData["TokenNo"]        = tokenNo;
             return RedirectToAction(nameof(PatientRegistration), new { registered = true });
         }
         else   // UPDATE — existing patient
@@ -125,7 +134,7 @@ public class OPDController(
 
             if (model.DemographicsOnly)
             {
-                // Edit via Patient List — update demographics only, no OPD service touched
+                // Edit via Patient List — update demographics only, no OPD bill touched
                 await patientService.UpdateDemographicsAsync(patient, User.GetUserId());
                 await auditLogService.LogAsync("OPD", "Patient.UpdateDemographics",
                     $"Updated demographics: {patient.PatientId} - {patient.FirstName} {patient.LastName}");
@@ -134,19 +143,22 @@ public class OPDController(
             }
 
             // Search-loaded patient (new visit booking)
-            var opdService = MapViewModelToOPDService(model);
-            opdService.BranchId  = branchId;
-            opdService.PatientId = model.PatientId;
-            await patientService.UpdateAsync(patient, opdService, User.GetUserId());
+            var opdBill = MapViewModelToOPDBill(model);
+            opdBill.BranchId  = branchId;
+            opdBill.PatientId = model.PatientId;
+            var (billNo, tokenNo, newSvcId) = await patientService.UpdateAsync(
+                patient, opdBill, model.LineItemsJson, User.GetUserId());
 
             var action = model.OPDServiceId == 0 ? "Patient.NewVisit" : "Patient.Update";
             await auditLogService.LogAsync("OPD", action,
-                $"{(model.OPDServiceId == 0 ? "New visit" : "Updated")} patient: {patient.PatientId} - {patient.FirstName} {patient.LastName}");
+                $"{(model.OPDServiceId == 0 ? "New visit" : "Updated")} patient: {patient.PatientId} Bill:{billNo}");
 
             if (model.OPDServiceId == 0)   // new visit for returning patient
             {
                 TempData["NewPatientCode"] = patient.PatientCode;
                 TempData["NewPatientName"] = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+                TempData["OPDBillNo"]      = billNo;
+                TempData["TokenNo"]        = tokenNo;
                 TempData["IsBooking"]      = true;
                 return RedirectToAction(nameof(PatientRegistration), new { registered = true });
             }
@@ -167,12 +179,98 @@ public class OPDController(
         return RedirectToAction(nameof(Index));
     }
 
-    // ─── Service Booking (placeholder) ────────────────────────────────────────
+    // ─── Service Booking List ──────────────────────────────────────────────────
 
-    public IActionResult ServiceBooking()
+    [HttpGet]
+    public async Task<IActionResult> ServiceBooking(
+        string? fromDate, string? toDate,
+        int page = 1, int pageSize = 10, string? search = null)
     {
+        var branchId = User.GetCurrentBranchId();
+        if (page < 1) page = 1;
+        if (pageSize is < 5 or > 100) pageSize = 10;
+
+        DateOnly? from = DateOnly.TryParse(fromDate, out var fd) ? fd : null;
+        DateOnly? to   = DateOnly.TryParse(toDate,   out var td) ? td : null;
+
+        // Default: today
+        if (from is null && to is null)
+            from = to = DateOnly.FromDateTime(DateTime.Today);
+
+        var paged = await patientService.GetServiceBookingsPagedAsync(
+            branchId, from, to, page, pageSize, search?.Trim());
+
         ViewData["Title"] = "Service Booking";
-        return View();
+        return View(paged);
+    }
+
+    // ─── Service Booking Detail AJAX ──────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> GetServiceBookingDetail(int id)
+    {
+        var detail = await patientService.GetServiceBookingDetailAsync(id);
+        if (detail is null) return NotFound();
+        return Json(detail);
+    }
+
+    // ─── New Service Booking (GET) ────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> NewServiceBooking()
+    {
+        ViewData["Title"] = "New Service Booking";
+        var model = new PatientRegistrationViewModel { DemographicsOnly = false };
+        await PopulateSelectLists(model);
+        return View(model);
+    }
+
+    // ─── New Service Booking (POST) ───────────────────────────────────────────
+    // Reuses the same POST handler as PatientRegistration but always routes back
+    // to ServiceBooking list on success.
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> NewServiceBooking(PatientRegistrationViewModel model, IFormFile? identificationFile)
+    {
+        // Must be an existing patient — demographics are NEVER modified from this screen
+        if (model.PatientId <= 0)
+        {
+            ModelState.AddModelError(string.Empty, "Please search and load an existing patient before booking.");
+            await PopulateSelectLists(model);
+            return View(model);
+        }
+
+        // Strip all demographic field validation — this screen only submits bill data
+        var keepFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { nameof(model.ConsultingDoctorId), nameof(model.LineItemsJson) };
+        foreach (var key in ModelState.Keys.Where(k => !keepFields.Contains(k)).ToList())
+            ModelState.Remove(key);
+
+        if (!ModelState.IsValid)
+        {
+            await PopulateSelectLists(model);
+            return View(model);
+        }
+
+        var branchId = User.GetCurrentBranchId();
+        var userId   = User.GetUserId();
+
+        var bill      = MapViewModelToOPDBill(model);
+        bill.BranchId = branchId;
+
+        var (billNo, tokenNo, _) = await patientService.CreateServiceBookingOnlyAsync(
+            bill, model.LineItemsJson ?? "[]", userId);
+
+        TempData["OPDBillNo"]      = billNo;
+        TempData["TokenNo"]        = tokenNo;
+        TempData["NewPatientCode"] = model.PatientCode;
+        TempData["NewPatientName"] = $"{model.FirstName} {model.LastName}".Trim();
+        TempData["IsBooking"]      = true;
+
+        await auditLogService.LogAsync("OPD", "ServiceBooking.New",
+            $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {tokenNo}");
+
+        return RedirectToAction(nameof(ServiceBooking));
     }
 
     // ─── AJAX APIs ────────────────────────────────────────────────────────────
@@ -196,27 +294,74 @@ public class OPDController(
     }
 
     [HttpGet]
+    public async Task<IActionResult> SearchBookingSuggestions(
+        string? q, string? fromDate, string? toDate)
+    {
+        if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+            return Json(Array.Empty<object>());
+
+        var branchId = User.GetCurrentBranchId();
+        DateOnly? from = DateOnly.TryParse(fromDate, out var fd) ? fd : null;
+        DateOnly? to   = DateOnly.TryParse(toDate,   out var td) ? td : null;
+        if (from is null && to is null)
+            from = to = DateOnly.FromDateTime(DateTime.Today);
+
+        var paged = await patientService.GetServiceBookingsPagedAsync(
+            branchId, from, to, 1, 8, q.Trim());
+
+        var suggestions = paged.Items.Select(b => new
+        {
+            b.OPDServiceId,
+            b.PatientCode,
+            b.PatientName,
+            b.OPDBillNo,
+            b.TokenNo,
+            b.Gender,
+            b.Age,
+            b.ConsultingDoctorName,
+            b.Status,
+            TotalAmount = b.TotalAmount.ToString("N2")
+        });
+        return Json(suggestions);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> GetPatientDetails(int id)
     {
         var patient = await patientService.GetByIdAsync(id);
         if (patient is null) return NotFound();
         var svc = await patientService.GetLatestOPDServiceAsync(id);
+
+        string? idTypeName = patient.IdentificationTypeId.HasValue
+            ? await patientService.GetIdentificationTypeNameAsync(patient.IdentificationTypeId.Value)
+            : null;
+
+        var names = await patientService.GetDemographicNamesAsync(id);
+
         return Json(new
         {
             // Patient demographics
             patient.PatientId, patient.PatientCode, patient.PhoneNumber, patient.SecondaryPhoneNumber,
             patient.Salutation, patient.FirstName, patient.MiddleName, patient.LastName,
-            patient.Gender, patient.ReligionId, patient.EmailId, patient.GuardianName,
-            patient.CountryId, patient.StateId, patient.DistrictId, patient.CityId, patient.AreaId,
+            patient.Gender, patient.EmailId, patient.GuardianName,
             patient.IdentificationTypeId, patient.IdentificationNumber, patient.IdentificationFilePath,
-            patient.OccupationId, patient.MaritalStatusId, patient.BloodGroup,
-            patient.KnownAllergies, patient.Remarks,
-            // Latest OPD service (null-safe)
-            OPDServiceId       = svc?.OPDServiceId,
-            ConsultingDoctorId = svc?.ConsultingDoctorId,
-            ServiceType        = svc?.ServiceType,
-            ServiceId          = svc?.ServiceId,
-            ServiceCharges     = svc?.ServiceCharges
+            IdentificationTypeName = idTypeName,
+            patient.BloodGroup, patient.KnownAllergies, patient.Remarks, patient.DateOfBirth,
+            // Resolved display names (replace raw IDs)
+            ReligionName      = names.ReligionName,
+            MaritalStatusName = names.MaritalStatusName,
+            OccupationName    = names.OccupationName,
+            AreaName          = names.AreaName,
+            CityName          = names.CityName,
+            DistrictName      = names.DistrictName,
+            StateName         = names.StateName,
+            CountryName       = names.CountryName,
+            // Raw IDs still needed for form pre-fill
+            patient.ReligionId, patient.MaritalStatusId, patient.OccupationId,
+            patient.CountryId, patient.StateId, patient.DistrictId, patient.CityId, patient.AreaId,
+            // Latest OPD bill header (null-safe) — only doctor needed for pre-fill
+            OPDServiceId       = svc?.OPDServiceId ?? 0,
+            ConsultingDoctorId = svc?.ConsultingDoctorId
         });
     }
 
@@ -361,6 +506,7 @@ public class OPDController(
         MiddleName            = m.MiddleName?.Trim(),
         LastName              = m.LastName.Trim(),
         Gender                = m.Gender,
+        DateOfBirth           = m.DateOfBirth,
         ReligionId            = m.ReligionId,
         EmailId               = m.EmailId?.Trim(),
         GuardianName          = m.GuardianName?.Trim(),
@@ -379,14 +525,11 @@ public class OPDController(
         Remarks               = m.Remarks?.Trim(),
     };
 
-    private static PatientOPDService MapViewModelToOPDService(PatientRegistrationViewModel m) => new()
+    private static PatientOPDService MapViewModelToOPDBill(PatientRegistrationViewModel m) => new()
     {
         OPDServiceId       = m.OPDServiceId,
         PatientId          = m.PatientId,
         ConsultingDoctorId = m.ConsultingDoctorId,
-        ServiceType        = m.ServiceType,
-        ServiceId          = m.ServiceId,
-        ServiceCharges     = m.ServiceCharges,
     };
 
     private static PatientRegistrationViewModel MapPatientToViewModel(PatientMaster p) => new()
@@ -400,6 +543,7 @@ public class OPDController(
         MiddleName            = p.MiddleName,
         LastName              = p.LastName,
         Gender                = p.Gender,
+        DateOfBirth           = p.DateOfBirth,
         ReligionId            = p.ReligionId,
         EmailId               = p.EmailId,
         GuardianName          = p.GuardianName,
@@ -418,12 +562,9 @@ public class OPDController(
         Remarks               = p.Remarks,
     };
 
-    private static void MapOPDServiceToViewModel(PatientOPDService svc, PatientRegistrationViewModel m)
+    private static void MapOPDBillToViewModel(PatientOPDService svc, PatientRegistrationViewModel m)
     {
         m.OPDServiceId       = svc.OPDServiceId;
         m.ConsultingDoctorId = svc.ConsultingDoctorId;
-        m.ServiceType        = svc.ServiceType;
-        m.ServiceId          = svc.ServiceId;
-        m.ServiceCharges     = svc.ServiceCharges;
     }
 }

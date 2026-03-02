@@ -43,6 +43,24 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             new { BranchId = branchId });
     }
 
+    public async Task<PatientPagedListViewModel> GetPagedListAsync(int? branchId, int page, int pageSize, string? search)
+    {
+        using var con = db.CreateConnection();
+        var rows = (await con.QueryAsync<PatientListItemViewModel>(
+            "usp_GetPatientListPaged",
+            new { BranchId = branchId, PageNumber = page, PageSize = pageSize, SearchTerm = search },
+            commandType: System.Data.CommandType.StoredProcedure)).ToList();
+
+        return new PatientPagedListViewModel
+        {
+            Items      = rows,
+            TotalCount = rows.FirstOrDefault()?.TotalCount ?? 0,
+            Page       = page,
+            PageSize   = pageSize,
+            Search     = search
+        };
+    }
+
     // ─── Get By ID ────────────────────────────────────────────────────────────
 
     public async Task<PatientMaster?> GetByIdAsync(int patientId)
@@ -69,8 +87,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                     p.LastName
                 )) AS FullName,
                 p.PhoneNumber,
+                p.SecondaryPhoneNumber,
                 p.Gender,
-                p.BloodGroup
+                p.BloodGroup,
+                p.DateOfBirth
             FROM PatientMaster p
             WHERE p.IsActive = 1
               AND (p.PhoneNumber LIKE @Phone OR p.SecondaryPhoneNumber LIKE @Phone)
@@ -92,8 +112,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                     p.LastName
                 )) AS FullName,
                 p.PhoneNumber,
+                p.SecondaryPhoneNumber,
                 p.Gender,
-                p.BloodGroup
+                p.BloodGroup,
+                p.DateOfBirth
             FROM PatientMaster p
             WHERE p.IsActive = 1
               AND p.PatientCode LIKE @Code
@@ -103,65 +125,70 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Create ───────────────────────────────────────────────────────────────
 
-    public async Task<string> CreateAsync(PatientMaster patient, PatientOPDService opdService, int? userId)
+    public async Task<(string PatientCode, string OPDBillNo, string TokenNo, int NewPatientId, int NewOPDServiceId)>
+        CreateAsync(PatientMaster patient, PatientOPDService opdBill, string lineItemsJson, int? userId)
     {
         using var con = db.CreateConnection();
 
         var p = new DynamicParameters();
-
-        // PatientMaster fields
-        p.Add("@PhoneNumber",            patient.PhoneNumber);
-        p.Add("@SecondaryPhoneNumber",   patient.SecondaryPhoneNumber);
-        p.Add("@Salutation",             patient.Salutation);
-        p.Add("@FirstName",              patient.FirstName);
-        p.Add("@MiddleName",             patient.MiddleName);
-        p.Add("@LastName",               patient.LastName);
-        p.Add("@Gender",                 patient.Gender);
-        p.Add("@ReligionId",             patient.ReligionId);
-        p.Add("@EmailId",                patient.EmailId);
-        p.Add("@GuardianName",           patient.GuardianName);
-        p.Add("@CountryId",              patient.CountryId);
-        p.Add("@StateId",                patient.StateId);
-        p.Add("@DistrictId",             patient.DistrictId);
-        p.Add("@CityId",                 patient.CityId);
-        p.Add("@AreaId",                 patient.AreaId);
-        p.Add("@IdentificationTypeId",   patient.IdentificationTypeId);
-        p.Add("@IdentificationNumber",   patient.IdentificationNumber);
-        p.Add("@IdentificationFilePath", patient.IdentificationFilePath);
-        p.Add("@OccupationId",           patient.OccupationId);
-        p.Add("@MaritalStatusId",        patient.MaritalStatusId);
-        p.Add("@BloodGroup",             patient.BloodGroup);
-        p.Add("@KnownAllergies",         patient.KnownAllergies);
-        p.Add("@Remarks",                patient.Remarks);
-        p.Add("@BranchId",               patient.BranchId);
-        p.Add("@UserId",                 userId);
-
-        // PatientOPDService fields
-        p.Add("@ConsultingDoctorId", opdService.ConsultingDoctorId);
-        p.Add("@ServiceType",        opdService.ServiceType);
-        p.Add("@ServiceId",          opdService.ServiceId);
-        p.Add("@ServiceCharges",     opdService.ServiceCharges);
+        AddPatientParams(p, patient);
+        p.Add("@BranchId",           patient.BranchId);
+        p.Add("@UserId",             userId);
+        p.Add("@ConsultingDoctorId", opdBill.ConsultingDoctorId);
+        p.Add("@LineItemsJson",      lineItemsJson);
 
         // OUTPUT parameters
-        p.Add("@PatientCode",  dbType: DbType.String,  size: 20, direction: ParameterDirection.Output);
-        p.Add("@NewPatientId", dbType: DbType.Int32,             direction: ParameterDirection.Output);
+        p.Add("@PatientCode",     dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+        p.Add("@NewPatientId",    dbType: DbType.Int32,            direction: ParameterDirection.Output);
+        p.Add("@NewOPDServiceId", dbType: DbType.Int32,            direction: ParameterDirection.Output);
+        p.Add("@OPDBillNo",       dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+        p.Add("@TokenNo",         dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
 
-        await con.ExecuteAsync("dbo.usp_Patient_Create", p,
-            commandType: CommandType.StoredProcedure);
+        await con.ExecuteAsync("dbo.usp_Patient_Create", p, commandType: CommandType.StoredProcedure);
 
-        return p.Get<string>("@PatientCode");
+        return (
+            p.Get<string>("@PatientCode"),
+            p.Get<string>("@OPDBillNo"),
+            p.Get<string>("@TokenNo"),
+            p.Get<int>("@NewPatientId"),
+            p.Get<int>("@NewOPDServiceId")
+        );
     }
 
     // ─── Update ───────────────────────────────────────────────────────────────
 
-    public async Task UpdateAsync(PatientMaster patient, PatientOPDService opdService, int? userId)
+    public async Task<(string OPDBillNo, string TokenNo, int NewOPDServiceId)>
+        UpdateAsync(PatientMaster patient, PatientOPDService opdBill, string lineItemsJson, int? userId)
     {
         using var con = db.CreateConnection();
 
         var p = new DynamicParameters();
+        p.Add("@PatientId", patient.PatientId);
+        AddPatientParams(p, patient);
+        p.Add("@UserId",             userId);
+        p.Add("@OPDServiceId",       opdBill.OPDServiceId);
+        p.Add("@BranchId",           opdBill.BranchId);
+        p.Add("@ConsultingDoctorId", opdBill.ConsultingDoctorId);
+        p.Add("@LineItemsJson",      lineItemsJson);
 
-        // PatientMaster fields
-        p.Add("@PatientId",              patient.PatientId);
+        // OUTPUT parameters
+        p.Add("@NewOPDServiceId", dbType: DbType.Int32,            direction: ParameterDirection.Output);
+        p.Add("@OPDBillNo",       dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
+        p.Add("@TokenNo",         dbType: DbType.String, size: 15, direction: ParameterDirection.Output);
+
+        await con.ExecuteAsync("dbo.usp_Patient_Update", p, commandType: CommandType.StoredProcedure);
+
+        return (
+            p.Get<string>("@OPDBillNo"),
+            p.Get<string>("@TokenNo"),
+            p.Get<int>("@NewOPDServiceId")
+        );
+    }
+
+    // ─── Shared parameter builder ─────────────────────────────────────────────
+
+    private static void AddPatientParams(DynamicParameters p, PatientMaster patient)
+    {
         p.Add("@PhoneNumber",            patient.PhoneNumber);
         p.Add("@SecondaryPhoneNumber",   patient.SecondaryPhoneNumber);
         p.Add("@Salutation",             patient.Salutation);
@@ -169,6 +196,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@MiddleName",             patient.MiddleName);
         p.Add("@LastName",               patient.LastName);
         p.Add("@Gender",                 patient.Gender);
+        p.Add("@DateOfBirth",            patient.DateOfBirth);
         p.Add("@ReligionId",             patient.ReligionId);
         p.Add("@EmailId",                patient.EmailId);
         p.Add("@GuardianName",           patient.GuardianName);
@@ -185,18 +213,6 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@BloodGroup",             patient.BloodGroup);
         p.Add("@KnownAllergies",         patient.KnownAllergies);
         p.Add("@Remarks",                patient.Remarks);
-        p.Add("@UserId",                 userId);
-
-        // PatientOPDService fields
-        p.Add("@OPDServiceId",       opdService.OPDServiceId);
-        p.Add("@BranchId",           opdService.BranchId);
-        p.Add("@ConsultingDoctorId", opdService.ConsultingDoctorId);
-        p.Add("@ServiceType",        opdService.ServiceType);
-        p.Add("@ServiceId",          opdService.ServiceId);
-        p.Add("@ServiceCharges",     opdService.ServiceCharges);
-
-        await con.ExecuteAsync("dbo.usp_Patient_Update", p,
-            commandType: CommandType.StoredProcedure);
     }
 
     // ─── Demographics-only Update ────────────────────────────────────
@@ -215,6 +231,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 MiddleName             = @MiddleName,
                 LastName               = @LastName,
                 Gender                 = @Gender,
+                DateOfBirth            = @DateOfBirth,
                 ReligionId             = @ReligionId,
                 EmailId                = @EmailId,
                 GuardianName           = @GuardianName,
@@ -296,5 +313,254 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             new { ServiceType = serviceType, BranchId = branchId });
 
         return rows.Select(r => ((int)r.ServiceId, (string)r.ItemName, (decimal)r.ItemCharges));
+    }
+
+    // ─── Service Booking List ─────────────────────────────────────────────────
+
+    public async Task<IEnumerable<ServiceBookingListItem>> GetServiceBookingsAsync(int? branchId, DateOnly? fromDate, DateOnly? toDate)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<ServiceBookingListItem>(@"
+            SELECT
+                s.OPDServiceId,
+                s.VisitDate,
+                s.OPDBillNo,
+                s.TokenNo,
+                p.PatientCode,
+                p.PatientId,
+                LTRIM(RTRIM(
+                    ISNULL(p.Salutation + ' ', '') +
+                    p.FirstName + ' ' +
+                    ISNULL(p.MiddleName + ' ', '') +
+                    p.LastName
+                ))                        AS PatientName,
+                p.Gender,
+                d.FullName                AS ConsultingDoctorName,
+                ISNULL(s.TotalAmount, 0)  AS TotalAmount,
+                s.Status,
+                ISNULL(
+                    STUFF((
+                        SELECT DISTINCT ', ' + ISNULL(si.ServiceType, '')
+                        FROM PatientOPDServiceItem si
+                        WHERE si.OPDServiceId = s.OPDServiceId AND si.IsActive = 1
+                        FOR XML PATH(''), TYPE
+                    ).value('.','NVARCHAR(MAX)'), 1, 2, ''), ''
+                )                         AS ServiceTypesSummary
+            FROM PatientOPDService s
+            INNER JOIN PatientMaster p ON p.PatientId = s.PatientId
+            LEFT  JOIN DoctorMaster  d ON d.DoctorId  = s.ConsultingDoctorId
+            WHERE s.IsActive = 1
+              AND p.IsActive = 1
+              AND (@BranchId IS NULL OR s.BranchId = @BranchId)
+              AND (@FromDate IS NULL OR CAST(s.VisitDate AS DATE) >= @FromDate)
+              AND (@ToDate   IS NULL OR CAST(s.VisitDate AS DATE) <= @ToDate)
+            ORDER BY s.OPDServiceId DESC",
+            new { BranchId = branchId,
+                  FromDate = fromDate.HasValue ? (DateTime?)fromDate.Value.ToDateTime(TimeOnly.MinValue) : null,
+                  ToDate   = toDate.HasValue   ? (DateTime?)toDate.Value.ToDateTime(TimeOnly.MinValue)   : null });
+    }
+
+    public async Task<ServiceBookingPagedListViewModel> GetServiceBookingsPagedAsync(
+        int? branchId, DateOnly? fromDate, DateOnly? toDate, int page, int pageSize, string? search)
+    {
+        using var con = db.CreateConnection();
+        var rows = (await con.QueryAsync<ServiceBookingListItem>(
+            "usp_GetServiceBookingsPaged",
+            new
+            {
+                BranchId   = branchId,
+                FromDate   = fromDate.HasValue ? (DateTime?)fromDate.Value.ToDateTime(TimeOnly.MinValue) : null,
+                ToDate     = toDate.HasValue   ? (DateTime?)toDate.Value.ToDateTime(TimeOnly.MinValue)   : null,
+                PageNumber = page,
+                PageSize   = pageSize,
+                SearchTerm = search
+            },
+            commandType: System.Data.CommandType.StoredProcedure)).ToList();
+
+        var first = rows.FirstOrDefault();
+        return new ServiceBookingPagedListViewModel
+        {
+            Items          = rows,
+            TotalCount     = first?.TotalCount     ?? 0,
+            TotalFeesAll   = first?.TotalFeesAll   ?? 0,
+            RegisteredCount= first?.RegisteredCount ?? 0,
+            CompletedCount = first?.CompletedCount  ?? 0,
+            Page           = page,
+            PageSize       = pageSize,
+            Search         = search,
+            FromDate       = fromDate?.ToString("yyyy-MM-dd"),
+            ToDate         = toDate?.ToString("yyyy-MM-dd")
+        };
+    }
+
+    // ─── Service Booking Detail ───────────────────────────────────────────────
+
+    public async Task<ServiceBookingDetailViewModel?> GetServiceBookingDetailAsync(int opdServiceId)
+    {
+        using var con = db.CreateConnection();
+
+        var header = await con.QuerySingleOrDefaultAsync<ServiceBookingDetailViewModel>(@"
+            SELECT
+                s.OPDServiceId,
+                s.OPDBillNo,
+                s.TokenNo,
+                p.PatientCode,
+                LTRIM(RTRIM(
+                    ISNULL(p.Salutation + ' ', '') +
+                    p.FirstName + ' ' +
+                    ISNULL(p.MiddleName + ' ', '') +
+                    p.LastName
+                ))                        AS PatientName,
+                p.Gender,
+                p.DateOfBirth,
+                d.FullName                AS ConsultingDoctorName,
+                s.VisitDate,
+                ISNULL(s.TotalAmount, 0)  AS TotalAmount,
+                s.Status
+            FROM PatientOPDService s
+            INNER JOIN PatientMaster p ON p.PatientId = s.PatientId
+            LEFT  JOIN DoctorMaster  d ON d.DoctorId  = s.ConsultingDoctorId
+            WHERE s.OPDServiceId = @OPDServiceId",
+            new { OPDServiceId = opdServiceId });
+
+        if (header is null) return null;
+
+        var items = await con.QueryAsync<ServiceBookingDetailItem>(@"
+            SELECT
+                si.ServiceType,
+                ISNULL(sm.ItemName, '(Unknown)')   AS ItemName,
+                ISNULL(si.ServiceCharges, 0)        AS ServiceCharges
+            FROM PatientOPDServiceItem si
+            LEFT JOIN ServiceMaster sm ON sm.ServiceId = si.ServiceId
+            WHERE si.OPDServiceId = @OPDServiceId AND si.IsActive = 1
+            ORDER BY si.ItemId",
+            new { OPDServiceId = opdServiceId });
+
+        header.Items = items.ToList();
+        return header;
+    }
+
+    // ─── Lookup helpers ───────────────────────────────────────────────────────
+
+    public async Task<string?> GetIdentificationTypeNameAsync(int identificationTypeId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QuerySingleOrDefaultAsync<string>(
+            "SELECT IdentificationTypeName FROM IdentificationTypeMaster WHERE IdentificationTypeId = @Id",
+            new { Id = identificationTypeId });
+    }
+
+    public async Task<(string? ReligionName, string? MaritalStatusName, string? OccupationName,
+         string? AreaName, string? CityName, string? DistrictName, string? StateName, string? CountryName)>
+        GetDemographicNamesAsync(int patientId)
+    {
+        using var con = db.CreateConnection();
+        var row = await con.QuerySingleOrDefaultAsync(@"
+            SELECT
+                r.ReligionName,
+                ms.StatusName    AS MaritalStatusName,
+                oc.OccupationName,
+                a.AreaName,
+                ci.CityName,
+                di.DistrictName,
+                st.StateName,
+                co.CountryName
+            FROM PatientMaster pm
+            LEFT JOIN ReligionMaster       r   ON r.ReligionId       = pm.ReligionId
+            LEFT JOIN MaritalStatusMaster  ms  ON ms.MaritalStatusId = pm.MaritalStatusId
+            LEFT JOIN OccupationMaster     oc  ON oc.OccupationId    = pm.OccupationId
+            LEFT JOIN AreaMaster           a   ON a.AreaId           = pm.AreaId
+            LEFT JOIN CityMaster           ci  ON ci.CityId          = pm.CityId
+            LEFT JOIN DistrictMaster       di  ON di.DistrictId      = pm.DistrictId
+            LEFT JOIN StateMaster          st  ON st.StateId         = pm.StateId
+            LEFT JOIN CountryMaster        co  ON co.CountryId       = pm.CountryId
+            WHERE pm.PatientId = @PatientId",
+            new { PatientId = patientId });
+        return (
+            (string?)row?.ReligionName,
+            (string?)row?.MaritalStatusName,
+            (string?)row?.OccupationName,
+            (string?)row?.AreaName,
+            (string?)row?.CityName,
+            (string?)row?.DistrictName,
+            (string?)row?.StateName,
+            (string?)row?.CountryName
+        );
+    }
+
+    // ─── Service Booking Only (no patient demographics update) ────────────────
+
+    public async Task<(string OPDBillNo, string TokenNo, int NewOPDServiceId)>
+        CreateServiceBookingOnlyAsync(PatientOPDService bill, string lineItemsJson, int? userId)
+    {
+        using var con = db.CreateConnection();
+
+        // 1. Get next bill number
+        var bp = new DynamicParameters();
+        bp.Add("@BranchId", bill.BranchId);
+        bp.Add("@BillNo",   dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+        await con.ExecuteAsync("dbo.usp_OPD_GetNextBillNo", bp, commandType: CommandType.StoredProcedure);
+        var billNo = bp.Get<string>("@BillNo");
+
+        // 2. Get next token number
+        var tp = new DynamicParameters();
+        tp.Add("@BranchId", bill.BranchId);
+        tp.Add("@TokenNo",  dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
+        await con.ExecuteAsync("dbo.usp_OPD_GetNextTokenNo", tp, commandType: CommandType.StoredProcedure);
+        var tokenNo = tp.Get<string>("@TokenNo");
+
+        // 3. Insert OPD service header
+        var newSvcId = await con.ExecuteScalarAsync<int>(@"
+            INSERT INTO PatientOPDService
+                (PatientId, BranchId, ConsultingDoctorId, OPDBillNo, TokenNo,
+                 TotalAmount, VisitDate, Status, IsActive, CreatedBy, CreatedDate)
+            VALUES
+                (@PatientId, @BranchId, @ConsultingDoctorId, @OPDBillNo, @TokenNo,
+                 0, GETUTCDATE(), 'Registered', 1, @CreatedBy, GETUTCDATE());
+            SELECT CAST(SCOPE_IDENTITY() AS INT);",
+            new
+            {
+                bill.PatientId, bill.BranchId, bill.ConsultingDoctorId,
+                OPDBillNo = billNo, TokenNo = tokenNo,
+                CreatedBy = userId
+            });
+
+        // 4. Parse and insert line items
+        if (!string.IsNullOrWhiteSpace(lineItemsJson) && lineItemsJson != "[]")
+        {
+            var items = System.Text.Json.JsonSerializer.Deserialize<List<OPDServiceLineItem>>(
+                lineItemsJson,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (items?.Count > 0)
+            {
+                decimal total = 0;
+                foreach (var item in items)
+                {
+                    await con.ExecuteAsync(@"
+                        INSERT INTO PatientOPDServiceItem
+                            (OPDServiceId, ServiceType, ServiceId, ServiceCharges,
+                             IsActive, CreatedBy, CreatedDate)
+                        VALUES
+                            (@OPDServiceId, @ServiceType, @ServiceId, @ServiceCharges,
+                             1, @CreatedBy, GETUTCDATE())",
+                        new
+                        {
+                            OPDServiceId   = newSvcId,
+                            item.ServiceType,
+                            item.ServiceId,
+                            ServiceCharges = item.ServiceCharges,
+                            CreatedBy      = userId
+                        });
+                    total += item.ServiceCharges;
+                }
+
+                await con.ExecuteAsync(
+                    "UPDATE PatientOPDService SET TotalAmount = @Total WHERE OPDServiceId = @Id",
+                    new { Total = total, Id = newSvcId });
+            }
+        }
+
+        return (billNo, tokenNo, newSvcId);
     }
 }
