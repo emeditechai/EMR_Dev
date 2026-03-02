@@ -3,15 +3,45 @@
     ViewData["Title"] = "Hospital Settings";
 }
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+@section HeadStyles {
+<style>
+    .hs-info-bar { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:.75rem 1.2rem; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+    .hs-info-item { display:flex; flex-direction:column; min-width:0; }
+    .hs-info-item .lbl { font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:#6c757d; font-weight:600; }
+    .hs-info-item .val { font-size:.9rem; font-weight:700; color:#212529; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .hs-divider { width:1px; background:#e9ecef; align-self:stretch; margin:0 .5rem; }
+
+    .module-tab-nav .nav-link { font-size:.82rem; font-weight:600; letter-spacing:.02em; padding:.55rem 1.2rem; border-radius:8px 8px 0 0; color:#6c757d; border:1px solid transparent; }
+    .module-tab-nav .nav-link.active { color:#fff; border-color: transparent; }
+    .module-tab-nav .nav-link[data-tab="opd"].active  { background:#0d6efd; }
+    .module-tab-nav .nav-link[data-tab="ipd"].active  { background:#198754; }
+    .module-tab-nav .nav-link[data-tab="lab"].active  { background:#fd7e14; }
+    .module-tab-nav .nav-link[data-tab="med"].active  { background:#6f42c1; }
+
+    .module-tab-nav .nav-link[data-tab="opd"]:not(.active):hover { background:#e8f0fe; color:#0d6efd; }
+    .module-tab-nav .nav-link[data-tab="ipd"]:not(.active):hover { background:#e6f4ea; color:#198754; }
+    .module-tab-nav .nav-link[data-tab="lab"]:not(.active):hover { background:#fff3e0; color:#fd7e14; }
+    .module-tab-nav .nav-link[data-tab="med"]:not(.active):hover { background:#f1ecff; color:#6f42c1; }
+
+    .module-tab-pane { background:#fff; border:1px solid #e9ecef; border-radius:0 12px 12px 12px; padding:1.4rem; min-height:260px; }
+    .param-card { background:#f8f9fc; border:1px solid #e9ecef; border-radius:10px; padding:1rem 1.2rem; }
+    .param-card .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#6c757d; font-weight:700; margin-bottom:.3rem; }
+    .param-card .param-value { font-size:.95rem; font-weight:600; color:#343a40; }
+    .param-soon { opacity:.5; }
+    .coming-soon-badge { font-size:.65rem; background:#e9ecef; color:#6c757d; padding:2px 7px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; }
+</style>
+}
+
+@* ── Page header ── *@
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
         <i class="bi bi-hospital-fill fs-4" style="color:var(--emr-primary)"></i>
         <div>
-            <h1 class="h3 mb-0">Hospital Settings</h1>
+            <h1 class="h4 mb-0 fw-bold">Hospital Settings</h1>
             <small class="text-muted">Branch: <strong>@Model.BranchName</strong></small>
         </div>
     </div>
-    <a asp-action="Edit" class="btn btn-primary">
+    <a asp-action="Edit" class="btn btn-primary btn-sm px-3">
         <i class="bi bi-pencil-square me-1"></i>Edit Settings
     </a>
 </div>
@@ -22,95 +52,337 @@
         <div class="uf-section-body text-center py-5">
             <i class="bi bi-exclamation-circle fs-1 text-warning d-block mb-3"></i>
             <h5 class="text-muted">No settings configured for this branch yet.</h5>
-            <a asp-action="Edit" class="btn btn-primary mt-2">
-                <i class="bi bi-plus-circle me-1"></i>Configure Now
-            </a>
+            <a asp-action="Edit" class="btn btn-primary mt-2"><i class="bi bi-plus-circle me-1"></i>Configure Now</a>
         </div>
     </div>
 }
 else
 {
-    <div class="row g-3 mb-3">
-        <div class="col-md-6 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-building me-1"></i>Hospital Name</p>
-                <h5 class="mb-0 fw-bold">@(Model.HospitalName ?? "—")</h5>
-            </div>
+    @* ── Compact info bar ── *@
+    <div class="hs-info-bar d-flex flex-wrap align-items-center gap-3 mb-4">
+        @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
+        {
+            <img src="@Model.LogoPath" alt="Logo" style="height:44px;width:44px;object-fit:contain;border-radius:8px;border:1px solid #e9ecef;background:#fff" />
+            <div class="hs-divider d-none d-md-block"></div>
+        }
+        <div class="hs-info-item" style="flex:1 1 160px">
+            <span class="lbl"><i class="bi bi-building me-1"></i>Hospital</span>
+            <span class="val">@(Model.HospitalName ?? "—")</span>
         </div>
-        <div class="col-md-6 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-telephone me-1"></i>Contact Number 1</p>
-                <h5 class="mb-0 fw-semibold">@(Model.ContactNumber1 ?? "—")</h5>
-            </div>
+        <div class="hs-divider d-none d-md-block"></div>
+        <div class="hs-info-item" style="flex:1 1 200px">
+            <span class="lbl"><i class="bi bi-geo-alt me-1"></i>Address</span>
+            <span class="val" style="white-space:normal;font-size:.82rem">@(Model.Address ?? "—")</span>
         </div>
-        <div class="col-md-6 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-telephone me-1"></i>Contact Number 2</p>
-                <h5 class="mb-0 fw-semibold">@(Model.ContactNumber2 ?? "—")</h5>
-            </div>
+        <div class="hs-divider d-none d-md-block"></div>
+        <div class="hs-info-item">
+            <span class="lbl"><i class="bi bi-telephone me-1"></i>Contact 1</span>
+            <span class="val">@(Model.ContactNumber1 ?? "—")</span>
         </div>
-        <div class="col-md-6 col-xl-8">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i>Address</p>
-                <p class="mb-0 fw-semibold">@(Model.Address ?? "—")</p>
+        @if (!string.IsNullOrWhiteSpace(Model.ContactNumber2))
+        {
+            <div class="hs-divider d-none d-md-block"></div>
+            <div class="hs-info-item">
+                <span class="lbl"><i class="bi bi-telephone me-1"></i>Contact 2</span>
+                <span class="val">@Model.ContactNumber2</span>
             </div>
+        }
+        <div class="hs-divider d-none d-md-block"></div>
+        <div class="hs-info-item">
+            <span class="lbl"><i class="bi bi-envelope me-1"></i>Email</span>
+            <span class="val">@(Model.EmailAddress ?? "—")</span>
         </div>
-        <div class="col-md-6 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-envelope me-1"></i>Email</p>
-                <p class="mb-0 fw-semibold">@(Model.EmailAddress ?? "—")</p>
+        @if (!string.IsNullOrWhiteSpace(Model.Website))
+        {
+            <div class="hs-divider d-none d-md-block"></div>
+            <div class="hs-info-item">
+                <span class="lbl"><i class="bi bi-globe me-1"></i>Website</span>
+                <span class="val"><a href="@Model.Website" target="_blank">@Model.Website</a></span>
             </div>
+        }
+        <div class="hs-divider d-none d-md-block"></div>
+        <div class="hs-info-item">
+            <span class="lbl"><i class="bi bi-receipt me-1"></i>GST</span>
+            <span class="val">@(Model.GSTCode ?? "—")</span>
         </div>
-        <div class="col-md-6 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-globe me-1"></i>Website</p>
-                @if (!string.IsNullOrWhiteSpace(Model.Website))
-                {
-                    <a href="@Model.Website" target="_blank" class="fw-semibold">@Model.Website</a>
-                }
-                else
-                {
-                    <p class="mb-0 fw-semibold">—</p>
-                }
-            </div>
+        <div class="hs-divider d-none d-md-block"></div>
+        <div class="hs-info-item">
+            <span class="lbl"><i class="bi bi-clock me-1"></i>Timing</span>
+            <span class="val">@(Model.CheckInTime ?? "—") – @(Model.CheckOutTime ?? "—")</span>
         </div>
-        <div class="col-md-6 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-receipt me-1"></i>GST Code</p>
-                <p class="mb-0 fw-semibold">@(Model.GSTCode ?? "—")</p>
-            </div>
-        </div>
-        <div class="col-md-6 col-xl-4">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-toggles me-1"></i>Status</p>
-                <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary") fs-6">
+        <div class="hs-divider d-none d-md-block"></div>
+        <div class="hs-info-item">
+            <span class="lbl"><i class="bi bi-toggles me-1"></i>Status</span>
+            <span class="val">
+                <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary")">
                     @(Model.IsActive ? "Active" : "Inactive")
                 </span>
+            </span>
+        </div>
+        <div class="hs-divider d-none d-md-block"></div>
+        <div class="hs-info-item">
+            <span class="lbl"><i class="bi bi-clock-history me-1"></i>Modified</span>
+            <span class="val" style="font-size:.8rem">@(Model.LastModifiedDate?.ToString("dd MMM yyyy") ?? Model.CreatedDate.ToString("dd MMM yyyy"))</span>
+        </div>
+    </div>
+
+    @* ── Module tabs ── *@
+    <ul class="nav module-tab-nav mb-0" id="moduleTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-tab="opd" data-bs-toggle="tab" data-bs-target="#tabOpd" type="button" role="tab">
+                <i class="bi bi-person-plus-fill me-1"></i>OPD
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-tab="ipd" data-bs-toggle="tab" data-bs-target="#tabIpd" type="button" role="tab">
+                <i class="bi bi-hospital me-1"></i>IPD
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-tab="lab" data-bs-toggle="tab" data-bs-target="#tabLab" type="button" role="tab">
+                <i class="bi bi-eyedropper me-1"></i>LAB
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-tab="med" data-bs-toggle="tab" data-bs-target="#tabMed" type="button" role="tab">
+                <i class="bi bi-capsule me-1"></i>MED
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        @* ── OPD Tab ── *@
+        <div class="tab-pane fade show active module-tab-pane" id="tabOpd" role="tabpanel">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="fw-bold" style="color:#0d6efd"><i class="bi bi-person-plus-fill me-1"></i>OPD Configuration</span>
+                <span class="coming-soon-badge">Parameters coming soon</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Bill Prefix</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Token Prefix</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Auto Token Reset</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Default Consulting Fee</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Allow Walk-In</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Max Patients / Day</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Print Bill on Save</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">GST on Services</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-md-6 col-xl-6">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-box-arrow-in-right me-1"></i>Check-In Time</p>
-                <h5 class="mb-0 fw-semibold">@(Model.CheckInTime ?? "—")</h5>
+
+        @* ── IPD Tab ── *@
+        <div class="tab-pane fade module-tab-pane" id="tabIpd" role="tabpanel">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="fw-bold" style="color:#198754"><i class="bi bi-hospital me-1"></i>IPD Configuration</span>
+                <span class="coming-soon-badge">Parameters coming soon</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Admission Prefix</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Default Ward</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Bed Booking Advance (Days)</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Auto Discharge Reminder</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Diet Plan Enabled</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Nursing Notes</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">OT Module</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Print Discharge Summary</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-md-6 col-xl-6">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-box-arrow-right me-1"></i>Check-Out Time</p>
-                <h5 class="mb-0 fw-semibold">@(Model.CheckOutTime ?? "—")</h5>
+
+        @* ── LAB Tab ── *@
+        <div class="tab-pane fade module-tab-pane" id="tabLab" role="tabpanel">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="fw-bold" style="color:#fd7e14"><i class="bi bi-eyedropper me-1"></i>LAB Configuration</span>
+                <span class="coming-soon-badge">Parameters coming soon</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Report Prefix</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Default Sample Type</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Auto Report Delivery</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Report TAT (Hours)</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">External Lab Integration</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Critical Alert</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Print Header on Report</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Barcode on Sample</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-clock-history me-1"></i>Created On</p>
-                <p class="mb-0 fw-semibold">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</p>
+
+        @* ── MED Tab ── *@
+        <div class="tab-pane fade module-tab-pane" id="tabMed" role="tabpanel">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="fw-bold" style="color:#6f42c1"><i class="bi bi-capsule me-1"></i>MED / Pharmacy Configuration</span>
+                <span class="coming-soon-badge">Parameters coming soon</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Invoice Prefix</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">GST Registration No.</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Drug License No.</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Low Stock Alert (Qty)</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Expiry Alert (Days)</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Return Policy (Days)</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Auto Reorder</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card param-soon">
+                        <div class="param-label">Print Prescription</div>
+                        <div class="param-value text-muted">—</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="dashboard-panel h-100">
-                <p class="text-muted small mb-1"><i class="bi bi-clock-history me-1"></i>Last Modified</p>
-                <p class="mb-0 fw-semibold">@(Model.LastModifiedDate?.ToString("dd MMM yyyy, HH:mm") ?? "—")</p>
-            </div>
-        </div>
+
     </div>
 }

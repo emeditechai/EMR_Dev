@@ -3,15 +3,34 @@
     ViewData["Title"] = "Edit Hospital Settings";
 }
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+@section HeadStyles {
+<style>
+    .module-tab-nav .nav-link { font-size:.82rem; font-weight:600; letter-spacing:.02em; padding:.55rem 1.2rem; border-radius:8px 8px 0 0; color:#6c757d; border:1px solid transparent; }
+    .module-tab-nav .nav-link.active { color:#fff; border-color: transparent; }
+    .module-tab-nav .nav-link[data-tab="opd"].active  { background:#0d6efd; }
+    .module-tab-nav .nav-link[data-tab="ipd"].active  { background:#198754; }
+    .module-tab-nav .nav-link[data-tab="lab"].active  { background:#fd7e14; }
+    .module-tab-nav .nav-link[data-tab="med"].active  { background:#6f42c1; }
+    .module-tab-nav .nav-link[data-tab="opd"]:not(.active):hover { background:#e8f0fe; color:#0d6efd; }
+    .module-tab-nav .nav-link[data-tab="ipd"]:not(.active):hover { background:#e6f4ea; color:#198754; }
+    .module-tab-nav .nav-link[data-tab="lab"]:not(.active):hover { background:#fff3e0; color:#fd7e14; }
+    .module-tab-nav .nav-link[data-tab="med"]:not(.active):hover { background:#f1ecff; color:#6f42c1; }
+    .module-tab-pane { background:#fff; border:1px solid #e9ecef; border-radius:0 12px 12px 12px; padding:1.4rem; min-height:220px; }
+    .param-placeholder { background:#f8f9fc; border:1px dashed #ced4da; border-radius:10px; padding:1rem 1.2rem; }
+    .param-placeholder .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#adb5bd; font-weight:700; margin-bottom:.4rem; }
+    .coming-soon-badge { font-size:.65rem; background:#e9ecef; color:#6c757d; padding:2px 7px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; }
+</style>
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
         <i class="bi bi-hospital-fill fs-4" style="color:var(--emr-primary)"></i>
         <div>
-            <h1 class="h3 mb-0">Edit Hospital Settings</h1>
+            <h1 class="h4 mb-0 fw-bold">Edit Hospital Settings</h1>
             <small class="text-muted">Branch: <strong>@Model.BranchName</strong></small>
         </div>
     </div>
-    <a asp-action="Index" class="btn btn-outline-secondary">
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
         <i class="bi bi-arrow-left me-1"></i>Back
     </a>
 </div>
@@ -83,20 +102,20 @@
                     <span asp-validation-for="GSTCode" class="text-danger small"></span>
                 </div>
                 <div class="col-md-3">
-                        <label asp-for="LogoFile" class="form-label fw-semibold">Logo Upload</label>
-                        <div class="input-icon-wrap">
-                            <i class="bi bi-image input-icon"></i>
-                            <input asp-for="LogoFile" type="file" class="form-control ps-icon" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
+                    <label asp-for="LogoFile" class="form-label fw-semibold">Logo Upload</label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-image input-icon"></i>
+                        <input asp-for="LogoFile" type="file" class="form-control ps-icon" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
+                    </div>
+                    <span asp-validation-for="LogoFile" class="text-danger small"></span>
+                    <input asp-for="LogoPath" type="hidden" />
+                    @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
+                    {
+                        <div class="mt-2 d-flex align-items-center gap-2">
+                            <img src="@Model.LogoPath" alt="Hospital Logo" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--bs-border-color);border-radius:.5rem;background:#fff" />
+                            <small class="text-muted">Current logo</small>
                         </div>
-                        <span asp-validation-for="LogoFile" class="text-danger small"></span>
-                        <input asp-for="LogoPath" type="hidden" />
-                        @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
-                        {
-                            <div class="mt-2 d-flex align-items-center gap-2">
-                                <img src="@Model.LogoPath" alt="Hospital Logo" style="width: 48px; height: 48px; object-fit: contain; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: #fff;" />
-                                <small class="text-muted">Current logo</small>
-                            </div>
-                        }
+                    }
                 </div>
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">Status</label>
@@ -137,7 +156,7 @@
         </div>
     </div>
 
-    <div class="d-flex gap-2 justify-content-end">
+    <div class="d-flex gap-2 justify-content-end mb-4">
         <a asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-x-circle me-1"></i>Cancel
         </a>
@@ -145,7 +164,105 @@
             <i class="bi bi-floppy-fill me-1"></i>Save Settings
         </button>
     </div>
+
 </form>
+
+@* ── Module Configuration Tabs ── *@
+<div class="mb-2 d-flex align-items-center gap-2">
+    <span class="fw-bold text-secondary small text-uppercase" style="letter-spacing:.07em"><i class="bi bi-sliders me-1"></i>Module Configuration</span>
+    <span style="font-size:.65rem;background:#e9ecef;color:#6c757d;padding:2px 8px;border-radius:20px;font-weight:600">Editable parameters coming soon</span>
+</div>
+
+<ul class="nav module-tab-nav mb-0" id="moduleTabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-tab="opd" data-bs-toggle="tab" data-bs-target="#editTabOpd" type="button" role="tab">
+            <i class="bi bi-person-plus-fill me-1"></i>OPD
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-tab="ipd" data-bs-toggle="tab" data-bs-target="#editTabIpd" type="button" role="tab">
+            <i class="bi bi-hospital me-1"></i>IPD
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-tab="lab" data-bs-toggle="tab" data-bs-target="#editTabLab" type="button" role="tab">
+            <i class="bi bi-eyedropper me-1"></i>LAB
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-tab="med" data-bs-toggle="tab" data-bs-target="#editTabMed" type="button" role="tab">
+            <i class="bi bi-capsule me-1"></i>MED
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content mb-4">
+
+    @* OPD *@
+    <div class="tab-pane fade show active module-tab-pane" id="editTabOpd" role="tabpanel">
+        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>OPD-specific parameters will be configurable here.</p>
+        <div class="row g-3">
+            @foreach (var p in new[] { "Bill Prefix","Token Prefix","Auto Token Reset","Default Consulting Fee","Allow Walk-In","Max Patients / Day","Print Bill on Save","GST on Services" })
+            {
+                <div class="col-6 col-md-3">
+                    <div class="param-placeholder">
+                        <div class="param-label">@p</div>
+                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* IPD *@
+    <div class="tab-pane fade module-tab-pane" id="editTabIpd" role="tabpanel">
+        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>IPD-specific parameters will be configurable here.</p>
+        <div class="row g-3">
+            @foreach (var p in new[] { "Admission Prefix","Default Ward","Bed Booking Advance (Days)","Auto Discharge Reminder","Diet Plan Enabled","Nursing Notes","OT Module","Print Discharge Summary" })
+            {
+                <div class="col-6 col-md-3">
+                    <div class="param-placeholder">
+                        <div class="param-label">@p</div>
+                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* LAB *@
+    <div class="tab-pane fade module-tab-pane" id="editTabLab" role="tabpanel">
+        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>LAB-specific parameters will be configurable here.</p>
+        <div class="row g-3">
+            @foreach (var p in new[] { "Report Prefix","Default Sample Type","Auto Report Delivery","Report TAT (Hours)","External Lab Integration","Critical Alert","Print Header on Report","Barcode on Sample" })
+            {
+                <div class="col-6 col-md-3">
+                    <div class="param-placeholder">
+                        <div class="param-label">@p</div>
+                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* MED *@
+    <div class="tab-pane fade module-tab-pane" id="editTabMed" role="tabpanel">
+        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Pharmacy/MED specific parameters will be configurable here.</p>
+        <div class="row g-3">
+            @foreach (var p in new[] { "Invoice Prefix","GST Registration No.","Drug License No.","Low Stock Alert (Qty)","Expiry Alert (Days)","Return Policy (Days)","Auto Reorder","Print Prescription" })
+            {
+                <div class="col-6 col-md-3">
+                    <div class="param-placeholder">
+                        <div class="param-label">@p</div>
+                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+</div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
