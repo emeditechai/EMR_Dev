@@ -30,11 +30,11 @@
     </style>
 }
 
-@* ── Booking Success Modal (shown after New Service Booking redirect) ── *@
+@* ── Booking Success Modal (shown after payment save / skip) ── *@
 @if (showSuccess)
 {
     <div class="modal fade" id="bookingSuccessModal" tabindex="-1"
-         data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+         data-bs-backdrop="static" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
             <div class="modal-content border-0 shadow-lg overflow-hidden">
 
@@ -97,6 +97,14 @@
         </div>
     </div>
 }
+
+@* ── Payment Modal – always included; auto-opens only when newSvcId > 0 ── *@
+@{
+    ViewData["PaymentModuleCode"]     = "OPD";
+    ViewData["PaymentModuleRefId"]    = newSvcId;   // 0 = standby, >0 = auto-open
+    ViewData["PaymentSuccessModalId"] = "bookingSuccessModal";
+}
+<partial name="_PaymentModal" />
 
 @* ── Page header ── *@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -378,6 +386,10 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-info btn-sm fw-semibold text-white" id="btnCollectPayFromModal"
+                        style="display:none" onclick="collectPaymentFromModal()">
+                    <i class="bi bi-cash-coin me-1"></i><span id="btnCollectPayLabel">Collect Payment</span>
+                </button>
                 <button class="btn btn-success btn-sm" id="btnPrintBillFromModal"
                         onclick="printBillFromModal()" style="display:none">
                     <i class="bi bi-printer-fill me-1"></i>Print Bill
@@ -390,8 +402,11 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
-    // ── Auto-show booking success modal on redirect ───────────────────────────
-    @if (showSuccess)
+    @if (newSvcId > 0)
+    {
+        @* Payment modal handles showing the success modal. *@
+    }
+    else if (showSuccess)
     {
         <text>
         new bootstrap.Modal(document.getElementById('bookingSuccessModal')).show();
@@ -448,25 +463,40 @@
     })();
 
     async function viewBooking(id) {
-        const modal = new bootstrap.Modal(document.getElementById('viewBookingModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('viewBookingModal'));
         document.getElementById('viewBookingBody').innerHTML =
             '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
 
-        // Reset print button while loading
-        const printBtn = document.getElementById('btnPrintBillFromModal');
-        if (printBtn) { printBtn.style.display = 'none'; printBtn.dataset.svcId = ''; }
+        // Reset buttons while loading
+        const printBtn    = document.getElementById('btnPrintBillFromModal');
+        const collectBtn  = document.getElementById('btnCollectPayFromModal');
+        if (printBtn)   { printBtn.style.display   = 'none'; printBtn.dataset.svcId = ''; }
+        if (collectBtn) { collectBtn.style.display  = 'none'; }
+        _currentViewBookingId = id;
 
         modal.show();
 
         try {
-            const r = await fetch('@Url.Action("GetServiceBookingDetail", "OPD")' + '?id=' + id);
+            const [r, rPay] = await Promise.all([
+                fetch('@Url.Action("GetServiceBookingDetail", "OPD")' + '?id=' + id),
+                fetch('/OPD/GetPaymentSummary?moduleCode=OPD&moduleRefId=' + id)
+            ]);
             if (!r.ok) throw new Error('Not found');
-            const d = await r.json();
+            const d   = await r.json();
+            const pay = rPay.ok ? ((await rPay.json())?.data ?? null) : null;
 
-            // Show print button now that we have a valid record
+            // Show print button
             if (printBtn) { printBtn.style.display = ''; printBtn.dataset.svcId = id; }
 
-            console.log('Booking detail keys:', Object.keys(d), d);
+            // Show collect payment button if not fully paid
+            if (collectBtn) {
+                const pyStatus = pay?.paymentStatus ?? 'U';
+                if (pyStatus !== 'P') {
+                    collectBtn.style.display = '';
+                    const lbl = document.getElementById('btnCollectPayLabel');
+                    if (lbl) lbl.textContent = pyStatus === 'R' ? 'Collect Balance' : 'Collect Payment';
+                }
+            }
 
             const statusBadge = d.status === 'Completed'
                 ? '<span class="badge text-bg-success">Completed</span>'
@@ -537,12 +567,72 @@
                         </tr>
                     </tfoot>
                 </table>
-                <div class="text-end">${statusBadge}</div>`;
+                <div class="text-end mb-2">${statusBadge}</div>
+                ${buildPaymentSection(pay)}`;
 
         } catch {
             document.getElementById('viewBookingBody').innerHTML =
                 '<div class="alert alert-danger">Failed to load booking details.</div>';
         }
+    }
+
+    function buildPaymentSection(pay) {
+        const fmtAmt = n => '\u20b9' + parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+        if (!pay || !pay.hasExistingPayment) {
+            return `<div class="border rounded p-2 d-flex align-items-center justify-content-between" style="background:#fff8f8">
+                <span class="text-muted small fw-semibold"><i class="bi bi-cash-stack me-1"></i>Payment</span>
+                <span class="badge text-bg-danger">Unpaid</span>
+            </div>`;
+        }
+        const statusMap = { P:['Fully Paid','text-bg-success'], R:['Partial Payment','text-bg-warning text-dark'], U:['Unpaid','text-bg-danger'] };
+        const [statusLabel, statusCls] = statusMap[pay.paymentStatus] ?? ['Unknown','text-bg-secondary'];
+        let html = `<div class="border rounded p-2 mt-1" style="background:#f8fffc">
+            <div class="fw-semibold mb-2 text-secondary" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em">
+                <i class="bi bi-cash-stack me-1"></i>Payment Summary
+            </div>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                <div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+                    <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Net Payable</div>
+                    <div class="fw-bold font-monospace text-primary">${fmtAmt(pay.netAmount)}</div>
+                </div>
+                <div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+                    <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Total Paid</div>
+                    <div class="fw-bold font-monospace text-success">${fmtAmt(pay.totalPaid)}</div>
+                </div>`;
+        if (pay.paymentStatus === 'R') {
+            html += `<div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+                    <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Balance Due</div>
+                    <div class="fw-bold font-monospace text-danger">${fmtAmt(pay.balanceDue)}</div>
+                </div>`;
+        }
+        html += `</div><div class="text-end"><span class="badge ${statusCls}">${statusLabel}</span></div></div>`;
+        return html;
+    }
+
+    var _currentViewBookingId = null;
+    function collectPaymentFromModal() {
+        if (typeof window.pmOpenFor !== 'function') {
+            console.error('pmOpenFor not available – payment partial may not have loaded.');
+            return;
+        }
+        // Hide the booking details modal, then wait for Bootstrap's 300ms fade
+        // before opening the payment modal (two modals cannot overlap in BS5).
+        var bookingModalEl = document.getElementById('viewBookingModal');
+        var inst = bootstrap.Modal.getInstance(bookingModalEl);
+        if (inst) {
+            inst.hide();
+        } else {
+            // Fallback: force-remove modal classes so the next modal can open
+            bookingModalEl.classList.remove('show');
+            bookingModalEl.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            document.querySelectorAll('.modal-backdrop').forEach(function(el){ el.remove(); });
+        }
+        setTimeout(function () {
+            window.pmOpenFor(_currentViewBookingId, function () {
+                viewBooking(_currentViewBookingId);
+            });
+        }, 350);
     }
 
     function printBillFromModal() {

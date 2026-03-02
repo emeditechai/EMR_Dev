@@ -1,0 +1,489 @@
+@*
+    _PaymentModal.cshtml  –  Reusable payment collection modal.
+    Include in any view via:  <partial name="_PaymentModal" />
+
+    Required ViewData (set BEFORE the <partial> tag in the calling view):
+      "PaymentModuleCode"     → string  e.g. "OPD"
+      "PaymentModuleRefId"    → int     the bill/service primary key
+      "PaymentSuccessModalId" → string  id of the success modal to open after save/skip
+
+    Bootstrap 5 JS is loaded by _Layout – no extra script needed.
+    Script is inline (NOT in @section Scripts which is invalid in partials).
+*@
+@{
+    string pmCode    = ViewData["PaymentModuleCode"]     as string ?? "OPD";
+    int    pmRefId   = (int)(ViewData["PaymentModuleRefId"] ?? 0);
+    string pmSuccess = ViewData["PaymentSuccessModalId"] as string ?? "bookingSuccessModal";
+}
+
+<div class="modal fade" id="paymentModal" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width:680px">
+        <div class="modal-content border-0 shadow-lg overflow-hidden">
+
+            <div style="height:5px;background:linear-gradient(90deg,#0d6efd 0%,#6f42c1 100%)"></div>
+
+            <div class="modal-header border-0 pb-0 px-4 pt-3">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0">
+                        <i class="bi bi-cash-coin me-2 text-primary"></i>Collect Payment
+                    </h5>
+                    <div id="pmPatientLine" class="text-muted small mt-1"></div>
+                </div>
+                <button type="button" id="btnPaymentSkip" class="btn-close ms-auto" aria-label="Skip"></button>
+            </div>
+
+            <div class="modal-body px-4 py-3">
+
+                <!-- Loading spinner -->
+                <div id="pmLoader" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted small">Loading bill details…</p>
+                </div>
+                <div id="pmError" class="alert alert-danger d-none py-2 mb-2"></div>
+
+                <!-- Main form (hidden until AJAX data loaded) -->
+                <div id="pmForm" class="d-none">
+
+                    <!-- Bill info boxes (Bill No, Token, Total) -->
+                    <div class="d-flex flex-wrap gap-2 mb-3" id="pmInfoBoxes"></div>
+
+                    <!-- Line items table -->
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm table-bordered mb-0" style="font-size:.84rem">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Item</th>
+                                    <th>Type</th>
+                                    <th class="text-end">Amount (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pmLineItemsTbody"></tbody>
+                            <tfoot>
+                                <tr class="fw-semibold table-light">
+                                    <td colspan="3" class="text-end">Sub Total</td>
+                                    <td class="text-end" id="pmSubTotal">0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Header-level discount -->
+                    <div class="card border rounded-3 mb-3 p-3" style="background:#fafafa">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-sm-auto">
+                                <label class="form-label fw-semibold mb-0 small text-uppercase text-muted">Discount</label>
+                            </div>
+                            <div class="col-12 col-sm-auto">
+                                <div class="btn-group btn-group-sm" role="group" id="pmDiscTypeGroup">
+                                    <input type="radio" class="btn-check" name="pmDiscType" id="pmDiscTypeP" value="P" autocomplete="off">
+                                    <label class="btn btn-outline-secondary" for="pmDiscTypeP">%</label>
+                                    <input type="radio" class="btn-check" name="pmDiscType" id="pmDiscTypeF" value="F" autocomplete="off">
+                                    <label class="btn btn-outline-secondary" for="pmDiscTypeF">₹ Fixed</label>
+                                </div>
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <div class="input-group input-group-sm">
+                                    <input type="number" id="pmDiscValue" class="form-control"
+                                           min="0" step="0.01" placeholder="0" />
+                                    <span class="input-group-text" id="pmDiscSymbol">%</span>
+                                </div>
+                            </div>
+                            <div class="col-6 col-sm-auto text-end text-sm-start">
+                                <span class="text-muted small">Discount amt: </span>
+                                <span class="fw-semibold text-danger" id="pmDiscAmt">₹0.00</span>
+                            </div>
+                        </div>
+                        <div class="mt-2 border-top pt-2 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Net Payable</span>
+                            <span class="fw-bold fs-5 text-primary" id="pmNetAmount">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Partial payment notice (shown when a previous payment exists) -->
+                    <div id="pmExistingPaySection" class="d-none alert alert-info py-2 mb-3">
+                        <span class="small">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Already paid: <strong id="pmAlreadyPaid"></strong> |
+                            Balance due: <strong id="pmBalanceDue"></strong>
+                        </span>
+                    </div>
+
+                    <!-- Payment method rows injected by JS -->
+                    <div id="pmMethodRows"></div>
+
+                    <div class="d-flex gap-2 mt-1">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddPayMethod">
+                            <i class="bi bi-plus-circle me-1"></i>Add Payment Method
+                        </button>
+                    </div>
+
+                    <!-- Running total of amounts entered -->
+                    <div class="mt-3 border-top pt-2 d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">Total entering now:</span>
+                        <span class="fw-bold text-success fs-6" id="pmEnteringTotal">₹0.00</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="modal-footer border-0 px-4 pb-4 pt-0" id="pmFooter" style="display:none!important">
+                <button type="button" class="btn btn-outline-secondary" id="btnPaymentSkip2">
+                    <i class="bi bi-skip-forward me-1"></i>Skip Payment
+                </button>
+                <button type="button" class="btn btn-primary px-4 fw-semibold" id="btnSavePayment">
+                    <i class="bi bi-check2-circle me-2"></i>Save Payment
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+@* Inline script – @section Scripts is NOT valid in partial views. *@
+document.addEventListener('DOMContentLoaded', function () {
+(function () {
+    'use strict';
+
+    /* ── server-side values ── */
+    var _moduleCode    = '@Html.Raw(pmCode)';
+    var _moduleRefId   = @pmRefId;
+    var _successModal  = '@Html.Raw(pmSuccess)';
+
+    /* ── state ── */
+    var _summary = null, _methods = [], _rowIdx = 0, _onSuccess = null;
+
+    var pmModal   = new bootstrap.Modal(document.getElementById('paymentModal'), {backdrop:'static'});
+    var pmLoader  = document.getElementById('pmLoader');
+    var pmError   = document.getElementById('pmError');
+    var pmForm    = document.getElementById('pmForm');
+    var pmFooter  = document.getElementById('pmFooter');
+
+    // ─── Auto-open when triggered ─────────────────────────────────────────────
+    if (_moduleRefId > 0) {
+        pmModal.show();
+        fetchData();
+    }
+
+    // Skip / close → open success modal
+    document.getElementById('btnPaymentSkip')?.addEventListener('click', skipPayment);
+    document.getElementById('btnPaymentSkip2')?.addEventListener('click', skipPayment);
+    document.getElementById('btnSavePayment')?.addEventListener('click', savePayment);
+    document.getElementById('btnAddPayMethod')?.addEventListener('click', addMethodRow);
+
+    function skipPayment() {
+        pmModal.hide();
+        var sm = document.getElementById(_successModal);
+        if (sm) new bootstrap.Modal(sm).show();
+    }
+
+    // ─── Fetch payment methods + summary in parallel ───────────────────────────
+    async function fetchData() {
+        try {
+            const [methodsRes, summaryRes] = await Promise.all([
+                fetch('/OPD/GetPaymentMethods'),
+                fetch(`/OPD/GetPaymentSummary?moduleCode=${_moduleCode}&moduleRefId=${_moduleRefId}`)
+            ]);
+            _methods = await methodsRes.json();
+            const summaryJson = await summaryRes.json();
+            if (!summaryJson.success) throw new Error(summaryJson.error || 'Failed to load bill.');
+            _summary = summaryJson.data;
+            renderForm();
+        } catch (e) {
+            pmLoader.classList.add('d-none');
+            pmError.textContent = e.message;
+            pmError.classList.remove('d-none');
+        }
+    }
+
+    // ─── Render form ──────────────────────────────────────────────────────────
+    function renderForm() {
+        pmLoader.classList.add('d-none');
+
+        // Patient line
+        document.getElementById('pmPatientLine').textContent =
+            `${_summary.patientName ?? ''} · ${_summary.patientCode ?? ''} · ${_summary.patientPhone ?? ''}`;
+
+        // Info boxes
+        const boxes = document.getElementById('pmInfoBoxes');
+        boxes.innerHTML = infoBox('Bill No', _summary.opdBillNo, '#f0fff4', 'text-success') +
+                          infoBox('Token',   _summary.tokenNo,   '#fffbeb', 'text-warning-emphasis');
+
+        // Line items
+        const tbody = document.getElementById('pmLineItemsTbody');
+        tbody.innerHTML = '';
+        (_summary.items ?? []).forEach((item, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${i+1}</td><td>${esc(item.itemName)}</td><td class="text-muted">${esc(item.serviceType??'')}</td><td class="text-end font-monospace">₹${fmt(item.originalAmount)}</td>`;
+            tbody.appendChild(tr);
+        });
+        document.getElementById('pmSubTotal').textContent = '₹' + fmt(_summary.subTotal);
+
+        // Existing payment info
+        if (_summary.hasExistingPayment) {
+            document.getElementById('pmAlreadyPaid').textContent = '₹' + fmt(_summary.totalPaid);
+            document.getElementById('pmBalanceDue').textContent  = '₹' + fmt(_summary.balanceDue);
+            document.getElementById('pmExistingPaySection').classList.remove('d-none');
+        }
+
+        // Discount inputs
+        document.querySelectorAll('input[name="pmDiscType"]').forEach(r =>
+            r.addEventListener('change', recalcDiscount));
+        document.getElementById('pmDiscValue').addEventListener('input', recalcDiscount);
+
+        updateNetAmount(_summary.hasExistingPayment ? _summary.balanceDue : _summary.subTotal);
+
+        // Add first payment method row
+        addMethodRow();
+
+        pmForm.classList.remove('d-none');
+        pmFooter.style.removeProperty('display');
+    }
+
+    function infoBox(label, val, bg, cls) {
+        return `<div class="border rounded px-3 py-2 text-center" style="min-width:108px;background:${bg}">
+            <div class="text-muted fw-bold" style="font-size:.62rem;letter-spacing:.07em;text-transform:uppercase">${label}</div>
+            <div class="fw-bold font-monospace ${cls}" style="font-size:.95rem">${esc(val??'—')}</div>
+        </div>`;
+    }
+
+    // ─── Discount recalc ──────────────────────────────────────────────────────
+    function recalcDiscount() {
+        const type  = document.querySelector('input[name="pmDiscType"]:checked')?.value;
+        const discSym = document.getElementById('pmDiscSymbol');
+        if (discSym) discSym.textContent = type === 'F' ? '₹' : '%';
+
+        const raw   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
+        const base  = _summary.hasExistingPayment ? _summary.balanceDue : _summary.subTotal;
+        let discAmt = 0;
+        if (type === 'P') discAmt = Math.min(base, base * raw / 100);
+        else if (type === 'F') discAmt = Math.min(base, raw);
+        document.getElementById('pmDiscAmt').textContent = '₹' + fmt(discAmt);
+        const net = Math.max(0, base - discAmt);
+        updateNetAmount(net);
+    }
+
+    function updateNetAmount(net) {
+        document.getElementById('pmNetAmount').textContent = '₹' + fmt(net);
+        // If only one payment row exists, always sync its amount to the net payable
+        var allAmtFields = document.querySelectorAll('.pm-paid-amount');
+        if (allAmtFields.length === 1) {
+            allAmtFields[0].value = fmt(net);
+        }
+        recalcTotal();
+    }
+
+    function getNetAmount() {
+        return parseFloat(document.getElementById('pmNetAmount').textContent.replace('₹','')) || 0;
+    }
+
+    // ─── Payment method rows ──────────────────────────────────────────────────
+    function addMethodRow() {
+        const idx = _rowIdx++;
+        const container = document.getElementById('pmMethodRows');
+        const div = document.createElement('div');
+        div.className = 'border rounded p-3 mb-2 pm-method-row';
+        div.dataset.idx = idx;
+
+        // Build options
+        const opts = _methods.map(m =>
+            `<option value="${m.paymentMethodId}" data-code="${esc(m.methodCode)}"
+              data-ref="${m.requiresRef?1:0}"
+              data-cheque="${m.requiresChequeNo?1:0}"
+              data-bank="${m.requiresBankName?1:0}"
+              data-upi="${m.requiresUPIRef?1:0}"
+              data-card="${m.requiresCardLast4?1:0}">${esc(m.methodName)}</option>`
+        ).join('');
+
+        div.innerHTML = `
+          <div class="row g-2 align-items-start">
+            <div class="col-12 col-sm-4">
+              <label class="form-label small fw-semibold mb-1 text-muted text-uppercase" style="font-size:.7rem">Payment Method</label>
+              <select class="form-select form-select-sm pm-method-select" data-idx="${idx}">
+                <option value="">— Select —</option>${opts}
+              </select>
+            </div>
+            <div class="col-6 col-sm-4">
+              <label class="form-label small fw-semibold mb-1 text-muted text-uppercase" style="font-size:.7rem">Amount (₹)</label>
+              <input type="number" class="form-control form-control-sm pm-paid-amount font-monospace"
+                     min="0" step="0.01" placeholder="0.00" data-idx="${idx}" />
+            </div>
+            <div class="col-6 col-sm-4 d-flex align-items-end pb-1 gap-1 flex-wrap pm-extra-fields" data-idx="${idx}">
+              ${idx > 0 ? `<button type="button" class="btn btn-sm btn-outline-danger ms-auto mt-1 pm-remove-row" data-idx="${idx}"><i class="bi bi-trash3"></i></button>` : ''}
+            </div>
+          </div>
+          <div class="row g-2 mt-1 pm-cond-fields" data-idx="${idx}" style="display:none"></div>`;
+
+        container.appendChild(div);
+
+        div.querySelector(`.pm-method-select`).addEventListener('change', function () {
+            renderConditionalFields(this, idx);
+        });
+        div.querySelector('.pm-paid-amount')?.addEventListener('input', recalcTotal);
+        div.querySelector('.pm-remove-row')?.addEventListener('click', function () {
+            div.remove();
+            // If only one row remains after removal, sync it to the full net amount
+            var remaining = document.querySelectorAll('.pm-paid-amount');
+            if (remaining.length === 1) remaining[0].value = fmt(getNetAmount());
+            recalcTotal();
+        });
+
+        // Auto-fill: first row gets full net; subsequent rows get what's still unpaid
+        var net = getNetAmount();
+        var othersFilled = [...document.querySelectorAll('.pm-paid-amount')]
+            .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
+        div.querySelector('.pm-paid-amount').value = fmt(Math.max(0, net - othersFilled));
+    }
+
+    function renderConditionalFields(select, idx) {
+        const opt = select.options[select.selectedIndex];
+        const condRow = document.querySelector(`.pm-cond-fields[data-idx="${idx}"]`);
+        if (!condRow) return;
+        condRow.innerHTML = '';
+        const needRef   = opt.dataset.ref   === '1';
+        const needCheq  = opt.dataset.cheque === '1';
+        const needBank  = opt.dataset.bank   === '1';
+        const needUpi   = opt.dataset.upi    === '1';
+        const needCard  = opt.dataset.card   === '1';
+
+        if (needUpi)   condRow.appendChild(field(idx, 'upiRefNo', 'UPI UTR / VPA', 'text'));
+        if (needCard)  condRow.appendChild(field(idx, 'cardLast4', 'Card Last 4', 'text', 4));
+        if (needRef)   condRow.appendChild(field(idx, 'transactionRef', 'Transaction Ref', 'text'));
+        if (needCheq)  condRow.appendChild(field(idx, 'chequeNo', 'Cheque No', 'text'));
+        if (needBank)  condRow.appendChild(field(idx, 'bankName', 'Bank Name', 'text'));
+
+        const hasAny = needRef || needCheq || needBank || needUpi || needCard;
+        condRow.style.display = hasAny ? '' : 'none';
+    }
+
+    function field(idx, name, label, type, maxLen) {
+        const col = document.createElement('div');
+        col.className = 'col-6 col-sm-4';
+        col.innerHTML = `<label class="form-label small fw-semibold mb-1 text-muted text-uppercase" style="font-size:.7rem">${label}</label>
+          <input type="${type}" class="form-control form-control-sm pm-cond-input"
+                 data-idx="${idx}" data-field="${name}" placeholder="${label}"
+                 ${maxLen ? `maxlength="${maxLen}"` : ''} />`;
+        return col;
+    }
+
+    function recalcTotal() {
+        const total = [...document.querySelectorAll('.pm-paid-amount')]
+            .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
+        document.getElementById('pmEnteringTotal').textContent = '₹' + fmt(total);
+    }
+
+    // ─── Save ─────────────────────────────────────────────────────────────────
+    async function savePayment() {
+        const btn = document.getElementById('btnSavePayment');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+
+        try {
+            const discType  = document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null;
+            const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
+            const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace('₹','')) || 0;
+            const net       = getNetAmount();
+
+            const payments = [];
+            document.querySelectorAll('.pm-method-row').forEach(row => {
+                const idx    = parseInt(row.dataset.idx);
+                const sel    = row.querySelector('.pm-method-select');
+                const amt    = parseFloat(row.querySelector('.pm-paid-amount')?.value) || 0;
+                const mId    = parseInt(sel?.value) || 0;
+                if (!mId || amt <= 0) return;
+
+                const extra = {};
+                row.querySelectorAll('.pm-cond-input').forEach(inp => {
+                    extra[inp.dataset.field] = inp.value || null;
+                });
+                payments.push({ paymentMethodId: mId, paidAmount: amt, ...extra });
+            });
+
+            if (!payments.length) {
+                showError('Please enter at least one payment method and amount.');
+                return;
+            }
+
+            const lineItems = (_summary.items ?? []).map(item => ({
+                moduleLineRefId:  item.lineRefId,
+                itemDescription:  item.itemName,
+                serviceType:      item.serviceType,
+                originalAmount:   item.originalAmount,
+                lineDiscountType:   null,
+                lineDiscountValue:  0,
+                lineDiscountAmount: 0,
+                netLineAmount:      item.originalAmount
+            }));
+
+            const payload = {
+                moduleCode:           _moduleCode,
+                moduleRefId:          _summary.moduleRefId,
+                opdServiceId:         _summary.opdServiceId,
+                patientId:            _summary.patientId,
+                branchId:             _summary.branchId,
+                subTotal:             _summary.subTotal,
+                headerDiscountType:   discType,
+                headerDiscountValue:  discVal,
+                headerDiscountAmount: discAmt,
+                netAmount:            net,
+                payments,
+                lineItems
+            };
+
+            const res  = await fetch('/OPD/SavePayment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (!data.success) {
+                showError(data.error || 'Failed to save payment.');
+                return;
+            }
+
+            pmModal.hide();
+            if (typeof _onSuccess === 'function') {
+                _onSuccess();
+            } else {
+                var sm = document.getElementById(_successModal);
+                if (sm) new bootstrap.Modal(sm).show();
+            }
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Save Payment';
+        }
+    }
+
+    function showError(msg) {
+        pmError.textContent = msg;
+        pmError.classList.remove('d-none');
+        setTimeout(() => pmError.classList.add('d-none'), 4000);
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+    function fmt(n)  { return (parseFloat(n) || 0).toFixed(2); }
+    function esc(s)  { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // ─── Public API ─────────────────────────────────────────────────────────────
+    // Trigger this payment modal for any OPD service from other JS contexts
+    window.pmOpenFor = function (svcId, onSuccessCb) {
+        _summary = null; _methods = []; _rowIdx = 0;
+        _moduleRefId = svcId;
+        _onSuccess   = onSuccessCb || null;
+        pmLoader.classList.remove('d-none');
+        pmError.classList.add('d-none');
+        pmForm.classList.add('d-none');
+        pmFooter.style.display = 'none';
+        document.getElementById('pmMethodRows').innerHTML = '';
+        document.getElementById('pmDiscValue').value = '';
+        document.getElementById('pmDiscAmt').textContent = '\u20b90.00';
+        document.querySelectorAll('input[name="pmDiscType"]').forEach(function (r) { r.checked = r.value === 'P'; });
+        fetchData();
+        pmModal.show();
+    };
+})();
+}); // DOMContentLoaded
+</script>

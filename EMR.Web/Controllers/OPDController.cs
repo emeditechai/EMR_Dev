@@ -21,6 +21,7 @@ public class OPDController(
     ICityService cityService,
     IAreaService areaService,
     IAuditLogService auditLogService,
+    IPaymentService paymentService,
     ApplicationDbContext dbContext,
     IWebHostEnvironment env) : Controller
 {
@@ -284,7 +285,8 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(phone) || phone.Length < 3)
             return Json(Array.Empty<object>());
-        var results = await patientService.SearchByPhoneAsync(phone.Trim());
+        var branchId = User.GetCurrentBranchId();
+        var results = await patientService.SearchByPhoneAsync(phone.Trim(), branchId);
         return Json(results);
     }
 
@@ -293,7 +295,8 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(code) || code.Length < 2)
             return Json(Array.Empty<object>());
-        var results = await patientService.SearchByCodeAsync(code.Trim());
+        var branchId = User.GetCurrentBranchId();
+        var results = await patientService.SearchByCodeAsync(code.Trim(), branchId);
         return Json(results);
     }
 
@@ -431,8 +434,11 @@ public class OPDController(
             ? await dbContext.BranchMasters.FindAsync(branchId.Value)
             : null;
 
+        var payment = await paymentService.GetPaymentForBillAsync("OPD", id);
+
         ViewBag.Settings   = settings;
         ViewBag.BranchName = branch?.BranchName ?? string.Empty;
+        ViewBag.Payment    = payment;
         return View(detail);
     }
 
@@ -591,5 +597,34 @@ public class OPDController(
     {
         m.OPDServiceId       = svc.OPDServiceId;
         m.ConsultingDoctorId = svc.ConsultingDoctorId;
+    }
+
+    // ─── Payment endpoints ────────────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> GetPaymentMethods()
+    {
+        var methods = await paymentService.GetActiveMethodsAsync();
+        return Json(methods);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPaymentSummary(string moduleCode, int moduleRefId)
+    {
+        var summary = await paymentService.GetPaymentSummaryAsync(moduleCode, moduleRefId);
+        if (summary is null)
+            return Json(new { success = false, error = "Bill not found." });
+        return Json(new { success = true, data = summary });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SavePayment([FromBody] SavePaymentRequest request)
+    {
+        if (!ModelState.IsValid)
+            return Json(new SavePaymentResult { Success = false, Error = "Invalid request." });
+
+        var userId = User.GetUserId();
+        var result = await paymentService.SavePaymentAsync(request, userId);
+        return Json(result);
     }
 }

@@ -613,14 +613,25 @@
     </div>
 </div>
 
+@* ══ PAYMENT MODAL (opens before success modal when OPD service was created) ══ *@
+@if (registered && Model.NewOPDServiceId.HasValue && Model.NewOPDServiceId.Value > 0)
+{
+    ViewData["PaymentModuleCode"]     = "OPD";
+    ViewData["PaymentModuleRefId"]    = Model.NewOPDServiceId.Value;
+    ViewData["PaymentSuccessModalId"] = "registrationSuccessModal";
+    <partial name="_PaymentModal" />
+}
+
 @* ══════════════════════════════════════════════════════════════
    SUCCESS MODAL  (shown after save)
 ══════════════════════════════════════════════════════════════ *@
 <div class="modal fade" id="registrationSuccessModal" tabindex="-1"
-     data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+     data-bs-backdrop="static" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
         <div class="modal-content border-0 shadow-lg">
-            <div class="modal-body text-center py-5 px-4">
+            <div class="modal-body text-center py-5 px-4 position-relative">
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-3"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
                 <div id="successIconWrap" class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
                      style="width:72px;height:72px;background:@(isBooking ? "#0d6efd" : "#198754")">
                     <i id="successIcon" class="@(isBooking ? "bi bi-calendar2-check-fill" : "bi bi-check-lg") text-white fs-1"></i>
@@ -745,7 +756,11 @@
             document.getElementById('successPatientName').textContent  = '@newName';
             @if (!string.IsNullOrEmpty(Model.TokenNo))   { <text>document.getElementById('successTokenNo').textContent = '@Model.TokenNo';</text> }
             @if (!string.IsNullOrEmpty(Model.OPDBillNo)) { <text>document.getElementById('successBillNo').textContent  = '@Model.OPDBillNo';</text> }
-            new bootstrap.Modal(document.getElementById('registrationSuccessModal')).show();
+            @* When NewOPDServiceId > 0 the payment modal handles showing the success modal. *@
+            @if (!(Model.NewOPDServiceId.HasValue && Model.NewOPDServiceId.Value > 0))
+            {
+                <text>new bootstrap.Modal(document.getElementById('registrationSuccessModal')).show();</text>
+            }
             </text>
         }
 

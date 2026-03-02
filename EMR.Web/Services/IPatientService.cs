@@ -15,10 +15,10 @@ public interface IPatientService
     Task<PatientMaster?> GetByIdAsync(int patientId);
 
     /// <summary>Quick search by phone number – returns matching patients for popup.</summary>
-    Task<IEnumerable<PatientQuickSearchResult>> SearchByPhoneAsync(string phone);
+    Task<IEnumerable<PatientQuickSearchResult>> SearchByPhoneAsync(string phone, int? branchId = null);
 
     /// <summary>Quick search by patient code.</summary>
-    Task<IEnumerable<PatientQuickSearchResult>> SearchByCodeAsync(string code);
+    Task<IEnumerable<PatientQuickSearchResult>> SearchByCodeAsync(string code, int? branchId = null);
 
     /// <summary>
     /// Creates a new patient + OPD bill with line items.

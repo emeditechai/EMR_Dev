@@ -73,7 +73,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Quick Search ─────────────────────────────────────────────────────────
 
-    public async Task<IEnumerable<PatientQuickSearchResult>> SearchByPhoneAsync(string phone)
+    public async Task<IEnumerable<PatientQuickSearchResult>> SearchByPhoneAsync(string phone, int? branchId = null)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<PatientQuickSearchResult>(@"
@@ -93,12 +93,13 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.DateOfBirth
             FROM PatientMaster p
             WHERE p.IsActive = 1
+              AND (@BranchId IS NULL OR p.BranchId = @BranchId)
               AND (p.PhoneNumber LIKE @Phone OR p.SecondaryPhoneNumber LIKE @Phone)
             ORDER BY p.CreatedDate DESC",
-            new { Phone = "%" + phone + "%" });
+            new { Phone = "%" + phone + "%", BranchId = branchId });
     }
 
-    public async Task<IEnumerable<PatientQuickSearchResult>> SearchByCodeAsync(string code)
+    public async Task<IEnumerable<PatientQuickSearchResult>> SearchByCodeAsync(string code, int? branchId = null)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<PatientQuickSearchResult>(@"
@@ -118,9 +119,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.DateOfBirth
             FROM PatientMaster p
             WHERE p.IsActive = 1
+              AND (@BranchId IS NULL OR p.BranchId = @BranchId)
               AND p.PatientCode LIKE @Code
             ORDER BY p.PatientCode",
-            new { Code = "%" + code + "%" });
+            new { Code = "%" + code + "%", BranchId = branchId });
     }
 
     // ─── Create ───────────────────────────────────────────────────────────────

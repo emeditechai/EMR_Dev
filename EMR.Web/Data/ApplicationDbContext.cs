@@ -22,6 +22,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PatientOPDService> PatientOPDServices => Set<PatientOPDService>();
     public DbSet<PatientOPDServiceItem> PatientOPDServiceItems => Set<PatientOPDServiceItem>();
 
+    // Payment
+    public DbSet<PaymentMethodMaster> PaymentMethodMasters => Set<PaymentMethodMaster>();
+    public DbSet<PaymentHeader> PaymentHeaders => Set<PaymentHeader>();
+    public DbSet<PaymentLineItem> PaymentLineItems => Set<PaymentLineItem>();
+    public DbSet<PaymentDetail> PaymentDetails => Set<PaymentDetail>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -152,6 +158,56 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                   .WithMany(x => x.Items)
                   .HasForeignKey(x => x.OPDServiceId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Payment ──────────────────────────────────────────────────────────
+
+        modelBuilder.Entity<PaymentMethodMaster>(entity =>
+        {
+            entity.ToTable("PaymentMethodMaster");
+            entity.HasKey(x => x.PaymentMethodId);
+        });
+
+        modelBuilder.Entity<PaymentHeader>(entity =>
+        {
+            entity.ToTable("PaymentHeader");
+            entity.HasKey(x => x.PaymentHeaderId);
+            entity.Property(x => x.PaymentStatus).HasMaxLength(1);
+            entity.Property(x => x.HeaderDiscountType).HasMaxLength(1);
+            entity.HasIndex(x => new { x.ModuleCode, x.ModuleRefId });
+            entity.HasIndex(x => x.OPDServiceId);
+            entity.HasOne(x => x.OPDService)
+                  .WithMany()
+                  .HasForeignKey(x => x.OPDServiceId)
+                  .OnDelete(DeleteBehavior.Restrict)
+                  .IsRequired(false);
+            entity.HasMany(x => x.LineItems)
+                  .WithOne(x => x.Header)
+                  .HasForeignKey(x => x.PaymentHeaderId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Details)
+                  .WithOne(x => x.Header)
+                  .HasForeignKey(x => x.PaymentHeaderId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PaymentLineItem>(entity =>
+        {
+            entity.ToTable("PaymentLineItem");
+            entity.HasKey(x => x.PaymentLineItemId);
+            entity.Property(x => x.LineDiscountType).HasMaxLength(1);
+            entity.HasIndex(x => x.PaymentHeaderId);
+        });
+
+        modelBuilder.Entity<PaymentDetail>(entity =>
+        {
+            entity.ToTable("PaymentDetail");
+            entity.HasKey(x => x.PaymentDetailId);
+            entity.HasIndex(x => x.PaymentHeaderId);
+            entity.HasOne(x => x.Method)
+                  .WithMany()
+                  .HasForeignKey(x => x.PaymentMethodId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

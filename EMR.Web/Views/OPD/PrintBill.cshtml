@@ -1,8 +1,10 @@
 @model EMR.Web.Models.ViewModels.ServiceBookingDetailViewModel
+@using EMR.Web.Models.ViewModels
 @{
     Layout = null;
     var settings   = ViewBag.Settings   as EMR.Web.Models.Entities.HospitalSettings;
     var branchName = ViewBag.BranchName as string;
+    var payment    = ViewBag.Payment    as BillPaymentSummary;
 
     var hospName    = settings?.HospitalName  ?? branchName ?? "Hospital";
     var hospAddress = settings?.Address       ?? string.Empty;
@@ -15,7 +17,12 @@
 
     var ageStr = Model.Age.HasValue ? Model.Age.Value + " Yrs" : "—";
     var visitDate = Model.VisitDate.ToString("dd MMM yyyy, hh:mm tt");
-    decimal subTotal = Model.Items.Sum(i => i.ServiceCharges);
+    decimal subTotal    = Model.Items.Sum(i => i.ServiceCharges);
+    decimal discountAmt = payment?.DiscountAmount ?? 0;
+    decimal netAmount   = payment?.NetAmount ?? subTotal;
+    decimal totalPaid   = payment?.TotalPaid ?? 0;
+    decimal balanceDue  = payment?.BalanceDue ?? subTotal;
+    string  payStatus   = payment?.PaymentStatus ?? "U";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -212,6 +219,40 @@
         .fin-total-label { font-size: .8rem; color: #6c757d; font-weight: 600; }
         .fin-total-value { font-size: 1.4rem; font-weight: 800; color: #16a34a; }
 
+        /* Payment status badge */
+        .pay-status-badge {
+            display: inline-block;
+            font-size: .72rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+        .pay-status-badge.paid     { background: #d1fae5; color: #065f46; }
+        .pay-status-badge.partial  { background: #fef9c3; color: #854d0e; }
+        .pay-status-badge.unpaid   { background: #fee2e2; color: #991b1b; }
+
+        /* Payment table */
+        .pay-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+        .pay-table thead th {
+            background: #6366f1;
+            color: #fff;
+            padding: 5px 10px;
+            font-weight: 600;
+            font-size: .7rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .pay-table tbody td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; }
+        .pay-table tbody tr:last-child td { border-bottom: none; }
+        .pay-table tfoot td {
+            padding: 6px 10px;
+            font-weight: 700;
+            border-top: 2px solid #dee2e6;
+            background: #f8f9fa;
+        }
+
         /* Footer */
         .bill-footer {
             margin-top: 24px;
@@ -382,6 +423,7 @@
         <div class="bill-section mb-3">
             <div class="bill-section-head"><i class="bi bi-cash-stack me-1"></i>Financial Summary</div>
             <div class="bill-section-body">
+                @* Summary boxes *@
                 <div class="row g-2 mb-3">
                     <div class="col-4">
                         <div class="p-2 border rounded text-center">
@@ -392,23 +434,139 @@
                     <div class="col-4">
                         <div class="p-2 border rounded text-center">
                             <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Discount</div>
-                            <div style="font-size:1rem;font-weight:700">—</div>
+                            @if (payment != null && discountAmt > 0)
+                            {
+                                var discLabel = payment.DiscountType == "P"
+                                    ? $"{payment.DiscountValue:0.##}%"
+                                    : payment.DiscountType == "F"
+                                        ? $"₹{payment.DiscountValue:N2} flat"
+                                        : "—";
+                                <div style="font-size:1rem;font-weight:700;color:#16a34a">₹@discountAmt.ToString("N2")</div>
+                                <div style="font-size:.7rem;color:#6c757d">@discLabel</div>
+                            }
+                            else
+                            {
+                                <div style="font-size:1rem;font-weight:700">—</div>
+                            }
                         </div>
                     </div>
                     <div class="col-4">
                         <div class="p-2 border rounded text-center">
-                            <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Tax (GST)</div>
-                            <div style="font-size:1rem;font-weight:700">—</div>
+                            <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Net Payable</div>
+                            <div style="font-size:1rem;font-weight:700;color:#0d6efd">₹@netAmount.ToString("N2")</div>
                         </div>
                     </div>
                 </div>
-                <div class="fin-total-box">
-                    <div>
-                        <div class="fin-total-label">NET AMOUNT PAYABLE</div>
-                        <div style="font-size:.72rem;color:#adb5bd">(Discount &amp; Tax module coming soon)</div>
+
+                @* Payment status banner *@
+                @if (payment != null)
+                {
+                    var (statusLabel, statusCls, statusIcon) = payStatus switch {
+                        "P" => ("Fully Paid",     "paid",    "check2-circle"),
+                        "R" => ("Partial Payment", "partial", "clock-history"),
+                        _   => ("Unpaid",          "unpaid",  "exclamation-circle")
+                    };
+
+                    @* Payment methods table *@
+                    if (payment.Rows.Any())
+                    {
+                        <div class="mb-3">
+                            <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:6px">
+                                <i class="bi bi-credit-card me-1"></i>Payment Details
+                                @if (payment.PaidOn.HasValue)
+                                {
+                                    <span class="text-muted fw-normal ms-2" style="font-size:.68rem">· Paid on @payment.PaidOn.Value.ToString("dd MMM yyyy, hh:mm tt")</span>
+                                }
+                            </div>
+                            <table class="pay-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Payment Method</th>
+                                        <th class="text-end">Amount Paid (₹)</th>
+                                        <th>Reference / Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{ int pRow = 0; }
+                                    @foreach (var row in payment.Rows)
+                                    {
+                                        pRow++;
+                                        // Build reference string
+                                        var refParts = new List<string>();
+                                        if (!string.IsNullOrWhiteSpace(row.UPIRefNo))     refParts.Add($"UPI: {row.UPIRefNo}");
+                                        if (!string.IsNullOrWhiteSpace(row.TransactionRef)) refParts.Add($"Ref: {row.TransactionRef}");
+                                        if (!string.IsNullOrWhiteSpace(row.ChequeNo))     refParts.Add($"Cheque: {row.ChequeNo}");
+                                        if (!string.IsNullOrWhiteSpace(row.BankName))     refParts.Add($"Bank: {row.BankName}");
+                                        if (!string.IsNullOrWhiteSpace(row.CardLast4))    refParts.Add($"Card: ****{row.CardLast4}");
+                                        var refStr = refParts.Any() ? string.Join(" · ", refParts) : "—";
+                                        <tr>
+                                            <td class="text-muted">@pRow</td>
+                                            <td><strong>@row.MethodName</strong></td>
+                                            <td class="text-end fw-bold font-monospace">₹@row.PaidAmount.ToString("N2")</td>
+                                            <td class="text-muted" style="font-size:.78rem">@refStr</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="2" class="text-end">Total Paid</td>
+                                        <td class="text-end font-monospace text-success">₹@totalPaid.ToString("N2")</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+
+                    @* Net amount payable box *@
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <div class="fin-total-box">
+                                <div>
+                                    <div class="fin-total-label">NET AMOUNT PAYABLE</div>
+                                </div>
+                                <div class="fin-total-value">₹@netAmount.ToString("N2")</div>
+                            </div>
+                        </div>
+                        @if (payStatus == "R")
+                        {
+                            <div class="col-3">
+                                <div class="p-2 border rounded text-center h-100 d-flex flex-column justify-content-center" style="background:#fef9c3">
+                                    <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Total Paid</div>
+                                    <div style="font-size:1rem;font-weight:700;color:#b45309">₹@totalPaid.ToString("N2")</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="p-2 border rounded text-center h-100 d-flex flex-column justify-content-center" style="background:#fee2e2">
+                                    <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Balance Due</div>
+                                    <div style="font-size:1rem;font-weight:700;color:#991b1b">₹@balanceDue.ToString("N2")</div>
+                                </div>
+                            </div>
+                        }
                     </div>
-                    <div class="fin-total-value">₹@subTotal.ToString("N2")</div>
-                </div>
+
+                    @* Status badge *@
+                    <div class="text-end">
+                        <span class="pay-status-badge @statusCls">
+                            <i class="bi bi-@statusIcon me-1"></i>@statusLabel
+                        </span>
+                    </div>
+                }
+                else
+                {
+                    @* No payment recorded yet *@
+                    <div class="fin-total-box">
+                        <div>
+                            <div class="fin-total-label">NET AMOUNT PAYABLE</div>
+                            <div style="font-size:.72rem;color:#adb5bd">Payment not yet recorded</div>
+                        </div>
+                        <div class="fin-total-value">₹@subTotal.ToString("N2")</div>
+                    </div>
+                    <div class="text-end mt-2">
+                        <span class="pay-status-badge unpaid"><i class="bi bi-exclamation-circle me-1"></i>Unpaid</span>
+                    </div>
+                }
             </div>
         </div>
 
