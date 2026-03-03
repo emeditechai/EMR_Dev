@@ -33,8 +33,13 @@ body {
 }
 
 .emr-brand span {
-  color: #FFD600;
+  /* color handled by .brand-* classes */
 }
+
+/* eClinicPlus+ brand colours */
+.brand-eclinic  { color: #1a6efd; }   /* Blue   */
+.brand-plus     { color: #f59e0b; }   /* Yellow */
+.brand-plussign { color: #ec4899; }   /* Pink   */
 
 .emr-main-menu .nav-link {
   color: rgba(255, 255, 255, 0.85);
@@ -480,7 +485,7 @@ body {
 }
 
 .auth-left-title span {
-  color: #FFD600;
+  /* color handled by .brand-* classes */
 }
 
 .auth-left-sub {
@@ -840,7 +845,7 @@ body {
 }
 
 .emr-footer-brand span {
-  color: #FFD600;
+  /* color handled by .brand-* classes */
 }
 
 .emr-footer-copy {
