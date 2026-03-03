@@ -46,6 +46,9 @@ public class PatientMaster
     public int? CityId { get; set; }
     public int? AreaId { get; set; }
 
+    [MaxLength(500)]
+    public string? Address { get; set; }
+
     public int? IdentificationTypeId { get; set; }
 
     [MaxLength(100)]

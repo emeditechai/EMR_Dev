@@ -20,6 +20,9 @@ public interface IPatientService
     /// <summary>Quick search by patient code.</summary>
     Task<IEnumerable<PatientQuickSearchResult>> SearchByCodeAsync(string code, int? branchId = null);
 
+    /// <summary>Quick search by patient name (first/last/full).</summary>
+    Task<IEnumerable<PatientQuickSearchResult>> SearchByNameAsync(string name, int? branchId = null);
+
     /// <summary>
     /// Creates a new patient + OPD bill with line items.
     /// Returns (PatientCode, OPDBillNo, TokenNo, NewPatientId, NewOPDServiceId).

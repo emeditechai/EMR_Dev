@@ -27,7 +27,7 @@
                 {
                     <ul class="navbar-nav me-auto mb-2 mb-xl-0 emr-main-menu">
                         <li class="nav-item">
-                            <a class="nav-link" asp-controller="Dashboard" asp-action="Index"><i class="bi bi-house-fill me-2"></i>Dashboard</a>
+                            <a class="nav-link" asp-controller="Dashboard" asp-action="Index"><i class="bi bi-house-fill me-1"></i>Home</a>
                         </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="opdMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -147,6 +147,18 @@
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="PatientReport"><i class="bi bi-person-lines-fill me-2"></i>Patient Report</a></li>
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="BillingReport"><i class="bi bi-receipt me-2"></i>Billing Report</a></li>
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="PharmacyReport"><i class="bi bi-capsule me-2"></i>Pharmacy Report</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="communicationMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-chat-dots-fill me-2"></i>Communication
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="communicationMenu">
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-envelope-fill me-2"></i>Send Email</a></li>
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-phone-fill me-2"></i>Send SMS</a></li>
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-whatsapp me-2"></i>WhatsApp</a></li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-bell-fill me-2"></i>Notifications</a></li>
                             </ul>
                         </li>
                     </ul>

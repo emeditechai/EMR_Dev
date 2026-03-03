@@ -182,6 +182,7 @@
             <select id="searchType" class="form-select form-select-sm">
                 <option value="phone">Mobile No</option>
                 <option value="code">Patient ID</option>
+                <option value="name">Patient Name</option>
             </select>
         </div>
         <div class="col-12 col-md-6 position-relative">
@@ -223,6 +224,9 @@
                 <div class="col-auto" id="infoEmailWrap" style="display:none"><i class="bi bi-envelope me-1"></i><span id="infoPatientEmail">—</span></div>
                 <div class="col-auto" id="infoDobWrap" style="display:none"><i class="bi bi-calendar-date me-1"></i><span id="infoPatientDob">—</span></div>
                 <div class="col-auto" id="infoGuardianWrap" style="display:none"><i class="bi bi-person-heart me-1"></i><span id="infoPatientGuardian">—</span></div>
+            </div>
+            <div id="infoAddressWrap" style="display:none" class="text-muted small mt-1">
+                <i class="bi bi-geo-alt me-1"></i><span id="infoPatientAddress"></span>
             </div>
         </div>
         <button type="button" class="btn btn-sm btn-outline-danger" id="btnClearPatient">
@@ -461,9 +465,12 @@
             if (searchType.value === 'phone') {
                 searchLabel.textContent = 'Enter Mobile Number';
                 searchIconI.className = 'bi bi-telephone';
-            } else {
+            } else if (searchType.value === 'code') {
                 searchLabel.textContent = 'Enter Patient ID';
                 searchIconI.className = 'bi bi-hash';
+            } else {
+                searchLabel.textContent = 'Enter Patient Name';
+                searchIconI.className = 'bi bi-person';
             }
         });
 
@@ -500,6 +507,7 @@
                         <div class="text-muted" style="font-size:.76rem">
                             <i class="bi bi-telephone me-1"></i>${p.phoneNumber || ''}${meta ? ' &nbsp;·&nbsp; ' + meta : ''}
                         </div>
+                        ${p.address ? `<div class="text-muted" style="font-size:.73rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i class="bi bi-geo-alt me-1"></i>${p.address}</div>` : ''}
                     </div>
                     <i class="bi bi-arrow-return-left text-primary flex-shrink-0" style="font-size:.85rem"></i>
                 </div>`;
@@ -514,7 +522,9 @@
             suggestTimer = setTimeout(async () => {
                 const url = searchType.value === 'phone'
                     ? opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val)
-                    : opdBase + 'SearchPatientByCode?code='  + encodeURIComponent(val);
+                    : searchType.value === 'code'
+                        ? opdBase + 'SearchPatientByCode?code=' + encodeURIComponent(val)
+                        : opdBase + 'SearchPatientByName?name=' + encodeURIComponent(val);
                 const data = await fetchJson(url);
                 renderAutoDropdown(data);
             }, 300);
@@ -540,7 +550,9 @@
             if (!val) return;
             const url = searchType.value === 'phone'
                 ? opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val)
-                : opdBase + 'SearchPatientByCode?code='  + encodeURIComponent(val);
+                : searchType.value === 'code'
+                    ? opdBase + 'SearchPatientByCode?code=' + encodeURIComponent(val)
+                    : opdBase + 'SearchPatientByName?name=' + encodeURIComponent(val);
             await openSearchModal(url);
         });
 
@@ -620,6 +632,13 @@
                 document.getElementById('infoPatientGuardian').textContent = p.guardianName;
                 guardianWrap.style.display = '';
             } else guardianWrap.style.display = 'none';
+
+            // Address
+            const addrWrap = document.getElementById('infoAddressWrap');
+            if (p.address) {
+                document.getElementById('infoPatientAddress').textContent = p.address;
+                addrWrap.style.display = '';
+            } else addrWrap.style.display = 'none';
 
             // Identification section
             const hasId = p.identificationNumber || p.identificationTypeName || p.identificationFilePath;

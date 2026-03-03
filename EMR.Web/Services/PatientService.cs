@@ -90,7 +90,8 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.SecondaryPhoneNumber,
                 p.Gender,
                 p.BloodGroup,
-                p.DateOfBirth
+                p.DateOfBirth,
+                p.Address
             FROM PatientMaster p
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
@@ -116,13 +117,45 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.SecondaryPhoneNumber,
                 p.Gender,
                 p.BloodGroup,
-                p.DateOfBirth
+                p.DateOfBirth,
+                p.Address
             FROM PatientMaster p
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
               AND p.PatientCode LIKE @Code
             ORDER BY p.PatientCode",
             new { Code = "%" + code + "%", BranchId = branchId });
+    }
+
+    public async Task<IEnumerable<PatientQuickSearchResult>> SearchByNameAsync(string name, int? branchId = null)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<PatientQuickSearchResult>(@"
+            SELECT TOP 10
+                p.PatientId,
+                p.PatientCode,
+                LTRIM(RTRIM(
+                    ISNULL(p.Salutation + ' ', '') +
+                    p.FirstName + ' ' +
+                    ISNULL(p.MiddleName + ' ', '') +
+                    p.LastName
+                )) AS FullName,
+                p.PhoneNumber,
+                p.SecondaryPhoneNumber,
+                p.Gender,
+                p.BloodGroup,
+                p.DateOfBirth,
+                p.Address
+            FROM PatientMaster p
+            WHERE p.IsActive = 1
+              AND (@BranchId IS NULL OR p.BranchId = @BranchId)
+              AND (
+                    p.FirstName  LIKE @Name
+                 OR p.LastName   LIKE @Name
+                 OR LTRIM(RTRIM(p.FirstName + ' ' + ISNULL(p.MiddleName + ' ', '') + p.LastName)) LIKE @Name
+              )
+            ORDER BY p.FirstName, p.LastName",
+            new { Name = "%" + name + "%", BranchId = branchId });
     }
 
     // ─── Create ───────────────────────────────────────────────────────────────
@@ -207,6 +240,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@DistrictId",             patient.DistrictId);
         p.Add("@CityId",                 patient.CityId);
         p.Add("@AreaId",                 patient.AreaId);
+        p.Add("@Address",                patient.Address);
         p.Add("@IdentificationTypeId",   patient.IdentificationTypeId);
         p.Add("@IdentificationNumber",   patient.IdentificationNumber);
         p.Add("@IdentificationFilePath", patient.IdentificationFilePath);
@@ -242,6 +276,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 DistrictId             = @DistrictId,
                 CityId                 = @CityId,
                 AreaId                 = @AreaId,
+                Address                = @Address,
                 IdentificationTypeId   = @IdentificationTypeId,
                 IdentificationNumber   = @IdentificationNumber,
                 IdentificationFilePath = @IdentificationFilePath,

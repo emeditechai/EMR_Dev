@@ -301,6 +301,16 @@ public class OPDController(
     }
 
     [HttpGet]
+    public async Task<IActionResult> SearchPatientByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Length < 2)
+            return Json(Array.Empty<object>());
+        var branchId = User.GetCurrentBranchId();
+        var results = await patientService.SearchByNameAsync(name.Trim(), branchId);
+        return Json(results);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> SearchBookingSuggestions(
         string? q, string? fromDate, string? toDate)
     {
@@ -366,6 +376,7 @@ public class OPDController(
             // Raw IDs still needed for form pre-fill
             patient.ReligionId, patient.MaritalStatusId, patient.OccupationId,
             patient.CountryId, patient.StateId, patient.DistrictId, patient.CityId, patient.AreaId,
+            patient.Address,
             // Latest OPD bill header (null-safe) — only doctor needed for pre-fill
             OPDServiceId       = svc?.OPDServiceId ?? 0,
             ConsultingDoctorId = svc?.ConsultingDoctorId
@@ -546,6 +557,7 @@ public class OPDController(
         DistrictId            = m.DistrictId,
         CityId                = m.CityId,
         AreaId                = m.AreaId,
+        Address               = m.Address?.Trim(),
         IdentificationTypeId  = m.IdentificationTypeId,
         IdentificationNumber  = m.IdentificationNumber?.Trim(),
         IdentificationFilePath= m.IdentificationFilePath,
@@ -583,6 +595,7 @@ public class OPDController(
         DistrictId            = p.DistrictId,
         CityId                = p.CityId,
         AreaId                = p.AreaId,
+        Address               = p.Address,
         IdentificationTypeId  = p.IdentificationTypeId,
         IdentificationNumber  = p.IdentificationNumber,
         IdentificationFilePath= p.IdentificationFilePath,

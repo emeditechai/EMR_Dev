@@ -270,11 +270,31 @@
                                 <td class="text-end fw-semibold">₹@b.TotalAmount.ToString("N2")</td>
                                 <td><span class="badge rounded-pill @badgeCls">@b.Status</span></td>
                                 <td class="text-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary"
-                                            onclick="viewBooking(@b.OPDServiceId)"
-                                            title="View Details">
-                                        <i class="bi bi-eye-fill"></i>
-                                    </button>
+                                    <div class="dropdown">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                data-bs-strategy="fixed"
+                                                aria-expanded="false">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                        onclick="viewBooking(@b.OPDServiceId)">
+                                                    <i class="bi bi-eye-fill me-2 text-primary"></i>View
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })"
+                                                   target="_blank">
+                                                    <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -389,10 +409,6 @@
                 <button class="btn btn-info btn-sm fw-semibold text-white" id="btnCollectPayFromModal"
                         style="display:none" onclick="collectPaymentFromModal()">
                     <i class="bi bi-cash-coin me-1"></i><span id="btnCollectPayLabel">Collect Payment</span>
-                </button>
-                <button class="btn btn-success btn-sm" id="btnPrintBillFromModal"
-                        onclick="printBillFromModal()" style="display:none">
-                    <i class="bi bi-printer-fill me-1"></i>Print Bill
                 </button>
             </div>
         </div>

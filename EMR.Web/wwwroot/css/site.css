@@ -26,10 +26,10 @@ body {
 
 .emr-brand {
   color: #ffffff;
-  font-size: 2rem;
+  font-size: 1.65rem;
   font-weight: 800;
   line-height: 1;
-  margin-right: 1rem;
+  margin-right: 0.75rem;
 }
 
 .emr-brand span {
@@ -41,12 +41,18 @@ body {
 .brand-plus     { color: #f59e0b; }   /* Yellow */
 .brand-plussign { color: #ec4899; }   /* Pink   */
 
+.emr-main-menu > li > .nav-link > i {
+  font-size: 0.85rem;
+  margin-right: 0.2rem !important;
+}
+
 .emr-main-menu .nav-link {
   color: rgba(255, 255, 255, 0.85);
   font-weight: 600;
+  font-size: 0.85rem;
   border-radius: 0;
   border-bottom: 3px solid transparent;
-  padding: 0.85rem 0.75rem;
+  padding: 0.8rem 0.45rem;
 }
 
 .emr-main-menu .nav-link:hover,

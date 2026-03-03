@@ -108,6 +108,10 @@ public class PatientRegistrationViewModel
     [Display(Name = "Area")]
     public int? AreaId { get; set; }
 
+    [MaxLength(500)]
+    [Display(Name = "Address")]
+    public string? Address { get; set; }
+
     [Display(Name = "Identification Type")]
     public int? IdentificationTypeId { get; set; }
 
@@ -186,6 +190,7 @@ public class PatientQuickSearchResult
     public string? Gender { get; set; }
     public string? BloodGroup { get; set; }
     public DateTime? DateOfBirth { get; set; }
+    public string? Address { get; set; }
     /// <summary>Computed from DateOfBirth.</summary>
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)

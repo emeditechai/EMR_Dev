@@ -14,13 +14,6 @@
                     <span class="dashboard-hero-pill">@Model.CurrentBranchName</span>
                 </div>
             </div>
-            <div class="dashboard-hero-brand">
-                @if (!string.IsNullOrWhiteSpace(Model.HospitalLogoPath))
-                {
-                    <img src="@Model.HospitalLogoPath" alt="Hospital Logo" class="dashboard-hero-logo" />
-                }
-                <div class="dashboard-hero-hospital">@Model.CurrentHospitalName</div>
-            </div>
         </div>
     </div>
 
