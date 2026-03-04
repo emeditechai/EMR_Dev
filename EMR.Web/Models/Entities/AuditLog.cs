@@ -34,5 +34,5 @@ public class AuditLog
     [MaxLength(2000)]
     public string? Description { get; set; }
 
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
 }

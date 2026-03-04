@@ -110,12 +110,12 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
             UserId = model.UserId,
             RoleId = roleId,
             IsActive = true,
-            AssignedDate = DateTime.UtcNow,
+            AssignedDate = DateTime.Now,
             AssignedBy = User.GetUserId(),
             CreatedBy = User.GetUserId(),
-            CreatedDate = DateTime.UtcNow,
+            CreatedDate = DateTime.Now,
             ModifiedBy = User.GetUserId(),
-            ModifiedDate = DateTime.UtcNow,
+            ModifiedDate = DateTime.Now,
         });
 
         dbContext.UserRoles.AddRange(newMappings);

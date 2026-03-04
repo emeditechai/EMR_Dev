@@ -21,7 +21,7 @@ BEGIN
         RequiresCardLast4 BIT           NOT NULL DEFAULT 0,
         DisplayOrder      INT           NOT NULL DEFAULT 0,
         IsActive          BIT           NOT NULL DEFAULT 1,
-        CreatedDate       DATETIME      NOT NULL DEFAULT GETUTCDATE()
+        CreatedDate       DATETIME      NOT NULL DEFAULT GETDATE()
     );
 END;
 GO
@@ -100,7 +100,7 @@ BEGIN
         PaymentStatus        CHAR(1)        NOT NULL DEFAULT 'U',
         Notes                NVARCHAR(500)  NULL,
 
-        CreatedDate          DATETIME       NOT NULL DEFAULT GETUTCDATE(),
+        CreatedDate          DATETIME       NOT NULL DEFAULT GETDATE(),
         CreatedBy            INT            NULL,
         LastModifiedDate     DATETIME       NULL,
         LastModifiedBy       INT            NULL,
@@ -144,7 +144,7 @@ BEGIN
         LineDiscountAmount DECIMAL(10,2) NOT NULL DEFAULT 0, -- computed Rs discount
         NetLineAmount     DECIMAL(10,2)  NOT NULL DEFAULT 0, -- OriginalAmount - LineDiscountAmount
 
-        CreatedDate       DATETIME       NOT NULL DEFAULT GETUTCDATE(),
+        CreatedDate       DATETIME       NOT NULL DEFAULT GETDATE(),
         CreatedBy         INT            NULL,
         IsActive          BIT            NOT NULL DEFAULT 1,
 
@@ -173,10 +173,10 @@ BEGIN
         UPIRefNo         NVARCHAR(100)  NULL,    -- UPI UTR or VPA
         CardLast4        CHAR(4)        NULL,
 
-        PaymentDate      DATETIME       NOT NULL DEFAULT GETUTCDATE(),
+        PaymentDate      DATETIME       NOT NULL DEFAULT GETDATE(),
         Notes            NVARCHAR(300)  NULL,
 
-        CreatedDate      DATETIME       NOT NULL DEFAULT GETUTCDATE(),
+        CreatedDate      DATETIME       NOT NULL DEFAULT GETDATE(),
         CreatedBy        INT            NULL,
         IsActive         BIT            NOT NULL DEFAULT 1,
 

@@ -146,7 +146,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                          @SubTotal, @LineDiscountTotal,
                          @HeaderDiscountType, @HeaderDiscountValue, @HeaderDiscountAmount,
                          @NetAmount, 0, @NetAmount, 'U',
-                         @Notes, GETUTCDATE(), @CreatedBy, 1);
+                         @Notes, GETDATE(), @CreatedBy, 1);
                     SELECT SCOPE_IDENTITY();",
                     new
                     {
@@ -176,7 +176,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         VALUES
                             (@PaymentHeaderId, @ModuleLineRefId, @ItemDescription, @ServiceType,
                              @OriginalAmount, @LineDiscountType, @LineDiscountValue,
-                             @LineDiscountAmount, @NetLineAmount, GETUTCDATE(), @CreatedBy, 1)",
+                             @LineDiscountAmount, @NetLineAmount, GETDATE(), @CreatedBy, 1)",
                         new
                         {
                             PaymentHeaderId = paymentHeaderId,
@@ -204,7 +204,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     VALUES
                         (@PaymentHeaderId, @PaymentMethodId, @PaidAmount,
                          @TransactionRef, @ChequeNo, @BankName, @UPIRefNo, @CardLast4,
-                         GETUTCDATE(), @Notes, GETUTCDATE(), @CreatedBy, 1)",
+                         GETDATE(), @Notes, GETDATE(), @CreatedBy, 1)",
                     new
                     {
                         PaymentHeaderId = paymentHeaderId,
@@ -242,7 +242,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 SET    TotalPaid        = @TotalPaid,
                        BalanceDue       = @BalanceDue,
                        PaymentStatus    = @PaymentStatus,
-                       LastModifiedDate = GETUTCDATE(),
+                       LastModifiedDate = GETDATE(),
                        LastModifiedBy   = @LastModifiedBy
                 WHERE  PaymentHeaderId  = @PaymentHeaderId",
                 new

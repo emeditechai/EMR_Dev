@@ -252,7 +252,7 @@ else
                     <td><span class="text-muted small">@(v.RecordedByName ?? "—")</span></td>
                     @* Actions — View always · Edit/Delete only within 2 min *@
                     @{
-                        bool canModify = (DateTime.UtcNow - v.RecordedOn).TotalMinutes <= 2;
+                        bool canModify = (DateTime.Now - v.RecordedOn).TotalMinutes <= 2;
                         string bpVal  = v.BPSystolic.HasValue ? $"{v.BPSystolic}/{v.BPDiastolic} mmHg" : "—";
                         bool   bpOk   = v.BPSystolic.HasValue && v.BPSystolic>=90 && v.BPSystolic<=120 && (v.BPDiastolic??0)>=60 && (v.BPDiastolic??0)<=80;
                         bool   bpWarn = v.BPSystolic.HasValue && !bpOk && v.BPSystolic < 140;

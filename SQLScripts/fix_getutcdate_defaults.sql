@@ -1,4 +1,4 @@
--- Fix all GETUTCDATE() default constraints → GETDATE()
+-- Fix all GETDATE() default constraints → GETDATE()
 DECLARE @sql NVARCHAR(MAX) = '';
 
 SELECT @sql = @sql +

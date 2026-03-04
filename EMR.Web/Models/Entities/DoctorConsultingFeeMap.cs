@@ -8,7 +8,7 @@ public class DoctorConsultingFeeMap
     public int BranchId   { get; set; }
     public bool IsActive  { get; set; } = true;
     public int? CreatedBy { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
 
     // Joined fields (read only)
     public string ItemCode    { get; set; } = string.Empty;

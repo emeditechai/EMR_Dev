@@ -32,7 +32,7 @@ public class BranchMaster
     public bool IsHOBranch { get; set; }
     public bool IsActive { get; set; } = true;
     public int? CreatedBy { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
 

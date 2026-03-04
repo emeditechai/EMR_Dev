@@ -118,7 +118,7 @@ public class HospitalSettingsController(
             existing.CheckInTime = TimeSpan.TryParse(model.CheckInTime, out var cin) ? cin : null;
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
             existing.IsActive = model.IsActive;
-            existing.LastModifiedDate = DateTime.UtcNow;
+            existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
 
             await dbContext.SaveChangesAsync();
@@ -170,7 +170,7 @@ public class HospitalSettingsController(
             CheckInTime = TimeSpan.TryParse(m.CheckInTime, out var cin) ? cin : null,
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
             IsActive = m.IsActive,
-            CreatedDate = DateTime.UtcNow,
+            CreatedDate = DateTime.Now,
             CreatedBy = userId
         };
 

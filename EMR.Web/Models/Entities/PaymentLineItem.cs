@@ -21,7 +21,7 @@ public class PaymentLineItem
     public decimal LineDiscountAmount { get; set; }
     public decimal NetLineAmount { get; set; }
 
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? CreatedBy { get; set; }
     public bool IsActive { get; set; } = true;
 

@@ -194,7 +194,7 @@ BEGIN
         ) VALUES (
             @NewPatientId, @BranchId, @ConsultingDoctorId,
             @OPDBillNo, @TokenNo, @TotalAmount,
-            GETUTCDATE(), 'Registered', 1, @UserId, GETUTCDATE()
+            GETDATE(), 'Registered', 1, @UserId, GETDATE()
         );
         SET @NewOPDServiceId = SCOPE_IDENTITY();
 
@@ -206,7 +206,7 @@ BEGIN
                 JSON_VALUE(j.value,'$.serviceType'),
                 TRY_CAST(JSON_VALUE(j.value,'$.serviceId') AS INT),
                 TRY_CAST(JSON_VALUE(j.value,'$.serviceCharges') AS DECIMAL(10,2)),
-                1, @UserId, GETUTCDATE()
+                1, @UserId, GETDATE()
             FROM OPENJSON(@LineItemsJson) j;
         END
 
@@ -327,7 +327,7 @@ BEGIN
         ) VALUES (
             @PatientId, @BranchId, @ConsultingDoctorId,
             @OPDBillNo, @TokenNo, @TotalAmount,
-            GETUTCDATE(), 'Registered', 1, @UserId, GETUTCDATE()
+            GETDATE(), 'Registered', 1, @UserId, GETDATE()
         );
         SET @NewOPDServiceId = SCOPE_IDENTITY();
 
@@ -339,7 +339,7 @@ BEGIN
                 JSON_VALUE(j.value,'$.serviceType'),
                 TRY_CAST(JSON_VALUE(j.value,'$.serviceId') AS INT),
                 TRY_CAST(JSON_VALUE(j.value,'$.serviceCharges') AS DECIMAL(10,2)),
-                1, @UserId, GETUTCDATE()
+                1, @UserId, GETDATE()
             FROM OPENJSON(@LineItemsJson) j;
         END
 

@@ -31,11 +31,11 @@ public class PatientVital
     public string? Notes { get; set; }
 
     // Audit
-    public DateTime RecordedOn { get; set; } = DateTime.UtcNow;
+    public DateTime RecordedOn { get; set; } = DateTime.Now;
     public int? RecordedByUserId { get; set; }
     public string? RecordedByName { get; set; }
     public bool IsActive { get; set; } = true;
-    public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedOn { get; set; } = DateTime.Now;
     public int? CreatedBy { get; set; }
     public DateTime? UpdatedOn { get; set; }
     public int? UpdatedBy { get; set; }

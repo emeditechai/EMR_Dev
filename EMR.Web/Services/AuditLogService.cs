@@ -26,7 +26,7 @@ public class AuditLogService(ApplicationDbContext dbContext, IHttpContextAccesso
             IpAddress = ResolveClientIp(httpContext),
             UserAgent = httpContext?.Request.Headers.UserAgent.ToString(),
             Description = description,
-            CreatedDate = DateTime.UtcNow,
+            CreatedDate = DateTime.Now,
         };
 
         dbContext.AuditLogs.Add(log);

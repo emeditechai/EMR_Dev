@@ -22,7 +22,7 @@ public class PatientOPDService
 
     public decimal? TotalAmount { get; set; }
 
-    public DateTime VisitDate { get; set; } = DateTime.UtcNow;
+    public DateTime VisitDate { get; set; } = DateTime.Now;
 
     /// <summary>Registered | Completed | Cancelled</summary>
     public string Status { get; set; } = "Registered";
@@ -30,7 +30,7 @@ public class PatientOPDService
     public bool IsActive { get; set; } = true;
 
     public int? CreatedBy { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
 

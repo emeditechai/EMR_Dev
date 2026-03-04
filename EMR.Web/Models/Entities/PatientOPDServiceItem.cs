@@ -15,7 +15,7 @@ public class PatientOPDServiceItem
     public bool IsActive { get; set; } = true;
 
     public int? CreatedBy { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
 
     // Navigation
     public PatientOPDService? OPDService { get; set; }

@@ -6,10 +6,10 @@ public class UserRole
     public int UserId { get; set; }
     public int RoleId { get; set; }
     public bool IsActive { get; set; } = true;
-    public DateTime AssignedDate { get; set; } = DateTime.UtcNow;
+    public DateTime AssignedDate { get; set; } = DateTime.Now;
     public int? AssignedBy { get; set; }
     public int? CreatedBy { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
 

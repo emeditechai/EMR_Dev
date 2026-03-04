@@ -14,7 +14,7 @@ public class Role
     public string? Description { get; set; }
 
     public bool IsSystemRole { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public DateTime? LastModifiedDate { get; set; }
     public int? BranchId { get; set; }
 

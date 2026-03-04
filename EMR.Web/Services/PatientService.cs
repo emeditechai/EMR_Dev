@@ -270,7 +270,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
     {
         using var con = db.CreateConnection();
         patient.ModifiedBy   = userId;
-        patient.ModifiedDate = DateTime.UtcNow;
+        patient.ModifiedDate = DateTime.Now;
         await con.ExecuteAsync(@"
             UPDATE PatientMaster SET
                 PhoneNumber            = @PhoneNumber,
@@ -568,7 +568,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                  TotalAmount, VisitDate, Status, IsActive, CreatedBy, CreatedDate)
             VALUES
                 (@PatientId, @BranchId, @ConsultingDoctorId, @OPDBillNo, @TokenNo,
-                 0, GETUTCDATE(), 'Registered', 1, @CreatedBy, GETUTCDATE());
+                 0, GETDATE(), 'Registered', 1, @CreatedBy, GETDATE());
             SELECT CAST(SCOPE_IDENTITY() AS INT);",
             new
             {
@@ -595,7 +595,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                              IsActive, CreatedBy, CreatedDate)
                         VALUES
                             (@OPDServiceId, @ServiceType, @ServiceId, @ServiceCharges,
-                             1, @CreatedBy, GETUTCDATE())",
+                             1, @CreatedBy, GETDATE())",
                         new
                         {
                             OPDServiceId   = newSvcId,

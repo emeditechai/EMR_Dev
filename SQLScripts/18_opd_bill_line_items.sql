@@ -123,7 +123,7 @@ BEGIN
         ServiceCharges  DECIMAL(10,2)  NULL,
         IsActive        BIT            NOT NULL DEFAULT 1,
         CreatedBy       INT            NULL,
-        CreatedDate     DATETIME2      NOT NULL DEFAULT GETUTCDATE(),
+        CreatedDate     DATETIME2      NOT NULL DEFAULT GETDATE(),
 
         CONSTRAINT FK_OPDServiceItem_OPDService
             FOREIGN KEY (OPDServiceId) REFERENCES dbo.PatientOPDService(OPDServiceId)
@@ -268,7 +268,7 @@ BEGIN
             @CityId, @AreaId, @IdentificationTypeId, @IdentificationNumber,
             @IdentificationFilePath, @OccupationId, @MaritalStatusId,
             @BloodGroup, @KnownAllergies, @Remarks, @BranchId,
-            @UserId, GETUTCDATE(), 1
+            @UserId, GETDATE(), 1
         );
         SET @NewPatientId = SCOPE_IDENTITY();
 
@@ -290,7 +290,7 @@ BEGIN
         ) VALUES (
             @NewPatientId, @BranchId, @ConsultingDoctorId,
             @OPDBillNo, @TokenNo, @TotalAmount,
-            GETUTCDATE(), 'Registered', 1, @UserId, GETUTCDATE()
+            GETDATE(), 'Registered', 1, @UserId, GETDATE()
         );
         SET @NewOPDServiceId = SCOPE_IDENTITY();
 
@@ -305,7 +305,7 @@ BEGIN
                 TRY_CAST(JSON_VALUE(j.value, '$.serviceCharges') AS DECIMAL(10,2)),
                 1,
                 @UserId,
-                GETUTCDATE()
+                GETDATE()
             FROM OPENJSON(@LineItemsJson) j;
         END
 
@@ -388,7 +388,7 @@ BEGIN
             KnownAllergies         = @KnownAllergies,
             Remarks                = @Remarks,
             ModifiedBy             = @UserId,
-            ModifiedDate           = GETUTCDATE()
+            ModifiedDate           = GETDATE()
         WHERE PatientId = @PatientId;
 
         DECLARE @TotalAmount DECIMAL(10,2) = 0;
@@ -403,7 +403,7 @@ BEGIN
                 ConsultingDoctorId = @ConsultingDoctorId,
                 TotalAmount        = @TotalAmount,
                 ModifiedBy         = @UserId,
-                ModifiedDate       = GETUTCDATE()
+                ModifiedDate       = GETDATE()
             WHERE OPDServiceId = @OPDServiceId;
 
             SET @NewOPDServiceId = @OPDServiceId;
@@ -427,7 +427,7 @@ BEGIN
             ) VALUES (
                 @PatientId, @BranchId, @ConsultingDoctorId,
                 @OPDBillNo, @TokenNo, @TotalAmount,
-                GETUTCDATE(), 'Registered', 1, @UserId, GETUTCDATE()
+                GETDATE(), 'Registered', 1, @UserId, GETDATE()
             );
             SET @NewOPDServiceId = SCOPE_IDENTITY();
         END
@@ -443,7 +443,7 @@ BEGIN
                 TRY_CAST(JSON_VALUE(j.value, '$.serviceCharges') AS DECIMAL(10,2)),
                 1,
                 @UserId,
-                GETUTCDATE()
+                GETDATE()
             FROM OPENJSON(@LineItemsJson) j;
         END
 

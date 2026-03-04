@@ -111,7 +111,7 @@ public class BranchesController(
             Pincode = model.Pincode,
             IsHOBranch = model.IsHOBranch,
             IsActive = model.IsActive,
-            CreatedDate = DateTime.UtcNow,
+            CreatedDate = DateTime.Now,
             CreatedBy = User.GetUserId(),
         };
 
@@ -124,7 +124,7 @@ public class BranchesController(
             BranchId = branch.BranchId,
             HospitalName = branch.BranchName,
             IsActive = true,
-            CreatedDate = DateTime.UtcNow,
+            CreatedDate = DateTime.Now,
             CreatedBy = User.GetUserId()
         };
         dbContext.HospitalSettings.Add(defaultSettings);
@@ -202,7 +202,7 @@ public class BranchesController(
         branch.IsHOBranch = model.IsHOBranch;
         branch.IsActive = model.IsActive;
         branch.ModifiedBy = User.GetUserId();
-        branch.ModifiedDate = DateTime.UtcNow;
+        branch.ModifiedDate = DateTime.Now;
 
         await dbContext.SaveChangesAsync();
         await auditLogService.LogAsync("MasterData", "Branches.Edit", $"Updated branch: {branch.BranchName}", branchId: branch.BranchId);

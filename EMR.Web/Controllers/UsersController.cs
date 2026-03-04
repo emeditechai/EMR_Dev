@@ -176,9 +176,9 @@ public class UsersController(
             Phone = model.PhoneNumber,
             ProfilePicturePath = profilePicturePath,
             IsActive = model.IsActive,
-            PasswordLastChanged = DateTime.UtcNow,
-            CreatedDate = DateTime.UtcNow,
-            LastModifiedDate = DateTime.UtcNow,
+            PasswordLastChanged = DateTime.Now,
+            CreatedDate = DateTime.Now,
+            LastModifiedDate = DateTime.Now,
         };
 
         dbContext.Users.Add(user);
@@ -273,7 +273,7 @@ public class UsersController(
         user.PhoneNumber = model.PhoneNumber;
         user.Phone = model.PhoneNumber;
         user.IsActive = model.IsActive;
-        user.LastModifiedDate = DateTime.UtcNow;
+        user.LastModifiedDate = DateTime.Now;
 
         user.ProfilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, user.ProfilePicturePath);
 
@@ -282,7 +282,7 @@ public class UsersController(
             var (hash, salt) = passwordHasherService.HashPassword(model.Password);
             user.PasswordHash = hash;
             user.Salt = salt;
-            user.PasswordLastChanged = DateTime.UtcNow;
+            user.PasswordLastChanged = DateTime.Now;
         }
 
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
@@ -309,7 +309,7 @@ public class UsersController(
         }
 
         user.IsActive = !user.IsActive;
-        user.LastModifiedDate = DateTime.UtcNow;
+        user.LastModifiedDate = DateTime.Now;
         await dbContext.SaveChangesAsync();
         await auditLogService.LogAsync("MasterData", "Users.ToggleStatus", $"Toggled user status: {user.Username} => {(user.IsActive ? "Active" : "Inactive")}", user.Id);
         TempData["Success"] = "User status updated.";
@@ -361,8 +361,8 @@ public class UsersController(
                 BranchId = branchId,
                 EmployeeCode = normalizedEmployeeCode,
                 IsActive = true,
-                CreatedDate = DateTime.UtcNow,
-                ModifiedDate = DateTime.UtcNow,
+                CreatedDate = DateTime.Now,
+                ModifiedDate = DateTime.Now,
                 CreatedBy = User.GetUserId(),
                 ModifiedBy = User.GetUserId()
             });
@@ -378,11 +378,11 @@ public class UsersController(
                 UserId = userId,
                 RoleId = roleId,
                 IsActive = true,
-                AssignedDate = DateTime.UtcNow,
+                AssignedDate = DateTime.Now,
                 AssignedBy = User.GetUserId(),
-                CreatedDate = DateTime.UtcNow,
+                CreatedDate = DateTime.Now,
                 CreatedBy = User.GetUserId(),
-                ModifiedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.Now,
                 ModifiedBy = User.GetUserId()
             });
         dbContext.UserRoles.AddRange(roleMappings);

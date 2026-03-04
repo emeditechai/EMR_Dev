@@ -28,10 +28,10 @@ BEGIN
         PainScore           INT             NULL,   -- 0-10
         Notes               NVARCHAR(500)   NULL,
         -- Audit
-        RecordedOn          DATETIME        NOT NULL DEFAULT GETUTCDATE(),
+        RecordedOn          DATETIME        NOT NULL DEFAULT GETDATE(),
         RecordedByUserId    INT             NULL,
         IsActive            BIT             NOT NULL DEFAULT 1,
-        CreatedOn           DATETIME        NOT NULL DEFAULT GETUTCDATE(),
+        CreatedOn           DATETIME        NOT NULL DEFAULT GETDATE(),
         CreatedBy           INT             NULL,
         UpdatedOn           DATETIME        NULL,
         UpdatedBy           INT             NULL
@@ -92,8 +92,8 @@ BEGIN
         @BPSystolic, @BPDiastolic, @PulseRate, @SpO2,
         @Temperature, @RespiratoryRate,
         @BloodGlucose, @GlucoseType, @PainScore,
-        @Notes, GETUTCDATE(), @RecordedByUserId,
-        1, GETUTCDATE(), @RecordedByUserId
+        @Notes, GETDATE(), @RecordedByUserId,
+        1, GETDATE(), @RecordedByUserId
     );
     SELECT SCOPE_IDENTITY() AS NewId;
 END
@@ -139,7 +139,7 @@ BEGIN
         GlucoseType      = @GlucoseType,
         PainScore        = @PainScore,
         Notes            = @Notes,
-        UpdatedOn        = GETUTCDATE(),
+        UpdatedOn        = GETDATE(),
         UpdatedBy        = @UpdatedByUserId
     WHERE PatientVitalId = @PatientVitalId AND IsActive = 1;
 END
@@ -245,7 +245,7 @@ BEGIN
     SET NOCOUNT ON;
     UPDATE dbo.PatientVitals SET
         IsActive  = 0,
-        UpdatedOn = GETUTCDATE(),
+        UpdatedOn = GETDATE(),
         UpdatedBy = @DeletedByUserId
     WHERE PatientVitalId = @PatientVitalId;
 END

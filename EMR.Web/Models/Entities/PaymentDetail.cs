@@ -17,9 +17,9 @@ public class PaymentDetail
     public string? UPIRefNo { get; set; }           // UPI UTR or VPA
     public string? CardLast4 { get; set; }
 
-    public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
+    public DateTime PaymentDate { get; set; } = DateTime.Now;
     public string? Notes { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? CreatedBy { get; set; }
     public bool IsActive { get; set; } = true;
 

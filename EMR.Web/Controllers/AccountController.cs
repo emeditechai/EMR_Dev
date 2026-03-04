@@ -237,9 +237,9 @@ public class AccountController(
     {
         try
         {
-            user.LastLoginDate = DateTime.UtcNow;
+            user.LastLoginDate = DateTime.Now;
             user.FailedLoginAttempts = 0;
-            user.LastModifiedDate = DateTime.UtcNow;
+            user.LastModifiedDate = DateTime.Now;
             await dbContext.SaveChangesAsync();
             await auditLogService.LogAsync(
                 "AuthSuccess",

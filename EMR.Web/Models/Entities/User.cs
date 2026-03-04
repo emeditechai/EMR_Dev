@@ -44,7 +44,7 @@ public class User
     public bool IsLockedOut { get; set; }
     public int FailedLoginAttempts { get; set; }
     public DateTime? LastLoginDate { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public DateTime? LastModifiedDate { get; set; }
     public bool MustChangePassword { get; set; }
     public DateTime? PasswordLastChanged { get; set; }

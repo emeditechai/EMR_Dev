@@ -36,7 +36,7 @@ public class PaymentHeader
     public char PaymentStatus { get; set; } = 'U';          // P=Paid, R=Partial, U=Unpaid
 
     public string? Notes { get; set; }
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? CreatedBy { get; set; }
     public DateTime? LastModifiedDate { get; set; }
     public int? LastModifiedBy { get; set; }
