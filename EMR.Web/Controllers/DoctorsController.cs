@@ -29,22 +29,30 @@ public class DoctorsController(
             ? (await dbContext.BranchMasters.FindAsync(branchId.Value))?.BranchName
             : null;
 
-        // Strictly via EMR.Api — no DB fallback
-        var apiDoctors = await doctorApiClient.GetListAsync(branchId);
-        var doctors = apiDoctors.Select(d => new DoctorListItemViewModel
+        try
         {
-            DoctorId              = d.DoctorId,
-            FullName              = d.FullName,
-            PrimarySpecialityName = d.PrimarySpecialityName ?? string.Empty,
-            DepartmentNames       = d.DepartmentNames ?? string.Empty,
-            PhoneNumber           = d.PhoneNumber ?? string.Empty,
-            EmailId               = d.EmailId ?? string.Empty,
-            IsActive              = d.IsActive,
-            ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
-            HasOPDDept            = d.HasOPDDept
-        });
+            // Strictly via EMR.Api — no DB fallback
+            var apiDoctors = await doctorApiClient.GetListAsync(branchId);
+            var doctors = apiDoctors.Select(d => new DoctorListItemViewModel
+            {
+                DoctorId              = d.DoctorId,
+                FullName              = d.FullName,
+                PrimarySpecialityName = d.PrimarySpecialityName ?? string.Empty,
+                DepartmentNames       = d.DepartmentNames ?? string.Empty,
+                PhoneNumber           = d.PhoneNumber ?? string.Empty,
+                EmailId               = d.EmailId ?? string.Empty,
+                IsActive              = d.IsActive,
+                ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
+                HasOPDDept            = d.HasOPDDept
+            });
 
-        return View(doctors);
+            return View(doctors);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Doctor Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

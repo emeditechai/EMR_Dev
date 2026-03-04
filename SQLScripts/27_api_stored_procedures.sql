@@ -219,7 +219,7 @@ SET QUOTED_IDENTIFIER ON
 SET ANSI_NULLS ON
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Patient_GetByBranch
-    @BranchId   INT          = NULL,
+    @BranchId   INT           = NULL,
     @Search     NVARCHAR(100) = NULL,
     @PageNumber INT           = 1,
     @PageSize   INT           = 20
@@ -227,18 +227,24 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- Normalise inputs
+    SET @PageNumber = ISNULL(@PageNumber, 1);
+    SET @PageSize   = ISNULL(@PageSize,   20);
+    IF @PageNumber < 1 SET @PageNumber = 1;
+    IF @PageSize   < 1 SET @PageSize   = 20;
+    IF @Search = '' SET @Search = NULL;
+
     DECLARE @Offset INT = (@PageNumber - 1) * @PageSize;
-    DECLARE @SearchPat NVARCHAR(102) = '%' + ISNULL(@Search,'') + '%';
 
     SELECT
         p.PatientId,
         p.PatientCode,
         LTRIM(RTRIM(
-            ISNULL(p.Salutation + ' ','') +
+            ISNULL(p.Salutation + ' ', '') +
             p.FirstName + ' ' +
-            ISNULL(p.MiddleName + ' ','') +
+            ISNULL(p.MiddleName + ' ', '') +
             p.LastName
-        ))                    AS FullName,
+        ))                       AS FullName,
         p.PhoneNumber,
         p.Gender,
         p.DateOfBirth,
@@ -247,16 +253,26 @@ BEGIN
         p.BranchId,
         p.IsActive,
         p.CreatedDate,
-        COUNT(*) OVER()       AS TotalCount
+        d.FullName               AS ConsultingDoctorName,
+        COUNT(*) OVER()          AS TotalCount
     FROM PatientMaster p
+    OUTER APPLY (
+        SELECT TOP 1 ConsultingDoctorId
+        FROM PatientOPDService
+        WHERE PatientId = p.PatientId AND IsActive = 1
+        ORDER BY OPDServiceId DESC
+    ) latest
+    LEFT JOIN DoctorMaster d ON d.DoctorId = latest.ConsultingDoctorId
     WHERE p.IsActive = 1
       AND (@BranchId IS NULL OR p.BranchId = @BranchId)
-      AND (@Search   IS NULL OR @Search = ''
-           OR p.PhoneNumber LIKE @SearchPat
-           OR p.PatientCode LIKE @SearchPat
-           OR p.FirstName   LIKE @SearchPat
-           OR p.LastName     LIKE @SearchPat
-           OR LTRIM(RTRIM(p.FirstName + ' ' + ISNULL(p.MiddleName+' ','') + p.LastName)) LIKE @SearchPat)
+      AND (
+            @Search IS NULL
+            OR p.PatientCode LIKE '%' + @Search + '%'
+            OR p.FirstName   LIKE '%' + @Search + '%'
+            OR p.LastName    LIKE '%' + @Search + '%'
+            OR p.PhoneNumber LIKE '%' + @Search + '%'
+            OR LTRIM(RTRIM(p.FirstName + ' ' + ISNULL(p.MiddleName+' ','') + p.LastName)) LIKE '%' + @Search + '%'
+          )
     ORDER BY p.CreatedDate DESC
     OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
 END

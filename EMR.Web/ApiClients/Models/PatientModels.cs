@@ -11,9 +11,10 @@ public class PatientListItem
     public string?   BloodGroup    { get; set; }
     public string?   Address       { get; set; }
     public int?      BranchId      { get; set; }
-    public bool      IsActive      { get; set; }
-    public DateTime  CreatedDate   { get; set; }
-    public int       TotalCount    { get; set; }   // populated by paged SP
+    public bool      IsActive              { get; set; }
+    public DateTime  CreatedDate           { get; set; }
+    public string?   ConsultingDoctorName  { get; set; }
+    public int       TotalCount            { get; set; }   // populated by paged SP
 }
 
 public class PatientDetail : PatientListItem

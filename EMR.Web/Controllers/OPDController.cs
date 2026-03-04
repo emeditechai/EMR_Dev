@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
@@ -14,6 +15,7 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class OPDController(
     IPatientService patientService,
+    IPatientApiClient patientApiClient,
     IDoctorConsultingFeeService consultingFeeService,
     ICountryService countryService,
     IStateService stateService,
@@ -25,16 +27,49 @@ public class OPDController(
     ApplicationDbContext dbContext,
     IWebHostEnvironment env) : Controller
 {
-    // ─── Index (patient list – server-side paged) ─────────────────────────────
+    // ─── Index (patient list – server-side paged via EMR.Api) ────────────────────
 
     public async Task<IActionResult> Index(int page = 1, int pageSize = 10, string? search = null)
     {
         var branchId = User.GetCurrentBranchId();
         if (page < 1) page = 1;
         if (pageSize is < 5 or > 100) pageSize = 10;
-        var paged = await patientService.GetPagedListAsync(branchId, page, pageSize, search?.Trim());
-        ViewData["Title"] = "Patient List";
-        return View(paged);
+
+        try
+        {
+            // Strictly via EMR.Api — no DB fallback
+            var apiResult = await patientApiClient.GetByBranchAsync(branchId, page, pageSize, search?.Trim());
+
+            var paged = new PatientPagedListViewModel
+            {
+                Items = apiResult.Items.Select(p => new PatientListItemViewModel
+                {
+                    PatientId            = p.PatientId,
+                    PatientCode          = p.PatientCode,
+                    FullName             = p.FullName,
+                    PhoneNumber          = p.PhoneNumber ?? string.Empty,
+                    Gender               = p.Gender,
+                    BloodGroup           = p.BloodGroup,
+                    DateOfBirth          = p.DateOfBirth,
+                    CreatedDate          = p.CreatedDate,
+                    IsActive             = p.IsActive,
+                    ConsultingDoctorName = p.ConsultingDoctorName,
+                    TotalCount           = apiResult.TotalCount
+                }).ToList(),
+                TotalCount = apiResult.TotalCount,
+                Page       = page,
+                PageSize   = pageSize,
+                Search     = search?.Trim()
+            };
+
+            ViewData["Title"] = "Patient List";
+            return View(paged);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "OPD Patient List";
+            return View("ApiDown");
+        }
     }
 
     // ─── Patient Registration (GET) ───────────────────────────────────────────
