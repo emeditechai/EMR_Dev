@@ -263,44 +263,52 @@ public class OPDController(
             from = to = DateOnly.FromDateTime(DateTime.Today);
 
         // Strictly via EMR.Api — no DB fallback
-        var apiResult = await serviceBookingApiClient.GetPagedAsync(
-            branchId, from, to, page, pageSize, search?.Trim());
-
-        var paged = new ServiceBookingPagedListViewModel
+        try
         {
-            Items = apiResult.Items.Select(b => new ServiceBookingListItem
-            {
-                OPDServiceId         = b.OPDServiceId,
-                VisitDate            = b.VisitDate,
-                OPDBillNo            = b.OPDBillNo,
-                TokenNo              = b.TokenNo,
-                PatientCode          = b.PatientCode,
-                PatientId            = b.PatientId,
-                PatientName          = b.PatientName,
-                Gender               = b.Gender,
-                Age                  = b.Age,
-                ConsultingDoctorName = b.ConsultingDoctorName,
-                TotalAmount          = b.TotalAmount,
-                Status               = b.Status,
-                ServiceTypesSummary  = b.ServiceTypesSummary,
-                TotalCount           = apiResult.TotalCount,
-                TotalFeesAll         = apiResult.TotalFeesAll,
-                RegisteredCount      = apiResult.RegisteredCount,
-                CompletedCount       = apiResult.CompletedCount
-            }).ToList(),
-            TotalCount      = apiResult.TotalCount,
-            TotalFeesAll    = apiResult.TotalFeesAll,
-            RegisteredCount = apiResult.RegisteredCount,
-            CompletedCount  = apiResult.CompletedCount,
-            Page            = page,
-            PageSize        = pageSize,
-            Search          = search?.Trim(),
-            FromDate        = from?.ToString("yyyy-MM-dd"),
-            ToDate          = to?.ToString("yyyy-MM-dd")
-        };
+            var apiResult = await serviceBookingApiClient.GetPagedAsync(
+                branchId, from, to, page, pageSize, search?.Trim());
 
-        ViewData["Title"] = "Service Booking";
-        return View(paged);
+            var paged = new ServiceBookingPagedListViewModel
+            {
+                Items = apiResult.Items.Select(b => new ServiceBookingListItem
+                {
+                    OPDServiceId         = b.OPDServiceId,
+                    VisitDate            = b.VisitDate,
+                    OPDBillNo            = b.OPDBillNo,
+                    TokenNo              = b.TokenNo,
+                    PatientCode          = b.PatientCode,
+                    PatientId            = b.PatientId,
+                    PatientName          = b.PatientName,
+                    Gender               = b.Gender,
+                    Age                  = b.Age,
+                    ConsultingDoctorName = b.ConsultingDoctorName,
+                    TotalAmount          = b.TotalAmount,
+                    Status               = b.Status,
+                    ServiceTypesSummary  = b.ServiceTypesSummary,
+                    TotalCount           = apiResult.TotalCount,
+                    TotalFeesAll         = apiResult.TotalFeesAll,
+                    RegisteredCount      = apiResult.RegisteredCount,
+                    CompletedCount       = apiResult.CompletedCount
+                }).ToList(),
+                TotalCount      = apiResult.TotalCount,
+                TotalFeesAll    = apiResult.TotalFeesAll,
+                RegisteredCount = apiResult.RegisteredCount,
+                CompletedCount  = apiResult.CompletedCount,
+                Page            = page,
+                PageSize        = pageSize,
+                Search          = search?.Trim(),
+                FromDate        = from?.ToString("yyyy-MM-dd"),
+                ToDate          = to?.ToString("yyyy-MM-dd")
+            };
+
+            ViewData["Title"] = "Service Booking";
+            return View(paged);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Service Booking";
+            return View("ApiDown");
+        }
     }
 
     // ─── Service Booking Detail AJAX (via EMR.Api) ───────────────────────────
