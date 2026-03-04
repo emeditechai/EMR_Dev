@@ -16,6 +16,7 @@ namespace EMR.Web.Controllers;
 public class OPDController(
     IPatientService patientService,
     IPatientApiClient patientApiClient,
+    IServiceBookingApiClient serviceBookingApiClient,
     IDoctorConsultingFeeService consultingFeeService,
     ICountryService countryService,
     IStateService stateService,
@@ -261,21 +262,85 @@ public class OPDController(
         if (from is null && to is null)
             from = to = DateOnly.FromDateTime(DateTime.Today);
 
-        var paged = await patientService.GetServiceBookingsPagedAsync(
+        // Strictly via EMR.Api — no DB fallback
+        var apiResult = await serviceBookingApiClient.GetPagedAsync(
             branchId, from, to, page, pageSize, search?.Trim());
+
+        var paged = new ServiceBookingPagedListViewModel
+        {
+            Items = apiResult.Items.Select(b => new ServiceBookingListItem
+            {
+                OPDServiceId         = b.OPDServiceId,
+                VisitDate            = b.VisitDate,
+                OPDBillNo            = b.OPDBillNo,
+                TokenNo              = b.TokenNo,
+                PatientCode          = b.PatientCode,
+                PatientId            = b.PatientId,
+                PatientName          = b.PatientName,
+                Gender               = b.Gender,
+                Age                  = b.Age,
+                ConsultingDoctorName = b.ConsultingDoctorName,
+                TotalAmount          = b.TotalAmount,
+                Status               = b.Status,
+                ServiceTypesSummary  = b.ServiceTypesSummary,
+                TotalCount           = apiResult.TotalCount,
+                TotalFeesAll         = apiResult.TotalFeesAll,
+                RegisteredCount      = apiResult.RegisteredCount,
+                CompletedCount       = apiResult.CompletedCount
+            }).ToList(),
+            TotalCount      = apiResult.TotalCount,
+            TotalFeesAll    = apiResult.TotalFeesAll,
+            RegisteredCount = apiResult.RegisteredCount,
+            CompletedCount  = apiResult.CompletedCount,
+            Page            = page,
+            PageSize        = pageSize,
+            Search          = search?.Trim(),
+            FromDate        = from?.ToString("yyyy-MM-dd"),
+            ToDate          = to?.ToString("yyyy-MM-dd")
+        };
 
         ViewData["Title"] = "Service Booking";
         return View(paged);
     }
 
-    // ─── Service Booking Detail AJAX ──────────────────────────────────────────
+    // ─── Service Booking Detail AJAX (via EMR.Api) ───────────────────────────
 
     [HttpGet]
     public async Task<IActionResult> GetServiceBookingDetail(int id)
     {
-        var detail = await patientService.GetServiceBookingDetailAsync(id);
-        if (detail is null) return NotFound();
-        return Json(detail);
+        try
+        {
+            var detail = await serviceBookingApiClient.GetByIdAsync(id);
+            if (detail is null) return NotFound();
+
+            // Map to existing ViewModel shape so the Razor view + JS are unchanged
+            return Json(new
+            {
+                detail.OPDServiceId,
+                detail.OPDBillNo,
+                detail.TokenNo,
+                detail.PatientCode,
+                detail.PatientName,
+                detail.PhoneNumber,
+                detail.Gender,
+                detail.DateOfBirth,
+                detail.Age,
+                detail.ConsultingDoctorName,
+                detail.VisitDate,
+                detail.TotalAmount,
+                detail.Status,
+                Items = detail.Items.Select(i => new
+                {
+                    i.ServiceType,
+                    i.ItemName,
+                    i.ServiceCharges
+                })
+            });
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(503, new { error = "API service unavailable." });
+        }
     }
 
     // ─── New Service Booking (GET) ────────────────────────────────────────────
@@ -383,23 +448,31 @@ public class OPDController(
         if (from is null && to is null)
             from = to = DateOnly.FromDateTime(DateTime.Today);
 
-        var paged = await patientService.GetServiceBookingsPagedAsync(
-            branchId, from, to, 1, 8, q.Trim());
-
-        var suggestions = paged.Items.Select(b => new
+        try
         {
-            b.OPDServiceId,
-            b.PatientCode,
-            b.PatientName,
-            b.OPDBillNo,
-            b.TokenNo,
-            b.Gender,
-            b.Age,
-            b.ConsultingDoctorName,
-            b.Status,
-            TotalAmount = b.TotalAmount.ToString("N2")
-        });
-        return Json(suggestions);
+            // Strictly via EMR.Api — no DB fallback
+            var apiResult = await serviceBookingApiClient.GetPagedAsync(
+                branchId, from, to, 1, 8, q.Trim());
+
+            var suggestions = apiResult.Items.Select(b => new
+            {
+                b.OPDServiceId,
+                b.PatientCode,
+                b.PatientName,
+                b.OPDBillNo,
+                b.TokenNo,
+                b.Gender,
+                b.Age,
+                b.ConsultingDoctorName,
+                b.Status,
+                TotalAmount = b.TotalAmount.ToString("N2")
+            });
+            return Json(suggestions);
+        }
+        catch (HttpRequestException)
+        {
+            return Json(Array.Empty<object>());
+        }
     }
 
     [HttpGet]
@@ -490,28 +563,59 @@ public class OPDController(
         return Json(areas.Where(a => a.IsActive).Select(a => new { a.AreaId, a.AreaName }));
     }
 
-    // ─── Print Bill ───────────────────────────────────────────────────────────
+    // ─── Print Bill (via EMR.Api) ─────────────────────────────────────────────
 
     [HttpGet]
     public async Task<IActionResult> PrintBill(int id)
     {
-        var detail = await patientService.GetServiceBookingDetailAsync(id);
-        if (detail is null) return NotFound();
+        try
+        {
+            var apiDetail = await serviceBookingApiClient.GetByIdAsync(id);
+            if (apiDetail is null) return NotFound();
 
-        var branchId = User.GetCurrentBranchId();
-        var settings = branchId.HasValue
-            ? await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId.Value)
-            : null;
-        var branch = branchId.HasValue
-            ? await dbContext.BranchMasters.FindAsync(branchId.Value)
-            : null;
+            // Map API model → existing ServiceBookingDetailViewModel (view is unchanged)
+            var detail = new ServiceBookingDetailViewModel
+            {
+                OPDServiceId         = apiDetail.OPDServiceId,
+                OPDBillNo            = apiDetail.OPDBillNo,
+                TokenNo              = apiDetail.TokenNo,
+                PatientCode          = apiDetail.PatientCode,
+                PatientName          = apiDetail.PatientName,
+                PhoneNumber          = apiDetail.PhoneNumber,
+                Gender               = apiDetail.Gender,
+                DateOfBirth          = apiDetail.DateOfBirth,
+                ConsultingDoctorName = apiDetail.ConsultingDoctorName,
+                VisitDate            = apiDetail.VisitDate,
+                TotalAmount          = apiDetail.TotalAmount,
+                Status               = apiDetail.Status,
+                Items                = apiDetail.Items.Select(i => new ServiceBookingDetailItem
+                {
+                    ServiceType    = i.ServiceType,
+                    ItemName       = i.ItemName,
+                    ServiceCharges = i.ServiceCharges
+                }).ToList()
+            };
 
-        var payment = await paymentService.GetPaymentForBillAsync("OPD", id);
+            var branchId = User.GetCurrentBranchId();
+            var settings = branchId.HasValue
+                ? await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId.Value)
+                : null;
+            var branch = branchId.HasValue
+                ? await dbContext.BranchMasters.FindAsync(branchId.Value)
+                : null;
 
-        ViewBag.Settings   = settings;
-        ViewBag.BranchName = branch?.BranchName ?? string.Empty;
-        ViewBag.Payment    = payment;
-        return View(detail);
+            var payment = await paymentService.GetPaymentForBillAsync("OPD", id);
+
+            ViewBag.Settings   = settings;
+            ViewBag.BranchName = branch?.BranchName ?? string.Empty;
+            ViewBag.Payment    = payment;
+            return View(detail);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Print Bill";
+            return View("ApiDown");
+        }
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
