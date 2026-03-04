@@ -51,6 +51,10 @@ public class PatientRegistrationViewModel
     [Display(Name = "Phone Number")]
     public string PhoneNumber { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Relation is required.")]
+    [Display(Name = "Relation")]
+    public int? RelationId { get; set; }
+
     [MaxLength(15, ErrorMessage = "Secondary number cannot exceed 15 characters.")]
     [RegularExpression(@"^[6-9]\d{9}$", ErrorMessage = "Enter a valid 10-digit mobile number.")]
     [Display(Name = "Secondary Phone Number")]
@@ -156,6 +160,7 @@ public class PatientRegistrationViewModel
     // ── Select Lists (populated from server) ─────────────────────────────────
 
     public List<SelectListItem> ReligionOptions { get; set; } = [];
+    public List<SelectListItem> RelationOptions { get; set; } = [];
     public List<SelectListItem> IdentificationTypeOptions { get; set; } = [];
     public List<SelectListItem> OccupationOptions { get; set; } = [];
     public List<SelectListItem> MaritalStatusOptions { get; set; } = [];
@@ -191,6 +196,7 @@ public class PatientQuickSearchResult
     public string? BloodGroup { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public string? Address { get; set; }
+    public string? RelationName { get; set; }
     /// <summary>Computed from DateOfBirth.</summary>
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)

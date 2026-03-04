@@ -231,9 +231,9 @@
         <div id="secDemography" class="collapse show">
         <div class="reg-section-body">
 
-            @* ── Row 1: Phone Number | Title | First Name | Middle Name | Last Name ── *@
+            @* ── Row 1: Phone Number* | Relation* ── *@
             <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-3 position-relative">
+                <div class="col-12 col-sm-6 col-md-5 position-relative">
                     <label asp-for="PhoneNumber" class="form-label fw-semibold small">
                         Phone Number <span class="text-danger">*</span>
                     </label>
@@ -249,6 +249,20 @@
                          class="list-group position-absolute shadow"
                          style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
                 </div>
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="RelationId" class="form-label fw-semibold small">
+                        Relation <span class="text-danger">*</span>
+                    </label>
+                    <select asp-for="RelationId" id="ddlRelation" class="form-select s2-basic"
+                            asp-items="Model.RelationOptions">
+                        <option value="">-- Select Relation --</option>
+                    </select>
+                    <span asp-validation-for="RelationId" class="text-danger small"></span>
+                </div>
+            </div>
+
+            @* ── Row 2: Title | First Name | Middle Name | Last Name ── *@
+            <div class="row g-3 mb-3">
                 <div class="col-4 col-sm-3 col-md-1">
                     <label asp-for="Salutation" class="form-label fw-semibold small">Title</label>
                     <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic px-1">
@@ -260,18 +274,18 @@
                         <option value="Dr.">Dr.</option>
                     </select>
                 </div>
-                <div class="col-8 col-sm-9 col-md-3">
+                <div class="col-8 col-sm-9 col-md-4">
                     <label asp-for="FirstName" class="form-label fw-semibold small">
                         First Name <span class="text-danger">*</span>
                     </label>
                     <input asp-for="FirstName" class="form-control" maxlength="100" placeholder="Enter first name" />
                     <span asp-validation-for="FirstName" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-6 col-md-2">
+                <div class="col-12 col-sm-6 col-md-3">
                     <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
                     <input asp-for="MiddleName" class="form-control" maxlength="100" placeholder="Optional" />
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-md-4">
                     <label asp-for="LastName" class="form-label fw-semibold small">
                         Last Name <span class="text-danger">*</span>
                     </label>
@@ -832,8 +846,10 @@
                                     data-id="${p.patientId}">
                                 <span class="fw-semibold">${p.fullName}</span>
                                 <span class="badge text-bg-info text-dark ms-1 font-monospace">${p.patientCode}</span>
+                                ${p.relationName ? `<span class="badge text-bg-primary ms-1">${p.relationName}</span>` : ''}
+                                ${p.bloodGroup ? `<span class="badge text-bg-danger ms-1">${p.bloodGroup}</span>` : ''}
                                 <br>
-                                <small class="text-muted">${p.phoneNumber} &nbsp;·&nbsp; ${p.gender || ''} &nbsp;·&nbsp; ${p.bloodGroup || '--'}</small>
+                                <small class="text-muted">${p.phoneNumber} &nbsp;·&nbsp; ${p.gender || ''}</small>
                             </button>`).join('');
                         phoneDrop.style.display = 'block';
                         phoneDrop.querySelectorAll('.phone-sug').forEach(btn => {
@@ -1072,6 +1088,7 @@
             // Select2 selects (demographics)
             const s2Map = {
                 'ddlSalutation':    p.salutation,
+                'ddlRelation':      p.relationId,
                 'ddlGender':        p.gender,
                 'ddlReligion':      p.religionId,
                 'ddlBloodGroup':    p.bloodGroup,

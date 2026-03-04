@@ -55,7 +55,10 @@ public class OPDController(
         }
         else
         {
-            model = new PatientRegistrationViewModel();
+            model = new PatientRegistrationViewModel
+            {
+                RelationId = 1   // default: Self
+            };
         }
 
         // Pass bill/token info for success modal after redirect
@@ -106,6 +109,28 @@ public class OPDController(
                 await identificationFile.CopyToAsync(stream);
             }
             model.IdentificationFilePath = $"/uploads/patients/{fileName}";
+        }
+
+        // ── Uniqueness: Phone Number + Relation must be unique per active patient ──
+        if (model.RelationId.HasValue)
+        {
+            var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
+                p.PhoneNumber == model.PhoneNumber.Trim() &&
+                p.RelationId  == model.RelationId &&
+                p.IsActive    &&
+                (model.PatientId == 0 || p.PatientId != model.PatientId));
+
+            if (dupExists)
+            {
+                var relName = await dbContext.RelationMasters
+                    .Where(r => r.RelationId == model.RelationId)
+                    .Select(r => r.RelationName)
+                    .FirstOrDefaultAsync() ?? "selected relation";
+                ModelState.AddModelError("RelationId",
+                    $"A patient with relation \"{relName}\" is already registered for phone {model.PhoneNumber}.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
         }
 
         var patient = MapViewModelToPatient(model);
@@ -377,6 +402,7 @@ public class OPDController(
             patient.ReligionId, patient.MaritalStatusId, patient.OccupationId,
             patient.CountryId, patient.StateId, patient.DistrictId, patient.CityId, patient.AreaId,
             patient.Address,
+            patient.RelationId,
             // Latest OPD bill header (null-safe) — only doctor needed for pre-fill
             OPDServiceId       = svc?.OPDServiceId ?? 0,
             ConsultingDoctorId = svc?.ConsultingDoctorId
@@ -513,6 +539,12 @@ public class OPDController(
             .Select(r => new SelectListItem(r.ReligionName, r.ReligionId.ToString()))
             .ToListAsync();
 
+        model.RelationOptions = await dbContext.RelationMasters
+            .Where(r => r.IsActive)
+            .OrderBy(r => r.SortOrder).ThenBy(r => r.RelationName)
+            .Select(r => new SelectListItem(r.RelationName, r.RelationId.ToString()))
+            .ToListAsync();
+
         model.IdentificationTypeOptions = await dbContext.IdentificationTypeMasters
             .Where(i => i.IsActive)
             .OrderBy(i => i.IdentificationTypeName)
@@ -558,6 +590,7 @@ public class OPDController(
         CityId                = m.CityId,
         AreaId                = m.AreaId,
         Address               = m.Address?.Trim(),
+        RelationId            = m.RelationId,
         IdentificationTypeId  = m.IdentificationTypeId,
         IdentificationNumber  = m.IdentificationNumber?.Trim(),
         IdentificationFilePath= m.IdentificationFilePath,
@@ -596,6 +629,7 @@ public class OPDController(
         CityId                = p.CityId,
         AreaId                = p.AreaId,
         Address               = p.Address,
+        RelationId            = p.RelationId,
         IdentificationTypeId  = p.IdentificationTypeId,
         IdentificationNumber  = p.IdentificationNumber,
         IdentificationFilePath= p.IdentificationFilePath,

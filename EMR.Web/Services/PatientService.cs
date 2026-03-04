@@ -91,8 +91,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.Gender,
                 p.BloodGroup,
                 p.DateOfBirth,
-                p.Address
+                p.Address,
+                r.RelationName
             FROM PatientMaster p
+            LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
               AND (p.PhoneNumber LIKE @Phone OR p.SecondaryPhoneNumber LIKE @Phone)
@@ -118,8 +120,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.Gender,
                 p.BloodGroup,
                 p.DateOfBirth,
-                p.Address
+                p.Address,
+                r.RelationName
             FROM PatientMaster p
+            LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
               AND p.PatientCode LIKE @Code
@@ -145,8 +149,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.Gender,
                 p.BloodGroup,
                 p.DateOfBirth,
-                p.Address
+                p.Address,
+                r.RelationName
             FROM PatientMaster p
+            LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
               AND (
@@ -241,6 +247,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@CityId",                 patient.CityId);
         p.Add("@AreaId",                 patient.AreaId);
         p.Add("@Address",                patient.Address);
+        p.Add("@RelationId",             patient.RelationId);
         p.Add("@IdentificationTypeId",   patient.IdentificationTypeId);
         p.Add("@IdentificationNumber",   patient.IdentificationNumber);
         p.Add("@IdentificationFilePath", patient.IdentificationFilePath);
@@ -277,6 +284,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 CityId                 = @CityId,
                 AreaId                 = @AreaId,
                 Address                = @Address,
+                RelationId             = @RelationId,
                 IdentificationTypeId   = @IdentificationTypeId,
                 IdentificationNumber   = @IdentificationNumber,
                 IdentificationFilePath = @IdentificationFilePath,

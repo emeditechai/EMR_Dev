@@ -15,6 +15,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     // Patient Registration masters
     public DbSet<ReligionMaster> ReligionMasters => Set<ReligionMaster>();
+    public DbSet<RelationMaster> RelationMasters => Set<RelationMaster>();
     public DbSet<IdentificationTypeMaster> IdentificationTypeMasters => Set<IdentificationTypeMaster>();
     public DbSet<OccupationMaster> OccupationMasters => Set<OccupationMaster>();
     public DbSet<MaritalStatusMaster> MaritalStatusMasters => Set<MaritalStatusMaster>();
@@ -112,6 +113,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             entity.ToTable("ReligionMaster");
             entity.HasKey(x => x.ReligionId);
+        });
+
+        modelBuilder.Entity<RelationMaster>(entity =>
+        {
+            entity.ToTable("RelationMaster");
+            entity.HasKey(x => x.RelationId);
         });
 
         modelBuilder.Entity<IdentificationTypeMaster>(entity =>

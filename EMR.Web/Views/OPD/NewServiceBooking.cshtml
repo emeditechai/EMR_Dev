@@ -496,13 +496,14 @@
                     : null;
                 const ageStr  = age !== null ? age + ' yrs' : '';
                 const bg      = p.bloodGroup ? `<span class="badge text-bg-danger ms-1" style="font-size:.63rem">${p.bloodGroup}</span>` : '';
+                const rel     = p.relationName ? `<span class="badge text-bg-primary ms-1" style="font-size:.63rem">${p.relationName}</span>` : '';
                 const meta    = [p.gender, ageStr].filter(Boolean).join(' · ');
                 return `<div class="suggest-item" data-id="${p.patientId}">
                     <div style="min-width:0">
                         <div class="fw-semibold" style="font-size:.87rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
                             ${p.fullName}
                             <span class="badge text-bg-secondary font-monospace ms-1" style="font-size:.63rem">${p.patientCode}</span>
-                            ${bg}
+                            ${bg}${rel}
                         </div>
                         <div class="text-muted" style="font-size:.76rem">
                             <i class="bi bi-telephone me-1"></i>${p.phoneNumber || ''}${meta ? ' &nbsp;·&nbsp; ' + meta : ''}
@@ -727,7 +728,10 @@
                     <tr>
                         <td class="ps-3 py-2">
                             <div class="fw-semibold">${p.fullName}</div>
-                            <div><span class="badge text-bg-secondary font-monospace" style="font-size:.68rem">${p.patientCode}</span></div>
+                            <div>
+                                <span class="badge text-bg-secondary font-monospace" style="font-size:.68rem">${p.patientCode}</span>
+                                ${p.relationName ? `<span class="badge text-bg-primary ms-1" style="font-size:.68rem">${p.relationName}</span>` : ''}
+                            </div>
                         </td>
                         <td class="py-2">
                             <div><i class="bi bi-telephone me-1 text-muted"></i>${p.phoneNumber || '--'}</div>

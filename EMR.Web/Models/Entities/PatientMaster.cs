@@ -49,6 +49,8 @@ public class PatientMaster
     [MaxLength(500)]
     public string? Address { get; set; }
 
+    public int? RelationId { get; set; }
+
     public int? IdentificationTypeId { get; set; }
 
     [MaxLength(100)]
