@@ -1,0 +1,339 @@
+@{
+    ViewData["Title"] = "Patient Vitals";
+}
+
+@section HeadStyles {
+<style>
+    .vt-hero {
+        background: linear-gradient(135deg,#1967d2 0%,#0d6efd 60%,#198754 100%);
+        border-radius: 16px;
+        padding: 2rem 2.5rem;
+        color: #fff;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .vt-hero::after {
+        content: '\F469';
+        font-family: "bootstrap-icons";
+        position: absolute;
+        right: 2rem; top: 50%;
+        transform: translateY(-50%);
+        font-size: 7rem;
+        opacity: .12;
+    }
+    .search-card {
+        background: #fff;
+        border: 2px solid #0d6efd;
+        border-radius: 14px;
+        padding: 1.6rem 2rem;
+        box-shadow: 0 4px 20px rgba(13,110,253,.12);
+    }
+    .search-label-strip {
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #0d6efd;
+        margin-bottom: .9rem;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+    #searchAutoDropdown {
+        position: absolute;
+        top: calc(100% + 2px);
+        left: 0; right: 0;
+        z-index: 1060;
+        background: #fff;
+        border: 1px solid #c6d4f5;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 6px 20px rgba(13,110,253,.14);
+        max-height: 300px;
+        overflow-y: auto;
+        display: none;
+    }
+    .suggest-item {
+        padding: .55rem 1rem;
+        cursor: pointer;
+        border-bottom: 1px solid #f3f3f3;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .5rem;
+        transition: background .12s;
+    }
+    .suggest-item:last-child { border-bottom: none; }
+    .suggest-item:hover { background: #e8f0fe; }
+    .suggest-no-result { padding: .7rem 1rem; color: #888; font-size: .84rem; text-align: center; }
+    /* Patient action card (shown after selection) */
+    #patientActionCard {
+        background: linear-gradient(135deg,#e8f0fe 0%,#f0fff4 100%);
+        border: 1.5px solid #0d6efd;
+        border-radius: 14px;
+        padding: 1.4rem 1.8rem;
+        animation: fadeIn .3s ease;
+    }
+    @@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    .vital-action-btn {
+        border-radius: 10px;
+        padding: .65rem 1.6rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+</style>
+}
+
+@* ── Page header ── *@
+<div class="vt-hero">
+    <h1 class="h3 fw-bold mb-1">
+        <i class="bi bi-activity me-2"></i>Patient Vitals
+    </h1>
+    <p class="mb-0 opacity-75">Record, track and review patient vital signs</p>
+</div>
+
+@* ── Search card ── *@
+<div class="search-card mb-4" id="searchPanel">
+    <div class="search-label-strip">
+        <i class="bi bi-search fs-6"></i>
+        Search Patient
+    </div>
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+            <label class="form-label fw-semibold small mb-1">Search By</label>
+            <select id="searchType" class="form-select form-select-sm">
+                <option value="phone">Mobile No</option>
+                <option value="code">Patient ID</option>
+                <option value="name">Patient Name</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-6 position-relative">
+            <label class="form-label fw-semibold small mb-1" id="searchLabel">Enter Mobile Number</label>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text" id="searchIconWrap"><i class="bi bi-telephone"></i></span>
+                <input type="text" id="searchInput" class="form-control"
+                       placeholder="Type to search…" maxlength="30" autocomplete="off" />
+                <button class="btn btn-primary px-3" type="button" id="btnSearch">
+                    <i class="bi bi-search me-1"></i>Search
+                </button>
+            </div>
+            <div id="searchAutoDropdown"></div>
+        </div>
+        <div class="col-12 col-md-3 text-muted small">
+            <i class="bi bi-info-circle me-1"></i>Type at least 2 characters to auto-search
+        </div>
+    </div>
+</div>
+
+@* ── Patient not selected hint ── *@
+<div id="noPatientHint" class="text-center py-5 text-muted">
+    <i class="bi bi-person-bounding-box display-4 d-block mb-3 opacity-50"></i>
+    <h5 class="fw-semibold">Search and select a patient</h5>
+    <p class="mb-0 small">Use the search above to find a patient by Mobile, Patient ID or Name</p>
+</div>
+
+@* ── Patient action card (shown after selection) ── *@
+<div id="patientActionCard" style="display:none">
+    <div class="d-flex align-items-start gap-3 flex-wrap mb-3">
+        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+             style="width:54px;height:54px;font-size:1.4rem" id="ptAvatar">?</div>
+        <div class="flex-grow-1">
+            <div class="d-flex gap-2 align-items-center flex-wrap mb-1">
+                <h5 class="mb-0 fw-bold" id="ptName">—</h5>
+                <span class="badge text-bg-primary font-monospace" id="ptCode">—</span>
+                <span class="badge text-bg-secondary" id="ptGender">—</span>
+                <span class="badge text-bg-danger" id="ptBloodGroup" style="display:none">—</span>
+                <span class="text-muted small" id="ptAge"></span>
+            </div>
+            <div class="text-muted small">
+                <i class="bi bi-telephone me-1"></i><span id="ptPhone">—</span>
+            </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClear">
+            <i class="bi bi-arrow-left me-1"></i>Change Patient
+        </button>
+    </div>
+
+    @* Latest vitals mini-card *@
+    <div id="latestVitalSection" style="display:none" class="bg-white border rounded-3 p-3 mb-4 small">
+        <div class="fw-semibold text-muted mb-2">
+            <i class="bi bi-clock-history me-1"></i>Latest Recorded Vitals
+            <span class="ms-2 text-primary" id="latestVitalDate"></span>
+        </div>
+        <div class="row g-2 text-center" id="latestVitalsGrid"></div>
+    </div>
+
+    @* Action buttons *@
+    <div class="d-flex gap-3 flex-wrap">
+        <a id="btnRecordVital" href="#" class="btn btn-primary vital-action-btn">
+            <i class="bi bi-plus-circle-fill fs-5"></i>Record New Vitals
+        </a>
+        <a id="btnViewHistory" href="#" class="btn btn-outline-primary vital-action-btn">
+            <i class="bi bi-clock-history fs-5"></i>View Vital History
+        </a>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    'use strict';
+
+    const opdBase    = '@Url.Content("~/OPD/")';
+    const vitalsBase = '@Url.Content("~/Vitals/")';
+
+    async function fetchJson(url) {
+        try { const r = await fetch(url); return r.ok ? r.json() : null; } catch { return null; }
+    }
+
+    // ── Search type toggle ─────────────────────────────────────────────────
+    const searchType  = document.getElementById('searchType');
+    const searchLabel = document.getElementById('searchLabel');
+    const iconI       = document.querySelector('#searchIconWrap i');
+
+    searchType.addEventListener('change', () => {
+        const map = { phone: ['Enter Mobile Number','bi-telephone'], code: ['Enter Patient ID','bi-hash'], name: ['Enter Patient Name','bi-person'] };
+        const [lbl, ico] = map[searchType.value];
+        searchLabel.textContent = lbl;
+        iconI.className = 'bi ' + ico;
+    });
+
+    // ── Auto-suggest ───────────────────────────────────────────────────────
+    const searchInput  = document.getElementById('searchInput');
+    const autoDrop     = document.getElementById('searchAutoDropdown');
+    let   debounce     = null;
+
+    function closeDropdown() { autoDrop.style.display = 'none'; autoDrop.innerHTML = ''; }
+
+    function renderDropdown(data) {
+        if (!data?.length) {
+            autoDrop.innerHTML = '<div class="suggest-no-result"><i class="bi bi-search me-1"></i>No patients found</div>';
+        } else {
+            autoDrop.innerHTML = data.map(p => {
+                const bg  = p.bloodGroup   ? `<span class="badge text-bg-danger ms-1" style="font-size:.62rem">${p.bloodGroup}</span>` : '';
+                const rel = p.relationName ? `<span class="badge text-bg-primary ms-1" style="font-size:.62rem">${p.relationName}</span>` : '';
+                return `<div class="suggest-item" data-id="${p.patientId}">
+                    <div style="min-width:0">
+                        <div class="fw-semibold" style="font-size:.87rem">
+                            ${p.fullName}
+                            <span class="badge text-bg-secondary font-monospace ms-1" style="font-size:.62rem">${p.patientCode}</span>
+                            ${bg}${rel}
+                        </div>
+                        <div class="text-muted" style="font-size:.76rem"><i class="bi bi-telephone me-1"></i>${p.phoneNumber || ''}</div>
+                    </div>
+                    <i class="bi bi-arrow-return-left text-primary flex-shrink-0"></i>
+                </div>`;
+            }).join('');
+        }
+        autoDrop.style.display = 'block';
+    }
+
+    function searchUrl(val) {
+        const t = searchType.value;
+        return t === 'phone' ? opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val)
+             : t === 'code'  ? opdBase + 'SearchPatientByCode?code='   + encodeURIComponent(val)
+                             : opdBase + 'SearchPatientByName?name='   + encodeURIComponent(val);
+    }
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(debounce);
+        const val = searchInput.value.trim();
+        if (val.length < 2) { closeDropdown(); return; }
+        debounce = setTimeout(async () => renderDropdown(await fetchJson(searchUrl(val))), 300);
+    });
+
+    document.getElementById('btnSearch').addEventListener('click', async () => {
+        const val = searchInput.value.trim();
+        if (!val) return;
+        closeDropdown();
+        renderDropdown(await fetchJson(searchUrl(val)));
+    });
+    searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnSearch').click(); } });
+
+    autoDrop.addEventListener('click', e => {
+        const item = e.target.closest('.suggest-item');
+        if (!item) return;
+        closeDropdown();
+        loadPatient(+item.dataset.id);
+    });
+
+    document.addEventListener('click', e => {
+        if (!document.getElementById('searchPanel').contains(e.target)) closeDropdown();
+    });
+
+    // ── Load patient ───────────────────────────────────────────────────────
+    async function loadPatient(id) {
+        const p = await fetchJson(opdBase + 'GetPatientDetails?id=' + id);
+        if (!p) return;
+
+        // Fill card
+        const initials = ((p.firstName?.[0]??'') + (p.lastName?.[0]??'')).toUpperCase() || '?';
+        document.getElementById('ptAvatar').textContent = initials;
+
+        const fullName = [p.salutation, p.firstName, p.middleName, p.lastName].filter(Boolean).join(' ');
+        document.getElementById('ptName').textContent      = fullName || '—';
+        document.getElementById('ptCode').textContent      = p.patientCode ?? '';
+        document.getElementById('ptGender').textContent    = p.gender ?? '—';
+        document.getElementById('ptPhone').textContent     = p.phoneNumber ?? '—';
+
+        const bgEl = document.getElementById('ptBloodGroup');
+        if (p.bloodGroup) { bgEl.textContent = p.bloodGroup; bgEl.style.display = ''; }
+        else bgEl.style.display = 'none';
+
+        if (p.dateOfBirth) {
+            const dob = new Date(p.dateOfBirth), today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            if (today < new Date(today.getFullYear(), dob.getMonth(), dob.getDate())) age--;
+            document.getElementById('ptAge').textContent = age + ' yrs';
+        }
+
+        // Buttons
+        document.getElementById('btnRecordVital').href = vitalsBase + 'RecordVital?patientId=' + p.patientId;
+        document.getElementById('btnViewHistory').href = vitalsBase + 'History?patientId='    + p.patientId;
+
+        // Load latest vitals
+        const latest = await fetchJson(vitalsBase + 'GetLatest?patientId=' + p.patientId);
+        const latestSection = document.getElementById('latestVitalSection');
+        if (latest?.found) {
+            document.getElementById('latestVitalDate').textContent = latest.recordedOn;
+            const grid = document.getElementById('latestVitalsGrid');
+            const vitalItem = (icon, lbl, val, unit, ok) =>
+                val != null ? `<div class="col-6 col-md-3 col-lg-2">
+                    <div class="rounded-3 p-2 text-center ${ok ? 'bg-success bg-opacity-10 border border-success border-opacity-25' : 'bg-danger bg-opacity-10 border border-danger border-opacity-25'}">
+                        <i class="bi ${icon} ${ok ? 'text-success' : 'text-danger'} fs-5 d-block mb-1"></i>
+                        <div class="fw-bold">${val}<span class="text-muted fw-normal ms-1" style="font-size:.7rem">${unit}</span></div>
+                        <div class="text-muted" style="font-size:.7rem">${lbl}</div>
+                    </div>
+                </div>` : '';
+            grid.innerHTML = [
+                vitalItem('bi-rulers',         'Height',   latest.height,         'cm',  true),
+                vitalItem('bi-bar-chart-fill', 'Weight',   latest.weight,         'kg',  true),
+                vitalItem('bi-calculator',     'BMI',      latest.bmi,            'kg/m²', ['Normal'].includes(latest.bmiCategory)),
+                vitalItem('bi-heart-fill',     'BP',       latest.bpSystolic ? `${latest.bpSystolic}/${latest.bpDiastolic}` : null, 'mmHg', latest.bpSystolic>=90&&latest.bpSystolic<=120),
+                vitalItem('bi-cursor-fill',    'Pulse',    latest.pulseRate,      'bpm', latest.pulseRate>=60&&latest.pulseRate<=100),
+                vitalItem('bi-droplet-half',   'SpO₂',     latest.spO2,           '%',   latest.spO2>=95),
+                vitalItem('bi-thermometer-half','Temp',    latest.temperature,    '°F',  latest.temperature>=97&&latest.temperature<=99),
+                vitalItem('bi-wind',           'RR',       latest.respiratoryRate,'rpm', latest.respiratoryRate>=12&&latest.respiratoryRate<=20),
+            ].join('');
+            latestSection.style.display = '';
+        } else {
+            latestSection.style.display = 'none';
+        }
+
+        // Show card, hide hint
+        document.getElementById('noPatientHint').style.display    = 'none';
+        document.getElementById('patientActionCard').style.display = '';
+        searchInput.value = '';
+    }
+
+    // ── Clear patient ──────────────────────────────────────────────────────
+    document.getElementById('btnClear').addEventListener('click', () => {
+        document.getElementById('patientActionCard').style.display = 'none';
+        document.getElementById('noPatientHint').style.display     = '';
+    });
+
+})();
+</script>
+}

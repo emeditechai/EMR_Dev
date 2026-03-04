@@ -1,0 +1,550 @@
+@model EMR.Web.Models.ViewModels.VitalIndexViewModel
+@{
+    ViewData["Title"] = $"Vital History";
+    int totalPages = (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize);
+}
+
+@section HeadStyles {
+<style>
+    .patient-header-card {
+        background: linear-gradient(135deg,#e8f0fe 0%,#f0fff4 100%);
+        border: 1.5px solid #0d6efd;
+        border-radius: 14px;
+        padding: 1.2rem 1.6rem;
+        margin-bottom: 1.5rem;
+    }
+    .vital-table-wrap {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+    .vital-table thead th {
+        background: #f8f9fc;
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        color: #6c757d;
+        border-bottom: 2px solid #e9ecef;
+        white-space: nowrap;
+    }
+    .vital-table tbody td { vertical-align: middle; font-size: .85rem; }
+    .vital-table tbody tr:hover { background: #f8f9fc; }
+
+    .vital-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: .2rem .5rem;
+        border-radius: 20px;
+        font-size: .78rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .chip-ok    { background: #e6f4ea; color: #137333; }
+    .chip-warn  { background: #fff3cd; color: #856404; }
+    .chip-high  { background: #fdecea; color: #c62828; }
+    .chip-na    { background: #f8f9fa; color: #aaa; }
+    .chip-na span { font-weight: 400; }
+
+    .bmi-badge { font-size: .7rem; border-radius: 20px; padding: .15rem .45rem; }
+
+    /* Lock indicator */
+    .action-locked {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: .7rem; color: #adb5bd;
+        padding: .15rem .5rem;
+        border: 1px dashed #dee2e6; border-radius: 6px;
+    }
+    /* View detail modal */
+    .vd-group { background: #f8f9fc; border: 1px solid #e9ecef; border-radius: 10px; padding: .9rem 1rem; margin-bottom: .75rem; }
+    .vd-group-title { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6c757d; margin-bottom: .65rem; display: flex; align-items: center; gap: .4rem; }
+    .vd-row { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; padding: .28rem 0; border-bottom: 1px solid #f0f0f0; font-size: .84rem; }
+    .vd-row:last-child { border-bottom: none; }
+    .vd-col { display: flex; flex-direction: column; min-width: 110px; gap: .18rem; }
+    .vd-label { color: #6c757d; font-size: .74rem; }
+    .vd-val   { font-weight: 600; }
+    .vd-chip  { display: inline-flex; align-items: center; padding: .15rem .55rem; border-radius: 20px; font-size: .78rem; font-weight: 600; }
+    .vd-ok   { background: #e6f4ea; color: #137333; }
+    .vd-warn { background: #fff3cd; color: #856404; }
+    .vd-high { background: #fdecea; color: #c62828; }
+    .vd-na   { color: #aaa; font-weight: 400; }
+</style>
+}
+
+@* ── Page header ── *@
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="bi bi-clock-history me-2 text-primary"></i>Vital History
+        </h1>
+        <small class="text-muted">Complete vital sign records for this patient</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="RecordVital" asp-route-patientId="@Model.PatientId" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle-fill me-1"></i>Record New Vitals
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+@* Success message *@
+@if (TempData["VitalSuccess"] != null)
+{
+<div class="alert alert-success alert-dismissible d-flex gap-2 mb-3 py-2" role="alert">
+    <i class="bi bi-check-circle-fill"></i><span>@TempData["VitalSuccess"]</span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+}
+
+@* ── Patient card ── *@
+<div class="patient-header-card">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+             style="width:48px;height:48px;font-size:1.2rem">
+            @(Model.PatientFullName?.Length > 0 ? Model.PatientFullName[0].ToString().ToUpper() : "?")
+        </div>
+        <div class="flex-grow-1">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <strong>@Model.PatientFullName</strong>
+                <span class="badge text-bg-primary font-monospace">@Model.PatientCode</span>
+                <span class="badge text-bg-secondary">@Model.PatientGender</span>
+                @if (!string.IsNullOrEmpty(Model.PatientBloodGroup))
+                { <span class="badge text-bg-danger">@Model.PatientBloodGroup</span> }
+                <span class="text-muted small">@Model.PatientAge</span>
+            </div>
+            <div class="text-muted small mt-1"><i class="bi bi-telephone me-1"></i>@Model.PatientPhone</div>
+        </div>
+        <span class="badge text-bg-light border text-muted">@Model.TotalCount record(s)</span>
+    </div>
+</div>
+
+@* ── Vitals table ── *@
+@if (!Model.Vitals.Any())
+{
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-heart-pulse display-4 d-block mb-3 opacity-50"></i>
+    <h5 class="fw-semibold">No Vital Records Found</h5>
+    <p class="mb-3 small">No vitals have been recorded for this patient yet.</p>
+    <a asp-action="RecordVital" asp-route-patientId="@Model.PatientId" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>Record First Vitals
+    </a>
+</div>
+}
+else
+{
+<div class="vital-table-wrap">
+    <div class="table-responsive">
+        <table class="table vital-table mb-0">
+            <thead>
+                <tr>
+                    <th class="ps-3" style="min-width:130px">Date / Time</th>
+                    <th>Anthro</th>
+                    <th>BP</th>
+                    <th>Pulse</th>
+                    <th>SpO₂</th>
+                    <th>Temp</th>
+                    <th>RR</th>
+                    <th>Glucose</th>
+                    <th>Pain</th>
+                    <th>By</th>
+                    <th class="pe-3 text-center" style="min-width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var v in Model.Vitals)
+            {
+                <tr>
+                    <td class="ps-3">
+                        <div class="fw-semibold" style="font-size:.82rem">@v.RecordedOn.ToLocalTime().ToString("dd MMM yyyy")</div>
+                        <div class="text-muted" style="font-size:.74rem">@v.RecordedOn.ToLocalTime().ToString("HH:mm")</div>
+                    </td>
+                    @* Anthropometric *@
+                    <td>
+                        @if (v.Height.HasValue || v.Weight.HasValue)
+                        {
+                        <div style="font-size:.8rem">
+                            @if (v.Height.HasValue) { <span class="text-muted">H:</span><strong class="ms-1">@v.Height</strong><span class="text-muted ms-1" style="font-size:.7rem">cm</span> }
+                            @if (v.Weight.HasValue) { <span class="text-muted ms-2">W:</span><strong class="ms-1">@v.Weight</strong><span class="text-muted ms-1" style="font-size:.7rem">kg</span> }
+                        </div>
+                        if (v.BMI.HasValue)
+                        {
+                            var bmiClass = v.BMICategory switch { "Normal" => "text-bg-success", "Underweight" => "text-bg-warning", _ => "text-bg-danger" };
+                            <span class="badge bmi-badge @bmiClass mt-1">@v.BMI | @v.BMICategory</span>
+                        }
+                        }
+                        else { <span class="chip-na">—</span> }
+                    </td>
+                    @* BP *@
+                    <td>
+                        @if (v.BPSystolic.HasValue)
+                        {
+                            var okBP = v.BPSystolic >= 90 && v.BPSystolic <= 120 && v.BPDiastolic >= 60 && v.BPDiastolic <= 80;
+                            var warnBP = !okBP && v.BPSystolic < 140;
+                            var cls = okBP ? "chip-ok" : warnBP ? "chip-warn" : "chip-high";
+                        <span class="vital-chip @cls">
+                            <i class="bi bi-heart-fill" style="font-size:.65rem"></i>@v.BPSystolic/@v.BPDiastolic
+                        </span>
+                        }
+                        else { <span class="vital-chip chip-na"><span>—</span></span> }
+                    </td>
+                    @* Pulse *@
+                    <td>
+                        @if (v.PulseRate.HasValue)
+                        {
+                            var cls = v.PulseRate >= 60 && v.PulseRate <= 100 ? "chip-ok" : v.PulseRate < 50 || v.PulseRate > 120 ? "chip-high" : "chip-warn";
+                        <span class="vital-chip @cls">@v.PulseRate <span style="font-size:.68rem;font-weight:400">bpm</span></span>
+                        }
+                        else { <span class="vital-chip chip-na"><span>—</span></span> }
+                    </td>
+                    @* SpO2 *@
+                    <td>
+                        @if (v.SpO2.HasValue)
+                        {
+                            var cls = v.SpO2 >= 95 ? "chip-ok" : v.SpO2 < 90 ? "chip-high" : "chip-warn";
+                        <span class="vital-chip @cls">@v.SpO2<span style="font-size:.68rem;font-weight:400">%</span></span>
+                        }
+                        else { <span class="vital-chip chip-na"><span>—</span></span> }
+                    </td>
+                    @* Temperature *@
+                    <td>
+                        @if (v.Temperature.HasValue)
+                        {
+                            var cls = v.Temperature >= 97 && v.Temperature <= 99 ? "chip-ok" : v.Temperature < 95 || v.Temperature > 103 ? "chip-high" : "chip-warn";
+                        <span class="vital-chip @cls">@v.Temperature<span style="font-size:.68rem;font-weight:400">°F</span></span>
+                        }
+                        else { <span class="vital-chip chip-na"><span>—</span></span> }
+                    </td>
+                    @* RR *@
+                    <td>
+                        @if (v.RespiratoryRate.HasValue)
+                        {
+                            var cls = v.RespiratoryRate >= 12 && v.RespiratoryRate <= 20 ? "chip-ok" : v.RespiratoryRate < 8 || v.RespiratoryRate > 30 ? "chip-high" : "chip-warn";
+                        <span class="vital-chip @cls">@v.RespiratoryRate</span>
+                        }
+                        else { <span class="vital-chip chip-na"><span>—</span></span> }
+                    </td>
+                    @* Glucose *@
+                    <td>
+                        @if (v.BloodGlucose.HasValue)
+                        {<div style="font-size:.8rem"><strong>@v.BloodGlucose</strong> <span class="text-muted">mg/dL</span></div>
+                         if (!string.IsNullOrEmpty(v.GlucoseType)) { <span class="badge text-bg-light border text-muted" style="font-size:.68rem">@v.GlucoseType</span> }
+                        }
+                        else { <span class="vital-chip chip-na"><span>—</span></span> }
+                    </td>
+                    @* Pain *@
+                    <td>
+                        @if (v.PainScore.HasValue)
+                        {
+                            var pCls = v.PainScore <= 3 ? "chip-ok" : v.PainScore <= 6 ? "chip-warn" : "chip-high";
+                        <span class="vital-chip @pCls">@v.PainScore/10</span>
+                        }
+                        else { <span class="vital-chip chip-na"><span>—</span></span> }
+                    </td>
+                    @* Recorded by *@
+                    <td><span class="text-muted small">@(v.RecordedByName ?? "—")</span></td>
+                    @* Actions — View always · Edit/Delete only within 2 min *@
+                    @{
+                        bool canModify = (DateTime.UtcNow - v.RecordedOn).TotalMinutes <= 2;
+                        string bpVal  = v.BPSystolic.HasValue ? $"{v.BPSystolic}/{v.BPDiastolic} mmHg" : "—";
+                        bool   bpOk   = v.BPSystolic.HasValue && v.BPSystolic>=90 && v.BPSystolic<=120 && (v.BPDiastolic??0)>=60 && (v.BPDiastolic??0)<=80;
+                        bool   bpWarn = v.BPSystolic.HasValue && !bpOk && v.BPSystolic < 140;
+                        string bpCls  = !v.BPSystolic.HasValue ? "na" : bpOk ? "ok" : bpWarn ? "warn" : "high";
+                    }
+                    <td class="pe-3 text-center"
+                        data-vid="@v.PatientVitalId"
+                        data-date="@v.RecordedOn.ToLocalTime().ToString("dd MMM yyyy · HH:mm")"
+                        data-by="@(v.RecordedByName ?? "—")"
+                        data-height="@(v.Height.HasValue   ? v.Height  + " cm"    : "—")"
+                        data-weight="@(v.Weight.HasValue   ? v.Weight  + " kg"    : "—")"
+                        data-bmi="@(v.BMI.HasValue         ? v.BMI     + " kg/m²" : "—")"
+                        data-bmicat="@(v.BMICategory ?? "—")"
+                        data-bp="@bpVal" data-bpcls="@bpCls"
+                        data-pulse="@(v.PulseRate.HasValue       ? v.PulseRate + " bpm" : "—")"
+                        data-pulsecls="@(v.PulseRate.HasValue ? (v.PulseRate>=60&&v.PulseRate<=100?"ok":v.PulseRate<50||v.PulseRate>120?"high":"warn") : "na")"
+                        data-spo2="@(v.SpO2.HasValue             ? v.SpO2 + " %"   : "—")"
+                        data-spo2cls="@(v.SpO2.HasValue     ? (v.SpO2>=95?"ok":v.SpO2<90?"high":"warn") : "na")"
+                        data-temp="@(v.Temperature.HasValue      ? v.Temperature + " °F" : "—")"
+                        data-tempcls="@(v.Temperature.HasValue   ? (v.Temperature>=97&&v.Temperature<=99?"ok":v.Temperature<95||v.Temperature>103?"high":"warn") : "na")"
+                        data-rr="@(v.RespiratoryRate.HasValue    ? v.RespiratoryRate + " rpm" : "—")"
+                        data-rrcls="@(v.RespiratoryRate.HasValue ? (v.RespiratoryRate>=12&&v.RespiratoryRate<=20?"ok":v.RespiratoryRate<8||v.RespiratoryRate>30?"high":"warn") : "na")"
+                        data-glucose="@(v.BloodGlucose.HasValue  ? v.BloodGlucose + " mg/dL" + (v.GlucoseType!=null?" ("+v.GlucoseType+")":"") : "—")"
+                        data-pain="@(v.PainScore.HasValue        ? v.PainScore + "/10" : "—")"
+                        data-paincls="@(v.PainScore.HasValue     ? (v.PainScore<=3?"ok":v.PainScore<=6?"warn":"high") : "na")"
+                        data-notes="@Html.Encode(v.Notes ?? "")">
+                        <div class="d-flex gap-1 justify-content-center align-items-center">
+                            @* View — always *@
+                            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 btn-view-vital" title="View Details">
+                                <i class="bi bi-eye-fill" style="font-size:.75rem"></i>
+                            </button>
+                            @if (canModify)
+                            {
+                            <a asp-action="RecordVital" asp-route-editId="@v.PatientVitalId"
+                               class="btn btn-sm btn-outline-primary py-0 px-2" title="Edit">
+                                <i class="bi bi-pencil-fill" style="font-size:.75rem"></i>
+                            </a>
+                            <form asp-action="Delete" method="post" class="d-inline"
+                                  onsubmit="return confirm('Delete this vital record?')">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="vitalId"   value="@v.PatientVitalId" />
+                                <input type="hidden" name="patientId" value="@Model.PatientId" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete">
+                                    <i class="bi bi-trash-fill" style="font-size:.75rem"></i>
+                                </button>
+                            </form>
+                            }
+                            else
+                            {
+                            <span class="action-locked" title="Edit & Delete locked after 2 minutes of recording">
+                                <i class="bi bi-lock-fill" style="font-size:.7rem"></i>Locked
+                            </span>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* ── Pagination ── *@
+@if (totalPages > 1)
+{
+<nav class="mt-3 d-flex justify-content-center">
+    <ul class="pagination pagination-sm mb-0">
+        <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+            <a class="page-link" asp-action="History" asp-route-patientId="@Model.PatientId"
+               asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        @for (int pg = 1; pg <= totalPages; pg++)
+        {
+        <li class="page-item @(pg == Model.Page ? "active" : "")">
+            <a class="page-link" asp-action="History" asp-route-patientId="@Model.PatientId"
+               asp-route-page="@pg" asp-route-pageSize="@Model.PageSize">@pg</a>
+        </li>
+        }
+        <li class="page-item @(Model.Page >= totalPages ? "disabled" : "")">
+            <a class="page-link" asp-action="History" asp-route-patientId="@Model.PatientId"
+               asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+}
+}
+
+@* ── View Vital Details Modal ── *@
+<div class="modal fade" id="viewVitalModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header py-2 px-3" style="background:linear-gradient(135deg,#0d6efd,#0a58ca)">
+                <div>
+                    <span class="fw-semibold text-white fs-6">
+                        <i class="bi bi-clipboard2-pulse-fill me-2"></i>Vital Record Details
+                    </span>
+                    <div class="small text-white opacity-75 mt-0" id="mvDate"></div>
+                </div>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+
+                @* Anthropometric *@
+                <div class="vd-group mb-3">
+                    <div class="vd-group-title">
+                        <i class="bi bi-body-text me-1"></i>Anthropometric
+                    </div>
+                    <div class="vd-row">
+                        <div class="vd-col">
+                            <span class="vd-label">Height</span>
+                            <span class="vd-val" id="mvHeight"></span>
+                        </div>
+                        <div class="vd-col">
+                            <span class="vd-label">Weight</span>
+                            <span class="vd-val" id="mvWeight"></span>
+                        </div>
+                        <div class="vd-col">
+                            <span class="vd-label">BMI</span>
+                            <span class="vd-val" id="mvBmi"></span>
+                            <span class="badge ms-1" id="mvBmiCat"></span>
+                        </div>
+                    </div>
+                </div>
+
+                @* Cardiovascular *@
+                <div class="vd-group mb-3">
+                    <div class="vd-group-title">
+                        <i class="bi bi-heart-pulse-fill me-1"></i>Cardiovascular
+                    </div>
+                    <div class="vd-row">
+                        <div class="vd-col">
+                            <span class="vd-label">Blood Pressure</span>
+                            <span class="vd-chip" id="mvBp"></span>
+                        </div>
+                        <div class="vd-col">
+                            <span class="vd-label">Pulse Rate</span>
+                            <span class="vd-chip" id="mvPulse"></span>
+                        </div>
+                        <div class="vd-col">
+                            <span class="vd-label">SpO₂</span>
+                            <span class="vd-chip" id="mvSpo2"></span>
+                        </div>
+                    </div>
+                </div>
+
+                @* General *@
+                <div class="vd-group mb-3">
+                    <div class="vd-group-title">
+                        <i class="bi bi-thermometer-half me-1"></i>General
+                    </div>
+                    <div class="vd-row">
+                        <div class="vd-col">
+                            <span class="vd-label">Temperature</span>
+                            <span class="vd-chip" id="mvTemp"></span>
+                        </div>
+                        <div class="vd-col">
+                            <span class="vd-label">Respiratory Rate</span>
+                            <span class="vd-chip" id="mvRr"></span>
+                        </div>
+                    </div>
+                </div>
+
+                @* Optional *@
+                <div class="vd-group mb-3" id="mvOptGroup">
+                    <div class="vd-group-title">
+                        <i class="bi bi-droplet-half me-1"></i>Additional
+                    </div>
+                    <div class="vd-row">
+                        <div class="vd-col" id="mvGlucoseCol">
+                            <span class="vd-label">Blood Glucose</span>
+                            <span class="vd-val" id="mvGlucose"></span>
+                        </div>
+                        <div class="vd-col" id="mvPainCol">
+                            <span class="vd-label">Pain Score</span>
+                            <span class="vd-chip" id="mvPain"></span>
+                        </div>
+                    </div>
+                </div>
+
+                @* Notes *@
+                <div class="vd-group" id="mvNotesGroup">
+                    <div class="vd-group-title">
+                        <i class="bi bi-chat-left-text-fill me-1"></i>Notes
+                    </div>
+                    <p class="mb-0 small text-muted" id="mvNotes" style="white-space:pre-wrap"></p>
+                </div>
+
+            </div>
+            <div class="modal-footer py-2 px-3 bg-light">
+                <span class="text-muted small me-auto">
+                    <i class="bi bi-person-fill me-1"></i>Recorded by: <span id="mvBy" class="fw-semibold"></span>
+                </span>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    // ── helpers ──────────────────────────────────────────────
+    function chip(id, text, cls) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = text || '—';
+        el.className = 'vd-chip' + (cls ? ' vd-' + cls : ' vd-na');
+    }
+    function val(id, text) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = text || '—';
+    }
+    function show(id) { var e = document.getElementById(id); if (e) e.style.display = ''; }
+    function hide(id) { var e = document.getElementById(id); if (e) e.style.display = 'none'; }
+
+    function bmiBadge(cat) {
+        if (!cat) return ['bg-secondary', '—'];
+        var c = cat.toLowerCase();
+        if (c.includes('underweight')) return ['bg-info text-dark', cat];
+        if (c.includes('normal'))      return ['bg-success', cat];
+        if (c.includes('overweight'))  return ['bg-warning text-dark', cat];
+        return ['bg-danger', cat];
+    }
+
+    // ── modal population ─────────────────────────────────────
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.btn-view-vital');
+        if (!btn) return;
+
+        var td = btn.closest('td');
+        if (!td) return;
+
+        var d = td.dataset;
+
+        // header
+        val('mvDate', d.date || '');
+        val('mvBy',   d.by   || '');
+
+        // anthropometric
+        val('mvHeight', d.height ? d.height + ' cm' : null);
+        val('mvWeight', d.weight ? d.weight + ' kg' : null);
+        val('mvBmi',    d.bmi    || null);
+
+        var bmiEl = document.getElementById('mvBmiCat');
+        if (bmiEl && d.bmicat) {
+            var bc = bmiBadge(d.bmicat);
+            bmiEl.className = 'badge ms-1 ' + bc[0];
+            bmiEl.textContent = bc[1];
+            bmiEl.style.display = '';
+        } else if (bmiEl) {
+            bmiEl.style.display = 'none';
+        }
+
+        // cardiovascular
+        chip('mvBp',    d.bp    ? d.bp    + ' mmHg' : null, d.bpcls);
+        chip('mvPulse', d.pulse ? d.pulse + ' bpm'  : null, d.pulsecls);
+        chip('mvSpo2',  d.spo2  ? d.spo2  + '%'     : null, d.spo2cls);
+
+        // general
+        chip('mvTemp',  d.temp  ? d.temp  + ' °F'         : null, d.tempcls);
+        chip('mvRr',    d.rr    ? d.rr    + ' breaths/min' : null, d.rrcls);
+
+        // optional
+        var hasGlucose = d.glucose && d.glucose !== '';
+        var hasPain    = d.pain    && d.pain    !== '';
+        if (hasGlucose) {
+            val('mvGlucose', d.glucose + ' mg/dL');
+            show('mvGlucoseCol');
+        } else {
+            hide('mvGlucoseCol');
+        }
+        if (hasPain) {
+            var painNum = parseInt(d.pain, 10);
+            var painCls = d.paincls || (painNum <= 3 ? 'ok' : painNum <= 6 ? 'warn' : 'high');
+            chip('mvPain', d.pain + '/10', painCls);
+            show('mvPainCol');
+        } else {
+            hide('mvPainCol');
+        }
+        var optGroup = document.getElementById('mvOptGroup');
+        if (optGroup) optGroup.style.display = (hasGlucose || hasPain) ? '' : 'none';
+
+        // notes
+        val('mvNotes', d.notes || '');
+        var notesGroup = document.getElementById('mvNotesGroup');
+        if (notesGroup) notesGroup.style.display = d.notes ? '' : 'none';
+
+        // show modal
+        var modal = new bootstrap.Modal(document.getElementById('viewVitalModal'), { backdrop: true });
+        modal.show();
+    });
+}());
+</script>
+}

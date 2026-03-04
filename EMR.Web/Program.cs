@@ -37,6 +37,9 @@ builder.Services.AddScoped<IDoctorConsultingFeeService, DoctorConsultingFeeServi
 // Patient Registration (Dapper)
 builder.Services.AddScoped<IPatientService, PatientService>();
 
+// Patient Vitals (Dapper)
+builder.Services.AddScoped<IPatientVitalService, PatientVitalService>();
+
 // Payment (Dapper)
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
