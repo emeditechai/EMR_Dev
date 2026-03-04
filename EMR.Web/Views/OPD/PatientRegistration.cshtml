@@ -222,6 +222,7 @@
                         <span class="badge text-bg-primary ms-2 font-monospace">@Model.PatientCode</span>
                     }
                     <span id="loadedPatientBadge" class="badge text-bg-primary ms-2 font-monospace d-none"></span>
+                    <span id="regValidityBadge" class="badge text-bg-warning text-dark ms-2 d-none" style="font-size:.75em"></span>
                 </h6>
                 <small class="text-muted">Basic personal, contact and address information</small>
             </div>
@@ -942,21 +943,39 @@
             const data = await fetchJson(url);
             $item.empty().append(new Option('-- Select item --', ''));
             (data || []).forEach(s => {
+                // Skip registration service if patient's registration is still within validity
+                if (s.isRegistration && window._registrationValid) return;
                 const o = new Option(s.itemName, s.serviceId);
                 o.dataset.charges = s.itemCharges;
+                o.dataset.isRegistration = s.isRegistration ? 'true' : 'false';
                 $item.append(o);
             });
             if (selectedId) $item.val(selectedId);
             initRowS2($item);
 
-            // if selectedId not in list, set charges from name lookup
+            // Set charges from selected option's dataset
             const sel = $item[0].options[$item[0].selectedIndex];
             const charges = sel?.dataset?.charges;
             setRowCharges($row, rowId, charges || '');
         }
 
         function initRowS2($el) {
-            $el.select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: document.body });
+            $el.select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                dropdownParent: document.body,
+                templateResult: function(opt) {
+                    if (!opt.id) return opt.text;
+                    const el = opt.element;
+                    if (el && el.dataset.isRegistration === 'true') {
+                        const $w = $('<span class="d-flex align-items-center gap-2"></span>');
+                        $w.append($('<span></span>').text(opt.text));
+                        $w.append('<span class="badge text-bg-primary" style="font-size:0.7em">Registration</span>');
+                        return $w;
+                    }
+                    return opt.text;
+                }
+            });
             $el.on('change', function () {
                 const rid  = parseInt(this.closest('tr').id.replace('row-',''));
                 const sel  = this.options[this.selectedIndex];
@@ -1123,6 +1142,9 @@
             renderRows();
             saveJson();
 
+            // ── Check registration validity for this (returning) patient ─────
+            await checkRegistrationValidity(p.patientId);
+
             showToast(`Patient loaded (${p.patientCode}) — select Doctor & Service for new visit`);
         }
 
@@ -1134,6 +1156,38 @@
             data.forEach(item => $child.append(new Option(item[textProp], item[valProp])));
             if (toSelect) $child.val(toSelect);
             $child.trigger('change.select2');
+        }
+
+        // ── Registration Validity check ───────────────────────────────────────
+        window._registrationValid = false;
+
+        function clearRegValidityBadge() {
+            window._registrationValid = false;
+            const el = document.getElementById('regValidityBadge');
+            if (el) { el.textContent = ''; el.classList.add('d-none'); }
+        }
+
+        async function checkRegistrationValidity(patientId) {
+            clearRegValidityBadge();
+            const rv = await fetchJson(opdBase + 'GetRegistrationValidity?patientId=' + patientId);
+            if (!rv || !rv.validityConfigured) return;  // no validity set — always allow registration
+
+            const el = document.getElementById('regValidityBadge');
+            if (rv.isRegistrationValid) {
+                // Patient's registration is still active — suppress registration items
+                window._registrationValid = true;
+                const days = rv.remainingDays;
+                el.className = 'badge text-bg-warning text-dark ms-2';
+                el.innerHTML =
+                    '<i class="bi bi-shield-check me-1"></i>Registration Charges Not Applied' +
+                    (days != null ? ` &nbsp;·&nbsp; <strong>${days}</strong> day${days === 1 ? '' : 's'} remaining` : '');
+                el.classList.remove('d-none');
+            } else {
+                // Expired or never registered — registration charge will be applied
+                el.className = 'badge text-bg-success ms-2';
+                el.innerHTML = '<i class="bi bi-receipt me-1"></i>Registration Charge Applied';
+                el.classList.remove('d-none');
+            }
         }
 
         // ── Open search-result modal ──────────────────────────────────────────
@@ -1174,6 +1228,8 @@
             const badge = document.getElementById('loadedPatientBadge');
             badge.textContent = '';
             badge.classList.add('d-none');
+            // Clear registration validity badge
+            clearRegValidityBadge();
             // Clear line items
             lineItems = [];
             renderRows();

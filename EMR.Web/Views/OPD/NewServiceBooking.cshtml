@@ -217,6 +217,7 @@
                 <span class="badge text-bg-secondary" id="infoPatientGender">—</span>
                 <span class="badge text-bg-danger" id="infoPatientBloodGroup" style="display:none">—</span>
                 <span class="text-muted small" id="infoPatientAge"></span>
+                <span id="regValidityBadge" class="badge text-bg-warning text-dark d-none" style="font-size:.72em"></span>
             </div>
             <div class="row g-2 text-muted small mt-0">
                 <div class="col-auto"><i class="bi bi-telephone me-1"></i><span id="infoPatientPhone">—</span></div>
@@ -691,6 +692,9 @@
             renderRows();
             saveJson();
 
+            // Check registration validity for this returning patient
+            await checkRegistrationValidity(p.patientId);
+
             showToast(`Patient loaded — ${p.patientCode} · ${p.fullName ?? ''}`);
         }
 
@@ -700,6 +704,7 @@
             document.getElementById('hdnPatientCode').value = '';
             searchInput.value  = '';
             closeAutoDropdown();
+            clearRegValidityBadge();
             lockForm();
             lineItems = [];
             renderRows();
@@ -754,6 +759,38 @@
 
         window.selectPatient = id => populatePatient(id);
 
+        // ── Registration Validity check ───────────────────────────────────────
+        window._registrationValid = false;
+
+        function clearRegValidityBadge() {
+            window._registrationValid = false;
+            const el = document.getElementById('regValidityBadge');
+            if (el) { el.textContent = ''; el.classList.add('d-none'); }
+        }
+
+        async function checkRegistrationValidity(patientId) {
+            clearRegValidityBadge();
+            const rv = await fetchJson(opdBase + 'GetRegistrationValidity?patientId=' + patientId);
+            if (!rv || !rv.validityConfigured) return;  // no validity set — always allow registration
+
+            const el = document.getElementById('regValidityBadge');
+            if (rv.isRegistrationValid) {
+                // Patient's registration is still active — suppress registration items
+                window._registrationValid = true;
+                const days = rv.remainingDays;
+                el.className = 'badge text-bg-warning text-dark d-none';
+                el.innerHTML =
+                    '<i class="bi bi-shield-check me-1"></i>Registration Charges Not Applied' +
+                    (days != null ? ` &nbsp;·&nbsp; <strong>${days}</strong> day${days === 1 ? '' : 's'} remaining` : '');
+                el.classList.remove('d-none');
+            } else {
+                // Expired or never registered — registration charge will be applied
+                el.className = 'badge text-bg-success d-none';
+                el.innerHTML = '<i class="bi bi-receipt me-1"></i>Registration Charge Applied';
+                el.classList.remove('d-none');
+            }
+        }
+
         // ── Line-item management ──────────────────────────────────────────────
         let lineItems  = [];
         let rowCounter = 0;
@@ -796,8 +833,11 @@
             const data = await fetchJson(url);
             $item.empty().append(new Option('-- Select item --', ''));
             (data || []).forEach(s => {
+                // Skip registration service if patient's registration is still within validity
+                if (s.isRegistration && window._registrationValid) return;
                 const o = new Option(s.itemName, s.serviceId);
                 o.dataset.charges = s.itemCharges;
+                o.dataset.isRegistration = s.isRegistration ? 'true' : 'false';
                 $item.append(o);
             });
             if (selectedId) $item.val(selectedId);
@@ -808,7 +848,22 @@
         }
 
         function initRowS2($el) {
-            $el.select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: document.body });
+            $el.select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                dropdownParent: document.body,
+                templateResult: function(opt) {
+                    if (!opt.id) return opt.text;
+                    const el = opt.element;
+                    if (el && el.dataset.isRegistration === 'true') {
+                        const $w = $('<span class="d-flex align-items-center gap-2"></span>');
+                        $w.append($('<span></span>').text(opt.text));
+                        $w.append('<span class="badge text-bg-primary" style="font-size:0.7em">Registration</span>');
+                        return $w;
+                    }
+                    return opt.text;
+                }
+            });
             $el.on('change', function () {
                 const rid = parseInt(this.closest('tr').id.replace('row-', ''));
                 const sel = this.options[this.selectedIndex];

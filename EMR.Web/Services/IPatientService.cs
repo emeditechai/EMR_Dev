@@ -50,7 +50,7 @@ public interface IPatientService
     Task<IEnumerable<(int DoctorId, string FullName)>> GetOpdDoctorsAsync(int? branchId);
 
     /// <summary>Returns services filtered by type ('Consulting' or 'Service').</summary>
-    Task<IEnumerable<(int ServiceId, string ItemName, decimal ItemCharges)>> GetServicesByTypeAsync(string serviceType, int? branchId);
+    Task<IEnumerable<(int ServiceId, string ItemName, decimal ItemCharges, bool IsRegistration)>> GetServicesByTypeAsync(string serviceType, int? branchId);
 
     /// <summary>Returns paged/filtered OPD service bookings for the list page.</summary>
     Task<IEnumerable<ServiceBookingListItem>> GetServiceBookingsAsync(int? branchId, DateOnly? fromDate, DateOnly? toDate);
@@ -79,4 +79,10 @@ public interface IPatientService
     /// </summary>
     Task<(string OPDBillNo, string TokenNo, int NewOPDServiceId)>
         CreateServiceBookingOnlyAsync(PatientOPDService bill, string lineItemsJson, int? userId);
+
+    /// <summary>
+    /// Returns the date of the most recent Registration service booking for this patient, or null if none exists.
+    /// Used to validate OPD Registration Charges Validity against Hospital Settings.
+    /// </summary>
+    Task<DateTime?> GetLastRegistrationDateAsync(int patientId);
 }

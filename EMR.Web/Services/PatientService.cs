@@ -314,6 +314,23 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             new { PatientId = patientId, UserId = userId });
     }
 
+    // ─── Last Registration Date ───────────────────────────────────────────────
+
+    public async Task<DateTime?> GetLastRegistrationDateAsync(int patientId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryFirstOrDefaultAsync<DateTime?>(@"
+            SELECT TOP 1 pos.CreatedDate
+            FROM   PatientOPDServiceItem posi
+            JOIN   PatientOPDService pos ON pos.OPDServiceId = posi.OPDServiceId
+            JOIN   ServiceMaster sm      ON sm.ServiceId     = posi.ServiceId
+            WHERE  pos.PatientId = @PatientId
+              AND  sm.IsRegistration = 1
+              AND  pos.IsActive = 1
+            ORDER BY pos.CreatedDate DESC",
+            new { PatientId = patientId });
+    }
+
     // ─── Latest OPD Service ───────────────────────────────────────────────────
 
     public async Task<PatientOPDService?> GetLatestOPDServiceAsync(int patientId)
@@ -351,11 +368,11 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Services by Type ─────────────────────────────────────────────────────
 
-    public async Task<IEnumerable<(int ServiceId, string ItemName, decimal ItemCharges)>> GetServicesByTypeAsync(string serviceType, int? branchId)
+    public async Task<IEnumerable<(int ServiceId, string ItemName, decimal ItemCharges, bool IsRegistration)>> GetServicesByTypeAsync(string serviceType, int? branchId)
     {
         using var con = db.CreateConnection();
         var rows = await con.QueryAsync(@"
-            SELECT s.ServiceId, s.ItemName, s.ItemCharges
+            SELECT s.ServiceId, s.ItemName, s.ItemCharges, s.IsRegistration
             FROM ServiceMaster s
             WHERE s.IsActive = 1
               AND s.ServiceType = @ServiceType
@@ -363,7 +380,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             ORDER BY s.ItemName",
             new { ServiceType = serviceType, BranchId = branchId });
 
-        return rows.Select(r => ((int)r.ServiceId, (string)r.ItemName, (decimal)r.ItemCharges));
+        return rows.Select(r => ((int)r.ServiceId, (string)r.ItemName, (decimal)r.ItemCharges, (bool)r.IsRegistration));
     }
 
     // ─── Service Booking List ─────────────────────────────────────────────────

@@ -532,7 +532,47 @@ public class OPDController(
         if (string.IsNullOrWhiteSpace(type)) return Json(Array.Empty<object>());
         var branchId = User.GetCurrentBranchId();
         var services = await patientService.GetServicesByTypeAsync(type, branchId);
-        return Json(services.Select(s => new { s.ServiceId, s.ItemName, s.ItemCharges }));
+        return Json(services.Select(s => new { s.ServiceId, s.ItemName, s.ItemCharges, s.IsRegistration }));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetRegistrationValidity(int patientId)
+    {
+        if (patientId <= 0)
+            return Json(new { validityConfigured = false });
+
+        var branchId = User.GetCurrentBranchId();
+        var settings = await dbContext.HospitalSettings
+            .FirstOrDefaultAsync(s => s.BranchId == branchId);
+        int? validityDays = settings?.OpdRegistrationValidityDays;
+
+        if (validityDays == null || validityDays <= 0)
+            return Json(new { validityConfigured = false });
+
+        var lastRegDate = await patientService.GetLastRegistrationDateAsync(patientId);
+        if (lastRegDate == null)
+            return Json(new
+            {
+                validityConfigured      = true,
+                isRegistrationValid     = false,
+                remainingDays           = (int?)null,
+                lastRegistrationDate    = (string?)null,
+                validityDays
+            });
+
+        // CreatedDate is stored as UTC
+        var daysSince = (DateTime.UtcNow - lastRegDate.Value).TotalDays;
+        bool isValid  = daysSince < validityDays.Value;
+        int  remaining = isValid ? (int)Math.Ceiling(validityDays.Value - daysSince) : 0;
+
+        return Json(new
+        {
+            validityConfigured      = true,
+            isRegistrationValid     = isValid,
+            remainingDays           = isValid ? remaining : (int?)null,
+            lastRegistrationDate    = lastRegDate.Value.ToString("dd MMM yyyy"),
+            validityDays
+        });
     }
 
     [HttpGet]
