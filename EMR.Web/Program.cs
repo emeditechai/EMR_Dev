@@ -61,6 +61,7 @@ builder.Services.AddScoped<IDoctorApiClient,            DoctorApiClient>();
 builder.Services.AddScoped<IPatientApiClient,           PatientApiClient>();
 builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>();
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
+builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 
 builder.Services.AddHttpContextAccessor();
 

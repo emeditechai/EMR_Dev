@@ -96,6 +96,7 @@ public class VitalHistoryRow
     public DateTime RecordedOn { get; set; }
     public string? RecordedByName { get; set; }
     public int TotalCount { get; set; }
+    public bool CanModify { get; set; }
 }
 
 // ─── Print page view model ────────────────────────────────────────────────────

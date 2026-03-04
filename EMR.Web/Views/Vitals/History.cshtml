@@ -163,8 +163,8 @@ else
             {
                 <tr>
                     <td class="ps-3">
-                        <div class="fw-semibold" style="font-size:.82rem">@v.RecordedOn.ToLocalTime().ToString("dd MMM yyyy")</div>
-                        <div class="text-muted" style="font-size:.74rem">@v.RecordedOn.ToLocalTime().ToString("HH:mm")</div>
+                        <div class="fw-semibold" style="font-size:.82rem">@v.RecordedOn.ToString("dd MMM yyyy")</div>
+                        <div class="text-muted" style="font-size:.74rem">@v.RecordedOn.ToString("HH:mm")</div>
                     </td>
                     @* Anthropometric *@
                     <td>
@@ -252,7 +252,7 @@ else
                     <td><span class="text-muted small">@(v.RecordedByName ?? "—")</span></td>
                     @* Actions — View always · Edit/Delete only within 2 min *@
                     @{
-                        bool canModify = (DateTime.Now - v.RecordedOn).TotalMinutes <= 2;
+                        bool canModify = v.CanModify;
                         string bpVal  = v.BPSystolic.HasValue ? $"{v.BPSystolic}/{v.BPDiastolic} mmHg" : "—";
                         bool   bpOk   = v.BPSystolic.HasValue && v.BPSystolic>=90 && v.BPSystolic<=120 && (v.BPDiastolic??0)>=60 && (v.BPDiastolic??0)<=80;
                         bool   bpWarn = v.BPSystolic.HasValue && !bpOk && v.BPSystolic < 140;
@@ -260,7 +260,7 @@ else
                     }
                     <td class="pe-3 text-center"
                         data-vid="@v.PatientVitalId"
-                        data-date="@v.RecordedOn.ToLocalTime().ToString("dd MMM yyyy · HH:mm")"
+                        data-date="@v.RecordedOn.ToString("dd MMM yyyy · HH:mm")"
                         data-by="@(v.RecordedByName ?? "—")"
                         data-height="@(v.Height.HasValue   ? v.Height  + " cm"    : "—")"
                         data-weight="@(v.Weight.HasValue   ? v.Weight  + " kg"    : "—")"

@@ -184,11 +184,24 @@
 (function () {
     'use strict';
 
-    const opdBase    = '@Url.Content("~/OPD/")';
+    const opdBase    = '@Url.Content("~/Vitals/")';   // all search/details proxied through VitalsController → API
     const vitalsBase = '@Url.Content("~/Vitals/")';
 
     async function fetchJson(url) {
-        try { const r = await fetch(url); return r.ok ? r.json() : null; } catch { return null; }
+        try {
+            const r = await fetch(url);
+            if (r.status === 503) {
+                const body = await r.json().catch(() => ({}));
+                if (body?.apiDown) {
+                    window.location.href = '/api-unavailable?returnUrl=' + encodeURIComponent(window.location.href);
+                    return null;
+                }
+            }
+            return r.ok ? r.json() : null;
+        } catch {
+            window.location.href = '/api-unavailable?returnUrl=' + encodeURIComponent(window.location.href);
+            return null;
+        }
     }
 
     // ── Search type toggle ─────────────────────────────────────────────────

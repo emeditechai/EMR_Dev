@@ -13,4 +13,12 @@ public class HomeController : Controller
 
         return RedirectToAction("Login", "Account");
     }
+
+    /// <summary>Shown when EMR.Api is unreachable.</summary>
+    [Route("api-unavailable")]
+    public IActionResult ApiUnavailable(string? returnUrl)
+    {
+        ViewData["ReturnUrl"] = returnUrl ?? Request.Headers["Referer"].ToString();
+        return View();
+    }
 }

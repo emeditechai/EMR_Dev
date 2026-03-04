@@ -1,0 +1,61 @@
+@inject IConfiguration Config
+@{
+    ViewData["Title"] = "Service Unavailable";
+    var returnUrl  = ViewData["ReturnUrl"]?.ToString();
+    var apiBaseUrl = Config["ApiSettings:BaseUrl"] ?? "https://localhost:5125";
+}
+
+@section HeadStyles {
+<style>
+    .api-down-wrap {
+        min-height: 70vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .api-down-card {
+        max-width: 520px;
+        width: 100%;
+        border-radius: 18px;
+        border: 2px solid #ffc107;
+        box-shadow: 0 8px 40px rgba(255,193,7,.18);
+        padding: 2.8rem 2.5rem 2.2rem;
+        text-align: center;
+        background: #fff;
+    }
+    .api-down-icon { font-size: 4rem; color: #ffc107; margin-bottom: 1rem; }
+    .api-down-title { font-size: 1.45rem; font-weight: 700; color: #212529; margin-bottom: .5rem; }
+    .api-down-msg { color: #6c757d; font-size: .95rem; margin-bottom: 1.5rem; line-height: 1.6; }
+    .api-down-code {
+        background: #f8f9fa; border-radius: 8px; padding: .6rem 1rem;
+        font-size: .8rem; color: #495057; margin-bottom: 1.8rem;
+        border: 1px solid #e9ecef; text-align: left;
+    }
+</style>
+}
+
+<div class="api-down-wrap">
+    <div class="api-down-card">
+        <div class="api-down-icon"><i class="bi bi-cloud-slash-fill"></i></div>
+        <div class="api-down-title">API Server Unavailable</div>
+        <div class="api-down-msg">
+            The backend API service could not be reached.<br>
+            Please ensure <strong>EMR.Api</strong> is running and try again.
+        </div>
+        <div class="api-down-code">
+            <i class="bi bi-hdd-network me-1 text-muted"></i>
+            Expected at: <code>@apiBaseUrl</code>
+        </div>
+        <div class="d-flex gap-2 justify-content-center flex-wrap">
+            @if (!string.IsNullOrWhiteSpace(returnUrl))
+            {
+                <a href="@returnUrl" class="btn btn-warning px-4">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                </a>
+            }
+            <a href="@Url.Action("Index", "Dashboard")" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-house me-1"></i>Dashboard
+            </a>
+        </div>
+    </div>
+</div>
