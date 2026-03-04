@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Services;
 using EMR.Web.Services.Geography;
@@ -42,6 +43,22 @@ builder.Services.AddScoped<IPatientVitalService, PatientVitalService>();
 
 // Payment (Dapper)
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+// EMR.Api HTTP clients
+builder.Services.AddHttpClient("EmrApi", client =>
+{
+    var baseUrl = builder.Configuration["ApiSettings:BaseUrl"] ?? "https://localhost:5125";
+    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    // Allow self-signed dev certs when calling local EMR.Api
+    ServerCertificateCustomValidationCallback =
+        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
+builder.Services.AddScoped<IDoctorApiClient, DoctorApiClient>();
+builder.Services.AddScoped<IPatientApiClient, PatientApiClient>();
 
 builder.Services.AddHttpContextAccessor();
 

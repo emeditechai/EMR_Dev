@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
@@ -13,6 +14,7 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class DoctorsController(
     IDoctorService doctorService,
+    IDoctorApiClient doctorApiClient,
     IDoctorSpecialityService doctorSpecialityService,
     IDepartmentService departmentService,
     IDoctorConsultingFeeService consultingFeeService,
@@ -22,11 +24,25 @@ public class DoctorsController(
     public async Task<IActionResult> Index()
     {
         var branchId = User.GetCurrentBranchId();
-        var doctors = await doctorService.GetListForBranchAsync(branchId);
 
         ViewBag.BranchName = branchId.HasValue
             ? (await dbContext.BranchMasters.FindAsync(branchId.Value))?.BranchName
             : null;
+
+        // Strictly via EMR.Api — no DB fallback
+        var apiDoctors = await doctorApiClient.GetListAsync(branchId);
+        var doctors = apiDoctors.Select(d => new DoctorListItemViewModel
+        {
+            DoctorId              = d.DoctorId,
+            FullName              = d.FullName,
+            PrimarySpecialityName = d.PrimarySpecialityName ?? string.Empty,
+            DepartmentNames       = d.DepartmentNames ?? string.Empty,
+            PhoneNumber           = d.PhoneNumber ?? string.Empty,
+            EmailId               = d.EmailId ?? string.Empty,
+            IsActive              = d.IsActive,
+            ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
+            HasOPDDept            = d.HasOPDDept
+        });
 
         return View(doctors);
     }

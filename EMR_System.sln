@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMR.Web", "EMR.Web\EMR.Web.csproj", "{24A0284A-6905-40FA-9E06-E0EF2AF85C0D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMR.Api", "EMR.Api\EMR.Api.csproj", "{B099ECF1-D698-44A1-AAC7-51D9673853D3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{24A0284A-6905-40FA-9E06-E0EF2AF85C0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{24A0284A-6905-40FA-9E06-E0EF2AF85C0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{24A0284A-6905-40FA-9E06-E0EF2AF85C0D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B099ECF1-D698-44A1-AAC7-51D9673853D3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B099ECF1-D698-44A1-AAC7-51D9673853D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B099ECF1-D698-44A1-AAC7-51D9673853D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B099ECF1-D698-44A1-AAC7-51D9673853D3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
