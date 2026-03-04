@@ -212,8 +212,9 @@
             autoDrop.innerHTML = '<div class="suggest-no-result"><i class="bi bi-search me-1"></i>No patients found</div>';
         } else {
             autoDrop.innerHTML = data.map(p => {
-                const bg  = p.bloodGroup   ? `<span class="badge text-bg-danger ms-1" style="font-size:.62rem">${p.bloodGroup}</span>` : '';
-                const rel = p.relationName ? `<span class="badge text-bg-primary ms-1" style="font-size:.62rem">${p.relationName}</span>` : '';
+                const bg   = p.bloodGroup    ? `<span class="badge text-bg-danger ms-1" style="font-size:.62rem">${p.bloodGroup}</span>` : '';
+                const rel  = p.relationName  ? `<span class="badge text-bg-primary ms-1" style="font-size:.62rem">${p.relationName}</span>` : '';
+                const bill = p.lastOpdBillNo ? `<span class="badge text-bg-success font-monospace ms-1" style="font-size:.62rem"><i class="bi bi-receipt me-1"></i>${p.lastOpdBillNo}</span>` : '';
                 return `<div class="suggest-item" data-id="${p.patientId}">
                     <div style="min-width:0">
                         <div class="fw-semibold" style="font-size:.87rem">
@@ -221,7 +222,9 @@
                             <span class="badge text-bg-secondary font-monospace ms-1" style="font-size:.62rem">${p.patientCode}</span>
                             ${bg}${rel}
                         </div>
-                        <div class="text-muted" style="font-size:.76rem"><i class="bi bi-telephone me-1"></i>${p.phoneNumber || ''}</div>
+                        <div class="text-muted" style="font-size:.76rem">
+                            <i class="bi bi-telephone me-1"></i>${p.phoneNumber || ''}${bill}
+                        </div>
                     </div>
                     <i class="bi bi-arrow-return-left text-primary flex-shrink-0"></i>
                 </div>`;

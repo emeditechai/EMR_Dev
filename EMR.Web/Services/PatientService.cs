@@ -92,7 +92,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.BloodGroup,
                 p.DateOfBirth,
                 p.Address,
-                r.RelationName
+                r.RelationName,
+                (SELECT TOP 1 OPDBillNo FROM PatientOPDService
+                 WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
             FROM PatientMaster p
             LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
@@ -121,7 +123,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.BloodGroup,
                 p.DateOfBirth,
                 p.Address,
-                r.RelationName
+                r.RelationName,
+                (SELECT TOP 1 OPDBillNo FROM PatientOPDService
+                 WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
             FROM PatientMaster p
             LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
@@ -150,7 +154,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.BloodGroup,
                 p.DateOfBirth,
                 p.Address,
-                r.RelationName
+                r.RelationName,
+                (SELECT TOP 1 OPDBillNo FROM PatientOPDService
+                 WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
             FROM PatientMaster p
             LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1

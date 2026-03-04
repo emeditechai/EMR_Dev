@@ -197,6 +197,7 @@ public class PatientQuickSearchResult
     public DateTime? DateOfBirth { get; set; }
     public string? Address { get; set; }
     public string? RelationName { get; set; }
+    public string? LastOpdBillNo { get; set; }
     /// <summary>Computed from DateOfBirth.</summary>
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
