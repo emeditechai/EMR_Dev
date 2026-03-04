@@ -22,9 +22,10 @@ builder.Services.AddSwaggerGen(c =>
 
 // ── Data & Application services ───────────────────────────────────────────────
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
-builder.Services.AddScoped<IDoctorService,          DoctorService>();
-builder.Services.AddScoped<IPatientService,         PatientService>();
-builder.Services.AddScoped<IServiceBookingService,  ServiceBookingService>();
+builder.Services.AddScoped<IDoctorService,           DoctorService>();
+builder.Services.AddScoped<IPatientService,          PatientService>();
+builder.Services.AddScoped<IServiceBookingService,   ServiceBookingService>();
+builder.Services.AddScoped<IPaymentSummaryService,   PaymentSummaryService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────
 builder.Services.AddCors(opt =>

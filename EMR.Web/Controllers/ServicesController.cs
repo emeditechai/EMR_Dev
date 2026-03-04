@@ -43,6 +43,15 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             await serviceService.ItemCodeExistsAsync(itemCode, branchId.Value))
             ModelState.AddModelError(nameof(model.ItemCode), "This Item Code already exists in the current branch.");
 
+        // IsRegistration is only valid for ServiceType = 'Service' and max one per branch
+        if (model.IsRegistration)
+        {
+            if (model.ServiceType != "Service")
+                ModelState.AddModelError(nameof(model.IsRegistration), "IsRegistration can only be set for Service type.");
+            else if (await serviceService.IsRegistrationExistsAsync(branchId.Value))
+                ModelState.AddModelError(nameof(model.IsRegistration), "A registration service already exists for this branch. Only one is allowed.");
+        }
+
         if (!ModelState.IsValid)
         {
             ViewBag.ServiceTypes = ServiceTypes;
@@ -51,12 +60,13 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
 
         await serviceService.CreateAsync(new ServiceMaster
         {
-            ItemCode    = itemCode,
-            ItemName    = model.ItemName.Trim(),
-            ServiceType = model.ServiceType,
-            ItemCharges = model.ItemCharges,
-            BranchId    = branchId.Value,
-            IsActive    = model.IsActive
+            ItemCode       = itemCode,
+            ItemName       = model.ItemName.Trim(),
+            ServiceType    = model.ServiceType,
+            ItemCharges    = model.ItemCharges,
+            IsRegistration = model.ServiceType == "Service" && model.IsRegistration,
+            BranchId       = branchId.Value,
+            IsActive       = model.IsActive
         }, User.GetUserId());
 
         await auditLogService.LogAsync("MasterData", "Services.Create", $"Created service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}");
@@ -76,12 +86,13 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
         ViewBag.ServiceTypes = ServiceTypes;
         return View(new ServiceFormViewModel
         {
-            ServiceId   = entity.ServiceId,
-            ItemCode    = entity.ItemCode,
-            ItemName    = entity.ItemName,
-            ServiceType = entity.ServiceType,
-            ItemCharges = entity.ItemCharges,
-            IsActive    = entity.IsActive
+            ServiceId      = entity.ServiceId,
+            ItemCode       = entity.ItemCode,
+            ItemName       = entity.ItemName,
+            ServiceType    = entity.ServiceType,
+            ItemCharges    = entity.ItemCharges,
+            IsRegistration = entity.IsRegistration,
+            IsActive       = entity.IsActive
         });
     }
 
@@ -99,6 +110,15 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             await serviceService.ItemCodeExistsAsync(itemCode, branchId.Value, model.ServiceId))
             ModelState.AddModelError(nameof(model.ItemCode), "This Item Code already exists in the current branch.");
 
+        // IsRegistration is only valid for ServiceType = 'Service' and max one per branch
+        if (model.IsRegistration)
+        {
+            if (model.ServiceType != "Service")
+                ModelState.AddModelError(nameof(model.IsRegistration), "IsRegistration can only be set for Service type.");
+            else if (await serviceService.IsRegistrationExistsAsync(branchId.Value, model.ServiceId))
+                ModelState.AddModelError(nameof(model.IsRegistration), "A registration service already exists for this branch. Only one is allowed.");
+        }
+
         if (!ModelState.IsValid)
         {
             ViewBag.ServiceTypes = ServiceTypes;
@@ -107,13 +127,14 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
 
         await serviceService.UpdateAsync(new ServiceMaster
         {
-            ServiceId   = model.ServiceId,
-            ItemCode    = itemCode,
-            ItemName    = model.ItemName.Trim(),
-            ServiceType = model.ServiceType,
-            ItemCharges = model.ItemCharges,
-            BranchId    = branchId.Value,
-            IsActive    = model.IsActive
+            ServiceId      = model.ServiceId,
+            ItemCode       = itemCode,
+            ItemName       = model.ItemName.Trim(),
+            ServiceType    = model.ServiceType,
+            ItemCharges    = model.ItemCharges,
+            IsRegistration = model.ServiceType == "Service" && model.IsRegistration,
+            BranchId       = branchId.Value,
+            IsActive       = model.IsActive
         }, User.GetUserId());
 
         await auditLogService.LogAsync("MasterData", "Services.Edit", $"Updated service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}");

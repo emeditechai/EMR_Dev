@@ -17,6 +17,7 @@ public class OPDController(
     IPatientService patientService,
     IPatientApiClient patientApiClient,
     IServiceBookingApiClient serviceBookingApiClient,
+    IPaymentSummaryApiClient paymentSummaryApiClient,
     IDoctorConsultingFeeService consultingFeeService,
     ICountryService countryService,
     IStateService stateService,
@@ -805,10 +806,17 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> GetPaymentSummary(string moduleCode, int moduleRefId)
     {
-        var summary = await paymentService.GetPaymentSummaryAsync(moduleCode, moduleRefId);
-        if (summary is null)
-            return Json(new { success = false, error = "Bill not found." });
-        return Json(new { success = true, data = summary });
+        try
+        {
+            var summary = await paymentSummaryApiClient.GetAsync(moduleCode, moduleRefId);
+            if (summary is null)
+                return Json(new { success = false, error = "Bill not found." });
+            return Json(new { success = true, data = summary });
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(503, new { success = false, error = "Payment summary API unavailable. Please try again later." });
+        }
     }
 
     [HttpPost]

@@ -57,9 +57,10 @@ builder.Services.AddHttpClient("EmrApi", client =>
     ServerCertificateCustomValidationCallback =
         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
-builder.Services.AddScoped<IDoctorApiClient,          DoctorApiClient>();
-builder.Services.AddScoped<IPatientApiClient,         PatientApiClient>();
-builder.Services.AddScoped<IServiceBookingApiClient,  ServiceBookingApiClient>();
+builder.Services.AddScoped<IDoctorApiClient,            DoctorApiClient>();
+builder.Services.AddScoped<IPatientApiClient,           PatientApiClient>();
+builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>();
+builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
 
 builder.Services.AddHttpContextAccessor();
 

@@ -91,6 +91,12 @@
                         else
                         {
                             <span class="badge text-bg-secondary">Service</span>
+                            @if (item.IsRegistration)
+                            {
+                                <span class="badge text-bg-primary ms-1" title="Registration Service">
+                                    <i class="bi bi-person-check-fill"></i> Registration
+                                </span>
+                            }
                         }
                     </td>
                     <td class="text-end fw-semibold">@item.ItemCharges.ToString("N2")</td>

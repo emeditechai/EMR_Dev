@@ -58,7 +58,7 @@
         </div>
 
         <!-- Row 3: Charges | Active toggle -->
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-3">
             <div class="col-sm-6">
                 <label asp-for="ItemCharges" class="form-label fw-semibold">Item Charges (₹)</label>
                 <div class="input-group">
@@ -77,6 +77,18 @@
             </div>
         </div>
 
+        <!-- IsRegistration — only visible when ServiceType = 'Service' -->
+        <div id="isRegistrationRow" class="mb-4" style="display:none;">
+            <div class="form-check">
+                <input asp-for="IsRegistration" class="form-check-input" type="checkbox" id="IsRegistration" />
+                <label asp-for="IsRegistration" class="form-check-label fw-semibold">
+                    Is Registration Service
+                </label>
+                <div class="form-text text-muted">Only one registration service is allowed per branch.</div>
+                <span asp-validation-for="IsRegistration" class="text-danger small d-block mt-1"></span>
+            </div>
+        </div>
+
         <hr class="mb-3" />
 
         <div class="d-flex gap-2">
@@ -88,4 +100,22 @@
     </form>
 </div>
 
-@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script>
+        (function () {
+            const sel = document.getElementById('ServiceType');
+            const row = document.getElementById('isRegistrationRow');
+            const chk = document.getElementById('IsRegistration');
+
+            function toggle() {
+                const show = sel.value === 'Service';
+                row.style.display = show ? '' : 'none';
+                if (!show) chk.checked = false;
+            }
+
+            sel.addEventListener('change', toggle);
+            toggle(); // run on page load
+        })();
+    </script>
+}

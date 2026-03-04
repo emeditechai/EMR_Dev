@@ -16,6 +16,7 @@ public class ServiceMaster
     public string ServiceType { get; set; } = string.Empty;
 
     public decimal ItemCharges { get; set; }
+    public bool IsRegistration { get; set; }
     public int BranchId { get; set; }
     public bool IsActive { get; set; } = true;
 

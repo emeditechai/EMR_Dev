@@ -25,6 +25,9 @@ public class ServiceFormViewModel
     [Display(Name = "Item Charges")]
     public decimal ItemCharges { get; set; } = 0;
 
+    [Display(Name = "Is Registration Service")]
+    public bool IsRegistration { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 }
