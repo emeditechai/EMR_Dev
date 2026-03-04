@@ -1,0 +1,554 @@
+@model EMR.Web.Models.ViewModels.VitalPrintViewModel
+@{
+    Layout = null;
+    var v = Model.Vital;
+
+    var printDate  = DateTime.Now.ToString("dd MMM yyyy, hh:mm tt");
+    var recordDate = v?.RecordedOn.ToString("dd MMM yyyy, hh:mm tt") ?? "—";
+
+    // BMI badge colour
+    var bmiCls = (Model.Vital?.BMICategory ?? "").ToLower() switch {
+        var c when c.Contains("normal")      => "bmi-normal",
+        var c when c.Contains("underweight") => "bmi-under",
+        var c when c.Contains("overweight")  => "bmi-over",
+        var c when c.Contains("obese")       => "bmi-obese",
+        _                                    => "bmi-na"
+    };
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vital Report — @Model.PatientCode</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+    <style>
+        /* ── Reset & base ─────────────────────────────────────────── */
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            background: #e9ecef;
+            margin: 0; padding: 0;
+        }
+
+        /* ── Top action bar (hidden on print) ─────────────────────── */
+        #printBar {
+            background: #1a1d23;
+            padding: .6rem 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            position: sticky; top: 0; z-index: 100;
+        }
+        #printBar .btn { font-size: .82rem; }
+
+        /* ── A4 sheet ─────────────────────────────────────────────── */
+        .sheet {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 20px auto;
+            background: #fff;
+            padding: 13mm 14mm 14mm;
+            box-shadow: 0 4px 24px rgba(0,0,0,.2);
+            position: relative;
+        }
+
+        /* ── Header ───────────────────────────────────────────────── */
+        .v-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+            border-bottom: 3px solid #0d6efd;
+        }
+        .v-logo {
+            width: 72px; height: 72px;
+            object-fit: contain;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+        .v-logo-ph {
+            width: 72px; height: 72px;
+            background: #e8f0fe;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.2rem; color: #0d6efd;
+            flex-shrink: 0;
+        }
+        .v-hosp-name {
+            font-size: 1.32rem; font-weight: 800;
+            color: #0d4ea6; letter-spacing: .02em; line-height: 1.2;
+        }
+        .v-hosp-sub  { font-size: .8rem; color: #495057; margin-top: 2px; }
+        .v-contact   { font-size: .76rem; color: #6c757d; display: flex; flex-wrap: wrap; gap: 5px 16px; margin-top: 4px; }
+        .v-contact span { display: inline-flex; align-items: center; gap: 4px; }
+        .v-doc-tag {
+            margin-left: auto; text-align: right; flex-shrink: 0;
+        }
+        .v-doc-tag .title-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: linear-gradient(135deg,#0d6efd,#0a58ca);
+            color: #fff; border-radius: 20px;
+            padding: .3rem .85rem; font-size: .78rem; font-weight: 700;
+        }
+        .v-doc-tag .print-dt {
+            font-size: .68rem; color: #999; margin-top: 4px; text-align: right;
+        }
+
+        /* ── Section title ────────────────────────────────────────── */
+        .sec-title {
+            font-size: .65rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: .08em; color: #6c757d;
+            display: flex; align-items: center; gap: .4rem;
+            margin-bottom: .55rem;
+        }
+        .sec-title::after {
+            content: ''; flex: 1; height: 1px; background: #dee2e6;
+        }
+
+        /* ── Patient info box ─────────────────────────────────────── */
+        .patient-box {
+            background: linear-gradient(135deg,#f0f6ff 0%,#f8fff4 100%);
+            border: 1.5px solid #c5d8fe;
+            border-radius: 10px;
+            padding: .85rem 1.1rem;
+            margin-bottom: 14px;
+            display: flex; gap: 1.5rem; flex-wrap: wrap;
+        }
+        .pt-avatar {
+            width: 54px; height: 54px;
+            border-radius: 50%;
+            background: linear-gradient(135deg,#0d6efd,#198754);
+            color: #fff; font-size: 1.35rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .pt-info { flex: 1; }
+        .pt-name  { font-size: 1.05rem; font-weight: 700; color: #1a2e4a; line-height: 1.2; }
+        .pt-meta  { font-size: .76rem; color: #555; margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+        .pt-meta span { display: inline-flex; align-items: center; gap: 4px; }
+        .pt-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            border-radius: 20px; font-size: .65rem; font-weight: 700;
+            padding: .1rem .48rem;
+        }
+        .pt-badge.code  { background:#e8f0fe; color:#1967d2; }
+        .pt-badge.bg    { background:#fce8e8; color:#c62828; }
+        .pt-badge.bill  { background:#e6f4ea; color:#137333; }
+        .pt-addr { font-size: .74rem; color: #777; margin-top: 2px; }
+
+        /* ── Record info bar ──────────────────────────────────────── */
+        .record-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #f8f9fc; border: 1px solid #e9ecef; border-radius: 8px;
+            padding: .45rem .85rem; margin-bottom: 14px; font-size: .78rem; color: #555;
+        }
+        .record-bar strong { color: #212529; }
+
+        /* ── Vital group ──────────────────────────────────────────── */
+        .vg { margin-bottom: 12px; }
+        .vg-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .vg-grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .vg-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+        .vcard {
+            border: 1px solid #e9ecef;
+            border-radius: 9px;
+            padding: .6rem .75rem;
+            background: #fafbfc;
+        }
+        .vcard-label { font-size: .66rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+        .vcard-value { font-size: 1.05rem; font-weight: 700; margin-top: 1px; line-height: 1.2; }
+        .vcard-unit  { font-size: .7rem; font-weight: 400; color: #888; margin-left: 2px; }
+        .vcard-pill  { display: inline-block; margin-top: 3px; border-radius: 12px; padding: .07rem .4rem; font-size: .65rem; font-weight: 700; }
+
+        /* status colours */
+        .status-ok   .vcard { border-color: #a8d5b5; background: #f0fff4; }
+        .status-ok   .vcard-value { color: #137333; }
+        .status-ok   .vcard-pill  { background:#d4edda; color:#155724; }
+
+        .status-warn .vcard { border-color: #ffe082; background: #fffdf0; }
+        .status-warn .vcard-value { color: #856404; }
+        .status-warn .vcard-pill  { background:#fff3cd; color:#664d03; }
+
+        .status-high .vcard { border-color: #f5c2c7; background: #fff5f5; }
+        .status-high .vcard-value { color: #c62828; }
+        .status-high .vcard-pill  { background:#f8d7da; color:#842029; }
+
+        .status-na   .vcard { border-color: #dee2e6; background: #f8f9fa; }
+        .status-na   .vcard-value { color: #adb5bd; }
+
+        /* BMI badge */
+        .bmi-normal { background:#d4edda; color:#155724; }
+        .bmi-under  { background:#cff4fc; color:#055160; }
+        .bmi-over   { background:#fff3cd; color:#664d03; }
+        .bmi-obese  { background:#f8d7da; color:#842029; }
+        .bmi-na     { background:#e9ecef; color:#6c757d; }
+
+        /* pain dots */
+        .pain-dots { display: flex; gap: 3px; margin-top: 4px; }
+        .pain-dot  { width: 10px; height: 10px; border-radius: 50%; background: #dee2e6; }
+        .pain-dot.active-ok   { background: #28a745; }
+        .pain-dot.active-warn { background: #ffc107; }
+        .pain-dot.active-high { background: #dc3545; }
+
+        /* ── Notes ────────────────────────────────────────────────── */
+        .notes-box {
+            background: #fffbf0; border: 1px solid #ffe082; border-radius: 8px;
+            padding: .55rem .85rem; font-size: .82rem; color: #555; white-space: pre-wrap;
+        }
+
+        /* ── Footer ───────────────────────────────────────────────── */
+        .print-footer {
+            border-top: 1px dashed #dee2e6;
+            margin-top: 18px; padding-top: 8px;
+            display: flex; justify-content: space-between; align-items: flex-end;
+            font-size: .7rem; color: #aaa;
+        }
+        .sig-line { width: 120px; border-top: 1px solid #999; text-align: center; padding-top: 3px; font-size: .7rem; color: #666; }
+
+        /* ── Print media ───────────────────────────────────────────── */
+        @@media print {
+            body { background: #fff !important; }
+            #printBar { display: none !important; }
+            .sheet { margin: 0 !important; box-shadow: none !important; padding: 10mm 12mm !important; width: 100% !important; }
+            @@page { size: A4; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Action bar (screen only) ─────────────────────────────────────────────── -->
+<div id="printBar">
+    <button class="btn btn-sm btn-primary" onclick="window.print()">
+        <i class="bi bi-printer-fill me-1"></i>Print
+    </button>
+    <button class="btn btn-sm btn-outline-light" onclick="window.close()">
+        <i class="bi bi-x-lg me-1"></i>Close
+    </button>
+    <span class="text-white opacity-50 ms-auto" style="font-size:.75rem">
+        <i class="bi bi-clipboard2-pulse me-1"></i>Vital Report — @Model.PatientFullName
+    </span>
+</div>
+
+<!-- ── A4 sheet ─────────────────────────────────────────────────────────────── -->
+<div class="sheet">
+
+    <!-- ── Header ─────────────────────────────────────────────────────────── -->
+    <div class="v-header">
+        @if (!string.IsNullOrWhiteSpace(Model.HospitalLogo))
+        {
+            <img src="@Model.HospitalLogo" class="v-logo" alt="Logo" />
+        }
+        else
+        {
+            <div class="v-logo-ph"><i class="bi bi-hospital-fill"></i></div>
+        }
+        <div style="flex:1">
+            <div class="v-hosp-name">@Model.HospitalName</div>
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalAddress))
+            {
+                <div class="v-hosp-sub"><i class="bi bi-geo-alt-fill me-1 text-primary opacity-75"></i>@Model.HospitalAddress</div>
+            }
+            <div class="v-contact">
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalPhone))
+                {
+                    <span><i class="bi bi-telephone-fill text-primary"></i>@Model.HospitalPhone</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalEmail))
+                {
+                    <span><i class="bi bi-envelope-fill text-primary"></i>@Model.HospitalEmail</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalWebsite))
+                {
+                    <span><i class="bi bi-globe text-primary"></i>@Model.HospitalWebsite</span>
+                }
+            </div>
+        </div>
+        <div class="v-doc-tag">
+            <div class="title-pill">
+                <i class="bi bi-clipboard2-pulse-fill"></i>VITAL REPORT
+            </div>
+            <div class="print-dt">Printed: @printDate</div>
+        </div>
+    </div>
+
+    <!-- ── Patient Information ─────────────────────────────────────────────── -->
+    <div class="sec-title"><i class="bi bi-person-badge-fill"></i>Patient Information</div>
+    <div class="patient-box">
+        @{
+            var initials = ((Model.PatientFullName?.Length > 0 ? Model.PatientFullName[0].ToString() : "") +
+                           (Model.PatientFullName?.Contains(' ') == true ? Model.PatientFullName.Split(' ').Last()[0].ToString() : "")).ToUpper();
+        }
+        <div class="pt-avatar">@initials</div>
+        <div class="pt-info">
+            <div class="pt-name">
+                @Model.PatientFullName
+                <span class="pt-badge code ms-1">@Model.PatientCode</span>
+                @if (!string.IsNullOrWhiteSpace(Model.PatientBloodGroup))
+                {
+                    <span class="pt-badge bg ms-1">@Model.PatientBloodGroup</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.LastOpdBillNo))
+                {
+                    <span class="pt-badge bill ms-1"><i class="bi bi-receipt"></i>@Model.LastOpdBillNo</span>
+                }
+            </div>
+            <div class="pt-meta">
+                @if (!string.IsNullOrWhiteSpace(Model.PatientAge))
+                {
+                    <span><i class="bi bi-calendar3"></i>@Model.PatientAge</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.PatientGender))
+                {
+                    <span><i class="bi bi-gender-ambiguous"></i>@Model.PatientGender</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.PatientPhone))
+                {
+                    <span><i class="bi bi-telephone"></i>@Model.PatientPhone</span>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.PatientAddress))
+            {
+                <div class="pt-addr"><i class="bi bi-geo-alt me-1"></i>@Model.PatientAddress</div>
+            }
+        </div>
+    </div>
+
+    @if (v is null)
+    {
+        <div class="alert alert-warning text-center py-4">
+            <i class="bi bi-exclamation-triangle-fill fs-3 d-block mb-2"></i>
+            No vital records found for this patient.
+        </div>
+    }
+    else
+    {
+        <!-- ── Record meta bar ──────────────────────────────────────────────── -->
+        <div class="record-bar">
+            <span><i class="bi bi-clock-fill me-1 text-primary"></i>Recorded On: <strong>@recordDate</strong></span>
+            @if (!string.IsNullOrWhiteSpace(v.RecordedByName))
+            {
+                <span><i class="bi bi-person-fill me-1 text-secondary"></i>Recorded By: <strong>@v.RecordedByName</strong></span>
+            }
+            <span class="text-muted" style="font-size:.72rem">Latest Record</span>
+        </div>
+
+        <!-- ── Anthropometric ─────────────────────────────────────────────── -->
+        <div class="vg">
+            <div class="sec-title"><i class="bi bi-body-text"></i>Anthropometric</div>
+            <div class="vg-grid vg-grid-4">
+                <div class="status-ok">
+                    <div class="vcard">
+                        <div class="vcard-label">Height</div>
+                        <div class="vcard-value">@(v.Height?.ToString("F2") ?? "—")<span class="vcard-unit">cm</span></div>
+                    </div>
+                </div>
+                <div class="status-ok">
+                    <div class="vcard">
+                        <div class="vcard-label">Weight</div>
+                        <div class="vcard-value">@(v.Weight?.ToString("F2") ?? "—")<span class="vcard-unit">kg</span></div>
+                    </div>
+                </div>
+                <div class="status-ok">
+                    <div class="vcard">
+                        <div class="vcard-label">BMI</div>
+                        <div class="vcard-value">@(v.BMI?.ToString("F2") ?? "—")<span class="vcard-unit">kg/m²</span></div>
+                        @if (!string.IsNullOrWhiteSpace(v.BMICategory))
+                        {
+                            <div><span class="vcard-pill @bmiCls">@v.BMICategory</span></div>
+                        }
+                    </div>
+                </div>
+                <div class="status-na">
+                    <div class="vcard d-flex flex-column justify-content-center" style="background:#f8f9fa">
+                        <div class="vcard-label">Body Composition</div>
+                        <div style="font-size:.72rem; color:#888; margin-top:4px">
+                            @if (v.Height.HasValue && v.Weight.HasValue)
+                            {
+                                @($"H: {v.Height:F1} cm  |  W: {v.Weight:F1} kg")
+                            }
+                            else
+                            {
+                                @("—")
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Cardiovascular ─────────────────────────────────────────────── -->
+        <div class="vg">
+            <div class="sec-title"><i class="bi bi-heart-pulse-fill"></i>Cardiovascular</div>
+            <div class="vg-grid">
+                <div class="status-@BpStatus(v.BPSystolic, v.BPDiastolic)">
+                    <div class="vcard">
+                        <div class="vcard-label">Blood Pressure</div>
+                        <div class="vcard-value">
+                            @(v.BPSystolic is null ? "—" : $"{v.BPSystolic}/{v.BPDiastolic}")<span class="vcard-unit">mmHg</span>
+                        </div>
+                        @if (v.BPSystolic.HasValue)
+                        {
+                            var bpS = BpStatus(v.BPSystolic, v.BPDiastolic);
+                            var bpLbl = bpS == "ok" ? "Normal" : bpS == "warn" ? "Elevated" : "Abnormal";
+                            <div><span class="vcard-pill">@bpLbl</span></div>
+                        }
+                    </div>
+                </div>
+                <div class="status-@PulseStatus(v.PulseRate)">
+                    <div class="vcard">
+                        <div class="vcard-label">Pulse Rate</div>
+                        <div class="vcard-value">@(v.PulseRate?.ToString() ?? "—")<span class="vcard-unit">bpm</span></div>
+                        @if (v.PulseRate.HasValue)
+                        {
+                            var ps = PulseStatus(v.PulseRate);
+                            <div><span class="vcard-pill">@(ps == "ok" ? "Normal" : ps == "warn" ? "Borderline" : "Abnormal")</span></div>
+                        }
+                    </div>
+                </div>
+                <div class="status-@Spo2Status(v.SpO2)">
+                    <div class="vcard">
+                        <div class="vcard-label">SpO₂</div>
+                        <div class="vcard-value">@(v.SpO2?.ToString("F2") ?? "—")<span class="vcard-unit">%</span></div>
+                        @if (v.SpO2.HasValue)
+                        {
+                            var ss = Spo2Status(v.SpO2);
+                            <div><span class="vcard-pill">@(ss == "ok" ? "Normal" : ss == "warn" ? "Low" : "Critical")</span></div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── General ───────────────────────────────────────────────────── -->
+        <div class="vg">
+            <div class="sec-title"><i class="bi bi-thermometer-half"></i>General</div>
+            <div class="vg-grid vg-grid-2">
+                <div class="status-@TempStatus(v.Temperature)">
+                    <div class="vcard">
+                        <div class="vcard-label">Temperature</div>
+                        <div class="vcard-value">@(v.Temperature?.ToString("F2") ?? "—")<span class="vcard-unit">°F</span></div>
+                        @if (v.Temperature.HasValue)
+                        {
+                            var ts = TempStatus(v.Temperature);
+                            <div><span class="vcard-pill">@(ts == "ok" ? "Normal" : ts == "warn" ? "Elevated" : "Fever")</span></div>
+                        }
+                    </div>
+                </div>
+                <div class="status-@RrStatus(v.RespiratoryRate)">
+                    <div class="vcard">
+                        <div class="vcard-label">Respiratory Rate</div>
+                        <div class="vcard-value">@(v.RespiratoryRate?.ToString() ?? "—")<span class="vcard-unit">br/min</span></div>
+                        @if (v.RespiratoryRate.HasValue)
+                        {
+                            var rs = RrStatus(v.RespiratoryRate);
+                            <div><span class="vcard-pill">@(rs == "ok" ? "Normal" : rs == "warn" ? "Mild Elevation" : "Abnormal")</span></div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Additional ─────────────────────────────────────────────────── -->
+        @if (v.BloodGlucose.HasValue || v.PainScore.HasValue)
+        {
+            <div class="vg">
+                <div class="sec-title"><i class="bi bi-droplet-half"></i>Additional</div>
+                <div class="vg-grid vg-grid-2">
+                    @if (v.BloodGlucose.HasValue)
+                    {
+                        <div class="status-na">
+                            <div class="vcard">
+                                <div class="vcard-label">Blood Glucose @(!string.IsNullOrWhiteSpace(v.GlucoseType) ? $"({v.GlucoseType})" : "")</div>
+                                <div class="vcard-value">@v.BloodGlucose.Value.ToString("F2")<span class="vcard-unit">mg/dL</span></div>
+                            </div>
+                        </div>
+                    }
+                    @if (v.PainScore.HasValue)
+                    {
+                        var painSt = PainStatus(v.PainScore);
+                        <div class="status-@painSt">
+                            <div class="vcard">
+                                <div class="vcard-label">Pain Score</div>
+                                <div class="vcard-value">@v.PainScore<span class="vcard-unit"> / 10</span></div>
+                                <div class="pain-dots">
+                                    @for (int i = 1; i <= 10; i++)
+                                    {
+                                        var dotCls = i <= v.PainScore
+                                            ? (painSt == "ok" ? "active-ok" : painSt == "warn" ? "active-warn" : "active-high")
+                                            : "";
+                                        <div class="pain-dot @dotCls"></div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- ── Notes ──────────────────────────────────────────────────────── -->
+        @if (!string.IsNullOrWhiteSpace(v.Notes))
+        {
+            <div class="vg">
+                <div class="sec-title"><i class="bi bi-chat-left-text-fill"></i>Clinical Notes</div>
+                <div class="notes-box">@v.Notes</div>
+            </div>
+        }
+    }
+
+    <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+    <div class="print-footer">
+        <div>
+            <div>Patient ID: <strong>@Model.PatientCode</strong></div>
+            <div style="margin-top:2px">Printed: @printDate</div>
+        </div>
+        <div style="text-align:center">
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalName))
+            {
+                <div style="font-size:.7rem; color:#bbb; margin-bottom:6px">@Model.HospitalName</div>
+            }
+            <div class="sig-line">Authorised Signatory</div>
+        </div>
+        <div style="text-align:right">
+            <div>Powered by <strong>eClinicPlus+</strong></div>
+            <div style="margin-top:2px; color:#ccc">emeditech.ai</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // Auto-print when opened in new tab (optional — remove if not desired)
+    // window.onload = () => window.print();
+</script>
+</body>
+</html>
+@functions {
+    static string BpStatus(int? sys, int? dia)
+    {
+        if (sys is null) return "na";
+        if (sys < 90 || sys > 140) return "high";
+        if (sys >= 90 && sys <= 120) return "ok";
+        return "warn";
+    }
+    static string PulseStatus(int? p)
+        => p is null ? "na" : (p >= 60 && p <= 100) ? "ok" : "high";
+    static string Spo2Status(decimal? s)
+        => s is null ? "na" : s >= 95m ? "ok" : s >= 90m ? "warn" : "high";
+    static string TempStatus(decimal? t)
+        => t is null ? "na" : (t >= 97m && t <= 99m) ? "ok" : (t >= 99m && t < 101m) ? "warn" : "high";
+    static string RrStatus(int? r)
+        => r is null ? "na" : (r >= 12 && r <= 20) ? "ok" : (r > 20 && r <= 24) ? "warn" : "high";
+    static string PainStatus(int? p)
+        => p is null ? "na" : p <= 3 ? "ok" : p <= 6 ? "warn" : "high";
+}

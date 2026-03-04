@@ -86,6 +86,9 @@
         <a asp-action="RecordVital" asp-route-patientId="@Model.PatientId" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-circle-fill me-1"></i>Record New Vitals
         </a>
+        <a asp-action="PrintVital" asp-route-patientId="@Model.PatientId" target="_blank" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-printer-fill me-1"></i>Print Vitals
+        </a>
         <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i>Back
         </a>

@@ -98,6 +98,32 @@ public class VitalHistoryRow
     public int TotalCount { get; set; }
 }
 
+// ─── Print page view model ────────────────────────────────────────────────────
+public class VitalPrintViewModel
+{
+    // Hospital
+    public string HospitalName    { get; set; } = "Hospital";
+    public string? HospitalAddress { get; set; }
+    public string? HospitalPhone   { get; set; }
+    public string? HospitalEmail   { get; set; }
+    public string? HospitalWebsite { get; set; }
+    public string? HospitalLogo    { get; set; }
+
+    // Patient
+    public int    PatientId       { get; set; }
+    public string PatientCode     { get; set; } = string.Empty;
+    public string PatientFullName { get; set; } = string.Empty;
+    public string? PatientAge     { get; set; }
+    public string? PatientGender  { get; set; }
+    public string? PatientBloodGroup { get; set; }
+    public string? PatientAddress { get; set; }
+    public string? PatientPhone   { get; set; }
+    public string? LastOpdBillNo  { get; set; }
+
+    // Vital (latest)
+    public VitalHistoryRow? Vital { get; set; }
+}
+
 // ─── Index / history page ─────────────────────────────────────────────────────
 public class VitalIndexViewModel
 {

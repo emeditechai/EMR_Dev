@@ -173,6 +173,9 @@
         <a id="btnViewHistory" href="#" class="btn btn-outline-primary vital-action-btn">
             <i class="bi bi-clock-history fs-5"></i>View Vital History
         </a>
+        <a id="btnPrintVital" href="#" target="_blank" class="btn btn-outline-success vital-action-btn">
+            <i class="bi bi-printer-fill fs-5"></i>Print Vitals
+        </a>
     </div>
 </div>
 
@@ -295,6 +298,7 @@
         // Buttons
         document.getElementById('btnRecordVital').href = vitalsBase + 'RecordVital?patientId=' + p.patientId;
         document.getElementById('btnViewHistory').href = vitalsBase + 'History?patientId='    + p.patientId;
+        document.getElementById('btnPrintVital').href  = vitalsBase + 'PrintVital?patientId=' + p.patientId;
 
         // Load latest vitals
         const latest = await fetchJson(vitalsBase + 'GetLatest?patientId=' + p.patientId);

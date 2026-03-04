@@ -1,16 +1,20 @@
+using Dapper;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
 
 [Authorize]
 public class VitalsController(
     IPatientVitalService vitalService,
-    IPatientService patientService) : Controller
+    IPatientService patientService,
+    ApplicationDbContext dbContext,
+    IDbConnectionFactory db) : Controller
 {
     // ─── Index: patient search landing page ───────────────────────────────────
 
@@ -115,6 +119,59 @@ public class VitalsController(
         };
 
         ViewData["Title"] = $"Vital History — {vm.PatientFullName}";
+        return View(vm);
+    }
+
+    // ─── PrintVital — standalone print page ─────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> PrintVital(int patientId)
+    {
+        var patient = await patientService.GetByIdAsync(patientId);
+        if (patient is null) return NotFound();
+
+        // Latest vital with RecordedByName
+        var (rows, _) = await vitalService.GetHistoryAsync(patientId, 1, 1);
+        var latest = rows.FirstOrDefault();
+
+        // Hospital settings
+        var branchId = User.GetCurrentBranchId();
+        var settings = branchId.HasValue
+            ? await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId.Value)
+            : null;
+
+        // Last OPD bill
+        string? lastBill = null;
+        using (var con = db.CreateConnection())
+        {
+            lastBill = await con.QuerySingleOrDefaultAsync<string>(
+                "SELECT TOP 1 OPDBillNo FROM PatientOPDService WHERE PatientId = @PatientId ORDER BY CreatedDate DESC",
+                new { PatientId = patientId });
+        }
+
+        var phones = string.Join(" / ", new[] { settings?.ContactNumber1, settings?.ContactNumber2 }
+            .Where(p => !string.IsNullOrWhiteSpace(p)));
+
+        var vm = new VitalPrintViewModel
+        {
+            HospitalName    = settings?.HospitalName  ?? "Hospital",
+            HospitalAddress = settings?.Address,
+            HospitalPhone   = phones,
+            HospitalEmail   = settings?.EmailAddress,
+            HospitalWebsite = settings?.Website,
+            HospitalLogo    = settings?.LogoPath,
+            PatientId       = patient.PatientId,
+            PatientCode     = patient.PatientCode,
+            PatientFullName = BuildFullName(patient),
+            PatientAge      = CalcAge(patient.DateOfBirth),
+            PatientGender   = patient.Gender,
+            PatientBloodGroup = patient.BloodGroup,
+            PatientAddress  = patient.Address,
+            PatientPhone    = patient.PhoneNumber,
+            LastOpdBillNo   = lastBill,
+            Vital           = latest
+        };
+
         return View(vm);
     }
 
