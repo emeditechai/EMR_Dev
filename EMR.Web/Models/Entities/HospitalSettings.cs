@@ -36,6 +36,9 @@ public class HospitalSettings
 
     public TimeSpan? CheckOutTime { get; set; }
 
+    // ── OPD Module Settings ──────────────────────────────────────────────────
+    public int? OpdRegistrationValidityDays { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedDate { get; set; } = DateTime.Now;

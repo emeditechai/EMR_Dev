@@ -156,24 +156,12 @@
         </div>
     </div>
 
-    <div class="d-flex gap-2 justify-content-end mb-4">
-        <a asp-action="Index" class="btn btn-outline-secondary">
-            <i class="bi bi-x-circle me-1"></i>Cancel
-        </a>
-        <button type="submit" class="btn btn-primary px-4">
-            <i class="bi bi-floppy-fill me-1"></i>Save Settings
-        </button>
+    @* ── Module Configuration Tabs ── *@
+    <div class="mb-2 mt-2 d-flex align-items-center gap-2">
+        <span class="fw-bold text-secondary small text-uppercase" style="letter-spacing:.07em"><i class="bi bi-sliders me-1"></i>Module Configuration</span>
     </div>
 
-</form>
-
-@* ── Module Configuration Tabs ── *@
-<div class="mb-2 d-flex align-items-center gap-2">
-    <span class="fw-bold text-secondary small text-uppercase" style="letter-spacing:.07em"><i class="bi bi-sliders me-1"></i>Module Configuration</span>
-    <span style="font-size:.65rem;background:#e9ecef;color:#6c757d;padding:2px 8px;border-radius:20px;font-weight:600">Editable parameters coming soon</span>
-</div>
-
-<ul class="nav module-tab-nav mb-0" id="moduleTabs" role="tablist">
+    <ul class="nav module-tab-nav mb-0" id="moduleTabs" role="tablist">
     <li class="nav-item">
         <button class="nav-link active" data-tab="opd" data-bs-toggle="tab" data-bs-target="#editTabOpd" type="button" role="tab">
             <i class="bi bi-person-plus-fill me-1"></i>OPD
@@ -200,8 +188,19 @@
 
     @* OPD *@
     <div class="tab-pane fade show active module-tab-pane" id="editTabOpd" role="tabpanel">
-        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>OPD-specific parameters will be configurable here.</p>
         <div class="row g-3">
+            <div class="col-6 col-md-3">
+                <label asp-for="OpdRegistrationValidityDays" class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                    <i class="bi bi-calendar-check me-1 text-primary"></i>Registration Charges Validity
+                </label>
+                <div class="input-group">
+                    <input asp-for="OpdRegistrationValidityDays" type="number" class="form-control"
+                           min="0" max="3650" placeholder="e.g. 365" />
+                    <span class="input-group-text">Days</span>
+                </div>
+                <span asp-validation-for="OpdRegistrationValidityDays" class="text-danger small d-block mt-1"></span>
+                <div class="form-text">How long a patient's registration charge remains valid.</div>
+            </div>
             @foreach (var p in new[] { "Bill Prefix","Token Prefix","Auto Token Reset","Default Consulting Fee","Allow Walk-In","Max Patients / Day","Print Bill on Save","GST on Services" })
             {
                 <div class="col-6 col-md-3">
@@ -263,6 +262,17 @@
     </div>
 
 </div>
+
+    <div class="d-flex gap-2 justify-content-end mb-4">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </a>
+        <button type="submit" class="btn btn-primary px-4">
+            <i class="bi bi-floppy-fill me-1"></i>Save Settings
+        </button>
+    </div>
+
+</form>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

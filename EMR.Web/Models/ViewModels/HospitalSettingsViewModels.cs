@@ -51,6 +51,11 @@ public class HospitalSettingsViewModel
     [Display(Name = "Check-Out Time")]
     public string? CheckOutTime { get; set; }
 
+    // ── OPD Module Settings ──────────────────────────────────────────────────
+    [Display(Name = "Registration Charges Validity (Days)")]
+    [Range(0, 3650, ErrorMessage = "Value must be between 0 and 3650 days.")]
+    public int? OpdRegistrationValidityDays { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

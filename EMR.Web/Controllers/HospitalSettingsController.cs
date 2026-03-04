@@ -117,6 +117,7 @@ public class HospitalSettingsController(
             existing.LogoPath = await SaveLogoFileAsync(model.LogoFile, existing.LogoPath);
             existing.CheckInTime = TimeSpan.TryParse(model.CheckInTime, out var cin) ? cin : null;
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
+            existing.OpdRegistrationValidityDays = model.OpdRegistrationValidityDays;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -150,6 +151,7 @@ public class HospitalSettingsController(
                 ? s.CheckInTime.Value.ToString(@"hh\:mm") : null,
             CheckOutTime = s.CheckOutTime.HasValue
                 ? s.CheckOutTime.Value.ToString(@"hh\:mm") : null,
+            OpdRegistrationValidityDays = s.OpdRegistrationValidityDays,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -169,6 +171,7 @@ public class HospitalSettingsController(
             LogoPath = m.LogoPath,
             CheckInTime = TimeSpan.TryParse(m.CheckInTime, out var cin) ? cin : null,
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
+            OpdRegistrationValidityDays = m.OpdRegistrationValidityDays,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId
