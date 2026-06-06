@@ -52,6 +52,7 @@
             <tr>
                 <th>#</th>
                 <th>Speciality Name</th>
+                <th>Speciality Code</th>
                 <th>Status</th>
                 <th>Created</th>
                 <th class="text-end">Actions</th>
@@ -66,6 +67,7 @@
                     <td class="fw-semibold">
                         <i class="bi bi-award text-primary me-2"></i>@item.SpecialityName
                     </td>
+                    <td>@item.SpecialityCode</td>
                     <td>
                         @if (item.IsActive)
                         {
@@ -92,7 +94,7 @@
             @if (!Model.Any())
             {
                 <tr>
-                    <td colspan="5" class="text-center text-muted py-5">
+                    <td colspan="6" class="text-center text-muted py-5">
                         <i class="bi bi-award fs-2 d-block mb-2 opacity-50"></i>
                         No specialities found. <a asp-action="Create">Add one now.</a>
                     </td>

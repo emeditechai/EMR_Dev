@@ -9,6 +9,9 @@ public class DoctorSpecialityMaster
     [Required, MaxLength(100)]
     public string SpecialityName { get; set; } = string.Empty;
 
+    [Required, MaxLength(50)]
+    public string SpecialityCode { get; set; } = string.Empty;
+
     public bool IsActive { get; set; } = true;
 
     public int? CreatedBy { get; set; }

@@ -24,7 +24,7 @@ public class DoctorSpecialityService(IDbConnectionFactory db) : IDoctorSpecialit
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<DoctorSpecialityMaster>(
-            "SELECT SpecialityId, SpecialityName FROM DoctorSpecialityMaster WHERE IsActive = 1 ORDER BY SpecialityName");
+            "SELECT SpecialityId, SpecialityCode, SpecialityName FROM DoctorSpecialityMaster WHERE IsActive = 1 ORDER BY SpecialityName");
     }
 
     public async Task<bool> NameExistsAsync(string name, int? excludeId = null)
@@ -38,14 +38,25 @@ public class DoctorSpecialityService(IDbConnectionFactory db) : IDoctorSpecialit
         return count > 0;
     }
 
+    public async Task<bool> CodeExistsAsync(string code, int? excludeId = null)
+    {
+        using var con = db.CreateConnection();
+        var count = await con.ExecuteScalarAsync<int>(
+            @"SELECT COUNT(1) FROM DoctorSpecialityMaster
+              WHERE SpecialityCode = @code
+                AND (@excludeId IS NULL OR SpecialityId <> @excludeId)",
+            new { code, excludeId });
+        return count > 0;
+    }
+
     public async Task<int> CreateAsync(DoctorSpecialityMaster m, int? userId)
     {
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
-            INSERT INTO DoctorSpecialityMaster (SpecialityName, IsActive, CreatedBy, CreatedDate)
-            VALUES (@SpecialityName, @IsActive, @userId, GETDATE());
+            INSERT INTO DoctorSpecialityMaster (SpecialityCode, SpecialityName, IsActive, CreatedBy, CreatedDate)
+            VALUES (@SpecialityCode, @SpecialityName, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
-            new { m.SpecialityName, m.IsActive, userId });
+            new { m.SpecialityCode, m.SpecialityName, m.IsActive, userId });
     }
 
     public async Task UpdateAsync(DoctorSpecialityMaster m, int? userId)
@@ -53,12 +64,13 @@ public class DoctorSpecialityService(IDbConnectionFactory db) : IDoctorSpecialit
         using var con = db.CreateConnection();
         await con.ExecuteAsync(@"
             UPDATE DoctorSpecialityMaster SET
+                SpecialityCode = @SpecialityCode,
                 SpecialityName = @SpecialityName,
                 IsActive       = @IsActive,
                 ModifiedBy     = @userId,
                 ModifiedDate   = GETDATE()
             WHERE SpecialityId = @SpecialityId",
-            new { m.SpecialityName, m.IsActive, userId, m.SpecialityId });
+            new { m.SpecialityCode, m.SpecialityName, m.IsActive, userId, m.SpecialityId });
     }
 
     public async Task<bool> DeleteAsync(int id)

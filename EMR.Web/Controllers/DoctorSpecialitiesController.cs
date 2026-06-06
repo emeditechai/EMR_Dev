@@ -22,6 +22,9 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(DoctorSpecialityFormViewModel model)
     {
+        if (await specialityService.CodeExistsAsync(model.SpecialityCode.Trim()))
+            ModelState.AddModelError(nameof(model.SpecialityCode), "This Speciality Code already exists.");
+
         if (await specialityService.NameExistsAsync(model.SpecialityName.Trim()))
             ModelState.AddModelError(nameof(model.SpecialityName), "This Speciality Name already exists.");
 
@@ -29,6 +32,7 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
 
         await specialityService.CreateAsync(new DoctorSpecialityMaster
         {
+            SpecialityCode = model.SpecialityCode.Trim(),
             SpecialityName = model.SpecialityName.Trim(),
             IsActive       = model.IsActive
         }, User.GetUserId());
@@ -47,6 +51,7 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
         return View(new DoctorSpecialityFormViewModel
         {
             SpecialityId   = entity.SpecialityId,
+            SpecialityCode = entity.SpecialityCode,
             SpecialityName = entity.SpecialityName,
             IsActive       = entity.IsActive
         });
@@ -55,6 +60,9 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(DoctorSpecialityFormViewModel model)
     {
+        if (await specialityService.CodeExistsAsync(model.SpecialityCode.Trim(), model.SpecialityId))
+            ModelState.AddModelError(nameof(model.SpecialityCode), "This Speciality Code already exists.");
+
         if (await specialityService.NameExistsAsync(model.SpecialityName.Trim(), model.SpecialityId))
             ModelState.AddModelError(nameof(model.SpecialityName), "This Speciality Name already exists.");
 
@@ -63,6 +71,7 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
         await specialityService.UpdateAsync(new DoctorSpecialityMaster
         {
             SpecialityId   = model.SpecialityId,
+            SpecialityCode = model.SpecialityCode.Trim(),
             SpecialityName = model.SpecialityName.Trim(),
             IsActive       = model.IsActive
         }, User.GetUserId());
