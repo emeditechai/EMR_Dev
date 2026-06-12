@@ -15,9 +15,9 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     /// <summary>Get all doctors, optionally filtered by branch.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DoctorListItem>>), 200)]
-    public async Task<IActionResult> GetList([FromQuery] int? branchId)
+    public async Task<IActionResult> GetList([FromQuery] int? branchId, [FromQuery] string? searchQuery = null)
     {
-        var data = await doctorService.GetListAsync(branchId);
+        var data = await doctorService.GetListAsync(branchId, searchQuery);
         return Ok(ApiResponse<IEnumerable<DoctorListItem>>.Ok(data));
     }
 

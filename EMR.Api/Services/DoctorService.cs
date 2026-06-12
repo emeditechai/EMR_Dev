@@ -9,12 +9,12 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
 {
     // ─── GET LIST ─────────────────────────────────────────────────────────────
 
-    public async Task<IEnumerable<DoctorListItem>> GetListAsync(int? branchId)
+    public async Task<IEnumerable<DoctorListItem>> GetListAsync(int? branchId, string? searchQuery = null)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<DoctorListItem>(
             "usp_Api_Doctor_GetList",
-            new { BranchId = branchId },
+            new { BranchId = branchId, SearchQuery = searchQuery },
             commandType: CommandType.StoredProcedure);
     }
 

@@ -6,7 +6,9 @@
     string? newCode = TempData["NewPatientCode"] as string;
     string? newName = TempData["NewPatientName"] as string;
     bool isBooking = TempData["IsBooking"] as bool? ?? false;
+    bool fromRoster = !isEdit && Model.ConsultingDoctorId.HasValue && Model.ScheduleId.HasValue && Model.AppointmentTime.HasValue;
 }
+
 
 @section HeadStyles {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
@@ -100,7 +102,37 @@
             margin-bottom: .75rem;
         }
         /* ── Phone suggestion dropdown ── */
-        #phoneSearchDropdown .list-group-item:hover { background: #e8f0fe; }
+        #phoneSearchDropdown .list-group-item { outline: none; }
+        #phoneSearchDropdown .list-group-item:hover,
+        #phoneSearchDropdown .list-group-item.kbd-active {
+            background: #e8f0fe;
+            border-left: 3px solid #1967d2;
+        }
+
+        /* ── From Roster lock ── */
+        .roster-locked {
+            pointer-events: none;
+            opacity: 0.82;
+            background: #f5f3ff !important;
+            border-color: #c4b5fd !important;
+        }
+        .roster-lock-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: linear-gradient(135deg,#667eea,#764ba2);
+            color: #fff; border-radius: 20px;
+            padding: 2px 9px; font-size: .7rem; font-weight: 700;
+            margin-left: 6px;
+        }
+        .roster-frozen-bar {
+            display: flex; align-items: center; gap: 8px;
+            background: linear-gradient(90deg,#f0f4ff,#faf5ff);
+            border: 1px solid #c4b5fd;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: .82rem; color: #4f46e5; font-weight: 600;
+            margin-bottom: 12px;
+        }
+
 
         /* ── Collapsible section headers ── */
         .reg-section-header.collapsed-toggle {
@@ -528,17 +560,54 @@
         </div>
         <div class="reg-section-body">
 
-            @* ── Row 1: Consulting Doctor ── *@
+
+            @if (fromRoster)
+            {
+                <div class="roster-frozen-bar">
+                    <i class="bi bi-lock-fill"></i>
+                    Appointment details pre-filled from Doctor Roster — Doctor, Date &amp; Slot are locked.
+                    <a href="@Url.Action("PatientRegistration", "OPD")" class="ms-auto text-muted text-decoration-none small fw-normal">
+                        <i class="bi bi-x-circle me-1"></i>Clear &amp; start fresh
+                    </a>
+                </div>
+            }
             <div class="row g-3 mb-3">
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4">
                     <label asp-for="ConsultingDoctorId" class="form-label fw-semibold small">
                         Consulting Doctor
                         <span class="badge text-bg-info text-dark ms-1">OPD Doctors Only</span>
+                        @if (fromRoster) { <span class="roster-lock-badge"><i class="bi bi-lock-fill" style="font-size:.62rem"></i>Roster</span> }
                     </label>
-                    <select asp-for="ConsultingDoctorId" id="ddlDoctor" class="form-select s2-search"
-                            asp-items="Model.DoctorOptions">
+                    <select asp-for="ConsultingDoctorId" id="ddlDoctor"
+                            class="form-select s2-search @(fromRoster ? "roster-locked" : "")"
+                            asp-items="Model.DoctorOptions"
+                            disabled="@(fromRoster ? "disabled" : null)">
                         <option value="">-- Select Doctor --</option>
                     </select>
+                    @if (fromRoster) { <input type="hidden" name="ConsultingDoctorId" value="@Model.ConsultingDoctorId" /> }
+                </div>
+                <div class="col-12 col-md-4">
+                    <label asp-for="AppointmentDate" class="form-label fw-semibold small">
+                        Appointment Date
+                        @if (fromRoster) { <span class="roster-lock-badge"><i class="bi bi-lock-fill" style="font-size:.62rem"></i>Roster</span> }
+                    </label>
+                    <input asp-for="AppointmentDate" id="txtAppointmentDate"
+                           class="form-control @(fromRoster ? "roster-locked" : "")"
+                           type="date"
+                           value="@(Model.AppointmentDate?.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd"))"
+                           readonly="@(fromRoster ? "readonly" : null)" />
+                </div>
+                <div class="col-12 col-md-4">
+                    <label asp-for="ScheduleId" class="form-label fw-semibold small">
+                        Available Slots
+                        @if (fromRoster) { <span class="roster-lock-badge"><i class="bi bi-lock-fill" style="font-size:.62rem"></i>Roster</span> }
+                    </label>
+                    <select id="ddlSlot" class="form-select @(fromRoster ? "roster-locked" : "")"
+                            disabled="@(fromRoster ? "disabled" : null)">
+                        <option value="">-- Select Doctor &amp; Date First --</option>
+                    </select>
+                    <input asp-for="ScheduleId" id="hdnScheduleId" type="hidden" />
+                    <input asp-for="AppointmentTime" id="hdnAppointmentTime" type="hidden" />
                 </div>
             </div>
 
@@ -758,6 +827,119 @@
             el.addEventListener('hidden.bs.toast', () => el.remove());
         }
 
+        // ── Slot Fetching ─────────────────────────────────────────────────────
+        const $ddlDoctor = $('#ddlDoctor');
+        const $txtAppointmentDate = $('#txtAppointmentDate');
+        const $ddlSlot = $('#ddlSlot');
+        const $hdnScheduleId = $('#hdnScheduleId');
+        const $hdnAppointmentTime = $('#hdnAppointmentTime');
+
+        async function fetchAvailableSlots() {
+            const docId = $ddlDoctor.val();
+            const date = $txtAppointmentDate.val();
+            
+            $ddlSlot.empty();
+            
+            if (!docId || !date) {
+                $ddlSlot.append(new Option('-- Select Doctor & Date First --', ''));
+                return;
+            }
+            
+            $ddlSlot.append(new Option('Loading slots...', ''));
+            
+            const result = await fetchJson(`${opdBase}GetAvailableSlots?doctorId=${docId}&date=${date}`);
+            $ddlSlot.empty();
+            
+            if (!result || !result.slots || result.slots.length === 0) {
+                if (result && result.hasException) {
+                    $ddlSlot.append(new Option(`-- Unavailable: ${result.exceptionReason} --`, ''));
+                } else {
+                    $ddlSlot.append(new Option('-- No available slots --', ''));
+                }
+                return;
+            }
+            
+            $ddlSlot.append(new Option('-- Select Slot --', ''));
+            result.slots.forEach(slot => {
+                const opt = new Option(`${slot.slotTime} (${slot.bookedCount}/${slot.maxPerSlot} Booked)`, `${slot.scheduleId}|${slot.slotTime}`);
+                if (!slot.isAvailable) {
+                    opt.disabled = true;
+                    opt.text += ' - FULL';
+                }
+                $ddlSlot.append(opt);
+            });
+            
+            // Re-select if previously selected
+            const prevSchId = $hdnScheduleId.val();
+            const prevTime = $hdnAppointmentTime.val();
+            if (prevSchId && prevTime) {
+                // Formatting time properly (hh:mm:ss to hh:mm)
+                const formattedTime = prevTime.length > 5 ? prevTime.substring(0, 5) : prevTime;
+                const prevVal = `${prevSchId}|${formattedTime}`;
+                $ddlSlot.val(prevVal);
+            }
+        }
+
+        $ddlDoctor.on('change', fetchAvailableSlots);
+        $txtAppointmentDate.on('change', fetchAvailableSlots);
+
+        $ddlSlot.on('change', function() {
+            const val = $(this).val();
+            if (val) {
+                const parts = val.split('|');
+                $hdnScheduleId.val(parts[0]);
+                $hdnAppointmentTime.val(parts[1]);
+            } else {
+                $hdnScheduleId.val('');
+                $hdnAppointmentTime.val('');
+            }
+        });
+        
+        // ── Initial slot load ─────────────────────────────────────────────────
+        const fromRoster = @(fromRoster ? "true" : "false");
+
+        if (fromRoster) {
+            // Detach change handlers so patient selection never clears the roster fields
+            $ddlDoctor.off('change');
+            $txtAppointmentDate.off('change');
+
+            // Silently load slots and pre-select the booked slot
+            (async () => {
+                const docId = '@(Model.ConsultingDoctorId)';
+                const date  = '@(Model.AppointmentDate?.ToString("yyyy-MM-dd") ?? "")';
+                const schId = '@(Model.ScheduleId)';
+                const rawTime = '@(Model.AppointmentTime?.ToString(@"hh\:mm") ?? "")';
+
+                if (docId && date) {
+                    const result = await fetchJson(`${opdBase}GetAvailableSlots?doctorId=${docId}&date=${date}`);
+                    if (result?.slots?.length) {
+                        $ddlSlot.empty().append(new Option('-- Slot from Roster --', ''));
+                        result.slots.forEach(slot => {
+                            const opt = new Option(
+                                `${slot.slotTime} (${slot.bookedCount}/${slot.maxPerSlot} Booked)`,
+                                `${slot.scheduleId}|${slot.slotTime}`
+                            );
+                            if (!slot.isAvailable) { opt.disabled = true; opt.text += ' - FULL'; }
+                            $ddlSlot.append(opt);
+                        });
+                        const targetVal = `${schId}|${rawTime}`;
+                        $ddlSlot.val(targetVal);
+                        if ($ddlSlot.val()) {
+                            const parts = $ddlSlot.val().split('|');
+                            $hdnScheduleId.val(parts[0]);
+                            $hdnAppointmentTime.val(parts[1]);
+                        }
+                    }
+                }
+            })();
+        } else {
+            // Normal mode: fetch slots if doctor already selected (e.g. edit mode)
+            if ($ddlDoctor.val()) {
+                fetchAvailableSlots();
+            }
+        }
+
+
         // ── Initialise Select2 ────────────────────────────────────────────────
         // s2-basic  → dropdown only (no search box for short lists)
         // s2-search → includes search box (for long lists like geography, doctors…)
@@ -828,14 +1010,53 @@
             });
         }
 
-        // ── Phone live-suggest (inside form) ──────────────────────────────────
+        // ── Phone live-suggest (inside form) – with keyboard navigation ──────────
         const phoneInput = document.getElementById('phoneNumber');
         const phoneDrop  = document.getElementById('phoneSearchDropdown');
         let debounce;
+        let kbdIndex = -1;
+
+        function getPhoneItems() { return Array.from(phoneDrop.querySelectorAll('.phone-sug')); }
+
+        function setKbdActive(idx) {
+            const items = getPhoneItems();
+            if (!items.length) return;
+            items.forEach(i => i.classList.remove('kbd-active'));
+            kbdIndex = Math.max(0, Math.min(idx, items.length - 1));
+            items[kbdIndex].classList.add('kbd-active');
+            items[kbdIndex].scrollIntoView({ block: 'nearest' });
+        }
 
         if (phoneInput && phoneDrop) {
+            // ── Arrow / Enter / Escape keyboard support ──
+            phoneInput.addEventListener('keydown', function (e) {
+                if (phoneDrop.style.display === 'none') return;
+                const items = getPhoneItems();
+                if (!items.length) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setKbdActive(kbdIndex < 0 ? 0 : kbdIndex + 1);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setKbdActive(kbdIndex <= 0 ? 0 : kbdIndex - 1);
+                } else if (e.key === 'Enter') {
+                    if (kbdIndex >= 0 && items[kbdIndex]) {
+                        e.preventDefault();
+                        populatePatient(items[kbdIndex].dataset.id);
+                        phoneDrop.style.display = 'none';
+                        kbdIndex = -1;
+                    }
+                } else if (e.key === 'Escape') {
+                    phoneDrop.style.display = 'none';
+                    kbdIndex = -1;
+                }
+            });
+
+            // ── Type-ahead search ────────────────────────────────────────────────
             phoneInput.addEventListener('input', function () {
                 clearTimeout(debounce);
+                kbdIndex = -1;
                 const val = this.value.trim();
                 if (val.length < 3) { phoneDrop.style.display = 'none'; return; }
                 debounce = setTimeout(async () => {
@@ -844,28 +1065,45 @@
                         phoneDrop.innerHTML = data.map(p => `
                             <button type="button"
                                     class="list-group-item list-group-item-action py-2 px-3 phone-sug"
-                                    data-id="${p.patientId}">
-                                <span class="fw-semibold">${p.fullName}</span>
-                                <span class="badge text-bg-info text-dark ms-1 font-monospace">${p.patientCode}</span>
-                                ${p.relationName ? `<span class="badge text-bg-primary ms-1">${p.relationName}</span>` : ''}
-                                ${p.bloodGroup ? `<span class="badge text-bg-danger ms-1">${p.bloodGroup}</span>` : ''}
-                                <br>
+                                    data-id="${p.patientId}" tabindex="-1">
+                                <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                                    <span class="fw-semibold">${p.fullName}</span>
+                                    <span class="badge text-bg-info text-dark font-monospace">${p.patientCode}</span>
+                                    ${p.relationName ? `<span class="badge text-bg-primary">${p.relationName}</span>` : ''}
+                                    ${p.bloodGroup   ? `<span class="badge text-bg-danger">${p.bloodGroup}</span>`   : ''}
+                                </div>
                                 <small class="text-muted">${p.phoneNumber} &nbsp;·&nbsp; ${p.gender || ''}</small>
                             </button>`).join('');
                         phoneDrop.style.display = 'block';
-                        phoneDrop.querySelectorAll('.phone-sug').forEach(btn => {
-                            btn.addEventListener('click', () => populatePatient(btn.dataset.id));
+                        kbdIndex = -1;
+
+                        // Mouse hover syncs kbdIndex so Enter still works
+                        phoneDrop.querySelectorAll('.phone-sug').forEach((btn, i) => {
+                            btn.addEventListener('mouseenter', () => {
+                                getPhoneItems().forEach(b => b.classList.remove('kbd-active'));
+                                btn.classList.add('kbd-active');
+                                kbdIndex = i;
+                            });
+                            btn.addEventListener('click', () => {
+                                populatePatient(btn.dataset.id);
+                                phoneDrop.style.display = 'none';
+                                kbdIndex = -1;
+                            });
                         });
                     } else {
                         phoneDrop.style.display = 'none';
                     }
                 }, 350);
             });
+
             document.addEventListener('click', e => {
-                if (!phoneDrop.contains(e.target) && e.target !== phoneInput)
+                if (!phoneDrop.contains(e.target) && e.target !== phoneInput) {
                     phoneDrop.style.display = 'none';
+                    kbdIndex = -1;
+                }
             });
         }
+
 
         // ── Cascading geography dropdowns ─────────────────────────────────────
         function setupCascade(parentId, qsParam, action, childId, valProp, textProp, placeholder) {
@@ -1135,12 +1373,22 @@
             }
             document.getElementById('Address').value = p.address ?? '';
 
-            // ── Section 3: always reset for new visit ────────────────────────
-            // Reset doctor and clear all line items for fresh visit booking
-            $('#ddlDoctor').val('').trigger('change');
-            lineItems = [];
-            renderRows();
-            saveJson();
+            // ── Section 3: only reset if NOT locked by roster ────────────────
+            if (!fromRoster) {
+                // Reset doctor and clear all line items for fresh visit booking
+                $('#ddlDoctor').val('').trigger('change');
+                lineItems = [];
+                renderRows();
+                saveJson();
+            } else {
+                // If from roster, we keep the doctor, date, and slot intact.
+                // We just want to ensure lineItems are clean for the new patient.
+                lineItems = [];
+                renderRows();
+                saveJson();
+                // Then let the doctor change event know it needs to load consulting item
+                $doctor.trigger('change');
+            }
 
             // ── Check registration validity for this (returning) patient ─────
             await checkRegistrationValidity(p.patientId);

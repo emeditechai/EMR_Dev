@@ -183,6 +183,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@UserId",             userId);
         p.Add("@ConsultingDoctorId", opdBill.ConsultingDoctorId);
         p.Add("@LineItemsJson",      lineItemsJson);
+        p.Add("@ScheduleId",         opdBill.ScheduleId);
+        p.Add("@AppointmentDate",    opdBill.VisitDate.Date);
+        p.Add("@AppointmentTime",    opdBill.AppointmentTime);
 
         // OUTPUT parameters
         p.Add("@PatientCode",     dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
@@ -213,10 +216,12 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@PatientId", patient.PatientId);
         AddPatientParams(p, patient);
         p.Add("@UserId",             userId);
-        p.Add("@OPDServiceId",       opdBill.OPDServiceId);
         p.Add("@BranchId",           opdBill.BranchId);
         p.Add("@ConsultingDoctorId", opdBill.ConsultingDoctorId);
         p.Add("@LineItemsJson",      lineItemsJson);
+        p.Add("@ScheduleId",         opdBill.ScheduleId);
+        p.Add("@AppointmentDate",    opdBill.VisitDate.Date);
+        p.Add("@AppointmentTime",    opdBill.AppointmentTime);
 
         // OUTPUT parameters
         p.Add("@NewOPDServiceId", dbType: DbType.Int32,            direction: ParameterDirection.Output);
@@ -330,6 +335,18 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             ORDER BY pos.CreatedDate DESC",
             new { PatientId = patientId });
     }
+
+    // ─── Roster Bookings by Doctor + Date ────────────────────────────────────
+
+    public async Task<IEnumerable<RosterBookingSummary>> GetBookingsByDoctorDateAsync(int doctorId, DateOnly date, int branchId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<RosterBookingSummary>(
+            "dbo.usp_RosterBookings_GetByDoctorDate",
+            new { DoctorId = doctorId, Date = date.ToDateTime(TimeOnly.MinValue), BranchId = branchId },
+            commandType: CommandType.StoredProcedure);
+    }
+
 
     // ─── Latest OPD Service ───────────────────────────────────────────────────
 
@@ -582,16 +599,19 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         var newSvcId = await con.ExecuteScalarAsync<int>(@"
             INSERT INTO PatientOPDService
                 (PatientId, BranchId, ConsultingDoctorId, OPDBillNo, TokenNo,
-                 TotalAmount, VisitDate, Status, IsActive, CreatedBy, CreatedDate)
+                 TotalAmount, VisitDate, Status, IsActive, CreatedBy, CreatedDate,
+                 ScheduleId, AppointmentTime)
             VALUES
                 (@PatientId, @BranchId, @ConsultingDoctorId, @OPDBillNo, @TokenNo,
-                 0, GETDATE(), 'Registered', 1, @CreatedBy, GETDATE());
+                 0, GETDATE(), 'Registered', 1, @CreatedBy, GETDATE(),
+                 @ScheduleId, @AppointmentTime);
             SELECT CAST(SCOPE_IDENTITY() AS INT);",
             new
             {
                 bill.PatientId, bill.BranchId, bill.ConsultingDoctorId,
                 OPDBillNo = billNo, TokenNo = tokenNo,
-                CreatedBy = userId
+                CreatedBy = userId,
+                bill.ScheduleId, bill.AppointmentTime
             });
 
         // 4. Parse and insert line items

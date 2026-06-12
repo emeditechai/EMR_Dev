@@ -1,0 +1,426 @@
+@model EMR.Web.Models.ViewModels.DoctorScheduleIndexViewModel
+
+@{
+    ViewData["Title"] = "Configure Schedule";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0">Schedule Configuration</h2>
+            <p class="text-muted mb-0">Doctor: <strong>@Model.DoctorName</strong></p>
+        </div>
+        <div>
+            <a asp-controller="Doctors" asp-action="Index" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Back to Doctors
+            </a>
+            <button class="btn btn-primary" onclick="openScheduleModal()">
+                <i class="bi bi-plus-circle"></i> Add Schedule
+            </button>
+            <button class="btn btn-warning" onclick="openExceptionModal()">
+                <i class="bi bi-calendar-x"></i> Add Exception
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Regular Schedule Table -->
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-week text-primary me-2"></i>Regular Weekly Schedule</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Time</th>
+                                    <th>Duration</th>
+                                    <th>Capacity</th>
+                                    <th>Effective</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Schedules.Any())
+                                {
+                                    @foreach (var s in Model.Schedules.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime))
+                                    {
+                                        <tr>
+                                            <td class="fw-medium">@s.DayName</td>
+                                            <td>
+                                                <span class="badge bg-light text-dark border">
+                                                    @DateTime.Today.Add(s.StartTime).ToString("hh:mm tt") - @DateTime.Today.Add(s.EndTime).ToString("hh:mm tt")
+                                                </span>
+                                            </td>
+                                            <td>@s.SlotDurationMinutes min</td>
+                                            <td>
+                                                <div>@s.MaxPatientsPerSlot per slot</div>
+                                                @if(s.MaxPatientsPerSession.HasValue) {
+                                                    <small class="text-muted">Max @s.MaxPatientsPerSession / session</small>
+                                                }
+                                            </td>
+                                            <td>
+                                                <small>
+                                                    <div>From: @s.EffectiveFrom.ToString("MMM dd, yyyy")</div>
+                                                    @if(s.EffectiveTo.HasValue) {
+                                                        <div>To: @s.EffectiveTo.Value.ToString("MMM dd, yyyy")</div>
+                                                    }
+                                                </small>
+                                            </td>
+                                            <td>
+                                                @if(s.IsActive) {
+                                                    <span class="badge bg-success">Active</span>
+                                                } else {
+                                                    <span class="badge bg-secondary">Inactive</span>
+                                                }
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-light" onclick="editSchedule(@s.ScheduleId, @s.DayOfWeek, '@s.StartTime', '@s.EndTime', @s.SlotDurationMinutes, @s.MaxPatientsPerSlot, @(s.MaxPatientsPerSession ?? 0), '@s.EffectiveFrom.ToString("yyyy-MM-dd")', '@(s.EffectiveTo?.ToString("yyyy-MM-dd") ?? "")')">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-light text-danger" onclick="deleteSchedule(@s.ScheduleId)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="7" class="text-center py-4 text-muted">
+                                            No schedules configured. Click "Add Schedule" to create one.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Exceptions Table -->
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-x text-warning me-2"></i>Exceptions / Leaves</h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        @if (Model.Exceptions.Any())
+                        {
+                            @foreach (var e in Model.Exceptions.OrderByDescending(x => x.ExceptionDate))
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                    <div>
+                                        <div class="fw-bold">@e.ExceptionDate.ToString("MMM dd, yyyy")</div>
+                                        <div class="small text-muted">@e.ExceptionType - @e.Reason</div>
+                                    </div>
+                                    <button class="btn btn-sm btn-light text-danger" onclick="deleteException(@e.ExceptionId)">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="list-group-item text-center py-4 text-muted">
+                                No upcoming exceptions.
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="scheduleModalLabel">Add Schedule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="scheduleForm">
+                    <input type="hidden" id="ScheduleId" value="0" />
+                    <input type="hidden" id="DoctorId" value="@Model.DoctorId" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Days of Week <span class="text-danger">*</span> <small class="text-muted fw-normal">(Hold Ctrl/Cmd to select multiple)</small></label>
+                        <select class="form-select" id="DayOfWeek" asp-items="Model.DayOfWeekOptions" required multiple="multiple" style="height: 165px;"></select>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Start Time <span class="text-danger">*</span></label>
+                            <input type="time" class="form-control" id="StartTime" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">End Time <span class="text-danger">*</span></label>
+                            <input type="time" class="form-control" id="EndTime" required />
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Slot Duration (mins) <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="SlotDurationMinutes" value="15" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Max Patients/Slot <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="MaxPatientsPerSlot" value="1" required />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Max Patients/Session (Optional)</label>
+                        <input type="number" class="form-control" id="MaxPatientsPerSession" />
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Effective From <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="EffectiveFrom" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Effective To (Optional)</label>
+                            <input type="date" class="form-control" id="EffectiveTo" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveSchedule()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Exception Modal -->
+<div class="modal fade" id="exceptionModal" tabindex="-1" aria-labelledby="exceptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="exceptionModalLabel">Add Exception / Leave</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="exceptionForm">
+                    <input type="hidden" id="ExceptionDoctorId" value="@Model.DoctorId" />
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">From Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="excDateFrom" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">To Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="excDateTo" />
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Type</label>
+                        <select class="form-select" id="ExceptionType">
+                            <option value="Leave">Leave</option>
+                            <option value="Holiday">Holiday</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Reason</label>
+                        <textarea class="form-control" id="ExceptionReason" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="saveException()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const scheduleModal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+        const exceptionModal = new bootstrap.Modal(document.getElementById('exceptionModal'));
+
+        function openScheduleModal() {
+            document.getElementById('scheduleForm').reset();
+            document.getElementById('ScheduleId').value = 0;
+            document.getElementById('scheduleModalLabel').innerText = 'Add Schedule';
+            scheduleModal.show();
+        }
+
+        function editSchedule(id, day, start, end, duration, maxSlot, maxSession, effFrom, effTo) {
+            document.getElementById('ScheduleId').value = id;
+            Array.from(document.getElementById('DayOfWeek').options).forEach(opt => opt.selected = false);
+            let optToSelect = document.getElementById('DayOfWeek').querySelector(`option[value="${day}"]`);
+            if (optToSelect) optToSelect.selected = true;
+            document.getElementById('StartTime').value = start;
+            document.getElementById('EndTime').value = end;
+            document.getElementById('SlotDurationMinutes').value = duration;
+            document.getElementById('MaxPatientsPerSlot').value = maxSlot;
+            document.getElementById('MaxPatientsPerSession').value = maxSession == 0 ? '' : maxSession;
+            document.getElementById('EffectiveFrom').value = effFrom;
+            document.getElementById('EffectiveTo').value = effTo;
+            
+            document.getElementById('scheduleModalLabel').innerText = 'Edit Schedule';
+            scheduleModal.show();
+        }
+
+        function saveSchedule() {
+            const data = {
+                ScheduleId: parseInt(document.getElementById('ScheduleId').value),
+                DoctorId: parseInt(document.getElementById('DoctorId').value),
+                DaysOfWeek: Array.from(document.getElementById('DayOfWeek').selectedOptions).map(opt => parseInt(opt.value)),
+                StartTime: document.getElementById('StartTime').value,
+                EndTime: document.getElementById('EndTime').value,
+                SlotDurationMinutes: parseInt(document.getElementById('SlotDurationMinutes').value),
+                MaxPatientsPerSlot: parseInt(document.getElementById('MaxPatientsPerSlot').value),
+                MaxPatientsPerSession: document.getElementById('MaxPatientsPerSession').value ? parseInt(document.getElementById('MaxPatientsPerSession').value) : null,
+                EffectiveFrom: document.getElementById('EffectiveFrom').value,
+                EffectiveTo: document.getElementById('EffectiveTo').value ? document.getElementById('EffectiveTo').value : null,
+                ScheduleType: "OPD"
+            };
+
+            fetch('/DoctorSchedules/SaveSchedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success',
+                        text: res.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: res.message
+                    });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.fire('Error', 'An unexpected error occurred.', 'error');
+            });
+        }
+
+        function deleteSchedule(id) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "This will not delete past appointments.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch(`/DoctorSchedules/DeleteSchedule/${id}`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            location.reload();
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        function openExceptionModal() {
+            document.getElementById('exceptionForm').reset();
+            exceptionModal.show();
+        }
+
+        function saveException() {
+            const fromDate = document.getElementById('excDateFrom').value;
+            const toDate = document.getElementById('excDateTo').value;
+
+            if (!fromDate) {
+                Swal.fire('Error', 'From Date is required.', 'error');
+                return;
+            }
+
+            const data = {
+                DoctorId: parseInt(document.getElementById('ExceptionDoctorId').value),
+                ExceptionDateFrom: fromDate,
+                ExceptionDateTo: toDate ? toDate : fromDate,
+                ExceptionType: document.getElementById('ExceptionType').value,
+                Reason: document.getElementById('ExceptionReason').value
+            };
+
+            fetch('/DoctorSchedules/SaveException', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success',
+                        text: res.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: res.message
+                    });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.fire('Error', 'An unexpected error occurred.', 'error');
+            });
+        }
+
+        function deleteException(id) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "Do you want to delete this exception?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch(`/DoctorSchedules/DeleteException/${id}`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            location.reload();
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
+                    });
+                }
+            });
+        }
+    </script>
+}

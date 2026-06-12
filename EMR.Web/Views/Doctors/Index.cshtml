@@ -5,6 +5,10 @@
     var active = Model.Count(x => x.IsActive);
     var inactive = total - active;
 }
+@section HeadStyles {
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -52,6 +56,25 @@
     </div>
 </div>
 
+<div class="row mb-3">
+    <div class="col-md-6 col-lg-5">
+        <label class="form-label fw-semibold text-secondary small mb-1">Search & Filter Doctor</label>
+        <div class="d-flex gap-2">
+            <select id="ddlDoctorSearch" class="form-select s2-ajax" style="width: 100%;">
+                @if (ViewBag.SelectedDoctorId != null)
+                {
+                    <option value="@ViewBag.SelectedDoctorId" selected="selected">@ViewBag.SelectedDoctorName</option>
+                }
+            </select>
+            @if (ViewBag.SelectedDoctorId != null)
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary" title="Clear Filter">
+                    <i class="bi bi-x-lg"></i>
+                </a>
+            }
+        </div>
+    </div>
+</div>
 <div class="dashboard-panel doctor-table-panel table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
@@ -138,6 +161,12 @@
                                         </button>
                                     </li>
                                 }
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <a class="dropdown-item fw-semibold text-info" asp-controller="DoctorSchedules" asp-action="Configure" asp-route-doctorId="@item.DoctorId">
+                                        <i class="bi bi-calendar-week me-2"></i>Configure Scheduler
+                                    </a>
+                                </li>
                             </ul>
                         </div>
                     </td>
@@ -450,5 +479,33 @@
         selectedService = null;
     });
 })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $('#ddlDoctorSearch').select2({
+            theme: 'bootstrap-5',
+            placeholder: '-- Search by Name, Phone, Email, Speciality --',
+            allowClear: true,
+            ajax: {
+                url: '@Url.Action("SearchDoctors", "Doctors")',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return { results: data.results };
+                },
+                cache: true
+            },
+            minimumInputLength: 1
+        }).on('select2:select', function(e) {
+            var selectedId = e.params.data.id;
+            window.location.href = '@Url.Action("Index", "Doctors")' + '?doctorId=' + selectedId;
+        }).on('select2:clear', function(e) {
+            window.location.href = '@Url.Action("Index", "Doctors")';
+        });
+    });
 </script>
 }

@@ -16,7 +16,7 @@
     var phones      = string.Join(" / ", new[] { hospPhone1, hospPhone2 }.Where(p => !string.IsNullOrWhiteSpace(p)));
 
     var ageStr = Model.Age.HasValue ? Model.Age.Value + " Yrs" : "—";
-    var visitDate = Model.VisitDate.ToString("dd MMM yyyy, hh:mm tt");
+    var billDate = Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt");
     decimal subTotal    = Model.Items.Sum(i => i.ServiceCharges);
     decimal discountAmt = payment?.DiscountAmount ?? 0;
     decimal netAmount   = payment?.NetAmount ?? subTotal;
@@ -338,7 +338,7 @@
             <span class="bill-meta">
                 Bill No: <strong>@(Model.OPDBillNo ?? "—")</strong><br />
                 Token: <strong>@(Model.TokenNo ?? "—")</strong> &nbsp;·&nbsp;
-                Date: <strong>@visitDate</strong>
+                Date: <strong>@billDate</strong>
             </span>
         </div>
 
@@ -370,6 +370,14 @@
                     <div class="pat-field">
                         <label>Consulting Doctor</label>
                         <div class="pat-val">@(Model.ConsultingDoctorName ?? "—")</div>
+                    </div>
+                    <div class="pat-field">
+                        <label>Appointment Date</label>
+                        <div class="pat-val">@Model.VisitDate.ToString("dd MMM yyyy")</div>
+                    </div>
+                    <div class="pat-field">
+                        <label>Time Slot</label>
+                        <div class="pat-val">@(Model.AppointmentTime.HasValue ? DateTime.Today.Add(Model.AppointmentTime.Value).ToString("hh:mm tt") : "—")</div>
                     </div>
                 </div>
             </div>
@@ -572,7 +580,7 @@
 
         @* ── Bill Footer ── *@
         <div class="bill-footer">
-            <span>Generated: @DateTime.Now.ToString("dd MMM yyyy, hh:mm tt")</span>
+            <span>Generated: @Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
             <span>Powered by EMR System</span>
             <span>@hospName</span>
         </div>

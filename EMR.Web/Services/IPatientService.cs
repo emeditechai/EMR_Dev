@@ -85,4 +85,9 @@ public interface IPatientService
     /// Used to validate OPD Registration Charges Validity against Hospital Settings.
     /// </summary>
     Task<DateTime?> GetLastRegistrationDateAsync(int patientId);
+
+    /// <summary>
+    /// Returns all bookings for a specific doctor on a specific date (used for roster calendar hover summary).
+    /// </summary>
+    Task<IEnumerable<RosterBookingSummary>> GetBookingsByDoctorDateAsync(int doctorId, DateOnly date, int branchId);
 }

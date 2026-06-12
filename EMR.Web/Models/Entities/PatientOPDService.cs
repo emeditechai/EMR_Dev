@@ -13,6 +13,10 @@ public class PatientOPDService
     public int? BranchId { get; set; }
 
     public int? ConsultingDoctorId { get; set; }
+    
+    public int? ScheduleId { get; set; }
+    
+    public TimeSpan? AppointmentTime { get; set; }
 
     /// <summary>Generated bill number: OP&lt;FY&gt;&lt;6-digit seq&gt; e.g. OP2526000001</summary>
     public string? OPDBillNo { get; set; }

@@ -57,6 +57,8 @@ public class ServiceBookingDetail
     public DateTime? DateOfBirth          { get; set; }
     public string?  ConsultingDoctorName  { get; set; }
     public DateTime VisitDate             { get; set; }
+    public TimeSpan? AppointmentTime      { get; set; }
+    public DateTime CreatedDate           { get; set; }
     public decimal  TotalAmount           { get; set; }
     public string   Status                { get; set; } = string.Empty;
     public List<ServiceBookingDetailItem> Items { get; set; } = new();

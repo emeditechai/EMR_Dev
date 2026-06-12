@@ -21,18 +21,30 @@ public class DoctorsController(
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService) : Controller
 {
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index([FromQuery] int? doctorId = null)
     {
         var branchId = User.GetCurrentBranchId();
 
         ViewBag.BranchName = branchId.HasValue
             ? (await dbContext.BranchMasters.FindAsync(branchId.Value))?.BranchName
             : null;
+        ViewBag.SelectedDoctorId = doctorId;
 
         try
         {
             // Strictly via EMR.Api — no DB fallback
             var apiDoctors = await doctorApiClient.GetListAsync(branchId);
+            
+            if (doctorId.HasValue && doctorId.Value > 0)
+            {
+                apiDoctors = apiDoctors.Where(d => d.DoctorId == doctorId.Value).ToList();
+                var selectedDoctor = apiDoctors.FirstOrDefault();
+                if (selectedDoctor != null)
+                {
+                    ViewBag.SelectedDoctorName = $"{selectedDoctor.FullName} ({selectedDoctor.PrimarySpecialityName})";
+                }
+            }
+
             var doctors = apiDoctors.Select(d => new DoctorListItemViewModel
             {
                 DoctorId              = d.DoctorId,
@@ -54,6 +66,27 @@ public class DoctorsController(
             return View("ApiDown");
         }
     }
+
+    [HttpGet]
+    public async Task<IActionResult> SearchDoctors(string q)
+    {
+        var branchId = User.GetCurrentBranchId();
+        try
+        {
+            var apiDoctors = await doctorApiClient.GetListAsync(branchId, q);
+            var results = apiDoctors.Select(d => new
+            {
+                id = d.DoctorId,
+                text = $"{d.FullName} - {d.PrimarySpecialityName} | Ph: {d.PhoneNumber} | Em: {d.EmailId}"
+            });
+            return Json(new { results });
+        }
+        catch
+        {
+            return Json(new { results = Array.Empty<object>() });
+        }
+    }
+
 
     [HttpGet]
     public async Task<IActionResult> Create()

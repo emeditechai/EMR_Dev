@@ -54,6 +54,8 @@ public class PatientCreateRequest
     public string?  Remarks                { get; set; }
     public int?     BranchId               { get; set; }
     public int?     RequestedByUserId      { get; set; }
+    public int?     ScheduleId             { get; set; }
+    public TimeSpan? AppointmentTime       { get; set; }
 }
 
 public class PatientUpdateRequest : PatientCreateRequest

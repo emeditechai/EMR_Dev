@@ -1,0 +1,707 @@
+@{
+    ViewData["Title"] = "Doctor Roster";
+    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName)>;
+}
+
+@section HeadStyles {
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+    <style>
+        /* ── Page Hero ───────────────────────────────── */
+        .roster-hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            border-radius: 20px;
+            padding: 28px 32px 22px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(102,126,234,.25);
+        }
+        .roster-hero::before {
+            content:'';
+            position:absolute; top:-40px; right:-40px;
+            width:200px; height:200px;
+            background:rgba(255,255,255,.07);
+            border-radius:50%;
+        }
+        .roster-hero::after {
+            content:'';
+            position:absolute; bottom:-60px; right:80px;
+            width:140px; height:140px;
+            background:rgba(255,255,255,.05);
+            border-radius:50%;
+        }
+        .roster-hero h2 { color:#fff; font-weight:800; font-size:1.7rem; margin:0 0 4px; letter-spacing:-.5px; }
+        .roster-hero p  { color:rgba(255,255,255,.8); margin:0; font-size:.92rem; }
+
+        /* ── Stat Pills ──────────────────────────────── */
+        .stat-pill {
+            display:flex; align-items:center; gap:8px;
+            background:rgba(255,255,255,.15);
+            border:1px solid rgba(255,255,255,.25);
+            border-radius:40px;
+            padding:6px 16px 6px 10px;
+            backdrop-filter:blur(6px);
+        }
+        .stat-pill .sp-dot {
+            width:10px; height:10px; border-radius:50%;
+        }
+        .stat-pill span { color:#fff; font-size:.8rem; font-weight:600; }
+
+        /* ── Control Card ─────────────────────────────── */
+        .control-card {
+            background:#fff;
+            border-radius:16px;
+            border:1px solid #eef0fb;
+            box-shadow:0 2px 16px rgba(0,0,0,.06);
+            padding:20px 24px;
+            margin-bottom:20px;
+        }
+
+        /* ── Calendar Overrides ───────────────────────── */
+        #calendar { font-family: inherit; }
+        .fc .fc-toolbar-title { font-size:1.2em; font-weight:700; color:#1e293b; }
+        .fc .fc-button-primary {
+            background: linear-gradient(135deg,#667eea,#764ba2) !important;
+            border-color:transparent !important;
+            border-radius:8px !important;
+            font-weight:600 !important;
+            box-shadow:0 2px 8px rgba(102,126,234,.3) !important;
+        }
+        .fc .fc-button-primary:hover { opacity:.88 !important; }
+        .fc .fc-button-primary:not(:disabled).fc-button-active {
+            background: linear-gradient(135deg,#764ba2,#667eea) !important;
+        }
+        .fc-day-today { background: linear-gradient(180deg,rgba(102,126,234,.07) 0%,rgba(102,126,234,.03) 100%) !important; }
+        .fc-col-header-cell { padding:10px 0 !important; }
+        .fc-col-header-cell-cushion {
+            font-weight:700 !important; color:#6c6f93 !important;
+            text-transform:uppercase !important; font-size:.72rem !important; letter-spacing:.06em !important;
+            text-decoration:none !important;
+        }
+        .fc-daygrid-day-number {
+            font-weight:600; color:#374151; text-decoration:none !important;
+        }
+        .fc-daygrid-day-number:hover { color:#667eea; }
+
+        /* ── Calendar Events ──────────────────────────── */
+        .fc-event {
+            cursor: pointer !important;
+            border-radius: 8px !important;
+            border: none !important;
+            font-size: .75rem !important;
+            font-weight: 600 !important;
+            padding: 3px 7px !important;
+            transition: transform .12s ease, box-shadow .12s ease !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,.12) !important;
+        }
+        .fc-event:hover {
+            transform: translateY(-1px) scale(1.02) !important;
+            box-shadow: 0 5px 16px rgba(0,0,0,.18) !important;
+            z-index: 10 !important;
+        }
+        /* Available slot — gradient blue */
+        .fc-event.ev-available {
+            background: linear-gradient(135deg,#667eea,#764ba2) !important;
+            color: #fff !important;
+        }
+        /* Has bookings — gradient green */
+        .fc-event.ev-booked {
+            background: linear-gradient(135deg,#11998e,#38ef7d) !important;
+            color: #fff !important;
+        }
+        /* Fully booked — gradient orange */
+        .fc-event.ev-full {
+            background: linear-gradient(135deg,#f093fb,#f5576c) !important;
+            color: #fff !important;
+        }
+        /* Exception/Leave — soft red */
+        .fc-event.ev-exception {
+            background: linear-gradient(135deg,#ffecd2,#fcb69f) !important;
+            color: #7a2d2d !important;
+        }
+        /* Past days dimmed */
+        .fc-day-past .fc-event { opacity: .6; }
+
+        /* ── Loading / Empty ──────────────────────────── */
+        .roster-loading {
+            text-align:center; padding:60px 20px;
+        }
+        .roster-loading .spinner-ring {
+            width:52px; height:52px;
+            border:4px solid #eef0fb;
+            border-top-color:#667eea;
+            border-radius:50%;
+            animation: spin .7s linear infinite;
+            margin:0 auto 16px;
+        }
+        @@keyframes spin { to { transform:rotate(360deg); } }
+        .empty-state { text-align:center; padding:60px 20px; }
+        .empty-state .es-icon {
+            width:80px; height:80px;
+            background:linear-gradient(135deg,#eef0fb,#e0e7ff);
+            border-radius:50%;
+            display:inline-flex; align-items:center; justify-content:center;
+            font-size:2rem; margin-bottom:16px; color:#667eea;
+        }
+
+        /* ── Legend Pills ─────────────────────────────── */
+        .legend-pill {
+            display:inline-flex; align-items:center; gap:6px;
+            padding:4px 12px; border-radius:20px; font-size:.77rem; font-weight:600;
+            border:1px solid transparent;
+        }
+        .legend-pill .dot { width:9px; height:9px; border-radius:50%; }
+        .lp-avail  { background:#ede9fe; color:#5b21b6; border-color:#ddd6fe; }
+        .lp-booked { background:#d1fae5; color:#065f46; border-color:#a7f3d0; }
+        .lp-full   { background:#ffe4e6; color:#9f1239; border-color:#fecdd3; }
+        .lp-leave  { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+
+        /* ── Slot Modal ───────────────────────────────── */
+        #slotsModal .modal-content { border-radius:20px; overflow:hidden; }
+        #slotsModal .modal-header {
+            background: linear-gradient(135deg,#667eea,#764ba2);
+            border-bottom:none; padding:20px 24px;
+        }
+        #slotsModal .modal-title { color:#fff; font-weight:700; }
+        #slotsModal .btn-close { filter:invert(1) brightness(2); }
+        .slot-btn {
+            transition: all .2s ease;
+            border-radius: 12px !important;
+        }
+        .slot-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,.12) !important;
+        }
+        .slot-btn:disabled {
+            opacity:.55; cursor:not-allowed;
+            background:#f1f5f9 !important; border-color:#e2e8f0 !important; color:#94a3b8 !important;
+        }
+        .slot-available { background:linear-gradient(135deg,#667eea15,#764ba215) !important; border-color:#667eea !important; }
+        .slot-available:hover { background:linear-gradient(135deg,#667eea25,#764ba225) !important; }
+
+        /* ── Hover Tooltip ────────────────────────────── */
+        #rosterTooltip {
+            position: fixed;
+            z-index: 9999;
+            min-width: 290px; max-width: 360px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 16px 48px rgba(0,0,0,.16), 0 2px 8px rgba(102,126,234,.12);
+            border: 1.5px solid #e0e7ff;
+            padding: 0;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(8px) scale(0.96);
+            transition: opacity .18s ease, transform .18s ease;
+            font-size: 0.84rem;
+        }
+        #rosterTooltip.show { opacity:1; transform:translateY(0) scale(1); }
+        .rt-header {
+            background: linear-gradient(135deg,#667eea,#764ba2);
+            color:#fff; border-radius:14px 14px 0 0;
+            padding:10px 14px 9px;
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .rt-header .rt-date  { font-weight:700; font-size:.88rem; }
+        .rt-header .rt-count {
+            background:rgba(255,255,255,.2); border-radius:20px;
+            padding:2px 10px; font-size:.76rem; font-weight:600;
+        }
+        .rt-body { padding:8px 12px 10px; max-height:250px; overflow-y:auto; }
+        .rt-body::-webkit-scrollbar { width:4px; }
+        .rt-body::-webkit-scrollbar-thumb { background:#e0e7ff; border-radius:4px; }
+        .rt-item {
+            display:flex; align-items:flex-start; gap:9px;
+            padding:7px 9px; border-radius:10px; margin-bottom:5px;
+            border:1px solid #eef0fb; background:#fafbff;
+        }
+        .rt-item:last-child { margin-bottom:0; }
+        .rt-avatar {
+            width:32px; height:32px; border-radius:50%;
+            background:linear-gradient(135deg,#e0e7ff,#c7d2fe); color:#4f46e5;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; font-size:.74rem; flex-shrink:0;
+        }
+        .rt-info { flex:1; min-width:0; }
+        .rt-name { font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.83rem; }
+        .rt-sub  { color:#64748b; font-size:.74rem; margin-top:2px; }
+        .rt-badge-r { background:#dbeafe; color:#1d4ed8; }
+        .rt-badge-c { background:#d1fae5; color:#065f46; }
+        .rt-badge-x { background:#fee2e2; color:#991b1b; }
+        .rt-slot { font-size:.76rem; color:#667eea; font-weight:700; white-space:nowrap; flex-shrink:0; }
+        .rt-empty { text-align:center; padding:16px 0; color:#94a3b8; font-size:.82rem; }
+        .rt-footer {
+            border-top:1px solid #eef0fb;
+            padding:6px 14px; font-size:.76rem; color:#64748b;
+            border-radius:0 0 14px 14px; background:#f8faff;
+            display:flex; align-items:center; justify-content:space-between;
+        }
+    </style>
+}
+
+<!-- ── Page Hero ──────────────────────────────────────────────────────── -->
+<div class="roster-hero">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div style="position:relative;z-index:1">
+            <h2><i class="bi bi-calendar2-heart me-2"></i>Doctor Roster &amp; Booking</h2>
+            <p>View availability, hover for booking summaries, click to book instantly</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap" style="position:relative;z-index:1">
+            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#a78bfa,#818cf8)"></span><span>Available</span></span>
+            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#34d399,#6ee7b7)"></span><span>Has Bookings</span></span>
+            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#f472b6,#fb7185)"></span><span>Fully Booked</span></span>
+            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#fbbf24,#f59e0b)"></span><span>Exception / Leave</span></span>
+        </div>
+    </div>
+</div>
+
+<!-- ── Doctor Selector ─────────────────────────────────────────────────── -->
+<div class="control-card">
+    <div class="row align-items-center g-3">
+        <div class="col-md-5 col-lg-4">
+            <label class="form-label fw-semibold mb-1" style="color:#475569;font-size:.85rem">
+                <i class="bi bi-person-badge me-1 text-primary"></i>Select Consulting Doctor
+            </label>
+            <select id="ddlDoctor" class="form-select s2-search" style="border-radius:10px;border-color:#e2e8f0;">
+                <option value="">— Choose a Doctor —</option>
+                @if (doctors != null)
+                {
+                    foreach (var doc in doctors)
+                    {
+                        <option value="@doc.DoctorId">@doc.FullName</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-md-7 col-lg-8">
+            <div class="d-flex flex-wrap gap-2 justify-content-md-end align-items-center mt-md-3">
+                <span class="legend-pill lp-avail"><span class="dot" style="background:linear-gradient(135deg,#667eea,#764ba2)"></span>Schedule Available</span>
+                <span class="legend-pill lp-booked"><span class="dot" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></span>Has Bookings</span>
+                <span class="legend-pill lp-full"><span class="dot" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></span>Fully Booked</span>
+                <span class="legend-pill lp-leave"><span class="dot" style="background:linear-gradient(135deg,#ffecd2,#fcb69f)"></span>Exception / Leave</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Calendar Card ───────────────────────────────────────────────────── -->
+<div class="control-card p-0" style="overflow:hidden">
+    <div id="loadingIndicator" class="roster-loading d-none">
+        <div class="spinner-ring"></div>
+        <p class="text-muted fw-medium mb-0">Loading doctor schedule…</p>
+    </div>
+
+    <div id="calendarWrapper" class="d-none" style="padding:20px 24px 24px">
+        <div id='calendar'></div>
+    </div>
+
+    <div id="emptyState" class="empty-state">
+        <div class="es-icon"><i class="bi bi-calendar2-week"></i></div>
+        <h5 class="fw-bold mb-1" style="color:#1e293b">No Doctor Selected</h5>
+        <p class="text-muted mb-0">Select a doctor above to view their schedule and bookings</p>
+    </div>
+</div>
+
+<!-- ── Available Slots Modal ───────────────────────────────────────────── -->
+<div class="modal fade" id="slotsModal" tabindex="-1" aria-labelledby="slotsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title" id="slotsModalLabel">
+                    <i class="bi bi-calendar-check me-2"></i>Available Slots
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-4 pb-3 border-bottom">
+                    <div>
+                        <h5 class="fw-bold mb-1" id="lblDoctorName" style="color:#667eea">Dr. Name</h5>
+                        <div class="d-flex align-items-center gap-3 text-muted small mt-1">
+                            <span><i class="bi bi-geo-alt-fill text-danger me-1"></i><span id="lblRoomName">Room</span></span>
+                            <span><i class="bi bi-calendar-event text-secondary me-1"></i><span id="lblSelectedDate">Date</span></span>
+                        </div>
+                    </div>
+                    <span class="badge rounded-pill px-3 py-2 fs-6" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff">
+                        <i class="bi bi-clock-history me-1"></i><span id="lblScheduleTime">09:00 - 13:00</span>
+                    </span>
+                </div>
+
+                <div id="slotsLoading" class="text-center py-5 d-none">
+                    <div class="spinner-ring" style="margin:0 auto 14px"></div>
+                    <p class="text-muted fw-medium mb-0">Fetching available slots…</p>
+                </div>
+
+                <div id="slotsError" class="alert alert-danger border-0 rounded-3 d-none mb-0"></div>
+                <div id="slotsException" class="alert alert-warning border-0 rounded-3 d-none mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i><span id="slotsExceptionMsg"></span>
+                </div>
+
+                <div id="slotsContainer" class="row g-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Roster Booking Tooltip ─────────────────────────────────────────── -->
+<div id="rosterTooltip" role="tooltip">
+    <div class="rt-header">
+        <span class="rt-date" id="rtDate">—</span>
+        <span class="rt-count" id="rtCount">0 Bookings</span>
+    </div>
+    <div class="rt-body" id="rtBody">
+        <div class="rt-empty"><i class="bi bi-calendar2 me-1"></i>No bookings for this date</div>
+    </div>
+    <div class="rt-footer" id="rtFooter"></div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        // Select2
+        $('.s2-search').select2({ theme: 'bootstrap-5', width: '100%' });
+
+        // ── FullCalendar Setup ──────────────────────────────────────────
+        const calendarEl = document.getElementById('calendar');
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left:   'prev,next today',
+                center: 'title',
+                right:  'dayGridMonth,timeGridWeek,listMonth'
+            },
+            themeSystem: 'bootstrap5',
+            height: 680,
+            eventClick: function (info) { handleEventClick(info.event); },
+            eventMouseEnter: function (info) {
+                if (!info.event.extendedProps.isException)
+                    showRosterTooltip(info.event, info.jsEvent);
+            },
+            eventMouseLeave: function () { hideRosterTooltip(); },
+            eventDidMount: function (info) {
+                // Apply colour class based on booking status
+                const cls = info.event.extendedProps.evClass;
+                if (cls) info.el.classList.add(cls);
+            }
+        });
+        calendar.render();
+
+        let currentSchedules = [];
+        let currentExceptions = [];
+        const slotsModal = new bootstrap.Modal(document.getElementById('slotsModal'));
+
+        // ── Doctor change ────────────────────────────────────────────────
+        $('#ddlDoctor').on('change', async function () {
+            const doctorId = $(this).val();
+            tooltipCache = {}; // clear cache on doctor change
+
+            if (!doctorId) {
+                $('#emptyState').removeClass('d-none');
+                $('#calendarWrapper').addClass('d-none');
+                return;
+            }
+            $('#emptyState').addClass('d-none');
+            $('#calendarWrapper').addClass('d-none');
+            $('#loadingIndicator').removeClass('d-none');
+
+            try {
+                const response = await fetch(`@Url.Action("GetDoctorSchedules", "DoctorRoster")?doctorId=${doctorId}`);
+                const data = await response.json();
+                if (data.error) { alert('Error: ' + data.error); return; }
+
+                currentSchedules = data.schedules || [];
+                currentExceptions = data.exceptions || [];
+
+                // Pre-load booking counts for visible range
+                await preloadBookingCounts(doctorId);
+
+                renderCalendarEvents();
+                $('#loadingIndicator').addClass('d-none');
+                $('#calendarWrapper').removeClass('d-none');
+                calendar.updateSize();
+            } catch (err) {
+                console.error(err);
+                alert('Failed to load doctor roster.');
+                $('#loadingIndicator').addClass('d-none');
+                $('#emptyState').removeClass('d-none');
+            }
+        });
+
+        // ── Booking Count Cache (for coloring) ───────────────────────────
+        let bookingCountCache = {};  // dateStr -> count
+        let tooltipCache      = {};  // key -> bookings array
+
+        async function preloadBookingCounts(doctorId) {
+            const today = new Date();
+            const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const end   = new Date(today.getFullYear(), today.getMonth() + 6, 0);
+
+            // Collect all schedule dates
+            const dates = [];
+            currentSchedules.forEach(sch => {
+                let jsDay   = sch.dayOfWeek === 7 ? 0 : sch.dayOfWeek;
+                let effFrom = new Date(sch.effectiveFrom);
+                let effTo   = sch.effectiveTo ? new Date(sch.effectiveTo) : end;
+                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    if (d.getDay() === jsDay && d >= effFrom && d <= effTo) {
+                        const ds = fmtDate(d);
+                        if (!dates.includes(ds)) dates.push(ds);
+                    }
+                }
+            });
+
+            // Fetch all in parallel (max 30 to avoid overload)
+            const subset = dates.slice(0, 60);
+            await Promise.all(subset.map(async ds => {
+                try {
+                    const resp = await fetch(`@Url.Action("GetDateBookings", "DoctorRoster")?doctorId=${doctorId}&date=${ds}`);
+                    const data = await resp.json();
+                    const bookings = data.bookings || [];
+                    tooltipCache[`${doctorId}_${ds}`] = bookings;
+                    bookingCountCache[ds] = bookings.length;
+                } catch { bookingCountCache[ds] = 0; }
+            }));
+        }
+
+        function fmtDate(d) {
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        // ── Render Events ────────────────────────────────────────────────
+        function renderCalendarEvents() {
+            calendar.removeAllEvents();
+            const events = [];
+            const today   = new Date(); today.setHours(0,0,0,0);
+            const startR  = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const endR    = new Date(today.getFullYear(), today.getMonth() + 6, 0);
+
+            currentSchedules.forEach(sch => {
+                let jsDay   = sch.dayOfWeek === 7 ? 0 : sch.dayOfWeek;
+                let effFrom = new Date(sch.effectiveFrom);
+                let effTo   = sch.effectiveTo ? new Date(sch.effectiveTo) : endR;
+
+                for (let d = new Date(startR); d <= endR; d.setDate(d.getDate() + 1)) {
+                    if (d.getDay() !== jsDay || d < effFrom || d > effTo) continue;
+
+                    const dateStr   = fmtDate(d);
+                    const exception = currentExceptions.find(e => e.exceptionDate.startsWith(dateStr));
+                    const count     = bookingCountCache[dateStr] ?? null;
+
+                    if (exception) {
+                        events.push({
+                            title: '⚠ ' + (exception.reason || 'Leave / Unavailable'),
+                            start: dateStr, allDay: true,
+                            extendedProps: { isException: true, reason: exception.reason, evClass: 'ev-exception' }
+                        });
+                    } else {
+                        // Colour by booking count (null = not loaded yet → blue)
+                        let evClass = 'ev-available';
+                        let countLabel = '';
+                        if (count !== null && count > 0) {
+                            evClass    = 'ev-booked';
+                            countLabel = ` · ${count} booked`;
+                        }
+
+                        const timeLabel = `${sch.startTime.substring(0,5)} – ${sch.endTime.substring(0,5)}`;
+                        events.push({
+                            title: `🕐 ${timeLabel}${countLabel}`,
+                            start: `${dateStr}T${sch.startTime}`,
+                            end:   `${dateStr}T${sch.endTime}`,
+                            extendedProps: {
+                                isException: false,
+                                evClass,
+                                scheduleId: sch.scheduleId,
+                                roomName:   sch.roomName || 'Not Assigned',
+                                doctorId:   sch.doctorId,
+                                date:       dateStr,
+                                timeString: timeLabel
+                            }
+                        });
+                    }
+                }
+            });
+
+            calendar.addEventSource(events);
+        }
+
+        // ── Event Click → Show Slots Modal ──────────────────────────────
+        async function handleEventClick(event) {
+            if (event.extendedProps.isException) return;
+
+            const props      = event.extendedProps;
+            const doctorName = $('#ddlDoctor option:selected').text();
+
+            $('#lblDoctorName').text(doctorName);
+            $('#lblRoomName').text(props.roomName);
+            const dateObj = new Date(props.date);
+            $('#lblSelectedDate').text(dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' }));
+            $('#lblScheduleTime').text(props.timeString);
+
+            $('#slotsContainer').empty();
+            $('#slotsError').addClass('d-none');
+            $('#slotsException').addClass('d-none');
+            $('#slotsLoading').removeClass('d-none');
+            slotsModal.show();
+
+            try {
+                const response = await fetch(`@Url.Action("GetAvailableSlots", "OPD")?doctorId=${props.doctorId}&date=${props.date}`);
+                const result   = await response.json();
+                $('#slotsLoading').addClass('d-none');
+
+                if (result.hasException) {
+                    $('#slotsExceptionMsg').text(result.exceptionReason || 'Doctor is unavailable on this date.');
+                    $('#slotsException').removeClass('d-none');
+                    return;
+                }
+                if (!result.slots || result.slots.length === 0) {
+                    $('#slotsError').text('No slots generated for this schedule.').removeClass('d-none');
+                    return;
+                }
+
+                result.slots.filter(s => s.scheduleId === props.scheduleId).forEach(slot => {
+                    const col      = document.createElement('div');
+                    col.className  = 'col-6 col-md-4 col-lg-3';
+                    const isFull   = !slot.isAvailable;
+                    const pct      = Math.round((slot.bookedCount / slot.maxPerSlot) * 100);
+                    const barColor = isFull ? '#f5576c' : pct > 50 ? '#f59e0b' : '#11998e';
+                    const bookUrl  = `@Url.Action("PatientRegistration", "OPD")?doctorId=${props.doctorId}&date=${props.date}&scheduleId=${slot.scheduleId}&time=${slot.slotTime}`;
+
+                    col.innerHTML = `
+                        <button type="button"
+                            class="btn w-100 slot-btn p-3 text-start h-100 d-flex flex-column justify-content-center shadow-sm border
+                                   ${isFull ? '' : 'slot-available'}"
+                            ${isFull ? 'disabled' : `onclick="window.location.href='${bookUrl}'"`}>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold fs-6 ${isFull ? 'text-muted' : ''}" style="${isFull ? '' : 'color:#667eea'}">
+                                    <i class="bi bi-clock me-1 small"></i>${slot.slotTime}
+                                </span>
+                                ${isFull
+                                    ? `<span class="badge" style="background:#f5576c;color:#fff;border-radius:8px;font-size:.7rem">FULL</span>`
+                                    : `<i class="bi bi-arrow-right-circle" style="color:#667eea;opacity:.6"></i>`}
+                            </div>
+                            <div class="progress mb-1" style="height:5px;border-radius:4px">
+                                <div class="progress-bar" role="progressbar"
+                                     style="width:${pct}%;background:${barColor};border-radius:4px"></div>
+                            </div>
+                            <small class="${isFull ? 'text-muted' : 'fw-semibold'}" style="${isFull ? '' : 'color:#11998e'}">
+                                ${slot.bookedCount} / ${slot.maxPerSlot} Booked
+                            </small>
+                        </button>`;
+                    $('#slotsContainer').append(col);
+                });
+
+                if ($('#slotsContainer').children().length === 0) {
+                    $('#slotsError').text('No slots found for this specific schedule block.').removeClass('d-none');
+                }
+            } catch (err) {
+                $('#slotsLoading').addClass('d-none');
+                $('#slotsError').text('Failed to fetch available slots.').removeClass('d-none');
+            }
+        }
+
+        // ── Hover Tooltip ────────────────────────────────────────────────
+        const tooltip  = document.getElementById('rosterTooltip');
+        const rtDate   = document.getElementById('rtDate');
+        const rtCount  = document.getElementById('rtCount');
+        const rtBody   = document.getElementById('rtBody');
+        const rtFooter = document.getElementById('rtFooter');
+        let hideTimer  = null;
+
+        async function showRosterTooltip(event, jsEvent) {
+            clearTimeout(hideTimer);
+            const props    = event.extendedProps;
+            const doctorId = $('#ddlDoctor').val();
+            const dateStr  = props.date;
+
+            positionTooltip(jsEvent);
+            const dateObj = new Date(dateStr);
+            rtDate.textContent   = dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+            rtCount.textContent  = 'Loading…';
+            rtBody.innerHTML     = '<div class="rt-empty"><div class="spinner-border spinner-border-sm me-2" style="color:#667eea"></div>Loading…</div>';
+            rtFooter.innerHTML   = '';
+            tooltip.classList.add('show');
+
+            const cacheKey = `${doctorId}_${dateStr}`;
+            if (tooltipCache[cacheKey]) { renderTooltipData(tooltipCache[cacheKey]); return; }
+
+            try {
+                const resp = await fetch(`@Url.Action("GetDateBookings", "DoctorRoster")?doctorId=${doctorId}&date=${dateStr}`);
+                const data = await resp.json();
+                tooltipCache[cacheKey]      = data.bookings || [];
+                bookingCountCache[dateStr]  = (data.bookings || []).length;
+                renderTooltipData(tooltipCache[cacheKey]);
+            } catch {
+                rtBody.innerHTML = '<div class="rt-empty text-danger"><i class="bi bi-exclamation-circle me-1"></i>Failed to load</div>';
+                rtCount.textContent = '—';
+            }
+        }
+
+        function renderTooltipData(bookings) {
+            const count = bookings.length;
+            rtCount.textContent = count === 0 ? 'No Bookings' : `${count} Booking${count > 1 ? 's' : ''}`;
+
+            if (count === 0) {
+                rtBody.innerHTML  = '<div class="rt-empty"><i class="bi bi-calendar2 me-1"></i>No bookings for this date</div>';
+                rtFooter.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            bookings.forEach(b => {
+                const initials    = b.patientName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                const slotLabel   = b.appointmentTime ? formatTime(b.appointmentTime) : '—';
+                const statusClass = b.status === 'Registered' ? 'rt-badge-r' : b.status === 'Completed' ? 'rt-badge-c' : 'rt-badge-x';
+                html += `
+                    <div class="rt-item">
+                        <div class="rt-avatar">${initials}</div>
+                        <div class="rt-info">
+                            <div class="rt-name">${b.patientName}</div>
+                            <div class="rt-sub">
+                                <span class="badge ${statusClass} rounded-pill px-2 py-0" style="font-size:.7rem">${b.status}</span>
+                                &nbsp;${b.patientCode} &bull; ${b.phoneNumber || '—'}
+                            </div>
+                            <div class="rt-sub mt-1"><i class="bi bi-bag me-1"></i>${b.serviceTypesSummary || 'Consulting'} — ₹${b.totalAmount.toFixed(2)}</div>
+                        </div>
+                        <div class="rt-slot"><i class="bi bi-clock me-1"></i>${slotLabel}</div>
+                    </div>`;
+            });
+            rtBody.innerHTML = html;
+
+            const total = bookings.reduce((s, b) => s + (b.totalAmount || 0), 0);
+            rtFooter.innerHTML = `
+                <span><i class="bi bi-people me-1"></i>${count} patient${count > 1 ? 's' : ''}</span>
+                <span class="fw-semibold" style="color:#667eea">₹${total.toFixed(2)}</span>`;
+        }
+
+        function formatTime(ts) {
+            if (!ts) return '—';
+            const p = ts.split(':');
+            let h = parseInt(p[0], 10);
+            const m = p[1] || '00';
+            const ap = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${m} ${ap}`;
+        }
+
+        function positionTooltip(e) {
+            const mg = 16, tw = 360, th = 340;
+            let x = e.clientX + mg, y = e.clientY + mg;
+            if (x + tw > window.innerWidth)  x = e.clientX - tw - mg;
+            if (y + th > window.innerHeight) y = e.clientY - th - mg;
+            tooltip.style.left = x + 'px';
+            tooltip.style.top  = y + 'px';
+        }
+
+        function hideRosterTooltip() {
+            hideTimer = setTimeout(() => tooltip.classList.remove('show'), 140);
+        }
+
+        document.getElementById('calendar').addEventListener('mousemove', function(e) {
+            if (tooltip.classList.contains('show')) positionTooltip(e);
+        });
+    });
+    </script>
+}

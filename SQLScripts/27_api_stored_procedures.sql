@@ -17,7 +17,8 @@ SET QUOTED_IDENTIFIER ON
 SET ANSI_NULLS ON
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Doctor_GetList
-    @BranchId INT = NULL
+    @BranchId INT = NULL,
+    @SearchQuery NVARCHAR(100) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -62,15 +63,24 @@ BEGIN
             FOR XML PATH(''), TYPE
         ).value('.','NVARCHAR(MAX)'), 1, 2, '') AS ConsultingFeeNames
     ) fees
-    WHERE @BranchId IS NULL
-       OR d.CreatedBranchId = @BranchId
-       OR EXISTS (
+    WHERE (
+        @BranchId IS NULL
+        OR d.CreatedBranchId = @BranchId
+        OR EXISTS (
             SELECT 1 FROM DoctorBranchMap dbm
             WHERE dbm.DoctorId = d.DoctorId
               AND dbm.BranchId = @BranchId
               AND dbm.IsActive = 1
-       )
-    ORDER BY d.FullName;
+        )
+    )
+    AND (
+        @SearchQuery IS NULL 
+        OR d.FullName LIKE '%' + @SearchQuery + '%'
+        OR d.PhoneNumber LIKE '%' + @SearchQuery + '%'
+        OR d.EmailId LIKE '%' + @SearchQuery + '%'
+        OR ps.SpecialityName LIKE '%' + @SearchQuery + '%'
+    )
+    ORDER BY d.IsActive DESC, d.FullName ASC;
 END
 GO
 
@@ -559,7 +569,9 @@ BEGIN
         d.FullName                AS ConsultingDoctorName,
         s.VisitDate,
         ISNULL(s.TotalAmount, 0)  AS TotalAmount,
-        s.Status
+        s.Status,
+        s.AppointmentTime,
+        s.CreatedDate
     FROM PatientOPDService s
     INNER JOIN PatientMaster p ON p.PatientId = s.PatientId
     LEFT  JOIN DoctorMaster  d ON d.DoctorId  = s.ConsultingDoctorId

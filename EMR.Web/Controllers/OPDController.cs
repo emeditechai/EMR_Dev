@@ -26,6 +26,7 @@ public class OPDController(
     IAreaService areaService,
     IAuditLogService auditLogService,
     IPaymentService paymentService,
+    IDoctorScheduleApiClient scheduleApiClient,
     ApplicationDbContext dbContext,
     IWebHostEnvironment env) : Controller
 {
@@ -77,7 +78,7 @@ public class OPDController(
     // ─── Patient Registration (GET) ───────────────────────────────────────────
 
     [HttpGet]
-    public async Task<IActionResult> PatientRegistration(int? id)
+    public async Task<IActionResult> PatientRegistration(int? id, int? doctorId = null, string? date = null, int? scheduleId = null, string? time = null)
     {
         ViewData["Title"] = id.HasValue ? "Edit Patient" : "Patient Registration";
         PatientRegistrationViewModel model;
@@ -94,7 +95,11 @@ public class OPDController(
         {
             model = new PatientRegistrationViewModel
             {
-                RelationId = 1   // default: Self
+                RelationId = 1,   // default: Self
+                ConsultingDoctorId = doctorId,
+                AppointmentDate = DateTime.TryParse(date, out var d) ? d : DateTime.Today,
+                ScheduleId = scheduleId,
+                AppointmentTime = TimeSpan.TryParse(time, out var t) ? t : null
             };
         }
 
@@ -112,6 +117,7 @@ public class OPDController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> PatientRegistration(PatientRegistrationViewModel model, IFormFile? identificationFile)
     {
+        Console.WriteLine($"[DEBUG] PatientRegistration POST: model.PatientId={model.PatientId}, model.PhoneNumber={model.PhoneNumber}, model.RelationId={model.RelationId}");
         var branchId = User.GetCurrentBranchId();
         if (branchId is null)
         {
@@ -355,10 +361,17 @@ public class OPDController(
     // ─── New Service Booking (GET) ────────────────────────────────────────────
 
     [HttpGet]
-    public async Task<IActionResult> NewServiceBooking()
+    public async Task<IActionResult> NewServiceBooking(int? doctorId = null, string? date = null, int? scheduleId = null, string? time = null)
     {
         ViewData["Title"] = "New Service Booking";
-        var model = new PatientRegistrationViewModel { DemographicsOnly = false };
+        var model = new PatientRegistrationViewModel 
+        { 
+            DemographicsOnly = false,
+            ConsultingDoctorId = doctorId,
+            AppointmentDate = DateTime.TryParse(date, out var d) ? d : DateTime.Today,
+            ScheduleId = scheduleId,
+            AppointmentTime = TimeSpan.TryParse(time, out var t) ? t : null
+        };
         await PopulateSelectLists(model);
         return View(model);
     }
@@ -419,8 +432,7 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(phone) || phone.Length < 3)
             return Json(Array.Empty<object>());
-        var branchId = User.GetCurrentBranchId();
-        var results = await patientService.SearchByPhoneAsync(phone.Trim(), branchId);
+        var results = await patientService.SearchByPhoneAsync(phone.Trim(), null);
         return Json(results);
     }
 
@@ -429,8 +441,7 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(code) || code.Length < 2)
             return Json(Array.Empty<object>());
-        var branchId = User.GetCurrentBranchId();
-        var results = await patientService.SearchByCodeAsync(code.Trim(), branchId);
+        var results = await patientService.SearchByCodeAsync(code.Trim(), null);
         return Json(results);
     }
 
@@ -612,6 +623,24 @@ public class OPDController(
         return Json(areas.Where(a => a.IsActive).Select(a => new { a.AreaId, a.AreaName }));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetAvailableSlots(int doctorId, string date)
+    {
+        if (doctorId <= 0 || !DateTime.TryParse(date, out var dt))
+            return Json(new { hasException = false, slots = Array.Empty<object>() });
+
+        var branchId = User.GetCurrentBranchId() ?? 0;
+        try
+        {
+            var result = await scheduleApiClient.GetAvailableSlotsAsync(doctorId, branchId, dt);
+            return Json(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
     // ─── Print Bill (via EMR.Api) ─────────────────────────────────────────────
 
     [HttpGet]
@@ -635,6 +664,8 @@ public class OPDController(
                 DateOfBirth          = apiDetail.DateOfBirth,
                 ConsultingDoctorName = apiDetail.ConsultingDoctorName,
                 VisitDate            = apiDetail.VisitDate,
+                AppointmentTime      = apiDetail.AppointmentTime,
+                CreatedDate          = apiDetail.CreatedDate,
                 TotalAmount          = apiDetail.TotalAmount,
                 Status               = apiDetail.Status,
                 Items                = apiDetail.Items.Select(i => new ServiceBookingDetailItem
@@ -794,6 +825,9 @@ public class OPDController(
         OPDServiceId       = m.OPDServiceId,
         PatientId          = m.PatientId,
         ConsultingDoctorId = m.ConsultingDoctorId,
+        ScheduleId         = m.ScheduleId,
+        VisitDate          = m.AppointmentDate ?? DateTime.Now,
+        AppointmentTime    = m.AppointmentTime
     };
 
     private static PatientRegistrationViewModel MapPatientToViewModel(PatientMaster p) => new()

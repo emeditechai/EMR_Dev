@@ -3,6 +3,22 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace EMR.Web.Models.ViewModels;
 
+// ─── Roster Calendar Booking Summary ─────────────────────────────────────────
+public class RosterBookingSummary
+{
+    public int      OPDServiceId        { get; set; }
+    public string?  OPDBillNo           { get; set; }
+    public string?  TokenNo             { get; set; }
+    public string   PatientName         { get; set; } = string.Empty;
+    public string   PatientCode         { get; set; } = string.Empty;
+    public string?  PhoneNumber         { get; set; }
+    public string?  Gender              { get; set; }
+    public TimeSpan? AppointmentTime    { get; set; }
+    public string   Status             { get; set; } = string.Empty;
+    public decimal  TotalAmount         { get; set; }
+    public string   ServiceTypesSummary { get; set; } = string.Empty;
+}
+
 // ─── List Item (for Patient Master grid) ──────────────────────────────────────
 public class PatientListItemViewModel
 {
@@ -154,6 +170,16 @@ public class PatientRegistrationViewModel
     [Display(Name = "Consulting Doctor")]
     public int? ConsultingDoctorId { get; set; }
 
+    [Display(Name = "Appointment Schedule")]
+    public int? ScheduleId { get; set; }
+
+    [Display(Name = "Appointment Date")]
+    [DataType(DataType.Date)]
+    public DateTime? AppointmentDate { get; set; }
+
+    [Display(Name = "Appointment Time")]
+    public TimeSpan? AppointmentTime { get; set; }
+
     /// <summary>Line items — serialised to JSON and sent as a single hidden field.</summary>
     public string LineItemsJson { get; set; } = "[]";
 
@@ -276,6 +302,8 @@ public class ServiceBookingDetailViewModel
         : null;
     public string? ConsultingDoctorName { get; set; }
     public DateTime VisitDate { get; set; }
+    public TimeSpan? AppointmentTime { get; set; }
+    public DateTime CreatedDate { get; set; }
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<ServiceBookingDetailItem> Items { get; set; } = [];
