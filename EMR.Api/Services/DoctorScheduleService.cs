@@ -11,12 +11,12 @@ namespace EMR.Api.Services
 {
     public class DoctorScheduleService(IDbConnectionFactory db) : IDoctorScheduleService
     {
-        public async Task<IEnumerable<DoctorScheduleListItem>> GetByDoctorAsync(int doctorId, int? branchId)
+        public async Task<IEnumerable<DoctorScheduleListItem>> GetByDoctorAsync(int? doctorId, int? branchId, int? departmentId)
         {
             using var conn = db.CreateConnection();
             return await conn.QueryAsync<DoctorScheduleListItem>(
                 "dbo.usp_Api_DoctorSchedule_GetByDoctor",
-                new { DoctorId = doctorId, BranchId = branchId },
+                new { DoctorId = doctorId, BranchId = branchId, DepartmentId = departmentId },
                 commandType: CommandType.StoredProcedure);
         }
 
@@ -78,12 +78,12 @@ namespace EMR.Api.Services
             return result;
         }
 
-        public async Task<IEnumerable<DoctorScheduleExceptionListItem>> GetExceptionsByDoctorAsync(int doctorId, int? branchId, DateTime? from, DateTime? to)
+        public async Task<IEnumerable<DoctorScheduleExceptionListItem>> GetExceptionsByDoctorAsync(int? doctorId, int? branchId, DateTime? from, DateTime? to, int? departmentId)
         {
             using var conn = db.CreateConnection();
             return await conn.QueryAsync<DoctorScheduleExceptionListItem>(
                 "dbo.usp_Api_DoctorScheduleException_GetByDoctor",
-                new { DoctorId = doctorId, BranchId = branchId, FromDate = from, ToDate = to },
+                new { DoctorId = doctorId, BranchId = branchId, FromDate = from, ToDate = to, DepartmentId = departmentId },
                 commandType: CommandType.StoredProcedure);
         }
 

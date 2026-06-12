@@ -16,11 +16,14 @@ namespace EMR.Web.ApiClients
             _http = factory.CreateClient("EmrApi");
         }
 
-        public async Task<List<DoctorScheduleListItem>> GetByDoctorAsync(int doctorId, int? branchId = null)
+        public async Task<List<DoctorScheduleListItem>> GetByDoctorAsync(int? doctorId, int? branchId = null, int? departmentId = null)
         {
-            var url = branchId.HasValue
-                ? $"api/doctorschedules?doctorId={doctorId}&branchId={branchId}"
-                : $"api/doctorschedules?doctorId={doctorId}";
+            var url = "api/doctorschedules?";
+            var query = new List<string>();
+            if (doctorId.HasValue) query.Add($"doctorId={doctorId}");
+            if (branchId.HasValue) query.Add($"branchId={branchId}");
+            if (departmentId.HasValue) query.Add($"departmentId={departmentId}");
+            url += string.Join("&", query);
 
             try
             {
@@ -88,14 +91,18 @@ namespace EMR.Web.ApiClients
             catch { return null; }
         }
 
-        public async Task<List<DoctorScheduleExceptionListItem>> GetExceptionsAsync(int doctorId, int? branchId = null, DateTime? from = null, DateTime? to = null)
+        public async Task<List<DoctorScheduleExceptionListItem>> GetExceptionsAsync(int? doctorId, int? branchId = null, DateTime? from = null, DateTime? to = null, int? departmentId = null)
         {
             try
             {
-                var url = $"api/doctorschedules/exceptions?doctorId={doctorId}";
-                if (branchId.HasValue) url += $"&branchId={branchId}";
-                if (from.HasValue) url += $"&from={from:yyyy-MM-dd}";
-                if (to.HasValue) url += $"&to={to:yyyy-MM-dd}";
+                var url = "api/doctorschedules/exceptions?";
+                var query = new List<string>();
+                if (doctorId.HasValue) query.Add($"doctorId={doctorId}");
+                if (branchId.HasValue) query.Add($"branchId={branchId}");
+                if (from.HasValue) query.Add($"from={from:yyyy-MM-dd}");
+                if (to.HasValue) query.Add($"to={to:yyyy-MM-dd}");
+                if (departmentId.HasValue) query.Add($"departmentId={departmentId}");
+                url += string.Join("&", query);
 
                 var response = await _http.GetFromJsonAsync<ApiResponse<List<DoctorScheduleExceptionListItem>>>(url);
                 return response?.Data ?? new List<DoctorScheduleExceptionListItem>();

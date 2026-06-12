@@ -8,164 +8,181 @@
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
     <style>
-        /* ── Page Hero ───────────────────────────────── */
-        .roster-hero {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        /* ── One-screen layout ─────────────────────────────────── */
+        .roster-page {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - var(--roster-offset, 130px));
+            min-height: 0;
+        }
+
+        /* ── Compact Toolbar ───────────────────────────────────── */
+        .roster-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 16px;
+            background: #fff;
+            border: 1px solid #eef0fb;
+            border-radius: 14px;
+            box-shadow: 0 2px 12px rgba(0,0,0,.05);
+            flex-shrink: 0;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .toolbar-label {
+            font-size: .78rem;
+            font-weight: 700;
+            color: #475569;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .toolbar-select-wrap {
+            flex: 0 0 260px;
+        }
+        .toolbar-select-wrap .select2-container {
+            min-width: 220px;
+        }
+        .toolbar-divider {
+            width: 1px;
+            height: 28px;
+            background: #e2e8f0;
+            flex-shrink: 0;
+        }
+        .toolbar-legends {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            flex: 1;
+            justify-content: flex-end;
+        }
+
+        /* ── Legend Pills ──────────────────────────────────────── */
+        .legend-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
             border-radius: 20px;
-            padding: 28px 32px 22px;
-            margin-bottom: 24px;
-            position: relative;
+            font-size: .72rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .legend-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .lp-avail  { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+        .lp-booked { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+        .lp-full   { background: #ffe4e6; color: #9f1239; border-color: #fecdd3; }
+        .lp-leave  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
+        /* ── Calendar Container ────────────────────────────────── */
+        .calendar-wrap {
+            flex: 1;
+            min-height: 0;
+            background: #fff;
+            border: 1px solid #eef0fb;
+            border-radius: 14px;
+            box-shadow: 0 2px 12px rgba(0,0,0,.05);
             overflow: hidden;
-            box-shadow: 0 8px 32px rgba(102,126,234,.25);
+            position: relative;
         }
-        .roster-hero::before {
-            content:'';
-            position:absolute; top:-40px; right:-40px;
-            width:200px; height:200px;
-            background:rgba(255,255,255,.07);
-            border-radius:50%;
-        }
-        .roster-hero::after {
-            content:'';
-            position:absolute; bottom:-60px; right:80px;
-            width:140px; height:140px;
-            background:rgba(255,255,255,.05);
-            border-radius:50%;
-        }
-        .roster-hero h2 { color:#fff; font-weight:800; font-size:1.7rem; margin:0 0 4px; letter-spacing:-.5px; }
-        .roster-hero p  { color:rgba(255,255,255,.8); margin:0; font-size:.92rem; }
-
-        /* ── Stat Pills ──────────────────────────────── */
-        .stat-pill {
-            display:flex; align-items:center; gap:8px;
-            background:rgba(255,255,255,.15);
-            border:1px solid rgba(255,255,255,.25);
-            border-radius:40px;
-            padding:6px 16px 6px 10px;
-            backdrop-filter:blur(6px);
-        }
-        .stat-pill .sp-dot {
-            width:10px; height:10px; border-radius:50%;
-        }
-        .stat-pill span { color:#fff; font-size:.8rem; font-weight:600; }
-
-        /* ── Control Card ─────────────────────────────── */
-        .control-card {
-            background:#fff;
-            border-radius:16px;
-            border:1px solid #eef0fb;
-            box-shadow:0 2px 16px rgba(0,0,0,.06);
-            padding:20px 24px;
-            margin-bottom:20px;
+        #calendar {
+            height: 100%;
+            font-family: inherit;
         }
 
-        /* ── Calendar Overrides ───────────────────────── */
-        #calendar { font-family: inherit; }
-        .fc .fc-toolbar-title { font-size:1.2em; font-weight:700; color:#1e293b; }
+        /* ── Loading / Empty ───────────────────────────────────── */
+        .roster-loading {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #fff; z-index: 10;
+        }
+        .spinner-ring {
+            width: 46px; height: 46px;
+            border: 4px solid #eef0fb;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            margin-bottom: 12px;
+        }
+        @@keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        .empty-state .es-icon {
+            width: 64px; height: 64px;
+            background: linear-gradient(135deg, #eef0fb, #e0e7ff);
+            border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; margin-bottom: 12px; color: #667eea;
+        }
+
+        /* ── FullCalendar Overrides ────────────────────────────── */
+        .fc .fc-toolbar { padding: 8px 14px !important; }
+        .fc .fc-toolbar-title { font-size: 1.05em !important; font-weight: 700 !important; color: #1e293b !important; }
         .fc .fc-button-primary {
-            background: linear-gradient(135deg,#667eea,#764ba2) !important;
-            border-color:transparent !important;
-            border-radius:8px !important;
-            font-weight:600 !important;
-            box-shadow:0 2px 8px rgba(102,126,234,.3) !important;
+            background: linear-gradient(135deg, #667eea, #764ba2) !important;
+            border-color: transparent !important;
+            border-radius: 7px !important;
+            font-weight: 600 !important;
+            font-size: .78rem !important;
+            padding: 4px 10px !important;
+            box-shadow: 0 2px 8px rgba(102,126,234,.3) !important;
         }
-        .fc .fc-button-primary:hover { opacity:.88 !important; }
+        .fc .fc-button-primary:hover { opacity: .88 !important; }
         .fc .fc-button-primary:not(:disabled).fc-button-active {
-            background: linear-gradient(135deg,#764ba2,#667eea) !important;
+            background: linear-gradient(135deg, #764ba2, #667eea) !important;
         }
-        .fc-day-today { background: linear-gradient(180deg,rgba(102,126,234,.07) 0%,rgba(102,126,234,.03) 100%) !important; }
-        .fc-col-header-cell { padding:10px 0 !important; }
+        .fc-day-today { background: linear-gradient(180deg, rgba(102,126,234,.07) 0%, rgba(102,126,234,.03) 100%) !important; }
+        .fc-col-header-cell { padding: 5px 0 !important; }
         .fc-col-header-cell-cushion {
-            font-weight:700 !important; color:#6c6f93 !important;
-            text-transform:uppercase !important; font-size:.72rem !important; letter-spacing:.06em !important;
-            text-decoration:none !important;
+            font-weight: 700 !important; color: #6c6f93 !important;
+            text-transform: uppercase !important; font-size: .68rem !important;
+            letter-spacing: .06em !important; text-decoration: none !important;
         }
         .fc-daygrid-day-number {
-            font-weight:600; color:#374151; text-decoration:none !important;
+            font-weight: 600 !important; color: #374151 !important;
+            text-decoration: none !important; font-size: .78rem !important;
+            padding: 3px 6px !important;
         }
-        .fc-daygrid-day-number:hover { color:#667eea; }
+        .fc-daygrid-day-number:hover { color: #667eea !important; }
 
-        /* ── Calendar Events ──────────────────────────── */
+        /* ── Calendar Events ───────────────────────────────────── */
         .fc-event {
             cursor: pointer !important;
-            border-radius: 8px !important;
+            border-radius: 6px !important;
             border: none !important;
-            font-size: .75rem !important;
+            font-size: .68rem !important;
             font-weight: 600 !important;
-            padding: 3px 7px !important;
+            padding: 2px 5px !important;
             transition: transform .12s ease, box-shadow .12s ease !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,.12) !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,.1) !important;
         }
         .fc-event:hover {
             transform: translateY(-1px) scale(1.02) !important;
-            box-shadow: 0 5px 16px rgba(0,0,0,.18) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15) !important;
             z-index: 10 !important;
         }
-        /* Available slot — gradient blue */
-        .fc-event.ev-available {
-            background: linear-gradient(135deg,#667eea,#764ba2) !important;
-            color: #fff !important;
-        }
-        /* Has bookings — gradient green */
-        .fc-event.ev-booked {
-            background: linear-gradient(135deg,#11998e,#38ef7d) !important;
-            color: #fff !important;
-        }
-        /* Fully booked — gradient orange */
-        .fc-event.ev-full {
-            background: linear-gradient(135deg,#f093fb,#f5576c) !important;
-            color: #fff !important;
-        }
-        /* Exception/Leave — soft red */
-        .fc-event.ev-exception {
-            background: linear-gradient(135deg,#ffecd2,#fcb69f) !important;
-            color: #7a2d2d !important;
-        }
-        /* Past days dimmed */
+        .fc-event.ev-available { background: linear-gradient(135deg, #667eea, #764ba2) !important; color: #fff !important; }
+        .fc-event.ev-booked    { background: linear-gradient(135deg, #11998e, #38ef7d) !important; color: #fff !important; }
+        .fc-event.ev-full      { background: linear-gradient(135deg, #f093fb, #f5576c) !important; color: #fff !important; }
+        .fc-event.ev-exception { background: linear-gradient(135deg, #ffecd2, #fcb69f) !important; color: #7a2d2d !important; }
         .fc-day-past .fc-event { opacity: .6; }
 
-        /* ── Loading / Empty ──────────────────────────── */
-        .roster-loading {
-            text-align:center; padding:60px 20px;
-        }
-        .roster-loading .spinner-ring {
-            width:52px; height:52px;
-            border:4px solid #eef0fb;
-            border-top-color:#667eea;
-            border-radius:50%;
-            animation: spin .7s linear infinite;
-            margin:0 auto 16px;
-        }
-        @@keyframes spin { to { transform:rotate(360deg); } }
-        .empty-state { text-align:center; padding:60px 20px; }
-        .empty-state .es-icon {
-            width:80px; height:80px;
-            background:linear-gradient(135deg,#eef0fb,#e0e7ff);
-            border-radius:50%;
-            display:inline-flex; align-items:center; justify-content:center;
-            font-size:2rem; margin-bottom:16px; color:#667eea;
-        }
-
-        /* ── Legend Pills ─────────────────────────────── */
-        .legend-pill {
-            display:inline-flex; align-items:center; gap:6px;
-            padding:4px 12px; border-radius:20px; font-size:.77rem; font-weight:600;
-            border:1px solid transparent;
-        }
-        .legend-pill .dot { width:9px; height:9px; border-radius:50%; }
-        .lp-avail  { background:#ede9fe; color:#5b21b6; border-color:#ddd6fe; }
-        .lp-booked { background:#d1fae5; color:#065f46; border-color:#a7f3d0; }
-        .lp-full   { background:#ffe4e6; color:#9f1239; border-color:#fecdd3; }
-        .lp-leave  { background:#fef3c7; color:#92400e; border-color:#fde68a; }
-
-        /* ── Slot Modal ───────────────────────────────── */
-        #slotsModal .modal-content { border-radius:20px; overflow:hidden; }
+        /* ── Slot Modal ────────────────────────────────────────── */
+        #slotsModal .modal-content { border-radius: 20px; overflow: hidden; }
         #slotsModal .modal-header {
-            background: linear-gradient(135deg,#667eea,#764ba2);
-            border-bottom:none; padding:20px 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-bottom: none; padding: 18px 22px;
         }
-        #slotsModal .modal-title { color:#fff; font-weight:700; }
-        #slotsModal .btn-close { filter:invert(1) brightness(2); }
+        #slotsModal .modal-title { color: #fff; font-weight: 700; }
+        #slotsModal .btn-close { filter: invert(1) brightness(2); }
         .slot-btn {
             transition: all .2s ease;
             border-radius: 12px !important;
@@ -175,19 +192,19 @@
             box-shadow: 0 8px 20px rgba(0,0,0,.12) !important;
         }
         .slot-btn:disabled {
-            opacity:.55; cursor:not-allowed;
-            background:#f1f5f9 !important; border-color:#e2e8f0 !important; color:#94a3b8 !important;
+            opacity: .55; cursor: not-allowed;
+            background: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #94a3b8 !important;
         }
-        .slot-available { background:linear-gradient(135deg,#667eea15,#764ba215) !important; border-color:#667eea !important; }
-        .slot-available:hover { background:linear-gradient(135deg,#667eea25,#764ba225) !important; }
+        .slot-available { background: linear-gradient(135deg, #667eea15, #764ba215) !important; border-color: #667eea !important; }
+        .slot-available:hover { background: linear-gradient(135deg, #667eea25, #764ba225) !important; }
 
-        /* ── Hover Tooltip ────────────────────────────── */
+        /* ── Hover Tooltip ─────────────────────────────────────── */
         #rosterTooltip {
             position: fixed;
             z-index: 9999;
-            min-width: 290px; max-width: 360px;
+            min-width: 280px; max-width: 340px;
             background: #fff;
-            border-radius: 16px;
+            border-radius: 14px;
             box-shadow: 0 16px 48px rgba(0,0,0,.16), 0 2px 8px rgba(102,126,234,.12);
             border: 1.5px solid #e0e7ff;
             padding: 0;
@@ -195,77 +212,88 @@
             opacity: 0;
             transform: translateY(8px) scale(0.96);
             transition: opacity .18s ease, transform .18s ease;
-            font-size: 0.84rem;
+            font-size: 0.82rem;
         }
-        #rosterTooltip.show { opacity:1; transform:translateY(0) scale(1); }
+        #rosterTooltip.show { opacity: 1; transform: translateY(0) scale(1); }
         .rt-header {
-            background: linear-gradient(135deg,#667eea,#764ba2);
-            color:#fff; border-radius:14px 14px 0 0;
-            padding:10px 14px 9px;
-            display:flex; align-items:center; justify-content:space-between;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; border-radius: 12px 12px 0 0;
+            padding: 8px 12px;
+            display: flex; align-items: center; justify-content: space-between;
         }
-        .rt-header .rt-date  { font-weight:700; font-size:.88rem; }
+        .rt-header .rt-date  { font-weight: 700; font-size: .84rem; }
         .rt-header .rt-count {
-            background:rgba(255,255,255,.2); border-radius:20px;
-            padding:2px 10px; font-size:.76rem; font-weight:600;
+            background: rgba(255,255,255,.2); border-radius: 20px;
+            padding: 2px 8px; font-size: .72rem; font-weight: 600;
         }
-        .rt-body { padding:8px 12px 10px; max-height:250px; overflow-y:auto; }
-        .rt-body::-webkit-scrollbar { width:4px; }
-        .rt-body::-webkit-scrollbar-thumb { background:#e0e7ff; border-radius:4px; }
+        .rt-body { padding: 6px 10px 8px; max-height: 220px; overflow-y: auto; }
+        .rt-body::-webkit-scrollbar { width: 4px; }
+        .rt-body::-webkit-scrollbar-thumb { background: #e0e7ff; border-radius: 4px; }
         .rt-item {
-            display:flex; align-items:flex-start; gap:9px;
-            padding:7px 9px; border-radius:10px; margin-bottom:5px;
-            border:1px solid #eef0fb; background:#fafbff;
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 6px 8px; border-radius: 8px; margin-bottom: 4px;
+            border: 1px solid #eef0fb; background: #fafbff;
         }
-        .rt-item:last-child { margin-bottom:0; }
+        .rt-item:last-child { margin-bottom: 0; }
         .rt-avatar {
-            width:32px; height:32px; border-radius:50%;
-            background:linear-gradient(135deg,#e0e7ff,#c7d2fe); color:#4f46e5;
-            display:flex; align-items:center; justify-content:center;
-            font-weight:700; font-size:.74rem; flex-shrink:0;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4f46e5;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: .68rem; flex-shrink: 0;
         }
-        .rt-info { flex:1; min-width:0; }
-        .rt-name { font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.83rem; }
-        .rt-sub  { color:#64748b; font-size:.74rem; margin-top:2px; }
-        .rt-badge-r { background:#dbeafe; color:#1d4ed8; }
-        .rt-badge-c { background:#d1fae5; color:#065f46; }
-        .rt-badge-x { background:#fee2e2; color:#991b1b; }
-        .rt-slot { font-size:.76rem; color:#667eea; font-weight:700; white-space:nowrap; flex-shrink:0; }
-        .rt-empty { text-align:center; padding:16px 0; color:#94a3b8; font-size:.82rem; }
+        .rt-info { flex: 1; min-width: 0; }
+        .rt-name { font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .79rem; }
+        .rt-sub  { color: #64748b; font-size: .7rem; margin-top: 1px; }
+        .rt-badge-r { background: #dbeafe; color: #1d4ed8; }
+        .rt-badge-c { background: #d1fae5; color: #065f46; }
+        .rt-badge-x { background: #fee2e2; color: #991b1b; }
+        .rt-slot { font-size: .72rem; color: #667eea; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+        .rt-empty { text-align: center; padding: 12px 0; color: #94a3b8; font-size: .78rem; }
         .rt-footer {
-            border-top:1px solid #eef0fb;
-            padding:6px 14px; font-size:.76rem; color:#64748b;
-            border-radius:0 0 14px 14px; background:#f8faff;
-            display:flex; align-items:center; justify-content:space-between;
+            border-top: 1px solid #eef0fb;
+            padding: 5px 12px; font-size: .72rem; color: #64748b;
+            border-radius: 0 0 12px 12px; background: #f8faff;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        /* ── Select2 compact ───────────────────────────────────── */
+        .select2-container--bootstrap-5 .select2-selection {
+            font-size: .82rem !important;
+            padding: 3px 8px !important;
+            min-height: 32px !important;
         }
     </style>
 }
 
-<!-- ── Page Hero ──────────────────────────────────────────────────────── -->
-<div class="roster-hero">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-        <div style="position:relative;z-index:1">
-            <h2><i class="bi bi-calendar2-heart me-2"></i>Doctor Roster &amp; Booking</h2>
-            <p>View availability, hover for booking summaries, click to book instantly</p>
-        </div>
-        <div class="d-flex gap-2 flex-wrap" style="position:relative;z-index:1">
-            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#a78bfa,#818cf8)"></span><span>Available</span></span>
-            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#34d399,#6ee7b7)"></span><span>Has Bookings</span></span>
-            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#f472b6,#fb7185)"></span><span>Fully Booked</span></span>
-            <span class="stat-pill"><span class="sp-dot" style="background:linear-gradient(135deg,#fbbf24,#f59e0b)"></span><span>Exception / Leave</span></span>
-        </div>
-    </div>
-</div>
+<div class="roster-page" id="rosterPage">
 
-<!-- ── Doctor Selector ─────────────────────────────────────────────────── -->
-<div class="control-card">
-    <div class="row align-items-center g-3">
-        <div class="col-md-5 col-lg-4">
-            <label class="form-label fw-semibold mb-1" style="color:#475569;font-size:.85rem">
-                <i class="bi bi-person-badge me-1 text-primary"></i>Select Consulting Doctor
-            </label>
-            <select id="ddlDoctor" class="form-select s2-search" style="border-radius:10px;border-color:#e2e8f0;">
-                <option value="">— Choose a Doctor —</option>
+    <!-- ── Compact Toolbar ─────────────────────────────────────────────── -->
+    <div class="roster-toolbar" id="rosterToolbar">
+        <span class="toolbar-label">
+            <i class="bi bi-calendar2-heart text-primary"></i> Doctor Roster
+        </span>
+        <div class="toolbar-divider"></div>
+        <span class="toolbar-label"><i class="bi bi-grid-1x2 me-1"></i>Speciality:</span>
+        <div class="toolbar-select-wrap">
+            <select id="ddlSpecialty" class="form-select form-select-sm s2-search">
+                <option value="">— All Specialities —</option>
+                @{
+                    var specialties = ViewBag.Specialties as IEnumerable<(int DeptId, string DeptName)>;
+                    if (specialties != null)
+                    {
+                        foreach (var sp in specialties)
+                        {
+                            <option value="@sp.DeptId">@sp.DeptName</option>
+                        }
+                    }
+                }
+            </select>
+        </div>
+        <div class="toolbar-divider"></div>
+        <span class="toolbar-label"><i class="bi bi-person-badge me-1"></i>Doctor:</span>
+        <div class="toolbar-select-wrap">
+            <select id="ddlDoctor" class="form-select form-select-sm s2-search">
+                <option value="">— All Doctors —</option>
                 @if (doctors != null)
                 {
                     foreach (var doc in doctors)
@@ -275,36 +303,36 @@
                 }
             </select>
         </div>
-        <div class="col-md-7 col-lg-8">
-            <div class="d-flex flex-wrap gap-2 justify-content-md-end align-items-center mt-md-3">
-                <span class="legend-pill lp-avail"><span class="dot" style="background:linear-gradient(135deg,#667eea,#764ba2)"></span>Schedule Available</span>
-                <span class="legend-pill lp-booked"><span class="dot" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></span>Has Bookings</span>
-                <span class="legend-pill lp-full"><span class="dot" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></span>Fully Booked</span>
-                <span class="legend-pill lp-leave"><span class="dot" style="background:linear-gradient(135deg,#ffecd2,#fcb69f)"></span>Exception / Leave</span>
-            </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-legends">
+            <span class="legend-pill lp-avail"><span class="dot" style="background:linear-gradient(135deg,#667eea,#764ba2)"></span>Available</span>
+            <span class="legend-pill lp-booked"><span class="dot" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></span>Has Bookings</span>
+            <span class="legend-pill lp-full"><span class="dot" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></span>Fully Booked</span>
+            <span class="legend-pill lp-leave"><span class="dot" style="background:linear-gradient(135deg,#ffecd2,#fcb69f)"></span>Leave</span>
         </div>
     </div>
-</div>
 
-<!-- ── Calendar Card ───────────────────────────────────────────────────── -->
-<div class="control-card p-0" style="overflow:hidden">
-    <div id="loadingIndicator" class="roster-loading d-none">
-        <div class="spinner-ring"></div>
-        <p class="text-muted fw-medium mb-0">Loading doctor schedule…</p>
-    </div>
+    <!-- ── Calendar Card ───────────────────────────────────────────────── -->
+    <div class="calendar-wrap" id="calendarWrap">
+        <!-- Loading overlay -->
+        <div id="loadingIndicator" class="roster-loading d-none">
+            <div class="spinner-ring"></div>
+            <p class="text-muted fw-medium mb-0 small">Loading schedules…</p>
+        </div>
 
-    <div id="calendarWrapper" class="d-none" style="padding:20px 24px 24px">
+        <!-- Empty state overlay -->
+        <div id="emptyState" class="empty-state d-none">
+            <div class="es-icon"><i class="bi bi-calendar2-week"></i></div>
+            <h6 class="fw-bold mb-1" style="color:#1e293b">No Schedules Found</h6>
+            <p class="text-muted mb-0 small">No roster schedules are available at this time.</p>
+        </div>
+
+        <!-- Calendar -->
         <div id='calendar'></div>
     </div>
-
-    <div id="emptyState" class="empty-state">
-        <div class="es-icon"><i class="bi bi-calendar2-week"></i></div>
-        <h5 class="fw-bold mb-1" style="color:#1e293b">No Doctor Selected</h5>
-        <p class="text-muted mb-0">Select a doctor above to view their schedule and bookings</p>
-    </div>
 </div>
 
-<!-- ── Available Slots Modal ───────────────────────────────────────────── -->
+<!-- ── Available Slots Modal ─────────────────────────────────────────── -->
 <div class="modal fade" id="slotsModal" tabindex="-1" aria-labelledby="slotsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
@@ -344,7 +372,7 @@
     </div>
 </div>
 
-<!-- ── Roster Booking Tooltip ─────────────────────────────────────────── -->
+<!-- ── Roster Booking Tooltip ────────────────────────────────────────── -->
 <div id="rosterTooltip" role="tooltip">
     <div class="rt-header">
         <span class="rt-date" id="rtDate">—</span>
@@ -361,10 +389,27 @@
     <script>
     document.addEventListener('DOMContentLoaded', function () {
 
-        // Select2
+        // ── Compute page offset once (navbar + container padding) ────────
+        function computeOffset() {
+            const header = document.querySelector('header.emr-topbar');
+            const footer = document.querySelector('footer.emr-footer');
+            const toolbar = document.getElementById('rosterToolbar');
+            const page = document.getElementById('rosterPage');
+            const headerH = header ? header.offsetHeight : 58;
+            const footerH = footer ? footer.offsetHeight : 0;
+            // container py-3 = 16px top+bottom = 32px, plus toolbar + gap
+            const containerPadV = 16 + 10; // py-3 top + gap below toolbar approx
+            const toolbarH = toolbar ? toolbar.offsetHeight : 52;
+            const offset = headerH + footerH + containerPadV + toolbarH + 20;
+            document.documentElement.style.setProperty('--roster-offset', offset + 'px');
+        }
+        computeOffset();
+        window.addEventListener('resize', computeOffset);
+
+        // ── Select2 ──────────────────────────────────────────────────────
         $('.s2-search').select2({ theme: 'bootstrap-5', width: '100%' });
 
-        // ── FullCalendar Setup ──────────────────────────────────────────
+        // ── FullCalendar Setup ───────────────────────────────────────────
         const calendarEl = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
@@ -374,15 +419,15 @@
                 right:  'dayGridMonth,timeGridWeek,listMonth'
             },
             themeSystem: 'bootstrap5',
-            height: 680,
-            eventClick: function (info) { handleEventClick(info.event); },
-            eventMouseEnter: function (info) {
+            height: '100%',
+            expandRows: true,
+            eventClick:       function (info) { handleEventClick(info.event); },
+            eventMouseEnter:  function (info) {
                 if (!info.event.extendedProps.isException)
                     showRosterTooltip(info.event, info.jsEvent);
             },
-            eventMouseLeave: function () { hideRosterTooltip(); },
-            eventDidMount: function (info) {
-                // Apply colour class based on booking status
+            eventMouseLeave:  function () { hideRosterTooltip(); },
+            eventDidMount:    function (info) {
                 const cls = info.event.extendedProps.evClass;
                 if (cls) info.el.classList.add(cls);
             }
@@ -391,36 +436,40 @@
 
         let currentSchedules = [];
         let currentExceptions = [];
+        let bookingCountCache = {};
+        let tooltipCache      = {};
         const slotsModal = new bootstrap.Modal(document.getElementById('slotsModal'));
 
-        // ── Doctor change ────────────────────────────────────────────────
-        $('#ddlDoctor').on('change', async function () {
-            const doctorId = $(this).val();
-            tooltipCache = {}; // clear cache on doctor change
+        // ── Load Roster ──────────────────────────────────────────────────
+        // doctorId and departmentId are both optional; pass whatever is selected
+        async function loadRoster(doctorId, departmentId) {
+            tooltipCache = {};
+            bookingCountCache = {};
 
-            if (!doctorId) {
-                $('#emptyState').removeClass('d-none');
-                $('#calendarWrapper').addClass('d-none');
-                return;
-            }
             $('#emptyState').addClass('d-none');
-            $('#calendarWrapper').addClass('d-none');
             $('#loadingIndicator').removeClass('d-none');
 
             try {
-                const response = await fetch(`@Url.Action("GetDoctorSchedules", "DoctorRoster")?doctorId=${doctorId}`);
+                let url = `@Url.Action("GetDoctorSchedules", "DoctorRoster")?`;
+                if (doctorId)    url += `doctorId=${doctorId}&`;
+                if (departmentId) url += `departmentId=${departmentId}&`;
+
+                const response = await fetch(url);
                 const data = await response.json();
                 if (data.error) { alert('Error: ' + data.error); return; }
 
                 currentSchedules = data.schedules || [];
                 currentExceptions = data.exceptions || [];
 
-                // Pre-load booking counts for visible range
-                await preloadBookingCounts(doctorId);
+                if (doctorId) {
+                    await preloadBookingCounts(doctorId);
+                } else {
+                    const uniqueDoctorIds = [...new Set(currentSchedules.map(s => s.doctorId).filter(Boolean))];
+                    await Promise.all(uniqueDoctorIds.map(dId => preloadBookingCounts(dId)));
+                }
 
                 renderCalendarEvents();
                 $('#loadingIndicator').addClass('d-none');
-                $('#calendarWrapper').removeClass('d-none');
                 calendar.updateSize();
             } catch (err) {
                 console.error(err);
@@ -428,20 +477,59 @@
                 $('#loadingIndicator').addClass('d-none');
                 $('#emptyState').removeClass('d-none');
             }
+        }
+
+        // Load all schedules on startup
+        loadRoster('', '');
+
+        // ── Speciality change → repopulate doctors + reload roster ───────
+        $('#ddlSpecialty').on('change', async function () {
+            const deptId = $(this).val();
+
+            // Repopulate doctor dropdown
+            const $doc = $('#ddlDoctor');
+            $doc.val('').trigger('change'); // reset selection
+            $doc.find('option:not(:first)').remove(); // clear old options
+
+            if (deptId) {
+                try {
+                    const res  = await fetch(`@Url.Action("GetDoctorsBySpecialty", "DoctorRoster")?departmentId=${deptId}`);
+                    const docs = await res.json();
+                    docs.forEach(d => {
+                        $doc.append(new Option(d.name, d.id));
+                    });
+                } catch (e) { console.error('Failed to load doctors by specialty', e); }
+            } else {
+                // Restore all doctors from the server-rendered list
+                const allDoctors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    (ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName)>)
+                        ?.Select(d => new { id = d.DoctorId, name = d.FullName })
+                    ?? Enumerable.Empty<object>()
+                ));
+                allDoctors.forEach(d => {
+                    $doc.append(new Option(d.name, d.id));
+                });
+            }
+
+            // Reload calendar for the selected speciality (no doctor filter)
+            loadRoster('', deptId);
         });
 
-        // ── Booking Count Cache (for coloring) ───────────────────────────
-        let bookingCountCache = {};  // dateStr -> count
-        let tooltipCache      = {};  // key -> bookings array
+        // ── Doctor change ────────────────────────────────────────────────
+        $('#ddlDoctor').on('change', function () {
+            const doctorId = $(this).val();
+            const deptId   = $('#ddlSpecialty').val();
+            loadRoster(doctorId, deptId);
+        });
 
+        // ── Preload Booking Counts ───────────────────────────────────────
         async function preloadBookingCounts(doctorId) {
             const today = new Date();
             const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             const end   = new Date(today.getFullYear(), today.getMonth() + 6, 0);
 
-            // Collect all schedule dates
             const dates = [];
-            currentSchedules.forEach(sch => {
+            currentSchedules.filter(s => s.doctorId === doctorId).forEach(sch => {
                 let jsDay   = sch.dayOfWeek === 7 ? 0 : sch.dayOfWeek;
                 let effFrom = new Date(sch.effectiveFrom);
                 let effTo   = sch.effectiveTo ? new Date(sch.effectiveTo) : end;
@@ -453,16 +541,16 @@
                 }
             });
 
-            // Fetch all in parallel (max 30 to avoid overload)
             const subset = dates.slice(0, 60);
             await Promise.all(subset.map(async ds => {
+                const cacheKey = `${doctorId}_${ds}`;
                 try {
                     const resp = await fetch(`@Url.Action("GetDateBookings", "DoctorRoster")?doctorId=${doctorId}&date=${ds}`);
                     const data = await resp.json();
                     const bookings = data.bookings || [];
-                    tooltipCache[`${doctorId}_${ds}`] = bookings;
-                    bookingCountCache[ds] = bookings.length;
-                } catch { bookingCountCache[ds] = 0; }
+                    tooltipCache[cacheKey] = bookings;
+                    bookingCountCache[cacheKey] = bookings.length;
+                } catch { bookingCountCache[cacheKey] = 0; }
             }));
         }
 
@@ -477,6 +565,7 @@
             const today   = new Date(); today.setHours(0,0,0,0);
             const startR  = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             const endR    = new Date(today.getFullYear(), today.getMonth() + 6, 0);
+            const selectedDoctorId = $('#ddlDoctor').val();
 
             currentSchedules.forEach(sch => {
                 let jsDay   = sch.dayOfWeek === 7 ? 0 : sch.dayOfWeek;
@@ -486,28 +575,41 @@
                 for (let d = new Date(startR); d <= endR; d.setDate(d.getDate() + 1)) {
                     if (d.getDay() !== jsDay || d < effFrom || d > effTo) continue;
 
-                    const dateStr   = fmtDate(d);
-                    const exception = currentExceptions.find(e => e.exceptionDate.startsWith(dateStr));
-                    const count     = bookingCountCache[dateStr] ?? null;
+                    const dateStr    = fmtDate(d);
+                    const cacheKey   = `${sch.doctorId}_${dateStr}`;
+                    const exception  = currentExceptions.find(e => e.doctorId === sch.doctorId && e.exceptionDate.startsWith(dateStr));
+                    const count      = bookingCountCache[cacheKey] ?? null;
 
                     if (exception) {
+                        const exceptionTitle = selectedDoctorId
+                            ? `⚠ ${exception.reason || 'Leave / Unavailable'}`
+                            : `⚠ ${sch.doctorName || 'Doctor'}: ${exception.reason || 'Leave'}`;
                         events.push({
-                            title: '⚠ ' + (exception.reason || 'Leave / Unavailable'),
+                            title: exceptionTitle,
                             start: dateStr, allDay: true,
-                            extendedProps: { isException: true, reason: exception.reason, evClass: 'ev-exception' }
+                            extendedProps: {
+                                isException: true,
+                                reason: exception.reason,
+                                evClass: 'ev-exception',
+                                doctorId: sch.doctorId,
+                                doctorName: sch.doctorName
+                            }
                         });
                     } else {
-                        // Colour by booking count (null = not loaded yet → blue)
-                        let evClass = 'ev-available';
+                        let evClass    = 'ev-available';
                         let countLabel = '';
                         if (count !== null && count > 0) {
                             evClass    = 'ev-booked';
-                            countLabel = ` · ${count} booked`;
+                            countLabel = ` · ${count} bkd`;
                         }
 
-                        const timeLabel = `${sch.startTime.substring(0,5)} – ${sch.endTime.substring(0,5)}`;
+                        const timeLabel  = `${sch.startTime.substring(0,5)}–${sch.endTime.substring(0,5)}`;
+                        const eventTitle = selectedDoctorId
+                            ? `🕐 ${timeLabel}${countLabel}`
+                            : `🕐 ${sch.doctorName || 'Doctor'} (${timeLabel})${countLabel}`;
+
                         events.push({
-                            title: `🕐 ${timeLabel}${countLabel}`,
+                            title: eventTitle,
                             start: `${dateStr}T${sch.startTime}`,
                             end:   `${dateStr}T${sch.endTime}`,
                             extendedProps: {
@@ -516,6 +618,7 @@
                                 scheduleId: sch.scheduleId,
                                 roomName:   sch.roomName || 'Not Assigned',
                                 doctorId:   sch.doctorId,
+                                doctorName: sch.doctorName,
                                 date:       dateStr,
                                 timeString: timeLabel
                             }
@@ -532,7 +635,7 @@
             if (event.extendedProps.isException) return;
 
             const props      = event.extendedProps;
-            const doctorName = $('#ddlDoctor option:selected').text();
+            const doctorName = props.doctorName || $('#ddlDoctor option:selected').text();
 
             $('#lblDoctorName').text(doctorName);
             $('#lblRoomName').text(props.roomName);
@@ -613,15 +716,15 @@
         async function showRosterTooltip(event, jsEvent) {
             clearTimeout(hideTimer);
             const props    = event.extendedProps;
-            const doctorId = $('#ddlDoctor').val();
+            const doctorId = $('#ddlDoctor').val() || props.doctorId;
             const dateStr  = props.date;
 
             positionTooltip(jsEvent);
             const dateObj = new Date(dateStr);
-            rtDate.textContent   = dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
-            rtCount.textContent  = 'Loading…';
-            rtBody.innerHTML     = '<div class="rt-empty"><div class="spinner-border spinner-border-sm me-2" style="color:#667eea"></div>Loading…</div>';
-            rtFooter.innerHTML   = '';
+            rtDate.textContent  = dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+            rtCount.textContent = 'Loading…';
+            rtBody.innerHTML    = '<div class="rt-empty"><div class="spinner-border spinner-border-sm me-2" style="color:#667eea"></div>Loading…</div>';
+            rtFooter.innerHTML  = '';
             tooltip.classList.add('show');
 
             const cacheKey = `${doctorId}_${dateStr}`;
@@ -631,7 +734,7 @@
                 const resp = await fetch(`@Url.Action("GetDateBookings", "DoctorRoster")?doctorId=${doctorId}&date=${dateStr}`);
                 const data = await resp.json();
                 tooltipCache[cacheKey]      = data.bookings || [];
-                bookingCountCache[dateStr]  = (data.bookings || []).length;
+                bookingCountCache[cacheKey] = (data.bookings || []).length;
                 renderTooltipData(tooltipCache[cacheKey]);
             } catch {
                 rtBody.innerHTML = '<div class="rt-empty text-danger"><i class="bi bi-exclamation-circle me-1"></i>Failed to load</div>';
@@ -644,7 +747,7 @@
             rtCount.textContent = count === 0 ? 'No Bookings' : `${count} Booking${count > 1 ? 's' : ''}`;
 
             if (count === 0) {
-                rtBody.innerHTML  = '<div class="rt-empty"><i class="bi bi-calendar2 me-1"></i>No bookings for this date</div>';
+                rtBody.innerHTML   = '<div class="rt-empty"><i class="bi bi-calendar2 me-1"></i>No bookings for this date</div>';
                 rtFooter.innerHTML = '';
                 return;
             }
@@ -660,7 +763,7 @@
                         <div class="rt-info">
                             <div class="rt-name">${b.patientName}</div>
                             <div class="rt-sub">
-                                <span class="badge ${statusClass} rounded-pill px-2 py-0" style="font-size:.7rem">${b.status}</span>
+                                <span class="badge ${statusClass} rounded-pill px-2 py-0" style="font-size:.67rem">${b.status}</span>
                                 &nbsp;${b.patientCode} &bull; ${b.phoneNumber || '—'}
                             </div>
                             <div class="rt-sub mt-1"><i class="bi bi-bag me-1"></i>${b.serviceTypesSummary || 'Consulting'} — ₹${b.totalAmount.toFixed(2)}</div>
@@ -687,7 +790,7 @@
         }
 
         function positionTooltip(e) {
-            const mg = 16, tw = 360, th = 340;
+            const mg = 14, tw = 340, th = 300;
             let x = e.clientX + mg, y = e.clientY + mg;
             if (x + tw > window.innerWidth)  x = e.clientX - tw - mg;
             if (y + th > window.innerHeight) y = e.clientY - th - mg;

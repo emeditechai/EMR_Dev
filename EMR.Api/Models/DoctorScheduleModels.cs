@@ -8,6 +8,7 @@ namespace EMR.Api.Models
     {
         public int ScheduleId { get; set; }
         public int DoctorId { get; set; }
+        public string? DoctorName { get; set; }
         public int BranchId { get; set; }
         public byte DayOfWeek { get; set; }
         public string? DayName { get; set; }
@@ -78,6 +79,7 @@ namespace EMR.Api.Models
     {
         public int ExceptionId { get; set; }
         public int DoctorId { get; set; }
+        public string? DoctorName { get; set; }
         public int BranchId { get; set; }
         public DateTime ExceptionDate { get; set; }
         public string? Reason { get; set; }

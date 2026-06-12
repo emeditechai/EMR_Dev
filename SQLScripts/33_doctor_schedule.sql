@@ -76,8 +76,9 @@ GO
 
 -- 1. usp_Api_DoctorSchedule_GetByDoctor
 CREATE OR ALTER PROCEDURE [dbo].[usp_Api_DoctorSchedule_GetByDoctor]
-    @DoctorId INT,
-    @BranchId INT = NULL
+    @DoctorId INT = NULL,
+    @BranchId INT = NULL,
+    @DepartmentId INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -85,6 +86,7 @@ BEGIN
     SELECT 
         dsm.ScheduleId,
         dsm.DoctorId,
+        doc.FullName AS DoctorName,
         dsm.BranchId,
         dsm.RoomId,
         drm.RoomName,
@@ -106,11 +108,20 @@ BEGIN
             WHEN 5 THEN 'Friday'
             WHEN 6 THEN 'Saturday'
             WHEN 7 THEN 'Sunday'
-        END AS DayName
+        END AS DayName,
+        dsm.CreatedBy,
+        dsm.CreatedDate,
+        dsm.ModifiedBy,
+        dsm.ModifiedDate
     FROM DoctorScheduleMaster dsm
+    INNER JOIN DoctorMaster doc ON doc.DoctorId = dsm.DoctorId
     LEFT JOIN DoctorRoomMaster drm ON dsm.RoomId = drm.RoomId
-    WHERE dsm.DoctorId = @DoctorId 
+    WHERE (@DoctorId IS NULL OR dsm.DoctorId = @DoctorId)
       AND (@BranchId IS NULL OR dsm.BranchId = @BranchId)
+      AND (@DepartmentId IS NULL OR EXISTS (
+            SELECT 1 FROM DoctorDepartmentMap ddm 
+            WHERE ddm.DoctorId = dsm.DoctorId AND ddm.DeptId = @DepartmentId AND ddm.IsActive = 1
+          ))
       AND dsm.IsActive = 1
     ORDER BY dsm.DayOfWeek, dsm.StartTime;
 END
@@ -376,30 +387,40 @@ BEGIN
 END
 GO
 
--- 6. usp_Api_DoctorScheduleException_GetByDoctor
+-- 2. usp_Api_DoctorScheduleException_GetByDoctor
 CREATE OR ALTER PROCEDURE [dbo].[usp_Api_DoctorScheduleException_GetByDoctor]
-    @DoctorId INT,
+    @DoctorId INT = NULL,
     @BranchId INT = NULL,
     @FromDate DATE = NULL,
-    @ToDate DATE = NULL
+    @ToDate DATE = NULL,
+    @DepartmentId INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
     SELECT 
-        ExceptionId,
-        DoctorId,
-        BranchId,
-        ExceptionDate,
-        Reason,
-        ExceptionType
-    FROM DoctorScheduleException
-    WHERE DoctorId = @DoctorId 
-      AND (@BranchId IS NULL OR BranchId = @BranchId)
-      AND (@FromDate IS NULL OR ExceptionDate >= @FromDate)
-      AND (@ToDate IS NULL OR ExceptionDate <= @ToDate)
-      AND IsActive = 1
-    ORDER BY ExceptionDate DESC;
+        e.ExceptionId,
+        e.DoctorId,
+        doc.FullName AS DoctorName,
+        e.BranchId,
+        e.ExceptionDate,
+        e.Reason,
+        e.ExceptionType,
+        e.IsActive,
+        e.CreatedBy,
+        e.CreatedDate
+    FROM DoctorScheduleException e
+    INNER JOIN DoctorMaster doc ON doc.DoctorId = e.DoctorId
+    WHERE (@DoctorId IS NULL OR e.DoctorId = @DoctorId)
+      AND (@BranchId IS NULL OR e.BranchId = @BranchId)
+      AND (@FromDate IS NULL OR e.ExceptionDate >= @FromDate)
+      AND (@ToDate IS NULL OR e.ExceptionDate <= @ToDate)
+      AND (@DepartmentId IS NULL OR EXISTS (
+            SELECT 1 FROM DoctorDepartmentMap ddm 
+            WHERE ddm.DoctorId = e.DoctorId AND ddm.DeptId = @DepartmentId AND ddm.IsActive = 1
+          ))
+      AND e.IsActive = 1
+    ORDER BY e.ExceptionDate DESC;
 END
 GO
 

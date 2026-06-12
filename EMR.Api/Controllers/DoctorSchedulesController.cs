@@ -15,12 +15,13 @@ namespace EMR.Api.Controllers
     {
         [HttpGet]
         public async Task<ActionResult<ApiResponse<IEnumerable<DoctorScheduleListItem>>>> GetList(
-            [FromQuery] int doctorId,
-            [FromQuery] int? branchId)
+            [FromQuery] int? doctorId,
+            [FromQuery] int? branchId,
+            [FromQuery] int? departmentId)
         {
             try
             {
-                var schedules = await scheduleService.GetByDoctorAsync(doctorId, branchId);
+                var schedules = await scheduleService.GetByDoctorAsync(doctorId, branchId, departmentId);
                 return Ok(ApiResponse<IEnumerable<DoctorScheduleListItem>>.Ok(schedules));
             }
             catch (Exception ex)
@@ -123,14 +124,15 @@ namespace EMR.Api.Controllers
 
         [HttpGet("exceptions")]
         public async Task<ActionResult<ApiResponse<IEnumerable<DoctorScheduleExceptionListItem>>>> GetExceptions(
-            [FromQuery] int doctorId,
+            [FromQuery] int? doctorId,
             [FromQuery] int? branchId,
             [FromQuery] DateTime? from,
-            [FromQuery] DateTime? to)
+            [FromQuery] DateTime? to,
+            [FromQuery] int? departmentId)
         {
             try
             {
-                var exceptions = await scheduleService.GetExceptionsByDoctorAsync(doctorId, branchId, from, to);
+                var exceptions = await scheduleService.GetExceptionsByDoctorAsync(doctorId, branchId, from, to, departmentId);
                 return Ok(ApiResponse<IEnumerable<DoctorScheduleExceptionListItem>>.Ok(exceptions));
             }
             catch (Exception ex)

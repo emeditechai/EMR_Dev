@@ -363,24 +363,33 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── OPD Doctors ─────────────────────────────────────────────────────────
 
-    public async Task<IEnumerable<(int DoctorId, string FullName)>> GetOpdDoctorsAsync(int? branchId)
+    public async Task<IEnumerable<(int DoctorId, string FullName)>> GetOpdDoctorsAsync(int? branchId, int? departmentId = null)
     {
         using var con = db.CreateConnection();
         var rows = await con.QueryAsync(@"
             SELECT DISTINCT d.DoctorId, d.FullName
             FROM DoctorMaster d
-            INNER JOIN DoctorDepartmentMap ddm ON ddm.DoctorId = d.DoctorId AND ddm.IsActive = 1
+            LEFT JOIN DoctorDepartmentMap ddm ON ddm.DoctorId = d.DoctorId AND ddm.IsActive = 1
             INNER JOIN DepartmentMaster    dm  ON dm.DeptId    = ddm.DeptId  AND dm.DeptType = 'OPD' AND dm.IsActive = 1
+            INNER JOIN DoctorScheduleMaster dsm ON d.DoctorId = dsm.DoctorId AND dsm.IsActive = 1
             WHERE d.IsActive = 1
-              AND (@BranchId IS NULL
-                   OR d.CreatedBranchId = @BranchId
-                   OR EXISTS (
-                        SELECT 1 FROM DoctorBranchMap dbm
-                        WHERE dbm.DoctorId = d.DoctorId AND dbm.BranchId = @BranchId AND dbm.IsActive = 1))
+              AND (@BranchId IS NULL OR dsm.BranchId = @BranchId)
+              AND (@DepartmentId IS NULL OR ddm.DeptId = @DepartmentId)
             ORDER BY d.FullName",
-            new { BranchId = branchId });
+            new { BranchId = branchId, DepartmentId = departmentId });
 
         return rows.Select(r => ((int)r.DoctorId, (string)r.FullName));
+    }
+
+    public async Task<IEnumerable<(int DeptId, string DeptName)>> GetOpdDepartmentsAsync()
+    {
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync(@"
+            SELECT DeptId, DeptName
+            FROM DepartmentMaster
+            WHERE DeptType = 'OPD' AND IsActive = 1
+            ORDER BY DeptName");
+        return rows.Select(r => ((int)r.DeptId, (string)r.DeptName));
     }
 
     // ─── Services by Type ─────────────────────────────────────────────────────
