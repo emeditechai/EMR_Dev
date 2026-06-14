@@ -1,0 +1,681 @@
+@model EMR.Web.Models.ViewModels.OpdDashboardViewModel
+@{
+    ViewData["Title"] = "OPD Dashboard";
+    var selectedDateStr = Model.SelectedDate;
+    var parsedDate = DateTime.TryParse(selectedDateStr, out var d) ? d : DateTime.Today;
+    var displayDate = parsedDate.ToString("dd MMM yyyy");
+}
+
+@section HeadStyles {
+    <style>
+        .dashboard-page {
+            margin-top: 0.25rem;
+        }
+        .dashboard-hero-card {
+            background: var(--emr-gradient);
+            border-radius: 22px;
+            padding: 1.6rem 1.8rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 14px 34px rgba(100, 64, 152, 0.28);
+        }
+        .dashboard-hero-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.25rem;
+            flex-wrap: wrap;
+        }
+        .dashboard-hero-subtitle {
+            color: rgba(255, 255, 255, 0.92);
+            font-size: 1.25rem;
+        }
+        .dashboard-hero-label {
+            color: rgba(255, 255, 255, 0.88);
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+        .dashboard-hero-pill {
+            color: #644098;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 999px;
+            padding: 0.25rem 0.85rem;
+            font-weight: 700;
+            font-size: 1.05rem;
+        }
+        .dashboard-title {
+            font-size: 2.6rem;
+            font-weight: 800;
+            color: #644098;
+        }
+        .stat-card {
+            border: none;
+            border-radius: 14px;
+            padding: 1.2rem 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            box-shadow: 0 4px 18px rgba(100, 64, 152, 0.10);
+            transition: box-shadow 0.2s, transform 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            right: -18px;
+            top: -18px;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
+            pointer-events: none;
+        }
+        .stat-card:hover {
+            box-shadow: 0 8px 28px rgba(100, 64, 152, 0.18);
+            transform: translateY(-3px);
+        }
+        .stat-card .stat-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.22);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            color: #fff;
+        }
+        .stat-card .stat-value {
+            font-size: 1.85rem;
+            font-weight: 800;
+            line-height: 1;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+        .stat-card .stat-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: rgba(255, 255, 255, 0.85);
+            margin-top: 4px;
+        }
+        .stat-blue   { background: linear-gradient(135deg, #3a5fd9 0%, #5c82f5 100%); }
+        .stat-green  { background: linear-gradient(135deg, #059c6e 0%, #1fcf96 100%); }
+        .stat-purple { background: linear-gradient(135deg, #6a3fbc 0%, #9164e0 100%); }
+        .stat-yellow { background: linear-gradient(135deg, #c97d00 0%, #f0a500 100%); }
+        .stat-teal   { background: linear-gradient(135deg, #0a7f8a 0%, #12b3c2 100%); }
+        .stat-red    { background: linear-gradient(135deg, #d63447 0%, #f05663 100%); }
+
+        .dashboard-panel {
+            background: #fff;
+            border: 1px solid #e3e8f3;
+            border-radius: 16px;
+            padding: 1.4rem;
+            box-shadow: 0 8px 24px rgba(15, 33, 60, 0.06);
+        }
+        .table>thead>tr>th {
+            font-size: .75rem;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: #6c757d;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+        .table>tbody>tr>td {
+            font-size: .88rem;
+            vertical-align: middle;
+        }
+        .badge-status-R { background:#cfe2ff;color:#084298; }
+        .badge-status-C { background:#d1e7dd;color:#0a3622; }
+        .badge-status-X { background:#f8d7da;color:#842029; }
+
+        .doctor-roster-item {
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 0.95rem;
+            margin-bottom: 0.85rem;
+            transition: all 0.2s;
+        }
+        .doctor-roster-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-color: #ced4da;
+        }
+        .doctor-avatar-circle {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #f1f3f9;
+            color: #495057;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            font-weight: 700;
+            border: 1.5px solid #dee2e6;
+        }
+        .progress-micro {
+            height: 6px;
+            border-radius: 99px;
+            margin-top: 0.4rem;
+        }
+    </style>
+}
+
+<div class="dashboard-page">
+    
+    @* Hero Welcome Card *@
+    <div class="dashboard-hero-card mb-4">
+        <div class="dashboard-hero-content">
+            <div>
+                <h1 class="dashboard-title text-white mb-1">@Model.CurrentHospitalName OPD</h1>
+                <p class="dashboard-hero-subtitle mb-3">OPD Department Performance & Summary Statistics</p>
+                <div class="d-flex flex-wrap align-items-center gap-3">
+                    <span class="d-flex align-items-center gap-1 text-white">
+                        <i class="bi bi-geo-alt-fill"></i> Branch:
+                    </span>
+                    <span class="dashboard-hero-pill">@Model.CurrentBranchName</span>
+                    <span class="d-flex align-items-center gap-1 text-white ms-lg-2">
+                        <i class="bi bi-calendar-event-fill"></i> Date:
+                    </span>
+                    <span class="dashboard-hero-pill">@displayDate</span>
+                </div>
+            </div>
+            
+            @* Date Picker Widget *@
+            <div class="bg-white p-3 rounded-4 shadow-sm border border-light" style="min-width:260px">
+                <form method="get" asp-action="Dashboard" id="dateFilterForm">
+                    <label class="form-label small fw-bold text-secondary mb-1">
+                        <i class="bi bi-funnel-fill me-1"></i>Filter Dashboard Date
+                    </label>
+                    <div class="input-group input-group-sm">
+                        <input type="date" name="date" value="@selectedDateStr" class="form-control" onchange="document.getElementById('dateFilterForm').submit()" />
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @* KPI Cards Row *@
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="stat-card stat-blue">
+                <div class="stat-icon"><i class="bi bi-calendar2-check"></i></div>
+                <div>
+                    <div class="stat-value">@Model.Data.Summary.TodayTotalBookings</div>
+                    <div class="stat-label">Today's Bookings</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="stat-card stat-green">
+                <div class="stat-icon"><i class="bi bi-currency-rupee"></i></div>
+                <div>
+                    <div class="stat-value">₹@Model.Data.Summary.TodayTotalRevenue.ToString("N2")</div>
+                    <div class="stat-label">OPD Revenue</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="stat-card stat-teal">
+                <div class="stat-icon"><i class="bi bi-check2-circle"></i></div>
+                <div>
+                    <div class="stat-value">@Model.Data.Summary.TodayCompletedCount</div>
+                    <div class="stat-label">Completed Visits</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="stat-card stat-yellow">
+                <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
+                <div>
+                    <div class="stat-value">@Model.Data.Summary.TodayRegisteredCount</div>
+                    <div class="stat-label">Registered / Waiting</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Dashboard Content Split *@
+    <div class="row g-4">
+        
+        @* Left: Today's Bookings List *@
+        <div class="col-12 col-lg-7">
+            <div class="dashboard-panel">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h3 class="h5 m-0 fw-bold"><i class="bi bi-list-stars me-2 text-primary"></i>Today's OPD Bookings</h3>
+                        <small class="text-muted">Recent patients registered for OPD visits</small>
+                    </div>
+                    <a class="btn btn-sm btn-outline-primary fw-semibold px-3" asp-action="ServiceBooking" asp-route-fromDate="@selectedDateStr" asp-route-toDate="@selectedDateStr">
+                        View All
+                    </a>
+                </div>
+                
+                @if (!Model.Data.RecentBookings.Any())
+                {
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-journal-x fs-1 opacity-50 d-block mb-2"></i>
+                        <span>No patient bookings found for this day.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Token</th>
+                                    <th>Patient</th>
+                                    <th>Doctor</th>
+                                    <th class="text-end">Amount</th>
+                                    <th>Status</th>
+                                    <th class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var b in Model.Data.RecentBookings)
+                                {
+                                    var badgeCls = b.Status switch { "Completed" => "badge-status-C", "Cancelled" => "badge-status-X", _ => "badge-status-R" };
+                                    <tr>
+                                        <td><span class="badge text-bg-light font-monospace border">@(b.TokenNo ?? "—")</span></td>
+                                        <td>
+                                            <span class="fw-semibold text-primary d-block">@b.PatientName</span>
+                                            <small class="text-muted font-monospace" style="font-size:.78rem">@b.PatientCode</small>
+                                        </td>
+                                        <td>
+                                            <span class="fw-semibold">@b.ConsultingDoctorName</span>
+                                            @if (b.AppointmentTime.HasValue)
+                                            {
+                                                <small class="text-muted d-block" style="font-size:.72rem">
+                                                    <i class="bi bi-clock me-1"></i>@DateTime.Today.Add(b.AppointmentTime.Value).ToString("hh:mm tt")
+                                                </small>
+                                            }
+                                        </td>
+                                        <td class="text-end fw-bold text-success">₹@b.TotalAmount.ToString("N2")</td>
+                                        <td><span class="badge rounded-pill @badgeCls">@b.Status</span></td>
+                                        <td class="text-center">
+                                            <div class="dropdown">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="bi bi-three-dots-vertical"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                    <li>
+                                                        <button type="button" class="dropdown-item" onclick="viewBooking(@b.OPDServiceId)">
+                                                            <i class="bi bi-eye-fill me-2 text-primary"></i>View Detail
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank">
+                                                            <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            @* Today's Appointments (Future Bookings) *@
+            <div class="dashboard-panel mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h3 class="h5 m-0 fw-bold"><i class="bi bi-clock-history me-2 text-primary"></i>Today's Appointments</h3>
+                        <small class="text-muted">Scheduled consultations and future bookings based on selected date</small>
+                    </div>
+                </div>
+                
+                @if (!Model.Data.Appointments.Any())
+                {
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-calendar2-x fs-2 opacity-50 d-block mb-2"></i>
+                        <span>No scheduled appointments found for this day.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Patient</th>
+                                    <th>Doctor</th>
+                                    <th>Token</th>
+                                    <th>Status</th>
+                                    <th class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var app in Model.Data.Appointments)
+                                {
+                                    var badgeCls = app.Status switch { "Completed" => "badge-status-C", "Cancelled" => "badge-status-X", _ => "badge-status-R" };
+                                    var appTimeStr = app.AppointmentTime.HasValue ? DateTime.Today.Add(app.AppointmentTime.Value).ToString("hh:mm tt") : "—";
+                                    
+                                    // Highlight future appointments compared to current time if on the same day
+                                    var isFuture = false;
+                                    if (parsedDate.Date == DateTime.Today && app.AppointmentTime.HasValue)
+                                    {
+                                        isFuture = app.AppointmentTime.Value > DateTime.Now.TimeOfDay;
+                                    }
+                                    
+                                    <tr class="@(isFuture ? "table-info-subtle" : "")">
+                                        <td class="fw-bold text-nowrap">
+                                            <i class="bi bi-clock me-1 text-primary"></i>@appTimeStr
+                                            @if (isFuture)
+                                            {
+                                                <span class="badge text-bg-info ms-1 text-white" style="font-size:0.65rem">Future</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="fw-semibold text-primary d-block">@app.PatientName</span>
+                                            <small class="text-muted font-monospace" style="font-size:.78rem">@app.PatientCode</small>
+                                        </td>
+                                        <td class="fw-semibold">@app.ConsultingDoctorName</td>
+                                        <td><span class="badge text-bg-light font-monospace border">@(app.TokenNo ?? "—")</span></td>
+                                        <td><span class="badge rounded-pill @badgeCls">@app.Status</span></td>
+                                        <td class="text-center">
+                                            <div class="dropdown">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="bi bi-three-dots-vertical"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                    <li>
+                                                        <button type="button" class="dropdown-item" onclick="viewBooking(@app.OPDServiceId)">
+                                                            <i class="bi bi-eye-fill me-2 text-primary"></i>View Detail
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = app.OPDServiceId })" target="_blank">
+                                                            <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* Right: Today's Doctor Roster *@
+        <div class="col-12 col-lg-5 d-flex flex-column">
+            <div class="dashboard-panel flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h3 class="h5 m-0 fw-bold"><i class="bi bi-people-fill me-2 text-primary"></i>Doctor Roster</h3>
+                        <small class="text-muted">Doctors scheduled for consultation today</small>
+                    </div>
+                    <a class="btn btn-sm btn-outline-primary fw-semibold px-3" asp-controller="DoctorRoster" asp-action="Index">
+                        Roster Map
+                    </a>
+                </div>
+
+                @if (!Model.Data.TodayRoster.Any())
+                {
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-calendar-x fs-1 opacity-50 d-block mb-2"></i>
+                        <span>No doctors scheduled for this day.</span>
+                    </div>
+                }
+                else
+                {
+                    <div style="max-height: 480px; overflow-y: auto; padding-right: 4px;">
+                        @foreach (var doc in Model.Data.TodayRoster)
+                        {
+                            var completionPct = doc.TotalVisits > 0 ? (doc.CompletedVisits * 100) / doc.TotalVisits : 0;
+                            var colorClass = completionPct == 100 && doc.TotalVisits > 0 ? "bg-success" : "bg-primary";
+                            var initials = string.Concat(doc.DoctorName.Split(' ').Select(w => w.FirstOrDefault())).ToUpper();
+                            if (initials.Length > 2) initials = initials.Substring(0, 2);
+
+                            <div class="doctor-roster-item bg-light-subtle">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="doctor-avatar-circle text-primary">@initials</div>
+                                    <div class="flex-fill">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h5 class="h6 mb-0 fw-bold">@doc.DoctorName</h5>
+                                                <span class="badge text-bg-light border text-muted small p-1 py-0" style="font-size:0.7rem">@doc.Speciality</span>
+                                            </div>
+                                            <span class="text-muted small fw-semibold font-monospace" style="font-size: 0.75rem;">
+                                                <i class="bi bi-clock me-1 text-primary"></i>
+                                                @DateTime.Today.Add(doc.StartTime).ToString("hh:mm tt") - @DateTime.Today.Add(doc.EndTime).ToString("hh:mm tt")
+                                            </span>
+                                        </div>
+                                        
+                                        <div class="mt-2 d-flex justify-content-between align-items-center text-muted small" style="font-size:0.78rem">
+                                            <span>Room: <strong class="text-dark">@(doc.RoomName ?? "—")</strong></span>
+                                            <span>Completed: <strong>@doc.CompletedVisits / @doc.TotalVisits</strong></span>
+                                        </div>
+
+                                        <div class="progress progress-micro">
+                                            <div class="progress-bar @colorClass" role="progressbar" style="width: @(completionPct)%" aria-valuenow="@completionPct" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+@* ── View Booking Detail Modal ── *@
+<div class="modal fade" id="viewBookingModal" tabindex="-1" aria-labelledby="viewBookingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="viewBookingModalLabel">
+                    <i class="bi bi-receipt-cutoff me-2"></i>Booking Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewBookingBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-info btn-sm fw-semibold text-white" id="btnCollectPayFromModal" style="display:none" onclick="collectPaymentFromModal()">
+                    <i class="bi bi-cash-coin me-1"></i><span id="btnCollectPayLabel">Collect Payment</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Standby payment partial required by payment functions *@
+@{
+    ViewData["PaymentModuleCode"]     = "OPD";
+    ViewData["PaymentModuleRefId"]    = 0;
+    ViewData["PaymentSuccessModalId"] = ""; 
+}
+<partial name="_PaymentModal" />
+
+@section Scripts {
+    <script>
+    var _currentViewBookingId = null;
+
+    async function viewBooking(id) {
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('viewBookingModal'));
+        document.getElementById('viewBookingBody').innerHTML =
+            '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+
+        const collectBtn = document.getElementById('btnCollectPayFromModal');
+        if (collectBtn) collectBtn.style.display = 'none';
+        _currentViewBookingId = id;
+
+        modal.show();
+
+        try {
+            const [r, rPay] = await Promise.all([
+                fetch('@Url.Action("GetServiceBookingDetail", "OPD")' + '?id=' + id),
+                fetch('/OPD/GetPaymentSummary?moduleCode=OPD&moduleRefId=' + id)
+            ]);
+            if (!r.ok) throw new Error('Not found');
+            const d = await r.json();
+            const pay = rPay.ok ? ((await rPay.json())?.data ?? null) : null;
+
+            if (collectBtn) {
+                const pyStatus = pay?.paymentStatus ?? 'U';
+                if (pyStatus !== 'P') {
+                    collectBtn.style.display = '';
+                    const lbl = document.getElementById('btnCollectPayLabel');
+                    if (lbl) lbl.textContent = pyStatus === 'R' ? 'Collect Balance' : 'Collect Payment';
+                }
+            }
+
+            const statusBadge = d.status === 'Completed'
+                ? '<span class="badge text-bg-success">Completed</span>'
+                : d.status === 'Cancelled'
+                    ? '<span class="badge text-bg-danger">Cancelled</span>'
+                    : '<span class="badge text-bg-warning text-dark">Registered</span>';
+
+            const rows = (d.items || []).map(it => `
+                <tr>
+                    <td><span class="badge ${it.serviceType === 'Consulting' ? 'text-bg-primary' : 'text-bg-secondary'}">${it.serviceType || '—'}</span></td>
+                    <td>${it.itemName || '—'}</td>
+                    <td class="text-end fw-semibold">₹${parseFloat(it.serviceCharges).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                </tr>`).join('');
+
+            const visitDate = new Date(d.visitDate).toLocaleDateString('en-IN',
+                { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+            document.getElementById('viewBookingBody').innerHTML = `
+                <div class="row g-3 mb-3">
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">PATIENT ID</div>
+                            <div class="fw-bold font-monospace text-primary fs-6">${d.patientCode}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">OPD BILL NO</div>
+                            <div class="fw-bold font-monospace fs-6">${d.opdBillNo || d.oPDBillNo || '—'}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">TOKEN NO</div>
+                            <div class="fw-bold font-monospace text-success fs-6">${d.tokenNo || '—'}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">PATIENT NAME</div>
+                            <div class="fw-semibold">${d.patientName}</div>
+                            <div class="text-muted small">${d.gender || ''}${d.age != null ? ' · ' + d.age + ' yrs' : ''}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">CONSULTING DOCTOR</div>
+                            <div class="fw-semibold">${d.consultingDoctorName || '—'}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">VISIT DATE</div>
+                            <div class="fw-semibold">${visitDate}</div>
+                        </div>
+                    </div>
+                </div>
+                <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-receipt me-1"></i>Service Line Items</h6>
+                <table class="table table-sm table-bordered mb-2">
+                    <thead class="table-light">
+                        <tr><th>Type</th><th>Item / Service</th><th class="text-end">Charges (₹)</th></tr>
+                    </thead>
+                    <tbody>${rows || '<tr><td colspan="3" class="text-center text-muted">No items recorded</td></tr>'}</tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="2" class="text-end fw-bold">Total</td>
+                            <td class="text-end fw-bold text-success">₹${parseFloat(d.totalAmount).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="text-end mb-2">${statusBadge}</div>
+                ${buildPaymentSection(pay)}`;
+
+        } catch {
+            document.getElementById('viewBookingBody').innerHTML =
+                '<div class="alert alert-danger">Failed to load booking details.</div>';
+        }
+    }
+
+    function buildPaymentSection(pay) {
+        const fmtAmt = n => '\u20b9' + parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+        if (!pay || !pay.hasExistingPayment) {
+            return `<div class="border rounded p-2 d-flex align-items-center justify-content-between" style="background:#fff8f8">
+                <span class="text-muted small fw-semibold"><i class="bi bi-cash-stack me-1"></i>Payment</span>
+                <span class="badge text-bg-danger">Unpaid</span>
+            </div>`;
+        }
+        const statusMap = { P:['Fully Paid','text-bg-success'], R:['Partial Payment','text-bg-warning text-dark'], U:['Unpaid','text-bg-danger'] };
+        const [statusLabel, statusCls] = statusMap[pay.paymentStatus] ?? ['Unknown','text-bg-secondary'];
+        let html = `<div class="border rounded p-2 mt-1" style="background:#f8fffc">
+            <div class="fw-semibold mb-2 text-secondary" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em">
+                <i class="bi bi-cash-stack me-1"></i>Payment Summary
+            </div>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                <div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+                    <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Net Payable</div>
+                    <div class="fw-bold font-monospace text-primary">${fmtAmt(pay.netAmount)}</div>
+                </div>
+                <div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+                    <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Total Paid</div>
+                    <div class="fw-bold font-monospace text-success">${fmtAmt(pay.totalPaid)}</div>
+                </div>`;
+        if (pay.paymentStatus === 'R') {
+            html += `<div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+                    <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Balance Due</div>
+                    <div class="fw-bold font-monospace text-danger">${fmtAmt(pay.balanceDue)}</div>
+                </div>`;
+        }
+        html += `</div><div class="text-end"><span class="badge ${statusCls}">${statusLabel}</span></div></div>`;
+        return html;
+    }
+
+    function collectPaymentFromModal() {
+        if (typeof window.pmOpenFor !== 'function') {
+            console.error('pmOpenFor not available.');
+            return;
+        }
+        var bookingModalEl = document.getElementById('viewBookingModal');
+        var inst = bootstrap.Modal.getInstance(bookingModalEl);
+        if (inst) {
+            inst.hide();
+        } else {
+            bookingModalEl.classList.remove('show');
+            bookingModalEl.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            document.querySelectorAll('.modal-backdrop').forEach(function(el){ el.remove(); });
+        }
+        setTimeout(function () {
+            window.pmOpenFor(_currentViewBookingId, function () {
+                viewBooking(_currentViewBookingId);
+                // Also reload dashboard page to reflect payment changes
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1000);
+            });
+        }, 350);
+    }
+    </script>
+}

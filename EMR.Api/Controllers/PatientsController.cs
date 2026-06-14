@@ -72,4 +72,19 @@ public class PatientsController(IPatientService patientService) : ControllerBase
 
         return Ok(ApiResponse<object>.Ok(new { PatientId = id }, "Patient updated successfully."));
     }
+
+    // ── GET /api/patients/opd-dashboard?branchId=1&date=2026-06-13 ──────────
+    [HttpGet("opd-dashboard")]
+    [ProducesResponseType(typeof(ApiResponse<OpdDashboardData>), 200)]
+    public async Task<IActionResult> GetOpdDashboard([FromQuery] int branchId, [FromQuery] string date)
+    {
+        if (branchId <= 0)
+            return BadRequest(ApiResponse<object>.Fail("Invalid branch ID."));
+
+        if (!DateTime.TryParse(date, out var dt))
+            dt = DateTime.Today;
+
+        var data = await patientService.GetOpdDashboardAsync(branchId, dt);
+        return Ok(ApiResponse<OpdDashboardData>.Ok(data));
+    }
 }

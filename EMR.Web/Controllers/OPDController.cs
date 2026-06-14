@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
@@ -30,6 +31,46 @@ public class OPDController(
     ApplicationDbContext dbContext,
     IWebHostEnvironment env) : Controller
 {
+    // ─── OPD Dashboard ──────────────────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> Dashboard(string? date)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null)
+        {
+            TempData["Error"] = "Please select a branch first.";
+            return RedirectToAction("SelectBranch", "Account");
+        }
+
+        var selectedDate = DateTime.TryParse(date, out var d) ? d : DateTime.Today;
+        var dateStr = selectedDate.ToString("yyyy-MM-dd");
+
+        var hospitalSettings = await dbContext.HospitalSettings
+            .Where(x => x.BranchId == branchId.Value)
+            .Select(x => new { x.HospitalName, x.LogoPath })
+            .FirstOrDefaultAsync();
+
+        var currentBranchName = User.FindFirstValue("BranchName") ?? "N/A";
+
+        var opdData = await patientApiClient.GetOpdDashboardAsync(branchId.Value, dateStr) ?? new EMR.Web.ApiClients.Models.OpdDashboardData();
+
+        var model = new OpdDashboardViewModel
+        {
+            UserDisplayName = User.FindFirstValue("DisplayName") ?? User.Identity?.Name ?? "User",
+            CurrentBranchName = currentBranchName,
+            CurrentHospitalName = string.IsNullOrWhiteSpace(hospitalSettings?.HospitalName)
+                ? currentBranchName
+                : hospitalSettings.HospitalName!,
+            HospitalLogoPath = hospitalSettings?.LogoPath,
+            SelectedDate = dateStr,
+            Data = opdData
+        };
+
+        ViewData["Title"] = "OPD Dashboard";
+        return View(model);
+    }
+
     // ─── Index (patient list – server-side paged via EMR.Api) ────────────────────
 
     public async Task<IActionResult> Index(int page = 1, int pageSize = 10, string? search = null)

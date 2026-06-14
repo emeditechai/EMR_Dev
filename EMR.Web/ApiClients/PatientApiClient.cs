@@ -53,4 +53,11 @@ public class PatientApiClient : IPatientApiClient
         var result = await httpResponse.Content.ReadFromJsonAsync<ApiResponse<object>>();
         return result?.Success == true;
     }
+
+    public async Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, string date)
+    {
+        var url = $"api/patients/opd-dashboard?branchId={branchId}&date={date}";
+        var response = await _http.GetFromJsonAsync<ApiResponse<OpdDashboardData>>(url);
+        return response?.Data;
+    }
 }

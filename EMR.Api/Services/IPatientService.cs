@@ -8,4 +8,5 @@ public interface IPatientService
     Task<PatientDetail?>                GetByIdAsync(int patientId);
     Task<int>                           CreateAsync(PatientCreateRequest request);
     Task<bool>                          UpdateAsync(PatientUpdateRequest request);
+    Task<OpdDashboardData?>             GetOpdDashboardAsync(int branchId, DateTime date);
 }

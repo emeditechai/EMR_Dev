@@ -99,6 +99,26 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         return rows > 0;
     }
 
+    public async Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, DateTime date)
+    {
+        using var con = db.CreateConnection();
+        using var multi = await con.QueryMultipleAsync(
+            "usp_Api_OPD_Dashboard_GetStats",
+            new { BranchId = branchId, Date = date.Date },
+            commandType: CommandType.StoredProcedure);
+
+        var data = new OpdDashboardData();
+        
+        data.Summary = await multi.ReadSingleOrDefaultAsync<OpdSummaryStats>() ?? new OpdSummaryStats();
+        data.BookingsByStatus = (await multi.ReadAsync<OpdStatusCount>()).ToList();
+        data.BookingsByServiceType = (await multi.ReadAsync<OpdServiceTypeCount>()).ToList();
+        data.TodayRoster = (await multi.ReadAsync<OpdDoctorRosterSummary>()).ToList();
+        data.RecentBookings = (await multi.ReadAsync<OpdRecentBooking>()).ToList();
+        data.Appointments = (await multi.ReadAsync<OpdRecentBooking>()).ToList();
+
+        return data;
+    }
+
     // ─── Private helper with TotalCount ──────────────────────────────────────
     private class PatientListItemWithTotal : PatientListItem
     {

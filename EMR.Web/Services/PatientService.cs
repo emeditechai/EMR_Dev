@@ -363,7 +363,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── OPD Doctors ─────────────────────────────────────────────────────────
 
-    public async Task<IEnumerable<(int DoctorId, string FullName)>> GetOpdDoctorsAsync(int? branchId, int? departmentId = null)
+    public async Task<IEnumerable<(int DoctorId, string FullName)>> GetOpdDoctorsAsync(int? branchId, int? departmentId = null, int? specialityId = null)
     {
         using var con = db.CreateConnection();
         var rows = await con.QueryAsync(@"
@@ -375,8 +375,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             WHERE d.IsActive = 1
               AND (@BranchId IS NULL OR dsm.BranchId = @BranchId)
               AND (@DepartmentId IS NULL OR ddm.DeptId = @DepartmentId)
+              AND (@SpecialityId IS NULL OR d.PrimarySpecialityId = @SpecialityId)
             ORDER BY d.FullName",
-            new { BranchId = branchId, DepartmentId = departmentId });
+            new { BranchId = branchId, DepartmentId = departmentId, SpecialityId = specialityId });
 
         return rows.Select(r => ((int)r.DoctorId, (string)r.FullName));
     }

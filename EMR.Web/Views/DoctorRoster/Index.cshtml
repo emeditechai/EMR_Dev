@@ -208,7 +208,7 @@
             box-shadow: 0 16px 48px rgba(0,0,0,.16), 0 2px 8px rgba(102,126,234,.12);
             border: 1.5px solid #e0e7ff;
             padding: 0;
-            pointer-events: none;
+            pointer-events: auto;
             opacity: 0;
             transform: translateY(8px) scale(0.96);
             transition: opacity .18s ease, transform .18s ease;
@@ -226,9 +226,11 @@
             background: rgba(255,255,255,.2); border-radius: 20px;
             padding: 2px 8px; font-size: .72rem; font-weight: 600;
         }
-        .rt-body { padding: 6px 10px 8px; max-height: 220px; overflow-y: auto; }
-        .rt-body::-webkit-scrollbar { width: 4px; }
-        .rt-body::-webkit-scrollbar-thumb { background: #e0e7ff; border-radius: 4px; }
+        .rt-body { padding: 6px 10px 8px; max-height: 300px; overflow-y: auto; }
+        .rt-body::-webkit-scrollbar { width: 6px; }
+        .rt-body::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .rt-body::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 4px; }
+        .rt-body::-webkit-scrollbar-thumb:hover { background: #667eea; }
         .rt-item {
             display: flex; align-items: flex-start; gap: 8px;
             padding: 6px 8px; border-radius: 8px; margin-bottom: 4px;
@@ -262,6 +264,79 @@
             padding: 3px 8px !important;
             min-height: 32px !important;
         }
+
+        /* ── Capacity Progress Bar on Event Pills ───────────────── */
+        .fc-event { position: relative !important; overflow: hidden !important; }
+        .ev-bar {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            height: 3px; border-radius: 0 0 5px 5px;
+            background: rgba(255,255,255,.25); overflow: hidden;
+        }
+        .ev-bar-fill { height: 100%; border-radius: 0 0 5px 5px; transition: width .4s ease; }
+
+        /* ── Day Booking Count Badge ────────────────────────────── */
+        .day-bkd-badge {
+            display: inline-flex; align-items: center; gap: 2px;
+            font-size: .58rem; font-weight: 700;
+            color: #065f46; background: #d1fae5;
+            border-radius: 10px; padding: 0px 5px;
+            margin-left: 3px; vertical-align: middle; line-height: 1.6;
+        }
+        .day-bkd-badge.many { color: #92400e; background: #fef3c7; }
+
+        /* ── Quick Book Button in Tooltip ──────────────────────── */
+        .rt-book-btn {
+            width: 100%; padding: 8px 14px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff; border: none; border-radius: 0 0 12px 12px;
+            font-size: .78rem; font-weight: 700;
+            cursor: pointer; transition: opacity .15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .rt-book-btn:hover:not(:disabled) { opacity: .88; }
+        .rt-book-btn:disabled {
+            background: #f1f5f9; color: #94a3b8;
+            cursor: not-allowed; border-top: 1px solid #e2e8f0;
+        }
+
+        /* ── Compact / Expanded Toggle Button ───────────────────── */
+        .btn-compact {
+            padding: 4px 10px; font-size: .73rem; font-weight: 600;
+            border-radius: 7px; border: 1.5px solid #667eea;
+            color: #667eea; background: #fff;
+            cursor: pointer; transition: all .15s ease; white-space: nowrap;
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+        .btn-compact:hover, .btn-compact.active {
+            background: linear-gradient(135deg,#667eea,#764ba2);
+            color: #fff; border-color: transparent;
+        }
+
+        /* ── Week-View Rich Event Content ────────────────────────── */
+        .ev-custom { padding: 2px 4px; line-height: 1.25; min-height: 100%; }
+        .ev-custom .ev-title { font-weight: 700; font-size: .71rem; }
+        .ev-custom .ev-sub   { font-size: .64rem; opacity: .86; margin-top: 1px; }
+
+        /* ── FullCalendar flexible rows ─────────────────────────── */
+        .fc .fc-daygrid-day-frame  { min-height: 80px !important; }
+        .fc .fc-daygrid-body-natural .fc-daygrid-day-events { padding-bottom: 4px; }
+        .fc .fc-more-link {
+            font-size: .68rem !important; font-weight: 700 !important;
+            color: #667eea !important; padding: 1px 6px !important;
+            border-radius: 10px !important; background: #eef0fb !important;
+        }
+        .fc .fc-more-link:hover { background: #e0e7ff !important; }
+
+        /* ── Print Styles ────────────────────────────────────────── */
+        @@media print {
+            .emr-topbar, .emr-footer, .roster-toolbar,
+            .fc-toolbar, #rosterTooltip, #slotsModal,
+            #btnToggleCompact, #btnPrint { display: none !important; }
+            .roster-page  { height: auto !important; }
+            .calendar-wrap { border: none !important; box-shadow: none !important; }
+            .fc .fc-daygrid-day-frame { min-height: 60px !important; }
+            body { background: #fff !important; }
+        }
     </style>
 }
 
@@ -278,12 +353,12 @@
             <select id="ddlSpecialty" class="form-select form-select-sm s2-search">
                 <option value="">— All Specialities —</option>
                 @{
-                    var specialties = ViewBag.Specialties as IEnumerable<(int DeptId, string DeptName)>;
-                    if (specialties != null)
+                    var specialities = ViewBag.Specialities as IEnumerable<EMR.Web.Models.Entities.DoctorSpecialityMaster>;
+                    if (specialities != null)
                     {
-                        foreach (var sp in specialties)
+                        foreach (var sp in specialities)
                         {
-                            <option value="@sp.DeptId">@sp.DeptName</option>
+                            <option value="@sp.SpecialityId">@sp.SpecialityName</option>
                         }
                     }
                 }
@@ -309,6 +384,15 @@
             <span class="legend-pill lp-booked"><span class="dot" style="background:linear-gradient(135deg,#11998e,#38ef7d)"></span>Has Bookings</span>
             <span class="legend-pill lp-full"><span class="dot" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></span>Fully Booked</span>
             <span class="legend-pill lp-leave"><span class="dot" style="background:linear-gradient(135deg,#ffecd2,#fcb69f)"></span>Leave</span>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="d-flex align-items-center gap-2" style="flex-shrink:0">
+            <button id="btnToggleCompact" class="btn-compact" title="Toggle compact / expand all events">
+                <i class="bi bi-arrows-expand"></i>Expand All
+            </button>
+            <button id="btnPrint" class="btn-compact" onclick="window.print()" title="Print roster (Ctrl+P)">
+                <i class="bi bi-printer"></i>Print
+            </button>
         </div>
     </div>
 
@@ -382,6 +466,9 @@
         <div class="rt-empty"><i class="bi bi-calendar2 me-1"></i>No bookings for this date</div>
     </div>
     <div class="rt-footer" id="rtFooter"></div>
+    <button class="rt-book-btn" id="rtBookBtn" style="display:none">
+        <i class="bi bi-lightning-charge-fill"></i> Book Now
+    </button>
 </div>
 
 @section Scripts {
@@ -411,16 +498,44 @@
 
         // ── FullCalendar Setup ───────────────────────────────────────────
         const calendarEl = document.getElementById('calendar');
+        // Restore last used view from localStorage
+        const savedView = localStorage.getItem('rosterCalView') || 'dayGridMonth';
+        let isCompact   = localStorage.getItem('rosterCompact') !== 'false'; // default compact=true
+
         const calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
+            initialView: savedView,
             headerToolbar: {
                 left:   'prev,next today',
                 center: 'title',
                 right:  'dayGridMonth,timeGridWeek,listMonth'
             },
-            themeSystem: 'bootstrap5',
-            height: '100%',
-            expandRows: true,
+            themeSystem:   'bootstrap5',
+            height:        '100%',
+            expandRows:    true,
+            nowIndicator:  true,
+            dayMaxEvents:  isCompact ? 3 : false,
+            moreLinkClick: 'popover',
+            slotMinTime:   '07:00:00',
+            slotMaxTime:   '21:00:00',
+            // Persist view selection
+            viewDidMount: function (info) {
+                localStorage.setItem('rosterCalView', info.view.type);
+            },
+            // Rich event content for week / time-grid views
+            eventContent: function (info) {
+                const vt = calendar.view.type;
+                if (vt === 'timeGridWeek' || vt === 'timeGridDay') {
+                    const p = info.event.extendedProps;
+                    const room = p.roomName ? `<div class="ev-sub"><i class="bi bi-geo-alt me-1"></i>${p.roomName}</div>` : '';
+                    const cnt  = p.evClass === 'ev-booked' ? `<div class="ev-sub"><i class="bi bi-people me-1"></i>${p.bookingCount || ''} bkd</div>` : '';
+                    return { html: `<div class="ev-custom"><div class="ev-title">${info.event.title}</div>${room}${cnt}</div>` };
+                }
+                return true; // default render for month/list
+            },
+            // Badge on day-number cells
+            dayCellDidMount: function (info) {
+                info.el.dataset.date = fmtDate(info.date);
+            },
             eventClick:       function (info) { handleEventClick(info.event); },
             eventMouseEnter:  function (info) {
                 if (!info.event.extendedProps.isException)
@@ -428,11 +543,58 @@
             },
             eventMouseLeave:  function () { hideRosterTooltip(); },
             eventDidMount:    function (info) {
-                const cls = info.event.extendedProps.evClass;
+                const props = info.event.extendedProps;
+                const cls = props.evClass;
                 if (cls) info.el.classList.add(cls);
+
+                // Apply dynamic doctor-wise left border
+                if (!props.isException) {
+                    const grad = getDoctorGradient(props.doctorId);
+                    const matches = grad.bg.match(/#[0-9a-fA-F]{6}/g);
+                    const borderColor = matches ? matches[0] : '#667eea';
+                    info.el.style.setProperty('border-left', `5px solid ${borderColor}`, 'important');
+                }
+
+                // Capacity bar
+                if (!props.isException) {
+                    const cnt = props.bookingCount || 0;
+                    const max = props.maxBookings  || 10;
+                    const pct = Math.min(Math.round((cnt / max) * 100), 100);
+                    const barColor = pct === 0 ? 'rgba(255,255,255,.4)' :
+                                     pct >= 90 ? '#f5576c' :
+                                     pct >= 50 ? '#f59e0b' : '#38ef7d';
+                    const bar = document.createElement('div');
+                    bar.className = 'ev-bar';
+                    bar.innerHTML = `<div class="ev-bar-fill" style="width:${pct}%;background:${barColor}"></div>`;
+                    info.el.appendChild(bar);
+                }
             }
         });
         calendar.render();
+
+        // ── Compact / Expand toggle ───────────────────────────────────────
+        const btnCompact = document.getElementById('btnToggleCompact');
+        function applyCompactMode() {
+            btnCompact.innerHTML = isCompact
+                ? '<i class="bi bi-arrows-expand"></i>Expand All'
+                : '<i class="bi bi-arrows-collapse"></i>Compact';
+            btnCompact.classList.toggle('active', !isCompact);
+            calendar.setOption('dayMaxEvents', isCompact ? 3 : false);
+        }
+        applyCompactMode();
+        btnCompact.addEventListener('click', () => {
+            isCompact = !isCompact;
+            localStorage.setItem('rosterCompact', isCompact);
+            applyCompactMode();
+        });
+
+        // ── Keyboard shortcuts: ← → for nav, T for today ─────────────────
+        document.addEventListener('keydown', function (e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'ArrowLeft')  { calendar.prev();  }
+            if (e.key === 'ArrowRight') { calendar.next();  }
+            if (e.key === 't' || e.key === 'T') { calendar.today(); }
+        });
 
         let currentSchedules = [];
         let currentExceptions = [];
@@ -441,8 +603,8 @@
         const slotsModal = new bootstrap.Modal(document.getElementById('slotsModal'));
 
         // ── Load Roster ──────────────────────────────────────────────────
-        // doctorId and departmentId are both optional; pass whatever is selected
-        async function loadRoster(doctorId, departmentId) {
+        // doctorId and specialityId are both optional; pass whatever is selected
+        async function loadRoster(doctorId, specialityId) {
             tooltipCache = {};
             bookingCountCache = {};
 
@@ -452,7 +614,7 @@
             try {
                 let url = `@Url.Action("GetDoctorSchedules", "DoctorRoster")?`;
                 if (doctorId)    url += `doctorId=${doctorId}&`;
-                if (departmentId) url += `departmentId=${departmentId}&`;
+                if (specialityId) url += `specialityId=${specialityId}&`;
 
                 const response = await fetch(url);
                 const data = await response.json();
@@ -493,7 +655,7 @@
 
             if (deptId) {
                 try {
-                    const res  = await fetch(`@Url.Action("GetDoctorsBySpecialty", "DoctorRoster")?departmentId=${deptId}`);
+                    const res  = await fetch(`@Url.Action("GetDoctorsBySpecialty", "DoctorRoster")?specialityId=${deptId}`);
                     const docs = await res.json();
                     docs.forEach(d => {
                         $doc.append(new Option(d.name, d.id));
@@ -517,9 +679,9 @@
 
         // ── Doctor change ────────────────────────────────────────────────
         $('#ddlDoctor').on('change', function () {
-            const doctorId = $(this).val();
-            const deptId   = $('#ddlSpecialty').val();
-            loadRoster(doctorId, deptId);
+            const doctorId    = $(this).val();
+            const specialityId = $('#ddlSpecialty').val();
+            loadRoster(doctorId, specialityId);
         });
 
         // ── Preload Booking Counts ───────────────────────────────────────
@@ -529,7 +691,8 @@
             const end   = new Date(today.getFullYear(), today.getMonth() + 6, 0);
 
             const dates = [];
-            currentSchedules.filter(s => s.doctorId === doctorId).forEach(sch => {
+            const docId = Number(doctorId);
+            currentSchedules.filter(s => s.doctorId === docId).forEach(sch => {
                 let jsDay   = sch.dayOfWeek === 7 ? 0 : sch.dayOfWeek;
                 let effFrom = new Date(sch.effectiveFrom);
                 let effTo   = sch.effectiveTo ? new Date(sch.effectiveTo) : end;
@@ -541,7 +704,7 @@
                 }
             });
 
-            const subset = dates.slice(0, 60);
+            const subset = dates.sort().slice(0, 60);
             await Promise.all(subset.map(async ds => {
                 const cacheKey = `${doctorId}_${ds}`;
                 try {
@@ -556,6 +719,25 @@
 
         function fmtDate(d) {
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        function getDoctorGradient(doctorId) {
+            const gradients = [
+                { bg: 'linear-gradient(135deg, #4f46e5, #7c3aed)', text: '#ffffff' }, // Indigo/Violet
+                { bg: 'linear-gradient(135deg, #059669, #0d9488)', text: '#ffffff' }, // Emerald/Teal
+                { bg: 'linear-gradient(135deg, #e11d48, #db2777)', text: '#ffffff' }, // Rose/Red
+                { bg: 'linear-gradient(135deg, #d97706, #ea580c)', text: '#ffffff' }, // Amber/Orange
+                { bg: 'linear-gradient(135deg, #0284c7, #2563eb)', text: '#ffffff' }, // Cyan/Blue
+                { bg: 'linear-gradient(135deg, #c026d3, #8b5cf6)', text: '#ffffff' }, // Magenta/Purple
+                { bg: 'linear-gradient(135deg, #06b6d4, #0891b2)', text: '#ffffff' }, // Sky/Teal
+                { bg: 'linear-gradient(135deg, #16a34a, #15803d)', text: '#ffffff' }, // Forest/Green
+                { bg: 'linear-gradient(135deg, #701a75, #4a044e)', text: '#ffffff' }, // Plum/Grape
+                { bg: 'linear-gradient(135deg, #475569, #1e293b)', text: '#ffffff' }, // Slate/Navy
+                { bg: 'linear-gradient(135deg, #9a3412, #7c2d12)', text: '#ffffff' }, // Bronze/Brown
+                { bg: 'linear-gradient(135deg, #ec4899, #f43f5e)', text: '#ffffff' }  // Lavender/Pink
+            ];
+            const idx = Math.abs(parseInt(doctorId, 10) || 0) % gradients.length;
+            return gradients[idx];
         }
 
         // ── Render Events ────────────────────────────────────────────────
@@ -603,6 +785,12 @@
                             countLabel = ` · ${count} bkd`;
                         }
 
+                        // Fully booked check: if bookings equal or exceed maxBookings
+                        const max = sch.maxBookings || 10;
+                        if (count !== null && count >= max) {
+                            evClass = 'ev-full';
+                        }
+
                         const timeLabel  = `${sch.startTime.substring(0,5)}–${sch.endTime.substring(0,5)}`;
                         const eventTitle = selectedDoctorId
                             ? `🕐 ${timeLabel}${countLabel}`
@@ -613,14 +801,16 @@
                             start: `${dateStr}T${sch.startTime}`,
                             end:   `${dateStr}T${sch.endTime}`,
                             extendedProps: {
-                                isException: false,
+                                isException:   false,
                                 evClass,
-                                scheduleId: sch.scheduleId,
-                                roomName:   sch.roomName || 'Not Assigned',
-                                doctorId:   sch.doctorId,
-                                doctorName: sch.doctorName,
-                                date:       dateStr,
-                                timeString: timeLabel
+                                scheduleId:    sch.scheduleId,
+                                roomName:      sch.roomName || 'Not Assigned',
+                                doctorId:      sch.doctorId,
+                                doctorName:    sch.doctorName,
+                                date:          dateStr,
+                                timeString:    timeLabel,
+                                bookingCount:  count || 0,
+                                maxBookings:   max
                             }
                         });
                     }
@@ -628,6 +818,8 @@
             });
 
             calendar.addEventSource(events);
+            // Update per-day booking badges after events are rendered
+            setTimeout(updateDayBadges, 100);
         }
 
         // ── Event Click → Show Slots Modal ──────────────────────────────
@@ -705,26 +897,66 @@
             }
         }
 
+        // ── Update Day Booking Badges ─────────────────────────────────────
+        function updateDayBadges() {
+            // Sum bookings per calendar date across all doctors
+            const totals = {};
+            Object.entries(bookingCountCache).forEach(([key, cnt]) => {
+                const parts = key.split('_');
+                const date  = parts.slice(1).join('_'); // handles doctorId_YYYY-MM-DD
+                if (cnt > 0) totals[date] = (totals[date] || 0) + cnt;
+            });
+            // Inject badges into day cells
+            document.querySelectorAll('.fc-daygrid-day').forEach(cell => {
+                const date = cell.dataset.date || cell.getAttribute('data-date');
+                if (!date) return;
+                // Remove existing badge
+                const old = cell.querySelector('.day-bkd-badge');
+                if (old) old.remove();
+                const total = totals[date];
+                if (total) {
+                    const badge = document.createElement('span');
+                    badge.className = 'day-bkd-badge' + (total >= 10 ? ' many' : '');
+                    badge.title     = `${total} booking${total > 1 ? 's' : ''} on this day`;
+                    badge.innerHTML = `<i class="bi bi-people-fill" style="font-size:.55rem"></i>${total}`;
+                    const numEl = cell.querySelector('.fc-daygrid-day-number');
+                    if (numEl) numEl.appendChild(badge);
+                }
+            });
+        }
+
         // ── Hover Tooltip ────────────────────────────────────────────────
         const tooltip  = document.getElementById('rosterTooltip');
         const rtDate   = document.getElementById('rtDate');
         const rtCount  = document.getElementById('rtCount');
         const rtBody   = document.getElementById('rtBody');
         const rtFooter = document.getElementById('rtFooter');
-        let hideTimer  = null;
+        const rtBookBtn = document.getElementById('rtBookBtn');
+        let hideTimer       = null;
+        let tooltipPinned   = false;
+        let currentTooltipEvent = null; // stores the FC event for Book Now
 
         async function showRosterTooltip(event, jsEvent) {
             clearTimeout(hideTimer);
+            currentTooltipEvent = event;  // store for Book Now
             const props    = event.extendedProps;
-            const doctorId = $('#ddlDoctor').val() || props.doctorId;
+            const doctorId = Number($('#ddlDoctor').val()) || props.doctorId;
             const dateStr  = props.date;
 
-            positionTooltip(jsEvent);
-            const dateObj = new Date(dateStr);
+            // Only reposition if tooltip is not already visible (pinned by user)
+            if (!tooltip.classList.contains('show')) {
+                positionTooltip(jsEvent);
+            }
+
+            const dateObj = new Date(dateStr + 'T00:00:00');
             rtDate.textContent  = dateObj.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
             rtCount.textContent = 'Loading…';
             rtBody.innerHTML    = '<div class="rt-empty"><div class="spinner-border spinner-border-sm me-2" style="color:#667eea"></div>Loading…</div>';
             rtFooter.innerHTML  = '';
+            // Show Book Now button (disabled while loading)
+            rtBookBtn.style.display = '';
+            rtBookBtn.disabled = true;
+            rtBookBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading…';
             tooltip.classList.add('show');
 
             const cacheKey = `${doctorId}_${dateStr}`;
@@ -739,6 +971,7 @@
             } catch {
                 rtBody.innerHTML = '<div class="rt-empty text-danger"><i class="bi bi-exclamation-circle me-1"></i>Failed to load</div>';
                 rtCount.textContent = '—';
+                rtBookBtn.style.display = 'none';
             }
         }
 
@@ -754,19 +987,20 @@
 
             let html = '';
             bookings.forEach(b => {
-                const initials    = b.patientName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                const initials    = (b.patientName || '?').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
                 const slotLabel   = b.appointmentTime ? formatTime(b.appointmentTime) : '—';
                 const statusClass = b.status === 'Registered' ? 'rt-badge-r' : b.status === 'Completed' ? 'rt-badge-c' : 'rt-badge-x';
+                const amount      = (b.totalAmount || 0).toFixed(2);
                 html += `
                     <div class="rt-item">
                         <div class="rt-avatar">${initials}</div>
                         <div class="rt-info">
-                            <div class="rt-name">${b.patientName}</div>
+                            <div class="rt-name">${b.patientName || '—'}</div>
                             <div class="rt-sub">
-                                <span class="badge ${statusClass} rounded-pill px-2 py-0" style="font-size:.67rem">${b.status}</span>
-                                &nbsp;${b.patientCode} &bull; ${b.phoneNumber || '—'}
+                                <span class="badge ${statusClass} rounded-pill px-2 py-0" style="font-size:.67rem">${b.status || 'Unknown'}</span>
+                                &nbsp;${b.patientCode || ''} &bull; ${b.phoneNumber || '—'}
                             </div>
-                            <div class="rt-sub mt-1"><i class="bi bi-bag me-1"></i>${b.serviceTypesSummary || 'Consulting'} — ₹${b.totalAmount.toFixed(2)}</div>
+                            <div class="rt-sub mt-1"><i class="bi bi-bag me-1"></i>${b.serviceTypesSummary || 'Consulting'} — ₹${amount}</div>
                         </div>
                         <div class="rt-slot"><i class="bi bi-clock me-1"></i>${slotLabel}</div>
                     </div>`;
@@ -777,6 +1011,9 @@
             rtFooter.innerHTML = `
                 <span><i class="bi bi-people me-1"></i>${count} patient${count > 1 ? 's' : ''}</span>
                 <span class="fw-semibold" style="color:#667eea">₹${total.toFixed(2)}</span>`;
+            // Enable Book Now button
+            rtBookBtn.disabled = false;
+            rtBookBtn.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Book Now';
         }
 
         function formatTime(ts) {
@@ -790,7 +1027,7 @@
         }
 
         function positionTooltip(e) {
-            const mg = 14, tw = 340, th = 300;
+            const mg = 10, tw = 340, th = 360;
             let x = e.clientX + mg, y = e.clientY + mg;
             if (x + tw > window.innerWidth)  x = e.clientX - tw - mg;
             if (y + th > window.innerHeight) y = e.clientY - th - mg;
@@ -798,12 +1035,44 @@
             tooltip.style.top  = y + 'px';
         }
 
-        function hideRosterTooltip() {
-            hideTimer = setTimeout(() => tooltip.classList.remove('show'), 140);
+        function scheduleHide() {
+            // Give 800ms grace period – enough time to move cursor from event into tooltip
+            hideTimer = setTimeout(() => {
+                if (!tooltipPinned) tooltip.classList.remove('show');
+            }, 800);
         }
 
-        document.getElementById('calendar').addEventListener('mousemove', function(e) {
-            if (tooltip.classList.contains('show')) positionTooltip(e);
+        function hideRosterTooltip() {
+            scheduleHide();
+        }
+
+        // ── Tooltip stays alive while mouse is inside it ──────────────────
+        tooltip.addEventListener('mouseenter', () => {
+            tooltipPinned = true;
+            clearTimeout(hideTimer);
+        });
+        tooltip.addEventListener('mouseleave', () => {
+            tooltipPinned = false;
+            scheduleHide();
+        });
+
+        // ── Book Now button – opens slots modal directly ──────────────────
+        rtBookBtn.addEventListener('click', () => {
+            if (!currentTooltipEvent) return;
+            // Hide tooltip immediately
+            clearTimeout(hideTimer);
+            tooltipPinned = false;
+            tooltip.classList.remove('show');
+            rtBookBtn.style.display = 'none';
+            // Open slots modal for this event
+            handleEventClick(currentTooltipEvent);
+        });
+
+        // Also re-hide book button when tooltip fades out
+        tooltip.addEventListener('transitionend', () => {
+            if (!tooltip.classList.contains('show')) {
+                rtBookBtn.style.display = 'none';
+            }
         });
     });
     </script>

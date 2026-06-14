@@ -151,16 +151,13 @@
                                         <i class="bi bi-pencil me-2"></i>Edit
                                     </a>
                                 </li>
-                                @if (item.HasOPDDept)
-                                {
-                                    <li><hr class="dropdown-divider" /></li>
-                                    <li>
-                                        <button class="dropdown-item text-primary fw-semibold"
-                                                onclick="openConsultingModal(@item.DoctorId, '@Html.Raw(item.FullName.Replace("'","\\'"))')">
-                                            <i class="bi bi-currency-rupee me-2"></i>Add Consulting Charges
-                                        </button>
-                                    </li>
-                                }
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <button class="dropdown-item text-primary fw-semibold"
+                                            onclick="openConsultingModal(@item.DoctorId, '@Html.Raw(item.FullName.Replace("'","\\'"))')">
+                                        <i class="bi bi-currency-rupee me-2"></i>Add Consulting Charges
+                                    </button>
+                                </li>
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>
                                     <a class="dropdown-item fw-semibold text-info" asp-controller="DoctorSchedules" asp-action="Configure" asp-route-doctorId="@item.DoctorId">
