@@ -360,6 +360,7 @@ public class OPDController(
                     ConsultingDoctorName = b.ConsultingDoctorName,
                     TotalAmount          = b.TotalAmount,
                     Status               = b.Status,
+                    PaymentStatus        = b.PaymentStatus,
                     ServiceTypesSummary  = b.ServiceTypesSummary,
                     TotalCount           = apiResult.TotalCount,
                     TotalFeesAll         = apiResult.TotalFeesAll,

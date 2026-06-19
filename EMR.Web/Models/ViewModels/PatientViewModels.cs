@@ -259,6 +259,7 @@ public class ServiceBookingListItem
     public string? ConsultingDoctorName { get; set; }
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string PaymentStatus { get; set; } = "U";
     // Line items (comma-joined for display)
     public string ServiceTypesSummary { get; set; } = string.Empty;    // Window-function aggregates from usp_GetServiceBookingsPaged
     public int TotalCount { get; set; }

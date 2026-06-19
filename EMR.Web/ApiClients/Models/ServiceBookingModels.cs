@@ -15,6 +15,7 @@ public class ServiceBookingListItem
     public string?  ConsultingDoctorName  { get; set; }
     public decimal  TotalAmount           { get; set; }
     public string   Status                { get; set; } = string.Empty;
+    public string   PaymentStatus         { get; set; } = "U";
     public string   ServiceTypesSummary   { get; set; } = string.Empty;
     // Aggregates
     public int      TotalCount            { get; set; }

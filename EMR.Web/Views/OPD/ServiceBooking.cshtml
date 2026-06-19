@@ -267,7 +267,7 @@
                                     else { <span class="text-muted small">—</span> }
                                 </td>
                                 <td>@(b.ConsultingDoctorName ?? "—")</td>
-                                <td class="text-end fw-semibold">₹@b.TotalAmount.ToString("N2")</td>
+                                <td class="text-end fw-semibold @(b.TotalAmount == 0 || b.PaymentStatus == "P" ? "text-success" : "text-danger")">₹@b.TotalAmount.ToString("N2")</td>
                                 <td><span class="badge rounded-pill @badgeCls">@b.Status</span></td>
                                 <td class="text-center">
                                     <div class="dropdown">
