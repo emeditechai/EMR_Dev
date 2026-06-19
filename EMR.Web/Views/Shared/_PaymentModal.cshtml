@@ -445,8 +445,26 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             pmModal.hide();
+
+            // ── If full payment → assign the token number into the success modal ──
+            if (data.paymentStatus === 'P' && data.tokenNo) {
+                const tokenEl  = document.getElementById('successTokenNo');
+                const tokenBox = document.getElementById('successTokenBox');
+                if (tokenEl) {
+                    // Replace the "Pending Payment" content with the real token
+                    tokenEl.innerHTML = '';
+                    tokenEl.className = 'fw-bold text-success mb-0 font-monospace';
+                    tokenEl.style.fontSize = '';
+                    tokenEl.textContent = data.tokenNo;
+                }
+                if (tokenBox) {
+                    tokenBox.classList.remove('alert-warning');
+                    tokenBox.classList.add('alert-success');
+                }
+            }
+
             if (typeof _onSuccess === 'function') {
-                _onSuccess();
+                _onSuccess(data);
             } else {
                 var sm = document.getElementById(_successModal);
                 if (sm) new bootstrap.Modal(sm).show();

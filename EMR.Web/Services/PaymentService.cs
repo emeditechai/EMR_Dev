@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using EMR.Web.Data;
 using EMR.Web.Models.ViewModels;
@@ -256,6 +257,23 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
 
             tx.Commit();
 
+            // ── Assign token on full payment ──────────────────────────────────
+            // Once the bill is fully paid (PaymentStatus = 'P'), call the SP
+            // that generates and writes the token to PatientOPDService.
+            string? assignedToken = null;
+            if (status == "P" && request.ModuleCode == "OPD" && request.OPDServiceId.HasValue)
+            {
+                // Run outside the now-committed transaction (the SP manages its own)
+                var tokenParams = new DynamicParameters();
+                tokenParams.Add("@OPDServiceId", request.OPDServiceId.Value);
+                tokenParams.Add("@TokenNo", dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
+                await con.ExecuteAsync(
+                    "dbo.usp_OPD_AssignTokenOnPayment",
+                    tokenParams,
+                    commandType: CommandType.StoredProcedure);
+                assignedToken = tokenParams.Get<string?>("@TokenNo");
+            }
+
             return new SavePaymentResult
             {
                 Success         = true,
@@ -263,7 +281,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 NetAmount       = netAmount,
                 TotalPaid       = totalPaid,
                 BalanceDue      = balanceDue,
-                PaymentStatus   = status
+                PaymentStatus   = status,
+                TokenNo         = assignedToken
             };
         }
         catch (Exception ex)

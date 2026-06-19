@@ -646,6 +646,7 @@
                         </tr>
                     </tfoot>
                 </table>
+                <span asp-validation-for="LineItemsJson" class="text-danger small d-block mt-1 mb-2" id="lineItemsValidationError" style="display:none;"></span>
             </div>
 
         </div>
@@ -741,9 +742,20 @@
                         <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">PATIENT ID</p>
                         <h4 class="fw-bold text-primary mb-0 font-monospace" id="successPatientCode">---</h4>
                     </div>
-                    <div class="alert alert-success py-2 px-3 mb-0 text-center" style="min-width:115px;">
+                    @* Token box: amber when pending payment, green once assigned *@
+                    <div class="alert py-2 px-3 mb-0 text-center @(Model.TokenPending ? "alert-warning" : "alert-success")" style="min-width:115px;" id="successTokenBox">
                         <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">TOKEN NO</p>
-                        <h4 class="fw-bold text-success mb-0 font-monospace" id="successTokenNo">---</h4>
+                        @if (Model.TokenPending)
+                        {
+                            <div class="d-flex align-items-center gap-1 justify-content-center">
+                                <i class="bi bi-hourglass-split text-warning-emphasis" style="font-size:.95rem"></i>
+                                <span class="fw-semibold text-warning-emphasis font-monospace" id="successTokenNo" style="font-size:.92rem">Pending Payment</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <h4 class="fw-bold text-success mb-0 font-monospace" id="successTokenNo">---</h4>
+                        }
                     </div>
                     <div class="alert alert-warning py-2 px-3 mb-0 text-center" style="min-width:130px;">
                         <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">OPD BILL NO</p>
@@ -962,7 +974,9 @@
             document.getElementById('successPatientName').textContent  = '@newName';
             @if (!string.IsNullOrEmpty(Model.TokenNo))   { <text>document.getElementById('successTokenNo').textContent = '@Model.TokenNo';</text> }
             @if (!string.IsNullOrEmpty(Model.OPDBillNo)) { <text>document.getElementById('successBillNo').textContent  = '@Model.OPDBillNo';</text> }
-            @* When NewOPDServiceId > 0 the payment modal handles showing the success modal. *@
+            @* When NewOPDServiceId > 0 the payment modal handles showing the success modal.
+               If payment is fully paid, data.tokenNo arrives in the payment-save response;
+               we intercept it here to update the token display. *@
             @if (!(Model.NewOPDServiceId.HasValue && Model.NewOPDServiceId.Value > 0))
             {
                 <text>new bootstrap.Modal(document.getElementById('registrationSuccessModal')).show();</text>
@@ -1140,11 +1154,64 @@
         // ── Line-item management ──────────────────────────────────────────────
         let lineItems  = [];   // { rowId, serviceType, serviceId, itemName, serviceCharges }
         let rowCounter = 0;
+        let lineItemsFormSubmitted = false;
+
+        try {
+            const initialJson = document.getElementById('hdnLineItemsJson')?.value;
+            if (initialJson && initialJson !== '[]') {
+                lineItems = JSON.parse(initialJson);
+                lineItems.forEach((item, idx) => {
+                    if (!item.rowId) item.rowId = idx + 1;
+                    rowCounter = Math.max(rowCounter, item.rowId);
+                });
+            }
+        } catch (e) {
+            console.error('Error parsing initial line items:', e);
+        }
 
         const $doctor = $('#ddlDoctor');
 
+        function checkLineItemsValidity() {
+            const demoOnly = document.getElementById('DemographicsOnly')?.value === 'true';
+            if (demoOnly) return true;
+
+            const errEl = document.getElementById('lineItemsValidationError');
+            if (!lineItemsFormSubmitted) {
+                if (lineItems.length === 0) return false;
+                if (lineItems.some(item => !item.serviceType || !item.serviceId)) return false;
+                return true;
+            }
+
+            if (lineItems.length === 0) {
+                if (errEl) {
+                    errEl.textContent = 'At least one service or consultation fee item is required.';
+                    errEl.style.display = 'block';
+                }
+                document.getElementById('lineItemTable')?.classList.add('border-danger');
+                return false;
+            }
+
+            const incomplete = lineItems.some(item => !item.serviceType || !item.serviceId);
+            if (incomplete) {
+                if (errEl) {
+                    errEl.textContent = 'Please select a Type and Item/Service Name for all rows.';
+                    errEl.style.display = 'block';
+                }
+                document.getElementById('lineItemTable')?.classList.add('border-danger');
+                return false;
+            }
+
+            if (errEl) {
+                errEl.textContent = '';
+                errEl.style.display = 'none';
+            }
+            document.getElementById('lineItemTable')?.classList.remove('border-danger');
+            return true;
+        }
+
         function saveJson() {
             document.getElementById('hdnLineItemsJson').value = JSON.stringify(lineItems);
+            checkLineItemsValidity();
         }
 
         function updateTotal() {
@@ -1304,6 +1371,20 @@
                 if (r.serviceType === 'Consulting') loadItemsForRow(r.rowId, 'Consulting', r.serviceId, r.itemName);
             });
         });
+
+        // Render initial rows if any (e.g. on validation error reload)
+        if (lineItems.length > 0) {
+            renderRows();
+            updateTotal();
+        }
+
+        // Check if there is already a server-side error displayed
+        const serverError = document.getElementById('lineItemsValidationError')?.textContent.trim();
+        if (serverError) {
+            lineItemsFormSubmitted = true;
+            document.getElementById('lineItemsValidationError').style.display = 'block';
+            document.getElementById('lineItemTable')?.classList.add('border-danger');
+        }
 
         // ── Auto-populate patient data ─────────────────────────────────────────
         async function populatePatient(patientId) {
@@ -1602,6 +1683,17 @@
                 e.preventDefault();
                 e.stopPropagation();
             }
+
+            // Line items validation
+            lineItemsFormSubmitted = true;
+            if (!checkLineItemsValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+                document.querySelector('.service-block')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                this.classList.add('was-validated');
+                return;
+            }
+
             this.classList.add('was-validated');
         });
 

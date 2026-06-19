@@ -151,4 +151,9 @@ public class SavePaymentResult
     public decimal TotalPaid { get; set; }
     public decimal BalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
+    /// <summary>
+    /// Assigned token number if payment became fully paid (PaymentStatus = 'P').
+    /// NULL when payment is partial or zero-amount was skipped.
+    /// </summary>
+    public string? TokenNo { get; set; }
 }

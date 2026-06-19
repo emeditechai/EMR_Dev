@@ -200,6 +200,11 @@ public class PatientRegistrationViewModel
     // ── After-save info (used by success modal) ───────────────────────────────
     public string? OPDBillNo { get; set; }
     public string? TokenNo { get; set; }
+    /// <summary>
+    /// True when TokenNo is null because the bill is not yet fully paid.
+    /// The success modal shows a "Token pending payment" message instead.
+    /// </summary>
+    public bool TokenPending { get; set; }
     /// <summary>ID of the newly created OPDService row — used to build Print Bill URL.</summary>
     public int? NewOPDServiceId { get; set; }
 

@@ -147,6 +147,7 @@ public class OPDController(
         // Pass bill/token info for success modal after redirect
         model.OPDBillNo       = TempData["OPDBillNo"]       as string;
         model.TokenNo         = TempData["TokenNo"]         as string;
+        model.TokenPending    = TempData["TokenPending"] is bool tp && tp;
         model.NewOPDServiceId = int.TryParse(TempData["NewOPDServiceId"] as string, out var sid) ? sid : null;
 
         await PopulateSelectLists(model);
@@ -164,6 +165,31 @@ public class OPDController(
         {
             TempData["Error"] = "Please select a branch first.";
             return RedirectToAction("SelectBranch", "Account");
+        }
+
+        if (!model.DemographicsOnly)
+        {
+            List<OPDServiceLineItem>? lineItems = null;
+            try
+            {
+                var serializeOptions = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+                lineItems = string.IsNullOrWhiteSpace(model.LineItemsJson)
+                    ? null
+                    : System.Text.Json.JsonSerializer.Deserialize<List<OPDServiceLineItem>>(model.LineItemsJson, serializeOptions);
+            }
+            catch { }
+
+            if (lineItems == null || !lineItems.Any())
+            {
+                ModelState.AddModelError(nameof(model.LineItemsJson), "At least one service or consultation fee item is required.");
+            }
+            else if (lineItems.Any(item => string.IsNullOrEmpty(item.ServiceType) || !item.ServiceId.HasValue || item.ServiceId <= 0))
+            {
+                ModelState.AddModelError(nameof(model.LineItemsJson), "Please select a Type and Item/Service Name for all rows.");
+            }
         }
 
         if (!ModelState.IsValid)
@@ -232,7 +258,8 @@ public class OPDController(
             TempData["NewPatientCode"]  = patientCode;
             TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
             TempData["OPDBillNo"]       = billNo;
-            TempData["TokenNo"]         = tokenNo;
+            TempData["TokenNo"]         = tokenNo;                          // null unless ₹0 bill
+            TempData["TokenPending"]    = string.IsNullOrEmpty(tokenNo);    // true = needs payment
             TempData["NewOPDServiceId"] = newSvcId.ToString();
             return RedirectToAction(nameof(PatientRegistration), new { registered = true });
         }
@@ -270,7 +297,8 @@ public class OPDController(
                 TempData["NewPatientCode"]  = patient.PatientCode;
                 TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
                 TempData["OPDBillNo"]       = billNo;
-                TempData["TokenNo"]         = tokenNo;
+                TempData["TokenNo"]         = tokenNo;                          // null unless ₹0 bill
+                TempData["TokenPending"]    = string.IsNullOrEmpty(tokenNo);    // true = needs payment
                 TempData["IsBooking"]       = true;
                 TempData["NewOPDServiceId"] = newSvcId.ToString();
                 return RedirectToAction(nameof(PatientRegistration), new { registered = true });
@@ -454,14 +482,15 @@ public class OPDController(
             bill, model.LineItemsJson ?? "[]", userId);
 
         TempData["OPDBillNo"]      = billNo;
-        TempData["TokenNo"]        = tokenNo;
+        TempData["TokenNo"]        = tokenNo;                          // null unless ₹0 bill
+        TempData["TokenPending"]   = string.IsNullOrEmpty(tokenNo);    // true = needs payment
         TempData["NewPatientCode"] = model.PatientCode;
         TempData["NewPatientName"] = $"{model.FirstName} {model.LastName}".Trim();
         TempData["IsBooking"]      = true;
         TempData["NewOPDServiceId"] = newSvcId.ToString();
 
         await auditLogService.LogAsync("OPD", "ServiceBooking.New",
-            $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {tokenNo}");
+            $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {(string.IsNullOrEmpty(tokenNo) ? "(pending payment)" : tokenNo)}");
 
         return RedirectToAction(nameof(ServiceBooking));
     }
@@ -942,6 +971,7 @@ public class OPDController(
 
         var userId = User.GetUserId();
         var result = await paymentService.SavePaymentAsync(request, userId);
+        // result.TokenNo is populated (non-null) if payment is now fully paid
         return Json(result);
     }
 }

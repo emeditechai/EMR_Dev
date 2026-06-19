@@ -26,15 +26,17 @@ public interface IPatientService
     /// <summary>
     /// Creates a new patient + OPD bill with line items.
     /// Returns (PatientCode, OPDBillNo, TokenNo, NewPatientId, NewOPDServiceId).
+    /// TokenNo is NULL for non-zero bills until full payment is confirmed.
     /// </summary>
-    Task<(string PatientCode, string OPDBillNo, string TokenNo, int NewPatientId, int NewOPDServiceId)>
+    Task<(string PatientCode, string OPDBillNo, string? TokenNo, int NewPatientId, int NewOPDServiceId)>
         CreateAsync(PatientMaster patient, PatientOPDService opdBill, string lineItemsJson, int? userId);
 
     /// <summary>
     /// Updates patient demographics; creates a new OPD bill (or updates existing) with line items.
     /// Returns (OPDBillNo, TokenNo, NewOPDServiceId).
+    /// TokenNo is NULL for non-zero bills until full payment is confirmed.
     /// </summary>
-    Task<(string OPDBillNo, string TokenNo, int NewOPDServiceId)>
+    Task<(string OPDBillNo, string? TokenNo, int NewOPDServiceId)>
         UpdateAsync(PatientMaster patient, PatientOPDService opdBill, string lineItemsJson, int? userId);
 
     /// <summary>Updates ONLY patient demographics (Sections 1 &amp; 2). No OPD bill row is touched.</summary>
@@ -80,7 +82,7 @@ public interface IPatientService
     /// Creates a new OPD bill + line items for an existing patient WITHOUT touching any patient demographic fields.
     /// Use this from NewServiceBooking so that patient data is never overwritten from the booking screen.
     /// </summary>
-    Task<(string OPDBillNo, string TokenNo, int NewOPDServiceId)>
+    Task<(string OPDBillNo, string? TokenNo, int NewOPDServiceId)>
         CreateServiceBookingOnlyAsync(PatientOPDService bill, string lineItemsJson, int? userId);
 
     /// <summary>

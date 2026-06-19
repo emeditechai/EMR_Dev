@@ -172,7 +172,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Create ───────────────────────────────────────────────────────────────
 
-    public async Task<(string PatientCode, string OPDBillNo, string TokenNo, int NewPatientId, int NewOPDServiceId)>
+    public async Task<(string PatientCode, string OPDBillNo, string? TokenNo, int NewPatientId, int NewOPDServiceId)>
         CreateAsync(PatientMaster patient, PatientOPDService opdBill, string lineItemsJson, int? userId)
     {
         using var con = db.CreateConnection();
@@ -192,6 +192,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@NewPatientId",    dbType: DbType.Int32,            direction: ParameterDirection.Output);
         p.Add("@NewOPDServiceId", dbType: DbType.Int32,            direction: ParameterDirection.Output);
         p.Add("@OPDBillNo",       dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+        // @TokenNo output kept for SP compatibility; will be NULL for non-zero bills (token assigned after payment)
         p.Add("@TokenNo",         dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
 
         await con.ExecuteAsync("dbo.usp_Patient_Create", p, commandType: CommandType.StoredProcedure);
@@ -199,7 +200,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         return (
             p.Get<string>("@PatientCode"),
             p.Get<string>("@OPDBillNo"),
-            p.Get<string>("@TokenNo"),
+            p.Get<string?>("@TokenNo"),   // NULL until full payment
             p.Get<int>("@NewPatientId"),
             p.Get<int>("@NewOPDServiceId")
         );
@@ -207,7 +208,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Update ───────────────────────────────────────────────────────────────
 
-    public async Task<(string OPDBillNo, string TokenNo, int NewOPDServiceId)>
+    public async Task<(string OPDBillNo, string? TokenNo, int NewOPDServiceId)>
         UpdateAsync(PatientMaster patient, PatientOPDService opdBill, string lineItemsJson, int? userId)
     {
         using var con = db.CreateConnection();
@@ -226,13 +227,14 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         // OUTPUT parameters
         p.Add("@NewOPDServiceId", dbType: DbType.Int32,            direction: ParameterDirection.Output);
         p.Add("@OPDBillNo",       dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
-        p.Add("@TokenNo",         dbType: DbType.String, size: 15, direction: ParameterDirection.Output);
+        // @TokenNo output kept for SP compatibility; will be NULL for non-zero bills (token assigned after payment)
+        p.Add("@TokenNo",         dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
 
         await con.ExecuteAsync("dbo.usp_Patient_Update", p, commandType: CommandType.StoredProcedure);
 
         return (
             p.Get<string>("@OPDBillNo"),
-            p.Get<string>("@TokenNo"),
+            p.Get<string?>("@TokenNo"),   // NULL until full payment
             p.Get<int>("@NewOPDServiceId")
         );
     }
@@ -586,7 +588,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Service Booking Only (no patient demographics update) ────────────────
 
-    public async Task<(string OPDBillNo, string TokenNo, int NewOPDServiceId)>
+    public async Task<(string OPDBillNo, string? TokenNo, int NewOPDServiceId)>
         CreateServiceBookingOnlyAsync(PatientOPDService bill, string lineItemsJson, int? userId)
     {
         using var con = db.CreateConnection();
@@ -598,12 +600,18 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         await con.ExecuteAsync("dbo.usp_OPD_GetNextBillNo", bp, commandType: CommandType.StoredProcedure);
         var billNo = bp.Get<string>("@BillNo");
 
-        // 2. Get next token number
-        var tp = new DynamicParameters();
-        tp.Add("@BranchId", bill.BranchId);
-        tp.Add("@TokenNo",  dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
-        await con.ExecuteAsync("dbo.usp_OPD_GetNextTokenNo", tp, commandType: CommandType.StoredProcedure);
-        var tokenNo = tp.Get<string>("@TokenNo");
+        // 2. Token is NOT generated at booking time — it is assigned after full payment.
+        //    Exception: zero-amount bills are auto-assigned a token immediately.
+        string? tokenNo = null;
+        if (bill.TotalAmount == 0)
+        {
+            var tp = new DynamicParameters();
+            tp.Add("@BranchId",  bill.BranchId);
+            tp.Add("@TokenDate", bill.VisitDate.Date, dbType: DbType.Date);
+            tp.Add("@TokenNo",   dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
+            await con.ExecuteAsync("dbo.usp_OPD_GetNextTokenNo", tp, commandType: CommandType.StoredProcedure);
+            tokenNo = tp.Get<string>("@TokenNo");
+        }
 
         // 3. Insert OPD service header
         var newSvcId = await con.ExecuteScalarAsync<int>(@"
