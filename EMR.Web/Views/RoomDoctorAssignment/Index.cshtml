@@ -1,0 +1,171 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.RoomDoctorAssignmentViewModel>
+@{
+    ViewData["Title"] = "Room Doctor Assignment";
+    var opdDoctors = ViewBag.OpdDoctors as IEnumerable<EMR.Web.Models.ViewModels.OPDDoctorOptionDto>;
+}
+@section HeadStyles {
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Room Doctor Assignment</h1>
+        <small class="text-muted">Map OPD Doctors to Consultation Rooms</small>
+    </div>
+</div>
+
+<div class="dashboard-panel table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Room Name</th>
+                <th>Floor</th>
+                <th>Assigned Doctors</th>
+                <th class="text-end">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{ int i = 1; }
+            @foreach (var room in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td class="fw-semibold">
+                        <i class="bi bi-door-open text-primary me-2"></i>@room.RoomName
+                    </td>
+                    <td>@room.FloorName</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(room.AssignedDoctors))
+                        {
+                            var docs = room.AssignedDoctors.Split(", ", StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var d in docs)
+                            {
+                                <span class="badge text-bg-info text-white me-1 mb-1"><i class="bi bi-person-fill me-1"></i>@d</span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted small fst-italic">None Assigned</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary fw-semibold"
+                                onclick="openAssignModal(@room.RoomId, '@Html.Raw(room.RoomName.Replace("'", "\\'"))')">
+                            <i class="bi bi-person-plus-fill me-1"></i>Assign Doctor
+                        </button>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-5">
+                        <i class="bi bi-door-closed fs-2 d-block mb-2 opacity-50"></i>
+                        No active rooms found.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@* Assign Doctor Modal *@
+<div class="modal fade" id="assignModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus-fill me-2"></i>Assign Doctor to <span id="lblRoomName"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="hdnRoomId" />
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Select OPD Doctor <span class="text-danger">*</span></label>
+                    <select id="ddlDoctor" class="form-select s2-modal" style="width:100%">
+                        <option value="">-- Select Doctor --</option>
+                        @if(opdDoctors != null)
+                        {
+                            foreach (var d in opdDoctors)
+                            {
+                                <option value="@d.DoctorId">@d.FullName (@d.SpecialityName)</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="btnSaveAssign">
+                    <i class="bi bi-check2-circle me-1"></i>Map Doctor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        const assignModal = new bootstrap.Modal(document.getElementById('assignModal'));
+
+        $(document).ready(function() {
+            $('.s2-modal').select2({
+                theme: 'bootstrap-5',
+                dropdownParent: $('#assignModal')
+            });
+        });
+
+        function openAssignModal(roomId, roomName) {
+            $('#hdnRoomId').val(roomId);
+            $('#lblRoomName').text(roomName);
+            $('#ddlDoctor').val('').trigger('change');
+            assignModal.show();
+        }
+
+        $('#btnSaveAssign').on('click', function() {
+            const roomId = $('#hdnRoomId').val();
+            const doctorId = $('#ddlDoctor').val();
+
+            if (!doctorId) {
+                Swal.fire({ icon: 'warning', title: 'Validation', text: 'Please select a doctor to assign.'});
+                return;
+            }
+
+            const btn = $(this);
+            const originalHtml = btn.html();
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Saving...');
+
+            $.ajax({
+                url: '@Url.Action("AssignDoctor", "RoomDoctorAssignment")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    RoomId: parseInt(roomId),
+                    DoctorId: parseInt(doctorId)
+                }),
+                headers: {
+                    'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+                },
+                success: function (res) {
+                    if (res.success) {
+                        assignModal.hide();
+                        Swal.fire({ icon: 'success', title: 'Mapped!', text: res.message, timer: 2000 }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        btn.prop('disabled', false).html(originalHtml);
+                        Swal.fire({ icon: 'error', title: 'Error', text: res.message || 'Failed to assign doctor.'});
+                    }
+                },
+                error: function (xhr) {
+                    btn.prop('disabled', false).html(originalHtml);
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Server error while assigning doctor.'});
+                }
+            });
+        });
+    </script>
+}

@@ -75,13 +75,15 @@ public class DoctorRoomsController(IDoctorRoomService doctorRoomService, IFloorS
         var entity = await doctorRoomService.GetByIdAsync(id, branchId.Value);
         if (entity is null) return NotFound();
 
-        return View(new DoctorRoomFormViewModel
+        var vm = new DoctorRoomFormViewModel
         {
             RoomId = entity.RoomId,
             RoomName = entity.RoomName,
             FloorId = entity.FloorId,
             IsActive = entity.IsActive
-        });
+        };
+        await PopulateFloors(vm);
+        return View(vm);
     }
 
     [HttpPost, ValidateAntiForgeryToken]

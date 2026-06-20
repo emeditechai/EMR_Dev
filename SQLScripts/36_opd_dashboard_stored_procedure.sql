@@ -89,6 +89,7 @@ BEGIN
         dsm.StartTime,
         dsm.EndTime,
         drm.RoomName,
+        fm.FloorName,
         (SELECT TOP 1 ds.SpecialityName 
          FROM dbo.DoctorSpecialityMaster ds 
          WHERE ds.SpecialityId = d.PrimarySpecialityId AND ds.IsActive = 1) AS Speciality,
@@ -115,7 +116,9 @@ BEGIN
            AND s.Status = 'Registered') AS PendingVisits
     FROM dbo.DoctorScheduleMaster dsm
     INNER JOIN dbo.DoctorMaster d ON dsm.DoctorId = d.DoctorId
-    LEFT JOIN dbo.DoctorRoomMaster drm ON dsm.RoomId = drm.RoomId
+    LEFT JOIN dbo.DoctorRoomMapping drmapping ON drmapping.DoctorId = d.DoctorId
+    LEFT JOIN dbo.DoctorRoomMaster drm ON drm.RoomId = drmapping.RoomId
+    LEFT JOIN dbo.FloorMaster fm ON fm.FloorId = drm.FloorId
     WHERE dsm.BranchId = @BranchId
       AND dsm.DayOfWeek = @DayOfWeek
       AND dsm.IsActive = 1

@@ -158,12 +158,15 @@
                                         <i class="bi bi-currency-rupee me-2"></i>Add Consulting Charges
                                     </button>
                                 </li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li>
-                                    <a class="dropdown-item fw-semibold text-info" asp-controller="DoctorSchedules" asp-action="Configure" asp-route-doctorId="@item.DoctorId">
-                                        <i class="bi bi-calendar-week me-2"></i>Configure Scheduler
-                                    </a>
-                                </li>
+                                @if (item.HasOPDDept)
+                                {
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <a class="dropdown-item fw-semibold text-info" asp-controller="DoctorSchedules" asp-action="Configure" asp-route-doctorId="@item.DoctorId">
+                                            <i class="bi bi-calendar-week me-2"></i>Configure Scheduler
+                                        </a>
+                                    </li>
+                                }
                             </ul>
                         </div>
                     </td>

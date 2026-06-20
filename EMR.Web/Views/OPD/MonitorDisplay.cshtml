@@ -1,5 +1,7 @@
 @{
     Layout = null;
+    var specialities = ViewBag.Specialities as IEnumerable<dynamic> ?? new List<dynamic>();
+    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)> ?? new List<(int, string, int?)>();
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -18,6 +20,11 @@
             overflow: hidden;
             margin: 0;
             padding: 0;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.dark-mode {
+            background-color: #0f172a;
+            color: #f8fafc;
         }
         .header-bar {
             background: #ffffff;
@@ -28,6 +35,12 @@
             align-items: center;
             border-bottom: 3px solid #2563eb;
             height: 80px;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        body.dark-mode .header-bar {
+            background: #1e293b;
+            border-bottom: 3px solid #3b82f6;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);
         }
         .header-title {
             font-weight: 800;
@@ -36,12 +49,38 @@
             margin: 0;
             letter-spacing: -1px;
         }
+        body.dark-mode .header-title {
+            color: #f8fafc;
+        }
         .clock {
             font-size: 2.5rem;
             font-weight: 800;
             color: #2563eb;
             font-variant-numeric: tabular-nums;
             letter-spacing: -1px;
+            display: flex;
+            align-items: center;
+        }
+        body.dark-mode .clock {
+            color: #60a5fa;
+        }
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 1.8rem;
+            cursor: pointer;
+            margin-right: 20px;
+            transition: color 0.2s;
+        }
+        .theme-toggle:hover {
+            color: #2563eb;
+        }
+        body.dark-mode .theme-toggle {
+            color: #cbd5e1;
+        }
+        body.dark-mode .theme-toggle:hover {
+            color: #60a5fa;
         }
         .container-fluid {
             padding: 2rem;
@@ -64,6 +103,12 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        body.dark-mode .doc-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
         }
 
         .doc-header {
@@ -74,16 +119,30 @@
             font-weight: 800;
             display: flex;
             align-items: center;
+            position: relative;
         }
         .doc-header i {
             margin-right: 1rem;
             opacity: 0.8;
+        }
+        .doc-speciality {
+            font-size: 1.1rem;
+            font-weight: 600;
+            opacity: 0.9;
+            background: rgba(255,255,255,0.2);
+            padding: 2px 10px;
+            border-radius: 20px;
+            margin-left: auto;
         }
 
         .doc-body {
             display: flex;
             flex-direction: row;
             background: #ffffff;
+            transition: background-color 0.3s;
+        }
+        body.dark-mode .doc-body {
+            background: #1e293b;
         }
 
         .consulting-section {
@@ -95,6 +154,11 @@
             flex-direction: column;
             justify-content: center;
             background: #f8fafc;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        body.dark-mode .consulting-section {
+            background: #0f172a;
+            border-right: 2px dashed #334155;
         }
 
         .status-label {
@@ -118,6 +182,9 @@
             margin-bottom: 0.5rem;
             letter-spacing: -2px;
         }
+        body.dark-mode .token-number {
+            color: #f8fafc;
+        }
 
         .token-number.active {
             color: #10b981;
@@ -133,13 +200,20 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        body.dark-mode .patient-name {
+            color: #94a3b8;
+        }
 
         .waiting-section {
-            width: 250px;
+            width: 300px;
             padding: 1.5rem;
             background: #ffffff;
             display: flex;
             flex-direction: column;
+            transition: background-color 0.3s;
+        }
+        body.dark-mode .waiting-section {
+            background: #1e293b;
         }
 
         .waiting-item {
@@ -151,12 +225,57 @@
             border-radius: 8px;
             margin-bottom: 0.8rem;
             border-left: 5px solid #f59e0b;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        body.dark-mode .waiting-item {
+            background: #334155;
+            border-left: 5px solid #d97706;
+        }
+
+        /* Highly highlighted next item */
+        .waiting-item.up-next-first {
+            background: #fffbeb;
+            border-left: 6px solid #f59e0b;
+            box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.2);
+            transform: scale(1.02);
+            padding: 1rem;
+        }
+        body.dark-mode .waiting-item.up-next-first {
+            background: rgba(245, 158, 11, 0.15);
+            border-left: 6px solid #fbbf24;
+            box-shadow: 0 4px 6px -1px rgba(251, 191, 36, 0.1);
+        }
+
+        .up-next-first .waiting-token {
+            font-size: 1.8rem;
+            color: #d97706;
+        }
+        body.dark-mode .up-next-first .waiting-token {
+            color: #fbbf24;
+        }
+        
+        .up-next-first-name {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #92400e;
+            margin-top: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+        body.dark-mode .up-next-first-name {
+            color: #fcd34d;
         }
 
         .waiting-token {
             font-size: 1.5rem;
             font-weight: 800;
             color: #1e293b;
+        }
+        body.dark-mode .waiting-token {
+            color: #f8fafc;
         }
 
         .waiting-time {
@@ -196,7 +315,12 @@
 <body>
     <div class="header-bar">
         <h1 class="header-title"><i class="bi bi-heart-pulse-fill text-danger me-3"></i>Clinic Live Display</h1>
-        <div class="clock" id="live-clock">00:00:00</div>
+        <div class="clock">
+            <button class="theme-toggle" id="theme-toggle" title="Toggle Dark Mode">
+                <i class="bi bi-moon-fill" id="theme-icon"></i>
+            </button>
+            <span id="live-clock">00:00:00</span>
+        </div>
     </div>
 
     <div class="container-fluid">
@@ -252,6 +376,20 @@
                 grouped[docName].push(item);
             });
 
+            // Map Specialities
+            const specMap = {};
+            @foreach(var spec in specialities) {
+                <text>specMap[@spec.SpecialityId] = '@Html.Raw(spec.SpecialityName.Replace("'", "\\'"))';</text>
+            }
+
+            // Map Doctors
+            const docSpecMap = {};
+            @foreach(var doc in doctors) {
+                if (doc.PrimarySpecialityId.HasValue) {
+                    <text>docSpecMap['@Html.Raw(doc.FullName.Replace("'", "\\'"))'] = specMap[@doc.PrimarySpecialityId.Value] || '';</text>
+                }
+            }
+
             let html = '';
 
             for (const [docName, tokens] of Object.entries(grouped)) {
@@ -262,11 +400,13 @@
                 waiting.sort((a, b) => a.opdServiceId - b.opdServiceId);
 
                 const activeToken = consulting.length > 0 ? consulting[0] : null;
+                const specName = docSpecMap[docName] || 'OPD';
 
                 html += `
                 <div class="doc-card">
                     <div class="doc-header">
                         <i class="bi bi-person-circle"></i> Dr. ${docName}
+                        <span class="doc-speciality">${specName}</span>
                     </div>
                     <div class="doc-body">
                         
@@ -284,9 +424,12 @@
                         <div class="waiting-section">
                             <div class="status-label"><i class="bi bi-list-ol me-2"></i>Up Next</div>
                             ${waiting.length > 0 
-                                ? waiting.slice(0, 4).map(w => `
-                                    <div class="waiting-item">
-                                        <span class="waiting-token">${w.tokenNo || 'N/A'}</span>
+                                ? waiting.slice(0, 4).map((w, index) => `
+                                    <div class="waiting-item ${index === 0 ? 'up-next-first' : ''}">
+                                        <div>
+                                            <span class="waiting-token">${w.tokenNo || 'N/A'}</span>
+                                            ${index === 0 ? `<span class="up-next-first-name">${w.patientName}</span>` : ''}
+                                        </div>
                                         <span class="waiting-time">${w.visitDate ? new Date(w.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
                                     </div>
                                 `).join('') 
@@ -304,6 +447,27 @@
         // Init and Poll every 5 seconds for snappier TV response
         fetchTokens();
         setInterval(fetchTokens, 5000);
+
+        // Dark Mode Toggle Logic
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        
+        // Check local storage for preference
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            themeIcon.classList.replace('bi-moon-fill', 'bi-sun-fill');
+        }
+
+        themeToggleBtn.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            if (document.body.classList.contains('dark-mode')) {
+                localStorage.setItem('theme', 'dark');
+                themeIcon.classList.replace('bi-moon-fill', 'bi-sun-fill');
+            } else {
+                localStorage.setItem('theme', 'light');
+                themeIcon.classList.replace('bi-sun-fill', 'bi-moon-fill');
+            }
+        });
 
     </script>
 </body>

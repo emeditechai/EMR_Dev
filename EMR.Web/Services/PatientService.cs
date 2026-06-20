@@ -365,11 +365,11 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── OPD Doctors ─────────────────────────────────────────────────────────
 
-    public async Task<IEnumerable<(int DoctorId, string FullName)>> GetOpdDoctorsAsync(int? branchId, int? departmentId = null, int? specialityId = null)
+    public async Task<IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)>> GetOpdDoctorsAsync(int? branchId, int? departmentId = null, int? specialityId = null)
     {
         using var con = db.CreateConnection();
         var rows = await con.QueryAsync(@"
-            SELECT DISTINCT d.DoctorId, d.FullName
+            SELECT DISTINCT d.DoctorId, d.FullName, d.PrimarySpecialityId
             FROM DoctorMaster d
             LEFT JOIN DoctorDepartmentMap ddm ON ddm.DoctorId = d.DoctorId AND ddm.IsActive = 1
             INNER JOIN DepartmentMaster    dm  ON dm.DeptId    = ddm.DeptId  AND dm.DeptType = 'OPD' AND dm.IsActive = 1
@@ -381,7 +381,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             ORDER BY d.FullName",
             new { BranchId = branchId, DepartmentId = departmentId, SpecialityId = specialityId });
 
-        return rows.Select(r => ((int)r.DoctorId, (string)r.FullName));
+        return rows.Select(r => ((int)r.DoctorId, (string)r.FullName, (int?)r.PrimarySpecialityId));
     }
 
     public async Task<IEnumerable<(int DeptId, string DeptName)>> GetOpdDepartmentsAsync()

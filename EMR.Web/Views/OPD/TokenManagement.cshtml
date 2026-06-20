@@ -1,6 +1,11 @@
 @{
     ViewData["Title"] = "Token Management";
+    var specialities = ViewBag.Specialities as IEnumerable<dynamic> ?? new List<dynamic>();
+    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)> ?? new List<(int, string, int?)>();
 }
+
+<!-- Bootstrap Select CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css">
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -18,6 +23,33 @@
         </div>
     </div>
 
+    <!-- Filters -->
+    <div class="card shadow-sm border-0 mb-4 rounded-3">
+        <div class="card-body bg-light rounded-3 d-flex gap-3 align-items-center">
+            <h6 class="mb-0 text-muted me-2"><i class="bi bi-funnel"></i> Filters:</h6>
+            
+            <div style="width: 250px;">
+                <select id="ddlSpeciality" class="selectpicker form-control" multiple data-live-search="true" data-selected-text-format="count > 2" title="Select Specialities" data-actions-box="true">
+                    @foreach (var spec in specialities)
+                    {
+                        <option value="@spec.SpecialityId">@spec.SpecialityName</option>
+                    }
+                </select>
+            </div>
+
+            <div style="width: 250px;">
+                <select id="ddlDoctor" class="selectpicker form-control" multiple data-live-search="true" data-selected-text-format="count > 2" title="Select Doctors" data-actions-box="true">
+                    @foreach (var doc in doctors)
+                    {
+                        <option value="@doc.DoctorId" data-spec="@doc.PrimarySpecialityId">@doc.FullName</option>
+                    }
+                </select>
+            </div>
+            
+            <button class="btn btn-outline-secondary btn-sm ms-auto" onclick="resetFilters()">Reset</button>
+        </div>
+    </div>
+
     <!-- Container for dynamic Doctor-wise boards -->
     <div id="doctor-boards-container">
         <div class="text-center text-muted mt-5">
@@ -28,6 +60,9 @@
 </div>
 
 @section Scripts {
+    <!-- Bootstrap Select JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
+
     <style>
         .doctor-board {
             background: #fff;
@@ -83,10 +118,43 @@
     </style>
 
     <script>
+        let allTodayTokens = [];
+
         document.addEventListener('DOMContentLoaded', () => {
+
             fetchTokens();
             setInterval(fetchTokens, 30000); // 30 sec refresh
+
+            // Speciality filter change
+            $('#ddlSpeciality').on('change', function() {
+                const selectedSpecs = $(this).val() || [];
+                
+                // Filter doctor dropdown
+                $('#ddlDoctor option').each(function() {
+                    if (selectedSpecs.length === 0 || selectedSpecs.includes($(this).data('spec').toString())) {
+                        $(this).prop('hidden', false);
+                    } else {
+                        $(this).prop('hidden', true);
+                        $(this).prop('selected', false);
+                    }
+                });
+                $('#ddlDoctor').selectpicker('refresh');
+                applyFiltersAndRender();
+            });
+
+            // Doctor filter change
+            $('#ddlDoctor').on('change', function() {
+                applyFiltersAndRender();
+            });
         });
+
+        function resetFilters() {
+            $('#ddlSpeciality').selectpicker('deselectAll');
+            $('#ddlDoctor').selectpicker('deselectAll');
+            $('#ddlDoctor option').prop('hidden', false);
+            $('#ddlDoctor').selectpicker('refresh');
+            applyFiltersAndRender();
+        }
 
         async function fetchTokens() {
             try {
@@ -95,7 +163,8 @@
                 
                 const json = await res.json();
                 if (json.isSuccess) {
-                    renderTokensByDoctor(json.data.items || []);
+                    allTodayTokens = json.data.items || [];
+                    applyFiltersAndRender();
                 } else {
                     console.error(json.message);
                 }
@@ -104,6 +173,21 @@
                 document.getElementById('doctor-boards-container').innerHTML = 
                     '<div class="alert alert-danger">Failed to load tokens. Please check your connection.</div>';
             }
+        }
+
+        function applyFiltersAndRender() {
+            // Get selected doctors' text names to match against token consultingDoctorName
+            const selectedDocs = [];
+            $('#ddlDoctor option:selected').each(function() {
+                selectedDocs.push($(this).text().trim());
+            });
+
+            let filtered = allTodayTokens;
+            if (selectedDocs.length > 0) {
+                filtered = filtered.filter(t => selectedDocs.includes((t.consultingDoctorName || 'General OPD').trim()));
+            }
+
+            renderTokensByDoctor(filtered);
         }
 
         function renderTokensByDoctor(items) {

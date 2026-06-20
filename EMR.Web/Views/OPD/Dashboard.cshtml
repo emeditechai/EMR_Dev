@@ -455,7 +455,13 @@
                                         </div>
                                         
                                         <div class="mt-2 d-flex justify-content-between align-items-center text-muted small" style="font-size:0.78rem">
-                                            <span>Room: <strong class="text-dark">@(doc.RoomName ?? "—")</strong></span>
+                                            <span>
+                                                Room: <strong class="text-dark">@(doc.RoomName ?? "—")</strong>
+                                                @if (!string.IsNullOrWhiteSpace(doc.RoomName) && !string.IsNullOrWhiteSpace(doc.FloorName))
+                                                {
+                                                    <span class="text-muted ms-1">(@doc.FloorName)</span>
+                                                }
+                                            </span>
                                             <span>Completed: <strong>@doc.CompletedVisits / @doc.TotalVisits</strong></span>
                                         </div>
 

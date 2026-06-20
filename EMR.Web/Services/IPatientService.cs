@@ -49,7 +49,7 @@ public interface IPatientService
     Task<PatientOPDService?> GetLatestOPDServiceAsync(int patientId);
 
     /// <summary>Returns OPD doctors (Doctor with at least one OPD department).</summary>
-    Task<IEnumerable<(int DoctorId, string FullName)>> GetOpdDoctorsAsync(int? branchId, int? departmentId = null, int? specialityId = null);
+    Task<IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)>> GetOpdDoctorsAsync(int? branchId, int? departmentId = null, int? specialityId = null);
 
     /// <summary>Returns OPD Departments (Specialties).</summary>
     Task<IEnumerable<(int DeptId, string DeptName)>> GetOpdDepartmentsAsync();

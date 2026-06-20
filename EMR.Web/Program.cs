@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +33,7 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
 builder.Services.AddScoped<IFloorService, FloorService>();
 builder.Services.AddScoped<IDoctorRoomService, DoctorRoomService>();
+builder.Services.AddScoped<IRoomDoctorAssignmentService, RoomDoctorAssignmentService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IDoctorConsultingFeeService, DoctorConsultingFeeService>();
 
@@ -66,13 +68,19 @@ builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>
 
 builder.Services.AddHttpContextAccessor();
 
+
+// Persist Data Protection keys to prevent random logouts on app recycle
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys")))
+    .SetApplicationName("EMR_Web_App");
+
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/Login";
         options.SlidingExpiration = true;
-        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.ExpireTimeSpan = TimeSpan.FromHours(1); // Auto logout if idle for 1 hour
     });
 
 builder.Services.AddAuthorization();

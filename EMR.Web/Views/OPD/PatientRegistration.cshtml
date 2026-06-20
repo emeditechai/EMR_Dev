@@ -365,9 +365,10 @@
                     <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
                 </div>
                 <div class="col-3 col-sm-3 col-md-1">
-                    <label class="form-label fw-semibold small">Age</label>
+                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span></label>
                     <input type="number" id="AgeDisplay" class="form-control" min="0" max="150"
-                           placeholder="Yrs" title="Enter age to auto-fill DOB (approx.)" />
+                           placeholder="Yrs" title="Enter age to auto-fill DOB (approx.)" required />
+                    <div class="invalid-feedback small">Age required</div>
                 </div>
             </div>
 
@@ -965,6 +966,21 @@
         $('.s2-basic').select2({ ...commonOpts, minimumResultsForSearch: Infinity });
 
         $('.s2-search').select2({ ...commonOpts, minimumResultsForSearch: 1 });
+
+        // Fix for Select2 search field losing keyboard focus in Bootstrap 5
+        $(document).on('select2:open', function(e) {
+            window.setTimeout(function () {
+                document.querySelector('.select2-search__field')?.focus();
+            }, 50);
+        });
+        
+        // Fix for Select2 keyboard navigation on basic dropdowns (without search box)
+        $(document).on('keydown', '.select2-selection', function (e) {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                $(this).closest('.select2').siblings('select').select2('open');
+            }
+        });
 
         // ── Success modal ─────────────────────────────────────────────────────
         @if (registered && !string.IsNullOrEmpty(newCode))
@@ -1678,6 +1694,20 @@
                     this.classList.add('was-validated');
                     return;
                 }
+            }
+            
+            // Age/DOB Client-side Validation
+            var ageDisplay = document.getElementById('AgeDisplay');
+            var dob = document.getElementById('DateOfBirth');
+            if (ageDisplay && !ageDisplay.value && (!dob || !dob.value)) {
+                e.preventDefault();
+                e.stopPropagation();
+                ageDisplay.classList.add('is-invalid');
+                ageDisplay.focus();
+                this.classList.add('was-validated');
+                return;
+            } else if (ageDisplay) {
+                ageDisplay.classList.remove('is-invalid');
             }
             if (!this.checkValidity()) {
                 e.preventDefault();

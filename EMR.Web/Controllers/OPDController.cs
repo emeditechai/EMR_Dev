@@ -28,6 +28,7 @@ public class OPDController(
     IAuditLogService auditLogService,
     IPaymentService paymentService,
     IDoctorScheduleApiClient scheduleApiClient,
+    IDoctorSpecialityService specialityService,
     ApplicationDbContext dbContext,
     IWebHostEnvironment env) : Controller
 {
@@ -323,14 +324,40 @@ public class OPDController(
     // ─── Token Management ───────────────────────────────────────────────────────
     
     [HttpGet]
-    public IActionResult TokenManagement()
+    public async Task<IActionResult> TokenManagement()
     {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId == null)
+        {
+            return RedirectToAction("SelectBranch", "Account");
+        }
+
+        // Get all active OPD doctors for the branch
+        var doctors = await patientService.GetOpdDoctorsAsync(branchId.Value);
+        ViewBag.Doctors = doctors;
+
+        // Get all active specialities
+        var specialities = await specialityService.GetActiveAsync();
+        ViewBag.Specialities = specialities;
+
         return View();
     }
 
     [HttpGet]
-    public IActionResult MonitorDisplay()
+    public async Task<IActionResult> MonitorDisplay()
     {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId == null)
+        {
+            return RedirectToAction("SelectBranch", "Account");
+        }
+
+        var doctors = await patientService.GetOpdDoctorsAsync(branchId.Value);
+        ViewBag.Doctors = doctors;
+
+        var specialities = await specialityService.GetActiveAsync();
+        ViewBag.Specialities = specialities;
+
         return View();
     }
 

@@ -45,6 +45,7 @@ public class OpdDoctorRosterSummary
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
     public string? RoomName { get; set; }
+    public string? FloorName { get; set; }
     public string? Speciality { get; set; }
     public int TotalVisits { get; set; }
     public int CompletedVisits { get; set; }

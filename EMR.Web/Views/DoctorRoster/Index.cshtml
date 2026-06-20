@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Doctor Roster";
-    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName)>;
+    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)>;
 }
 
 @section HeadStyles {
@@ -710,9 +710,10 @@
                 try {
                     const resp = await fetch(`@Url.Action("GetDateBookings", "DoctorRoster")?doctorId=${doctorId}&date=${ds}`);
                     const data = await resp.json();
-                    const bookings = data.bookings || [];
-                    tooltipCache[cacheKey] = bookings;
-                    bookingCountCache[cacheKey] = bookings.length;
+                    const rawBookings = data.bookings || [];
+                    const activeBookings = rawBookings.filter(b => (b.status || '') !== 'Completed');
+                    tooltipCache[cacheKey] = activeBookings;
+                    bookingCountCache[cacheKey] = activeBookings.length;
                 } catch { bookingCountCache[cacheKey] = 0; }
             }));
         }
@@ -992,8 +993,12 @@
             try {
                 const resp = await fetch(`@Url.Action("GetDateBookings", "DoctorRoster")?doctorId=${doctorId}&date=${dateStr}`);
                 const data = await resp.json();
-                tooltipCache[cacheKey]      = data.bookings || [];
-                bookingCountCache[cacheKey] = (data.bookings || []).length;
+                
+                // Filter out Completed bookings
+                const activeBookings = (data.bookings || []).filter(b => (b.status || '') !== 'Completed');
+                
+                tooltipCache[cacheKey]      = activeBookings;
+                bookingCountCache[cacheKey] = activeBookings.length;
                 renderTooltipData(tooltipCache[cacheKey]);
             } catch {
                 rtBody.innerHTML = '<div class="rt-empty text-danger"><i class="bi bi-exclamation-circle me-1"></i>Failed to load</div>';
