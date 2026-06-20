@@ -827,6 +827,22 @@
             if (event.extendedProps.isException) return;
 
             const props      = event.extendedProps;
+
+            // Validation: Cannot book for past dates
+            const clickedDate = new Date(props.date + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            if (clickedDate < today) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Past Date',
+                    text: 'New bookings cannot be created for past dates.',
+                    confirmButtonColor: '#667eea'
+                });
+                return;
+            }
+
             const doctorName = props.doctorName || $('#ddlDoctor option:selected').text();
 
             $('#lblDoctorName').text(doctorName);
@@ -953,10 +969,21 @@
             rtCount.textContent = 'Loading…';
             rtBody.innerHTML    = '<div class="rt-empty"><div class="spinner-border spinner-border-sm me-2" style="color:#667eea"></div>Loading…</div>';
             rtFooter.innerHTML  = '';
-            // Show Book Now button (disabled while loading)
-            rtBookBtn.style.display = '';
-            rtBookBtn.disabled = true;
-            rtBookBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading…';
+            
+            // Validation: Check if past date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const isPast = dateObj < today;
+
+            if (isPast) {
+                rtBookBtn.style.display = 'none';
+            } else {
+                // Show Book Now button (disabled while loading)
+                rtBookBtn.style.display = '';
+                rtBookBtn.disabled = true;
+                rtBookBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading…';
+            }
+            
             tooltip.classList.add('show');
 
             const cacheKey = `${doctorId}_${dateStr}`;
@@ -1011,9 +1038,12 @@
             rtFooter.innerHTML = `
                 <span><i class="bi bi-people me-1"></i>${count} patient${count > 1 ? 's' : ''}</span>
                 <span class="fw-semibold" style="color:#667eea">₹${total.toFixed(2)}</span>`;
-            // Enable Book Now button
-            rtBookBtn.disabled = false;
-            rtBookBtn.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Book Now';
+            
+            // Enable Book Now button if not past
+            if (rtBookBtn.style.display !== 'none') {
+                rtBookBtn.disabled = false;
+                rtBookBtn.innerHTML = '<i class="bi bi-lightning-charge-fill"></i> Book Now';
+            }
         }
 
         function formatTime(ts) {

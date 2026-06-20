@@ -31,4 +31,13 @@ public class ServiceBookingApiClient(IHttpClientFactory factory) : IServiceBooki
             .GetFromJsonAsync<ApiResponse<ServiceBookingDetail>>($"api/servicebookings/{opdServiceId}");
         return response?.Data;
     }
+
+    public async Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId)
+    {
+        var response = await _http.PutAsync($"api/servicebookings/{opdServiceId}/status?status={HttpUtility.UrlEncode(status)}&userId={userId}", null);
+        if (!response.IsSuccessStatusCode) return false;
+        
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<bool>>();
+        return result?.Data ?? false;
+    }
 }

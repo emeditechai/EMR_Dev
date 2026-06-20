@@ -9,4 +9,5 @@ public interface IServiceBookingApiClient
         int page, int pageSize, string? search);
 
     Task<ServiceBookingDetail?> GetByIdAsync(int opdServiceId);
+    Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId);
 }

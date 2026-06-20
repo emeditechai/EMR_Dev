@@ -320,7 +320,45 @@ public class OPDController(
         return RedirectToAction(nameof(Index));
     }
 
-    // ─── Service Booking List ──────────────────────────────────────────────────
+    // ─── Token Management ───────────────────────────────────────────────────────
+    
+    [HttpGet]
+    public IActionResult TokenManagement()
+    {
+        return View();
+    }
+
+    [HttpGet]
+    public IActionResult MonitorDisplay()
+    {
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTodayTokens()
+    {
+        var branchId = User.GetCurrentBranchId();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var result = await serviceBookingApiClient.GetPagedAsync(branchId, today, today, 1, 200, null);
+        return Json(new { isSuccess = true, data = result });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> UpdateTokenStatus([FromBody] UpdateStatusRequest req)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.Status) || req.Id <= 0)
+            return Json(new { isSuccess = false, message = "Invalid request." });
+
+        var userId = User.GetUserId();
+        var success = await serviceBookingApiClient.UpdateStatusAsync(req.Id, req.Status, userId);
+        return Json(new { isSuccess = success, message = success ? "Success" : "Failed to update." });
+    }
+
+    public class UpdateStatusRequest
+    {
+        public int Id { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
 
     [HttpGet]
     public async Task<IActionResult> ServiceBooking(

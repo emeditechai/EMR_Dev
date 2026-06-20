@@ -55,4 +55,16 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
         header.Items = (await multi.ReadAsync<ServiceBookingDetailItem>()).ToList();
         return header;
     }
+
+    // ─── Update Status ────────────────────────────────────────────────────────
+    public async Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId)
+    {
+        using var con = db.CreateConnection();
+        var rowsAffected = await con.ExecuteAsync(
+            "usp_Api_ServiceBooking_UpdateStatus",
+            new { OPDServiceId = opdServiceId, Status = status, UserId = userId },
+            commandType: System.Data.CommandType.StoredProcedure);
+        
+        return rowsAffected > 0;
+    }
 }

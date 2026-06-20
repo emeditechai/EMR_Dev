@@ -38,4 +38,18 @@ public class ServiceBookingsController(IServiceBookingService svc) : ControllerB
 
         return Ok(ApiResponse<ServiceBookingDetail>.Ok(detail));
     }
+
+    // PUT /api/servicebookings/{id}/status?status=Completed&userId=1
+    [HttpPut("{id:int}/status")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromQuery] string status, [FromQuery] int userId = 0)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            return BadRequest(ApiResponse<bool>.Fail("Status is required."));
+
+        var success = await svc.UpdateStatusAsync(id, status, userId);
+        if (!success)
+            return NotFound(ApiResponse<bool>.Fail($"Service booking {id} not found or update failed."));
+
+        return Ok(ApiResponse<bool>.Ok(true, "Status updated successfully."));
+    }
 }

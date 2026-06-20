@@ -1,0 +1,310 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OPD Token Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f4f8; /* Soft light blue/grey background */
+            color: #1e293b;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        .header-bar {
+            background: #ffffff;
+            padding: 1rem 2.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #2563eb;
+            height: 80px;
+        }
+        .header-title {
+            font-weight: 800;
+            font-size: 2.2rem;
+            color: #1e293b;
+            margin: 0;
+            letter-spacing: -1px;
+        }
+        .clock {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #2563eb;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -1px;
+        }
+        .container-fluid {
+            padding: 2rem;
+            height: calc(100vh - 80px - 60px); /* subtract header and footer */
+            overflow-y: auto;
+        }
+        
+        /* Grid Layout for Doctors */
+        .board-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+            gap: 2rem;
+        }
+
+        .doc-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .doc-header {
+            background: linear-gradient(90deg, #1e40af, #3b82f6);
+            color: #ffffff;
+            padding: 1.2rem 2rem;
+            font-size: 2rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+        }
+        .doc-header i {
+            margin-right: 1rem;
+            opacity: 0.8;
+        }
+
+        .doc-body {
+            display: flex;
+            flex-direction: row;
+            background: #ffffff;
+        }
+
+        .consulting-section {
+            flex: 1;
+            padding: 2rem;
+            text-align: center;
+            border-right: 2px dashed #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: #f8fafc;
+        }
+
+        .status-label {
+            font-size: 1.3rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+
+        .consulting-label {
+            color: #10b981;
+        }
+
+        .token-number {
+            font-size: 5.5rem;
+            font-weight: 900;
+            color: #0f172a;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+            letter-spacing: -2px;
+        }
+
+        .token-number.active {
+            color: #10b981;
+            text-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+            animation: pulse-color 2s infinite;
+        }
+
+        .patient-name {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #475569;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .waiting-section {
+            width: 250px;
+            padding: 1.5rem;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .waiting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.8rem 1rem;
+            background: #f1f5f9;
+            border-radius: 8px;
+            margin-bottom: 0.8rem;
+            border-left: 5px solid #f59e0b;
+        }
+
+        .waiting-token {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #1e293b;
+        }
+
+        .waiting-time {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .marquee-container {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 60px;
+            display: flex;
+            align-items: center;
+        }
+
+        @@keyframes pulse-color {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .empty-state {
+            color: #cbd5e1;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <h1 class="header-title"><i class="bi bi-heart-pulse-fill text-danger me-3"></i>Clinic Live Display</h1>
+        <div class="clock" id="live-clock">00:00:00</div>
+    </div>
+
+    <div class="container-fluid">
+        <div class="board-container" id="board-container">
+            <!-- Dynamic Content -->
+            <div class="col-12 text-center mt-5 w-100" style="grid-column: 1 / -1;">
+                <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status"></div>
+                <h3 class="mt-4 fw-bold text-secondary">Loading Live Queue...</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="marquee-container">
+        <marquee behavior="scroll" direction="left" scrollamount="10">
+            Welcome to the Clinic. Please wait for your token number to be displayed on the screen. Maintain silence in the waiting area.
+        </marquee>
+    </div>
+
+    <script>
+        // Update Clock
+        setInterval(() => {
+            document.getElementById('live-clock').innerText = new Date().toLocaleTimeString([], { hour12: true });
+        }, 1000);
+
+        // Fetch Data
+        async function fetchTokens() {
+            try {
+                const res = await fetch('/OPD/GetTodayTokens');
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.isSuccess) {
+                        renderBoards(json.data.items || []);
+                    }
+                }
+            } catch (err) {
+                console.error("Monitor fetch error", err);
+            }
+        }
+
+        function renderBoards(items) {
+            const container = document.getElementById('board-container');
+            
+            if (!items.length) {
+                container.innerHTML = `<div class="text-center mt-5 w-100" style="grid-column: 1 / -1;"><h1 class="text-muted fw-bold">No Active Tokens Today</h1></div>`;
+                return;
+            }
+
+            // Group by Doctor Name
+            const grouped = {};
+            items.forEach(item => {
+                const docName = item.consultingDoctorName || 'General OPD';
+                if (!grouped[docName]) grouped[docName] = [];
+                grouped[docName].push(item);
+            });
+
+            let html = '';
+
+            for (const [docName, tokens] of Object.entries(grouped)) {
+                let consulting = tokens.filter(t => (t.status || '').toLowerCase() === 'consulting');
+                let waiting = tokens.filter(t => (t.status || '').toLowerCase() === 'registered');
+
+                // Sort waiting by OPDServiceId
+                waiting.sort((a, b) => a.opdServiceId - b.opdServiceId);
+
+                const activeToken = consulting.length > 0 ? consulting[0] : null;
+
+                html += `
+                <div class="doc-card">
+                    <div class="doc-header">
+                        <i class="bi bi-person-circle"></i> Dr. ${docName}
+                    </div>
+                    <div class="doc-body">
+                        
+                        <!-- Consulting Section -->
+                        <div class="consulting-section">
+                            <div class="status-label consulting-label"><i class="bi bi-broadcast me-2"></i>Now Consulting</div>
+                            ${activeToken 
+                                ? `<div class="token-number active">${activeToken.tokenNo || 'N/A'}</div>
+                                   <div class="patient-name">${activeToken.patientName}</div>`
+                                : `<div class="empty-state">WAITING...</div>`
+                            }
+                        </div>
+
+                        <!-- Waiting Section -->
+                        <div class="waiting-section">
+                            <div class="status-label"><i class="bi bi-list-ol me-2"></i>Up Next</div>
+                            ${waiting.length > 0 
+                                ? waiting.slice(0, 4).map(w => `
+                                    <div class="waiting-item">
+                                        <span class="waiting-token">${w.tokenNo || 'N/A'}</span>
+                                        <span class="waiting-time">${w.visitDate ? new Date(w.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                                    </div>
+                                `).join('') 
+                                : '<div class="text-center text-muted fw-bold mt-4">Empty Queue</div>'
+                            }
+                        </div>
+
+                    </div>
+                </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Init and Poll every 5 seconds for snappier TV response
+        fetchTokens();
+        setInterval(fetchTokens, 5000);
+
+    </script>
+</body>
+</html>

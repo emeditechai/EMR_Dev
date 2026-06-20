@@ -1,0 +1,258 @@
+@{
+    ViewData["Title"] = "Token Management";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-display me-2"></i>Token Management</h4>
+            <p class="text-muted small mb-0">Live Queue & Status Dashboard</p>
+        </div>
+        <div>
+            <a href="@Url.Action("MonitorDisplay", "OPD")" target="_blank" class="btn btn-dark shadow-sm me-2">
+                <i class="bi bi-tv me-1"></i> Open Monitor
+            </a>
+            <button class="btn btn-primary shadow-sm" onclick="fetchTokens()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh Queue
+            </button>
+        </div>
+    </div>
+
+    <!-- Container for dynamic Doctor-wise boards -->
+    <div id="doctor-boards-container">
+        <div class="text-center text-muted mt-5">
+            <i class="spinner-border text-primary"></i>
+            <p class="mt-2">Loading Token Queues...</p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <style>
+        .doctor-board {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+            overflow: hidden;
+            border: 1px solid #f0f0f0;
+        }
+        .doctor-board-header {
+            background: linear-gradient(135deg, var(--bs-primary), #6610f2);
+            color: #fff;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+        .doctor-board-header i {
+            font-size: 1.5rem;
+            margin-right: 1rem;
+            background: rgba(255,255,255,0.2);
+            padding: 0.5rem;
+            border-radius: 8px;
+        }
+        .board-col {
+            min-height: 250px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding: 1rem;
+            background: #f8f9fa;
+        }
+        .board-col-header {
+            padding: 0.75rem 1rem;
+            font-weight: bold;
+            background: #fff;
+            border-bottom: 2px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .token-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            border: 1px solid #eee;
+            transition: transform 0.2s;
+        }
+        .token-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchTokens();
+            setInterval(fetchTokens, 30000); // 30 sec refresh
+        });
+
+        async function fetchTokens() {
+            try {
+                const res = await fetch('/OPD/GetTodayTokens');
+                if (!res.ok) throw new Error('Failed to fetch tokens');
+                
+                const json = await res.json();
+                if (json.isSuccess) {
+                    renderTokensByDoctor(json.data.items || []);
+                } else {
+                    console.error(json.message);
+                }
+            } catch (err) {
+                console.error('Error fetching tokens:', err);
+                document.getElementById('doctor-boards-container').innerHTML = 
+                    '<div class="alert alert-danger">Failed to load tokens. Please check your connection.</div>';
+            }
+        }
+
+        function renderTokensByDoctor(items) {
+            const container = document.getElementById('doctor-boards-container');
+            
+            if (!items || items.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-5 bg-light rounded-3 border border-dashed">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3 text-muted">No Tokens Generated Today</h5>
+                    </div>`;
+                return;
+            }
+
+            // Group by Doctor Name
+            const grouped = {};
+            items.forEach(item => {
+                const docName = item.consultingDoctorName || 'General OPD';
+                if (!grouped[docName]) {
+                    grouped[docName] = [];
+                }
+                grouped[docName].push(item);
+            });
+
+            let html = '';
+            
+            // Generate a Board for each Doctor
+            for (const [docName, tokens] of Object.entries(grouped)) {
+                
+                let waiting = [], consulting = [], completed = [];
+                tokens.forEach(t => {
+                    const st = (t.status || 'Registered').toLowerCase();
+                    if (st === 'registered') waiting.push(t);
+                    else if (st === 'consulting') consulting.push(t);
+                    else if (st === 'completed') completed.push(t);
+                });
+
+                html += `
+                <div class="doctor-board">
+                    <div class="doctor-board-header">
+                        <i class="bi bi-person-badge"></i>
+                        <div>
+                            <h5 class="mb-0 fw-bold">${docName}</h5>
+                            <span class="small text-white-50">Total Tokens Today: ${tokens.length}</span>
+                        </div>
+                    </div>
+                    <div class="row g-0">
+                        <div class="col-md-4 border-end">
+                            <div class="board-col-header text-warning">
+                                <span><i class="bi bi-hourglass-split me-2"></i>Waiting</span>
+                                <span class="badge bg-warning text-dark rounded-pill">${waiting.length}</span>
+                            </div>
+                            <div class="board-col">
+                                ${waiting.length > 0 ? waiting.map(buildTokenCard).join('') : '<div class="text-center text-muted small mt-3">No waiting patients</div>'}
+                            </div>
+                        </div>
+                        <div class="col-md-4 border-end">
+                            <div class="board-col-header text-primary">
+                                <span><i class="bi bi-heart-pulse-fill me-2"></i>Consulting</span>
+                                <span class="badge bg-primary rounded-pill">${consulting.length}</span>
+                            </div>
+                            <div class="board-col">
+                                ${consulting.length > 0 ? consulting.map(buildTokenCard).join('') : '<div class="text-center text-muted small mt-3">No active consultations</div>'}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="board-col-header text-success">
+                                <span><i class="bi bi-check-circle-fill me-2"></i>Completed</span>
+                                <span class="badge bg-success rounded-pill">${completed.length}</span>
+                            </div>
+                            <div class="board-col">
+                                ${completed.length > 0 ? completed.map(buildTokenCard).join('') : '<div class="text-center text-muted small mt-3">No completed tokens</div>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function buildTokenCard(item) {
+            const tokenNo = item.tokenNo || 'N/A';
+            const status = (item.status || 'Registered').toLowerCase();
+            
+            let actionHtml = '';
+            if (status === 'registered') {
+                actionHtml = `<button class="btn btn-sm btn-outline-primary w-100 mt-3 rounded-pill fw-bold" onclick="updateStatus(${item.opdServiceId}, 'Consulting')"><i class="bi bi-megaphone me-1"></i> Call Patient</button>`;
+            } else if (status === 'consulting') {
+                actionHtml = `<button class="btn btn-sm btn-success w-100 mt-3 rounded-pill fw-bold" onclick="updateStatus(${item.opdServiceId}, 'Completed')"><i class="bi bi-check2-all me-1"></i> Complete</button>`;
+            }
+
+            // Time/Slot formatting
+            const timeStr = item.visitDate ? new Date(item.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+
+            let borderColor = status === 'registered' ? '#ffc107' : status === 'consulting' ? '#0d6efd' : '#198754';
+
+            return `
+                <div class="token-card" style="border-left: 4px solid ${borderColor};">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge bg-dark fs-6 shadow-sm px-3 py-2">${tokenNo}</span>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-clock me-1"></i>${timeStr}</span>
+                    </div>
+                    <h6 class="fw-bold mb-1 text-dark">${item.patientName}</h6>
+                    <div class="text-muted small">
+                        <i class="bi bi-person me-1"></i>${item.gender || '-'}, ${item.age || '-'} Yrs
+                    </div>
+                    ${actionHtml}
+                </div>
+            `;
+        }
+
+        async function updateStatus(id, newStatus) {
+            try {
+                const res = await fetch('/OPD/UpdateTokenStatus', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, status: newStatus })
+                });
+                
+                const json = await res.json();
+                if (json.isSuccess) {
+                    // Optional: show a small toast for success
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Status updated',
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+                    fetchTokens();
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Update Failed',
+                        text: json.message || 'An unknown error occurred while updating the token status.',
+                        confirmButtonColor: '#d33'
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'Failed to communicate with the server. Please check your connection.',
+                    confirmButtonColor: '#d33'
+                });
+            }
+        }
+    </script>
+}
