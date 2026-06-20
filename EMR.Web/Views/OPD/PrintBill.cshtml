@@ -580,7 +580,7 @@
 
         @* ── Bill Footer ── *@
         <div class="bill-footer">
-            <span>Generated: @Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+            <span>Generated: @Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt") @(string.IsNullOrWhiteSpace(Model.CreatedByUser) ? "" : $"| Created By: {Model.CreatedByUser}")</span>
             <span>Powered by EMR System</span>
             <span>@hospName</span>
         </div>

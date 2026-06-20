@@ -633,8 +633,14 @@
             <div class="fw-semibold mb-2 text-secondary" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em">
                 <i class="bi bi-cash-stack me-1"></i>Payment Summary
             </div>
-            <div class="d-flex flex-wrap gap-2 mb-2">
-                <div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+            <div class="d-flex flex-wrap gap-2 mb-2">`;
+        if (pay.existingHeaderDiscountAmount > 0) {
+            html += `<div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
+                    <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Discount</div>
+                    <div class="fw-bold font-monospace text-danger">${fmtAmt(pay.existingHeaderDiscountAmount)}</div>
+                </div>`;
+        }
+        html += `<div class="border rounded px-3 py-1 text-center flex-fill" style="background:#fff">
                     <div style="font-size:.62rem;color:#adb5bd;font-weight:700;text-transform:uppercase">Net Payable</div>
                     <div class="fw-bold font-monospace text-primary">${fmtAmt(pay.netAmount)}</div>
                 </div>

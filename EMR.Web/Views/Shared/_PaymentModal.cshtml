@@ -110,19 +110,22 @@
                         </span>
                     </div>
 
-                    <!-- Payment method rows injected by JS -->
-                    <div id="pmMethodRows"></div>
+                    <!-- Payment method controls (hidden if net is 0) -->
+                    <div id="pmPaymentMethodsSection">
+                        <!-- Payment method rows injected by JS -->
+                        <div id="pmMethodRows"></div>
 
-                    <div class="d-flex gap-2 mt-1">
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddPayMethod">
-                            <i class="bi bi-plus-circle me-1"></i>Add Payment Method
-                        </button>
-                    </div>
+                        <div class="d-flex gap-2 mt-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddPayMethod">
+                                <i class="bi bi-plus-circle me-1"></i>Add Payment Method
+                            </button>
+                        </div>
 
-                    <!-- Running total of amounts entered -->
-                    <div class="mt-3 border-top pt-2 d-flex justify-content-between align-items-center">
-                        <span class="text-muted small">Total entering now:</span>
-                        <span class="fw-bold text-success fs-6" id="pmEnteringTotal">₹0.00</span>
+                        <!-- Running total of amounts entered -->
+                        <div class="mt-3 border-top pt-2 d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Total entering now:</span>
+                            <span class="fw-bold text-success fs-6" id="pmEnteringTotal">₹0.00</span>
+                        </div>
                     </div>
 
                 </div>
@@ -267,6 +270,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateNetAmount(net) {
         document.getElementById('pmNetAmount').textContent = '₹' + fmt(net);
+        
+        // Hide payment method controls if nothing to pay
+        const section = document.getElementById('pmPaymentMethodsSection');
+        if (section) {
+            section.style.display = net > 0 ? '' : 'none';
+        }
+
         // If only one payment row exists, always sync its amount to the net payable
         var allAmtFields = document.querySelectorAll('.pm-paid-amount');
         if (allAmtFields.length === 1) {
@@ -387,23 +397,25 @@ document.addEventListener('DOMContentLoaded', function () {
             const net       = getNetAmount();
 
             const payments = [];
-            document.querySelectorAll('.pm-method-row').forEach(row => {
-                const idx    = parseInt(row.dataset.idx);
-                const sel    = row.querySelector('.pm-method-select');
-                const amt    = parseFloat(row.querySelector('.pm-paid-amount')?.value) || 0;
-                const mId    = parseInt(sel?.value) || 0;
-                if (!mId || amt <= 0) return;
+            if (net > 0) {
+                document.querySelectorAll('.pm-method-row').forEach(row => {
+                    const idx    = parseInt(row.dataset.idx);
+                    const sel    = row.querySelector('.pm-method-select');
+                    const amt    = parseFloat(row.querySelector('.pm-paid-amount')?.value) || 0;
+                    const mId    = parseInt(sel?.value) || 0;
+                    if (!mId || amt <= 0) return;
 
-                const extra = {};
-                row.querySelectorAll('.pm-cond-input').forEach(inp => {
-                    extra[inp.dataset.field] = inp.value || null;
+                    const extra = {};
+                    row.querySelectorAll('.pm-cond-input').forEach(inp => {
+                        extra[inp.dataset.field] = inp.value || null;
+                    });
+                    payments.push({ paymentMethodId: mId, paidAmount: amt, ...extra });
                 });
-                payments.push({ paymentMethodId: mId, paidAmount: amt, ...extra });
-            });
 
-            if (!payments.length) {
-                showError('Please enter at least one payment method and amount.');
-                return;
+                if (!payments.length) {
+                    showError('Please enter at least one payment method and amount.');
+                    return;
+                }
             }
 
             const lineItems = (_summary.items ?? []).map(item => ({

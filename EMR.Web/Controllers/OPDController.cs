@@ -414,6 +414,7 @@ public class OPDController(
                 detail.VisitDate,
                 detail.TotalAmount,
                 detail.Status,
+                detail.CreatedByUser,
                 Items = detail.Items.Select(i => new
                 {
                     i.ServiceType,
@@ -737,6 +738,7 @@ public class OPDController(
                 VisitDate            = apiDetail.VisitDate,
                 AppointmentTime      = apiDetail.AppointmentTime,
                 CreatedDate          = apiDetail.CreatedDate,
+                CreatedByUser        = apiDetail.CreatedByUser,
                 TotalAmount          = apiDetail.TotalAmount,
                 Status               = apiDetail.Status,
                 Items                = apiDetail.Items.Select(i => new ServiceBookingDetailItem

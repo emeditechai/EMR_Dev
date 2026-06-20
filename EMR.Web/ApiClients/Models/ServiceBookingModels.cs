@@ -17,6 +17,7 @@ public class ServiceBookingListItem
     public string   Status                { get; set; } = string.Empty;
     public string   PaymentStatus         { get; set; } = "U";
     public string   ServiceTypesSummary   { get; set; } = string.Empty;
+    public string?  CreatedByUser         { get; set; }
     // Aggregates
     public int      TotalCount            { get; set; }
     public decimal  TotalFeesAll          { get; set; }
@@ -60,6 +61,7 @@ public class ServiceBookingDetail
     public DateTime VisitDate             { get; set; }
     public TimeSpan? AppointmentTime      { get; set; }
     public DateTime CreatedDate           { get; set; }
+    public string?  CreatedByUser         { get; set; }
     public decimal  TotalAmount           { get; set; }
     public string   Status                { get; set; } = string.Empty;
     public List<ServiceBookingDetailItem> Items { get; set; } = new();
