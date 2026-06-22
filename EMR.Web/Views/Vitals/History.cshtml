@@ -126,223 +126,12 @@
     </div>
 </div>
 
-@* ── Vitals table ── *@
-@if (!Model.Vitals.Any())
-{
-<div class="text-center py-5 text-muted">
-    <i class="bi bi-heart-pulse display-4 d-block mb-3 opacity-50"></i>
-    <h5 class="fw-semibold">No Vital Records Found</h5>
-    <p class="mb-3 small">No vitals have been recorded for this patient yet.</p>
-    <a asp-action="RecordVital" asp-route-patientId="@Model.PatientId" class="btn btn-primary">
-        <i class="bi bi-plus-circle me-1"></i>Record First Vitals
-    </a>
-</div>
-}
-else
-{
-<div class="vital-table-wrap">
-    <div class="table-responsive">
-        <table class="table vital-table mb-0">
-            <thead>
-                <tr>
-                    <th class="ps-3" style="min-width:130px">Date / Time</th>
-                    <th>Anthro</th>
-                    <th>BP</th>
-                    <th>Pulse</th>
-                    <th>SpO₂</th>
-                    <th>Temp</th>
-                    <th>RR</th>
-                    <th>Glucose</th>
-                    <th>Pain</th>
-                    <th>By</th>
-                    <th class="pe-3 text-center" style="min-width:120px">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach (var v in Model.Vitals)
-            {
-                <tr>
-                    <td class="ps-3">
-                        <div class="fw-semibold" style="font-size:.82rem">@v.RecordedOn.ToString("dd MMM yyyy")</div>
-                        <div class="text-muted" style="font-size:.74rem">@v.RecordedOn.ToString("HH:mm")</div>
-                    </td>
-                    @* Anthropometric *@
-                    <td>
-                        @if (v.Height.HasValue || v.Weight.HasValue)
-                        {
-                        <div style="font-size:.8rem">
-                            @if (v.Height.HasValue) { <span class="text-muted">H:</span><strong class="ms-1">@v.Height</strong><span class="text-muted ms-1" style="font-size:.7rem">cm</span> }
-                            @if (v.Weight.HasValue) { <span class="text-muted ms-2">W:</span><strong class="ms-1">@v.Weight</strong><span class="text-muted ms-1" style="font-size:.7rem">kg</span> }
-                        </div>
-                        if (v.BMI.HasValue)
-                        {
-                            var bmiClass = v.BMICategory switch { "Normal" => "text-bg-success", "Underweight" => "text-bg-warning", _ => "text-bg-danger" };
-                            <span class="badge bmi-badge @bmiClass mt-1">@v.BMI | @v.BMICategory</span>
-                        }
-                        }
-                        else { <span class="chip-na">—</span> }
-                    </td>
-                    @* BP *@
-                    <td>
-                        @if (v.BPSystolic.HasValue)
-                        {
-                            var okBP = v.BPSystolic >= 90 && v.BPSystolic <= 120 && v.BPDiastolic >= 60 && v.BPDiastolic <= 80;
-                            var warnBP = !okBP && v.BPSystolic < 140;
-                            var cls = okBP ? "chip-ok" : warnBP ? "chip-warn" : "chip-high";
-                        <span class="vital-chip @cls">
-                            <i class="bi bi-heart-fill" style="font-size:.65rem"></i>@v.BPSystolic/@v.BPDiastolic
-                        </span>
-                        }
-                        else { <span class="vital-chip chip-na"><span>—</span></span> }
-                    </td>
-                    @* Pulse *@
-                    <td>
-                        @if (v.PulseRate.HasValue)
-                        {
-                            var cls = v.PulseRate >= 60 && v.PulseRate <= 100 ? "chip-ok" : v.PulseRate < 50 || v.PulseRate > 120 ? "chip-high" : "chip-warn";
-                        <span class="vital-chip @cls">@v.PulseRate <span style="font-size:.68rem;font-weight:400">bpm</span></span>
-                        }
-                        else { <span class="vital-chip chip-na"><span>—</span></span> }
-                    </td>
-                    @* SpO2 *@
-                    <td>
-                        @if (v.SpO2.HasValue)
-                        {
-                            var cls = v.SpO2 >= 95 ? "chip-ok" : v.SpO2 < 90 ? "chip-high" : "chip-warn";
-                        <span class="vital-chip @cls">@v.SpO2<span style="font-size:.68rem;font-weight:400">%</span></span>
-                        }
-                        else { <span class="vital-chip chip-na"><span>—</span></span> }
-                    </td>
-                    @* Temperature *@
-                    <td>
-                        @if (v.Temperature.HasValue)
-                        {
-                            var cls = v.Temperature >= 97 && v.Temperature <= 99 ? "chip-ok" : v.Temperature < 95 || v.Temperature > 103 ? "chip-high" : "chip-warn";
-                        <span class="vital-chip @cls">@v.Temperature<span style="font-size:.68rem;font-weight:400">°F</span></span>
-                        }
-                        else { <span class="vital-chip chip-na"><span>—</span></span> }
-                    </td>
-                    @* RR *@
-                    <td>
-                        @if (v.RespiratoryRate.HasValue)
-                        {
-                            var cls = v.RespiratoryRate >= 12 && v.RespiratoryRate <= 20 ? "chip-ok" : v.RespiratoryRate < 8 || v.RespiratoryRate > 30 ? "chip-high" : "chip-warn";
-                        <span class="vital-chip @cls">@v.RespiratoryRate</span>
-                        }
-                        else { <span class="vital-chip chip-na"><span>—</span></span> }
-                    </td>
-                    @* Glucose *@
-                    <td>
-                        @if (v.BloodGlucose.HasValue)
-                        {<div style="font-size:.8rem"><strong>@v.BloodGlucose</strong> <span class="text-muted">mg/dL</span></div>
-                         if (!string.IsNullOrEmpty(v.GlucoseType)) { <span class="badge text-bg-light border text-muted" style="font-size:.68rem">@v.GlucoseType</span> }
-                        }
-                        else { <span class="vital-chip chip-na"><span>—</span></span> }
-                    </td>
-                    @* Pain *@
-                    <td>
-                        @if (v.PainScore.HasValue)
-                        {
-                            var pCls = v.PainScore <= 3 ? "chip-ok" : v.PainScore <= 6 ? "chip-warn" : "chip-high";
-                        <span class="vital-chip @pCls">@v.PainScore/10</span>
-                        }
-                        else { <span class="vital-chip chip-na"><span>—</span></span> }
-                    </td>
-                    @* Recorded by *@
-                    <td><span class="text-muted small">@(v.RecordedByName ?? "—")</span></td>
-                    @* Actions — View always · Edit/Delete only within 2 min *@
-                    @{
-                        bool canModify = v.CanModify;
-                        string bpVal  = v.BPSystolic.HasValue ? $"{v.BPSystolic}/{v.BPDiastolic} mmHg" : "—";
-                        bool   bpOk   = v.BPSystolic.HasValue && v.BPSystolic>=90 && v.BPSystolic<=120 && (v.BPDiastolic??0)>=60 && (v.BPDiastolic??0)<=80;
-                        bool   bpWarn = v.BPSystolic.HasValue && !bpOk && v.BPSystolic < 140;
-                        string bpCls  = !v.BPSystolic.HasValue ? "na" : bpOk ? "ok" : bpWarn ? "warn" : "high";
-                    }
-                    <td class="pe-3 text-center"
-                        data-vid="@v.PatientVitalId"
-                        data-date="@v.RecordedOn.ToString("dd MMM yyyy · HH:mm")"
-                        data-by="@(v.RecordedByName ?? "—")"
-                        data-height="@(v.Height.HasValue   ? v.Height  + " cm"    : "—")"
-                        data-weight="@(v.Weight.HasValue   ? v.Weight  + " kg"    : "—")"
-                        data-bmi="@(v.BMI.HasValue         ? v.BMI     + " kg/m²" : "—")"
-                        data-bmicat="@(v.BMICategory ?? "—")"
-                        data-bp="@bpVal" data-bpcls="@bpCls"
-                        data-pulse="@(v.PulseRate.HasValue       ? v.PulseRate + " bpm" : "—")"
-                        data-pulsecls="@(v.PulseRate.HasValue ? (v.PulseRate>=60&&v.PulseRate<=100?"ok":v.PulseRate<50||v.PulseRate>120?"high":"warn") : "na")"
-                        data-spo2="@(v.SpO2.HasValue             ? v.SpO2 + " %"   : "—")"
-                        data-spo2cls="@(v.SpO2.HasValue     ? (v.SpO2>=95?"ok":v.SpO2<90?"high":"warn") : "na")"
-                        data-temp="@(v.Temperature.HasValue      ? v.Temperature + " °F" : "—")"
-                        data-tempcls="@(v.Temperature.HasValue   ? (v.Temperature>=97&&v.Temperature<=99?"ok":v.Temperature<95||v.Temperature>103?"high":"warn") : "na")"
-                        data-rr="@(v.RespiratoryRate.HasValue    ? v.RespiratoryRate + " rpm" : "—")"
-                        data-rrcls="@(v.RespiratoryRate.HasValue ? (v.RespiratoryRate>=12&&v.RespiratoryRate<=20?"ok":v.RespiratoryRate<8||v.RespiratoryRate>30?"high":"warn") : "na")"
-                        data-glucose="@(v.BloodGlucose.HasValue  ? v.BloodGlucose + " mg/dL" + (v.GlucoseType!=null?" ("+v.GlucoseType+")":"") : "—")"
-                        data-pain="@(v.PainScore.HasValue        ? v.PainScore + "/10" : "—")"
-                        data-paincls="@(v.PainScore.HasValue     ? (v.PainScore<=3?"ok":v.PainScore<=6?"warn":"high") : "na")"
-                        data-notes="@Html.Encode(v.Notes ?? "")">
-                        <div class="d-flex gap-1 justify-content-center align-items-center">
-                            @* View — always *@
-                            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 btn-view-vital" title="View Details">
-                                <i class="bi bi-eye-fill" style="font-size:.75rem"></i>
-                            </button>
-                            @if (canModify)
-                            {
-                            <a asp-action="RecordVital" asp-route-editId="@v.PatientVitalId"
-                               class="btn btn-sm btn-outline-primary py-0 px-2" title="Edit">
-                                <i class="bi bi-pencil-fill" style="font-size:.75rem"></i>
-                            </a>
-                            <form asp-action="Delete" method="post" class="d-inline"
-                                  onsubmit="return confirm('Delete this vital record?')">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="vitalId"   value="@v.PatientVitalId" />
-                                <input type="hidden" name="patientId" value="@Model.PatientId" />
-                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete">
-                                    <i class="bi bi-trash-fill" style="font-size:.75rem"></i>
-                                </button>
-                            </form>
-                            }
-                            else
-                            {
-                            <span class="action-locked" title="Edit & Delete locked after 2 minutes of recording">
-                                <i class="bi bi-lock-fill" style="font-size:.7rem"></i>Locked
-                            </span>
-                            }
-                        </div>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
-</div>
+<div id="antiForgeryForm" style="display:none;">@Html.AntiForgeryToken()</div>
 
-@* ── Pagination ── *@
-@if (totalPages > 1)
-{
-<nav class="mt-3 d-flex justify-content-center">
-    <ul class="pagination pagination-sm mb-0">
-        <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
-            <a class="page-link" asp-action="History" asp-route-patientId="@Model.PatientId"
-               asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize">
-                <i class="bi bi-chevron-left"></i>
-            </a>
-        </li>
-        @for (int pg = 1; pg <= totalPages; pg++)
-        {
-        <li class="page-item @(pg == Model.Page ? "active" : "")">
-            <a class="page-link" asp-action="History" asp-route-patientId="@Model.PatientId"
-               asp-route-page="@pg" asp-route-pageSize="@Model.PageSize">@pg</a>
-        </li>
-        }
-        <li class="page-item @(Model.Page >= totalPages ? "disabled" : "")">
-            <a class="page-link" asp-action="History" asp-route-patientId="@Model.PatientId"
-               asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize">
-                <i class="bi bi-chevron-right"></i>
-            </a>
-        </li>
-    </ul>
-</nav>
-}
-}
+@* ── Vitals table ── *@
+<div id="historyTableContainer" class="vital-table-wrap">
+    <partial name="_HistoryTable" model="Model" />
+</div>
 
 @* ── View Vital Details Modal ── *@
 <div class="modal fade" id="viewVitalModal" tabindex="-1" aria-hidden="true">
@@ -480,6 +269,84 @@ else
         if (c.includes('overweight'))  return ['bg-warning text-dark', cat];
         return ['bg-danger', cat];
     }
+
+    // ── AJAX actions ─────────────────────────────────────────
+    let currentPage = @Model.Page;
+
+    window.loadHistoryPage = async function (page) {
+        currentPage = page;
+        const container = document.getElementById('historyTableContainer');
+        if (!container) return;
+        
+        container.style.opacity = '0.5';
+        try {
+            const response = await fetch(`/Vitals/GetHistoryTable?patientId=@Model.PatientId&page=${page}`);
+            if (response.ok) {
+                container.innerHTML = await response.text();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load history table.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'An unexpected error occurred.' });
+        } finally {
+            container.style.opacity = '1';
+        }
+    };
+
+    window.editVitalRecord = function (vitalId, patientId) {
+        window.location.href = `@Url.Action("RecordVital", "Vitals")?patientId=${patientId}&editId=${vitalId}`;
+    };
+
+    window.deleteVitalRecord = function (vitalId, patientId) {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "This vital record will be permanently deleted!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                const tokenEl = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]');
+                if (!tokenEl) return;
+                
+                const formData = new FormData();
+                formData.append('vitalId', vitalId);
+                formData.append('patientId', patientId);
+                formData.append('__RequestVerificationToken', tokenEl.value);
+
+                try {
+                    const response = await fetch(`/Vitals/Delete`, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted!',
+                                text: data.message,
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                            loadHistoryPage(currentPage);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                        }
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to delete. Server returned an error.' });
+                    }
+                } catch (e) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to communicate with server.' });
+                }
+            }
+        });
+    };
 
     // ── modal population ─────────────────────────────────────
     document.addEventListener('click', function (e) {

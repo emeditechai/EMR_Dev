@@ -2,15 +2,29 @@
 
 @{
     ViewData["Title"] = "Configure Schedule";
+
+    var dayThemes = new Dictionary<int, (string Name, string Color, string Bg, string Border, string Text)>
+    {
+        { 1, ("Mon", "#6366f1", "#f5f3ff", "#c7d2fe", "#4f46e5") },
+        { 2, ("Tue", "#0d9488", "#f0fdfa", "#99f6e4", "#0f766e") },
+        { 3, ("Wed", "#10b981", "#ecfdf5", "#a7f3d0", "#047857") },
+        { 4, ("Thu", "#f59e0b", "#fffbeb", "#fde68a", "#b45309") },
+        { 5, ("Fri", "#8b5cf6", "#faf5ff", "#e9d5ff", "#6d28d9") },
+        { 6, ("Sat", "#e11d48", "#fff1f2", "#fecdd3", "#be123c") },
+        { 7, ("Sun", "#0284c7", "#f0f9ff", "#bae6fd", "#0369a1") }
+    };
 }
 
-<div class="container-fluid py-4">
+<div class="container-fluid" id="config-page-container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="fw-bold mb-0">Schedule Configuration</h2>
             <p class="text-muted mb-0">Doctor: <strong>@Model.DoctorName</strong></p>
         </div>
         <div>
+            <button class="btn btn-outline-secondary me-2" id="darkModeToggle" onclick="toggleDarkMode()">
+                <i class="bi bi-moon-stars-fill text-primary" id="darkModeIcon"></i> <span id="darkModeText">Dark Mode</span>
+            </button>
             <a asp-controller="Doctors" asp-action="Index" class="btn btn-outline-secondary me-2">
                 <i class="bi bi-arrow-left"></i> Back to Doctors
             </a>
@@ -27,11 +41,18 @@
         <!-- Regular Schedule Table -->
         <div class="col-md-8">
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white border-bottom py-3">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-week text-primary me-2"></i>Regular Weekly Schedule</h5>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="View Switcher">
+                        <input type="radio" class="btn-check" name="scheduleView" id="viewTable" checked autocomplete="off" onchange="switchScheduleView('table')">
+                        <label class="btn btn-outline-primary px-3" for="viewTable"><i class="bi bi-table me-1"></i> List</label>
+                        
+                        <input type="radio" class="btn-check" name="scheduleView" id="viewCalendar" autocomplete="off" onchange="switchScheduleView('calendar')">
+                        <label class="btn btn-outline-primary px-3" for="viewCalendar"><i class="bi bi-grid-3x3-gap me-1"></i> Board</label>
+                    </div>
                 </div>
                 <div class="card-body p-0">
-                    <div class="table-responsive">
+                    <div class="table-responsive" id="schedule-table-view">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
@@ -49,40 +70,42 @@
                                 {
                                     @foreach (var s in Model.Schedules.OrderBy(x => x.DayOfWeek).ThenBy(x => x.StartTime))
                                     {
-                                        <tr>
-                                            <td class="fw-medium">@s.DayName</td>
+                                        var theme = dayThemes[s.DayOfWeek];
+                                        <tr style="@(s.IsActive ? "" : "opacity: 0.65; background-color: #fafafa;")">
+                                            <td class="fw-bold" style="border-left: 4px solid @theme.Color; padding-left: 12px; color: @theme.Text;">@s.DayName</td>
                                             <td>
-                                                <span class="badge bg-light text-dark border">
+                                                <span class="badge px-2 py-1.5" style="background-color: @theme.Bg; border: 1px solid @theme.Border; color: @theme.Text; font-weight: 600; font-size: 0.825rem;">
                                                     @DateTime.Today.Add(s.StartTime).ToString("hh:mm tt") - @DateTime.Today.Add(s.EndTime).ToString("hh:mm tt")
                                                 </span>
                                             </td>
-                                            <td>@s.SlotDurationMinutes min</td>
                                             <td>
-                                                <div>@s.MaxPatientsPerSlot per slot</div>
+                                                <span class="badge bg-light text-dark border px-2 py-1.5"><i class="bi bi-hourglass-split me-1 text-primary"></i>@s.SlotDurationMinutes min</span>
+                                            </td>
+                                            <td>
+                                                <div><span class="badge bg-light text-dark border px-2 py-1.5"><i class="bi bi-people-fill me-1 text-success"></i>@s.MaxPatientsPerSlot / slot</span></div>
                                                 @if(s.MaxPatientsPerSession.HasValue) {
-                                                    <small class="text-muted">Max @s.MaxPatientsPerSession / session</small>
+                                                    <div class="mt-1"><span class="badge bg-light text-muted border px-2 py-1.5"><i class="bi bi-shield-check me-1 text-info"></i>Max @s.MaxPatientsPerSession / session</span></div>
                                                 }
                                             </td>
                                             <td>
                                                 <small>
-                                                    <div>From: @s.EffectiveFrom.ToString("MMM dd, yyyy")</div>
+                                                    <div class="text-secondary">From: @s.EffectiveFrom.ToString("MMM dd, yyyy")</div>
                                                     @if(s.EffectiveTo.HasValue) {
-                                                        <div>To: @s.EffectiveTo.Value.ToString("MMM dd, yyyy")</div>
+                                                        <div class="text-secondary">To: @s.EffectiveTo.Value.ToString("MMM dd, yyyy")</div>
                                                     }
                                                 </small>
                                             </td>
                                             <td>
-                                                @if(s.IsActive) {
-                                                    <span class="badge bg-success">Active</span>
-                                                } else {
-                                                    <span class="badge bg-secondary">Inactive</span>
-                                                }
+                                                <div class="form-check form-switch mb-0">
+                                                    <input class="form-check-input status-toggle-switch" type="checkbox" role="switch" id="statusSwitch-@s.ScheduleId" @(s.IsActive ? "checked" : "") onchange="toggleScheduleStatus(@s.ScheduleId, this)">
+                                                    <label class="form-check-label small text-muted ms-1" for="statusSwitch-@s.ScheduleId">@(s.IsActive ? "Active" : "Inactive")</label>
+                                                </div>
                                             </td>
                                             <td class="text-end">
-                                                <button class="btn btn-sm btn-light" onclick="editSchedule(@s.ScheduleId, @s.DayOfWeek, '@s.StartTime', '@s.EndTime', @s.SlotDurationMinutes, @s.MaxPatientsPerSlot, @(s.MaxPatientsPerSession ?? 0), '@s.EffectiveFrom.ToString("yyyy-MM-dd")', '@(s.EffectiveTo?.ToString("yyyy-MM-dd") ?? "")')">
-                                                    <i class="bi bi-pencil"></i>
+                                                <button class="btn btn-sm btn-light border shadow-xs" title="Edit" onclick="editSchedule(@s.ScheduleId, @s.DayOfWeek, '@s.StartTime', '@s.EndTime', @s.SlotDurationMinutes, @s.MaxPatientsPerSlot, @(s.MaxPatientsPerSession ?? 0), '@s.EffectiveFrom.ToString("yyyy-MM-dd")', '@(s.EffectiveTo?.ToString("yyyy-MM-dd") ?? "")')">
+                                                    <i class="bi bi-pencil text-primary"></i>
                                                 </button>
-                                                <button class="btn btn-sm btn-light text-danger" onclick="deleteSchedule(@s.ScheduleId)">
+                                                <button class="btn btn-sm btn-light border text-danger shadow-xs" title="Delete" onclick="deleteSchedule(@s.ScheduleId)">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </td>
@@ -100,40 +123,190 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Visual Board View -->
+                    <div id="schedule-calendar-view" class="d-none p-3 bg-light border-top">
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 row-cols-lg-7 g-2">
+                            @for (int d = 1; d <= 7; d++)
+                            {
+                                var dayNum = d;
+                                var theme = dayThemes[d];
+                                var daySchedules = Model.Schedules.Where(x => x.DayOfWeek == dayNum).OrderBy(x => x.StartTime).ToList();
+                                
+                                <div class="col" style="min-width: 105px;">
+                                    <div class="card h-100 border-0 shadow-sm day-column-card transition-all" style="min-height: 280px; border-top: 4px solid @theme.Color !important; border-left: 1px solid @theme.Border !important; border-right: 1px solid @theme.Border !important; border-bottom: 1px solid @theme.Border !important;" onclick="openScheduleModalForDay(@dayNum)">
+                                        <div class="card-header py-2 text-center border-bottom fw-bold" style="background-color: @theme.Bg; color: @theme.Text; font-size: 0.85rem;">
+                                            @theme.Name
+                                        </div>
+                                        <div class="card-body p-2 d-flex flex-column gap-2" style="background-color: #fafbfc;">
+                                            @if (daySchedules.Any())
+                                            {
+                                                @foreach (var s in daySchedules)
+                                                {
+                                                    var inactiveStyle = s.IsActive ? "" : "opacity: 0.6; border-style: dashed !important; background-color: #f8fafc !important;";
+                                                    var hour = s.StartTime.Hours;
+                                                    var timeIcon = hour < 12 ? "bi-sun-fill text-warning" : (hour < 16 ? "bi-cloud-sun-fill text-info" : "bi-moon-stars-fill text-primary");
+                                                    
+                                                    <div class="card border shadow-xs rounded p-2 text-start schedule-board-card transition-all" style="cursor: pointer; border-left: 4px solid @theme.Color !important; border-color: @theme.Border; background-color: #ffffff; @inactiveStyle" onclick="event.stopPropagation(); editSchedule(@s.ScheduleId, @s.DayOfWeek, '@s.StartTime', '@s.EndTime', @s.SlotDurationMinutes, @s.MaxPatientsPerSlot, @(s.MaxPatientsPerSession ?? 0), '@s.EffectiveFrom.ToString("yyyy-MM-dd")', '@(s.EffectiveTo?.ToString("yyyy-MM-dd") ?? "")')">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <span class="badge border px-1.5 py-0.5" style="font-size: 0.65rem; background-color: @theme.Bg; color: @theme.Text; border-color: @theme.Border !important; font-weight: 600;">
+                                                                <i class="bi @timeIcon me-0.5"></i> @DateTime.Today.Add(s.StartTime).ToString("hh:mm tt")
+                                                            </span>
+                                                            <div class="d-flex gap-1">
+                                                                <button type="button" class="btn btn-xs p-0 text-muted" onclick="event.stopPropagation(); editSchedule(@s.ScheduleId, @s.DayOfWeek, '@s.StartTime', '@s.EndTime', @s.SlotDurationMinutes, @s.MaxPatientsPerSlot, @(s.MaxPatientsPerSession ?? 0), '@s.EffectiveFrom.ToString("yyyy-MM-dd")', '@(s.EffectiveTo?.ToString("yyyy-MM-dd") ?? "")')">
+                                                                    <i class="bi bi-pencil" style="font-size: 0.7rem;"></i>
+                                                                </button>
+                                                                <button type="button" class="btn btn-xs p-0 text-danger" onclick="event.stopPropagation(); deleteSchedule(@s.ScheduleId)">
+                                                                    <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div class="mt-1 fw-bold text-dark" style="font-size: 0.725rem;">to @DateTime.Today.Add(s.EndTime).ToString("hh:mm tt")</div>
+                                                        <div class="text-muted mt-1.5 d-flex flex-wrap gap-1" style="font-size: 0.65rem; line-height: 1.2;">
+                                                            <span class="badge bg-light text-dark border px-1 py-0.5" style="font-size: 0.62rem;"><i class="bi bi-hourglass-split me-0.5 text-primary"></i>@s.SlotDurationMinutes m</span>
+                                                            <span class="badge bg-light text-dark border px-1 py-0.5" style="font-size: 0.62rem;"><i class="bi bi-people-fill me-0.5 text-success"></i>Cap: @s.MaxPatientsPerSlot</span>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="text-center text-muted my-auto py-3" style="font-size: 0.7rem;">
+                                                    No slots
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Exceptions Table -->
+        <!-- Exceptions Card -->
+        @{
+            var todayDate = DateTime.Today;
+            var activeToday = Model.Exceptions.Where(x => x.ExceptionDate.Date == todayDate).ToList();
+            var upcomingExceptions = Model.Exceptions.Where(x => x.ExceptionDate.Date > todayDate).OrderBy(x => x.ExceptionDate).ToList();
+            var pastExceptions = Model.Exceptions.Where(x => x.ExceptionDate.Date < todayDate).OrderByDescending(x => x.ExceptionDate).ToList();
+        }
         <div class="col-md-4">
-            <div class="card shadow-sm border-0">
+            <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white border-bottom py-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-x text-warning me-2"></i>Exceptions / Leaves</h5>
                 </div>
                 <div class="card-body p-0">
-                    <ul class="list-group list-group-flush">
-                        @if (Model.Exceptions.Any())
-                        {
-                            @foreach (var e in Model.Exceptions.OrderByDescending(x => x.ExceptionDate))
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                                    <div>
-                                        <div class="fw-bold">@e.ExceptionDate.ToString("MMM dd, yyyy")</div>
-                                        <div class="small text-muted">@e.ExceptionType - @e.Reason</div>
-                                    </div>
-                                    <button class="btn btn-sm btn-light text-danger" onclick="deleteException(@e.ExceptionId)">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </li>
-                            }
-                        }
-                        else
-                        {
-                            <li class="list-group-item text-center py-4 text-muted">
-                                No upcoming exceptions.
-                            </li>
-                        }
+                    <ul class="nav nav-tabs nav-fill border-bottom bg-light small" id="exceptionTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-2 border-0 rounded-0" id="today-tab" data-bs-toggle="tab" data-bs-target="#today-pane" type="button" role="tab" aria-controls="today-pane" aria-selected="true">
+                                Today (@activeToday.Count)
+                                @if (activeToday.Any()) {
+                                    <span class="spinner-grow spinner-grow-sm text-danger ms-1" role="status" style="width: 8px; height: 8px; vertical-align: middle;"></span>
+                                }
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-2 border-0 rounded-0" id="upcoming-tab" data-bs-toggle="tab" data-bs-target="#upcoming-pane" type="button" role="tab" aria-controls="upcoming-pane" aria-selected="false">
+                                Upcoming (@upcomingExceptions.Count)
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-2 border-0 rounded-0" id="past-tab" data-bs-toggle="tab" data-bs-target="#past-pane" type="button" role="tab" aria-controls="past-pane" aria-selected="false">
+                                Past (@pastExceptions.Count)
+                            </button>
+                        </li>
                     </ul>
+                    
+                    <div class="tab-content" id="exceptionTabContent">
+                        <!-- Active Today -->
+                        <div class="tab-pane fade show active" id="today-pane" role="tabpanel" aria-labelledby="today-tab">
+                            <ul class="list-group list-group-flush">
+                                @if (activeToday.Any())
+                                {
+                                    @foreach (var e in activeToday)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-light-warning border-0 border-bottom">
+                                            <div>
+                                                <div class="fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> Today, @e.ExceptionDate.ToString("MMM dd, yyyy")</div>
+                                                <div class="small text-dark mt-1">
+                                                    <span class="badge bg-danger me-1">@e.ExceptionType</span>
+                                                    @e.Reason
+                                                </div>
+                                            </div>
+                                            <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(@e.ExceptionId)">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </li>
+                                    }
+                                }
+                                else
+                                {
+                                    <li class="list-group-item text-center py-4 text-muted small">
+                                        No exceptions active today.
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                        
+                        <!-- Upcoming -->
+                        <div class="tab-pane fade" id="upcoming-pane" role="tabpanel" aria-labelledby="upcoming-tab">
+                            <ul class="list-group list-group-flush">
+                                @if (upcomingExceptions.Any())
+                                {
+                                    @foreach (var e in upcomingExceptions)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between align-items-center py-3 border-0 border-bottom">
+                                            <div>
+                                                <div class="fw-bold text-dark">@e.ExceptionDate.ToString("MMM dd, yyyy")</div>
+                                                <div class="small text-muted mt-1">
+                                                    <span class="badge bg-warning text-dark me-1">@e.ExceptionType</span>
+                                                    @e.Reason
+                                                </div>
+                                            </div>
+                                            <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(@e.ExceptionId)">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </li>
+                                    }
+                                }
+                                else
+                                {
+                                    <li class="list-group-item text-center py-4 text-muted small">
+                                        No upcoming exceptions.
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                        
+                        <!-- Past -->
+                        <div class="tab-pane fade" id="past-pane" role="tabpanel" aria-labelledby="past-tab">
+                            <ul class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                                @if (pastExceptions.Any())
+                                {
+                                    @foreach (var e in pastExceptions)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between align-items-center py-2 text-muted border-0 border-bottom">
+                                            <div class="small">
+                                                <div class="fw-semibold">@e.ExceptionDate.ToString("MMM dd, yyyy")</div>
+                                                <div>@e.ExceptionType - @e.Reason</div>
+                                            </div>
+                                            <button class="btn btn-sm btn-link text-danger p-1 text-decoration-none" onclick="deleteException(@e.ExceptionId)">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </li>
+                                    }
+                                }
+                                else
+                                {
+                                    <li class="list-group-item text-center py-4 text-muted small">
+                                        No past exceptions.
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -154,8 +327,22 @@
                     <input type="hidden" id="DoctorId" value="@Model.DoctorId" />
                     
                     <div class="mb-3">
-                        <label class="form-label fw-medium">Days of Week <span class="text-danger">*</span> <small class="text-muted fw-normal">(Hold Ctrl/Cmd to select multiple)</small></label>
-                        <select class="form-select" id="DayOfWeek" asp-items="Model.DayOfWeekOptions" required multiple="multiple" style="height: 165px;"></select>
+                        <label class="form-label fw-medium d-block">Days of Week <span class="text-danger">*</span></label>
+                        <div class="d-flex flex-wrap gap-2 mb-2" id="day-selector-container">
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="1">Mon</button>
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="2">Tue</button>
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="3">Wed</button>
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="4">Thu</button>
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="5">Fri</button>
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="6">Sat</button>
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="7">Sun</button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-light-primary py-1 px-2 border" onclick="selectPresetDays('weekdays')">Weekdays (M-F)</button>
+                            <button type="button" class="btn btn-sm btn-light-primary py-1 px-2 border" onclick="selectPresetDays('weekends')">Weekends (S-S)</button>
+                            <button type="button" class="btn btn-sm btn-light-secondary py-1 px-2 border" onclick="selectPresetDays('clear')">Clear All</button>
+                        </div>
+                        <select class="d-none" id="DayOfWeek" asp-items="Model.DayOfWeekOptions" required multiple="multiple"></select>
                     </div>
                     
                     <div class="row mb-3">
@@ -193,6 +380,17 @@
                         <div class="col-md-6">
                             <label class="form-label fw-medium">Effective To (Optional)</label>
                             <input type="date" class="form-control" id="EffectiveTo" />
+                        </div>
+                    </div>
+                    
+                    <div id="modal-alerts-container" class="mt-3">
+                        <div class="alert alert-info py-2 px-3 mb-2 d-none align-items-center" id="schedule-calc-alert">
+                            <i class="bi bi-info-circle-fill me-2 text-info fs-5"></i>
+                            <span class="small" id="schedule-calc-text"></span>
+                        </div>
+                        <div class="alert alert-warning py-2 px-3 mb-2 d-none align-items-center" id="schedule-overlap-alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2 text-warning fs-5"></i>
+                            <span class="small text-dark" id="schedule-overlap-text"></span>
                         </div>
                     </div>
                 </form>
@@ -252,13 +450,775 @@
 </div>
 
 @section Scripts {
+    <style>
+        .day-pill-btn {
+            min-width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.15s ease-in-out;
+        }
+        .day-pill-btn.active {
+            box-shadow: 0 4px 8px rgba(13, 110, 253, 0.3);
+        }
+        .btn-light-primary {
+            background-color: rgba(13, 110, 253, 0.08);
+            color: #0d6efd;
+            border-color: rgba(13, 110, 253, 0.15) !important;
+        }
+        .btn-light-primary:hover {
+            background-color: #0d6efd;
+            color: #fff;
+        }
+        .btn-light-secondary {
+            background-color: rgba(108, 117, 125, 0.08);
+            color: #6c757d;
+            border-color: rgba(108, 117, 125, 0.15) !important;
+        }
+        .btn-light-secondary:hover {
+            background-color: #6c757d;
+            color: #fff;
+        }
+        .bg-light-warning {
+            background-color: rgba(255, 193, 7, 0.08) !important;
+            border-left: 4px solid #ffc107 !important;
+        }
+        .schedule-board-card {
+            transition: all 0.2s ease-in-out;
+            background-color: #ffffff;
+        }
+        .schedule-board-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08) !important;
+            border-color: #0d6efd !important;
+        }
+        .small-font {
+            font-size: 0.7rem;
+        }
+        .form-switch .form-check-input {
+            width: 2.2em;
+            height: 1.1em;
+            cursor: pointer;
+        }
+        .nav-tabs .nav-link {
+            color: #6c757d;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent !important;
+        }
+        .nav-tabs .nav-link.active {
+            color: #0d6efd !important;
+            background-color: transparent !important;
+            border-bottom: 2px solid #0d6efd !important;
+            font-weight: 600;
+        }
+        .day-column-card {
+            cursor: pointer;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        .day-column-card:hover {
+            border: 1px solid rgba(13, 110, 253, 0.25) !important;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.08) !important;
+        }
+
+        /* Light/Dark mode themes definitions */
+        body {
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-header: #f8fafc;
+            --border-color: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --table-hover-bg: rgba(0, 0, 0, 0.02);
+            --btn-light-bg: #f8fafc;
+            --btn-light-border: #e2e8f0;
+            --modal-bg: #ffffff;
+            --modal-header-bg: #f8fafc;
+            --input-bg: #ffffff;
+            --input-border: #cbd5e1;
+            --input-text: #1e293b;
+        }
+
+        body.dark-mode {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --bg-header: #0f172a;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --table-hover-bg: rgba(255, 255, 255, 0.04);
+            --btn-light-bg: #334155;
+            --btn-light-border: #475569;
+            --modal-bg: #1e293b;
+            --modal-header-bg: #111827;
+            --input-bg: #0f172a;
+            --input-border: #475569;
+            --input-text: #f8fafc;
+        }
+
+        #config-page-container {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            transition: all 0.25s ease-in-out;
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+
+        /* Base style overrides utilizing custom properties */
+        #config-page-container .card {
+            background-color: var(--bg-card) !important;
+            border-color: var(--border-color) !important;
+            color: var(--text-primary) !important;
+        }
+        #config-page-container .card-header {
+            background-color: var(--bg-header) !important;
+            border-bottom: 1px solid var(--border-color) !important;
+            color: var(--text-primary) !important;
+        }
+        #config-page-container .table {
+            color: var(--text-primary) !important;
+        }
+        #config-page-container .table th {
+            background-color: var(--bg-header) !important;
+            border-color: var(--border-color) !important;
+            color: var(--text-secondary) !important;
+        }
+        #config-page-container .table td {
+            border-color: var(--border-color) !important;
+        }
+        #config-page-container .table-hover tbody tr:hover {
+            background-color: var(--table-hover-bg) !important;
+        }
+        #config-page-container .text-muted {
+            color: var(--text-secondary) !important;
+        }
+        #config-page-container .text-dark {
+            color: var(--text-primary) !important;
+        }
+        #config-page-container .bg-light {
+            background-color: var(--bg-main) !important;
+        }
+        #config-page-container .border-top {
+            border-top: 1px solid var(--border-color) !important;
+        }
+        #config-page-container .btn-light {
+            background-color: var(--btn-light-bg) !important;
+            border-color: var(--btn-light-border) !important;
+            color: var(--text-primary) !important;
+        }
+        #config-page-container .btn-light:hover {
+            background-color: var(--border-color) !important;
+        }
+        #config-page-container .nav-tabs {
+            border-bottom: 1px solid var(--border-color) !important;
+            background-color: var(--bg-header) !important;
+        }
+        #config-page-container .nav-tabs .nav-link {
+            border-bottom: 2px solid transparent !important;
+        }
+        #config-page-container .nav-tabs .nav-link.active {
+            background-color: transparent !important;
+            color: #0d6efd !important;
+            border-bottom: 2px solid #0d6efd !important;
+        }
+        #config-page-container .list-group-item {
+            background-color: var(--bg-card) !important;
+            border-color: var(--border-color) !important;
+            color: var(--text-primary) !important;
+        }
+        #config-page-container .schedule-board-card {
+            background-color: var(--bg-card) !important;
+        }
+
+        /* Modal Dark Mode overrides styling */
+        body.dark-mode .modal-content {
+            background-color: var(--modal-bg) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border-color) !important;
+        }
+        body.dark-mode .modal-header {
+            background-color: var(--modal-header-bg) !important;
+            border-bottom: 1px solid var(--border-color) !important;
+        }
+        body.dark-mode .modal-header .btn-close {
+            filter: invert(1) grayscale(1) brightness(2);
+        }
+        body.dark-mode .form-control, 
+        body.dark-mode .form-select,
+        body.dark-mode .form-textarea {
+            background-color: var(--input-bg) !important;
+            border-color: var(--input-border) !important;
+            color: var(--input-text) !important;
+        }
+        body.dark-mode .form-control:focus, 
+        body.dark-mode .form-select:focus {
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+        }
+        body.dark-mode .btn-light {
+            background-color: var(--btn-light-bg) !important;
+            border-color: var(--btn-light-border) !important;
+            color: var(--text-primary) !important;
+        }
+        body.dark-mode .day-pill-btn {
+            border-color: var(--input-border) !important;
+            color: var(--text-secondary) !important;
+        }
+        body.dark-mode .day-pill-btn.active {
+            background-color: #0d6efd !important;
+            color: #fff !important;
+            border-color: #0d6efd !important;
+        }
+        body.dark-mode .alert-info {
+            background-color: rgba(13, 110, 253, 0.15) !important;
+            border-color: rgba(13, 110, 253, 0.25) !important;
+            color: #85b0ff !important;
+        }
+        body.dark-mode .alert-warning {
+            background-color: rgba(255, 193, 7, 0.15) !important;
+            border-color: rgba(255, 193, 7, 0.25) !important;
+            color: #ffe082 !important;
+        }
+    </style>
+
     <script>
         const scheduleModal = new bootstrap.Modal(document.getElementById('scheduleModal'));
         const exceptionModal = new bootstrap.Modal(document.getElementById('exceptionModal'));
 
+        function getDayTheme(d) {
+            const container = document.getElementById('config-page-container');
+            const isDark = container && container.classList.contains('dark-mode');
+            const themes = {
+                1: { name: 'Mon', color: '#818cf8', bg: isDark ? '#1e1b4b' : '#f5f3ff', border: isDark ? '#312e81' : '#c7d2fe', text: isDark ? '#e0e7ff' : '#4f46e5' },
+                2: { name: 'Tue', color: '#2dd4bf', bg: isDark ? '#042f2e' : '#f0fdfa', border: isDark ? '#115e59' : '#99f6e4', text: isDark ? '#ccfbf1' : '#0f766e' },
+                3: { name: 'Wed', color: '#34d399', bg: isDark ? '#022c22' : '#ecfdf5', border: isDark ? '#064e3b' : '#a7f3d0', text: isDark ? '#d1fae5' : '#047857' },
+                4: { name: 'Thu', color: '#fbbf24', bg: isDark ? '#451a03' : '#fffbeb', border: isDark ? '#78350f' : '#fde68a', text: isDark ? '#fef3c7' : '#b45309' },
+                5: { name: 'Fri', color: '#a78bfa', bg: isDark ? '#2e1065' : '#faf5ff', border: isDark ? '#4c1d95' : '#e9d5ff', text: isDark ? '#f3e8ff' : '#6d28d9' },
+                6: { name: 'Sat', color: '#fb7185', bg: isDark ? '#4c0519' : '#fff1f2', border: isDark ? '#881337' : '#fecdd3', text: isDark ? '#ffe4e6' : '#be123c' },
+                7: { name: 'Sun', color: '#38bdf8', bg: isDark ? '#082f49' : '#f0f9ff', border: isDark ? '#0c4a6e' : '#bae6fd', text: isDark ? '#e0f2fe' : '#0369a1' }
+            };
+            return themes[d];
+        }
+
+        // Local arrays to hold schedules and exceptions
+        const existingSchedules = [];
+        let currentSchedules = [];
+        let currentExceptions = [];
+
+        // Formatting Helpers
+        function formatTimeSpan(timeSpanStr) {
+            if (!timeSpanStr) return '';
+            const parts = timeSpanStr.split(':');
+            let hours = parseInt(parts[0]);
+            const minutes = parts[1] || '00';
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[date.getMonth()]} ${date.getDate().toString().padStart(2, '0')}, ${date.getFullYear()}`;
+        }
+
+        function formatDateISO(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const yyyy = date.getFullYear();
+            const mm = (date.getMonth() + 1).toString().padStart(2, '0');
+            const dd = date.getDate().toString().padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        // Setup Day Pill buttons click listeners
+        document.querySelectorAll('.day-pill-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const val = this.getAttribute('data-value');
+                const option = document.querySelector(`#DayOfWeek option[value="${val}"]`);
+                if (option) {
+                    option.selected = !option.selected;
+                    updateDaySelectorUI();
+                    checkScheduleOverlaps();
+                }
+            });
+        });
+
+        // Setup live calculations and overlap check listeners
+        document.getElementById('StartTime').addEventListener('change', checkScheduleOverlaps);
+        document.getElementById('EndTime').addEventListener('change', checkScheduleOverlaps);
+        document.getElementById('SlotDurationMinutes').addEventListener('input', checkScheduleOverlaps);
+        document.getElementById('MaxPatientsPerSlot').addEventListener('input', checkScheduleOverlaps);
+        document.getElementById('EffectiveFrom').addEventListener('change', checkScheduleOverlaps);
+        document.getElementById('EffectiveTo').addEventListener('change', checkScheduleOverlaps);
+
+        function updateDaySelectorUI() {
+            const select = document.getElementById('DayOfWeek');
+            const selectedValues = Array.from(select.selectedOptions).map(opt => opt.value);
+            
+            document.querySelectorAll('.day-pill-btn').forEach(btn => {
+                const value = btn.getAttribute('data-value');
+                if (selectedValues.includes(value)) {
+                    btn.classList.remove('btn-outline-primary');
+                    btn.classList.add('btn-primary', 'active');
+                } else {
+                    btn.classList.remove('btn-primary', 'active');
+                    btn.classList.add('btn-outline-primary');
+                }
+            });
+        }
+
+        function selectPresetDays(preset) {
+            const select = document.getElementById('DayOfWeek');
+            Array.from(select.options).forEach(opt => {
+                const val = parseInt(opt.value);
+                if (preset === 'weekdays') {
+                    opt.selected = (val >= 1 && val <= 5);
+                } else if (preset === 'weekends') {
+                    opt.selected = (val === 6 || val === 7);
+                } else if (preset === 'clear') {
+                    opt.selected = false;
+                }
+            });
+            updateDaySelectorUI();
+            checkScheduleOverlaps();
+        }
+
+        function switchScheduleView(view) {
+            if (view === 'table') {
+                document.getElementById('schedule-table-view').classList.remove('d-none');
+                document.getElementById('schedule-calendar-view').classList.add('d-none');
+            } else {
+                document.getElementById('schedule-table-view').classList.add('d-none');
+                document.getElementById('schedule-calendar-view').classList.remove('d-none');
+            }
+        }
+
+        function parseTimeToMinutes(timeStr) {
+            if (!timeStr) return 0;
+            const parts = timeStr.split(':');
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        }
+
+        function formatTimeStr(timeStr) {
+            if (!timeStr) return '';
+            const parts = timeStr.split(':');
+            let hours = parseInt(parts[0]);
+            const minutes = parts[1];
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; 
+            return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+        }
+
+        function checkScheduleOverlaps() {
+            const scheduleId = parseInt(document.getElementById('ScheduleId').value);
+            const startVal = document.getElementById('StartTime').value;
+            const endVal = document.getElementById('EndTime').value;
+            const durationVal = parseInt(document.getElementById('SlotDurationMinutes').value) || 0;
+            const maxSlotVal = parseInt(document.getElementById('MaxPatientsPerSlot').value) || 0;
+            const effFromVal = document.getElementById('EffectiveFrom').value;
+            const effToVal = document.getElementById('EffectiveTo').value;
+
+            const calcAlert = document.getElementById('schedule-calc-alert');
+            const calcText = document.getElementById('schedule-calc-text');
+            const overlapAlert = document.getElementById('schedule-overlap-alert');
+            const overlapText = document.getElementById('schedule-overlap-text');
+            const saveBtn = document.querySelector('button[onclick="saveSchedule()"]');
+
+            calcAlert.classList.add('d-none');
+            calcAlert.classList.remove('d-flex');
+            overlapAlert.classList.add('d-none');
+            overlapAlert.classList.remove('d-flex');
+            saveBtn.disabled = false;
+
+            if (!startVal || !endVal) return;
+
+            const startMin = parseTimeToMinutes(startVal);
+            const endMin = parseTimeToMinutes(endVal);
+
+            if (endMin <= startMin) {
+                overlapAlert.classList.remove('d-none');
+                overlapAlert.classList.add('d-flex');
+                overlapText.innerHTML = "<strong>Error:</strong> End Time must be strictly after Start Time.";
+                saveBtn.disabled = true;
+                return;
+            }
+
+            // Calculations
+            if (durationVal > 0 && maxSlotVal > 0) {
+                const totalMinutes = endMin - startMin;
+                const slotsCount = Math.floor(totalMinutes / durationVal);
+                const maxSession = slotsCount * maxSlotVal;
+                
+                calcText.innerHTML = `Session duration: <strong>${Math.floor(totalMinutes/60)}h ${totalMinutes%60}m</strong>. Generates <strong>${slotsCount} slots</strong> (Max ${maxSession} patients/session).`;
+                calcAlert.classList.remove('d-none');
+                calcAlert.classList.add('d-flex');
+            }
+
+            // Overlaps
+            const select = document.getElementById('DayOfWeek');
+            const selectedDays = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+            if (selectedDays.length === 0 || !effFromVal) return;
+
+            const newEffFrom = new Date(effFromVal);
+            const newEffTo = effToVal ? new Date(effToVal) : null;
+
+            let overlapFound = false;
+            let overlapMsg = "";
+
+            for (const s of existingSchedules) {
+                if (!s.isActive || s.scheduleId === scheduleId) continue;
+
+                if (selectedDays.includes(s.dayOfWeek)) {
+                    const existStart = parseTimeToMinutes(s.startTimeStr);
+                    const existEnd = parseTimeToMinutes(s.endTimeStr);
+
+                    const hasTimeOverlap = (startMin >= existStart && startMin < existEnd) ||
+                                           (endMin > existStart && endMin <= existEnd) ||
+                                           (startMin <= existStart && endMin >= existEnd);
+
+                    if (hasTimeOverlap) {
+                        const existEffFrom = new Date(s.effectiveFromStr);
+                        const existEffTo = s.effectiveToStr ? new Date(s.effectiveToStr) : null;
+
+                        const hasDateOverlap = (existEffTo === null || existEffTo >= newEffFrom) &&
+                                               (newEffTo === null || existEffFrom <= newEffTo);
+
+                        if (hasDateOverlap) {
+                            const daysMap = {1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday', 7: 'Sunday'};
+                            overlapFound = true;
+                            overlapMsg = `Overlaps with active schedule on <strong>${daysMap[s.dayOfWeek]}</strong> (${formatTimeStr(s.startTimeStr)} - ${formatTimeStr(s.endTimeStr)}).`;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (overlapFound) {
+                overlapText.innerHTML = `<strong>Overlap Warning:</strong> ${overlapMsg}`;
+                overlapAlert.classList.remove('d-none');
+                overlapAlert.classList.add('d-flex');
+                saveBtn.disabled = true;
+            }
+        }
+
+        // Fetch & Re-render AJAX Engine
+        function fetchAndRenderAll() {
+            const doctorId = @Model.DoctorId;
+            
+            Promise.all([
+                fetch(`/DoctorSchedules/GetSchedules?doctorId=${doctorId}`).then(r => r.json()),
+                fetch(`/DoctorSchedules/GetExceptions?doctorId=${doctorId}`).then(r => r.json())
+            ])
+            .then(([schedules, exceptions]) => {
+                currentSchedules = schedules;
+                currentExceptions = exceptions;
+                
+                existingSchedules.length = 0;
+                schedules.forEach(s => {
+                    existingSchedules.push({
+                        scheduleId: s.scheduleId,
+                        dayOfWeek: s.dayOfWeek,
+                        startTimeStr: s.startTime,
+                        endTimeStr: s.endTime,
+                        effectiveFromStr: s.effectiveFrom,
+                        effectiveToStr: s.effectiveTo,
+                        isActive: s.isActive
+                    });
+                });
+
+                renderSchedulesTable(schedules);
+                renderSchedulesBoard(schedules);
+                renderExceptions(exceptions);
+            })
+            .catch(err => {
+                console.error("Error fetching schedule configuration details:", err);
+            });
+        }
+
+        function renderSchedulesTable(schedules) {
+            const tbody = document.querySelector('#schedule-table-view tbody');
+            tbody.innerHTML = '';
+            
+            if (schedules.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            No schedules configured. Click "Add Schedule" to create one.
+                        </td>
+                    </tr>`;
+                return;
+            }
+            
+            const sorted = [...schedules].sort((a, b) => {
+                if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+                return a.startTime.localeCompare(b.startTime);
+            });
+            
+            sorted.forEach(s => {
+                const tr = document.createElement('tr');
+                const theme = getDayTheme(s.dayOfWeek);
+                
+                if (!s.isActive) {
+                    tr.style = "opacity: 0.65; background-color: #fafafa;";
+                }
+                
+                const effectiveToHtml = s.effectiveTo ? `<div class="text-secondary">To: ${formatDate(s.effectiveTo)}</div>` : '';
+                const maxSessionHtml = s.maxPatientsPerSession ? `<div class="mt-1"><span class="badge bg-light text-muted border px-2 py-1.5"><i class="bi bi-shield-check me-1 text-info"></i>Max ${s.maxPatientsPerSession} / session</span></div>` : '';
+                
+                tr.innerHTML = `
+                    <td class="fw-bold" style="border-left: 4px solid ${theme.color}; padding-left: 12px; color: ${theme.text};">${s.dayName}</td>
+                    <td>
+                        <span class="badge px-2 py-1.5" style="background-color: ${theme.bg}; border: 1px solid ${theme.border}; color: ${theme.text}; font-weight: 600; font-size: 0.825rem;">
+                            ${formatTimeSpan(s.startTime)} - ${formatTimeSpan(s.endTime)}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border px-2 py-1.5"><i class="bi bi-hourglass-split me-1 text-primary"></i>${s.slotDurationMinutes} min</span>
+                    </td>
+                    <td>
+                        <div><span class="badge bg-light text-dark border px-2 py-1.5"><i class="bi bi-people-fill me-1 text-success"></i>${s.maxPatientsPerSlot} / slot</span></div>
+                        ${maxSessionHtml}
+                    </td>
+                    <td>
+                        <small>
+                            <div class="text-secondary">From: ${formatDate(s.effectiveFrom)}</div>
+                            ${effectiveToHtml}
+                        </small>
+                    </td>
+                    <td>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input status-toggle-switch" type="checkbox" role="switch" id="statusSwitch-${s.scheduleId}" ${s.isActive ? 'checked' : ''} onchange="toggleScheduleStatus(${s.scheduleId}, this)">
+                            <label class="form-check-label small text-muted ms-1" for="statusSwitch-${s.scheduleId}">${s.isActive ? 'Active' : 'Inactive'}</label>
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-light border shadow-xs" title="Edit" onclick="editSchedule(${s.scheduleId}, ${s.dayOfWeek}, '${s.startTime}', '${s.endTime}', ${s.slotDurationMinutes}, ${s.maxPatientsPerSlot}, ${s.maxPatientsPerSession || 0}, '${formatDateISO(s.effectiveFrom)}', '${s.effectiveTo ? formatDateISO(s.effectiveTo) : ''}')">
+                            <i class="bi bi-pencil text-primary"></i>
+                        </button>
+                        <button class="btn btn-sm btn-light border text-danger shadow-xs" title="Delete" onclick="deleteSchedule(${s.scheduleId})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderSchedulesBoard(schedules) {
+            const calendarView = document.getElementById('schedule-calendar-view');
+            const colsContainer = calendarView.querySelector('.row');
+            colsContainer.innerHTML = '';
+            
+            for (let d = 1; d <= 7; d++) {
+                const theme = getDayTheme(d);
+                const daySchedules = schedules.filter(s => s.dayOfWeek === d).sort((a, b) => a.startTime.localeCompare(b.startTime));
+                
+                const colDiv = document.createElement('div');
+                colDiv.className = 'col';
+                colDiv.style.minWidth = '105px';
+                
+                let cardsHtml = '';
+                if (daySchedules.length > 0) {
+                    daySchedules.forEach(s => {
+                        const inactiveStyle = s.isActive ? "" : "opacity: 0.6; border-style: dashed !important; background-color: #f8fafc !important;";
+                        const hour = parseInt(s.startTime.split(':')[0]);
+                        const timeIcon = hour < 12 ? "bi-sun-fill text-warning" : (hour < 16 ? "bi-cloud-sun-fill text-info" : "bi-moon-stars-fill text-primary");
+                        
+                        cardsHtml += `
+                            <div class="card border shadow-xs rounded p-2 text-start schedule-board-card transition-all" style="cursor: pointer; border-left: 4px solid ${theme.color} !important; border-color: ${theme.border}; background-color: #ffffff; ${inactiveStyle}" onclick="event.stopPropagation(); editSchedule(${s.scheduleId}, ${s.dayOfWeek}, '${s.startTime}', '${s.endTime}', ${s.slotDurationMinutes}, ${s.maxPatientsPerSlot}, ${s.maxPatientsPerSession || 0}, '${formatDateISO(s.effectiveFrom)}', '${s.effectiveTo ? formatDateISO(s.effectiveTo) : ''}')">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <span class="badge border px-1.5 py-0.5" style="font-size: 0.65rem; background-color: ${theme.bg}; color: ${theme.text}; border-color: ${theme.border} !important; font-weight: 600;">
+                                        <i class="bi ${timeIcon} me-0.5"></i> ${formatTimeSpan(s.startTime)}
+                                    </span>
+                                    <div class="d-flex gap-1">
+                                        <button type="button" class="btn btn-xs p-0 text-muted" onclick="event.stopPropagation(); editSchedule(${s.scheduleId}, ${s.dayOfWeek}, '${s.startTime}', '${s.endTime}', ${s.slotDurationMinutes}, ${s.maxPatientsPerSlot}, ${s.maxPatientsPerSession || 0}, '${formatDateISO(s.effectiveFrom)}', '${s.effectiveTo ? formatDateISO(s.effectiveTo) : ''}')">
+                                            <i class="bi bi-pencil" style="font-size: 0.7rem;"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-xs p-0 text-danger" onclick="event.stopPropagation(); deleteSchedule(${s.scheduleId})">
+                                            <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mt-1 fw-bold text-dark" style="font-size: 0.725rem;">to ${formatTimeSpan(s.endTime)}</div>
+                                <div class="text-muted mt-1.5 d-flex flex-wrap gap-1" style="font-size: 0.65rem; line-height: 1.2;">
+                                    <span class="badge bg-light text-dark border px-1 py-0.5" style="font-size: 0.62rem;"><i class="bi bi-hourglass-split me-0.5 text-primary"></i>${s.slotDurationMinutes} m</span>
+                                    <span class="badge bg-light text-dark border px-1 py-0.5" style="font-size: 0.62rem;"><i class="bi bi-people-fill me-0.5 text-success"></i>Cap: ${s.maxPatientsPerSlot}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    cardsHtml = `
+                        <div class="text-center text-muted my-auto py-3" style="font-size: 0.7rem;">
+                            No slots
+                        </div>
+                    `;
+                }
+                
+                colDiv.innerHTML = `
+                    <div class="card h-100 border-0 shadow-sm day-column-card transition-all" style="min-height: 280px; border-top: 4px solid ${theme.color} !important; border-left: 1px solid ${theme.border} !important; border-right: 1px solid ${theme.border} !important; border-bottom: 1px solid ${theme.border} !important;" onclick="openScheduleModalForDay(${d})">
+                        <div class="card-header py-2 text-center border-bottom fw-bold" style="background-color: ${theme.bg}; color: ${theme.text}; font-size: 0.85rem;">
+                            ${theme.name}
+                        </div>
+                        <div class="card-body p-2 d-flex flex-column gap-2" style="background-color: #fafbfc;">
+                            ${cardsHtml}
+                        </div>
+                    </div>
+                `;
+                colsContainer.appendChild(colDiv);
+            }
+        }
+
+        function renderExceptions(exceptions) {
+            const todayStr = formatDateISO(new Date());
+            
+            const activeToday = exceptions.filter(e => formatDateISO(e.exceptionDate) === todayStr);
+            const upcomingExceptions = exceptions.filter(e => formatDateISO(e.exceptionDate) > todayStr).sort((a, b) => a.exceptionDate.localeCompare(b.exceptionDate));
+            const pastExceptions = exceptions.filter(e => formatDateISO(e.exceptionDate) < todayStr).sort((a, b) => b.exceptionDate.localeCompare(a.exceptionDate));
+            
+            const todayTab = document.getElementById('today-tab');
+            const upcomingTab = document.getElementById('upcoming-tab');
+            const pastTab = document.getElementById('past-tab');
+            
+            todayTab.innerHTML = `Today (${activeToday.length}) ${activeToday.length > 0 ? '<span class="spinner-grow spinner-grow-sm text-danger ms-1" role="status" style="width: 8px; height: 8px; vertical-align: middle;"></span>' : ''}`;
+            upcomingTab.innerHTML = `Upcoming (${upcomingExceptions.length})`;
+            pastTab.innerHTML = `Past (${pastExceptions.length})`;
+            
+            const todayPaneUl = document.querySelector('#today-pane ul');
+            todayPaneUl.innerHTML = '';
+            if (activeToday.length > 0) {
+                activeToday.forEach(e => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center py-3 bg-light-warning border-0 border-bottom';
+                    li.innerHTML = `
+                        <div>
+                            <div class="fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> Today, ${formatDate(e.exceptionDate)}</div>
+                            <div class="small text-dark mt-1">
+                                <span class="badge bg-danger me-1">${e.exceptionType}</span>
+                                ${e.reason || ''}
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(${e.exceptionId})">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    `;
+                    todayPaneUl.appendChild(li);
+                });
+            } else {
+                todayPaneUl.innerHTML = '<li class="list-group-item text-center py-4 text-muted small">No exceptions active today.</li>';
+            }
+            
+            const upcomingPaneUl = document.querySelector('#upcoming-pane ul');
+            upcomingPaneUl.innerHTML = '';
+            if (upcomingExceptions.length > 0) {
+                upcomingExceptions.forEach(e => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center py-3 border-0 border-bottom';
+                    li.innerHTML = `
+                        <div>
+                            <div class="fw-bold text-dark">${formatDate(e.exceptionDate)}</div>
+                            <div class="small text-muted mt-1">
+                                <span class="badge bg-warning text-dark me-1">${e.exceptionType}</span>
+                                ${e.reason || ''}
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(${e.exceptionId})">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    `;
+                    upcomingPaneUl.appendChild(li);
+                });
+            } else {
+                upcomingPaneUl.innerHTML = '<li class="list-group-item text-center py-4 text-muted small">No upcoming exceptions.</li>';
+            }
+            
+            const pastPaneUl = document.querySelector('#past-pane ul');
+            pastPaneUl.innerHTML = '';
+            if (pastExceptions.length > 0) {
+                pastExceptions.forEach(e => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center py-2 text-muted border-0 border-bottom';
+                    li.innerHTML = `
+                        <div class="small">
+                            <div class="fw-semibold">${formatDate(e.exceptionDate)}</div>
+                            <div>${e.exceptionType} - ${e.reason || ''}</div>
+                        </div>
+                        <button class="btn btn-sm btn-link text-danger p-1 text-decoration-none" onclick="deleteException(${e.exceptionId})">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    `;
+                    pastPaneUl.appendChild(li);
+                });
+            } else {
+                pastPaneUl.innerHTML = '<li class="list-group-item text-center py-4 text-muted small">No past exceptions.</li>';
+            }
+        }
+
+        function toggleScheduleStatus(scheduleId, switchEl) {
+            const label = document.querySelector(`label[for="${switchEl.id}"]`);
+            if (!switchEl.checked) {
+                Swal.fire({
+                    title: 'Deactivate Schedule?',
+                    text: "Deactivating will prevent future patient bookings. Existing bookings won't be deleted.",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Yes, deactivate!'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        fetch(`/DoctorSchedules/DeleteSchedule/${scheduleId}`, { method: 'POST' })
+                        .then(r => r.json())
+                        .then(res => {
+                            if (res.success) {
+                                label.innerText = "Inactive";
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Deactivated',
+                                    text: res.message || 'Schedule deactivated.',
+                                    timer: 1200,
+                                    showConfirmButton: false
+                                }).then(() => {
+                                    fetchAndRenderAll();
+                                });
+                            } else {
+                                switchEl.checked = true; 
+                                Swal.fire('Error', res.message, 'error');
+                            }
+                        });
+                    } else {
+                        switchEl.checked = true; 
+                    }
+                });
+            }
+        }
+
         function openScheduleModal() {
             document.getElementById('scheduleForm').reset();
             document.getElementById('ScheduleId').value = 0;
+            Array.from(document.getElementById('DayOfWeek').options).forEach(opt => opt.selected = false);
+            updateDaySelectorUI();
+            checkScheduleOverlaps();
+            document.getElementById('scheduleModalLabel').innerText = 'Add Schedule';
+            scheduleModal.show();
+        }
+
+        function openScheduleModalForDay(dayOfWeek) {
+            document.getElementById('scheduleForm').reset();
+            document.getElementById('ScheduleId').value = 0;
+            Array.from(document.getElementById('DayOfWeek').options).forEach(opt => {
+                opt.selected = (parseInt(opt.value) === parseInt(dayOfWeek));
+            });
+            updateDaySelectorUI();
+            checkScheduleOverlaps();
             document.getElementById('scheduleModalLabel').innerText = 'Add Schedule';
             scheduleModal.show();
         }
@@ -268,6 +1228,9 @@
             Array.from(document.getElementById('DayOfWeek').options).forEach(opt => opt.selected = false);
             let optToSelect = document.getElementById('DayOfWeek').querySelector(`option[value="${day}"]`);
             if (optToSelect) optToSelect.selected = true;
+            
+            updateDaySelectorUI();
+
             document.getElementById('StartTime').value = start;
             document.getElementById('EndTime').value = end;
             document.getElementById('SlotDurationMinutes').value = duration;
@@ -276,6 +1239,8 @@
             document.getElementById('EffectiveFrom').value = effFrom;
             document.getElementById('EffectiveTo').value = effTo;
             
+            checkScheduleOverlaps();
+
             document.getElementById('scheduleModalLabel').innerText = 'Edit Schedule';
             scheduleModal.show();
         }
@@ -295,6 +1260,11 @@
                 ScheduleType: "OPD"
             };
 
+            if (data.DaysOfWeek.length === 0) {
+                Swal.fire('Validation Error', 'Please select at least one day of the week.', 'warning');
+                return;
+            }
+
             fetch('/DoctorSchedules/SaveSchedule', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -303,13 +1273,16 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
+                    scheduleModal.hide();
                     Swal.fire({
                         icon: 'success',
                         title: 'Success',
                         text: res.message,
                         timer: 1500,
                         showConfirmButton: false
-                    }).then(() => location.reload());
+                    }).then(() => {
+                        fetchAndRenderAll();
+                    });
                 } else {
                     Swal.fire({
                         icon: 'error',
@@ -339,7 +1312,15 @@
                     .then(r => r.json())
                     .then(res => {
                         if (res.success) {
-                            location.reload();
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted',
+                                text: res.message || 'Schedule deleted.',
+                                timer: 1200,
+                                showConfirmButton: false
+                            }).then(() => {
+                                fetchAndRenderAll();
+                            });
                         } else {
                             Swal.fire('Error', res.message, 'error');
                         }
@@ -378,13 +1359,16 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
+                    exceptionModal.hide();
                     Swal.fire({
                         icon: 'success',
                         title: 'Success',
                         text: res.message,
                         timer: 1500,
                         showConfirmButton: false
-                    }).then(() => location.reload());
+                    }).then(() => {
+                        fetchAndRenderAll();
+                    });
                 } else {
                     Swal.fire({
                         icon: 'error',
@@ -414,7 +1398,15 @@
                     .then(r => r.json())
                     .then(res => {
                         if (res.success) {
-                            location.reload();
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted',
+                                text: res.message || 'Exception deleted.',
+                                timer: 1200,
+                                showConfirmButton: false
+                            }).then(() => {
+                                fetchAndRenderAll();
+                            });
                         } else {
                             Swal.fire('Error', res.message, 'error');
                         }
@@ -422,5 +1414,67 @@
                 }
             });
         }
+
+        function toggleDarkMode() {
+            const container = document.getElementById('config-page-container');
+            if (!container) return;
+            
+            const isDark = container.classList.toggle('dark-mode');
+            document.body.classList.toggle('dark-mode', isDark);
+            
+            // Toggle modal styles
+            const sModal = document.getElementById('scheduleModal');
+            const eModal = document.getElementById('exceptionModal');
+            if (sModal) sModal.classList.toggle('dark-mode-modal', isDark);
+            if (eModal) eModal.classList.toggle('dark-mode-modal', isDark);
+            
+            // Save preference
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            
+            // Update button UI
+            const icon = document.getElementById('darkModeIcon');
+            const text = document.getElementById('darkModeText');
+            if (isDark) {
+                icon.className = 'bi bi-sun-fill text-warning';
+                text.innerText = 'Light Mode';
+            } else {
+                icon.className = 'bi bi-moon-stars-fill text-primary';
+                text.innerText = 'Dark Mode';
+            }
+            
+            // Re-render dynamically to refresh color theme backgrounds
+            if (currentSchedules) {
+                renderSchedulesTable(currentSchedules);
+                renderSchedulesBoard(currentSchedules);
+            }
+        }
+
+        // Dark Mode self-executing preference load
+        (function() {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.body.classList.add('dark-mode');
+                document.addEventListener('DOMContentLoaded', () => {
+                    const container = document.getElementById('config-page-container');
+                    if (container) {
+                        container.classList.add('dark-mode');
+                        const sModal = document.getElementById('scheduleModal');
+                        const eModal = document.getElementById('exceptionModal');
+                        if (sModal) sModal.classList.add('dark-mode-modal');
+                        if (eModal) eModal.classList.add('dark-mode-modal');
+                        
+                        const icon = document.getElementById('darkModeIcon');
+                        const text = document.getElementById('darkModeText');
+                        if (icon) icon.className = 'bi bi-sun-fill text-warning';
+                        if (text) text.innerText = 'Light Mode';
+                    }
+                });
+            }
+        })();
+
+        // Initialize lists on DOM content loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAndRenderAll();
+        });
     </script>
 }

@@ -7,66 +7,70 @@
 
 @section HeadStyles {
 <style>
+    /* Premium visual style */
+    .rounded-12 { border-radius: 12px; }
+    
     /* Search panel */
     .search-panel {
         background: #fff;
-        border: 2px solid #0d6efd;
+        border: 1px solid #dee2e6;
         border-radius: 12px;
-        padding: 1.1rem 1.4rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 2px 10px rgba(13,110,253,.1);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,.03);
     }
     .search-panel .search-label-strip {
-        font-size: .7rem; font-weight: 700; letter-spacing: 1px;
-        text-transform: uppercase; color: #0d6efd;
-        margin-bottom: .75rem;
-        display: flex; align-items: center; gap: .5rem;
+        font-size: .75rem; font-weight: 700; letter-spacing: 0.5px;
+        text-transform: uppercase; color: #4f46e5;
+        margin-bottom: .6rem;
+        display: flex; align-items: center; gap: .4rem;
     }
     #searchAutoDropdown {
         position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 1060;
-        background: #fff; border: 1px solid #c6d4f5;
-        border-radius: 0 0 10px 10px;
-        box-shadow: 0 6px 20px rgba(13,110,253,.13);
-        max-height: 280px; overflow-y: auto; display: none;
+        background: #fff; border: 1px solid #dee2e6;
+        border-radius: 8px;
+        box-shadow: 0 8px 30px rgba(0,0,0,.1);
+        max-height: 250px; overflow-y: auto; display: none;
     }
-    .suggest-item { padding: .5rem 1rem; cursor: pointer; border-bottom: 1px solid #f3f3f3; display: flex; align-items: center; justify-content: space-between; gap: .5rem; transition: background .12s; }
+    .suggest-item { padding: .55rem .9rem; cursor: pointer; border-bottom: 1px solid #f3f3f3; display: flex; align-items: center; justify-content: space-between; gap: .5rem; transition: background .12s; }
     .suggest-item:last-child { border-bottom: none; }
-    .suggest-item:hover { background: #e8f0fe; }
+    .suggest-item:hover { background: #f3f4f6; }
     .suggest-no-result { padding: .7rem 1rem; color: #888; font-size: .84rem; text-align: center; }
 
     /* Patient card */
     #patientInfoCard {
-        background: linear-gradient(135deg,#e8f0fe 0%,#f0fff4 100%);
-        border: 1.5px solid #0d6efd;
+        background: linear-gradient(135deg, #f5f3ff 0%, #ecfdf5 100%);
+        border: 1px solid #e0d9ff;
         border-radius: 12px;
-        padding: 1rem 1.4rem;
-        margin-bottom: 1.5rem;
+        padding: 0.9rem 1.2rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.05);
     }
 
     /* Vital form sections */
     .vital-section {
         background: #fff;
-        border: 1px solid #e9ecef;
+        border: 1px solid #e5e7eb;
         border-radius: 12px;
-        margin-bottom: 1.25rem;
+        margin-bottom: 1rem;
         overflow: hidden;
-        box-shadow: 0 1px 4px rgba(0,0,0,.05);
+        box-shadow: 0 2px 8px rgba(0,0,0,.02);
     }
     .vital-section-header {
-        display: flex; align-items: center; gap: .75rem;
-        padding: .85rem 1.4rem;
-        border-bottom: 1px solid #e9ecef;
-        background: #f8f9fc;
+        display: flex; align-items: center; gap: .65rem;
+        padding: .7rem 1.1rem;
+        border-bottom: 1px solid #f3f4f6;
+        background: #f9fafb;
     }
     .vital-section-header .sec-icon {
-        width: 38px; height: 38px; border-radius: 9px;
-        display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+        width: 32px; height: 32px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
     }
-    .vital-section-header .sec-icon.blue   { background: #e8f0fe; color: #1967d2; }
-    .vital-section-header .sec-icon.red    { background: #fde8e8; color: #c62828; }
-    .vital-section-header .sec-icon.green  { background: #e6f4ea; color: #137333; }
-    .vital-section-header .sec-icon.orange { background: #fef3e2; color: #e65c00; }
-    .vital-section-body { padding: 1.25rem 1.4rem; }
+    .vital-section-header .sec-icon.blue   { background: #eff6ff; color: #2563eb; }
+    .vital-section-header .sec-icon.red    { background: #fef2f2; color: #dc2626; }
+    .vital-section-header .sec-icon.green  { background: #ecfdf5; color: #059669; }
+    .vital-section-header .sec-icon.orange { background: #fff7ed; color: #ea580c; }
+    .vital-section-body { padding: 1rem 1.1rem; }
 
     /* Vital input group with status ring */
     .vital-input-wrap { position: relative; }
@@ -77,65 +81,85 @@
         pointer-events: none;
         display: none;
     }
-    .vital-status.ok    { color: #198754; display:block }
-    .vital-status.warn  { color: #fd7e14; display:block }
-    .vital-status.high  { color: #dc3545; display:block }
+    .vital-status.ok    { color: #10b981; display:block }
+    .vital-status.warn  { color: #f59e0b; display:block }
+    .vital-status.high  { color: #ef4444; display:block }
 
-    .vital-label { font-size: .82rem; font-weight: 600; color: #495057; margin-bottom: .3rem; }
-    .vital-label .unit { font-size: .73rem; font-weight: 400; color: #888; margin-left: 3px; }
-    .vital-hint  { font-size: .7rem; color: #aaa; margin-top: .2rem; }
+    .vital-label { font-size: .8rem; font-weight: 600; color: #374151; margin-bottom: .25rem; }
+    .vital-label .unit { font-size: .7rem; font-weight: 400; color: #6b7280; margin-left: 2px; }
+    .vital-hint  { font-size: .68rem; color: #9ca3af; margin-top: .15rem; }
 
     /* BMI card */
     #bmiCard {
-        background: #f8f9fc;
-        border: 1px solid #dee2e6;
-        border-radius: 10px;
-        padding: .9rem 1.2rem;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: .6rem 1rem;
         text-align: center;
-        min-height: 94px;
+        min-height: 76px;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         transition: background .2s;
     }
-    #bmiCard.ok     { background: #e6f4ea; border-color: #a8d5b5; }
-    #bmiCard.under  { background: #fff3cd; border-color: #f0c36d; }
-    #bmiCard.over   { background: #fdecea; border-color: #f5a0a0; }
-    #bmiValue       { font-size: 2rem; font-weight: 800; line-height: 1; }
-    #bmiCategory    { font-size: .78rem; font-weight: 600; margin-top: 2px; }
+    #bmiCard.ok     { background: #ecfdf5; border-color: #a7f3d0; }
+    #bmiCard.under  { background: #fffbeb; border-color: #fde68a; }
+    #bmiCard.over   { background: #fef2f2; border-color: #fecaca; }
+    #bmiValue       { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+    #bmiCategory    { font-size: .74rem; font-weight: 600; margin-top: 1px; }
 
     /* Pain scale visual */
-    .pain-bar { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; margin-top: .4rem; }
+    .pain-bar { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; margin-top: .3rem; }
     .pain-bar .pip {
-        width: 22px; height: 22px; border-radius: 50%;
-        border: 2px solid #dee2e6; background: #f8f9fc;
+        width: 20px; height: 20px; border-radius: 50%;
+        border: 1px solid #d1d5db; background: #f9fafb;
         cursor: pointer;
         display: flex; align-items: center; justify-content: center;
-        font-size: .65rem; font-weight: 700; color: #aaa;
+        font-size: .6rem; font-weight: 700; color: #6b7280;
         transition: all .15s;
     }
     .pain-bar .pip.active   { border-color: transparent; color: #fff; }
-    .pain-bar .pip[data-v="0"].active  { background: #198754; }
-    .pain-bar .pip[data-v="1"].active,.pip[data-v="2"].active,.pip[data-v="3"].active  { background: #20c997; }
-    .pain-bar .pip[data-v="4"].active,.pip[data-v="5"].active { background: #ffc107; color:#333 }
-    .pain-bar .pip[data-v="6"].active,.pip[data-v="7"].active { background: #fd7e14; }
-    .pain-bar .pip[data-v="8"].active,.pip[data-v="9"].active,.pip[data-v="10"].active { background: #dc3545; }
+    .pain-bar .pip[data-v="0"].active  { background: #10b981; }
+    .pain-bar .pip[data-v="1"].active,.pip[data-v="2"].active,.pip[data-v="3"].active  { background: #34d399; }
+    .pain-bar .pip[data-v="4"].active,.pip[data-v="5"].active { background: #fbbf24; color:#1f2937 }
+    .pain-bar .pip[data-v="6"].active,.pip[data-v="7"].active { background: #f59e0b; }
+    .pain-bar .pip[data-v="8"].active,.pip[data-v="9"].active,.pip[data-v="10"].active { background: #ef4444; }
 
     /* Action bar */
     .action-bar {
-        background: #fff; border: 1px solid #e9ecef;
-        border-radius: 12px; padding: 1rem 1.4rem;
-        display: flex; justify-content: flex-end; gap: .75rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 1px 4px rgba(0,0,0,.05);
+        background: #fff; border: 1px solid #e5e7eb;
+        border-radius: 12px; padding: 0.8rem 1.1rem;
+        display: flex; justify-content: flex-end; gap: .6rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,.02);
     }
 
     /* Guard overlay */
     #formGuard { pointer-events: none; opacity: .4; transition: opacity .3s; }
     #formGuard.unlocked { pointer-events: auto; opacity: 1; }
+    
+    /* View detail modal */
+    .vd-group { background: #f8f9fc; border: 1px solid #e9ecef; border-radius: 10px; padding: .9rem 1rem; margin-bottom: .75rem; }
+    .vd-group-title { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6c757d; margin-bottom: .65rem; display: flex; align-items: center; gap: .4rem; }
+    .vd-row { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; padding: .28rem 0; border-bottom: 1px solid #f0f0f0; font-size: .84rem; }
+    .vd-row:last-child { border-bottom: none; }
+    .vd-col { display: flex; flex-direction: column; min-width: 110px; gap: .18rem; }
+    .vd-label { color: #6c757d; font-size: .74rem; }
+    .vd-val   { font-weight: 600; }
+    .vd-chip  { display: inline-flex; align-items: center; padding: .15rem .55rem; border-radius: 20px; font-size: .78rem; font-weight: 600; }
+    .vd-ok   { background: #e6f4ea; color: #137333; }
+    .vd-warn { background: #fff3cd; color: #856404; }
+    .vd-high { background: #fdecea; color: #c62828; }
+    .vd-na   { color: #aaa; font-weight: 400; }
+
+    /* Custom layout modifications for Purple Navbar Theme */
+    .history-card-header {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+    }
 </style>
 }
 
 @* ── Page header ── *@
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h1 class="h3 mb-0 fw-bold">
             <i class="bi bi-clipboard2-pulse-fill me-2 text-primary"></i>@ViewData["Title"]
@@ -147,341 +171,454 @@
     </a>
 </div>
 
-@* ── Success / Error toast trigger ── *@
-@if (TempData["VitalSuccess"] != null)
-{
-    <div class="alert alert-success alert-dismissible d-flex gap-2 mb-3" role="alert">
-        <i class="bi bi-check-circle-fill flex-shrink-0"></i>
-        <span>@TempData["VitalSuccess"]</span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@* ═══════════════════════════════════════════════════
-   PATIENT SEARCH PANEL  (hidden on edit mode)
-═══════════════════════════════════════════════════ *@
-@if (!isEdit)
-{
-<div class="search-panel" id="searchPanel">
-    <div class="search-label-strip">
-        <i class="bi bi-search fs-6"></i>
-        Search Existing Patient
-        <span class="badge text-bg-danger ms-1">Required</span>
-    </div>
-    <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-3">
-            <label class="form-label fw-semibold small mb-1">Search By</label>
-            <select id="searchType" class="form-select form-select-sm">
-                <option value="phone">Mobile No</option>
-                <option value="code">Patient ID</option>
-                <option value="name">Patient Name</option>
-            </select>
-        </div>
-        <div class="col-12 col-md-7 position-relative">
-            <label class="form-label fw-semibold small mb-1" id="searchLabel">Enter Mobile Number</label>
-            <div class="input-group input-group-sm">
-                <span class="input-group-text" id="searchIconWrap"><i class="bi bi-telephone"></i></span>
-                <input type="text" id="searchInput" class="form-control"
-                       placeholder="Type to search…" maxlength="30" autocomplete="off" />
-                <button class="btn btn-primary px-3" type="button" id="btnSearch">
-                    <i class="bi bi-search me-1"></i>Search
-                </button>
-            </div>
-            <div id="searchAutoDropdown"></div>
-        </div>
-        <div class="col-12 col-md-2">
-            <div class="alert alert-warning py-2 mb-0 small text-center">
-                <i class="bi bi-exclamation-triangle-fill"></i> Select patient first
-            </div>
-        </div>
-    </div>
-</div>
-}
-
-@* ── Patient info card ── *@
-<div id="patientInfoCard" style="@(hasPatient ? "" : "display:none")" class="mb-3">
-    <div class="d-flex align-items-start gap-3 flex-wrap">
-        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
-             style="width:50px;height:50px;font-size:1.2rem" id="ptAvatar">
-            @(hasPatient ? ((Model.PatientFullName?.Length > 0 ? Model.PatientFullName[0].ToString() : "?").ToUpper()) : "?")
-        </div>
-        <div class="flex-grow-1">
-            <div class="d-flex gap-2 align-items-center flex-wrap mb-1">
-                <h5 class="mb-0 fw-bold" id="ptName">@(Model.PatientFullName ?? "—")</h5>
-                <span class="badge text-bg-primary font-monospace" id="ptCode">@(Model.PatientCode ?? "")</span>
-                <span class="badge text-bg-secondary" id="ptGender">@(Model.PatientGender ?? "—")</span>
-                @if (!string.IsNullOrEmpty(Model.PatientBloodGroup))
-                {<span class="badge text-bg-danger" id="ptBloodGroup">@Model.PatientBloodGroup</span>}
-                <span class="text-muted small" id="ptAge">@Model.PatientAge</span>
-            </div>
-            <div class="text-muted small">
-                <i class="bi bi-telephone me-1"></i><span id="ptPhone">@(Model.PatientPhone ?? "—")</span>
-            </div>
-            @if (!string.IsNullOrEmpty(Model.PatientAddress))
-            {<div class="text-muted small mt-1"><i class="bi bi-geo-alt me-1"></i>@Model.PatientAddress</div>}
-        </div>
+<div class="row g-3">
+    @* ── LEFT COLUMN: SEARCH & FORM ── *@
+    <div class="col-12 col-lg-5">
+        @* ═══════════════════════════════════════════════════
+           PATIENT SEARCH PANEL  (hidden on edit mode)
+           ═══════════════════════════════════════════════════ *@
         @if (!isEdit)
         {
-        <button type="button" class="btn btn-sm btn-outline-danger" id="btnChangePatient">
-            <i class="bi bi-x-circle me-1"></i>Change Patient
-        </button>
+        <div class="search-panel" id="searchPanel">
+            <div class="search-label-strip">
+                <i class="bi bi-search fs-6"></i>
+                Search Existing Patient
+                <span class="badge text-bg-danger ms-1">Required</span>
+            </div>
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-semibold small mb-1">Search By</label>
+                    <select id="searchType" class="form-select form-select-sm">
+                        <option value="phone">Mobile No</option>
+                        <option value="code">Patient ID</option>
+                        <option value="name">Patient Name</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-8 position-relative">
+                    <label class="form-label fw-semibold small mb-1" id="searchLabel">Enter Mobile Number</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text" id="searchIconWrap"><i class="bi bi-telephone"></i></span>
+                        <input type="text" id="searchInput" class="form-control"
+                               placeholder="Type to search…" maxlength="30" autocomplete="off" />
+                        <button class="btn btn-primary px-3" type="button" id="btnSearch">
+                            <i class="bi bi-search me-1"></i>Search
+                        </button>
+                    </div>
+                    <div id="searchAutoDropdown"></div>
+                </div>
+            </div>
+        </div>
         }
+
+        @* ── Patient info card ── *@
+        <div id="patientInfoCard" style="@(hasPatient ? "" : "display:none")" class="mb-3">
+            <div class="d-flex align-items-start gap-3 flex-wrap">
+                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                     style="width:44px;height:44px;font-size:1.1rem" id="ptAvatar">
+                    @(hasPatient ? ((Model.PatientFullName?.Length > 0 ? Model.PatientFullName[0].ToString() : "?").ToUpper()) : "?")
+                </div>
+                <div class="flex-grow-1" style="min-width:0;">
+                    <div class="d-flex gap-2 align-items-center flex-wrap mb-1">
+                        <h6 class="mb-0 fw-bold" id="ptName">@(Model.PatientFullName ?? "—")</h6>
+                        <span class="badge text-bg-primary font-monospace small" id="ptCode">@(Model.PatientCode ?? "")</span>
+                        <span class="badge text-bg-secondary small" id="ptGender">@(Model.PatientGender ?? "—")</span>
+                        <span class="text-muted small" id="ptAge">@Model.PatientAge</span>
+                    </div>
+                    <div class="text-muted small">
+                        <i class="bi bi-telephone me-1"></i><span id="ptPhone">@(Model.PatientPhone ?? "—")</span>
+                    </div>
+                </div>
+                @if (!isEdit)
+                {
+                <button type="button" class="btn btn-xs btn-outline-danger" id="btnChangePatient" style="font-size:0.75rem; padding:0.2rem 0.4rem;">
+                    <i class="bi bi-x-circle me-1"></i>Change
+                </button>
+                }
+            </div>
+        </div>
+
+        @if (!isEdit)
+        {
+        <div id="noPatientNotice" class="alert alert-info d-flex align-items-center gap-2 mb-3 py-2 small" role="alert"
+             style="@(hasPatient ? "display:none" : "")">
+            <i class="bi bi-person-circle fs-5"></i>
+            <span>Search and select a patient to enable the vitals entry form.</span>
+        </div>
+        }
+
+        @* ═══════════════════════════════════════════════════
+           VITALS FORM
+           ═══════════════════════════════════════════════════ *@
+        <form asp-action="RecordVital" method="post" id="vitalsForm" novalidate>
+            @Html.AntiForgeryToken()
+            <input asp-for="PatientVitalId" type="hidden" />
+            <input asp-for="PatientId"      type="hidden" id="hdnPatientId" />
+
+            <div id="formGuard" class="@(hasPatient || isEdit ? "unlocked" : "")">
+
+                @* ── Validation summary ── *@
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger small py-2 mb-3" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "" : "none")"></div>
+
+                @* ════════════ SECTION 1: Anthropometric ════════════ *@
+                <div class="vital-section">
+                    <div class="vital-section-header">
+                        <div class="sec-icon blue"><i class="bi bi-rulers"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="font-size: 0.88rem;">Anthropometric</h6>
+                            <small class="text-muted" style="font-size: 0.72rem;">Height, Weight and Body Mass Index</small>
+                        </div>
+                    </div>
+                    <div class="vital-section-body">
+                        <div class="row g-2 align-items-start">
+                            <div class="col-6">
+                                <label class="vital-label" for="Height">Height <span class="unit">cm</span></label>
+                                <div class="vital-input-wrap">
+                                    <input asp-for="Height" id="Height" type="number" step="any" min="30" max="250"
+                                           class="form-control form-control-sm fw-semibold pe-4"
+                                           placeholder="e.g. 168.5" />
+                                    <span id="heightStatus" class="vital-status"></span>
+                                </div>
+                                <span asp-validation-for="Height" class="text-danger small" style="font-size: 0.7rem;"></span>
+                                <div class="vital-hint">Normal: 140–200 cm</div>
+                            </div>
+                            <div class="col-6">
+                                <label class="vital-label" for="Weight">Weight <span class="unit">kg</span></label>
+                                <div class="vital-input-wrap">
+                                    <input asp-for="Weight" id="Weight" type="number" step="any" min="1" max="300"
+                                           class="form-control form-control-sm fw-semibold pe-4"
+                                           placeholder="e.g. 70.0" />
+                                    <span id="weightStatus" class="vital-status"></span>
+                                </div>
+                                <span asp-validation-for="Weight" class="text-danger small" style="font-size: 0.7rem;"></span>
+                                <div class="vital-hint">Normal: 40–150 kg</div>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <label class="vital-label">BMI <span class="unit">kg/m²</span></label>
+                                <div id="bmiCard">
+                                    <div id="bmiValue" class="text-muted">—</div>
+                                    <div id="bmiCategory" class="text-muted" style="font-size: 0.72rem;">Enter height & weight</div>
+                                </div>
+                                <input asp-for="BMI"         type="hidden" id="hdnBMI" />
+                                <input asp-for="BMICategory" type="hidden" id="hdnBMICategory" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* ════════════ SECTION 2: Cardiovascular ════════════ *@
+                <div class="vital-section">
+                    <div class="vital-section-header">
+                        <div class="sec-icon red"><i class="bi bi-heart-pulse-fill"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="font-size: 0.88rem;">Cardiovascular</h6>
+                            <small class="text-muted" style="font-size: 0.72rem;">BP, Pulse and Oxygen</small>
+                        </div>
+                    </div>
+                    <div class="vital-section-body">
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="vital-label">Blood Pressure <span class="unit">mmHg</span></label>
+                                <div class="row g-1 align-items-center">
+                                    <div class="col vital-input-wrap">
+                                        <input asp-for="BPSystolic" id="BPSystolic" type="number" min="50" max="250"
+                                               class="form-control form-control-sm fw-semibold text-center pe-4"
+                                               placeholder="SYS" />
+                                        <span id="sysStatus" class="vital-status"></span>
+                                    </div>
+                                    <div class="col-auto fw-bold text-muted px-1">/</div>
+                                    <div class="col vital-input-wrap">
+                                        <input asp-for="BPDiastolic" id="BPDiastolic" type="number" min="30" max="150"
+                                               class="form-control form-control-sm fw-semibold text-center pe-4"
+                                               placeholder="DIA" />
+                                        <span id="diaStatus" class="vital-status"></span>
+                                    </div>
+                                </div>
+                                <span asp-validation-for="BPSystolic"  class="text-danger small d-block" style="font-size: 0.7rem;"></span>
+                                <span asp-validation-for="BPDiastolic" class="text-danger small d-block" style="font-size: 0.7rem;"></span>
+                                <div class="vital-hint">Normal SYS: 90–120 · DIA: 60–80</div>
+                            </div>
+                            <div class="col-6 mt-1">
+                                <label class="vital-label" for="PulseRate">Pulse <span class="unit">bpm</span></label>
+                                <div class="vital-input-wrap">
+                                    <input asp-for="PulseRate" id="PulseRate" type="number" min="20" max="250"
+                                           class="form-control form-control-sm fw-semibold text-center pe-4"
+                                           placeholder="72" />
+                                    <span id="pulseStatus" class="vital-status"></span>
+                                </div>
+                                <span asp-validation-for="PulseRate" class="text-danger small" style="font-size: 0.7rem;"></span>
+                                <div class="vital-hint">60–100 bpm</div>
+                            </div>
+                            <div class="col-6 mt-1">
+                                <label class="vital-label" for="SpO2">SpO₂ <span class="unit">%</span></label>
+                                <div class="vital-input-wrap">
+                                    <input asp-for="SpO2" id="SpO2" type="number" step="any" min="50" max="100"
+                                           class="form-control form-control-sm fw-semibold text-center pe-4"
+                                           placeholder="99" />
+                                    <span id="spo2Status" class="vital-status"></span>
+                                </div>
+                                <span asp-validation-for="SpO2" class="text-danger small" style="font-size: 0.7rem;"></span>
+                                <div class="vital-hint">Normal: ≥95%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* ════════════ SECTION 3: General ════════════ *@
+                <div class="vital-section">
+                    <div class="vital-section-header">
+                        <div class="sec-icon green"><i class="bi bi-thermometer-half"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="font-size: 0.88rem;">General</h6>
+                            <small class="text-muted" style="font-size: 0.72rem;">Temperature and Respiratory Rate</small>
+                        </div>
+                    </div>
+                    <div class="vital-section-body">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="vital-label" for="Temperature">Temp <span class="unit">°F</span></label>
+                                <div class="vital-input-wrap">
+                                    <input asp-for="Temperature" id="Temperature" type="number" step="any" min="90" max="115"
+                                           class="form-control form-control-sm fw-semibold pe-4"
+                                           placeholder="98.6" />
+                                    <span id="tempStatus" class="vital-status"></span>
+                                </div>
+                                <span asp-validation-for="Temperature" class="text-danger small" style="font-size: 0.7rem;"></span>
+                                <div class="vital-hint">Normal: 97–99 °F</div>
+                            </div>
+                            <div class="col-6">
+                                <label class="vital-label" for="RespiratoryRate">Resp Rate <span class="unit">rpm</span></label>
+                                <div class="vital-input-wrap">
+                                    <input asp-for="RespiratoryRate" id="RespiratoryRate" type="number" min="1" max="80"
+                                           class="form-control form-control-sm fw-semibold pe-4"
+                                           placeholder="16" />
+                                    <span id="rrStatus" class="vital-status"></span>
+                                </div>
+                                <span asp-validation-for="RespiratoryRate" class="text-danger small" style="font-size: 0.7rem;"></span>
+                                <div class="vital-hint">Normal: 12–20 rpm</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* ════════════ SECTION 4: Optional ════════════ *@
+                <div class="vital-section">
+                    <div class="vital-section-header">
+                        <div class="sec-icon orange"><i class="bi bi-droplet-fill"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="font-size: 0.88rem;">Optional Measurements</h6>
+                            <small class="text-muted" style="font-size: 0.72rem;">Blood Glucose & Pain Score</small>
+                        </div>
+                    </div>
+                    <div class="vital-section-body">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-6">
+                                <label class="vital-label" for="BloodGlucose">Glucose <span class="unit">mg/dL</span></label>
+                                <div class="vital-input-wrap">
+                                    <input asp-for="BloodGlucose" id="BloodGlucose" type="number" step="any" min="20" max="600"
+                                           class="form-control form-control-sm fw-semibold pe-4"
+                                           placeholder="100" />
+                                    <span id="glucoseStatus" class="vital-status"></span>
+                                </div>
+                                <span asp-validation-for="BloodGlucose" class="text-danger small" style="font-size: 0.7rem;"></span>
+                            </div>
+                            <div class="col-6">
+                                <label class="vital-label" for="GlucoseType">Glucose Type</label>
+                                <select asp-for="GlucoseType" id="GlucoseType" class="form-select form-select-sm">
+                                    <option value="">— Select —</option>
+                                    <option>Fasting</option>
+                                    <option>Random</option>
+                                    <option>PP</option>
+                                </select>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <label class="vital-label" for="PainScore">Pain Score (0 = None, 10 = Worst)</label>
+                                <div class="pain-bar" id="painBar">
+                                    @for (int i = 0; i <= 10; i++)
+                                    {
+                                    <div class="pip @(Model.PainScore == i ? "active" : "")" data-v="@i" title="@i">@i</div>
+                                    }
+                                </div>
+                                <input asp-for="PainScore" type="hidden" id="hdnPainScore" />
+                                <span asp-validation-for="PainScore" class="text-danger small" style="font-size: 0.7rem;"></span>
+                            </div>
+                        </div>
+
+                        @* Notes *@
+                        <div class="row g-2 mt-2">
+                            <div class="col-12">
+                                <label class="vital-label" for="Notes">Notes / Observations</label>
+                                <textarea asp-for="Notes" id="Notes" class="form-control form-control-sm" rows="2"
+                                          maxlength="500" placeholder="Any clinical observations, complaints…"></textarea>
+                                <span asp-validation-for="Notes" class="text-danger small" style="font-size: 0.7rem;"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* ── Action bar ── *@
+                <div class="action-bar">
+                    <button type="submit" name="returnAction" value="history"
+                            class="btn btn-primary btn-sm px-4 fw-semibold" id="btnSave">
+                        <i class="bi bi-floppy-fill me-2"></i>@(isEdit ? "Update Record" : "Save Vitals")
+                    </button>
+                    @if (!isEdit)
+                    {
+                    <button type="submit" name="returnAction" value="another"
+                            class="btn btn-outline-primary btn-sm px-3" id="btnSaveAnother">
+                        <i class="bi bi-plus-circle me-1"></i>Save &amp; Add Another
+                    </button>
+                    }
+                    @if (Model.PatientId > 0)
+                    {
+                    <a asp-action="History" asp-route-patientId="@Model.PatientId" class="btn btn-outline-secondary btn-sm px-3">
+                        <i class="bi bi-clock-history me-1"></i>View Full History
+                    </a>
+                    }
+                </div>
+
+            </div>@* /formGuard *@
+        </form>
+    </div>
+
+    @* ── RIGHT COLUMN: DYNAMIC HISTORY TABLE ── *@
+    <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm rounded-12 h-100">
+            <div class="card-header history-card-header rounded-top-12 py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold mb-0">
+                        <i class="bi bi-clock-history me-2"></i>Previous Vital Readings
+                    </span>
+                    @if (hasPatient)
+                    {
+                    <a asp-action="PrintVital" asp-route-patientId="@Model.PatientId" target="_blank" class="btn btn-xs btn-success py-0 px-2 text-white" id="btnPrintVitals">
+                        <i class="bi bi-printer-fill me-1"></i>Print Vitals
+                    </a>
+                    }
+                </div>
+            </div>
+            <div class="card-body p-2" id="historyTableContainer">
+                <div class="text-center py-5 text-muted" id="historyPlaceholder">
+                    <i class="bi bi-person-badge display-6 d-block mb-2 opacity-50"></i>
+                    <h6 class="fw-semibold">No Patient Selected</h6>
+                    <p class="mb-0 small">Search and select a patient to load their vitals history.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-@if (!isEdit)
-{
-<div id="noPatientNotice" class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert"
-     style="@(hasPatient ? "display:none" : "")">
-    <i class="bi bi-person-circle fs-5"></i>
-    <span>Search and select a patient above to enable the vitals entry form.</span>
-</div>
-}
+<div id="antiForgeryForm" style="display:none;">@Html.AntiForgeryToken()</div>
 
-@* ═══════════════════════════════════════════════════
-   VITALS FORM
-═══════════════════════════════════════════════════ *@
-<form asp-action="RecordVital" method="post" id="vitalsForm" novalidate>
-    @Html.AntiForgeryToken()
-    <input asp-for="PatientVitalId" type="hidden" />
-    <input asp-for="PatientId"      type="hidden" id="hdnPatientId" />
-
-    <div id="formGuard" class="@(hasPatient || isEdit ? "unlocked" : "")">
-
-        @* ── Validation summary ── *@
-        <div asp-validation-summary="ModelOnly" class="alert alert-danger small py-2 mb-3" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "" : "none")"></div>
-
-        @* ════════════ SECTION 1: Anthropometric ════════════ *@
-        <div class="vital-section">
-            <div class="vital-section-header">
-                <div class="sec-icon blue"><i class="bi bi-rulers"></i></div>
+@* ── View Vital Details Modal ── *@
+<div class="modal fade" id="viewVitalModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header py-2 px-3" style="background:linear-gradient(135deg,#0d6efd,#0a58ca)">
                 <div>
-                    <h6 class="fw-bold mb-0">Anthropometric</h6>
-                    <small class="text-muted">Height, Weight and Body Mass Index</small>
+                    <span class="fw-semibold text-white fs-6">
+                        <i class="bi bi-clipboard2-pulse-fill me-2"></i>Vital Record Details
+                    </span>
+                    <div class="small text-white opacity-75 mt-0" id="mvDate"></div>
                 </div>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
             </div>
-            <div class="vital-section-body">
-                <div class="row g-3 align-items-start">
-                    <div class="col-6 col-md-3">
-                        <label class="vital-label" for="Height">Height <span class="unit">cm</span></label>
-                        <div class="vital-input-wrap">
-                            <input asp-for="Height" id="Height" type="number" step="any" min="30" max="250"
-                                   class="form-control form-control-lg fw-semibold pe-5"
-                                   placeholder="e.g. 168.5" />
-                            <span id="heightStatus" class="vital-status"></span>
-                        </div>
-                        <span asp-validation-for="Height" class="text-danger small"></span>
-                        <div class="vital-hint">Normal: 140–200 cm</div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <label class="vital-label" for="Weight">Weight <span class="unit">kg</span></label>
-                        <div class="vital-input-wrap">
-                            <input asp-for="Weight" id="Weight" type="number" step="any" min="1" max="300"
-                                   class="form-control form-control-lg fw-semibold pe-5"
-                                   placeholder="e.g. 70.0" />
-                            <span id="weightStatus" class="vital-status"></span>
-                        </div>
-                        <span asp-validation-for="Weight" class="text-danger small"></span>
-                        <div class="vital-hint">Normal: 40–150 kg</div>
-                    </div>
-                    <div class="col-12 col-md-3 d-flex align-items-end">
-                        <div class="w-100">
-                            <label class="vital-label">BMI <span class="unit">kg/m²</span></label>
-                            <div id="bmiCard">
-                                <div id="bmiValue" class="text-muted">—</div>
-                                <div id="bmiCategory" class="text-muted">Enter height & weight</div>
-                            </div>
-                            <input asp-for="BMI"         type="hidden" id="hdnBMI" />
-                            <input asp-for="BMICategory" type="hidden" id="hdnBMICategory" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <div class="modal-body p-3">
 
-        @* ════════════ SECTION 2: Cardiovascular ════════════ *@
-        <div class="vital-section">
-            <div class="vital-section-header">
-                <div class="sec-icon red"><i class="bi bi-heart-pulse-fill"></i></div>
-                <div>
-                    <h6 class="fw-bold mb-0">Cardiovascular</h6>
-                    <small class="text-muted">Blood pressure, pulse and oxygen saturation</small>
-                </div>
-            </div>
-            <div class="vital-section-body">
-                <div class="row g-3">
-                    @* BP *@
-                    <div class="col-12 col-md-5">
-                        <label class="vital-label">Blood Pressure <span class="unit">mmHg</span></label>
-                        <div class="row g-2 align-items-center">
-                            <div class="col vital-input-wrap">
-                                <input asp-for="BPSystolic" id="BPSystolic" type="number" min="50" max="250"
-                                       class="form-control form-control-lg fw-semibold text-center pe-5"
-                                       placeholder="SYS" />
-                                <span id="sysStatus" class="vital-status"></span>
-                            </div>
-                            <div class="col-auto fw-bold text-muted fs-4">/</div>
-                            <div class="col vital-input-wrap">
-                                <input asp-for="BPDiastolic" id="BPDiastolic" type="number" min="30" max="150"
-                                       class="form-control form-control-lg fw-semibold text-center pe-5"
-                                       placeholder="DIA" />
-                                <span id="diaStatus" class="vital-status"></span>
-                            </div>
-                        </div>
-                        <span asp-validation-for="BPSystolic"  class="text-danger small d-block"></span>
-                        <span asp-validation-for="BPDiastolic" class="text-danger small d-block"></span>
-                        <div class="vital-hint">Normal SYS: 90–120 · DIA: 60–80</div>
+                @* Anthropometric *@
+                <div class="vd-group mb-3">
+                    <div class="vd-group-title">
+                        <i class="bi bi-body-text me-1"></i>Anthropometric
                     </div>
-                    @* Pulse *@
-                    <div class="col-6 col-md-2">
-                        <label class="vital-label" for="PulseRate">Pulse <span class="unit">bpm</span></label>
-                        <div class="vital-input-wrap">
-                            <input asp-for="PulseRate" id="PulseRate" type="number" min="20" max="250"
-                                   class="form-control form-control-lg fw-semibold text-center pe-5"
-                                   placeholder="72" />
-                            <span id="pulseStatus" class="vital-status"></span>
+                    <div class="vd-row">
+                        <div class="vd-col">
+                            <span class="vd-label">Height</span>
+                            <span class="vd-val" id="mvHeight"></span>
                         </div>
-                        <span asp-validation-for="PulseRate" class="text-danger small"></span>
-                        <div class="vital-hint">60–100 bpm</div>
-                    </div>
-                    @* SpO2 *@
-                    <div class="col-6 col-md-2">
-                        <label class="vital-label" for="SpO2">SpO₂ <span class="unit">%</span></label>
-                        <div class="vital-input-wrap">
-                            <input asp-for="SpO2" id="SpO2" type="number" step="any" min="50" max="100"
-                                   class="form-control form-control-lg fw-semibold text-center pe-5"
-                                   placeholder="99" />
-                            <span id="spo2Status" class="vital-status"></span>
+                        <div class="vd-col">
+                            <span class="vd-label">Weight</span>
+                            <span class="vd-val" id="mvWeight"></span>
                         </div>
-                        <span asp-validation-for="SpO2" class="text-danger small"></span>
-                        <div class="vital-hint">Normal: ≥95%</div>
+                        <div class="vd-col">
+                            <span class="vd-label">BMI</span>
+                            <span class="vd-val" id="mvBmi"></span>
+                            <span class="badge ms-1" id="mvBmiCat"></span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        @* ════════════ SECTION 3: General ════════════ *@
-        <div class="vital-section">
-            <div class="vital-section-header">
-                <div class="sec-icon green"><i class="bi bi-thermometer-half"></i></div>
-                <div>
-                    <h6 class="fw-bold mb-0">General</h6>
-                    <small class="text-muted">Temperature and respiratory rate</small>
-                </div>
-            </div>
-            <div class="vital-section-body">
-                <div class="row g-3">
-                    <div class="col-6 col-md-3">
-                        <label class="vital-label" for="Temperature">Temperature <span class="unit">°F</span></label>
-                        <div class="vital-input-wrap">
-                            <input asp-for="Temperature" id="Temperature" type="number" step="any" min="90" max="115"
-                                   class="form-control form-control-lg fw-semibold pe-5"
-                                   placeholder="98.6" />
-                            <span id="tempStatus" class="vital-status"></span>
-                        </div>
-                        <span asp-validation-for="Temperature" class="text-danger small"></span>
-                        <div class="vital-hint">Normal: 97–99 °F</div>
+                @* Cardiovascular *@
+                <div class="vd-group mb-3">
+                    <div class="vd-group-title">
+                        <i class="bi bi-heart-pulse-fill me-1"></i>Cardiovascular
                     </div>
-                    <div class="col-6 col-md-3">
-                        <label class="vital-label" for="RespiratoryRate">Respiratory Rate <span class="unit">rpm</span></label>
-                        <div class="vital-input-wrap">
-                            <input asp-for="RespiratoryRate" id="RespiratoryRate" type="number" min="1" max="80"
-                                   class="form-control form-control-lg fw-semibold pe-5"
-                                   placeholder="16" />
-                            <span id="rrStatus" class="vital-status"></span>
+                    <div class="vd-row">
+                        <div class="vd-col">
+                            <span class="vd-label">Blood Pressure</span>
+                            <span class="vd-chip" id="mvBp"></span>
                         </div>
-                        <span asp-validation-for="RespiratoryRate" class="text-danger small"></span>
-                        <div class="vital-hint">Normal: 12–20 rpm</div>
+                        <div class="vd-col">
+                            <span class="vd-label">Pulse Rate</span>
+                            <span class="vd-chip" id="mvPulse"></span>
+                        </div>
+                        <div class="vd-col">
+                            <span class="vd-label">SpO₂</span>
+                            <span class="vd-chip" id="mvSpo2"></span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        @* ════════════ SECTION 4: Optional ════════════ *@
-        <div class="vital-section">
-            <div class="vital-section-header">
-                <div class="sec-icon orange"><i class="bi bi-droplet-fill"></i></div>
-                <div>
-                    <h6 class="fw-bold mb-0">Optional Measurements</h6>
-                    <small class="text-muted">Blood glucose and pain assessment</small>
+                @* General *@
+                <div class="vd-group mb-3">
+                    <div class="vd-group-title">
+                        <i class="bi bi-thermometer-half me-1"></i>General
+                    </div>
+                    <div class="vd-row">
+                        <div class="vd-col">
+                            <span class="vd-label">Temperature</span>
+                            <span class="vd-chip" id="mvTemp"></span>
+                        </div>
+                        <div class="vd-col">
+                            <span class="vd-label">Respiratory Rate</span>
+                            <span class="vd-chip" id="mvRr"></span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="vital-section-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col-6 col-md-3">
-                        <label class="vital-label" for="BloodGlucose">Blood Glucose <span class="unit">mg/dL</span></label>
-                        <div class="vital-input-wrap">
-                            <input asp-for="BloodGlucose" id="BloodGlucose" type="number" step="any" min="20" max="600"
-                                   class="form-control form-control-lg fw-semibold pe-5"
-                                   placeholder="100" />
-                            <span id="glucoseStatus" class="vital-status"></span>
-                        </div>
-                        <span asp-validation-for="BloodGlucose" class="text-danger small"></span>
-                        <div class="vital-hint">Fasting<70–100 · Random<140</div>
+
+                @* Optional *@
+                <div class="vd-group mb-3" id="mvOptGroup">
+                    <div class="vd-group-title">
+                        <i class="bi bi-droplet-half me-1"></i>Additional
                     </div>
-                    <div class="col-6 col-md-2">
-                        <label class="vital-label" for="GlucoseType">Glucose Type</label>
-                        <select asp-for="GlucoseType" id="GlucoseType" class="form-select form-select-lg">
-                            <option value="">— Optional —</option>
-                            <option>Fasting</option>
-                            <option>Random</option>
-                            <option>PP</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-5">
-                        <label class="vital-label" for="PainScore">Pain Score (0 = None, 10 = Worst)</label>
-                        <div class="pain-bar" id="painBar">
-                            @for (int i = 0; i <= 10; i++)
-                            {
-                            <div class="pip @(Model.PainScore == i ? "active" : "")" data-v="@i" title="@i">@i</div>
-                            }
+                    <div class="vd-row">
+                        <div class="vd-col" id="mvGlucoseCol">
+                            <span class="vd-label">Blood Glucose</span>
+                            <span class="vd-val" id="mvGlucose"></span>
                         </div>
-                        <input asp-for="PainScore" type="hidden" id="hdnPainScore" />
-                        <span asp-validation-for="PainScore" class="text-danger small"></span>
+                        <div class="vd-col" id="mvPainCol">
+                            <span class="vd-label">Pain Score</span>
+                            <span class="vd-chip" id="mvPain"></span>
+                        </div>
                     </div>
                 </div>
 
                 @* Notes *@
-                <div class="row g-3 mt-0">
-                    <div class="col-12">
-                        <label class="vital-label" for="Notes">Notes / Observations</label>
-                        <textarea asp-for="Notes" id="Notes" class="form-control" rows="2"
-                                  maxlength="500" placeholder="Any clinical observations, patient complaints…"></textarea>
-                        <span asp-validation-for="Notes" class="text-danger small"></span>
+                <div class="vd-group" id="mvNotesGroup">
+                    <div class="vd-group-title">
+                        <i class="bi bi-chat-left-text-fill me-1"></i>Notes
                     </div>
+                    <p class="mb-0 small text-muted" id="mvNotes" style="white-space:pre-wrap"></p>
                 </div>
+
+            </div>
+            <div class="modal-footer py-2 px-3 bg-light">
+                <span class="text-muted small me-auto">
+                    <i class="bi bi-person-fill me-1"></i>Recorded by: <span id="mvBy" class="fw-semibold"></span>
+                </span>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
-
-        @* ── Action bar ── *@
-        <div class="action-bar">
-            @if (Model.PatientId > 0)
-            {
-            <a asp-action="History" asp-route-patientId="@Model.PatientId" class="btn btn-outline-secondary px-4">
-                <i class="bi bi-clock-history me-1"></i>View History
-            </a>
-            }
-            else
-            {
-            <a asp-action="Index" class="btn btn-outline-secondary px-4">
-                <i class="bi bi-x-circle me-1"></i>Cancel
-            </a>
-            }
-            @if (!isEdit)
-            {
-            <button type="submit" name="returnAction" value="another"
-                    class="btn btn-outline-primary px-4" id="btnSaveAnother">
-                <i class="bi bi-plus-circle me-1"></i>Save &amp; Add Another
-            </button>
-            }
-            <button type="submit" name="returnAction" value="history"
-                    class="btn btn-primary px-5 fw-semibold" id="btnSave">
-                <i class="bi bi-floppy-fill me-2"></i>@(isEdit ? "Update Record" : "Save Vitals")
-            </button>
-        </div>
-
-    </div>@* /formGuard *@
-</form>
+    </div>
+</div>
 
 @section Scripts {
 @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
@@ -490,10 +627,210 @@
     'use strict';
 
     const opdBase = '@Url.Content("~/OPD/")';
+    let currentPage = 1;
 
     // ── Utility ────────────────────────────────────────────────────────────
     async function fetchJson(url) {
         try { const r = await fetch(url); return r.ok ? r.json() : null; } catch { return null; }
+    }
+
+    // ── History loading ───────────────────────────────────────────────────
+    window.loadHistoryPage = async function (page) {
+        const patientId = document.getElementById('hdnPatientId').value;
+        if (!patientId || patientId <= 0) return;
+        currentPage = page;
+
+        const container = document.getElementById('historyTableContainer');
+        if (!container) return;
+
+        container.style.opacity = '0.5';
+        try {
+            const response = await fetch(`/Vitals/GetHistoryTable?patientId=${patientId}&page=${page}`);
+            if (response.ok) {
+                container.innerHTML = await response.text();
+                updatePrintLink(patientId);
+            } else {
+                container.innerHTML = `<div class="alert alert-danger py-2 small m-2">Failed to load history table.</div>`;
+            }
+        } catch (e) {
+            container.innerHTML = `<div class="alert alert-danger py-2 small m-2">An error occurred while communicating with the server.</div>`;
+        } finally {
+            container.style.opacity = '1';
+        }
+    };
+
+    window.editVitalRecord = function (vitalId, patientId) {
+        window.location.href = `@Url.Action("RecordVital", "Vitals")?patientId=${patientId}&editId=${vitalId}`;
+    };
+
+    window.deleteVitalRecord = function (vitalId, patientId) {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "This vital record will be permanently deleted!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                const tokenEl = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]');
+                if (!tokenEl) return;
+                
+                const formData = new FormData();
+                formData.append('vitalId', vitalId);
+                formData.append('patientId', patientId);
+                formData.append('__RequestVerificationToken', tokenEl.value);
+
+                try {
+                    const response = await fetch(`/Vitals/Delete`, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted!',
+                                text: data.message,
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                            loadHistoryPage(currentPage);
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+                        }
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to delete. Server returned an error.' });
+                    }
+                } catch (e) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to communicate with server.' });
+                }
+            }
+        });
+    };
+
+    function updatePrintLink(patientId) {
+        let printBtn = document.getElementById('btnPrintVitals');
+        if (!printBtn) {
+            const header = document.querySelector('.history-card-header .d-flex');
+            if (header) {
+                printBtn = document.createElement('a');
+                printBtn.id = 'btnPrintVitals';
+                printBtn.className = 'btn btn-xs btn-success py-0 px-2 text-white';
+                printBtn.target = '_blank';
+                printBtn.innerHTML = '<i class="bi bi-printer-fill me-1"></i>Print Vitals';
+                header.appendChild(printBtn);
+            }
+        }
+        if (printBtn) {
+            printBtn.href = `/Vitals/PrintVital?patientId=${patientId}`;
+            printBtn.style.display = '';
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // FORM AJAX SUBMISSION
+    // ══════════════════════════════════════════════════════════════════════
+    const form = document.getElementById('vitalsForm');
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        if (typeof $ !== 'undefined' && $(form).length && !$(form).valid()) {
+            return;
+        }
+
+        const submitBtn = document.activeElement;
+        const isAnother = submitBtn && submitBtn.value === 'another';
+
+        const saveBtn = document.getElementById('btnSave');
+        const saveAnotherBtn = document.getElementById('btnSaveAnother');
+
+        if (saveBtn) saveBtn.disabled = true;
+        if (saveAnotherBtn) saveAnotherBtn.disabled = true;
+
+        const formData = new FormData(form);
+        formData.append('returnAction', isAnother ? 'another' : 'history');
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Saved!',
+                        text: data.message,
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+
+                    if (isAnother) {
+                        resetVitalInputs();
+                        loadHistoryPage(1);
+                    } else {
+                        window.location.href = `/Vitals/History?patientId=${data.patientId}`;
+                    }
+                } else {
+                    let errMsg = data.message || 'Validation failed.';
+                    if (data.errors && data.errors.length) {
+                        errMsg += '<br><ul class="text-start mb-0 small mt-2">' + data.errors.map(e => `<li>${e}</li>`).join('') + '</ul>';
+                    }
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Save Failed',
+                        html: errMsg
+                    });
+                }
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Server error occurred while saving.' });
+            }
+        } catch (ex) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to communicate with the server.' });
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
+            if (saveAnotherBtn) saveAnotherBtn.disabled = false;
+        }
+    });
+
+    function resetVitalInputs() {
+        const inputs = document.querySelectorAll('#vitalsForm input:not([type="hidden"]), #vitalsForm textarea, #vitalsForm select');
+        inputs.forEach(inp => {
+            inp.value = '';
+            inp.dispatchEvent(new Event('input'));
+        });
+        
+        bmiValueEl.textContent = '—';
+        bmiValueEl.style.color = '';
+        bmiCategoryEl.textContent = 'Enter height & weight';
+        bmiCategoryEl.style.color = '';
+        bmiCard.className = 'bmiCard';
+        hdnBMI.value = '';
+        hdnBMICat.value = '';
+
+        pips.forEach(p => p.classList.remove('active'));
+        hdnPain.value = '';
+
+        const valSummary = document.querySelector('[asp-validation-summary="ModelOnly"]');
+        if (valSummary) valSummary.style.display = 'none';
+        
+        document.querySelectorAll('.field-validation-error').forEach(el => {
+            el.innerHTML = '';
+        });
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -573,9 +910,7 @@
     async function loadPatient(id) {
         const p = await fetchJson(opdBase + 'GetPatientDetails?id=' + id);
         if (!p) return;
-        // Fill hidden field
         document.getElementById('hdnPatientId').value = p.patientId;
-        // Fill display card
         const initials = ((p.firstName?.[0]??'')+(p.lastName?.[0]??'')).toUpperCase()||'?';
         document.getElementById('ptAvatar').textContent = initials;
         const full = [p.salutation,p.firstName,p.middleName,p.lastName].filter(Boolean).join(' ');
@@ -589,11 +924,12 @@
             if(today<new Date(today.getFullYear(),dob.getMonth(),dob.getDate())) age--;
             document.getElementById('ptAge').textContent = age+' yrs';
         }
-        // Unlock form
         document.getElementById('formGuard').classList.add('unlocked');
         document.getElementById('patientInfoCard').style.display = '';
         document.getElementById('noPatientNotice').style.display = 'none';
         searchInput.value = '';
+
+        loadHistoryPage(1);
     }
 
     document.getElementById('btnChangePatient').addEventListener('click', () => {
@@ -601,6 +937,20 @@
         document.getElementById('formGuard').classList.remove('unlocked');
         document.getElementById('patientInfoCard').style.display = 'none';
         document.getElementById('noPatientNotice').style.display = '';
+        
+        const container = document.getElementById('historyTableContainer');
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-5 text-muted" id="historyPlaceholder">
+                    <i class="bi bi-person-badge display-6 d-block mb-2 opacity-50"></i>
+                    <h6 class="fw-semibold">No Patient Selected</h6>
+                    <p class="mb-0 small">Search and select a patient to load their vitals history.</p>
+                </div>`;
+        }
+        const printBtn = document.getElementById('btnPrintVitals');
+        if (printBtn) printBtn.style.display = 'none';
+
+        resetVitalInputs();
     });
     </text>
     }
@@ -635,7 +985,7 @@
         hdnBMI.value    = rounded;
         hdnBMICat.value = cat;
 
-        const colors = { ok: '#198754', under: '#ffc107', over: '#dc3545' };
+        const colors = { ok: '#10b981', under: '#f59e0b', over: '#ef4444' };
         bmiValueEl.style.color    = colors[cls];
         bmiCategoryEl.style.color = colors[cls];
     }
@@ -686,9 +1036,107 @@
         hdnPain.value = pip.dataset.v;
     });
 
+    // ── modal population (for detail viewing) ──────────────────────────────
+    function chip(id, text, cls) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = text || '—';
+        el.className = 'vd-chip' + (cls ? ' vd-' + cls : ' vd-na');
+    }
+    function val(id, text) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = text || '—';
+    }
+    function show(id) { var e = document.getElementById(id); if (e) e.style.display = ''; }
+    function hide(id) { var e = document.getElementById(id); if (e) e.style.display = 'none'; }
+
+    function bmiBadge(cat) {
+        if (!cat) return ['bg-secondary', '—'];
+        var c = cat.toLowerCase();
+        if (c.includes('underweight')) return ['bg-info text-dark', cat];
+        if (c.includes('normal'))      return ['bg-success', cat];
+        if (c.includes('overweight'))  return ['bg-warning text-dark', cat];
+        return ['bg-danger', cat];
+    }
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.btn-view-vital');
+        if (!btn) return;
+
+        var td = btn.closest('td');
+        if (!td) return;
+
+        var d = td.dataset;
+
+        // header
+        val('mvDate', d.date || '');
+        val('mvBy',   d.by   || '');
+
+        // anthropometric
+        val('mvHeight', d.height ? d.height : null);
+        val('mvWeight', d.weight ? d.weight : null);
+        val('mvBmi',    d.bmi    || null);
+
+        var bmiEl = document.getElementById('mvBmiCat');
+        if (bmiEl && d.bmicat) {
+            var bc = bmiBadge(d.bmicat);
+            bmiEl.className = 'badge ms-1 ' + bc[0];
+            bmiEl.textContent = bc[1];
+            bmiEl.style.display = '';
+        } else if (bmiEl) {
+            bmiEl.style.display = 'none';
+        }
+
+        // cardiovascular
+        chip('mvBp',    d.bp,     d.bpcls);
+        chip('mvPulse', d.pulse,  d.pulsecls);
+        chip('mvSpo2',  d.spo2,   d.spo2cls);
+
+        // general
+        chip('mvTemp',  d.temp,   d.tempcls);
+        chip('mvRr',    d.rr,     d.rrcls);
+
+        // optional
+        var hasGlucose = d.glucose && d.glucose !== '';
+        var hasPain    = d.pain    && d.pain    !== '';
+        if (hasGlucose) {
+            val('mvGlucose', d.glucose);
+            show('mvGlucoseCol');
+        } else {
+            hide('mvGlucoseCol');
+        }
+        if (hasPain) {
+            var painNum = parseInt(d.pain, 10);
+            var painCls = d.paincls || (painNum <= 3 ? 'ok' : painNum <= 6 ? 'warn' : 'high');
+            chip('mvPain', d.pain, painCls);
+            show('mvPainCol');
+        } else {
+            hide('mvPainCol');
+        }
+        var optGroup = document.getElementById('mvOptGroup');
+        if (optGroup) optGroup.style.display = (hasGlucose || hasPain) ? '' : 'none';
+
+        // notes
+        val('mvNotes', d.notes || '');
+        var notesGroup = document.getElementById('mvNotesGroup');
+        if (notesGroup) notesGroup.style.display = d.notes ? '' : 'none';
+
+        // show modal
+        var modal = new bootstrap.Modal(document.getElementById('viewVitalModal'), { backdrop: true });
+        modal.show();
+    });
+
     // Trigger status indicators on load (for edit mode)
     ['BPSystolic','BPDiastolic','PulseRate','SpO2','Temperature','RespiratoryRate','BloodGlucose','Height','Weight']
         .forEach(id => { const el = document.getElementById(id); if (el?.value) el.dispatchEvent(new Event('input')); });
+
+    // On page load, if we have active patient, load history table
+    @if (hasPatient)
+    {
+        <text>
+        loadHistoryPage(1);
+        </text>
+    }
 
 })();
 </script>

@@ -67,4 +67,36 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
         
         return rowsAffected > 0;
     }
+
+    // ─── Doctor Dashboard Queue ───────────────────────────────────────────────
+    public async Task<DoctorDashboardQueueResult> GetDoctorDashboardQueueAsync(int branchId, int? doctorId, DateTime? date)
+    {
+        using var con = db.CreateConnection();
+
+        using var multi = await con.QueryMultipleAsync(
+            "usp_Api_DoctorDashboard_GetQueue",
+            new
+            {
+                BranchId = branchId,
+                DoctorId = doctorId,
+                Date = date.HasValue ? (DateTime?)date.Value.Date : null
+            },
+            commandType: System.Data.CommandType.StoredProcedure);
+
+        var list = (await multi.ReadAsync<DoctorDashboardQueueItem>()).ToList();
+        var stats = await multi.ReadSingleOrDefaultAsync<QueueStats>();
+
+        return new DoctorDashboardQueueResult
+        {
+            Data = list,
+            TotalWaiting = stats?.TotalWaiting ?? 0,
+            TotalCompleted = stats?.TotalCompleted ?? 0
+        };
+    }
+
+    private class QueueStats
+    {
+        public int TotalWaiting { get; set; }
+        public int TotalCompleted { get; set; }
+    }
 }

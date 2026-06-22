@@ -10,4 +10,5 @@ public interface IServiceBookingService
 
     Task<ServiceBookingDetail?> GetByIdAsync(int opdServiceId);
     Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId);
+    Task<DoctorDashboardQueueResult> GetDoctorDashboardQueueAsync(int branchId, int? doctorId, DateTime? date);
 }

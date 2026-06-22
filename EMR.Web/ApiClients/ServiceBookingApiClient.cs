@@ -40,4 +40,16 @@ public class ServiceBookingApiClient(IHttpClientFactory factory) : IServiceBooki
         var result = await response.Content.ReadFromJsonAsync<ApiResponse<bool>>();
         return result?.Data ?? false;
     }
+
+    public async Task<DoctorDashboardQueueResult?> GetDoctorQueueAsync(int branchId, int? doctorId, DateOnly? date)
+    {
+        var qs = HttpUtility.ParseQueryString(string.Empty);
+        qs["branchId"] = branchId.ToString();
+        if (doctorId.HasValue && doctorId.Value > 0) qs["doctorId"] = doctorId.Value.ToString();
+        if (date.HasValue) qs["date"] = date.Value.ToString("yyyy-MM-dd");
+
+        var url = "api/servicebookings/doctor-queue?" + qs;
+        var response = await _http.GetFromJsonAsync<ApiResponse<DoctorDashboardQueueResult>>(url);
+        return response?.Data;
+    }
 }

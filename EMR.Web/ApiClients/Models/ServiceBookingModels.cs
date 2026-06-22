@@ -71,3 +71,28 @@ public class ServiceBookingDetail
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
 }
+
+// ── Doctor Dashboard Queue Result ─────────────────────────────────────────────
+public class DoctorDashboardQueueItem
+{
+    public int      OPDServiceId          { get; set; }
+    public DateTime VisitDate             { get; set; }
+    public string?  OPDBillNo             { get; set; }
+    public string?  TokenNo               { get; set; }
+    public string   PatientCode           { get; set; } = string.Empty;
+    public int      PatientId             { get; set; }
+    public string   PatientName           { get; set; } = string.Empty;
+    public string?  Gender                { get; set; }
+    public int?     Age                   { get; set; }
+    public string?  ConsultingDoctorName  { get; set; }
+    public decimal  TotalAmount           { get; set; }
+    public string   Status                { get; set; } = string.Empty;
+    public string   PaymentStatus         { get; set; } = "U";
+}
+
+public class DoctorDashboardQueueResult
+{
+    public List<DoctorDashboardQueueItem> Data { get; set; } = new();
+    public int TotalWaiting { get; set; }
+    public int TotalCompleted { get; set; }
+}

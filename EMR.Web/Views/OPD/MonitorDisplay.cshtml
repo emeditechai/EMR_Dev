@@ -2,6 +2,7 @@
     Layout = null;
     var specialities = ViewBag.Specialities as IEnumerable<dynamic> ?? new List<dynamic>();
     var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)> ?? new List<(int, string, int?)>();
+    var doctorRoomMapRazor = ViewBag.DoctorRoomMap as Dictionary<string, string> ?? new Dictionary<string, string>();
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -114,25 +115,38 @@
         .doc-header {
             background: linear-gradient(90deg, #1e40af, #3b82f6);
             color: #ffffff;
-            padding: 1.2rem 2rem;
-            font-size: 2rem;
+            padding: 0.9rem 1.4rem;
+            font-size: 1.4rem;
             font-weight: 800;
             display: flex;
             align-items: center;
-            position: relative;
+            gap: 8px;
+            overflow: hidden;
         }
-        .doc-header i {
-            margin-right: 1rem;
+        .doc-header > i {
+            flex-shrink: 0;
+            font-size: 1.4rem;
+            margin-right: 4px;
             opacity: 0.8;
         }
+        .doc-name {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
         .doc-speciality {
-            font-size: 1.1rem;
+            flex-shrink: 0;
+            font-size: 0.75rem;
             font-weight: 600;
-            opacity: 0.9;
+            opacity: 0.95;
             background: rgba(255,255,255,0.2);
-            padding: 2px 10px;
+            padding: 2px 9px;
             border-radius: 20px;
-            margin-left: auto;
+            white-space: nowrap;
         }
 
         .doc-body {
@@ -310,6 +324,25 @@
             font-weight: 800;
             margin-top: 1rem;
         }
+        /* Room badge on monitor display */
+        .doc-room-badge {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.28);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+        .doc-room-badge i {
+            font-size: 0.65rem;
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
@@ -390,13 +423,29 @@
                 }
             }
 
+            // Doctor → Room map
+            const doctorRoomMap = {
+                @foreach(var kv in doctorRoomMapRazor) {
+                    <text>'@Html.Raw(kv.Key.Replace("'", "\\'"))': '@Html.Raw(kv.Value.Replace("'", "\\'"))',</text>
+                }
+            };
+
             let html = '';
 
             for (const [docName, tokens] of Object.entries(grouped)) {
                 let consulting = tokens.filter(t => (t.status || '').toLowerCase() === 'consulting');
-                let waiting = tokens.filter(t => (t.status || '').toLowerCase() === 'registered');
+                let waiting = tokens.filter(t => {
+                    const st = (t.status || '').toLowerCase();
+                    if (st !== 'registered') return false;
+                    const pyStatus = (t.paymentStatus || 'U').toUpperCase();
+                    const hasDue   = pyStatus === 'U' || pyStatus === 'R';
+                    const hasToken = t.tokenNo && t.tokenNo.trim() !== '' && t.tokenNo.trim() !== 'N/A';
+                    // Hide from monitor: payment not cleared AND no token yet generated
+                    if (hasDue && !hasToken) return false;
+                    return true;
+                });
 
-                // Sort waiting by OPDServiceId
+                // Sort waiting by OPDServiceId (arrival order)
                 waiting.sort((a, b) => a.opdServiceId - b.opdServiceId);
 
                 const activeToken = consulting.length > 0 ? consulting[0] : null;
@@ -405,7 +454,9 @@
                 html += `
                 <div class="doc-card">
                     <div class="doc-header">
-                        <i class="bi bi-person-circle"></i> Dr. ${docName}
+                        <i class="bi bi-person-circle"></i>
+                        <span class="doc-name">Dr. ${docName}</span>
+                        ${doctorRoomMap[docName] ? `<span class="doc-room-badge"><i class="bi bi-door-open"></i>${doctorRoomMap[docName]}</span>` : ''}
                         <span class="doc-speciality">${specName}</span>
                     </div>
                     <div class="doc-body">

@@ -53,4 +53,35 @@ public class RoomDoctorAssignmentController(
             return StatusCode(500, new { success = false, message = "An error occurred while assigning the doctor." });
         }
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnassignDoctor([FromBody] RoomDoctorUnassignPostDto dto)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId == null) return Unauthorized();
+
+        if (dto.DoctorId <= 0)
+        {
+            return BadRequest("Invalid Doctor ID.");
+        }
+
+        try
+        {
+            await assignmentService.UnassignDoctorAsync(dto.DoctorId);
+            
+            await auditLogService.LogAsync(
+                "Unassign", 
+                "RoomDoctorAssignment", 
+                $"Unassigned Doctor {dto.DoctorId}", 
+                User.GetUserId(), 
+                branchId.Value);
+
+            return Ok(new { success = true, message = "Doctor unassigned successfully." });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { success = false, message = "An error occurred while unassigning the doctor." });
+        }
+    }
 }

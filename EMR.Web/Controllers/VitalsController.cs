@@ -69,6 +69,15 @@ public class VitalsController(
 
         if (!ModelState.IsValid)
         {
+            if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+            {
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList();
+                return Json(new { success = false, message = "Validation failed.", errors });
+            }
+
             try
             {
                 if (model.PatientId > 0)
@@ -125,7 +134,22 @@ public class VitalsController(
                 });
             }
         }
-        catch (HttpRequestException) { return ApiDown(Request.Path); }
+        catch (HttpRequestException)
+        {
+            if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                return StatusCode(503, new { success = false, message = "API is currently unavailable." });
+            return ApiDown(Request.Path);
+        }
+
+        if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+        {
+            return Json(new
+            {
+                success = true,
+                message = model.PatientVitalId > 0 ? "Vital record updated successfully." : "Vital recorded successfully.",
+                patientId = model.PatientId
+            });
+        }
 
         TempData["VitalSuccess"] = model.PatientVitalId > 0
             ? "Vital record updated."
@@ -135,6 +159,41 @@ public class VitalsController(
             return RedirectToAction(nameof(RecordVital), new { patientId = model.PatientId });
 
         return RedirectToAction(nameof(History), new { patientId = model.PatientId });
+    }
+
+    // ─── GetHistoryTable GET — partial view for AJAX ──────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> GetHistoryTable(int patientId, int page = 1, int pageSize = 10)
+    {
+        try
+        {
+            var patient = await patientApiClient.GetByIdAsync(patientId);
+            if (patient is null) return NotFound("Patient not found.");
+
+            var result = await vitalApiClient.GetHistoryAsync(patientId, page, pageSize);
+
+            var vm = new VitalIndexViewModel
+            {
+                PatientId         = patient.PatientId,
+                PatientCode       = patient.PatientCode,
+                PatientFullName   = patient.FullName,
+                PatientAge        = CalcAge(patient.DateOfBirth),
+                PatientGender     = patient.Gender,
+                PatientBloodGroup = patient.BloodGroup,
+                PatientPhone      = patient.PhoneNumber,
+                Vitals            = result.Rows.Select(MapRowToHistoryRow).ToList(),
+                TotalCount        = result.TotalCount,
+                Page              = page,
+                PageSize          = pageSize
+            };
+
+            return PartialView("_HistoryTable", vm);
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(503, "API is currently unavailable.");
+        }
     }
 
     // ─── History ──────────────────────────────────────────────────────────────
@@ -255,10 +314,19 @@ public class VitalsController(
     {
         try
         {
-            await vitalApiClient.DeleteAsync(vitalId, User.GetUserId());
+            var success = await vitalApiClient.DeleteAsync(vitalId, User.GetUserId());
+            if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+            {
+                return Json(new { success, message = success ? "Record deleted." : "Failed to delete record." });
+            }
             TempData["VitalSuccess"] = "Record deleted.";
         }
-        catch (HttpRequestException) { return ApiDown(Request.Path); }
+        catch (HttpRequestException)
+        {
+            if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                return StatusCode(503, new { success = false, message = "API is currently unavailable." });
+            return ApiDown(Request.Path);
+        }
         return RedirectToAction(nameof(History), new { patientId });
     }
 

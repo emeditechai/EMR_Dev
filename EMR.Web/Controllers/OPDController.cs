@@ -29,8 +29,10 @@ public class OPDController(
     IPaymentService paymentService,
     IDoctorScheduleApiClient scheduleApiClient,
     IDoctorSpecialityService specialityService,
+    IRoomDoctorAssignmentService roomDoctorAssignmentService,
     ApplicationDbContext dbContext,
-    IWebHostEnvironment env) : Controller
+    IWebHostEnvironment env,
+    IDoctorApiClient doctorApiClient) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -70,6 +72,74 @@ public class OPDController(
 
         ViewData["Title"] = "OPD Dashboard";
         return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> DoctorDashboard()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId == null)
+        {
+            TempData["Error"] = "Please select a branch first.";
+            return RedirectToAction("SelectBranch", "Account");
+        }
+
+        var doctors = await patientService.GetOpdDoctorsAsync(branchId.Value);
+        ViewBag.Doctors = doctors;
+
+        // Find the logged-in doctor mapping if email matches
+        var userEmail = User.FindFirstValue(ClaimTypes.Email);
+        var defaultDoctorId = 0;
+        if (!string.IsNullOrEmpty(userEmail))
+        {
+            var apiDoctors = await doctorApiClient.GetListAsync(branchId.Value);
+            var doc = apiDoctors.FirstOrDefault(d => string.Equals(d.EmailId, userEmail, StringComparison.OrdinalIgnoreCase) && d.IsActive);
+            if (doc != null)
+            {
+                defaultDoctorId = doc.DoctorId;
+            }
+        }
+        ViewBag.DefaultDoctorId = defaultDoctorId;
+
+        // Doctor → Room mapping  (DoctorName -> "RoomName (FloorName)")
+        var roomAssignments = await roomDoctorAssignmentService.GetRoomAssignmentsAsync(branchId.Value);
+        var doctorRoomMap = new Dictionary<string, string>();
+        foreach (var room in roomAssignments)
+        {
+            foreach (var doc in room.Doctors)
+            {
+                doctorRoomMap[doc.FullName] = $"{room.RoomName} ({room.FloorName})";
+            }
+        }
+        ViewBag.DoctorRoomMap = doctorRoomMap;
+
+        ViewData["Title"] = "Doctor Dashboard";
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetDoctorConsultingQueue(int doctorId)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId == null)
+        {
+            return Json(new { isSuccess = false, message = "Please select a branch first." });
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var result = await serviceBookingApiClient.GetDoctorQueueAsync(branchId.Value, doctorId > 0 ? doctorId : null, today);
+
+        if (result == null)
+        {
+            return Json(new { isSuccess = false, message = "Failed to load queue from API." });
+        }
+
+        return Json(new { 
+            isSuccess = true, 
+            data = result.Data,
+            totalWaiting = result.TotalWaiting,
+            totalCompleted = result.TotalCompleted
+        });
     }
 
     // ─── Index (patient list – server-side paged via EMR.Api) ────────────────────
@@ -332,13 +402,23 @@ public class OPDController(
             return RedirectToAction("SelectBranch", "Account");
         }
 
-        // Get all active OPD doctors for the branch
         var doctors = await patientService.GetOpdDoctorsAsync(branchId.Value);
         ViewBag.Doctors = doctors;
 
-        // Get all active specialities
         var specialities = await specialityService.GetActiveAsync();
         ViewBag.Specialities = specialities;
+
+        // Doctor → Room mapping  (DoctorName -> "RoomName (FloorName)")
+        var roomAssignments = await roomDoctorAssignmentService.GetRoomAssignmentsAsync(branchId.Value);
+        var doctorRoomMap = new Dictionary<string, string>();
+        foreach (var room in roomAssignments)
+        {
+            foreach (var doc in room.Doctors)
+            {
+                doctorRoomMap[doc.FullName] = $"{room.RoomName} ({room.FloorName})";
+            }
+        }
+        ViewBag.DoctorRoomMap = doctorRoomMap;
 
         return View();
     }
@@ -357,6 +437,18 @@ public class OPDController(
 
         var specialities = await specialityService.GetActiveAsync();
         ViewBag.Specialities = specialities;
+
+        // Doctor → Room mapping  (DoctorName -> "RoomName (FloorName)")
+        var roomAssignments = await roomDoctorAssignmentService.GetRoomAssignmentsAsync(branchId.Value);
+        var doctorRoomMap = new Dictionary<string, string>();
+        foreach (var room in roomAssignments)
+        {
+            foreach (var doc in room.Doctors)
+            {
+                doctorRoomMap[doc.FullName] = $"{room.RoomName} ({room.FloorName})";
+            }
+        }
+        ViewBag.DoctorRoomMap = doctorRoomMap;
 
         return View();
     }

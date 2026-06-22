@@ -76,6 +76,22 @@ namespace EMR.Web.Controllers
             return View(model);
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetSchedules(int doctorId)
+        {
+            var branchId = GetCurrentBranchId();
+            var schedules = await _scheduleApiClient.GetByDoctorAsync(doctorId, branchId);
+            return Json(schedules);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetExceptions(int doctorId)
+        {
+            var branchId = GetCurrentBranchId();
+            var exceptions = await _scheduleApiClient.GetExceptionsAsync(doctorId, branchId);
+            return Json(exceptions);
+        }
+
         public class DoctorScheduleMultiUpsertRequest : DoctorScheduleUpsertRequest
         {
             public List<byte> DaysOfWeek { get; set; } = new List<byte>();

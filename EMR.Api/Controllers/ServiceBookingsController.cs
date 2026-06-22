@@ -52,4 +52,16 @@ public class ServiceBookingsController(IServiceBookingService svc) : ControllerB
 
         return Ok(ApiResponse<bool>.Ok(true, "Status updated successfully."));
     }
+
+    // GET /api/servicebookings/doctor-queue?branchId=1&doctorId=2&date=2026-03-04
+    [HttpGet("doctor-queue")]
+    public async Task<IActionResult> GetDoctorQueue(
+        [FromQuery] int branchId,
+        [FromQuery] int? doctorId = null,
+        [FromQuery] string? date = null)
+    {
+        DateTime? parsedDate = DateTime.TryParse(date, out var d) ? d : null;
+        var result = await svc.GetDoctorDashboardQueueAsync(branchId, doctorId, parsedDate);
+        return Ok(ApiResponse<DoctorDashboardQueueResult>.Ok(result));
+    }
 }

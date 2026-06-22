@@ -7,4 +7,5 @@ public interface IRoomDoctorAssignmentService
     Task<IEnumerable<RoomDoctorAssignmentViewModel>> GetRoomAssignmentsAsync(int branchId);
     Task<IEnumerable<OPDDoctorOptionDto>> GetOPDDoctorsAsync(int branchId);
     Task AssignDoctorAsync(int roomId, int doctorId, int? userId);
+    Task UnassignDoctorAsync(int doctorId);
 }

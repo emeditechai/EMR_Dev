@@ -2,6 +2,7 @@
     ViewData["Title"] = "Token Management";
     var specialities = ViewBag.Specialities as IEnumerable<dynamic> ?? new List<dynamic>();
     var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)> ?? new List<(int, string, int?)>();
+    var doctorRoomMapRazor = ViewBag.DoctorRoomMap as Dictionary<string, string> ?? new Dictionary<string, string>();
 }
 
 <!-- Bootstrap Select CSS -->
@@ -75,16 +76,28 @@
         .doctor-board-header {
             background: linear-gradient(135deg, var(--bs-primary), #6610f2);
             color: #fff;
-            padding: 1rem 1.5rem;
+            padding: 0.75rem 1.25rem;
             display: flex;
             align-items: center;
+            gap: 10px;
+            overflow: hidden;
         }
-        .doctor-board-header i {
-            font-size: 1.5rem;
-            margin-right: 1rem;
+        .doctor-board-header > .bi {
+            flex-shrink: 0;
+            font-size: 1.3rem;
             background: rgba(255,255,255,0.2);
-            padding: 0.5rem;
-            border-radius: 8px;
+            padding: 0.4rem;
+            border-radius: 7px;
+        }
+        .board-header-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .board-header-info h5 {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0;
         }
         .board-col {
             min-height: 250px;
@@ -115,10 +128,61 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.08);
         }
+        .token-card.has-due {
+            border: 1.5px solid #ffc107;
+            background: #fffdf0;
+        }
+        .due-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            animation: pulse-due 2s infinite;
+        }
+        @@keyframes pulse-due {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.75; }
+        }
+        .btn-call-disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .room-badge {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #fff;
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 20px;
+            white-space: nowrap;
+            line-height: 1.4;
+        }
+        .room-badge i {
+            font-size: 0.6rem;
+        }
     </style>
 
     <script>
         let allTodayTokens = [];
+
+        // Doctor → Room map (server-side rendered)
+        const doctorRoomMap = {
+            @foreach (var kv in doctorRoomMapRazor) {
+                <text>'@Html.Raw(kv.Key.Replace("'", "\\'"))': '@Html.Raw(kv.Value.Replace("'", "\\'"))',</text>
+            }
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
 
@@ -229,10 +293,11 @@
                 <div class="doctor-board">
                     <div class="doctor-board-header">
                         <i class="bi bi-person-badge"></i>
-                        <div>
-                            <h5 class="mb-0 fw-bold">${docName}</h5>
+                        <div class="board-header-info">
+                            <h5 class="fw-bold mb-0">${docName}</h5>
                             <span class="small text-white-50">Total Tokens Today: ${tokens.length}</span>
                         </div>
+                        ${doctorRoomMap[docName] ? `<span class="room-badge"><i class="bi bi-door-open"></i>${doctorRoomMap[docName]}</span>` : ''}
                     </div>
                     <div class="row g-0">
                         <div class="col-md-4 border-end">
@@ -270,28 +335,62 @@
         }
 
         function buildTokenCard(item) {
-            const tokenNo = item.tokenNo || 'N/A';
-            const status = (item.status || 'Registered').toLowerCase();
-            
+            const tokenNo   = item.tokenNo || 'N/A';
+            const status     = (item.status || 'Registered').toLowerCase();
+            const pyStatus   = (item.paymentStatus || 'U').toUpperCase();
+            const hasDue     = pyStatus === 'U' || pyStatus === 'R';
+
+            // Payment due badge shown on any card with outstanding amount
+            const dueBadgeHtml = hasDue
+                ? `<span class="due-badge"><i class="bi bi-exclamation-triangle-fill"></i>${pyStatus === 'R' ? 'PARTIAL DUE' : 'PAYMENT DUE'}</span>`
+                : '';
+
             let actionHtml = '';
             if (status === 'registered') {
-                actionHtml = `<button class="btn btn-sm btn-outline-primary w-100 mt-3 rounded-pill fw-bold" onclick="updateStatus(${item.opdServiceId}, 'Consulting')"><i class="bi bi-megaphone me-1"></i> Call Patient</button>`;
+                if (hasDue) {
+                    // Disabled: cannot call patient until payment is cleared
+                    actionHtml = `
+                        <button class="btn btn-sm btn-outline-secondary w-100 mt-3 rounded-pill fw-bold btn-call-disabled"
+                                disabled title="Clear payment due before calling patient">
+                            <i class="bi bi-lock-fill me-1"></i> Call Patient
+                        </button>
+                        <div class="text-center mt-1" style="font-size:0.72rem; color:#d97706; font-weight:600;">
+                            <i class="bi bi-info-circle me-1"></i>Clear payment to enable
+                        </div>`;
+                } else {
+                    actionHtml = `<button class="btn btn-sm btn-outline-primary w-100 mt-3 rounded-pill fw-bold"
+                                          onclick="updateStatus(${item.opdServiceId}, 'Consulting')">
+                        <i class="bi bi-megaphone me-1"></i> Call Patient
+                    </button>`;
+                }
             } else if (status === 'consulting') {
-                actionHtml = `<button class="btn btn-sm btn-success w-100 mt-3 rounded-pill fw-bold" onclick="updateStatus(${item.opdServiceId}, 'Completed')"><i class="bi bi-check2-all me-1"></i> Complete</button>`;
+                actionHtml = `<button class="btn btn-sm btn-success w-100 mt-3 rounded-pill fw-bold"
+                                      onclick="updateStatus(${item.opdServiceId}, 'Completed')">
+                    <i class="bi bi-check2-all me-1"></i> Complete
+                </button>`;
             }
 
             // Time/Slot formatting
-            const timeStr = item.visitDate ? new Date(item.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+            const timeStr = item.visitDate
+                ? new Date(item.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                : '--:--';
 
-            let borderColor = status === 'registered' ? '#ffc107' : status === 'consulting' ? '#0d6efd' : '#198754';
+            let borderColor = hasDue && status === 'registered'
+                ? '#f59e0b'
+                : status === 'registered' ? '#ffc107'
+                : status === 'consulting' ? '#0d6efd'
+                : '#198754';
 
             return `
-                <div class="token-card" style="border-left: 4px solid ${borderColor};">
+                <div class="token-card ${hasDue ? 'has-due' : ''}" style="border-left: 4px solid ${borderColor};">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span class="badge bg-dark fs-6 shadow-sm px-3 py-2">${tokenNo}</span>
                         <span class="badge bg-light text-dark border"><i class="bi bi-clock me-1"></i>${timeStr}</span>
                     </div>
-                    <h6 class="fw-bold mb-1 text-dark">${item.patientName}</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <h6 class="fw-bold mb-0 text-dark">${item.patientName}</h6>
+                        ${dueBadgeHtml}
+                    </div>
                     <div class="text-muted small">
                         <i class="bi bi-person me-1"></i>${item.gender || '-'}, ${item.age || '-'} Yrs
                     </div>

@@ -1114,6 +1114,9 @@
                                 btn.classList.add('kbd-active');
                                 kbdIndex = i;
                             });
+                            btn.addEventListener('mousedown', (e) => {
+                                e.preventDefault(); // Prevent input blur & layout shift
+                            });
                             btn.addEventListener('click', () => {
                                 populatePatient(btn.dataset.id);
                                 phoneDrop.style.display = 'none';

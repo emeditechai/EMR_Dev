@@ -1,0 +1,212 @@
+@model EMR.Web.Models.ViewModels.VitalIndexViewModel
+@{
+    int totalPages = (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize);
+}
+
+@if (!Model.Vitals.Any())
+{
+    <div class="text-center py-4 text-muted">
+        <i class="bi bi-heart-pulse display-6 d-block mb-2 opacity-50"></i>
+        <h6 class="fw-semibold">No Vital Records Found</h6>
+        <p class="mb-0 small">No vitals have been recorded for this patient yet.</p>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+        <span class="text-secondary small fw-semibold">Previous Readings</span>
+        <span class="badge bg-light border text-secondary small">@Model.TotalCount record(s)</span>
+    </div>
+    <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.82rem;">
+            <thead class="table-light sticky-top" style="z-index: 1;">
+                <tr>
+                    <th class="ps-2">Date/Time</th>
+                    <th>Anthro</th>
+                    <th>BP (mmHg)</th>
+                    <th>Pulse</th>
+                    <th>SpO₂</th>
+                    <th>Temp</th>
+                    <th>RR</th>
+                    <th>Glucose</th>
+                    <th>Pain</th>
+                    <th class="pe-2 text-center" style="width: 90px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var v in Model.Vitals)
+            {
+                <tr>
+                    <td class="ps-2">
+                        <div class="fw-semibold">@v.RecordedOn.ToString("dd MMM yy")</div>
+                        <div class="text-muted" style="font-size:0.72rem">@v.RecordedOn.ToString("HH:mm")</div>
+                    </td>
+                    @* Anthropometric *@
+                    <td>
+                        @if (v.Height.HasValue || v.Weight.HasValue)
+                        {
+                            <div>
+                                @if (v.Height.HasValue) { <span class="text-muted">H:</span><strong>@v.Height</strong> }
+                                @if (v.Weight.HasValue) { <span class="text-muted ms-1">W:</span><strong>@v.Weight</strong> }
+                            </div>
+                            if (v.BMI.HasValue)
+                            {
+                                var bmiClass = v.BMICategory switch { 
+                                    "Normal" => "bg-success-subtle text-success", 
+                                    "Underweight" => "bg-warning-subtle text-warning-emphasis", 
+                                    _ => "bg-danger-subtle text-danger" 
+                                };
+                                <span class="badge @bmiClass" style="font-size:0.65rem; padding: 0.1rem 0.3rem;">@v.BMI (@v.BMICategory)</span>
+                            }
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* BP *@
+                    <td>
+                        @if (v.BPSystolic.HasValue)
+                        {
+                            var okBP = v.BPSystolic >= 90 && v.BPSystolic <= 120 && v.BPDiastolic >= 60 && v.BPDiastolic <= 80;
+                            var warnBP = !okBP && v.BPSystolic < 140;
+                            var cls = okBP ? "text-success bg-success-subtle" : warnBP ? "text-warning-emphasis bg-warning-subtle" : "text-danger bg-danger-subtle";
+                            <span class="badge @cls px-2 py-1">@v.BPSystolic/@v.BPDiastolic</span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* Pulse *@
+                    <td>
+                        @if (v.PulseRate.HasValue)
+                        {
+                            var cls = v.PulseRate >= 60 && v.PulseRate <= 100 ? "text-success bg-success-subtle" : v.PulseRate < 50 || v.PulseRate > 120 ? "text-danger bg-danger-subtle" : "text-warning-emphasis bg-warning-subtle";
+                            <span class="badge @cls">@v.PulseRate <span style="font-size:0.65rem; font-weight:400">bpm</span></span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* SpO2 *@
+                    <td>
+                        @if (v.SpO2.HasValue)
+                        {
+                            var cls = v.SpO2 >= 95 ? "text-success bg-success-subtle" : v.SpO2 < 90 ? "text-danger bg-danger-subtle" : "text-warning-emphasis bg-warning-subtle";
+                            <span class="badge @cls">@v.SpO2%</span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* Temperature *@
+                    <td>
+                        @if (v.Temperature.HasValue)
+                        {
+                            var cls = v.Temperature >= 97 && v.Temperature <= 99 ? "text-success bg-success-subtle" : v.Temperature < 95 || v.Temperature > 103 ? "text-danger bg-danger-subtle" : "text-warning-emphasis bg-warning-subtle";
+                            <span class="badge @cls">@v.Temperature°F</span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* RR *@
+                    <td>
+                        @if (v.RespiratoryRate.HasValue)
+                        {
+                            var cls = v.RespiratoryRate >= 12 && v.RespiratoryRate <= 20 ? "text-success bg-success-subtle" : v.RespiratoryRate < 8 || v.RespiratoryRate > 30 ? "text-danger bg-danger-subtle" : "text-warning-emphasis bg-warning-subtle";
+                            <span class="badge @cls">@v.RespiratoryRate <span style="font-size:0.65rem; font-weight:400">rpm</span></span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* Glucose *@
+                    <td>
+                        @if (v.BloodGlucose.HasValue)
+                        {
+                            <div><strong>@v.BloodGlucose</strong> <span class="text-muted" style="font-size:0.7rem">mg/dL</span></div>
+                            if (!string.IsNullOrEmpty(v.GlucoseType)) { <span class="badge bg-light text-secondary border" style="font-size:0.62rem; padding: 0.05rem 0.2rem;">@v.GlucoseType</span> }
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* Pain *@
+                    <td>
+                        @if (v.PainScore.HasValue)
+                        {
+                            var pCls = v.PainScore <= 3 ? "text-success bg-success-subtle" : v.PainScore <= 6 ? "text-warning-emphasis bg-warning-subtle" : "text-danger bg-danger-subtle";
+                            <span class="badge @pCls">@v.PainScore/10</span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    @* Actions *@
+                    @{
+                        bool canModify = v.CanModify;
+                        string bpVal  = v.BPSystolic.HasValue ? $"{v.BPSystolic}/{v.BPDiastolic} mmHg" : "—";
+                        bool   bpOk   = v.BPSystolic.HasValue && v.BPSystolic>=90 && v.BPSystolic<=120 && (v.BPDiastolic??0)>=60 && (v.BPDiastolic??0)<=80;
+                        bool   bpWarn = v.BPSystolic.HasValue && !bpOk && v.BPSystolic < 140;
+                        string bpCls  = !v.BPSystolic.HasValue ? "na" : bpOk ? "ok" : bpWarn ? "warn" : "high";
+                    }
+                    <td class="pe-2 text-center"
+                        data-vid="@v.PatientVitalId"
+                        data-date="@v.RecordedOn.ToString("dd MMM yyyy · HH:mm")"
+                        data-by="@(v.RecordedByName ?? "—")"
+                        data-height="@(v.Height.HasValue   ? v.Height  + " cm"    : "—")"
+                        data-weight="@(v.Weight.HasValue   ? v.Weight  + " kg"    : "—")"
+                        data-bmi="@(v.BMI.HasValue         ? v.BMI     + " kg/m²" : "—")"
+                        data-bmicat="@(v.BMICategory ?? "—")"
+                        data-bp="@bpVal" data-bpcls="@bpCls"
+                        data-pulse="@(v.PulseRate.HasValue       ? v.PulseRate + " bpm" : "—")"
+                        data-pulsecls="@(v.PulseRate.HasValue ? (v.PulseRate>=60&&v.PulseRate<=100?"ok":v.PulseRate<50||v.PulseRate>120?"high":"warn") : "na")"
+                        data-spo2="@(v.SpO2.HasValue             ? v.SpO2 + " %"   : "—")"
+                        data-spo2cls="@(v.SpO2.HasValue     ? (v.SpO2>=95?"ok":v.SpO2<90?"high":"warn") : "na")"
+                        data-temp="@(v.Temperature.HasValue      ? v.Temperature + " °F" : "—")"
+                        data-tempcls="@(v.Temperature.HasValue   ? (v.Temperature>=97&&v.Temperature<=99?"ok":v.Temperature<95||v.Temperature>103?"high":"warn") : "na")"
+                        data-rr="@(v.RespiratoryRate.HasValue    ? v.RespiratoryRate + " rpm" : "—")"
+                        data-rrcls="@(v.RespiratoryRate.HasValue ? (v.RespiratoryRate>=12&&v.RespiratoryRate<=20?"ok":v.RespiratoryRate<8||v.RespiratoryRate>30?"high":"warn") : "na")"
+                        data-glucose="@(v.BloodGlucose.HasValue  ? v.BloodGlucose + " mg/dL" + (v.GlucoseType!=null?" ("+v.GlucoseType+")":"") : "—")"
+                        data-pain="@(v.PainScore.HasValue        ? v.PainScore + "/10" : "—")"
+                        data-paincls="@(v.PainScore.HasValue     ? (v.PainScore<=3?"ok":v.PainScore<=6?"warn":"high") : "na")"
+                        data-notes="@Html.Encode(v.Notes ?? "")">
+                        <div class="d-flex gap-1 justify-content-center align-items-center">
+                            @* View always *@
+                            <button type="button" class="btn btn-xs btn-outline-info py-0 px-1 btn-view-vital" title="View Details" style="font-size: 0.72rem;">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            @if (canModify)
+                            {
+                                <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1 btn-edit-vital" title="Edit" 
+                                        onclick="editVitalRecord(@v.PatientVitalId, @Model.PatientId)" style="font-size: 0.72rem;">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Delete"
+                                        onclick="deleteVitalRecord(@v.PatientVitalId, @Model.PatientId)" style="font-size: 0.72rem;">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="text-muted" title="Locked after 2 minutes" style="font-size: 0.65rem;">
+                                    <i class="bi bi-lock-fill"></i>
+                                </span>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @* Pagination *@
+    @if (totalPages > 1)
+    {
+        <nav class="mt-2 d-flex justify-content-center">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="javascript:void(0)" onclick="loadHistoryPage(@(Model.Page - 1))">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                @for (int pg = 1; pg <= totalPages; pg++)
+                {
+                    <li class="page-item @(pg == Model.Page ? "active" : "")">
+                        <a class="page-link" href="javascript:void(0)" onclick="loadHistoryPage(@pg)">@pg</a>
+                    </li>
+                }
+                <li class="page-item @(Model.Page >= totalPages ? "disabled" : "")">
+                    <a class="page-link" href="javascript:void(0)" onclick="loadHistoryPage(@(Model.Page + 1))">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    }
+}
