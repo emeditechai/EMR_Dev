@@ -1111,14 +1111,27 @@
                 // Cancel any pending speech
                 window.speechSynthesis.cancel();
                 
-                const utterance = new SpeechSynthesisUtterance(`Token number ${tokenNo}, patient ${name}, please come to consulting room.`);
-                utterance.rate = 0.9;
-
-                // Set dynamic voice based on selected doctor gender
+                // Set dynamic voice and room name based on selected doctor
                 const doctorSelect = document.getElementById('ddlDoctorDashboard');
                 const selectedOpt = doctorSelect ? doctorSelect.selectedOptions[0] : null;
-                const docGender = selectedOpt ? (selectedOpt.getAttribute('data-gender') || 'Male') : 'Male';
                 
+                let text = `Token number ${tokenNo}, patient ${name}, please come to `;
+                if (selectedOpt) {
+                    const docName = selectedOpt.text.split(' (')[0];
+                    const roomInfo = doctorRoomMap[docName];
+                    if (roomInfo) {
+                        text += roomInfo;
+                    } else {
+                        text += "consulting room";
+                    }
+                } else {
+                    text += "consulting room";
+                }
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+
+                const docGender = selectedOpt ? (selectedOpt.getAttribute('data-gender') || 'Male') : 'Male';
                 const voice = getVoiceForGender(docGender);
                 if (voice) {
                     utterance.voice = voice;
