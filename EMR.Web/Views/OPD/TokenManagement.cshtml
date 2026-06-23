@@ -289,6 +289,21 @@
                     else if (st === 'completed') completed.push(t);
                 });
 
+                // Sort lists by token number ascending (with empty/N/A values at the end)
+                const compareTokens = (a, b) => {
+                    let tA = a.tokenNo || '';
+                    let tB = b.tokenNo || '';
+                    if (tA.toUpperCase() === 'N/A') tA = '';
+                    if (tB.toUpperCase() === 'N/A') tB = '';
+                    if (tA === tB) return 0;
+                    if (!tA) return 1;
+                    if (!tB) return -1;
+                    return tA.localeCompare(tB, undefined, { numeric: true, sensitivity: 'base' });
+                };
+                waiting.sort(compareTokens);
+                consulting.sort(compareTokens);
+                completed.sort(compareTokens);
+
                 html += `
                 <div class="doctor-board">
                     <div class="doctor-board-header">
