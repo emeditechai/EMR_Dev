@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Doctor Dashboard";
-    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)> ?? new List<(int, string, int?)>();
+    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)> ?? new List<(int, string, int?, string)>();
     var defaultDoctorId = ViewBag.DefaultDoctorId is int id ? id : 0;
     var doctorRoomMap = ViewBag.DoctorRoomMap as Dictionary<string, string> ?? new Dictionary<string, string>();
 }
@@ -26,7 +26,7 @@
                     {
                         var isDefault = doc.DoctorId == defaultDoctorId ? "selected" : "";
                         var roomInfo = doctorRoomMap.TryGetValue(doc.FullName, out var rm) ? $" ({rm})" : "";
-                        <!option value="@doc.DoctorId" @isDefault>@doc.FullName @roomInfo</!option>
+                        <!option value="@doc.DoctorId" data-gender="@doc.Gender" @isDefault>@doc.FullName @roomInfo</!option>
                     }
                 </select>
             </div>
@@ -1066,6 +1066,39 @@
                 </div>`;
         }
 
+        function getVoiceForGender(gender) {
+            const voices = window.speechSynthesis.getVoices();
+            if (!voices || voices.length === 0) return null;
+
+            const g = (gender || 'Male').toLowerCase();
+            const enVoices = voices.filter(v => v.lang.startsWith('en-') || v.lang.startsWith('en_'));
+            const candidateVoices = enVoices.length > 0 ? enVoices : voices;
+
+            if (g === 'female') {
+                const femaleKeywords = ['female', 'zira', 'samantha', 'karen', 'hazel', 'susan', 'victoria', 'google us english', 'fiona', 'tessa', 'moira', 'veena'];
+                for (const kw of femaleKeywords) {
+                    const match = candidateVoices.find(v => v.name.toLowerCase().includes(kw));
+                    if (match) return match;
+                }
+                return candidateVoices[0];
+            } else {
+                const maleKeywords = ['male', 'david', 'alex', 'daniel', 'george', 'ravi', 'microsoft david', 'mark'];
+                for (const kw of maleKeywords) {
+                    const match = candidateVoices.find(v => {
+                        const nameLower = v.name.toLowerCase();
+                        return nameLower.includes(kw) && (kw !== 'male' || !nameLower.includes('female'));
+                    });
+                    if (match) return match;
+                }
+                return candidateVoices[0];
+            }
+        }
+
+        // Pre-trigger voice loading
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.getVoices();
+        }
+
         function callPatient(opdServiceId, name, tokenNo) {
             calledPatientsSet.add(opdServiceId);
             callingPatientId = opdServiceId;
@@ -1080,6 +1113,16 @@
                 
                 const utterance = new SpeechSynthesisUtterance(`Token number ${tokenNo}, patient ${name}, please come to consulting room.`);
                 utterance.rate = 0.9;
+
+                // Set dynamic voice based on selected doctor gender
+                const doctorSelect = document.getElementById('ddlDoctorDashboard');
+                const selectedOpt = doctorSelect ? doctorSelect.selectedOptions[0] : null;
+                const docGender = selectedOpt ? (selectedOpt.getAttribute('data-gender') || 'Male') : 'Male';
+                
+                const voice = getVoiceForGender(docGender);
+                if (voice) {
+                    utterance.voice = voice;
+                }
                 
                 utterance.onend = function() {
                     callingPatientId = null;

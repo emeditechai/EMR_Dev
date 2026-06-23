@@ -1,7 +1,7 @@
 @{
     ViewData["Title"] = "Token Management";
     var specialities = ViewBag.Specialities as IEnumerable<dynamic> ?? new List<dynamic>();
-    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)> ?? new List<(int, string, int?)>();
+    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)> ?? new List<(int, string, int?, string)>();
     var doctorRoomMapRazor = ViewBag.DoctorRoomMap as Dictionary<string, string> ?? new Dictionary<string, string>();
 }
 

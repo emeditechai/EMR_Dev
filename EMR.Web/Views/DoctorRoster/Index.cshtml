@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Doctor Roster";
-    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId)>;
+    var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>;
 }
 
 @section HeadStyles {
@@ -664,7 +664,7 @@
             } else {
                 // Restore all doctors from the server-rendered list
                 const allDoctors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-                    (ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName)>)
+                    (ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>)
                         ?.Select(d => new { id = d.DoctorId, name = d.FullName })
                     ?? Enumerable.Empty<object>()
                 ));
