@@ -43,6 +43,15 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             await serviceService.ItemCodeExistsAsync(itemCode, branchId.Value))
             ModelState.AddModelError(nameof(model.ItemCode), "This Item Code already exists in the current branch.");
 
+        // ConsultingType is required when ServiceType = 'Consulting'
+        if (model.ServiceType == "Consulting")
+        {
+            if (string.IsNullOrWhiteSpace(model.ConsultingType))
+                ModelState.AddModelError(nameof(model.ConsultingType), "Consulting Type is required for Consulting services.");
+            else if (model.ConsultingType != "Walking" && model.ConsultingType != "Video")
+                ModelState.AddModelError(nameof(model.ConsultingType), "Invalid Consulting Type.");
+        }
+
         // IsRegistration is only valid for ServiceType = 'Service' and max one per branch
         if (model.IsRegistration)
         {
@@ -65,6 +74,7 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             ServiceType    = model.ServiceType,
             ItemCharges    = model.ItemCharges,
             IsRegistration = model.ServiceType == "Service" && model.IsRegistration,
+            ConsultingType = model.ServiceType == "Consulting" ? model.ConsultingType : null,
             BranchId       = branchId.Value,
             IsActive       = model.IsActive
         }, User.GetUserId());
@@ -92,6 +102,7 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             ServiceType    = entity.ServiceType,
             ItemCharges    = entity.ItemCharges,
             IsRegistration = entity.IsRegistration,
+            ConsultingType = entity.ConsultingType,
             IsActive       = entity.IsActive
         });
     }
@@ -109,6 +120,15 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
         if (!string.IsNullOrWhiteSpace(itemCode) &&
             await serviceService.ItemCodeExistsAsync(itemCode, branchId.Value, model.ServiceId))
             ModelState.AddModelError(nameof(model.ItemCode), "This Item Code already exists in the current branch.");
+
+        // ConsultingType is required when ServiceType = 'Consulting'
+        if (model.ServiceType == "Consulting")
+        {
+            if (string.IsNullOrWhiteSpace(model.ConsultingType))
+                ModelState.AddModelError(nameof(model.ConsultingType), "Consulting Type is required for Consulting services.");
+            else if (model.ConsultingType != "Walking" && model.ConsultingType != "Video")
+                ModelState.AddModelError(nameof(model.ConsultingType), "Invalid Consulting Type.");
+        }
 
         // IsRegistration is only valid for ServiceType = 'Service' and max one per branch
         if (model.IsRegistration)
@@ -133,6 +153,7 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             ServiceType    = model.ServiceType,
             ItemCharges    = model.ItemCharges,
             IsRegistration = model.ServiceType == "Service" && model.IsRegistration,
+            ConsultingType = model.ServiceType == "Consulting" ? model.ConsultingType : null,
             BranchId       = branchId.Value,
             IsActive       = model.IsActive
         }, User.GetUserId());

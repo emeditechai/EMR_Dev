@@ -53,6 +53,19 @@
             </div>
         </div>
 
+        <!-- ConsultingType — only visible when ServiceType = 'Consulting' -->
+        <div id="consultingTypeRow" class="mb-3" style="display:none;">
+            <label asp-for="ConsultingType" class="form-label fw-semibold">
+                Consulting Type <span class="text-danger">*</span>
+            </label>
+            <select asp-for="ConsultingType" class="form-select">
+                <option value="">-- Select Consulting Type --</option>
+                <option value="Walking">Walking</option>
+                <option value="Video">Video</option>
+            </select>
+            <span asp-validation-for="ConsultingType" class="text-danger small d-block mt-1"></span>
+        </div>
+
         <!-- Row 2: Item Name (full width) -->
         <div class="mb-3">
             <label asp-for="ItemName" class="form-label fw-semibold">
@@ -111,13 +124,22 @@
     <script>
         (function () {
             const sel = document.getElementById('ServiceType');
-            const row = document.getElementById('isRegistrationRow');
+            
+            const regRow = document.getElementById('isRegistrationRow');
             const chk = document.getElementById('IsRegistration');
+            
+            const consRow = document.getElementById('consultingTypeRow');
+            const consSel = document.getElementById('ConsultingType');
 
             function toggle() {
-                const show = sel.value === 'Service';
-                row.style.display = show ? '' : 'none';
-                if (!show) chk.checked = false;
+                const isService = sel.value === 'Service';
+                regRow.style.display = isService ? '' : 'none';
+                if (!isService) chk.checked = false;
+
+                const isConsulting = sel.value === 'Consulting';
+                consRow.style.display = isConsulting ? '' : 'none';
+                // Only clear value if we are switching away from Consulting
+                if (!isConsulting) consSel.value = '';
             }
 
             sel.addEventListener('change', toggle);

@@ -27,6 +27,10 @@ public class ServiceFormViewModel
 
     [Display(Name = "Is Registration Service")]
     public bool IsRegistration { get; set; }
+    
+    [MaxLength(20)]
+    [Display(Name = "Consulting Type")]
+    public string? ConsultingType { get; set; }
 
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;

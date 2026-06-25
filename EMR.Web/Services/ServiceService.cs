@@ -53,11 +53,11 @@ public class ServiceService(IDbConnectionFactory db) : IServiceService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO ServiceMaster
-                (ItemCode, ItemName, ServiceType, ItemCharges, IsRegistration, BranchId, IsActive, CreatedBy, CreatedDate)
+                (ItemCode, ItemName, ServiceType, ItemCharges, IsRegistration, ConsultingType, BranchId, IsActive, CreatedBy, CreatedDate)
             VALUES
-                (@ItemCode, @ItemName, @ServiceType, @ItemCharges, @IsRegistration, @BranchId, @IsActive, @userId, GETDATE());
+                (@ItemCode, @ItemName, @ServiceType, @ItemCharges, @IsRegistration, @ConsultingType, @BranchId, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
-            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.BranchId, m.IsActive, userId });
+            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.ConsultingType, m.BranchId, m.IsActive, userId });
     }
 
     public async Task UpdateAsync(ServiceMaster m, int? userId)
@@ -70,10 +70,11 @@ public class ServiceService(IDbConnectionFactory db) : IServiceService
                 ServiceType     = @ServiceType,
                 ItemCharges     = @ItemCharges,
                 IsRegistration  = @IsRegistration,
+                ConsultingType  = @ConsultingType,
                 IsActive        = @IsActive,
                 ModifiedBy      = @userId,
                 ModifiedDate    = GETDATE()
             WHERE ServiceId = @ServiceId AND BranchId = @BranchId",
-            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.IsActive, userId, m.ServiceId, m.BranchId });
+            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.ConsultingType, m.IsActive, userId, m.ServiceId, m.BranchId });
     }
 }

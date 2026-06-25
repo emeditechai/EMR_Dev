@@ -87,6 +87,10 @@
                         @if (item.ServiceType == "Consulting")
                         {
                             <span class="badge text-bg-info text-white">Consulting</span>
+                            @if (!string.IsNullOrEmpty(item.ConsultingType))
+                            {
+                                <span class="badge text-bg-primary text-white ms-1">@item.ConsultingType</span>
+                            }
                         }
                         else
                         {
