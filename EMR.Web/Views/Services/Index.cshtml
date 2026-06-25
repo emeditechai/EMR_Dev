@@ -89,7 +89,14 @@
                             <span class="badge text-bg-info text-white">Consulting</span>
                             @if (!string.IsNullOrEmpty(item.ConsultingType))
                             {
-                                <span class="badge text-bg-primary text-white ms-1">@item.ConsultingType</span>
+                                if (item.ConsultingType == "Video")
+                                {
+                                    <span class="badge text-white ms-1" style="background-color: #8b5cf6;">Video</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-white ms-1" style="background-color: #0ea5e9;">@item.ConsultingType</span>
+                                }
                             }
                         }
                         else
@@ -97,7 +104,7 @@
                             <span class="badge text-bg-secondary">Service</span>
                             @if (item.IsRegistration)
                             {
-                                <span class="badge text-bg-primary ms-1" title="Registration Service">
+                                <span class="badge ms-1 text-white" style="background-color: #e11d48;" title="Registration Service">
                                     <i class="bi bi-person-check-fill"></i> Registration
                                 </span>
                             }
