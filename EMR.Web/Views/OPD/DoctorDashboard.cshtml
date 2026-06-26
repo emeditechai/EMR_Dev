@@ -689,7 +689,7 @@
             const list = allQueuePatients;
             
             // Count active vs completed in the result set
-            const activePatients = list.filter(item => item.status === 'Consulting');
+            const activePatients = list.filter(item => item.status === 'Consulting' || item.status === 'Skipped');
             const completedPatients = list.filter(item => item.status === 'Completed');
             
             // Update tab count badges
@@ -753,9 +753,11 @@
                 
                 const statusBadge = item.status === 'Completed'
                     ? `<span class="badge bg-success text-white border border-success px-2 py-1.5 font-xs"><i class="bi bi-check-circle-fill me-1"></i>COMPLETED</span>`
-                    : isCalled 
-                        ? `<span class="badge bg-info-subtle text-info border border-info px-2 py-1.5 font-xs ms-1 d-inline-flex align-items-center"><i class="bi bi-megaphone-fill me-1"></i>CALLED ${callingAnim}</span>` 
-                        : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1.5 font-xs ms-1">WAITING</span>`;
+                    : item.status === 'Skipped'
+                        ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1.5 font-xs ms-1"><i class="bi bi-skip-forward-fill me-1"></i>SKIPPED</span>`
+                        : isCalled 
+                            ? `<span class="badge bg-info-subtle text-info border border-info px-2 py-1.5 font-xs ms-1 d-inline-flex align-items-center"><i class="bi bi-megaphone-fill me-1"></i>CALLED ${callingAnim}</span>` 
+                            : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1.5 font-xs ms-1">WAITING</span>`;
 
                 // Action buttons based on status
                 let actionButtons = '';
@@ -766,6 +768,11 @@
                         </button>
                     `;
                 } else {
+                    const skipButton = item.status === 'Skipped' ? '' : `
+                        <button class="btn btn-sm btn-outline-danger rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Skip/Pass Patient" onclick="skipConsulting(${item.opdServiceId})">
+                            <i class="bi bi-skip-forward"></i>
+                        </button>
+                    `;
                     actionButtons = `
                         <button class="btn btn-sm btn-primary fw-semibold rounded-pill px-3 shadow-xs" onclick="startConsulting(${item.opdServiceId}, ${item.patientId}, '${item.patientName}', '${item.patientCode}', '${item.gender}', ${item.age}, '${item.tokenNo || ''}', ${hasDue})">
                             <i class="bi bi-journal-medical me-1"></i> Start EMR
@@ -773,6 +780,7 @@
                         <button class="btn btn-sm btn-outline-warning rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Call Patient" onclick="callPatient(${item.opdServiceId}, '${item.patientName}', '${item.tokenNo}')">
                             <i class="bi bi-megaphone"></i>
                         </button>
+                        ${skipButton}
                         <button class="btn btn-sm btn-success rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Mark Consultation Completed" onclick="completeConsulting(${item.opdServiceId})">
                             <i class="bi bi-check-lg"></i>
                         </button>
@@ -1201,6 +1209,51 @@
                             // Remove from called patients tracking and local storage drafts on complete
                             calledPatientsSet.delete(id);
                             localStorage.removeItem('emr_notes_opd_' + id);
+                            
+                            if (id === activeOPDServiceId) {
+                                clearActivePatient();
+                            }
+
+                            fetchQueue();
+                        } else {
+                            Swal.fire('Error', json.message, 'error');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        Swal.fire('Error', 'An unexpected error occurred.', 'error');
+                    }
+                }
+            });
+        }
+
+        async function skipConsulting(id) {
+            Swal.fire({
+                title: 'Skip/Pass Patient?',
+                text: "Are you sure you want to skip this patient? They will remain in the active queue but move to the bottom.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, skip!'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    try {
+                        const res = await fetch('/OPD/UpdateTokenStatus', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: id, status: 'Skipped' })
+                        });
+                        
+                        const json = await res.json();
+                        if (json.isSuccess) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: 'Patient marked as skipped',
+                                showConfirmButton: false,
+                                timer: 1500
+                            });
                             
                             if (id === activeOPDServiceId) {
                                 clearActivePatient();
