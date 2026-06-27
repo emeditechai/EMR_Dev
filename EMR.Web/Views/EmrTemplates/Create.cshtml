@@ -91,9 +91,14 @@
         <h1 class="h3 mb-0 fw-bold">Create EMR Template</h1>
         <small class="text-muted">Design a dynamic clinical layout using the right-side toolbox and drag-and-drop</small>
     </div>
-    <a asp-action="Index" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i>Back to Templates
-    </a>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" id="btnPreviewTemplate">
+            <i class="bi bi-eye me-1"></i>Preview Template
+        </button>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Templates
+        </a>
+    </div>
 </div>
 
 <form asp-action="Create" method="post" id="templateForm">
@@ -146,6 +151,7 @@
             
             <div class="d-flex gap-2 mb-5">
                 <button type="submit" class="btn btn-primary px-4"><i class="bi bi-save me-1"></i>Save Template</button>
+                <button type="button" class="btn btn-outline-primary px-4" id="btnPreviewTemplateBottom"><i class="bi bi-eye me-1"></i>Preview</button>
                 <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
             </div>
         </div>
@@ -203,6 +209,26 @@
         </div>
     </div>
 </form>
+
+@* ── Preview Modal ── *@
+<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px;">
+            <div class="modal-header bg-light border-bottom-0 py-3">
+                <h5 class="modal-title fw-bold text-dark" id="previewModalLabel">
+                    <i class="bi bi-eye-fill text-primary me-2"></i>EMR Template Preview
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-light-subtle py-4 px-4" id="previewModalBody">
+                <!-- Preview elements will render dynamically -->
+            </div>
+            <div class="modal-footer bg-light border-top-0 py-2">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close Preview</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @* ── HTML TEMPLATE FOR SECTION ── *@
 <div id="sectionTemplate" class="d-none">
@@ -283,7 +309,7 @@
             const sectionHtmlTemplate = $('#sectionTemplate').html();
             const fieldHtmlTemplate = $('#fieldTemplate').html();
 
-            // Load a default Section
+            // Load default Sections
             addSection('History Taking');
             addSection('Systemic Examination');
 
@@ -337,7 +363,6 @@
             // Toolbox Item Click (Append field directly to active section)
             $('.tool-item').click(function() {
                 const type = $(this).data('type');
-                const label = $(this).find('span').text();
                 
                 if (!activeSectionEl || activeSectionEl.closest('body').length === 0) {
                     const lastSec = sectionsContainer.children('.section-card').last();
@@ -452,25 +477,22 @@
                         const secCard = $(this).closest('.section-card');
                         selectSection(secCard);
                         
-                        // If it is an existing field row being dragged
                         const draggingFieldId = e.dataTransfer.getData('field-id');
                         if (draggingFieldId) {
                             const fieldRow = $('#' + draggingFieldId);
                             if (fieldRow.length > 0) {
-                                // Append row to this dropzone
                                 $(this).append(fieldRow);
                                 secCard.find('.empty-fields-msg').addClass('d-none');
                                 updateIndices();
                             }
                         } else {
-                            // Standard tool-box drop: add new field
                             addField(secCard, '', type, false);
                         }
                     }
                 });
             }
 
-            // 3. Field Sorting / Reordering Setup
+            // 3. Field Sorting Setup
             let draggedField = null;
 
             function setupFieldDragDrop(fieldRow) {
@@ -495,7 +517,6 @@
                     e.preventDefault();
                     if (!draggedField || draggedField === this) return;
                     
-                    // Sort order indicator
                     const container = this.parentNode;
                     const bounding = this.getBoundingClientRect();
                     const offset = e.clientY - bounding.top - bounding.height / 2;
@@ -508,7 +529,7 @@
                 });
             }
 
-            // Apply drag drop setup on initial rows (if any)
+            // Apply drag drop setup on initial rows
             $('.drop-zone').each(function() {
                 setupDropZone($(this));
             });
@@ -522,7 +543,6 @@
                     const sec = $(secEl);
                     sec.attr('data-section-index', sIdx);
                     
-                    // Bind names
                     sec.find('.section-name-input').attr('name', `Sections[${sIdx}].SectionName`);
                     
                     const fieldsContainer = sec.find('.fields-container');
@@ -541,10 +561,8 @@
                         
                         const fieldType = f.attr('data-field-type');
                         
-                        // Bind inputs
                         f.find('.field-name-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldName`);
                         
-                        // Hidden field type input so form posts field type properly
                         let typeInput = f.find('.field-type-hidden-val');
                         if (typeInput.length === 0) {
                             typeInput = $('<input type="hidden" class="field-type-hidden-val" />');
@@ -558,6 +576,153 @@
                         f.find('.field-required-checkbox').attr('name', `Sections[${sIdx}].Fields[${fIdx}].IsRequired`);
                     });
                 });
+            }
+
+            // Bind preview events
+            $('#btnPreviewTemplate, #btnPreviewTemplateBottom').click(showTemplatePreview);
+
+            function showTemplatePreview() {
+                const templateName = $('#TemplateName').val().trim() || 'Untitled EMR Template';
+                const description = $('#Description').val().trim();
+                
+                let html = `
+                    <div class="mb-4 bg-white p-3 rounded shadow-sm">
+                        <h4 class="fw-bold text-primary mb-1"><i class="bi bi-file-earmark-medical me-2"></i>${templateName}</h4>
+                        ${description ? `<p class="text-muted small mb-0">${description}</p>` : ''}
+                    </div>
+                    
+                    <!-- Common EMR Header -->
+                    <div class="card border-0 shadow-sm mb-4 bg-white" style="border-radius: 10px;">
+                        <div class="card-header bg-light py-2 px-3 border-bottom-0">
+                            <span class="fw-bold text-secondary small text-uppercase"><i class="bi bi-person-lines-fill me-1"></i>Common Patient Header (Auto-Generated)</span>
+                        </div>
+                        <div class="card-body py-3">
+                            <div class="row g-3 small">
+                                <div class="col-md-3"><strong>Visit No:</strong> <span class="text-muted">V26270001</span></div>
+                                <div class="col-md-3"><strong>UHID:</strong> <span class="text-muted">PH26270001</span></div>
+                                <div class="col-md-3"><strong>Patient Name:</strong> <span class="text-muted">Jane Doe</span></div>
+                                <div class="col-md-3"><strong>Age/Gender:</strong> <span class="text-muted">34 Y / Female</span></div>
+                                <div class="col-md-3"><strong>Consulting Doctor:</strong> <span class="text-muted">Dr. Samir Pandit</span></div>
+                                <div class="col-md-3"><strong>Speciality:</strong> <span class="text-muted">General Medicine</span></div>
+                                <div class="col-md-3"><strong>Visit Date:</strong> <span class="text-muted">${new Date().toLocaleString()}</span></div>
+                                <div class="col-md-3"><strong>Visit Type:</strong> <span class="text-muted">OPD Consultation</span></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const sections = $('#sectionsContainer').children('.section-card');
+                
+                if (sections.length === 0) {
+                    html += `
+                        <div class="text-center py-5 text-muted bg-white rounded-3 border">
+                            <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-warning"></i>
+                            No sections configured. Add some sections to preview.
+                        </div>
+                    `;
+                } else {
+                    sections.each(function() {
+                        const secName = $(this).find('.section-name-input').val().trim() || 'Unnamed Section';
+                        const fields = $(this).find('.fields-container').children('.field-row');
+                        
+                        html += `
+                            <div class="card border-0 shadow-sm mb-4 bg-white" style="border-radius: 10px; overflow: hidden;">
+                                <div class="card-header bg-light py-2 px-3 border-bottom">
+                                    <h5 class="fw-bold mb-0 text-dark small text-uppercase" style="letter-spacing: 0.5px;">${secName}</h5>
+                                </div>
+                                <div class="card-body">
+                        `;
+                        
+                        if (fields.length === 0) {
+                            html += `<div class="text-center text-muted py-3 small">No fields added to this section.</div>`;
+                        } else {
+                            html += `<div class="row g-3">`;
+                            fields.each(function() {
+                                const fieldName = $(this).find('.field-name-input').val().trim() || 'Label';
+                                const fieldType = $(this).attr('data-field-type') || 'Text';
+                                const isRequired = $(this).find('.field-required-checkbox').is(':checked');
+                                const reqAsterisk = isRequired ? '<span class="text-danger">*</span>' : '';
+                                
+                                html += `<div class="col-md-6 mb-2">`;
+                                html += `<label class="form-label fw-semibold small text-dark mb-1">${fieldName} ${reqAsterisk}</label>`;
+                                
+                                switch(fieldType) {
+                                    case 'Text':
+                                        html += `<input type="text" class="form-control form-control-sm" placeholder="Enter ${fieldName}..." disabled />`;
+                                        break;
+                                    case 'TextArea':
+                                        html += `<textarea class="form-control form-control-sm" rows="3" placeholder="Enter ${fieldName} details..." disabled></textarea>`;
+                                        break;
+                                    case 'Select':
+                                        html += `<select class="form-select form-select-sm" disabled>`;
+                                        const optStr = $(this).find('.field-options-input').val().trim();
+                                        if (optStr) {
+                                            const opts = optStr.split(',');
+                                            opts.forEach(o => {
+                                                html += `<option value="${o.trim()}">${o.trim()}</option>`;
+                                            });
+                                        } else {
+                                            html += `<option value="">-- Select option --</option>`;
+                                        }
+                                        html += `</select>`;
+                                        break;
+                                    case 'MultiSelect':
+                                        html += `<div class="p-2 border rounded bg-light-subtle d-flex flex-wrap gap-2">`;
+                                        const multiOptStr = $(this).find('.field-options-input').val().trim();
+                                        if (multiOptStr) {
+                                            const opts = multiOptStr.split(',');
+                                            opts.forEach((o, i) => {
+                                                const oId = 'preview_chk_' + Math.random().toString(36).substr(2, 5);
+                                                html += `
+                                                    <div class="form-check form-check-inline mb-0">
+                                                        <input class="form-check-input" type="checkbox" id="${oId}" disabled />
+                                                        <label class="form-check-label small" for="${oId}">${o.trim()}</label>
+                                                    </div>
+                                                `;
+                                            });
+                                        } else {
+                                            html += `<span class="text-muted small">No options defined</span>`;
+                                        }
+                                        html += `</div>`;
+                                        break;
+                                    case 'Number':
+                                        html += `<input type="number" class="form-control form-control-sm" placeholder="0" disabled />`;
+                                        break;
+                                    case 'Checkbox':
+                                        html += `
+                                            <div class="form-check form-switch mt-1">
+                                                <input class="form-check-input" type="checkbox" role="switch" disabled />
+                                                <label class="form-check-label text-muted small">Enabled</label>
+                                            </div>
+                                        `;
+                                        break;
+                                    case 'Date':
+                                        html += `
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text bg-light text-muted"><i class="bi bi-calendar"></i></span>
+                                                <input type="date" class="form-control" disabled />
+                                            </div>
+                                        `;
+                                        break;
+                                    default:
+                                        html += `<input type="text" class="form-control form-control-sm" disabled />`;
+                                }
+                                
+                                html += `</div>`;
+                            });
+                            html += `</div>`;
+                        }
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                $('#previewModalBody').html(html);
+                const myModal = new bootstrap.Modal(document.getElementById('previewModal'));
+                myModal.show();
             }
 
             // Form Submit validations
