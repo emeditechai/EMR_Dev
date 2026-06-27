@@ -738,6 +738,7 @@
                 row.addEventListener('dragend', function() {
                     this.classList.remove('dragging');
                     draggedField = null;
+                    updateIndices();
                 });
 
                 row.addEventListener('dragover', function(e) {
