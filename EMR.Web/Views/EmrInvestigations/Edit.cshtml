@@ -1,0 +1,86 @@
+@model EMR.Web.Models.Entities.EmrInvestigationMaster
+@{
+    ViewData["Title"] = "Edit Investigation";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Investigation</h1>
+        <small class="text-muted">Update investigation details in the EMR catalogue</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <form asp-action="Edit" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="InvestigationId" />
+            <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-microscope me-2"></i>Investigation Details</h5>
+                </div>
+                <div class="card-body">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label asp-for="InvestigationName" class="form-label fw-semibold">Investigation Name <span class="text-danger">*</span></label>
+                            <input asp-for="InvestigationName" class="form-control" placeholder="e.g. Complete Blood Count (CBC)" maxlength="200" autofocus />
+                            <span asp-validation-for="InvestigationName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Category" class="form-label fw-semibold">Category</label>
+                            <input asp-for="Category" class="form-control" placeholder="e.g. Haematology" list="categoryList" maxlength="100" />
+                            <datalist id="categoryList">
+                                <option value="Haematology" />
+                                <option value="Biochemistry" />
+                                <option value="Microbiology" />
+                                <option value="Radiology" />
+                                <option value="Cardiology" />
+                                <option value="Histopathology" />
+                                <option value="Serology" />
+                                <option value="Endocrinology" />
+                            </datalist>
+                            <span asp-validation-for="Category" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Unit" class="form-label fw-semibold">Unit</label>
+                            <input asp-for="Unit" class="form-control" placeholder="e.g. mg/dL, g/dL" maxlength="50" />
+                            <span asp-validation-for="Unit" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-8">
+                            <label asp-for="NormalRange" class="form-label fw-semibold">Normal Range</label>
+                            <input asp-for="NormalRange" class="form-control" placeholder="e.g. 70-100, M: 13.5-17.5 / F: 12-15.5" maxlength="100" />
+                            <span asp-validation-for="NormalRange" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold">Description</label>
+                            <textarea asp-for="Description" class="form-control" rows="2" placeholder="Brief description of this investigation..." maxlength="500"></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" />
+                                <label asp-for="IsActive" class="form-check-label fw-semibold">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white py-3 border-top-0">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-save me-1"></i>Save Changes
+                        </button>
+                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}

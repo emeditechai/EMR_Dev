@@ -36,6 +36,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<EmrTemplateField> EmrTemplateFields => Set<EmrTemplateField>();
     public DbSet<DoctorSpecialityMaster> DoctorSpecialityMasters => Set<DoctorSpecialityMaster>();
 
+    // EMR Master Lists
+    public DbSet<EmrInvestigationMaster> EmrInvestigationMasters => Set<EmrInvestigationMaster>();
+    public DbSet<EmrMedicationMaster> EmrMedicationMasters => Set<EmrMedicationMaster>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -1,0 +1,112 @@
+@model IEnumerable<EMR.Web.Models.Entities.EmrMedicationMaster>
+@{
+    ViewData["Title"] = "EMR Medication Master";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">EMR Medication Master</h1>
+        <small class="text-muted">Manage the medication catalogue used in EMR template prescription fields</small>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Add Medication
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="card border-0 shadow-sm mb-3" style="border-radius: 12px;">
+    <div class="card-body py-3 px-4">
+        <form method="get" class="d-flex gap-2 align-items-center">
+            <div class="input-group" style="max-width: 400px;">
+                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                <input name="search" class="form-control border-start-0 bg-light" placeholder="Search by name, generic name or category..." value="@ViewBag.Search" />
+            </div>
+            <button type="submit" class="btn btn-outline-primary px-4">Search</button>
+            @if (!string.IsNullOrEmpty(ViewBag.Search as string))
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary">Clear</a>
+            }
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm" style="border-radius: 12px; overflow: hidden;">
+    <div class="card-header bg-white py-3 border-bottom-0">
+        <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-capsule text-primary me-2"></i>Medications List 
+            <span class="badge bg-primary-subtle text-primary ms-2">@Model.Count()</span>
+        </h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:50px;">#</th>
+                    <th>Medication Name</th>
+                    <th>Generic Name</th>
+                    <th style="width:140px;">Category</th>
+                    <th style="width:120px;">Strength</th>
+                    <th style="width:140px;">Route</th>
+                    <th class="text-center" style="width:100px;">Status</th>
+                    <th class="text-end" style="width:100px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int i = 1; }
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td class="text-muted small">@(i++)</td>
+                        <td>
+                            <div class="fw-semibold text-dark">@item.MedicationName</div>
+                        </td>
+                        <td class="text-muted small">@(item.GenericName ?? "—")</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(item.Category))
+                            {
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle small">@item.Category</span>
+                            }
+                        </td>
+                        <td class="text-muted small">@(item.Strength ?? "—")</td>
+                        <td class="text-muted small">@(item.RouteOfAdministration ?? "—")</td>
+                        <td class="text-center">
+                            <form asp-action="ToggleActive" asp-route-id="@item.MedicationId" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="border-0 bg-transparent" title="Toggle active">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge text-bg-success" style="cursor: pointer;"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary" style="cursor: pointer;"><i class="bi bi-x-circle me-1"></i>Inactive</span>
+                                    }
+                                </button>
+                            </form>
+                        </td>
+                        <td class="text-end">
+                            <a asp-action="Edit" asp-route-id="@item.MedicationId" class="btn btn-sm btn-outline-primary" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-capsule fs-2 d-block mb-2 opacity-50"></i>
+                            No medications found. <a asp-action="Create">Add one now.</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

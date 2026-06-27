@@ -204,6 +204,24 @@
                         <i class="bi bi-calendar-date"></i>
                         <span class="fw-semibold">Date Picker</span>
                     </div>
+
+                    <div class="text-uppercase fw-bold text-secondary small mb-2 mt-3 border-top pt-3">Clinical Lists</div>
+
+                    <div class="tool-item border-success-subtle bg-success-subtle" draggable="true" data-type="Investigation" title="Auto-suggest investigation list backed by Investigation Master">
+                        <i class="bi bi-microscope text-success"></i>
+                        <div>
+                            <div class="fw-semibold text-success-emphasis">Investigation List</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">Auto-suggest from DB</div>
+                        </div>
+                    </div>
+
+                    <div class="tool-item border-warning-subtle bg-warning-subtle" draggable="true" data-type="Medication" title="Auto-suggest medication list backed by Medication Master">
+                        <i class="bi bi-capsule text-warning-emphasis"></i>
+                        <div>
+                            <div class="fw-semibold text-warning-emphasis">Medication List</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">Auto-suggest from DB</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -435,8 +453,79 @@
                     case 'Number': return 'Number';
                     case 'Checkbox': return 'Switch';
                     case 'Date': return 'Date';
+                    case 'Investigation': return 'Investigation';
+                    case 'Medication': return 'Medication';
                     default: return type;
                 }
+            }
+
+            // ── AUTO-SUGGEST SETUP ──────────────────────────────────
+            // Attach auto-suggest behaviour to Investigation / Medication field rows
+            function setupAutoSuggest(fieldRow, fieldType) {
+                const endpoint = fieldType === 'Investigation'
+                    ? '/EmrInvestigations/Search'
+                    : '/EmrMedications/Search';
+
+                const suggestBox = fieldRow.find('.autosuggest-input');
+                const dropdown = fieldRow.find('.autosuggest-dropdown');
+
+                suggestBox.on('input', async function () {
+                    const q = $(this).val().trim();
+                    if (q.length < 1) { dropdown.hide(); return; }
+
+                    try {
+                        const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`);
+                        const items = await res.json();
+                        dropdown.empty();
+
+                        if (items.length === 0) {
+                            dropdown.html('<div class="dropdown-item-text text-muted small py-2">No results found</div>').show();
+                            return;
+                        }
+
+                        items.forEach(item => {
+                            const subtitle = fieldType === 'Investigation'
+                                ? (item.category ? `<span class="badge bg-info-subtle text-info border ms-1" style="font-size:0.65rem;">${item.category}</span>` : '')
+                                : (item.genericName ? `<small class="text-muted ms-1">(${item.genericName})</small>` : '');
+
+                            const li = $(`<button type="button" class="dropdown-item py-2 d-flex align-items-center gap-1">
+                                <span class="fw-semibold">${item.text}</span>
+                                ${subtitle}
+                            </button>`);
+
+                            li.on('click', function () {
+                                // Add to selected tags
+                                addSelectedItem(fieldRow, item.id, item.text, fieldType);
+                                suggestBox.val('');
+                                dropdown.hide();
+                            });
+                            dropdown.append(li);
+                        });
+
+                        dropdown.show();
+                    } catch (e) {
+                        console.error('AutoSuggest error:', e);
+                    }
+                });
+
+                // Close dropdown on outside click
+                $(document).on('click.autosuggest', function (e) {
+                    if (!fieldRow[0].contains(e.target)) dropdown.hide();
+                });
+            }
+
+            function addSelectedItem(fieldRow, id, text, fieldType) {
+                const container = fieldRow.find('.selected-items-container');
+                if (container.find(`[data-item-id="${id}"]`).length > 0) return; // prevent duplicate
+
+                const tag = $(`
+                    <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="${id}" data-item-text="${text}">
+                        ${text}
+                        <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
+                    </span>
+                `);
+                tag.find('.btn-close').on('click', function () { tag.remove(); });
+                container.append(tag);
             }
 
             // ── DRAG AND DROP INTEGRATION ──
@@ -723,6 +812,52 @@
                 $('#previewModalBody').html(html);
                 const myModal = new bootstrap.Modal(document.getElementById('previewModal'));
                 myModal.show();
+            }
+
+            // Build field row for Investigation / Medication — overrides generic addField for these types
+            const _originalAddField = addField;
+            // Patch addField to handle Investigation / Medication specially
+            function addField(secCard, defaultFieldName, defaultFieldType, isRequired) {
+                if (defaultFieldType !== 'Investigation' && defaultFieldType !== 'Medication') {
+                    _originalAddField(secCard, defaultFieldName, defaultFieldType, isRequired);
+                    return;
+                }
+
+                const fieldsContainer = secCard.find('.fields-container');
+                const emptyMsg = secCard.find('.empty-fields-msg');
+
+                const fieldTypeColor = defaultFieldType === 'Investigation' ? 'success' : 'warning';
+                const fieldTypeIcon = defaultFieldType === 'Investigation' ? 'bi-microscope' : 'bi-capsule';
+                const fieldTypeName = defaultFieldType === 'Investigation' ? 'Investigation' : 'Medication';
+                const placeholder = defaultFieldType === 'Investigation' ? 'Search investigations...' : 'Search medications...';
+
+                const el = $(`
+                    <div class="field-row p-2 mb-2 border rounded-2 bg-white" data-field-type="${defaultFieldType}" draggable="true">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-grip-vertical text-muted" style="cursor:grab;"></i>
+                                <span class="badge bg-${fieldTypeColor}-subtle text-${fieldTypeColor}-emphasis border border-${fieldTypeColor}-subtle field-type-badge">
+                                    <i class="${fieldTypeIcon} me-1"></i>${fieldTypeName}
+                                </span>
+                                <input type="text" class="form-control form-control-sm field-name-input" placeholder="Section label (e.g. Ordered Investigations)" value="${defaultFieldName}" style="max-width: 220px;" />
+                            </div>
+                            <button type="button" class="btn btn-sm btn-link text-danger p-1 btn-remove-field">
+                                <i class="bi bi-x-circle-fill fs-5"></i>
+                            </button>
+                        </div>
+                        <div class="selected-items-container d-flex flex-wrap gap-1 mb-2 p-1 border rounded bg-light min-h" style="min-height: 32px;"></div>
+                        <div class="position-relative">
+                            <input type="text" class="form-control form-control-sm autosuggest-input" placeholder="${placeholder}" autocomplete="off" />
+                            <div class="autosuggest-dropdown dropdown-menu w-100 p-0 border shadow-sm" style="display:none; max-height:200px; overflow-y:auto; position:absolute; z-index:1050;"></div>
+                        </div>
+                    </div>
+                `);
+
+                fieldsContainer.append(el);
+                emptyMsg.addClass('d-none');
+                setupAutoSuggest(el, defaultFieldType);
+                setupFieldDragDrop(el);
+                updateIndices();
             }
 
             // Form Submit validations

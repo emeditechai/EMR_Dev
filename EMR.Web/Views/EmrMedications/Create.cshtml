@@ -1,0 +1,112 @@
+@model EMR.Web.Models.Entities.EmrMedicationMaster
+@{
+    ViewData["Title"] = "Add Medication";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Medication</h1>
+        <small class="text-muted">Add a new medication to the EMR prescription catalogue</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            <div class="card border-0 shadow-sm" style="border-radius: 12px;">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-capsule me-2"></i>Medication Details</h5>
+                </div>
+                <div class="card-body">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="MedicationName" class="form-label fw-semibold">Medication Name <span class="text-danger">*</span></label>
+                            <input asp-for="MedicationName" class="form-control" placeholder="e.g. Metformin 500mg Tab" maxlength="200" autofocus />
+                            <span asp-validation-for="MedicationName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="GenericName" class="form-label fw-semibold">Generic Name</label>
+                            <input asp-for="GenericName" class="form-control" placeholder="e.g. Metformin HCl" maxlength="200" />
+                            <span asp-validation-for="GenericName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Category" class="form-label fw-semibold">Category</label>
+                            <input asp-for="Category" class="form-control" placeholder="e.g. Antibiotic" list="catList" maxlength="100" />
+                            <datalist id="catList">
+                                <option value="Analgesic/Antipyretic" />
+                                <option value="Antibiotic" />
+                                <option value="NSAID" />
+                                <option value="Antidiabetic" />
+                                <option value="Antihypertensive" />
+                                <option value="Antihistamine" />
+                                <option value="Antiemetic" />
+                                <option value="Proton Pump Inhibitor" />
+                                <option value="Diuretic" />
+                                <option value="Bronchodilator" />
+                                <option value="Beta-Blocker" />
+                                <option value="ARB / Antihypertensive" />
+                                <option value="Antiplatelet" />
+                                <option value="Antiprotozoal" />
+                                <option value="Steroid" />
+                                <option value="Vitamin/Supplement" />
+                            </datalist>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Strength" class="form-label fw-semibold">Strength</label>
+                            <input asp-for="Strength" class="form-control" placeholder="e.g. 500 mg, 100 IU/mL" maxlength="100" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Unit" class="form-label fw-semibold">Dosage Form / Unit</label>
+                            <input asp-for="Unit" class="form-control" placeholder="e.g. Tab, Cap, Vial, Inhaler" list="unitList" maxlength="50" />
+                            <datalist id="unitList">
+                                <option value="Tab" />
+                                <option value="Cap" />
+                                <option value="Syrup" />
+                                <option value="Inj" />
+                                <option value="Vial" />
+                                <option value="Amp" />
+                                <option value="Inhaler" />
+                                <option value="Drops" />
+                                <option value="Cream" />
+                                <option value="Ointment" />
+                                <option value="Suppository" />
+                            </datalist>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="RouteOfAdministration" class="form-label fw-semibold">Route of Administration</label>
+                            <input asp-for="RouteOfAdministration" class="form-control" placeholder="e.g. Oral, IV, IM, SC" list="routeList" maxlength="100" />
+                            <datalist id="routeList">
+                                <option value="Oral" />
+                                <option value="IV" />
+                                <option value="IM" />
+                                <option value="SC" />
+                                <option value="Inhalation" />
+                                <option value="Topical" />
+                                <option value="Sublingual" />
+                                <option value="Rectal" />
+                                <option value="IV / IM" />
+                            </datalist>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white py-3 border-top-0">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-save me-1"></i>Save Medication
+                        </button>
+                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}
