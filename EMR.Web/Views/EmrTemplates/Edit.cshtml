@@ -539,6 +539,11 @@
             });
 
             function addField(secCard, defaultFieldName, defaultFieldType, isRequired) {
+                if (defaultFieldType === 'Investigation' || defaultFieldType === 'Medication') {
+                    addInvestigationOrMedicationField(secCard, defaultFieldName, defaultFieldType);
+                    return;
+                }
+
                 const fieldsContainer = secCard.find('.fields-container');
                 const emptyMsg = secCard.find('.empty-fields-msg');
                 const fieldIndex = fieldsContainer.children().length;
@@ -1008,15 +1013,7 @@
                 updateIndices();
             }
 
-            // Patch addField to intercept Investigation / Medication
-            const _origAddField = addField;
-            function addField(secCard, defaultFieldName, defaultFieldType, isRequired) {
-                if (defaultFieldType === 'Investigation' || defaultFieldType === 'Medication') {
-                    addInvestigationOrMedicationField(secCard, defaultFieldName, defaultFieldType);
-                } else {
-                    _origAddField(secCard, defaultFieldName, defaultFieldType, isRequired);
-                }
-            }
+
 
             // Form Submit validations
             $('#templateForm').submit(function(e) {

@@ -408,6 +408,11 @@
             });
 
             function addField(secCard, defaultFieldName, defaultFieldType, isRequired) {
+                if (defaultFieldType === 'Investigation' || defaultFieldType === 'Medication') {
+                    addInvestigationOrMedicationField(secCard, defaultFieldName, defaultFieldType);
+                    return;
+                }
+
                 const fieldsContainer = secCard.find('.fields-container');
                 const emptyMsg = secCard.find('.empty-fields-msg');
                 const fieldIndex = fieldsContainer.children().length;
@@ -842,15 +847,8 @@
                 myModal.show();
             }
 
-            // Build field row for Investigation / Medication — overrides generic addField for these types
-            const _originalAddField = addField;
-            // Patch addField to handle Investigation / Medication specially
-            function addField(secCard, defaultFieldName, defaultFieldType, isRequired) {
-                if (defaultFieldType !== 'Investigation' && defaultFieldType !== 'Medication') {
-                    _originalAddField(secCard, defaultFieldName, defaultFieldType, isRequired);
-                    return;
-                }
-
+            // Build field row for Investigation / Medication
+            function addInvestigationOrMedicationField(secCard, defaultFieldName, defaultFieldType) {
                 const fieldsContainer = secCard.find('.fields-container');
                 const emptyMsg = secCard.find('.empty-fields-msg');
 
