@@ -441,7 +441,17 @@
     });
 
     window.removeFee = async function (mappingId) {
-        if (!confirm('Remove this consulting fee from the doctor?')) return;
+        const result = await Swal.fire({
+            title: 'Remove Fee?',
+            text: 'Remove this consulting fee from the doctor?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, remove it',
+            cancelButtonText: 'Cancel'
+        });
+        if (!result.isConfirmed) return;
         const res  = await fetch('/Doctors/RemoveConsultingFee', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgeryToken() },
