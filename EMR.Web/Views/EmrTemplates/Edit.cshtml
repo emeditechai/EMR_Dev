@@ -171,35 +171,91 @@
                                 @for (int fIdx = 0; fIdx < sec.Fields.Count; fIdx++)
                                 {
                                     var field = sec.Fields[fIdx];
-                                    var showOptionsClass = (field.FieldType == "Select" || field.FieldType == "MultiSelect") ? "" : "d-none";
-                                    var isOptionsRequired = (field.FieldType == "Select" || field.FieldType == "MultiSelect");
+                                    
+                                    @if (field.FieldType == "Investigation" || field.FieldType == "Medication")
+                                    {
+                                        var fColor = field.FieldType == "Investigation" ? "success" : "warning";
+                                        var fIcon = field.FieldType == "Investigation" ? "bi-eyedropper" : "bi-capsule";
+                                        var placeholder = field.FieldType == "Investigation" ? "Search investigations..." : "Search medications...";
 
-                                    <div class="row g-2 align-items-center field-row" data-field-index="@fIdx" data-field-type="@field.FieldType" draggable="true">
-                                        <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].FieldId" value="@field.FieldId" class="field-id-input" />
-                                        <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].FieldType" value="@field.FieldType" class="field-type-hidden-val" />
-                                        <div class="col-md-1.5 col-auto d-flex align-items-center">
-                                            <i class="bi bi-grip-vertical text-muted fs-5 me-1" style="cursor: grab;"></i>
-                                            <span class="badge bg-secondary-subtle text-secondary border field-type-badge text-uppercase small">@field.FieldType</span>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <input type="text" name="Sections[@sIdx].Fields[@fIdx].FieldName" value="@field.FieldName" class="form-control form-control-sm field-name-input" placeholder="Field Label" required />
-                                        </div>
-                                        <div class="col-md-3">
-                                            <input type="text" name="Sections[@sIdx].Fields[@fIdx].OptionsString" value="@field.OptionsString" class="form-control form-control-sm field-options-input @showOptionsClass" placeholder="Options (comma separated)" required="@(isOptionsRequired ? "required" : null)" />
-                                        </div>
-                                        <div class="col-md-2 col-auto d-flex align-items-center ms-auto">
-                                            <div class="form-check form-switch mb-0">
-                                                <input name="Sections[@sIdx].Fields[@fIdx].IsRequired" value="true" class="form-check-input field-required-checkbox" type="checkbox" role="switch" checked="@(field.IsRequired ? "checked" : null)" />
-                                                <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].IsRequired" value="false" />
-                                                <label class="form-check-label text-secondary small">Required</label>
+                                        <div class="field-row p-2 mb-2 border rounded-2 bg-white" data-field-index="@fIdx" data-field-type="@field.FieldType" draggable="true">
+                                            <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].FieldId" value="@field.FieldId" class="field-id-input" />
+                                            <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].FieldType" value="@field.FieldType" class="field-type-hidden-val" />
+                                            <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].OptionsString" value="@field.OptionsString" class="field-options-input" />
+                                            
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="bi bi-grip-vertical text-muted fs-5" style="cursor: grab;"></i>
+                                                    <span class="badge bg-@fColor-subtle text-@fColor-emphasis border border-@fColor-subtle field-type-badge">
+                                                        <i class="@fIcon me-1"></i>@field.FieldType
+                                                    </span>
+                                                    <input type="text" name="Sections[@sIdx].Fields[@fIdx].FieldName" value="@field.FieldName" class="form-control form-control-sm field-name-input" placeholder="Section label" style="max-width: 220px;" required />
+                                                </div>
+                                                <div class="col-md-2 col-auto d-flex align-items-center ms-auto">
+                                                    <div class="form-check form-switch mb-0">
+                                                        <input name="Sections[@sIdx].Fields[@fIdx].IsRequired" value="true" class="form-check-input field-required-checkbox" type="checkbox" role="switch" checked="@(field.IsRequired ? "checked" : null)" />
+                                                        <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].IsRequired" value="false" />
+                                                        <label class="form-check-label text-secondary small">Required</label>
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-link text-danger p-1 btn-remove-field" title="Remove Field">
+                                                    <i class="bi bi-x-circle-fill fs-5"></i>
+                                                </button>
+                                            </div>
+                                            <div class="selected-items-container d-flex flex-wrap gap-1 mb-2 p-1 border rounded bg-light" style="min-height: 32px;">
+                                                @if (!string.IsNullOrWhiteSpace(field.OptionsString))
+                                                {
+                                                    var items = field.OptionsString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                                                    foreach (var item in items)
+                                                    {
+                                                        var parts = item.Split('|');
+                                                        var itemId = parts[0];
+                                                        var itemText = parts.Length > 1 ? parts[1] : parts[0];
+                                                        <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="@itemId" data-item-text="@itemText">
+                                                            @itemText
+                                                            <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
+                                                        </span>
+                                                    }
+                                                }
+                                            </div>
+                                            <div class="position-relative">
+                                                <input type="text" class="form-control form-control-sm autosuggest-input" placeholder="@placeholder" autocomplete="off" />
+                                                <div class="autosuggest-dropdown dropdown-menu w-100 p-0 border shadow-sm" style="display:none; max-height:200px; overflow-y:auto; position:absolute; z-index:1050;"></div>
                                             </div>
                                         </div>
-                                        <div class="col-auto text-end">
-                                            <button type="button" class="btn btn-sm btn-link text-danger p-1 btn-remove-field" title="Remove Field">
-                                                <i class="bi bi-x-circle-fill fs-5"></i>
-                                            </button>
+                                    }
+                                    else
+                                    {
+                                        var showOptionsClass = (field.FieldType == "Select" || field.FieldType == "MultiSelect") ? "" : "d-none";
+                                        var isOptionsRequired = (field.FieldType == "Select" || field.FieldType == "MultiSelect");
+
+                                        <div class="row g-2 align-items-center field-row" data-field-index="@fIdx" data-field-type="@field.FieldType" draggable="true">
+                                            <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].FieldId" value="@field.FieldId" class="field-id-input" />
+                                            <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].FieldType" value="@field.FieldType" class="field-type-hidden-val" />
+                                            <div class="col-md-1.5 col-auto d-flex align-items-center">
+                                                <i class="bi bi-grip-vertical text-muted fs-5 me-1" style="cursor: grab;"></i>
+                                                <span class="badge bg-secondary-subtle text-secondary border field-type-badge text-uppercase small">@field.FieldType</span>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="text" name="Sections[@sIdx].Fields[@fIdx].FieldName" value="@field.FieldName" class="form-control form-control-sm field-name-input" placeholder="Field Label" required />
+                                            </div>
+                                            <div class="col-md-3">
+                                                <input type="text" name="Sections[@sIdx].Fields[@fIdx].OptionsString" value="@field.OptionsString" class="form-control form-control-sm field-options-input @showOptionsClass" placeholder="Options (comma separated)" required="@(isOptionsRequired ? "required" : null)" />
+                                            </div>
+                                            <div class="col-md-2 col-auto d-flex align-items-center ms-auto">
+                                                <div class="form-check form-switch mb-0">
+                                                    <input name="Sections[@sIdx].Fields[@fIdx].IsRequired" value="true" class="form-check-input field-required-checkbox" type="checkbox" role="switch" checked="@(field.IsRequired ? "checked" : null)" />
+                                                    <input type="hidden" name="Sections[@sIdx].Fields[@fIdx].IsRequired" value="false" />
+                                                    <label class="form-check-label text-secondary small">Required</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-auto text-end">
+                                                <button type="button" class="btn btn-sm btn-link text-danger p-1 btn-remove-field" title="Remove Field">
+                                                    <i class="bi bi-x-circle-fill fs-5"></i>
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
+                                    }
                                 }
                             </div>
                             <div class="text-center py-3 border border-dashed rounded-3 mt-1 bg-light text-muted small empty-fields-msg @(sec.Fields.Any() ? "d-none" : "")">
@@ -401,6 +457,19 @@
             // Run initial index updates since we loaded server-side HTML
             updateIndices();
 
+            // Initialize autocomplete for loaded items
+            $('.field-row[data-field-type="Investigation"], .field-row[data-field-type="Medication"]').each(function() {
+                const row = $(this);
+                const fieldType = row.attr('data-field-type');
+                setupAutoSuggest(row, fieldType);
+                
+                // Bind close buttons of loaded tags
+                row.find('.selected-item-tag .btn-close').on('click', function () {
+                    $(this).closest('.selected-item-tag').remove();
+                    updateIndices();
+                });
+            });
+
             // Toolbox Add Section
             $('#btnAddSection').click(function() {
                 addSection('');
@@ -567,6 +636,7 @@
                                 addSelectedItem(fieldRow, item.id, item.text, fieldType);
                                 suggestBox.val('');
                                 dropdown.hide();
+                                updateIndices();
                             });
                             dropdown.append(li);
                         });
@@ -592,7 +662,7 @@
                         <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
                     </span>
                 `);
-                tag.find('.btn-close').on('click', function () { tag.remove(); });
+                tag.find('.btn-close').on('click', function () { tag.remove(); updateIndices(); });
                 container.append(tag);
             }
 
@@ -729,7 +799,20 @@
                         }
                         typeInput.attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldType`).val(fieldType);
                         
-                        const optionsInput = f.find('.field-options-input');
+                        let optionsInput = f.find('.field-options-input');
+                        if (fieldType === 'Investigation' || fieldType === 'Medication') {
+                            if (optionsInput.length === 0) {
+                                optionsInput = $('<input type="hidden" class="field-options-input" />');
+                                f.append(optionsInput);
+                            }
+                            const selectedItems = [];
+                            f.find('.selected-item-tag').each(function() {
+                                const itemId = $(this).attr('data-item-id');
+                                const itemText = $(this).attr('data-item-text') || $(this).text().trim();
+                                selectedItems.push(itemId + '|' + itemText);
+                            });
+                            optionsInput.val(selectedItems.join(','));
+                        }
                         optionsInput.attr('name', `Sections[${sIdx}].Fields[${fIdx}].OptionsString`);
                         
                         f.find('.field-required-checkbox').attr('name', `Sections[${sIdx}].Fields[${fIdx}].IsRequired`);
