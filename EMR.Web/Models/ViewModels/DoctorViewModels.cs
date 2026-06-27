@@ -153,6 +153,10 @@ public class DoctorDetailsViewModel
     public List<string> DepartmentNames { get; set; } = [];
     public List<ConsultingFeeItemDto> ConsultingFees { get; set; } = [];
 
+    public int? LinkedUserId { get; set; }
+    public string? LoginUsername { get; set; }
+    public bool IsLoginActive { get; set; }
+
     public DateTime CreatedDate { get; set; }
     public DateTime? ModifiedDate { get; set; }
 }

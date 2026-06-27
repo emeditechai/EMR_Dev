@@ -91,10 +91,14 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                 d.JoiningDate,
                 d.IsActive,
                 d.CreatedDate,
-                d.ModifiedDate
+                d.ModifiedDate,
+                d.LinkedUserId,
+                u.Username AS LoginUsername,
+                ISNULL(u.IsActive, 0) AS IsLoginActive
             FROM DoctorMaster d
             INNER JOIN DoctorSpecialityMaster ps ON ps.SpecialityId = d.PrimarySpecialityId
             LEFT JOIN DoctorSpecialityMaster ss ON ss.SpecialityId = d.SecondarySpecialityId
+            LEFT JOIN Users u ON u.Id = d.LinkedUserId
             WHERE d.DoctorId = @id
               AND (
                   @branchId IS NULL
