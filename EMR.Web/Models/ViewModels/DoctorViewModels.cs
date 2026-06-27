@@ -7,6 +7,19 @@ public class DoctorFormViewModel
 {
     public int DoctorId { get; set; }
 
+    [Required(ErrorMessage = "Prefix is required.")]
+    [MaxLength(20)]
+    [Display(Name = "Prefix")]
+    public string NamePrefix { get; set; } = "Dr.";
+
+    public List<SelectListItem> PrefixOptions { get; set; } = new()
+    {
+        new() { Value = "Dr.", Text = "Dr." },
+        new() { Value = "Prof.", Text = "Prof." },
+        new() { Value = "Mr.", Text = "Mr." },
+        new() { Value = "Ms.", Text = "Ms." }
+    };
+
     [Required(ErrorMessage = "Doctor Name is required.")]
     [MaxLength(150, ErrorMessage = "Maximum 150 characters allowed.")]
     [Display(Name = "Doctor Name")]
@@ -48,6 +61,29 @@ public class DoctorFormViewModel
 
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
+
+    // ── Login Account Section ─────────────────────────────────────────────────
+    /// <summary>Flag: if true, create/update a linked User login account for this doctor.</summary>
+    [Display(Name = "Is Login Required")]
+    public bool IsLoginRequired { get; set; }
+
+    /// <summary>FK to Users.Id — populated when editing a doctor that already has a login.</summary>
+    public int? LinkedUserId { get; set; }
+
+    /// <summary>Login username for the doctor's system account.</summary>
+    [MaxLength(100)]
+    [Display(Name = "Username")]
+    public string? LoginUsername { get; set; }
+
+    /// <summary>Plain-text password — hashed before persisting. Optional on edit.</summary>
+    [DataType(DataType.Password)]
+    [Display(Name = "Password")]
+    public string? LoginPassword { get; set; }
+
+    /// <summary>Confirmation of the password — validated client & server side.</summary>
+    [DataType(DataType.Password)]
+    [Display(Name = "Confirm Password")]
+    public string? LoginConfirmPassword { get; set; }
 
     public List<int> SelectedBranchIds { get; set; } = [];
     public List<int> SelectedDepartmentIds { get; set; } = [];

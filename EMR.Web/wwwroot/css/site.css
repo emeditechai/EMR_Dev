@@ -289,6 +289,17 @@ body {
   box-shadow: 0 8px 24px rgba(15, 33, 60, 0.06);
 }
 
+.doctor-form-panel {
+  border-top: 4px solid var(--emr-primary) !important;
+  box-shadow: 0 10px 30px rgba(100, 64, 152, 0.06) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.doctor-form-panel:hover {
+  box-shadow: 0 12px 35px rgba(100, 64, 152, 0.12) !important;
+  transform: translateY(-2px);
+}
+
 /* ── Compact soft-gradient stat cards for master list pages ── */
 .stat-card {
   border: none;

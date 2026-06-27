@@ -6,6 +6,9 @@ public class DoctorMaster
 {
     public int DoctorId { get; set; }
 
+    [Required, MaxLength(20)]
+    public string NamePrefix { get; set; } = "Dr.";
+
     [Required, MaxLength(150)]
     public string FullName { get; set; } = string.Empty;
 
@@ -29,6 +32,9 @@ public class DoctorMaster
 
     public bool IsActive { get; set; } = true;
     public int CreatedBranchId { get; set; }
+
+    /// <summary>Optional FK to Users.Id — set when the doctor is given a login account.</summary>
+    public int? LinkedUserId { get; set; }
 
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;

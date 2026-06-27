@@ -33,7 +33,7 @@ public class RoomDoctorAssignmentService(IDbConnectionFactory db) : IRoomDoctorA
             SELECT 
                 drm.RoomId, 
                 d.DoctorId, 
-                d.FullName, 
+                ISNULL(d.NamePrefix + ' ', '') + d.FullName AS FullName, 
                 s.SpecialityName
             FROM DoctorRoomMapping drm
             INNER JOIN DoctorMaster d ON drm.DoctorId = d.DoctorId
@@ -70,7 +70,7 @@ public class RoomDoctorAssignmentService(IDbConnectionFactory db) : IRoomDoctorA
         return await con.QueryAsync<OPDDoctorOptionDto>(@"
             SELECT DISTINCT 
                 d.DoctorId, 
-                d.FullName, 
+                ISNULL(d.NamePrefix + ' ', '') + d.FullName AS FullName, 
                 s.SpecialityName
             FROM DoctorMaster d
             INNER JOIN DoctorBranchMap dbm ON dbm.DoctorId = d.DoctorId
@@ -80,7 +80,7 @@ public class RoomDoctorAssignmentService(IDbConnectionFactory db) : IRoomDoctorA
             WHERE dbm.BranchId = @branchId 
               AND d.IsActive = 1
               AND dept.DeptType = 'OPD'
-            ORDER BY d.FullName
+            ORDER BY ISNULL(d.NamePrefix + ' ', '') + d.FullName
         ", new { branchId });
     }
 

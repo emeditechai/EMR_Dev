@@ -19,7 +19,8 @@ public class DoctorsController(
     IDepartmentService departmentService,
     IDoctorConsultingFeeService consultingFeeService,
     ApplicationDbContext dbContext,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IPasswordHasherService passwordHasherService) : Controller
 {
     public async Task<IActionResult> Index([FromQuery] int? doctorId = null)
     {
@@ -112,6 +113,8 @@ public class DoctorsController(
 
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
+        if (model.IsLoginRequired)
+            await ValidateLoginFieldsAsync(model, existingUserId: null);
 
         if (!ModelState.IsValid)
         {
@@ -119,8 +122,15 @@ public class DoctorsController(
             return View(model);
         }
 
+        int? linkedUserId = null;
+        if (model.IsLoginRequired)
+        {
+            linkedUserId = await CreateLinkedUserAsync(model, model.FullName);
+        }
+
         var doctor = new DoctorMaster
         {
+            NamePrefix = model.NamePrefix,
             FullName = model.FullName.Trim(),
             Gender = model.Gender,
             DateOfBirth = model.DateOfBirth,
@@ -131,13 +141,14 @@ public class DoctorsController(
             SecondarySpecialityId = model.SecondarySpecialityId,
             JoiningDate = model.JoiningDate,
             IsActive = true,
-            CreatedBranchId = currentBranchId.Value
+            CreatedBranchId = currentBranchId.Value,
+            LinkedUserId = linkedUserId
         };
 
         await doctorService.CreateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
 
         await auditLogService.LogAsync("MasterData", "Doctors.Create", $"Created doctor: {doctor.FullName} ({doctor.EmailId})");
-        TempData["Success"] = "Doctor created successfully.";
+        TempData["Success"] = "Doctor created successfully." + (model.IsLoginRequired ? " Login account created." : string.Empty);
         return RedirectToAction(nameof(Index));
     }
 
@@ -156,6 +167,7 @@ public class DoctorsController(
         var model = new DoctorFormViewModel
         {
             DoctorId = doctor.DoctorId,
+            NamePrefix = doctor.NamePrefix ?? "Dr.",
             FullName = doctor.FullName,
             Gender = doctor.Gender,
             DateOfBirth = doctor.DateOfBirth,
@@ -167,8 +179,20 @@ public class DoctorsController(
             JoiningDate = doctor.JoiningDate,
             IsActive = doctor.IsActive,
             SelectedBranchIds = await doctorService.GetBranchIdsAsync(doctor.DoctorId),
-            SelectedDepartmentIds = await doctorService.GetDepartmentIdsAsync(doctor.DoctorId)
+            SelectedDepartmentIds = await doctorService.GetDepartmentIdsAsync(doctor.DoctorId),
+            LinkedUserId = doctor.LinkedUserId
         };
+
+        // Populate existing linked user info
+        if (doctor.LinkedUserId.HasValue)
+        {
+            var linkedUser = await dbContext.Users.FindAsync(doctor.LinkedUserId.Value);
+            if (linkedUser is not null)
+            {
+                model.IsLoginRequired = true;
+                model.LoginUsername = linkedUser.Username;
+            }
+        }
 
         await PopulateFormSelections(model, isEdit: true);
         return View(model);
@@ -191,6 +215,8 @@ public class DoctorsController(
 
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
+        if (model.IsLoginRequired)
+            await ValidateLoginFieldsAsync(model, existingUserId: model.LinkedUserId);
 
         if (!ModelState.IsValid)
         {
@@ -201,6 +227,7 @@ public class DoctorsController(
         var doctor = await doctorService.GetByIdAsync(model.DoctorId);
         if (doctor is null) return NotFound();
 
+        doctor.NamePrefix = model.NamePrefix;
         doctor.FullName = model.FullName.Trim();
         doctor.Gender = model.Gender;
         doctor.DateOfBirth = model.DateOfBirth;
@@ -211,6 +238,35 @@ public class DoctorsController(
         doctor.SecondarySpecialityId = model.SecondarySpecialityId;
         doctor.JoiningDate = model.JoiningDate;
         doctor.IsActive = model.IsActive;
+
+        // ── Login account management ──────────────────────────────────────────
+        if (model.IsLoginRequired)
+        {
+            if (!model.LinkedUserId.HasValue)
+            {
+                // No linked user yet — create one
+                var newUserId = await CreateLinkedUserAsync(model, doctor.FullName);
+                doctor.LinkedUserId = newUserId;
+            }
+            else
+            {
+                // Already linked — sync
+                await SyncLinkedUserAsync(model, model.LinkedUserId.Value, doctor.FullName);
+                doctor.LinkedUserId = model.LinkedUserId;
+            }
+        }
+        else if (!model.IsLoginRequired && model.LinkedUserId.HasValue)
+        {
+            // Login disabled — deactivate the existing user account
+            var existingUser = await dbContext.Users.FindAsync(model.LinkedUserId.Value);
+            if (existingUser is not null)
+            {
+                existingUser.IsActive = false;
+                existingUser.LastModifiedDate = DateTime.Now;
+                await dbContext.SaveChangesAsync();
+            }
+            doctor.LinkedUserId = null;
+        }
 
         await doctorService.UpdateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
 
@@ -253,6 +309,149 @@ public class DoctorsController(
         {
             ModelState.AddModelError(nameof(model.SelectedBranchIds), "At least one Branch assignment is required.");
         }
+    }
+
+    private async Task ValidateLoginFieldsAsync(DoctorFormViewModel model, int? existingUserId)
+    {
+        if (string.IsNullOrWhiteSpace(model.LoginUsername))
+        {
+            ModelState.AddModelError(nameof(model.LoginUsername), "Username is required when login is enabled.");
+        }
+        else
+        {
+            // Check username uniqueness (allow same user on edit)
+            var taken = await dbContext.Users.AnyAsync(u =>
+                u.Username == model.LoginUsername.Trim() &&
+                (!existingUserId.HasValue || u.Id != existingUserId.Value));
+            if (taken)
+                ModelState.AddModelError(nameof(model.LoginUsername), "This username is already taken.");
+        }
+
+        // Password is mandatory on Create; optional on Edit (blank = keep existing)
+        bool isCreate = !existingUserId.HasValue;
+        if (isCreate && string.IsNullOrWhiteSpace(model.LoginPassword))
+        {
+            ModelState.AddModelError(nameof(model.LoginPassword), "Password is required.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(model.LoginPassword) &&
+            model.LoginPassword != model.LoginConfirmPassword)
+        {
+            ModelState.AddModelError(nameof(model.LoginConfirmPassword), "Passwords do not match.");
+        }
+    }
+
+    /// <summary>Creates a new User linked to this doctor and returns the new User.Id.</summary>
+    private async Task<int> CreateLinkedUserAsync(DoctorFormViewModel model, string fullName)
+    {
+        var (hash, salt) = passwordHasherService.HashPassword(model.LoginPassword!);
+
+        // Split full name roughly for FirstName / LastName
+        var nameParts = fullName.Trim().Split(' ', 2);
+        var firstName = nameParts[0];
+        var lastName  = nameParts.Length > 1 ? nameParts[1] : string.Empty;
+
+        var user = new User
+        {
+            Username         = model.LoginUsername!.Trim(),
+            Email            = model.EmailId.Trim(),
+            PasswordHash     = hash,
+            Salt             = salt,
+            FirstName        = firstName,
+            LastName         = lastName,
+            FullName         = fullName,
+            PhoneNumber      = model.PhoneNumber.Trim(),
+            Phone            = model.PhoneNumber.Trim(),
+            IsActive         = true,
+            PasswordLastChanged = DateTime.Now,
+            CreatedDate      = DateTime.Now,
+            LastModifiedDate = DateTime.Now
+        };
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync(); // get new user.Id
+
+        // Map branches
+        var branchMappings = model.SelectedBranchIds.Distinct().Select(bid => new UserBranch
+        {
+            UserId      = user.Id,
+            BranchId    = bid,
+            IsActive    = true,
+            CreatedDate = DateTime.Now,
+            ModifiedDate = DateTime.Now,
+            CreatedBy   = User.GetUserId(),
+            ModifiedBy  = User.GetUserId()
+        });
+        dbContext.UserBranches.AddRange(branchMappings);
+
+        // Map "Doctor" role
+        var doctorRole = await dbContext.Roles.FirstOrDefaultAsync(r =>
+            r.Name.ToLower() == "doctor");
+        if (doctorRole is not null)
+        {
+            dbContext.UserRoles.Add(new UserRole
+            {
+                UserId       = user.Id,
+                RoleId       = doctorRole.Id,
+                IsActive     = true,
+                AssignedDate = DateTime.Now,
+                AssignedBy   = User.GetUserId(),
+                CreatedDate  = DateTime.Now,
+                CreatedBy    = User.GetUserId(),
+                ModifiedDate = DateTime.Now,
+                ModifiedBy   = User.GetUserId()
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
+        await auditLogService.LogAsync("MasterData", "Doctors.CreateLogin",
+            $"Created login account '{user.Username}' for doctor '{fullName}'", user.Id);
+
+        return user.Id;
+    }
+
+    /// <summary>Syncs an existing linked User's details and branch mappings with the doctor.</summary>
+    private async Task SyncLinkedUserAsync(DoctorFormViewModel model, int linkedUserId, string fullName)
+    {
+        var user = await dbContext.Users.FindAsync(linkedUserId);
+        if (user is null) return;
+
+        var nameParts = fullName.Trim().Split(' ', 2);
+        user.Username        = model.LoginUsername!.Trim();
+        user.Email           = model.EmailId.Trim();
+        user.FirstName       = nameParts[0];
+        user.LastName        = nameParts.Length > 1 ? nameParts[1] : string.Empty;
+        user.FullName        = fullName;
+        user.PhoneNumber     = model.PhoneNumber.Trim();
+        user.Phone           = model.PhoneNumber.Trim();
+        user.IsActive        = model.IsActive; // mirror doctor's active status
+        user.LastModifiedDate = DateTime.Now;
+
+        if (!string.IsNullOrWhiteSpace(model.LoginPassword))
+        {
+            var (hash, salt) = passwordHasherService.HashPassword(model.LoginPassword);
+            user.PasswordHash       = hash;
+            user.Salt               = salt;
+            user.PasswordLastChanged = DateTime.Now;
+        }
+
+        // Re-sync branch mappings
+        var existingBranches = await dbContext.UserBranches.Where(x => x.UserId == linkedUserId).ToListAsync();
+        dbContext.UserBranches.RemoveRange(existingBranches);
+        var newBranches = model.SelectedBranchIds.Distinct().Select(bid => new UserBranch
+        {
+            UserId       = linkedUserId,
+            BranchId     = bid,
+            IsActive     = true,
+            CreatedDate  = DateTime.Now,
+            ModifiedDate = DateTime.Now,
+            CreatedBy    = User.GetUserId(),
+            ModifiedBy   = User.GetUserId()
+        });
+        dbContext.UserBranches.AddRange(newBranches);
+
+        await dbContext.SaveChangesAsync();
+        await auditLogService.LogAsync("MasterData", "Doctors.SyncLogin",
+            $"Synced login account '{user.Username}' for doctor '{fullName}'", linkedUserId);
     }
 
     private async Task PopulateFormSelections(DoctorFormViewModel model, bool isEdit)

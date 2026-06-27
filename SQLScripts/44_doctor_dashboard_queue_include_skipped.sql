@@ -36,7 +36,7 @@ BEGIN
             ELSE DATEDIFF(YEAR, p.DateOfBirth, GETDATE())
                  - CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, p.DateOfBirth, GETDATE()), p.DateOfBirth) > GETDATE() THEN 1 ELSE 0 END
         END                          AS Age,
-        d.FullName                   AS ConsultingDoctorName,
+        ISNULL(d.NamePrefix + ' ', '') + d.FullName AS ConsultingDoctorName,
         ISNULL(s.TotalAmount, 0)     AS TotalAmount,
         s.Status,
         (SELECT TOP 1 PaymentStatus FROM PaymentHeader 

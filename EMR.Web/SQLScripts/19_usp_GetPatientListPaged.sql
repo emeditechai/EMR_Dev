@@ -36,7 +36,7 @@ BEGIN
         p.DateOfBirth,
         p.CreatedDate,
         p.IsActive,
-        d.FullName AS ConsultingDoctorName,
+        ISNULL(d.NamePrefix + ' ', '') + d.FullName AS ConsultingDoctorName,
         COUNT(*) OVER() AS TotalCount
     FROM PatientMaster p
     OUTER APPLY (

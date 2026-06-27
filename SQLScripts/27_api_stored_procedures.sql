@@ -25,7 +25,7 @@ BEGIN
 
     SELECT
         d.DoctorId,
-        d.FullName,
+        ISNULL(d.NamePrefix + ' ', '') + d.FullName AS FullName,
         ps.SpecialityName                    AS PrimarySpecialityName,
         ISNULL(dep.DepartmentNames, '')       AS DepartmentNames,
         d.PhoneNumber,
@@ -80,7 +80,7 @@ BEGIN
         OR d.EmailId LIKE '%' + @SearchQuery + '%'
         OR ps.SpecialityName LIKE '%' + @SearchQuery + '%'
     )
-    ORDER BY d.IsActive DESC, d.FullName ASC;
+    ORDER BY d.IsActive DESC, ISNULL(d.NamePrefix + ' ', '') + d.FullName ASC;
 END
 GO
 

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Dapper;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
@@ -32,7 +33,8 @@ public class OPDController(
     IRoomDoctorAssignmentService roomDoctorAssignmentService,
     ApplicationDbContext dbContext,
     IWebHostEnvironment env,
-    IDoctorApiClient doctorApiClient) : Controller
+    IDoctorApiClient doctorApiClient,
+    IDbConnectionFactory db) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -84,22 +86,80 @@ public class OPDController(
             return RedirectToAction("SelectBranch", "Account");
         }
 
-        var doctors = await patientService.GetOpdDoctorsAsync(branchId.Value);
-        ViewBag.Doctors = doctors;
-
-        // Find the logged-in doctor mapping if email matches
+        var userId = User.GetUserId();
         var userEmail = User.FindFirstValue(ClaimTypes.Email);
-        var defaultDoctorId = 0;
-        if (!string.IsNullOrEmpty(userEmail))
+        var displayName = User.FindFirstValue("DisplayName");
+        var isDoctorRole = string.Equals(User.GetActiveRole(), "Doctor", StringComparison.OrdinalIgnoreCase) || User.IsInRole("Doctor");
+
+        dynamic? linkedDoctor = null;
+        using (var conn = db.CreateConnection())
         {
-            var apiDoctors = await doctorApiClient.GetListAsync(branchId.Value);
-            var doc = apiDoctors.FirstOrDefault(d => string.Equals(d.EmailId, userEmail, StringComparison.OrdinalIgnoreCase) && d.IsActive);
-            if (doc != null)
+            // 1. Try mapping by LinkedUserId
+            linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE LinkedUserId = @userId AND IsActive = 1",
+                new { userId });
+
+            // 2. Try mapping by Email fallback
+            if (linkedDoctor == null && !string.IsNullOrEmpty(userEmail))
             {
-                defaultDoctorId = doc.DoctorId;
+                linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                    "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE EmailId = @userEmail AND IsActive = 1",
+                    new { userEmail });
+
+                if (linkedDoctor != null)
+                {
+                    await conn.ExecuteAsync(
+                        "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
+                        new { userId, doctorId = (int)linkedDoctor.DoctorId });
+                }
+            }
+
+            // 3. Try mapping by FullName fallback
+            if (linkedDoctor == null && !string.IsNullOrEmpty(displayName))
+            {
+                linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                    "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE FullName = @displayName AND IsActive = 1",
+                    new { displayName });
+
+                if (linkedDoctor != null)
+                {
+                    await conn.ExecuteAsync(
+                        "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
+                        new { userId, doctorId = (int)linkedDoctor.DoctorId });
+                }
             }
         }
-        ViewBag.DefaultDoctorId = defaultDoctorId;
+
+        if (isDoctorRole && linkedDoctor != null)
+        {
+            ViewBag.IsDoctor = true;
+            ViewBag.DoctorName = (string)linkedDoctor!.FullName;
+            ViewBag.DefaultDoctorId = (int)linkedDoctor!.DoctorId;
+
+            ViewBag.Doctors = new List<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>
+            {
+                ((int)linkedDoctor!.DoctorId, (string)linkedDoctor!.FullName, (int?)linkedDoctor!.PrimarySpecialityId, (string)linkedDoctor!.Gender)
+            };
+        }
+        else
+        {
+            ViewBag.IsDoctor = false;
+            var doctors = await patientService.GetOpdDoctorsAsync(branchId.Value);
+            ViewBag.Doctors = doctors;
+
+            // Find the logged-in doctor mapping if email matches
+            var defaultDoctorId = 0;
+            if (!string.IsNullOrEmpty(userEmail))
+            {
+                var apiDoctors = await doctorApiClient.GetListAsync(branchId.Value);
+                var doc = apiDoctors.FirstOrDefault(d => string.Equals(d.EmailId, userEmail, StringComparison.OrdinalIgnoreCase) && d.IsActive);
+                if (doc != null)
+                {
+                    defaultDoctorId = doc.DoctorId;
+                }
+            }
+            ViewBag.DefaultDoctorId = defaultDoctorId;
+        }
 
         // Doctor → Room mapping  (DoctorName -> "RoomName (FloorName)")
         var roomAssignments = await roomDoctorAssignmentService.GetRoomAssignmentsAsync(branchId.Value);
@@ -124,6 +184,53 @@ public class OPDController(
         if (branchId == null)
         {
             return Json(new { isSuccess = false, message = "Please select a branch first." });
+        }
+
+        // Enforce doctor data isolation: override doctorId if active role is Doctor and linked DoctorMaster exists
+        var isDoctorRole = string.Equals(User.GetActiveRole(), "Doctor", StringComparison.OrdinalIgnoreCase) || User.IsInRole("Doctor");
+        if (isDoctorRole)
+        {
+            var userId = User.GetUserId();
+            var userEmail = User.FindFirstValue(ClaimTypes.Email);
+            var displayName = User.FindFirstValue("DisplayName");
+
+            using (var conn = db.CreateConnection())
+            {
+                var linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                    "SELECT DoctorId FROM DoctorMaster WHERE LinkedUserId = @userId AND IsActive = 1",
+                    new { userId });
+
+                if (linkedDoctor == null && !string.IsNullOrEmpty(userEmail))
+                {
+                    linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                        "SELECT DoctorId FROM DoctorMaster WHERE EmailId = @userEmail AND IsActive = 1",
+                        new { userEmail });
+                    if (linkedDoctor != null)
+                    {
+                        await conn.ExecuteAsync(
+                            "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
+                            new { userId, doctorId = (int)linkedDoctor.DoctorId });
+                    }
+                }
+
+                if (linkedDoctor == null && !string.IsNullOrEmpty(displayName))
+                {
+                    linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                        "SELECT DoctorId FROM DoctorMaster WHERE FullName = @displayName AND IsActive = 1",
+                        new { displayName });
+                    if (linkedDoctor != null)
+                    {
+                        await conn.ExecuteAsync(
+                            "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
+                            new { userId, doctorId = (int)linkedDoctor.DoctorId });
+                    }
+                }
+
+                if (linkedDoctor != null)
+                {
+                    doctorId = (int)linkedDoctor.DoctorId;
+                }
+            }
         }
 
         var today = DateOnly.FromDateTime(DateTime.Today);

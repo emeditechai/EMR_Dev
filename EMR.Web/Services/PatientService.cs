@@ -28,7 +28,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.BloodGroup,
                 p.CreatedDate,
                 p.IsActive,
-                d.FullName AS ConsultingDoctorName
+                ISNULL(d.NamePrefix + ' ', '') + d.FullName AS ConsultingDoctorName
             FROM PatientMaster p
             OUTER APPLY (
                 SELECT TOP 1 ConsultingDoctorId
@@ -371,7 +371,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
     {
         using var con = db.CreateConnection();
         var rows = await con.QueryAsync(@"
-            SELECT DISTINCT d.DoctorId, d.FullName, d.PrimarySpecialityId, d.Gender
+            SELECT DISTINCT d.DoctorId, ISNULL(d.NamePrefix + ' ', '') + d.FullName AS FullName, d.PrimarySpecialityId, d.Gender
             FROM DoctorMaster d
             LEFT JOIN DoctorDepartmentMap ddm ON ddm.DoctorId = d.DoctorId AND ddm.IsActive = 1
             INNER JOIN DepartmentMaster    dm  ON dm.DeptId    = ddm.DeptId  AND dm.DeptType = 'OPD' AND dm.IsActive = 1
@@ -380,7 +380,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
               AND (@BranchId IS NULL OR dsm.BranchId = @BranchId)
               AND (@DepartmentId IS NULL OR ddm.DeptId = @DepartmentId)
               AND (@SpecialityId IS NULL OR d.PrimarySpecialityId = @SpecialityId)
-            ORDER BY d.FullName",
+            ORDER BY ISNULL(d.NamePrefix + ' ', '') + d.FullName",
             new { BranchId = branchId, DepartmentId = departmentId, SpecialityId = specialityId });
 
         return rows.Select(r => ((int)r.DoctorId, (string)r.FullName, (int?)r.PrimarySpecialityId, (string)r.Gender));
@@ -434,7 +434,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                     p.LastName
                 ))                        AS PatientName,
                 p.Gender,
-                d.FullName                AS ConsultingDoctorName,
+                ISNULL(d.NamePrefix + ' ', '') + d.FullName AS ConsultingDoctorName,
                 ISNULL(s.TotalAmount, 0)  AS TotalAmount,
                 s.Status,
                 ISNULL(
@@ -513,7 +513,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.PhoneNumber,
                 p.Gender,
                 p.DateOfBirth,
-                d.FullName                AS ConsultingDoctorName,
+                ISNULL(d.NamePrefix + ' ', '') + d.FullName AS ConsultingDoctorName,
                 s.VisitDate,
                 ISNULL(s.TotalAmount, 0)  AS TotalAmount,
                 s.Status

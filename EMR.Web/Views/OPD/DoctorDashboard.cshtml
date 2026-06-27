@@ -12,15 +12,23 @@
     <!-- Header Bar -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 bg-white p-2.5 rounded-12 shadow-xs border">
         <div>
-            <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-person-badge-fill me-2"></i>Doctor Dashboard</h5>
-            <p class="text-muted small mb-0" style="font-size: 0.74rem;">Live Queue Manager & Console</p>
+            @if (ViewBag.IsDoctor == true)
+            {
+                <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-hand-wave-fill me-2 text-warning"></i>Welcome, @ViewBag.DoctorName</h5>
+                <p class="text-muted small mb-0" style="font-size: 0.74rem;">Live Queue Manager & Console</p>
+            }
+            else
+            {
+                <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-person-badge-fill me-2"></i>Doctor Dashboard</h5>
+                <p class="text-muted small mb-0" style="font-size: 0.74rem;">Live Queue Manager & Console</p>
+            }
         </div>
         <div class="d-flex align-items-center flex-wrap gap-2">
             <!-- Room Badge -->
             <div id="roomBadgeContainer" class="d-flex align-items-center"></div>
             
             <!-- Doctor Select Dropdown -->
-            <div style="width: 240px;">
+            <div style="width: 240px;" class="@(ViewBag.IsDoctor == true ? "d-none" : "")">
                 <select id="ddlDoctorDashboard" class="selectpicker-custom form-control form-control-sm" data-live-search="true" title="Select Doctor Dashboard" onchange="onDoctorChanged()">
                     @foreach (var doc in doctors)
                     {

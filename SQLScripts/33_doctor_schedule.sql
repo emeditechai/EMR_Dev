@@ -86,7 +86,7 @@ BEGIN
     SELECT 
         dsm.ScheduleId,
         dsm.DoctorId,
-        doc.FullName AS DoctorName,
+        ISNULL(doc.NamePrefix + ' ', '') + doc.FullName AS DoctorName,
         dsm.BranchId,
         dsm.RoomId,
         drm.RoomName,
@@ -401,7 +401,7 @@ BEGIN
     SELECT 
         e.ExceptionId,
         e.DoctorId,
-        doc.FullName AS DoctorName,
+        ISNULL(doc.NamePrefix + ' ', '') + doc.FullName AS DoctorName,
         e.BranchId,
         e.ExceptionDate,
         e.Reason,

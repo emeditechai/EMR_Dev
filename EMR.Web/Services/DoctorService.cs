@@ -13,7 +13,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         return await con.QueryAsync<DoctorListItemViewModel>(@"
             SELECT
                 d.DoctorId,
-                d.FullName,
+                ISNULL(d.NamePrefix + ' ', '') + d.FullName AS FullName,
                 ps.SpecialityName AS PrimarySpecialityName,
                 ISNULL(dep.DepartmentNames, '') AS DepartmentNames,
                 d.PhoneNumber,
@@ -78,7 +78,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         var doctor = await con.QueryFirstOrDefaultAsync<DoctorDetailsViewModel>(@"
             SELECT
                 d.DoctorId,
-                d.FullName,
+                ISNULL(d.NamePrefix + ' ', '') + d.FullName AS FullName,
                 d.Gender,
                 d.DateOfBirth,
                 d.EmailId,
@@ -181,19 +181,20 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             var doctorId = await con.ExecuteScalarAsync<int>(@"
                 INSERT INTO DoctorMaster
                 (
-                    FullName, Gender, DateOfBirth, EmailId, PhoneNumber, MedicalLicenseNo,
+                    NamePrefix, FullName, Gender, DateOfBirth, EmailId, PhoneNumber, MedicalLicenseNo,
                     PrimarySpecialityId, SecondarySpecialityId, JoiningDate, IsActive,
-                    CreatedBranchId, CreatedBy, CreatedDate
+                    CreatedBranchId, LinkedUserId, CreatedBy, CreatedDate
                 )
                 VALUES
                 (
-                    @FullName, @Gender, @DateOfBirth, @EmailId, @PhoneNumber, @MedicalLicenseNo,
+                    @NamePrefix, @FullName, @Gender, @DateOfBirth, @EmailId, @PhoneNumber, @MedicalLicenseNo,
                     @PrimarySpecialityId, @SecondarySpecialityId, @JoiningDate, @IsActive,
-                    @CreatedBranchId, @userId, GETDATE()
+                    @CreatedBranchId, @LinkedUserId, @userId, GETDATE()
                 );
                 SELECT CAST(SCOPE_IDENTITY() AS INT);",
                 new
                 {
+                    doctor.NamePrefix,
                     doctor.FullName,
                     doctor.Gender,
                     doctor.DateOfBirth,
@@ -205,6 +206,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     doctor.JoiningDate,
                     doctor.IsActive,
                     doctor.CreatedBranchId,
+                    doctor.LinkedUserId,
                     userId
                 }, tx);
 
@@ -244,6 +246,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         {
             await con.ExecuteAsync(@"
                 UPDATE DoctorMaster SET
+                    NamePrefix            = @NamePrefix,
                     FullName              = @FullName,
                     Gender                = @Gender,
                     DateOfBirth           = @DateOfBirth,
@@ -254,12 +257,14 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     SecondarySpecialityId = @SecondarySpecialityId,
                     JoiningDate           = @JoiningDate,
                     IsActive              = @IsActive,
+                    LinkedUserId          = @LinkedUserId,
                     ModifiedBy            = @userId,
                     ModifiedDate          = GETDATE()
                 WHERE DoctorId = @DoctorId",
                 new
                 {
                     doctor.DoctorId,
+                    doctor.NamePrefix,
                     doctor.FullName,
                     doctor.Gender,
                     doctor.DateOfBirth,
@@ -270,6 +275,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     doctor.SecondarySpecialityId,
                     doctor.JoiningDate,
                     doctor.IsActive,
+                    doctor.LinkedUserId,
                     userId
                 }, tx);
 
