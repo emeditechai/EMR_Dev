@@ -1,0 +1,323 @@
+@model EMR.Web.Models.ViewModels.EmrTemplateViewModel
+@{
+    ViewData["Title"] = "Create EMR Template";
+}
+
+@section HeadStyles {
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <style>
+        .section-card {
+            border-left: 4px solid var(--bs-primary);
+            transition: all 0.2s ease-in-out;
+            background-color: #fcfcfc;
+        }
+        .section-card:hover {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .field-row {
+            background-color: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            transition: all 0.15s ease-in-out;
+        }
+        .field-row:hover {
+            border-color: #ced4da;
+        }
+    </style>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Create EMR Template</h1>
+        <small class="text-muted">Design a custom clinical recording layout for doctor specialities</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Templates
+    </a>
+</div>
+
+<form asp-action="Create" method="post" id="templateForm">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
+
+    @* ── Template Details Panel ── *@
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 12px;">
+        <div class="card-header bg-white py-3 border-bottom-0">
+            <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-file-earmark-text me-2"></i>Template Information</h5>
+        </div>
+        <div class="card-body pt-1">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="TemplateName" class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
+                    <input asp-for="TemplateName" class="form-control" placeholder="e.g. Paediatric EMR Template" maxlength="150" />
+                    <span asp-validation-for="TemplateName" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="SelectedSpecialityIds" class="form-label fw-semibold">Map to Specialities <span class="text-danger">*</span></label>
+                    <select asp-for="SelectedSpecialityIds" class="form-select select2-multiple" multiple asp-items="Model.SpecialityOptions" data-placeholder="Choose one or more specialities..."></select>
+                    <span asp-validation-for="SelectedSpecialityIds" class="text-danger small"></span>
+                </div>
+                <div class="col-md-12">
+                    <label asp-for="Description" class="form-label fw-semibold">Description</label>
+                    <textarea asp-for="Description" class="form-control" rows="2" placeholder="Briefly describe the clinical use case of this template..." maxlength="500"></textarea>
+                    <span asp-validation-for="Description" class="text-danger small"></span>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-check form-switch mt-1">
+                        <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" />
+                        <label asp-for="IsActive" class="form-check-label fw-semibold">Active Status</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── Form Builder Section ── *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="fw-bold mb-0 text-dark"><i class="bi bi-list-task me-2 text-primary"></i>EMR Sections & Fields</h4>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddSection">
+            <i class="bi bi-plus-circle me-1"></i>Add Section
+        </button>
+    </div>
+
+    <div id="sectionsContainer" class="mb-4">
+        @* Dynamic sections will render here *@
+    </div>
+
+    <div class="d-flex gap-2 mb-5">
+        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-save me-1"></i>Save Template</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+
+@* ── JAVASCRIPT TEMPLATE FOR SECTION ── *@
+<div id="sectionTemplate" class="d-none">
+    <div class="card border-0 shadow-sm mb-3 section-card" data-section-index="{sectionIndex}">
+        <div class="card-header bg-white py-2 px-3 border-bottom-0 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2 flex-grow-1 me-3">
+                <i class="bi bi-grip-vertical text-muted fs-5" style="cursor: move;"></i>
+                <input type="text" class="form-control form-control-sm fw-bold border-0 bg-transparent py-0 text-dark section-name-input" 
+                       placeholder="Section Name (e.g. History, Examination)" style="font-size: 1rem; border-bottom: 2px solid transparent !important;" />
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-link btn-sm text-primary p-0 btn-add-field" title="Add Field to Section">
+                    <i class="bi bi-plus-circle-fill fs-5"></i>
+                </button>
+                <button type="button" class="btn btn-link btn-sm text-danger p-0 btn-remove-section" title="Delete Section">
+                    <i class="bi bi-trash-fill fs-5"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body pt-0 px-3 pb-3">
+            <div class="fields-container">
+                @* Fields will go here *@
+            </div>
+            <div class="text-center py-2 border border-dashed rounded-3 mt-1 bg-light text-muted small empty-fields-msg">
+                <i class="bi bi-info-circle me-1"></i>No fields added. Click the '+' button in the top right to add a field.
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── JAVASCRIPT TEMPLATE FOR FIELD ── *@
+<div id="fieldTemplate" class="d-none">
+    <div class="row g-2 align-items-center field-row" data-field-index="{fieldIndex}">
+        <div class="col-md-4">
+            <input type="text" class="form-control form-control-sm field-name-input" placeholder="Field Label (e.g. Heart Rate)" required />
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm field-type-select">
+                <option value="Text">Text Input</option>
+                <option value="TextArea">Multi-line Text</option>
+                <option value="Select">Dropdown Select</option>
+                <option value="MultiSelect">Multi-select Dropdown</option>
+                <option value="Number">Number Input</option>
+                <option value="Checkbox">Checkbox / Switch</option>
+                <option value="Date">Date Picker</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <input type="text" class="form-control form-control-sm field-options-input d-none" placeholder="Options (comma separated)" />
+        </div>
+        <div class="col-md-1.5 col-auto d-flex align-items-center ms-auto">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input field-required-checkbox" type="checkbox" role="switch" />
+                <label class="form-check-label text-secondary small">Required</label>
+            </div>
+        </div>
+        <div class="col-auto text-end">
+            <button type="button" class="btn btn-sm btn-link text-danger p-1 btn-remove-field" title="Remove Field">
+                <i class="bi bi-x-circle-fill fs-5"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Initialize select2
+            $('.select2-multiple').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                allowClear: true
+            });
+
+            const sectionsContainer = $('#sectionsContainer');
+            const sectionHtmlTemplate = $('#sectionTemplate').html();
+            const fieldHtmlTemplate = $('#fieldTemplate').html();
+
+            // Load a default Section to begin with
+            addSection('Chief Complaint & History');
+
+            $('#btnAddSection').click(function() {
+                addSection('');
+            });
+
+            function addSection(defaultName) {
+                const sectionIndex = sectionsContainer.children().length;
+                let html = sectionHtmlTemplate.replace(/{sectionIndex}/g, sectionIndex);
+                const el = $(html);
+                
+                if (defaultName) {
+                    el.find('.section-name-input').val(defaultName);
+                }
+                
+                sectionsContainer.append(el);
+                
+                // Add first field if defaultName (Chief Complaint)
+                if (defaultName === 'Chief Complaint & History') {
+                    addField(el, 'Chief Complaint', 'TextArea', false);
+                }
+                
+                updateIndices();
+            }
+
+            // Remove section
+            sectionsContainer.on('click', '.btn-remove-section', function() {
+                if (confirm('Are you sure you want to delete this section and all its fields?')) {
+                    $(this).closest('.section-card').remove();
+                    updateIndices();
+                }
+            });
+
+            // Add field to section
+            sectionsContainer.on('click', '.btn-add-field', function() {
+                const secCard = $(this).closest('.section-card');
+                addField(secCard, '', 'Text', false);
+            });
+
+            function addField(secCard, defaultFieldName, defaultFieldType, isRequired) {
+                const fieldsContainer = secCard.find('.fields-container');
+                const emptyMsg = secCard.find('.empty-fields-msg');
+                const fieldIndex = fieldsContainer.children().length;
+                
+                let html = fieldHtmlTemplate.replace(/{fieldIndex}/g, fieldIndex);
+                const el = $(html);
+                
+                if (defaultFieldName) {
+                    el.find('.field-name-input').val(defaultFieldName);
+                }
+                if (defaultFieldType) {
+                    el.find('.field-type-select').val(defaultFieldType);
+                    if (defaultFieldType === 'Select' || defaultFieldType === 'MultiSelect') {
+                        el.find('.field-options-input').removeClass('d-none');
+                    }
+                }
+                if (isRequired) {
+                    el.find('.field-required-checkbox').prop('checked', true);
+                }
+                
+                fieldsContainer.append(el);
+                emptyMsg.addClass('d-none');
+                
+                updateIndices();
+            }
+
+            // Remove field
+            sectionsContainer.on('click', '.btn-remove-field', function() {
+                const secCard = $(this).closest('.section-card');
+                $(this).closest('.field-row').remove();
+                
+                // Check if empty
+                const container = secCard.find('.fields-container');
+                if (container.children().length === 0) {
+                    secCard.find('.empty-fields-msg').removeClass('d-none');
+                }
+                
+                updateIndices();
+            });
+
+            // Toggle options visibility based on field type
+            sectionsContainer.on('change', '.field-type-select', function() {
+                const type = $(this).val();
+                const optionsInput = $(this).closest('.field-row').find('.field-options-input');
+                if (type === 'Select' || type === 'MultiSelect') {
+                    optionsInput.removeClass('d-none').prop('required', true);
+                } else {
+                    optionsInput.addClass('d-none').prop('required', false).val('');
+                }
+            });
+
+            // Regenerate indexes for binding
+            function updateIndices() {
+                sectionsContainer.children('.section-card').each(function(sIdx, secEl) {
+                    const sec = $(secEl);
+                    sec.attr('data-section-index', sIdx);
+                    
+                    // Bind Section properties
+                    sec.find('.section-name-input').attr('name', `Sections[${sIdx}].SectionName`).prop('required', true);
+                    sec.find('.section-id-input').attr('name', `Sections[${sIdx}].SectionId`); // if edit
+                    
+                    // Bind Fields inside this section
+                    sec.find('.fields-container').children('.field-row').each(function(fIdx, fieldEl) {
+                        const f = $(fieldEl);
+                        f.attr('data-field-index', fIdx);
+                        
+                        f.find('.field-name-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldName`).prop('required', true);
+                        f.find('.field-type-select').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldType`);
+                        f.find('.field-options-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].OptionsString`);
+                        f.find('.field-required-checkbox').attr('name', `Sections[${sIdx}].Fields[${fIdx}].IsRequired`);
+                        f.find('.field-id-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldId`);
+                    });
+                });
+            }
+
+            // Client side validation check before submit
+            $('#templateForm').submit(function(e) {
+                let isValid = true;
+                
+                if (sectionsContainer.children().length === 0) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Empty Template',
+                        text: 'Please add at least one section before saving.'
+                    });
+                    isValid = false;
+                }
+                
+                sectionsContainer.children('.section-card').each(function() {
+                    const fields = $(this).find('.fields-container').children('.field-row');
+                    if (fields.length === 0) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Empty Section',
+                            text: 'Please add at least one field to each section.'
+                        });
+                        isValid = false;
+                        return false; // break loop
+                    }
+                });
+                
+                if (!isValid) {
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+}

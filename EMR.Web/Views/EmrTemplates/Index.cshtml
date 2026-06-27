@@ -1,0 +1,97 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.EmrTemplateListViewModel>
+@{
+    ViewData["Title"] = "EMR Template Settings";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">EMR Template Settings</h1>
+        <small class="text-muted">Configure dynamic clinical record templates based on doctor specialities</small>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Create Template
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm" style="border-radius: 12px; overflow: hidden;">
+    <div class="card-header bg-white py-3 border-bottom-0">
+        <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-file-earmark-medical text-primary me-2"></i>Templates List</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th style="width: 250px;">Template Name</th>
+                    <th>Description</th>
+                    <th style="width: 300px;">Mapped Specialities</th>
+                    <th style="width: 120px;" class="text-center">Status</th>
+                    <th style="width: 120px;" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int i = 1; }
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td class="text-muted small">@(i++)</td>
+                        <td>
+                            <div class="fw-bold text-dark">@item.TemplateName</div>
+                        </td>
+                        <td>
+                            <div class="text-muted small text-truncate" style="max-width: 400px;" title="@item.Description">
+                                @(string.IsNullOrWhiteSpace(item.Description) ? "No description provided." : item.Description)
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                @if (item.MappedSpecialityNames.Any())
+                                {
+                                    foreach (var spec in item.MappedSpecialityNames)
+                                    {
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">@spec</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted small fst-italic">Unmapped</span>
+                                }
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <form asp-action="ToggleActive" asp-route-id="@item.TemplateId" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="border-0 bg-transparent" title="Toggle active status">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge text-bg-success" style="cursor: pointer;"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary" style="cursor: pointer;"><i class="bi bi-x-circle me-1"></i>Inactive</span>
+                                    }
+                                </button>
+                            </form>
+                        </td>
+                        <td class="text-end">
+                            <div class="d-flex justify-content-end gap-1">
+                                <a asp-action="Edit" asp-route-id="@item.TemplateId" class="btn btn-sm btn-outline-primary" title="Edit Template">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="bi bi-file-earmark-medical fs-2 d-block mb-2 opacity-50"></i>
+                            No EMR templates configured yet.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

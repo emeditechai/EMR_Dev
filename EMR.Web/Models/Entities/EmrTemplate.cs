@@ -3,17 +3,17 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EMR.Web.Models.Entities;
 
-[Table("DoctorSpecialityMaster", Schema = "dbo")]
-public class DoctorSpecialityMaster
+[Table("EmrTemplates", Schema = "dbo")]
+public class EmrTemplate
 {
     [Key]
-    public int SpecialityId { get; set; }
+    public int TemplateId { get; set; }
 
-    [Required, MaxLength(100)]
-    public string SpecialityName { get; set; } = string.Empty;
+    [Required, MaxLength(150)]
+    public string TemplateName { get; set; } = string.Empty;
 
-    [Required, MaxLength(50)]
-    public string SpecialityCode { get; set; } = string.Empty;
+    [MaxLength(500)]
+    public string? Description { get; set; }
 
     public bool IsActive { get; set; } = true;
 

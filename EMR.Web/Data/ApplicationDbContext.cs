@@ -29,6 +29,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PaymentLineItem> PaymentLineItems => Set<PaymentLineItem>();
     public DbSet<PaymentDetail> PaymentDetails => Set<PaymentDetail>();
 
+    // EMR Templates
+    public DbSet<EmrTemplate> EmrTemplates => Set<EmrTemplate>();
+    public DbSet<EmrTemplateSpecialityMap> EmrTemplateSpecialityMaps => Set<EmrTemplateSpecialityMap>();
+    public DbSet<EmrTemplateSection> EmrTemplateSections => Set<EmrTemplateSection>();
+    public DbSet<EmrTemplateField> EmrTemplateFields => Set<EmrTemplateField>();
+    public DbSet<DoctorSpecialityMaster> DoctorSpecialityMasters => Set<DoctorSpecialityMaster>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -215,6 +222,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                   .WithMany()
                   .HasForeignKey(x => x.PaymentMethodId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmrTemplateSpecialityMap>(entity =>
+        {
+            entity.HasKey(x => new { x.TemplateId, x.SpecialityId });
         });
     }
 }
