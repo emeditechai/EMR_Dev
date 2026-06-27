@@ -213,6 +213,18 @@ public class DoctorsController(
             return NotFound();
         }
 
+        if (model.LinkedUserId.HasValue)
+        {
+            model.IsLoginRequired = true;
+            var existingUser = await dbContext.Users.FindAsync(model.LinkedUserId.Value);
+            if (existingUser != null)
+            {
+                model.LoginUsername = existingUser.Username;
+            }
+            ModelState.Remove(nameof(model.LoginPassword));
+            ModelState.Remove(nameof(model.LoginConfirmPassword));
+        }
+
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
         if (model.IsLoginRequired)

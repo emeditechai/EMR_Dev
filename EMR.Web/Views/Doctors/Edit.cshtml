@@ -148,14 +148,25 @@
     </div>
 
     @* ── Login Account Panel ── *@
+    @* ── Login Account Panel ── *@
     <input asp-for="LinkedUserId" type="hidden" />
+    @if (Model.LinkedUserId.HasValue)
+    {
+        <input type="hidden" name="IsLoginRequired" value="true" />
+    }
     <div class="dashboard-panel doctor-form-panel mb-4">
         <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-shield-lock me-2"></i>Login Account</h5>
         <div class="row g-3">
             <div class="col-12">
                 <div class="form-check form-switch">
-                    <input asp-for="IsLoginRequired" class="form-check-input" type="checkbox"
-                           role="switch" id="isLoginRequired" />
+                    @if (Model.LinkedUserId.HasValue)
+                    {
+                        <input class="form-check-input" type="checkbox" role="switch" checked disabled />
+                    }
+                    else
+                    {
+                        <input asp-for="IsLoginRequired" class="form-check-input" type="checkbox" role="switch" id="isLoginRequired" />
+                    }
                     <label asp-for="IsLoginRequired" class="form-check-label fw-semibold">
                         Is Login Required
                     </label>
@@ -165,8 +176,12 @@
                             <span class="badge bg-success-subtle text-success border border-success-subtle me-1">
                                 <i class="bi bi-check-circle me-1"></i>Login Active
                             </span>
+                            <span>Login account is active. To change password, please visit the <strong>User Master</strong> page.</span>
                         }
-                        Enable to create/sync a system login account for this doctor with the <strong>Doctor</strong> role.
+                        else
+                        {
+                            <span>Enable to create/sync a system login account for this doctor with the <strong>Doctor</strong> role.</span>
+                        }
                     </div>
                 </div>
             </div>
@@ -179,27 +194,35 @@
                 </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-person"></i></span>
-                    <input asp-for="LoginUsername" class="form-control" maxlength="100"
-                           placeholder="e.g. dr.smith" autocomplete="off" />
+                    @if (Model.LinkedUserId.HasValue)
+                    {
+                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="off" disabled />
+                    }
+                    else
+                    {
+                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="off" />
+                    }
                 </div>
                 <span asp-validation-for="LoginUsername" class="text-danger small"></span>
             </div>
             <div class="col-md-4">
                 <label asp-for="LoginPassword" class="form-label fw-semibold">
                     Password
-                    @if (Model.LinkedUserId.HasValue)
-                    {
-                        <span class="text-muted fw-normal small">(leave blank to keep existing)</span>
-                    }
-                    else
+                    @if (!Model.LinkedUserId.HasValue)
                     {
                         <span class="text-danger">*</span>
                     }
                 </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-key"></i></span>
-                    <input asp-for="LoginPassword" class="form-control" type="password"
-                           maxlength="100" autocomplete="new-password" placeholder="••••••••" />
+                    @if (Model.LinkedUserId.HasValue)
+                    {
+                        <input asp-for="LoginPassword" class="form-control" type="password" maxlength="100" autocomplete="new-password" placeholder="Change via User Master" disabled />
+                    }
+                    else
+                    {
+                        <input asp-for="LoginPassword" class="form-control" type="password" maxlength="100" autocomplete="new-password" placeholder="••••••••" />
+                    }
                 </div>
                 <span asp-validation-for="LoginPassword" class="text-danger small"></span>
             </div>
@@ -209,8 +232,14 @@
                 </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
-                    <input asp-for="LoginConfirmPassword" class="form-control" type="password"
-                           maxlength="100" autocomplete="new-password" placeholder="••••••••" />
+                    @if (Model.LinkedUserId.HasValue)
+                    {
+                        <input asp-for="LoginConfirmPassword" class="form-control" type="password" maxlength="100" autocomplete="new-password" placeholder="Change via User Master" disabled />
+                    }
+                    else
+                    {
+                        <input asp-for="LoginConfirmPassword" class="form-control" type="password" maxlength="100" autocomplete="new-password" placeholder="••••••••" />
+                    }
                 </div>
                 <span asp-validation-for="LoginConfirmPassword" class="text-danger small"></span>
             </div>
