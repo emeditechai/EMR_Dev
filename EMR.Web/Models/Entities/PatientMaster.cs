@@ -59,6 +59,9 @@ public class PatientMaster
     [MaxLength(500)]
     public string? IdentificationFilePath { get; set; }
 
+    [MaxLength(500)]
+    public string? PhotoPath { get; set; }
+
     public int? OccupationId { get; set; }
     public int? MaritalStatusId { get; set; }
 

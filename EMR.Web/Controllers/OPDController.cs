@@ -228,7 +228,7 @@ public class OPDController(
     // ─── Patient Registration (POST – Create / Update) ────────────────────────
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> PatientRegistration(PatientRegistrationViewModel model, IFormFile? identificationFile)
+    public async Task<IActionResult> PatientRegistration(PatientRegistrationViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile)
     {
         Console.WriteLine($"[DEBUG] PatientRegistration POST: model.PatientId={model.PatientId}, model.PhoneNumber={model.PhoneNumber}, model.RelationId={model.RelationId}");
         var branchId = User.GetCurrentBranchId();
@@ -292,6 +292,29 @@ public class OPDController(
             model.IdentificationFilePath = $"/uploads/patients/{fileName}";
         }
 
+        // Handle profile picture upload
+        if (profilePictureFile is { Length: > 0 })
+        {
+            var allowed = new[] { ".jpg", ".jpeg", ".png", ".gif" };
+            var ext = Path.GetExtension(profilePictureFile.FileName).ToLowerInvariant();
+            if (!allowed.Contains(ext))
+            {
+                ModelState.AddModelError("PhotoPath", "Only JPG, JPEG, PNG and GIF files are allowed for Profile Picture.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
+
+            var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "patients");
+            Directory.CreateDirectory(uploadsDir);
+            var fileName = $"{Guid.NewGuid()}{ext}";
+            var fullPath = Path.Combine(uploadsDir, fileName);
+            await using (var stream = new FileStream(fullPath, FileMode.Create))
+            {
+                await profilePictureFile.CopyToAsync(stream);
+            }
+            model.PhotoPath = $"/uploads/patients/{fileName}";
+        }
+
         // ── Uniqueness: Phone Number + Relation must be unique per active patient ──
         if (model.RelationId.HasValue)
         {
@@ -336,10 +359,14 @@ public class OPDController(
         }
         else   // UPDATE — existing patient
         {
+            var existing = await patientService.GetByIdAsync(model.PatientId);
             if (string.IsNullOrWhiteSpace(model.IdentificationFilePath))
             {
-                var existing = await patientService.GetByIdAsync(model.PatientId);
                 patient.IdentificationFilePath = existing?.IdentificationFilePath;
+            }
+            if (string.IsNullOrWhiteSpace(model.PhotoPath))
+            {
+                patient.PhotoPath = existing?.PhotoPath;
             }
 
             if (model.DemographicsOnly)
@@ -744,6 +771,7 @@ public class OPDController(
             patient.Salutation, patient.FirstName, patient.MiddleName, patient.LastName,
             patient.Gender, patient.EmailId, patient.GuardianName,
             patient.IdentificationTypeId, patient.IdentificationNumber, patient.IdentificationFilePath,
+            patient.PhotoPath,
             IdentificationTypeName = idTypeName,
             patient.BloodGroup, patient.KnownAllergies, patient.Remarks, patient.DateOfBirth,
             // Resolved display names (replace raw IDs)
@@ -1043,6 +1071,7 @@ public class OPDController(
         IdentificationTypeId  = m.IdentificationTypeId,
         IdentificationNumber  = m.IdentificationNumber?.Trim(),
         IdentificationFilePath= m.IdentificationFilePath,
+        PhotoPath             = m.PhotoPath,
         OccupationId          = m.OccupationId,
         MaritalStatusId       = m.MaritalStatusId,
         BloodGroup            = m.BloodGroup,
@@ -1085,6 +1114,7 @@ public class OPDController(
         IdentificationTypeId  = p.IdentificationTypeId,
         IdentificationNumber  = p.IdentificationNumber,
         IdentificationFilePath= p.IdentificationFilePath,
+        PhotoPath             = p.PhotoPath,
         OccupationId          = p.OccupationId,
         MaritalStatusId       = p.MaritalStatusId,
         BloodGroup            = p.BloodGroup,

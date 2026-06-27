@@ -142,6 +142,9 @@ public class PatientRegistrationViewModel
     // Holds the stored file path (on server); uploaded via IFormFile
     public string? IdentificationFilePath { get; set; }
 
+    [Display(Name = "Profile Picture")]
+    public string? PhotoPath { get; set; }
+
     // ── Section 2: Other Info ─────────────────────────────────────────────────
 
     [Display(Name = "Occupation")]

@@ -63,6 +63,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 req.KnownAllergies,
                 req.Remarks,
                 req.BranchId,
+                req.PhotoPath,
                 UserId = req.RequestedByUserId
             },
             commandType: CommandType.StoredProcedure);
@@ -93,6 +94,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 req.BloodGroup,
                 req.KnownAllergies,
                 req.Remarks,
+                req.PhotoPath,
                 UserId = req.RequestedByUserId
             },
             commandType: CommandType.StoredProcedure);

@@ -32,6 +32,7 @@ public class PatientDetail : PatientListItem
     public string?  KnownAllergies         { get; set; }
     public string?  Remarks                { get; set; }
     public string?  LastOpdBillNo          { get; set; }
+    public string?  PhotoPath              { get; set; }
 }
 
 // ── Create / Update request ──────────────────────────────────────────────────
@@ -53,6 +54,7 @@ public class PatientCreateRequest
     public string?  KnownAllergies         { get; set; }
     public string?  Remarks                { get; set; }
     public int?     BranchId               { get; set; }
+    public string?  PhotoPath              { get; set; }
     public int?     RequestedByUserId      { get; set; }
     public int?     ScheduleId             { get; set; }
     public TimeSpan? AppointmentTime       { get; set; }

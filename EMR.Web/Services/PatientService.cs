@@ -264,6 +264,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@IdentificationTypeId",   patient.IdentificationTypeId);
         p.Add("@IdentificationNumber",   patient.IdentificationNumber);
         p.Add("@IdentificationFilePath", patient.IdentificationFilePath);
+        p.Add("@PhotoPath",              patient.PhotoPath);
         p.Add("@OccupationId",           patient.OccupationId);
         p.Add("@MaritalStatusId",        patient.MaritalStatusId);
         p.Add("@BloodGroup",             patient.BloodGroup);
@@ -301,6 +302,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 IdentificationTypeId   = @IdentificationTypeId,
                 IdentificationNumber   = @IdentificationNumber,
                 IdentificationFilePath = @IdentificationFilePath,
+                PhotoPath              = @PhotoPath,
                 OccupationId           = @OccupationId,
                 MaritalStatusId        = @MaritalStatusId,
                 BloodGroup             = @BloodGroup,

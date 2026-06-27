@@ -491,8 +491,14 @@
         }
 
         // ── Header ────────────────────────────────────────────────────────────
-        const initials = ((p.firstName?.[0] ?? '') + (p.lastName?.[0] ?? '')).toUpperCase() || '?';
-        document.getElementById('pvAvatar').textContent = initials;
+        if (p.photoPath) {
+            document.getElementById('pvAvatar').innerHTML = `<img src="${p.photoPath}" class="rounded-circle" style="width:100%;height:100%;object-fit:cover;" alt="Avatar" />`;
+            document.getElementById('pvAvatar').style.backgroundColor = 'transparent';
+        } else {
+            const initials = ((p.firstName?.[0] ?? '') + (p.lastName?.[0] ?? '')).toUpperCase() || '?';
+            document.getElementById('pvAvatar').textContent = initials;
+            document.getElementById('pvAvatar').style.backgroundColor = '';
+        }
 
         const fullName = [p.salutation, p.firstName, p.middleName, p.lastName].filter(Boolean).join(' ');
         document.getElementById('pvFullName').textContent = fullName || '—';

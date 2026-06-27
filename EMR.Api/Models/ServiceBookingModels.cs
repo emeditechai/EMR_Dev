@@ -83,6 +83,7 @@ public class DoctorDashboardQueueItem
     public decimal  TotalAmount           { get; set; }
     public string   Status                { get; set; } = string.Empty;
     public string   PaymentStatus         { get; set; } = "U";
+    public string?  PhotoPath             { get; set; }
 }
 
 public class DoctorDashboardQueueResult
