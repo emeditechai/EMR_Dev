@@ -213,9 +213,8 @@ public class DoctorsController(
             return NotFound();
         }
 
-        if (model.LinkedUserId.HasValue)
+        if (model.LinkedUserId.HasValue && model.IsLoginRequired)
         {
-            model.IsLoginRequired = true;
             var existingUser = await dbContext.Users.FindAsync(model.LinkedUserId.Value);
             if (existingUser != null)
             {
