@@ -7,13 +7,61 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <style>
-        .section-card {
-            border-left: 4px solid var(--bs-primary);
-            transition: all 0.2s ease-in-out;
-            background-color: #fcfcfc;
+        .toolbox-card {
+            position: sticky;
+            top: 24px;
+            z-index: 100;
+            border-radius: 12px;
+            border: 1px solid rgba(0,0,0,0.08);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
         }
-        .section-card:hover {
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        .tool-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            cursor: grab;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .tool-item:hover {
+            background-color: #eef2ff;
+            border-color: var(--emr-primary, #4f46e5);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        .tool-item:active {
+            cursor: grabbing;
+        }
+        .tool-item i {
+            font-size: 1.2rem;
+            color: var(--emr-primary, #4f46e5);
+            margin-right: 10px;
+        }
+        .section-card {
+            border-left: 4px solid var(--emr-primary, #4f46e5);
+            transition: all 0.2s ease;
+            background-color: #fcfcfc;
+            border-radius: 8px;
+        }
+        .section-card.active-section {
+            border-left-color: #10b981; /* green indicator for active section */
+            background-color: #f4fbf7;
+        }
+        .fields-container {
+            min-height: 60px;
+            border: 2px dashed transparent;
+            border-radius: 6px;
+            padding: 5px;
+            transition: all 0.2s ease;
+        }
+        .fields-container.drag-over {
+            border-color: var(--emr-primary, #4f46e5);
+            background-color: rgba(79, 70, 229, 0.04);
         }
         .field-row {
             background-color: #ffffff;
@@ -21,10 +69,19 @@
             border-radius: 6px;
             padding: 10px;
             margin-bottom: 8px;
-            transition: all 0.15s ease-in-out;
+            cursor: grab;
+            transition: all 0.15s ease;
         }
         .field-row:hover {
             border-color: #ced4da;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .field-row.dragging {
+            opacity: 0.5;
+            border: 1px dashed var(--emr-primary, #4f46e5);
+        }
+        .empty-fields-msg {
+            transition: all 0.2s ease;
         }
     </style>
 }
@@ -32,7 +89,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-0 fw-bold">Create EMR Template</h1>
-        <small class="text-muted">Design a custom clinical recording layout for doctor specialities</small>
+        <small class="text-muted">Design a dynamic clinical layout using the right-side toolbox and drag-and-drop</small>
     </div>
     <a asp-action="Index" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-1"></i>Back to Templates
@@ -75,74 +132,119 @@
         </div>
     </div>
 
-    @* ── Form Builder Section ── *@
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="fw-bold mb-0 text-dark"><i class="bi bi-list-task me-2 text-primary"></i>EMR Sections & Fields</h4>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddSection">
-            <i class="bi bi-plus-circle me-1"></i>Add Section
-        </button>
-    </div>
+    @* ── 2-Column Drag and Drop Editor ── *@
+    <div class="row">
+        @* Left Column: Canvas *@
+        <div class="col-lg-9">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold mb-0 text-dark"><i class="bi bi-layout-three-columns me-2 text-primary"></i>EMR Sections & Fields Canvas</h4>
+            </div>
 
-    <div id="sectionsContainer" class="mb-4">
-        @* Dynamic sections will render here *@
-    </div>
+            <div id="sectionsContainer" class="mb-4">
+                @* Sections get appended here *@
+            </div>
+            
+            <div class="d-flex gap-2 mb-5">
+                <button type="submit" class="btn btn-primary px-4"><i class="bi bi-save me-1"></i>Save Template</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </div>
 
-    <div class="d-flex gap-2 mb-5">
-        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-save me-1"></i>Save Template</button>
-        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+        @* Right Column: Sticky Toolbox *@
+        <div class="col-lg-3">
+            <div class="card toolbox-card shadow-sm border-0">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-tools text-primary me-2"></i>Toolbox</h5>
+                    <small class="text-muted d-block mt-1">Drag fields to sections, or click to add them directly</small>
+                </div>
+                <div class="card-body">
+                    <button type="button" class="btn btn-primary w-100 mb-4" id="btnAddSection">
+                        <i class="bi bi-plus-circle me-1"></i>Add Section
+                    </button>
+
+                    <div class="text-uppercase fw-bold text-secondary small mb-2">Available Field Types</div>
+                    
+                    <div class="tool-item" draggable="true" data-type="Text" title="Single line text input">
+                        <i class="bi bi-input-cursor-text"></i>
+                        <span class="fw-semibold">Text Input</span>
+                    </div>
+
+                    <div class="tool-item" draggable="true" data-type="TextArea" title="Multi-line scrollable text field">
+                        <i class="bi bi-textarea-t"></i>
+                        <span class="fw-semibold">Multi-line Text</span>
+                    </div>
+
+                    <div class="tool-item" draggable="true" data-type="Select" title="Single-select dropdown choice menu">
+                        <i class="bi bi-list-ul"></i>
+                        <span class="fw-semibold">Dropdown Select</span>
+                    </div>
+
+                    <div class="tool-item" draggable="true" data-type="MultiSelect" title="Multi-select checkbox options menu">
+                        <i class="bi bi-ui-checks-grid"></i>
+                        <span class="fw-semibold">Multi-select Dropdown</span>
+                    </div>
+
+                    <div class="tool-item" draggable="true" data-type="Number" title="Numeric format input">
+                        <i class="bi bi-hash"></i>
+                        <span class="fw-semibold">Number Input</span>
+                    </div>
+
+                    <div class="tool-item" draggable="true" data-type="Checkbox" title="Binary true/false switch choice checkbox">
+                        <i class="bi bi-toggle-on"></i>
+                        <span class="fw-semibold">Checkbox / Switch</span>
+                    </div>
+
+                    <div class="tool-item" draggable="true" data-type="Date" title="Standard calendar date picker selection">
+                        <i class="bi bi-calendar-date"></i>
+                        <span class="fw-semibold">Date Picker</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </form>
 
-@* ── JAVASCRIPT TEMPLATE FOR SECTION ── *@
+@* ── HTML TEMPLATE FOR SECTION ── *@
 <div id="sectionTemplate" class="d-none">
-    <div class="card border-0 shadow-sm mb-3 section-card" data-section-index="{sectionIndex}">
-        <div class="card-header bg-white py-2 px-3 border-bottom-0 d-flex justify-content-between align-items-center">
+    <div class="card border-0 shadow-sm mb-3 section-card" data-section-index="{sectionIndex}" onclick="selectSection(this)">
+        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2 flex-grow-1 me-3">
-                <i class="bi bi-grip-vertical text-muted fs-5" style="cursor: move;"></i>
+                <i class="bi bi-grip-vertical text-muted fs-5"></i>
                 <input type="text" class="form-control form-control-sm fw-bold border-0 bg-transparent py-0 text-dark section-name-input" 
-                       placeholder="Section Name (e.g. History, Examination)" style="font-size: 1rem; border-bottom: 2px solid transparent !important;" />
+                       placeholder="Section Name (e.g. History Taking)" style="font-size: 1rem; border-bottom: 2px solid transparent !important;" />
             </div>
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-link btn-sm text-primary p-0 btn-add-field" title="Add Field to Section">
-                    <i class="bi bi-plus-circle-fill fs-5"></i>
-                </button>
                 <button type="button" class="btn btn-link btn-sm text-danger p-0 btn-remove-section" title="Delete Section">
                     <i class="bi bi-trash-fill fs-5"></i>
                 </button>
             </div>
         </div>
-        <div class="card-body pt-0 px-3 pb-3">
-            <div class="fields-container">
+        <div class="card-body pt-2 px-3 pb-3">
+            <div class="fields-container drop-zone">
                 @* Fields will go here *@
             </div>
-            <div class="text-center py-2 border border-dashed rounded-3 mt-1 bg-light text-muted small empty-fields-msg">
-                <i class="bi bi-info-circle me-1"></i>No fields added. Click the '+' button in the top right to add a field.
+            <div class="text-center py-3 border border-dashed rounded-3 mt-1 bg-light text-muted small empty-fields-msg">
+                <i class="bi bi-plus-square d-block fs-4 mb-1 opacity-75"></i>
+                Drag field types here from the toolbox
             </div>
         </div>
     </div>
 </div>
 
-@* ── JAVASCRIPT TEMPLATE FOR FIELD ── *@
+@* ── HTML TEMPLATE FOR FIELD ── *@
 <div id="fieldTemplate" class="d-none">
-    <div class="row g-2 align-items-center field-row" data-field-index="{fieldIndex}">
+    <div class="row g-2 align-items-center field-row" data-field-index="{fieldIndex}" draggable="true">
+        <div class="col-md-1.5 col-auto d-flex align-items-center">
+            <i class="bi bi-grip-vertical text-muted fs-5 me-1" style="cursor: grab;"></i>
+            <span class="badge bg-secondary-subtle text-secondary border field-type-badge text-uppercase small">Text</span>
+        </div>
         <div class="col-md-4">
             <input type="text" class="form-control form-control-sm field-name-input" placeholder="Field Label (e.g. Heart Rate)" required />
         </div>
         <div class="col-md-3">
-            <select class="form-select form-select-sm field-type-select">
-                <option value="Text">Text Input</option>
-                <option value="TextArea">Multi-line Text</option>
-                <option value="Select">Dropdown Select</option>
-                <option value="MultiSelect">Multi-select Dropdown</option>
-                <option value="Number">Number Input</option>
-                <option value="Checkbox">Checkbox / Switch</option>
-                <option value="Date">Date Picker</option>
-            </select>
-        </div>
-        <div class="col-md-3">
             <input type="text" class="form-control form-control-sm field-options-input d-none" placeholder="Options (comma separated)" />
         </div>
-        <div class="col-md-1.5 col-auto d-flex align-items-center ms-auto">
+        <div class="col-md-2 col-auto d-flex align-items-center ms-auto">
             <div class="form-check form-switch mb-0">
                 <input class="form-check-input field-required-checkbox" type="checkbox" role="switch" />
                 <label class="form-check-label text-secondary small">Required</label>
@@ -160,6 +262,15 @@
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
+        // Track the active section element
+        let activeSectionEl = null;
+
+        function selectSection(el) {
+            $('.section-card').removeClass('active-section');
+            activeSectionEl = $(el);
+            activeSectionEl.addClass('active-section');
+        }
+
         $(document).ready(function() {
             // Initialize select2
             $('.select2-multiple').select2({
@@ -172,9 +283,11 @@
             const sectionHtmlTemplate = $('#sectionTemplate').html();
             const fieldHtmlTemplate = $('#fieldTemplate').html();
 
-            // Load a default Section to begin with
-            addSection('Chief Complaint & History');
+            // Load a default Section
+            addSection('History Taking');
+            addSection('Systemic Examination');
 
+            // Toolbox Add Section
             $('#btnAddSection').click(function() {
                 addSection('');
             });
@@ -189,27 +302,53 @@
                 }
                 
                 sectionsContainer.append(el);
+                selectSection(el); // set active section to the newly created one
                 
-                // Add first field if defaultName (Chief Complaint)
-                if (defaultName === 'Chief Complaint & History') {
+                // Add first field if defaultName
+                if (defaultName === 'History Taking') {
                     addField(el, 'Chief Complaint', 'TextArea', false);
+                } else if (defaultName === 'Systemic Examination') {
+                    addField(el, 'Heart Sounds', 'Text', false);
                 }
                 
+                setupDropZone(el.find('.drop-zone'));
                 updateIndices();
             }
 
             // Remove section
-            sectionsContainer.on('click', '.btn-remove-section', function() {
+            sectionsContainer.on('click', '.btn-remove-section', function(e) {
+                e.stopPropagation();
                 if (confirm('Are you sure you want to delete this section and all its fields?')) {
-                    $(this).closest('.section-card').remove();
+                    const card = $(this).closest('.section-card');
+                    if (activeSectionEl && activeSectionEl.is(card)) {
+                        activeSectionEl = null;
+                    }
+                    card.remove();
+                    
+                    // Set another active section if exists
+                    const remaining = sectionsContainer.children('.section-card');
+                    if (remaining.length > 0) {
+                        selectSection(remaining.first());
+                    }
                     updateIndices();
                 }
             });
 
-            // Add field to section
-            sectionsContainer.on('click', '.btn-add-field', function() {
-                const secCard = $(this).closest('.section-card');
-                addField(secCard, '', 'Text', false);
+            // Toolbox Item Click (Append field directly to active section)
+            $('.tool-item').click(function() {
+                const type = $(this).data('type');
+                const label = $(this).find('span').text();
+                
+                if (!activeSectionEl || activeSectionEl.closest('body').length === 0) {
+                    const lastSec = sectionsContainer.children('.section-card').last();
+                    if (lastSec.length > 0) {
+                        selectSection(lastSec);
+                    } else {
+                        addSection('New Section');
+                    }
+                }
+                
+                addField(activeSectionEl, '', type, false);
             });
 
             function addField(secCard, defaultFieldName, defaultFieldType, isRequired) {
@@ -223,24 +362,33 @@
                 if (defaultFieldName) {
                     el.find('.field-name-input').val(defaultFieldName);
                 }
-                if (defaultFieldType) {
-                    el.find('.field-type-select').val(defaultFieldType);
-                    if (defaultFieldType === 'Select' || defaultFieldType === 'MultiSelect') {
-                        el.find('.field-options-input').removeClass('d-none');
-                    }
+                
+                // Format type badge
+                el.find('.field-type-badge').text(getFieldTypeShortName(defaultFieldType));
+                
+                // Show options if select types
+                const optionsInput = el.find('.field-options-input');
+                if (defaultFieldType === 'Select' || defaultFieldType === 'MultiSelect') {
+                    optionsInput.removeClass('d-none').prop('required', true);
                 }
+                
                 if (isRequired) {
                     el.find('.field-required-checkbox').prop('checked', true);
                 }
                 
+                // Save field type in a data attribute
+                el.attr('data-field-type', defaultFieldType);
+                
                 fieldsContainer.append(el);
                 emptyMsg.addClass('d-none');
                 
+                setupFieldDragDrop(el);
                 updateIndices();
             }
 
             // Remove field
-            sectionsContainer.on('click', '.btn-remove-field', function() {
+            sectionsContainer.on('click', '.btn-remove-field', function(e) {
+                e.stopPropagation();
                 const secCard = $(this).closest('.section-card');
                 $(this).closest('.field-row').remove();
                 
@@ -253,64 +401,199 @@
                 updateIndices();
             });
 
-            // Toggle options visibility based on field type
-            sectionsContainer.on('change', '.field-type-select', function() {
-                const type = $(this).val();
-                const optionsInput = $(this).closest('.field-row').find('.field-options-input');
-                if (type === 'Select' || type === 'MultiSelect') {
-                    optionsInput.removeClass('d-none').prop('required', true);
-                } else {
-                    optionsInput.addClass('d-none').prop('required', false).val('');
+            function getFieldTypeShortName(type) {
+                switch(type) {
+                    case 'Text': return 'Text';
+                    case 'TextArea': return 'Multi-line';
+                    case 'Select': return 'Dropdown';
+                    case 'MultiSelect': return 'Multi-select';
+                    case 'Number': return 'Number';
+                    case 'Checkbox': return 'Switch';
+                    case 'Date': return 'Date';
+                    default: return type;
                 }
+            }
+
+            // ── DRAG AND DROP INTEGRATION ──
+
+            // 1. Toolbox Draggable
+            document.querySelectorAll('.tool-item').forEach(item => {
+                item.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', this.dataset.type);
+                    e.dataTransfer.effectAllowed = 'copy';
+                });
             });
 
-            // Regenerate indexes for binding
+            // 2. Drop Zone Setup
+            function setupDropZone(zone) {
+                const el = zone[0];
+                
+                el.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                    $(this).addClass('drag-over');
+                });
+                
+                el.addEventListener('dragenter', function(e) {
+                    e.preventDefault();
+                    $(this).addClass('drag-over');
+                });
+                
+                el.addEventListener('dragleave', function() {
+                    $(this).removeClass('drag-over');
+                });
+                
+                el.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    $(this).removeClass('drag-over');
+                    
+                    const type = e.dataTransfer.getData('text/plain');
+                    if (type) {
+                        const secCard = $(this).closest('.section-card');
+                        selectSection(secCard);
+                        
+                        // If it is an existing field row being dragged
+                        const draggingFieldId = e.dataTransfer.getData('field-id');
+                        if (draggingFieldId) {
+                            const fieldRow = $('#' + draggingFieldId);
+                            if (fieldRow.length > 0) {
+                                // Append row to this dropzone
+                                $(this).append(fieldRow);
+                                secCard.find('.empty-fields-msg').addClass('d-none');
+                                updateIndices();
+                            }
+                        } else {
+                            // Standard tool-box drop: add new field
+                            addField(secCard, '', type, false);
+                        }
+                    }
+                });
+            }
+
+            // 3. Field Sorting / Reordering Setup
+            let draggedField = null;
+
+            function setupFieldDragDrop(fieldRow) {
+                const row = fieldRow[0];
+                const id = 'field_row_' + Math.random().toString(36).substr(2, 9);
+                fieldRow.attr('id', id);
+                
+                row.addEventListener('dragstart', function(e) {
+                    draggedField = this;
+                    e.dataTransfer.setData('text/plain', this.dataset.fieldType);
+                    e.dataTransfer.setData('field-id', this.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    setTimeout(() => this.classList.add('dragging'), 0);
+                });
+                
+                row.addEventListener('dragend', function() {
+                    this.classList.remove('dragging');
+                    draggedField = null;
+                });
+
+                row.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    if (!draggedField || draggedField === this) return;
+                    
+                    // Sort order indicator
+                    const container = this.parentNode;
+                    const bounding = this.getBoundingClientRect();
+                    const offset = e.clientY - bounding.top - bounding.height / 2;
+                    
+                    if (offset < 0) {
+                        container.insertBefore(draggedField, this);
+                    } else {
+                        container.insertBefore(draggedField, this.nextSibling);
+                    }
+                });
+            }
+
+            // Apply drag drop setup on initial rows (if any)
+            $('.drop-zone').each(function() {
+                setupDropZone($(this));
+            });
+            $('.field-row').each(function() {
+                setupFieldDragDrop($(this));
+            });
+
+            // Regenerate input names
             function updateIndices() {
                 sectionsContainer.children('.section-card').each(function(sIdx, secEl) {
                     const sec = $(secEl);
                     sec.attr('data-section-index', sIdx);
                     
-                    // Bind Section properties
-                    sec.find('.section-name-input').attr('name', `Sections[${sIdx}].SectionName`).prop('required', true);
-                    sec.find('.section-id-input').attr('name', `Sections[${sIdx}].SectionId`); // if edit
+                    // Bind names
+                    sec.find('.section-name-input').attr('name', `Sections[${sIdx}].SectionName`);
                     
-                    // Bind Fields inside this section
-                    sec.find('.fields-container').children('.field-row').each(function(fIdx, fieldEl) {
+                    const fieldsContainer = sec.find('.fields-container');
+                    const emptyMsg = sec.find('.empty-fields-msg');
+                    const fields = fieldsContainer.children('.field-row');
+                    
+                    if (fields.length > 0) {
+                        emptyMsg.addClass('d-none');
+                    } else {
+                        emptyMsg.removeClass('d-none');
+                    }
+                    
+                    fields.each(function(fIdx, fieldEl) {
                         const f = $(fieldEl);
                         f.attr('data-field-index', fIdx);
                         
-                        f.find('.field-name-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldName`).prop('required', true);
-                        f.find('.field-type-select').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldType`);
-                        f.find('.field-options-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].OptionsString`);
+                        const fieldType = f.attr('data-field-type');
+                        
+                        // Bind inputs
+                        f.find('.field-name-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldName`);
+                        
+                        // Hidden field type input so form posts field type properly
+                        let typeInput = f.find('.field-type-hidden-val');
+                        if (typeInput.length === 0) {
+                            typeInput = $('<input type="hidden" class="field-type-hidden-val" />');
+                            f.append(typeInput);
+                        }
+                        typeInput.attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldType`).val(fieldType);
+                        
+                        const optionsInput = f.find('.field-options-input');
+                        optionsInput.attr('name', `Sections[${sIdx}].Fields[${fIdx}].OptionsString`);
+                        
                         f.find('.field-required-checkbox').attr('name', `Sections[${sIdx}].Fields[${fIdx}].IsRequired`);
-                        f.find('.field-id-input').attr('name', `Sections[${sIdx}].Fields[${fIdx}].FieldId`);
                     });
                 });
             }
 
-            // Client side validation check before submit
+            // Form Submit validations
             $('#templateForm').submit(function(e) {
                 let isValid = true;
                 
-                if (sectionsContainer.children().length === 0) {
+                if (sectionsContainer.children('.section-card').length === 0) {
                     Swal.fire({
                         icon: 'warning',
                         title: 'Empty Template',
-                        text: 'Please add at least one section before saving.'
+                        text: 'Please add at least one section.'
                     });
                     isValid = false;
                 }
                 
                 sectionsContainer.children('.section-card').each(function() {
+                    const secName = $(this).find('.section-name-input').val().trim();
+                    if (!secName) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Validation Error',
+                            text: 'All sections must have a name.'
+                        });
+                        isValid = false;
+                        return false;
+                    }
+                    
                     const fields = $(this).find('.fields-container').children('.field-row');
                     if (fields.length === 0) {
                         Swal.fire({
                             icon: 'warning',
                             title: 'Empty Section',
-                            text: 'Please add at least one field to each section.'
+                            text: `Please add at least one field to section "${secName}".`
                         });
                         isValid = false;
-                        return false; // break loop
+                        return false;
                     }
                 });
                 

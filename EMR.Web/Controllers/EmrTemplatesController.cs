@@ -1,9 +1,11 @@
+using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
 
@@ -11,7 +13,8 @@ namespace EMR.Web.Controllers;
 public class EmrTemplatesController(
     IEmrTemplateService emrTemplateService,
     IDoctorSpecialityService doctorSpecialityService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    ApplicationDbContext db) : Controller
 {
     // ── INDEX ──
     public async Task<IActionResult> Index()
@@ -33,10 +36,7 @@ public class EmrTemplatesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(EmrTemplateViewModel model)
     {
-        if (!model.SelectedSpecialityIds.Any())
-        {
-            ModelState.AddModelError(nameof(model.SelectedSpecialityIds), "At least one Speciality is required.");
-        }
+        await ValidateSpecialityMappings(model);
 
         if (!ModelState.IsValid)
         {
@@ -69,10 +69,7 @@ public class EmrTemplatesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(EmrTemplateViewModel model)
     {
-        if (!model.SelectedSpecialityIds.Any())
-        {
-            ModelState.AddModelError(nameof(model.SelectedSpecialityIds), "At least one Speciality is required.");
-        }
+        await ValidateSpecialityMappings(model);
 
         if (!ModelState.IsValid)
         {
@@ -111,5 +108,35 @@ public class EmrTemplatesController(
         model.SpecialityOptions = specialities
             .Select(s => new SelectListItem(s.SpecialityName, s.SpecialityId.ToString()))
             .ToList();
+    }
+
+    private async Task ValidateSpecialityMappings(EmrTemplateViewModel model)
+    {
+        if (model.SelectedSpecialityIds == null || !model.SelectedSpecialityIds.Any())
+        {
+            ModelState.AddModelError(nameof(model.SelectedSpecialityIds), "At least one Speciality is required.");
+            return;
+        }
+
+        if (model.IsActive)
+        {
+            var conflicts = await db.EmrTemplateSpecialityMaps
+                .Include(x => x.Template)
+                .Include(x => x.Speciality)
+                .Where(x => x.IsActive 
+                         && x.Template!.IsActive 
+                         && x.TemplateId != model.TemplateId 
+                         && model.SelectedSpecialityIds.Contains(x.SpecialityId))
+                .ToListAsync();
+
+            if (conflicts.Any())
+            {
+                foreach (var c in conflicts)
+                {
+                    ModelState.AddModelError(nameof(model.SelectedSpecialityIds), 
+                        $"Speciality '{c.Speciality!.SpecialityName}' is already mapped to active template '{c.Template!.TemplateName}'.");
+                }
+            }
+        }
     }
 }
