@@ -34,6 +34,8 @@ public class OPDController(
     ApplicationDbContext dbContext,
     IWebHostEnvironment env,
     IDoctorApiClient doctorApiClient,
+    IEmrConsultationApiClient emrConsultationApiClient,
+    IVitalApiClient vitalApiClient,
     IDbConnectionFactory db) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
@@ -92,42 +94,9 @@ public class OPDController(
         var isDoctorRole = string.Equals(User.GetActiveRole(), "Doctor", StringComparison.OrdinalIgnoreCase) || User.IsInRole("Doctor");
 
         dynamic? linkedDoctor = null;
-        using (var conn = db.CreateConnection())
+        if (!string.IsNullOrEmpty(userEmail) || !string.IsNullOrEmpty(displayName))
         {
-            // 1. Try mapping by LinkedUserId
-            linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
-                "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE LinkedUserId = @userId AND IsActive = 1",
-                new { userId });
-
-            // 2. Try mapping by Email fallback
-            if (linkedDoctor == null && !string.IsNullOrEmpty(userEmail))
-            {
-                linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
-                    "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE EmailId = @userEmail AND IsActive = 1",
-                    new { userEmail });
-
-                if (linkedDoctor != null)
-                {
-                    await conn.ExecuteAsync(
-                        "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
-                        new { userId, doctorId = (int)linkedDoctor.DoctorId });
-                }
-            }
-
-            // 3. Try mapping by FullName fallback
-            if (linkedDoctor == null && !string.IsNullOrEmpty(displayName))
-            {
-                linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
-                    "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE FullName = @displayName AND IsActive = 1",
-                    new { displayName });
-
-                if (linkedDoctor != null)
-                {
-                    await conn.ExecuteAsync(
-                        "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
-                        new { userId, doctorId = (int)linkedDoctor.DoctorId });
-                }
-            }
+            linkedDoctor = await doctorApiClient.GetLinkedDoctorAsync(userId, userEmail, displayName);
         }
 
         if (isDoctorRole && linkedDoctor != null)
@@ -1271,4 +1240,104 @@ public class OPDController(
         // result.TokenNo is populated (non-null) if payment is now fully paid
         return Json(result);
     }
+
+    // ─── EMR Patient Consultation Endpoints ───────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> GetPatientConsultationData(int opdServiceId, int doctorId)
+    {
+        var booking = await serviceBookingApiClient.GetByIdAsync(opdServiceId);
+        if (booking == null)
+        {
+            return Json(new { success = false, message = "OPD service booking not found." });
+        }
+
+        var data = await emrConsultationApiClient.GetConsultationDataAsync(opdServiceId, doctorId);
+        
+        if (data == null)
+        {
+            return Json(new { success = false, message = "Consultation setup data not found. Ensure doctor has a template mapped to their primary speciality." });
+        }
+
+        return Json(new {
+            success = true,
+            booking = data.Booking,
+            template = data.Template,
+            savedConsultation = data.SavedConsultation
+        });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> PrintPrescription(int opdServiceId, int doctorId)
+    {
+        var booking = await serviceBookingApiClient.GetByIdAsync(opdServiceId);
+        if (booking == null) return NotFound("Booking not found");
+
+        var doctor = await doctorApiClient.GetByIdAsync(doctorId);
+        if (doctor == null) return NotFound("Doctor not found");
+
+        // Use Dapper to get PatientId from ServiceBooking header isn't straightforward because PatientId isn't in ServiceBookingDetail but PatientCode is.
+        // Wait, ServiceBookingDetail doesn't have PatientId directly?
+        // Let me query PatientId from db.
+        var patientId = await db.CreateConnection().ExecuteScalarAsync<int>(
+            "SELECT PatientId FROM PatientOPDService WHERE OPDServiceId = @OPDServiceId", new { OPDServiceId = opdServiceId });
+
+        var vitals = await vitalApiClient.GetLatestAsync(patientId);
+        var emrData = await emrConsultationApiClient.GetConsultationDataAsync(opdServiceId, doctorId);
+
+        var vm = new EMR.Web.Models.PrintPrescriptionViewModel
+        {
+            Booking = booking,
+            Doctor = doctor,
+            Vitals = vitals,
+            EmrData = emrData
+        };
+
+        return View(vm);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SavePatientConsultation([FromBody] SaveConsultationRequest req)
+    {
+        if (req == null || req.OPDServiceId <= 0)
+            return Json(new { success = false, message = "Invalid request payload." });
+
+        var userId = User.GetUserId();
+        
+        // Pass userId into the request so the API knows who created/modified it
+        req.RequestedByUserId = userId;
+
+        var success = await emrConsultationApiClient.SaveConsultationAsync(req);
+
+        if (!success)
+        {
+            return Json(new { success = false, message = "Failed to save EMR consultation." });
+        }
+
+        // Removed: Automatically marking consultation as Completed. 
+        // The status should only be changed via the explicit "Complete" button on the queue list.
+
+        await auditLogService.LogAsync("OPD", "EMR.SaveConsultation", 
+            $"Saved consultation EMR for patient {req.PatientCode} (Service ID: {req.OPDServiceId})");
+
+        return Json(new { success = true, message = "EMR consultation record saved successfully." });
+    }
+}
+
+public class SaveConsultationRequest
+{
+    public int OPDServiceId { get; set; }
+    public int PatientId { get; set; }
+    public int DoctorId { get; set; }
+    public int TemplateId { get; set; }
+    public string OPDBillNo { get; set; } = string.Empty;
+    public string PatientCode { get; set; } = string.Empty;
+    public string PatientName { get; set; } = string.Empty;
+    public string? Gender { get; set; }
+    public string? Age { get; set; }
+    public string? MobileNumber { get; set; }
+    public string VisitType { get; set; } = "New";
+    public string ConsultationType { get; set; } = string.Empty;
+    public string EmrDataJson { get; set; } = string.Empty;
+    public int RequestedByUserId { get; set; }
 }

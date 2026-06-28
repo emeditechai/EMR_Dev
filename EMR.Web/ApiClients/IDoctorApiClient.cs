@@ -8,4 +8,5 @@ public interface IDoctorApiClient
     Task<DoctorDetail?>        GetByIdAsync(int doctorId, int? branchId = null);
     Task<int?>                 CreateAsync(DoctorCreateRequest request);
     Task<bool>                 UpdateAsync(DoctorUpdateRequest request);
+    Task<DoctorListItem?>      GetLinkedDoctorAsync(int userId, string? email, string? displayName);
 }

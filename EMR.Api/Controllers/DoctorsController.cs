@@ -68,4 +68,18 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
 
         return Ok(ApiResponse<object>.Ok(new { DoctorId = id }, "Doctor updated successfully."));
     }
+
+    // ── GET /api/doctors/linked ───────────────────────────────────────────────
+
+    /// <summary>Get the doctor linked to the current user context.</summary>
+    [HttpGet("linked")]
+    [ProducesResponseType(typeof(ApiResponse<DoctorListItem>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
+    public async Task<IActionResult> GetLinkedDoctor([FromQuery] int userId, [FromQuery] string? email, [FromQuery] string? displayName)
+    {
+        var doc = await doctorService.GetLinkedDoctorAsync(userId, email, displayName);
+        if (doc is null)
+            return NotFound(ApiResponse<object>.Fail("No linked doctor found for the given user."));
+        return Ok(ApiResponse<DoctorListItem>.Ok(doc));
+    }
 }

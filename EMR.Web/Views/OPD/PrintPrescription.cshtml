@@ -1,0 +1,298 @@
+@model EMR.Web.Models.PrintPrescriptionViewModel
+@using System.Text.Json
+@{
+    Layout = null;
+    var b = Model.Booking;
+    var d = Model.Doctor;
+    var v = Model.Vitals;
+
+    // We'll parse the saved EmrDataJson so we can lookup values by FieldId
+    Dictionary<int, string> fieldValues = new Dictionary<int, string>();
+    if (Model.EmrData?.SavedConsultation != null && !string.IsNullOrEmpty(Model.EmrData.SavedConsultation.EmrDataJson))
+    {
+        try 
+        {
+            var jsonDoc = JsonDocument.Parse(Model.EmrData.SavedConsultation.EmrDataJson);
+            var root = jsonDoc.RootElement;
+            foreach(var prop in root.EnumerateObject())
+            {
+                if(int.TryParse(prop.Name, out int fieldId))
+                {
+                    fieldValues[fieldId] = prop.Value.GetString() ?? "N/A";
+                }
+            }
+        } 
+        catch { }
+    }
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Prescription - @b.PatientName</title>
+    <style>
+        @@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        @@page { size: A4; margin: 15mm; }
+        body {
+            font-family: 'Roboto', sans-serif;
+            color: #111;
+            margin: 0;
+            padding: 0;
+            line-height: 1.4;
+            background: white;
+            font-size: 13px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+        .clinic-info h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #0d6efd;
+            margin: 0 0 5px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .clinic-info p {
+            margin: 0;
+            color: #555;
+            font-size: 12px;
+        }
+        .doc-info {
+            text-align: right;
+        }
+        .doc-info h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #212529;
+            margin: 0 0 4px 0;
+        }
+        .doc-info p {
+            margin: 0;
+            color: #555;
+            font-size: 12px;
+        }
+        .patient-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            font-size: 13px;
+        }
+        .p-item span {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #6c757d;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .p-item strong {
+            color: #212529;
+            font-size: 14px;
+        }
+        .main-layout {
+            display: flex;
+            gap: 25px;
+            align-items: flex-start;
+        }
+        .left-col {
+            width: 32%;
+            border-right: 1px dashed #dee2e6;
+            padding-right: 25px;
+        }
+        .right-col {
+            width: 68%;
+        }
+        .rx-symbol {
+            font-size: 48px;
+            font-family: serif;
+            font-weight: bold;
+            color: #212529;
+            line-height: 1;
+            margin-bottom: 20px;
+        }
+        .vitals-box {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 20px;
+        }
+        .vitals-box h3 {
+            font-size: 14px;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            color: #495057;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 5px;
+        }
+        .v-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .v-item span {
+            color: #6c757d;
+        }
+        .v-item strong {
+            color: #212529;
+        }
+        .clinical-section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #0d6efd;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 4px;
+        }
+        .section-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .field-item {
+            margin-bottom: 2px;
+        }
+        .field-lbl {
+            font-weight: 500;
+            color: #495057;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .field-val {
+            color: #212529;
+            white-space: pre-wrap;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: right;
+            padding-top: 20px;
+        }
+        .signature-line {
+            display: inline-block;
+            width: 200px;
+            border-top: 1px solid #111;
+            text-align: center;
+            padding-top: 5px;
+            font-weight: 700;
+        }
+        @@media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body onload="window.print()">
+    <div class="header">
+        <div class="clinic-info">
+            <h1>@Model.HospitalName</h1>
+            <p>@Model.HospitalAddress</p>
+            <p>Contact: @Model.HospitalContact</p>
+        </div>
+        <div class="doc-info">
+            <h2>Dr. @d.FullName</h2>
+            <p>Speciality: @d.PrimarySpecialityName</p>
+            <p>Reg No: @(string.IsNullOrEmpty(d.MedicalLicenseNo) ? "N/A" : d.MedicalLicenseNo)</p>
+        </div>
+    </div>
+
+    <div class="patient-bar">
+        <div class="p-item">
+            <span>Patient Name</span>
+            <strong>@b.PatientName</strong>
+        </div>
+        <div class="p-item">
+            <span>Age / Sex</span>
+            <strong>@(b.Age != null ? b.Age.ToString() : "--") Yrs / @(b.Gender ?? "--")</strong>
+        </div>
+        <div class="p-item">
+            <span>Patient ID (UHID)</span>
+            <strong>@b.PatientCode</strong>
+        </div>
+        <div class="p-item">
+            <span>Token / Bill No</span>
+            <strong>@(string.IsNullOrEmpty(b.TokenNo) ? b.OPDBillNo : b.TokenNo)</strong>
+        </div>
+        <div class="p-item">
+            <span>Date of Visit</span>
+            <strong>@b.VisitDate.ToString("dd MMM yyyy")</strong>
+        </div>
+        <div class="p-item">
+            <span>Mobile</span>
+            <strong>@(b.PhoneNumber ?? "--")</strong>
+        </div>
+        <div class="p-item">
+            <span>Weight</span>
+            <strong>@(v?.Weight.HasValue == true ? v.Weight.Value.ToString("0.##") + " kg" : "--")</strong>
+        </div>
+        <div class="p-item">
+            <span>Consulting Type</span>
+            <strong>@b.Status</strong>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="left-col">
+            <div class="vitals-box">
+                <h3>Vitals</h3>
+                <div class="v-item"><span>BP (mmHg)</span><strong>@(v?.BPSystolic ?? 0)/@(v?.BPDiastolic ?? 0)</strong></div>
+                <div class="v-item"><span>Pulse (bpm)</span><strong>@(v?.PulseRate ?? 0)</strong></div>
+                <div class="v-item"><span>Temp (°F)</span><strong>@(v?.Temperature ?? 0)</strong></div>
+                <div class="v-item"><span>SpO2 (%)</span><strong>@(v?.SpO2 ?? 0)</strong></div>
+            </div>
+        </div>
+
+        <div class="right-col">
+            <div class="rx-symbol">Rx</div>
+            
+            @if(Model.EmrData?.Template?.Sections != null)
+            {
+                foreach(var sec in Model.EmrData.Template.Sections)
+                {
+                    var validFields = new List<string>();
+                    foreach(var f in sec.Fields)
+                    {
+                        var val = fieldValues.ContainsKey(f.FieldId) ? fieldValues[f.FieldId] : "";
+                        if (!string.IsNullOrWhiteSpace(val) && val != "N/A" && val != "None")
+                        {
+                            validFields.Add($"<div class=\"field-item\"><span class=\"field-lbl\">{f.FieldName}:</span><span class=\"field-val\">{val}</span></div>");
+                        }
+                    }
+
+                    if (validFields.Count > 0)
+                    {
+                        <div class="clinical-section">
+                            <div class="section-title">@sec.SectionName</div>
+                            <div class="section-content">
+                                @Html.Raw(string.Join("", validFields))
+                            </div>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="signature-line">
+            Signature<br/>
+            Dr. @d.FullName
+        </div>
+    </div>
+</body>
+</html>

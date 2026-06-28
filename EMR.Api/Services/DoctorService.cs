@@ -133,4 +133,41 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         }
         catch { tx.Rollback(); throw; }
     }
+
+    // ─── GET LINKED DOCTOR ────────────────────────────────────────────────────
+
+    public async Task<DoctorListItem?> GetLinkedDoctorAsync(int userId, string? email, string? displayName)
+    {
+        using var con = db.CreateConnection();
+        DoctorListItem? linkedDoctor = null;
+
+        // 1. Try by LinkedUserId
+        linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(
+            "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE LinkedUserId = @userId AND IsActive = 1",
+            new { userId });
+
+        // 2. Try by Email
+        if (linkedDoctor == null && !string.IsNullOrEmpty(email))
+        {
+            linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(
+                "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE EmailId = @email AND IsActive = 1",
+                new { email });
+
+            if (linkedDoctor != null)
+                await con.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId", new { userId, doctorId = linkedDoctor.DoctorId });
+        }
+
+        // 3. Try by DisplayName
+        if (linkedDoctor == null && !string.IsNullOrEmpty(displayName))
+        {
+            linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(
+                "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE FullName = @displayName AND IsActive = 1",
+                new { displayName });
+
+            if (linkedDoctor != null)
+                await con.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId", new { userId, doctorId = linkedDoctor.DoctorId });
+        }
+
+        return linkedDoctor;
+    }
 }

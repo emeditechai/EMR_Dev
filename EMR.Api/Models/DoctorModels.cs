@@ -4,7 +4,11 @@ namespace EMR.Api.Models;
 public class DoctorListItem
 {
     public int     DoctorId              { get; set; }
+    public string MedicalLicenseNo { get; set; } = string.Empty;
+    public int? PrimarySpecialityId { get; set; }
+    public string PrimarySpeciality { get; set; } = string.Empty;
     public string  FullName              { get; set; } = string.Empty;
+    public string? Gender                { get; set; }
     public string? PrimarySpecialityName { get; set; }
     public string? DepartmentNames       { get; set; }
     public string? PhoneNumber           { get; set; }

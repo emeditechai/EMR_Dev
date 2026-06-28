@@ -49,6 +49,9 @@ builder.Services.AddScoped<IPatientVitalService, PatientVitalService>();
 // Payment (Dapper)
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
+// Email (SMTP)
+builder.Services.AddScoped<IEmailService, EmailService>();
+
 // EMR.Api HTTP clients
 builder.Services.AddHttpClient("EmrApi", client =>
 {
@@ -63,6 +66,7 @@ builder.Services.AddHttpClient("EmrApi", client =>
         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 builder.Services.AddScoped<IDoctorApiClient,            DoctorApiClient>();
+builder.Services.AddScoped<IEmrConsultationApiClient,   EmrConsultationApiClient>();
 builder.Services.AddScoped<IPatientApiClient,           PatientApiClient>();
 builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>();
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();

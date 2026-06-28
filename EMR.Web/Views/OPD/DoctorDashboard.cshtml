@@ -161,6 +161,111 @@
     </div>
 </div>
 
+<!-- Dynamic EMR Consultation Modal -->
+<div class="modal fade" id="emrConsultationModal" tabindex="-1" aria-labelledby="emrConsultationModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header bg-primary text-white py-3 px-4 border-0">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-journal-medical fs-4"></i>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="emrConsultationModalLabel">EMR Clinical Consultation</h5>
+                        <small class="text-white-50 fs-8" id="emrTemplateNameSub">Speciality EMR Template</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-light-subtle px-4 py-3">
+                <!-- Vitals Strip Reference -->
+                <div class="card border-0 shadow-xs mb-3 bg-white p-2.5 rounded-12">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 fs-7.5">
+                        <span class="fw-bold text-secondary"><i class="bi bi-activity text-danger me-1"></i>Active Patient Vitals Reference:</span>
+                        <div class="d-flex flex-wrap gap-3" id="emrVitalsReference">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Common EMR Header (Fixed Fields) -->
+                <div class="card border-0 shadow-sm mb-4 bg-white rounded-12 overflow-hidden">
+                    <div class="card-header bg-light py-2 px-3 border-0">
+                        <span class="fw-bold text-secondary small text-uppercase"><i class="bi bi-person-lines-fill me-1"></i>Common Patient Header</span>
+                    </div>
+                    <div class="card-body py-3">
+                        <div class="row g-3 small">
+                            <input type="hidden" id="emrPatientId" />
+                            <input type="hidden" id="emrDoctorId" />
+                            <input type="hidden" id="emrTemplateId" />
+                            <input type="hidden" id="emrOPDServiceId" />
+
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">OPD BILL NO</label>
+                                <input type="text" id="emrOPDBillNo" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">PATIENT ID</label>
+                                <input type="text" id="emrPatientCode" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">PATIENT NAME</label>
+                                <input type="text" id="emrPatientName" class="form-control form-control-sm bg-light fw-bold" readonly />
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">GENDER</label>
+                                <input type="text" id="emrGender" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">DOB / AGE</label>
+                                <input type="text" id="emrAge" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">MOBILE NUMBER</label>
+                                <input type="text" id="emrMobileNumber" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">VISIT DATE & TIME</label>
+                                <input type="text" id="emrVisitDate" class="form-control form-control-sm bg-light" readonly />
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">VISIT TYPE <span class="text-danger">*</span></label>
+                                <select id="emrVisitType" class="form-select form-select-sm">
+                                    <option value="New">New Consultation</option>
+                                    <option value="Follow-up">Follow-up Visit</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1">CONSULTATION TYPE <span class="text-danger">*</span></label>
+                                <select id="emrConsultationType" class="form-select form-select-sm">
+                                    <option value="Walking">Walking / OPD</option>
+                                    <option value="Video">Video Consultation</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dynamic EMR Fields Canvas -->
+                <div id="emrDynamicFieldsCanvas">
+                    <!-- Dynamic sections & fields will load here via JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0 py-3 px-4 d-flex justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-info" id="btnPrintEmrRecord">
+                        <i class="bi bi-printer me-1"></i>Print Consultation
+                    </button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary px-4 fw-bold" id="btnSaveEmrRecord">
+                        <i class="bi bi-check-circle me-1"></i>Save Consultation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <!-- Bootstrap Select JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
@@ -695,6 +800,7 @@
 
         function renderQueueTable() {
             const list = allQueuePatients;
+            const doctorId = document.getElementById('ddlDoctorDashboard')?.value || 0;
             
             // Count active vs completed in the result set
             const activePatients = list.filter(item => item.status === 'Consulting' || item.status === 'Skipped');
@@ -765,13 +871,15 @@
                         ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1.5 font-xs ms-1"><i class="bi bi-skip-forward-fill me-1"></i>SKIPPED</span>`
                         : isCalled 
                             ? `<span class="badge bg-info-subtle text-info border border-info px-2 py-1.5 font-xs ms-1 d-inline-flex align-items-center"><i class="bi bi-megaphone-fill me-1"></i>CALLED ${callingAnim}</span>` 
-                            : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1.5 font-xs ms-1">WAITING</span>`;
+                            : item.isEmrDone
+                                ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1.5 font-xs ms-1"><i class="bi bi-clipboard2-check-fill me-1"></i>EMR DONE</span>`
+                                : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1.5 font-xs ms-1">WAITING</span>`;
 
                 // Action buttons based on status
                 let actionButtons = '';
                 if (item.status === 'Completed') {
                     actionButtons = `
-                        <button class="btn btn-sm btn-outline-success fw-semibold rounded-pill px-3 shadow-xs" onclick="startConsulting(${item.opdServiceId}, ${item.patientId}, '${item.patientName}', '${item.patientCode}', '${item.gender}', ${item.age}, '${item.tokenNo || ''}', ${hasDue})">
+                        <button class="btn btn-sm btn-outline-success fw-semibold rounded-pill px-2 shadow-xs text-nowrap" onclick="startConsulting(${item.opdServiceId}, ${item.patientId}, '${item.patientName}', '${item.patientCode}', '${item.gender}', ${item.age}, '${item.tokenNo || ''}', ${hasDue})">
                             <i class="bi bi-eye me-1"></i> Review Record
                         </button>
                     `;
@@ -782,15 +890,23 @@
                         </button>
                     `;
                     actionButtons = `
-                        <button class="btn btn-sm btn-primary fw-semibold rounded-pill px-3 shadow-xs" onclick="startConsulting(${item.opdServiceId}, ${item.patientId}, '${item.patientName}', '${item.patientCode}', '${item.gender}', ${item.age}, '${item.tokenNo || ''}', ${hasDue})">
+                        <button class="btn btn-sm btn-primary fw-semibold rounded-pill px-2 shadow-xs text-nowrap" onclick="startConsulting(${item.opdServiceId}, ${item.patientId}, '${item.patientName}', '${item.patientCode}', '${item.gender}', ${item.age}, '${item.tokenNo || ''}', ${hasDue})">
                             <i class="bi bi-journal-medical me-1"></i> Start EMR
                         </button>
                         <button class="btn btn-sm btn-outline-warning rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Call Patient" onclick="callPatient(${item.opdServiceId}, '${item.patientName}', '${item.tokenNo}')">
                             <i class="bi bi-megaphone"></i>
                         </button>
                         ${skipButton}
-                        <button class="btn btn-sm btn-success rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Mark Consultation Completed" onclick="completeConsulting(${item.opdServiceId})">
+                        <button class="btn btn-sm btn-success rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Mark Consultation Completed" onclick="completeConsulting(${item.opdServiceId}, '${item.patientName}', ${item.isEmrDone})">
                             <i class="bi bi-check-lg"></i>
+                        </button>
+                    `;
+                }
+
+                if (item.isEmrDone) {
+                    actionButtons += `
+                        <button class="btn btn-sm btn-outline-primary rounded-circle ms-1" style="width: 32px; height: 32px; padding: 0;" title="Print Prescription" onclick="window.open('/OPD/PrintPrescription?opdServiceId=${item.opdServiceId}&doctorId=${doctorId}', '_blank')">
+                            <i class="bi bi-printer"></i>
                         </button>
                     `;
                 }
@@ -1187,14 +1303,29 @@
 
         function completeConsultingFromNotes() {
             if (!activeOPDServiceId) return;
-            completeConsulting(activeOPDServiceId);
+            const patient = allQueuePatients.find(p => p.opdServiceId === activeOPDServiceId);
+            if (patient) {
+                completeConsulting(activeOPDServiceId, patient.patientName, patient.isEmrDone);
+            } else {
+                completeConsulting(activeOPDServiceId);
+            }
         }
 
-        async function completeConsulting(id) {
+        async function completeConsulting(id, patientName = null, isEmrDone = true) {
+            let title = 'Complete Consultation?';
+            let text = "Are you sure you want to mark this patient's consultation as completed?";
+            let icon = 'question';
+
+            if (isEmrDone === false) {
+                title = 'Warning: EMR Not Done';
+                text = `EMR is not done for patient ${patientName}. Still you want to complete?`;
+                icon = 'warning';
+            }
+
             Swal.fire({
-                title: 'Complete Consultation?',
-                text: "Are you sure you want to mark this patient's consultation as completed?",
-                icon: 'question',
+                title: title,
+                text: text,
+                icon: icon,
                 showCancelButton: true,
                 confirmButtonColor: '#10b981',
                 cancelButtonColor: '#3085d6',
@@ -1533,15 +1664,728 @@
             printWindow.document.close();
         }
 
-        // Stub/Placeholder function for EMR Consulting Record
-        function triggerEMRStub() {
+        // Dynamic EMR Patient Consultation Implementation
+        async function triggerEMRStub() {
+            if (!activeOPDServiceId) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No Active Patient',
+                    text: 'Please select a patient from the queue and click Start EMR first.'
+                });
+                return;
+            }
+
+            const doctorSelect = document.getElementById('ddlDoctorDashboard');
+            if (!doctorSelect || !doctorSelect.value) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No Doctor Selected',
+                    text: 'Please select a consulting doctor first.'
+                });
+                return;
+            }
+
+            const doctorId = doctorSelect.value;
             Swal.fire({
-                title: '<span class="text-primary fw-bold"><i class="bi bi-journal-medical me-2"></i>EMR Consultation Notes</span>',
-                html: '<p class="text-muted">The EMR Consultation Notes and Prescription module is currently under development.</p><p class="small text-secondary mb-0">It will be released as a separate module in the next phase of development.</p>',
-                icon: 'info',
-                confirmButtonColor: '#6366f1',
-                confirmButtonText: 'Understood'
+                title: 'Loading EMR Template...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
             });
+
+            try {
+                const res = await fetch(`/OPD/GetPatientConsultationData?opdServiceId=${activeOPDServiceId}&doctorId=${doctorId}`);
+                const data = await res.json();
+                Swal.close();
+
+                if (!data.success) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'EMR Template Error',
+                        text: data.message
+                    });
+                    return;
+                }
+
+                // Populate patient metadata
+                $('#emrPatientId').val(data.booking.patientId);
+                $('#emrDoctorId').val(doctorId);
+                $('#emrTemplateId').val(data.template.templateId);
+                $('#emrOPDServiceId').val(activeOPDServiceId);
+
+                $('#emrOPDBillNo').val(data.booking.opdBillNo || 'N/A');
+                $('#emrPatientCode').val(data.booking.patientCode || 'N/A');
+                $('#emrPatientName').val(data.booking.patientName || 'N/A');
+                $('#emrGender').val(data.booking.gender || 'N/A');
+                $('#emrAge').val(data.booking.age ? `${data.booking.age} Yrs` : 'N/A');
+                $('#emrMobileNumber').val(data.booking.mobileNumber || 'N/A');
+                $('#emrVisitDate').val(data.booking.visitDate || 'N/A');
+                
+                $('#emrTemplateNameSub').text(data.template.templateName);
+
+                // Set saved visit header info if available
+                if (data.savedConsultation) {
+                    $('#emrVisitType').val(data.savedConsultation.visitType);
+                    $('#emrConsultationType').val(data.savedConsultation.consultationType);
+                } else {
+                    $('#emrVisitType').val('New');
+                    $('#emrConsultationType').val(data.booking.bookedConsultingType || 'Walking');
+                }
+
+                // Populate vitals reference bar
+                const bp = $('#vitalBP').text() || '--/--';
+                const pulse = $('#vitalPulse').text() || '--';
+                const temp = $('#vitalTemp').text() || '--';
+                const spo2 = $('#vitalSpO2').text() || '--';
+                const weight = $('#vitalWeight').text() || '--';
+                const glucose = $('#vitalGlucose').text() || '--';
+
+                $('#emrVitalsReference').html(`
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-heart-fill me-1"></i>BP: ${bp} mmHg</span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-activity me-1"></i>Pulse: ${pulse} bpm</span>
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-thermometer-half me-1"></i>Temp: ${temp} °F</span>
+                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-droplet-fill me-1"></i>SpO2: ${spo2}%</span>
+                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-speedometer2 me-1"></i>Weight: ${weight} kg</span>
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-droplet me-1"></i>Glucose: ${glucose}</span>
+                `);
+
+                // Parse any saved dynamic values
+                let savedValues = {};
+                if (data.savedConsultation && data.savedConsultation.emrDataJson) {
+                    try {
+                        savedValues = JSON.parse(data.savedConsultation.emrDataJson);
+                    } catch (e) {
+                        console.error('Failed to parse saved EMR json:', e);
+                    }
+                }
+
+                // Build dynamic template UI
+                const canvas = $('#emrDynamicFieldsCanvas');
+                canvas.empty();
+
+                data.template.sections.forEach(sec => {
+                    const secCard = $(`
+                        <div class="card border-0 shadow-sm mb-4 bg-white rounded-12 overflow-hidden">
+                            <div class="card-header bg-light py-2 px-3 border-0">
+                                <h6 class="fw-bold mb-0 text-dark small text-uppercase" style="letter-spacing: 0.5px;"><i class="bi bi-grid-fill text-primary me-2"></i>${sec.sectionName}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3" id="sec-fields-${sec.sectionId}"></div>
+                            </div>
+                        </div>
+                    `);
+
+                    const fieldsRow = secCard.find(`#sec-fields-${sec.sectionId}`);
+                    sec.fields.forEach(f => {
+                        const col = $('<div class="col-md-6 mb-1"></div>');
+                        const isRequiredAsterisk = f.isRequired ? '<span class="text-danger">*</span>' : '';
+                        const requiredAttr = f.isRequired ? 'required' : '';
+                        const label = $(`<label class="form-label fw-semibold small text-muted mb-1">${f.fieldName} ${isRequiredAsterisk}</label>`);
+                        col.append(label);
+
+                        const savedVal = savedValues[f.fieldId] !== undefined ? savedValues[f.fieldId] : '';
+
+                        // Render field based on type
+                        if (f.fieldType === 'Text') {
+                            col.append(`<input type="text" class="form-control form-control-sm emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" value="${savedVal}" ${requiredAttr} />`);
+                        } 
+                        else if (f.fieldType === 'TextArea') {
+                            col.append(`<textarea class="form-control form-control-sm emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" rows="3" ${requiredAttr}>${savedVal}</textarea>`);
+                        }
+                        else if (f.fieldType === 'Number') {
+                            col.append(`<input type="number" class="form-control form-control-sm emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" value="${savedVal}" ${requiredAttr} />`);
+                        }
+                        else if (f.fieldType === 'Date') {
+                            const formattedDate = savedVal ? savedVal.split('T')[0] : '';
+                            col.append(`<input type="date" class="form-control form-control-sm emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" value="${formattedDate}" ${requiredAttr} />`);
+                        }
+                        else if (f.fieldType === 'Checkbox') {
+                            const isChecked = savedVal === true || savedVal === 'true' ? 'checked' : '';
+                            col.append(`
+                                <div class="form-check form-switch mt-1">
+                                    <input class="form-check-input emr-field-input" type="checkbox" role="switch" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" ${isChecked} />
+                                    <label class="form-check-label text-secondary small">Active / Enabled</label>
+                                </div>
+                            `);
+                        }
+                        else if (f.fieldType === 'Select') {
+                            const sel = $(`<select class="form-select form-select-sm emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" ${requiredAttr}></select>`);
+                            sel.append('<option value="">-- Choose Option --</option>');
+                            f.options.forEach(opt => {
+                                const isSel = opt.trim() === savedVal ? 'selected' : '';
+                                sel.append(`<option value="${opt.trim()}" ${isSel}>${opt.trim()}</option>`);
+                            });
+                            col.append(sel);
+                        }
+                        else if (f.fieldType === 'MultiSelect') {
+                            const multisel = $(`<select class="form-select form-select-sm select2-emr emr-field-input" multiple="multiple" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" ${requiredAttr}></select>`);
+                            const savedList = typeof savedVal === 'string' ? savedVal.split(',') : Array.isArray(savedVal) ? savedVal : [];
+                            f.options.forEach(opt => {
+                                const isSel = savedList.includes(opt.trim()) ? 'selected' : '';
+                                multisel.append(`<option value="${opt.trim()}" ${isSel}>${opt.trim()}</option>`);
+                            });
+                            col.append(multisel);
+                        }
+                        else if (f.fieldType === 'Investigation' || f.fieldType === 'Medication') {
+                            // Clinical List AutoSuggest Component
+                            const color = f.fieldType === 'Investigation' ? 'success' : 'warning';
+                            const icon = f.fieldType === 'Investigation' ? 'bi-eyedropper' : 'bi-capsule';
+                            const placeholder = f.fieldType === 'Investigation' ? 'Search investigations...' : 'Search medications...';
+
+                            const listComponent = $(`
+                                <div class="p-2 border rounded bg-white shadow-xs field-row" data-field-type="${f.fieldType}" data-field-id="${f.fieldId}">
+                                    <div class="selected-items-container d-flex flex-wrap gap-1 mb-2 p-1 border rounded bg-light" style="min-height: 32px;"></div>
+                                    <div class="position-relative">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-light"><i class="bi ${icon} text-${color}"></i></span>
+                                            <input type="text" class="form-control autosuggest-input" placeholder="${placeholder}" autocomplete="off" />
+                                        </div>
+                                        <div class="autosuggest-dropdown dropdown-menu w-100 p-0 border shadow-sm" style="display:none; max-height:180px; overflow-y:auto; position:absolute; z-index:1050;"></div>
+                                    </div>
+                                </div>
+                            `);
+
+                            // Hydrate previously saved medications/investigations
+                            if (savedVal) {
+                                const items = savedVal.split(',');
+                                const container = listComponent.find('.selected-items-container');
+                                items.forEach(itm => {
+                                    const parts = itm.split('|');
+                                    const itemId = parts[0];
+                                    const itemText = parts.length > 1 ? parts[1] : parts[0];
+                                    
+                                    if (itemId && itemText) {
+                                        const tag = $(`
+                                            <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="${itemId}" data-item-text="${itemText}">
+                                                ${itemText}
+                                                <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
+                                            </span>
+                                        `);
+                                        tag.find('.btn-close').on('click', function () { tag.remove(); });
+                                        container.append(tag);
+                                    }
+                                });
+                            }
+
+                            col.empty().append(label).append(listComponent);
+                            setupAutoSuggest(listComponent, f.fieldType);
+                        }
+
+                        fieldsRow.append(col);
+                    });
+
+                    canvas.append(secCard);
+                });
+
+                // Initialize select2 if active
+                if (typeof $.fn.select2 !== 'undefined') {
+                    $('.select2-emr').select2({
+                        dropdownParent: $('#emrConsultationModal'),
+                        theme: 'bootstrap-5',
+                        width: '100%'
+                    });
+                }
+
+                // Show modal
+                const myModal = new bootstrap.Modal(document.getElementById('emrConsultationModal'));
+                myModal.show();
+
+            } catch (err) {
+                console.error("EMR load failed:", err);
+                Swal.fire('Error', 'Failed to retrieve EMR template.', 'error');
+            }
+        }
+
+        // AutoSuggest dynamic engine inside Dashboard EMR modal
+        function setupAutoSuggest(fieldComponent, fieldType) {
+            const endpoint = fieldType === 'Investigation' ? '/EmrInvestigations/Search' : '/EmrMedications/Search';
+            const suggestBox = fieldComponent.find('.autosuggest-input');
+            const dropdown = fieldComponent.find('.autosuggest-dropdown');
+            const container = fieldComponent.find('.selected-items-container');
+
+            suggestBox.on('input', async function () {
+                const q = $(this).val().trim();
+                if (q.length < 1) { dropdown.hide(); return; }
+
+                try {
+                    const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`);
+                    const items = await res.json();
+                    dropdown.empty();
+
+                    if (items.length === 0) {
+                        dropdown.html('<div class="dropdown-item-text text-muted small py-2">No results found</div>').show();
+                        return;
+                    }
+
+                    items.forEach(item => {
+                        const li = $(`<button type="button" class="dropdown-item py-2 d-flex align-items-center gap-1">
+                            <span class="fw-semibold">${item.text}</span>
+                        </button>`);
+
+                        li.on('click', function () {
+                            // Add badge tag
+                            if (container.find(`[data-item-id="${item.id}"]`).length === 0) {
+                                const tag = $(`
+                                    <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="${item.id}" data-item-text="${item.text}">
+                                        ${item.text}
+                                        <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
+                                    </span>
+                                `);
+                                tag.find('.btn-close').on('click', function () { tag.remove(); });
+                                container.append(tag);
+                            }
+                            suggestBox.val('');
+                            dropdown.hide();
+                        });
+                        dropdown.append(li);
+                    });
+
+                    dropdown.show();
+                } catch (e) {
+                    console.error('AutoSuggest error:', e);
+                }
+            });
+
+            // Close dropdown on outside click
+            $(document).on('click.autosuggest-dashboard', function (e) {
+                if (!fieldComponent[0].contains(e.target)) dropdown.hide();
+            });
+        }
+
+        async function saveEMRRecord() {
+            const opdServiceId = $('#emrOPDServiceId').val();
+            if (!opdServiceId) return;
+
+            // Collect dynamic EMR fields value
+            const emrData = {};
+            
+            // Loop through dynamic field inputs
+            $('.emr-field-input').each(function() {
+                const id = $(this).attr('data-field-id');
+                if (!id) return;
+                
+                if ($(this).attr('type') === 'checkbox') {
+                    emrData[id] = $(this).is(':checked');
+                } else if ($(this).prop('multiple')) {
+                    const vals = $(this).val();
+                    emrData[id] = vals ? vals.join(',') : '';
+                } else {
+                    emrData[id] = $(this).val();
+                }
+            });
+
+            // Loop through medication / investigation list components
+            $('#emrDynamicFieldsCanvas .field-row').each(function() {
+                const id = $(this).attr('data-field-id');
+                if (!id) return;
+                
+                const selected = [];
+                $(this).find('.selected-item-tag').each(function() {
+                    const itemId = $(this).attr('data-item-id');
+                    const itemText = $(this).attr('data-item-text');
+                    selected.push(itemId + '|' + itemText);
+                });
+                emrData[id] = selected.join(',');
+            });
+
+            const req = {
+                OPDServiceId: parseInt(opdServiceId),
+                PatientId: parseInt($('#emrPatientId').val()),
+                DoctorId: parseInt($('#emrDoctorId').val()),
+                TemplateId: parseInt($('#emrTemplateId').val()),
+                OPDBillNo: $('#emrOPDBillNo').val(),
+                PatientCode: $('#emrPatientCode').val(),
+                PatientName: $('#emrPatientName').val(),
+                Gender: $('#emrGender').val(),
+                Age: $('#emrAge').val()?.replace(' Yrs', ''),
+                MobileNumber: $('#emrMobileNumber').val(),
+                VisitType: $('#emrVisitType').val(),
+                ConsultationType: $('#emrConsultationType').val(),
+                EmrDataJson: JSON.stringify(emrData)
+            };
+
+            Swal.fire({
+                title: 'Saving EMR Record...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            try {
+                const res = await fetch('/OPD/SavePatientConsultation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(req)
+                });
+                const result = await res.json();
+                Swal.close();
+
+                if (result.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Saved Successfully',
+                        text: result.message,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    
+                    // Close the modal
+                    const modalEl = document.getElementById('emrConsultationModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                    
+                    // Refresh queue to show updated status
+                    fetchQueue();
+                    clearActivePatient();
+                } else {
+                    Swal.fire('Error', result.message, 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                Swal.close();
+                Swal.fire('Error', 'An unexpected error occurred while saving EMR.', 'error');
+            }
+        }
+
+        function printEMRRecord() {
+            const name = $('#emrPatientName').val();
+            const patientCode = $('#emrPatientCode').val();
+            const opdBillNo = $('#emrOPDBillNo').val();
+            const gender = $('#emrGender').val();
+            const age = $('#emrAge').val();
+            const mobileNumber = $('#emrMobileNumber').val();
+            const visitDate = $('#emrVisitDate').val() || new Date().toLocaleDateString();
+            const visitType = $('#emrVisitType option:selected').text();
+            const consultationType = $('#emrConsultationType option:selected').text();
+
+            const doctorSelect = document.getElementById('ddlDoctorDashboard');
+            const doctorName = doctorSelect?.selectedOptions[0]?.text?.split(' (')[0] || 'Consulting Doctor';
+
+            // Gather all sections and field values
+            let dynamicHtml = '';
+            $('#emrDynamicFieldsCanvas .card').each(function() {
+                const secName = $(this).find('.card-header').text().trim();
+                let fieldItems = '';
+                
+                $(this).find('.emr-field-input').each(function() {
+                    const fieldName = $(this).closest('div').find('label').text().replace('*', '').trim();
+                    let val = '';
+                    
+                    if ($(this).attr('type') === 'checkbox') {
+                        val = $(this).is(':checked') ? 'Active' : 'Inactive';
+                    } else {
+                        val = $(this).val() || '';
+                    }
+                    
+                    if (val && val !== 'N/A' && val !== 'None') {
+                        fieldItems += `
+                            <div class="field-item">
+                                <span class="field-lbl">${fieldName}:</span>
+                                <span class="field-val">${val}</span>
+                            </div>
+                        `;
+                    }
+                });
+
+                $(this).find('.field-row').each(function() {
+                    const fieldName = $(this).closest('div').find('label').text().replace('*', '').trim();
+                    const selectedTags = [];
+                    $(this).find('.selected-item-tag').each(function() {
+                        selectedTags.push($(this).attr('data-item-text'));
+                    });
+                    
+                    const val = selectedTags.length > 0 ? selectedTags.join(', ') : '';
+                    if (val && val !== 'N/A' && val !== 'None') {
+                        fieldItems += `
+                            <div class="field-item">
+                                <span class="field-lbl">${fieldName}:</span>
+                                <span class="field-val">${val}</span>
+                            </div>
+                        `;
+                    }
+                });
+
+                if (fieldItems) {
+                    dynamicHtml += `
+                        <div class="clinical-section">
+                            <div class="section-title">${secName}</div>
+                            <div class="section-content">
+                                ${fieldItems}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            // Gather vitals values
+            const bp = $('#vitalBP').text() || '--/--';
+            const pulse = $('#vitalPulse').text() || '--';
+            const temp = $('#vitalTemp').text() || '--';
+            const spo2 = $('#vitalSpO2').text() || '--';
+            const weight = $('#vitalWeight').text() || '--';
+            const glucose = $('#vitalGlucose').text() || '--';
+
+            const printWindow = window.open('', '_blank', 'width=900,height=1000');
+            const dateStr = new Date().toLocaleString();
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <` + `html>
+                <` + `head>
+                    <title>Prescription - ${name}</title>
+                    <style>
+                        @@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+                        @@page { size: A4; margin: 15mm; }
+                        body {
+                            font-family: 'Roboto', sans-serif;
+                            color: #111;
+                            margin: 0;
+                            padding: 0;
+                            line-height: 1.4;
+                            background: white;
+                            font-size: 13px;
+                        }
+                        .header {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-end;
+                            border-bottom: 3px solid #0d6efd;
+                            padding-bottom: 15px;
+                            margin-bottom: 15px;
+                        }
+                        .clinic-info h1 {
+                            font-size: 26px;
+                            font-weight: 700;
+                            color: #0d6efd;
+                            margin: 0 0 5px 0;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                        }
+                        .clinic-info p {
+                            margin: 0;
+                            color: #555;
+                            font-size: 12px;
+                        }
+                        .doc-info {
+                            text-align: right;
+                        }
+                        .doc-info h2 {
+                            font-size: 20px;
+                            font-weight: 700;
+                            color: #212529;
+                            margin: 0 0 4px 0;
+                        }
+                        .doc-info p {
+                            margin: 0;
+                            color: #555;
+                            font-size: 12px;
+                        }
+                        .patient-bar {
+                            display: grid;
+                            grid-template-columns: repeat(4, 1fr);
+                            gap: 10px;
+                            background: #f8f9fa;
+                            border: 1px solid #dee2e6;
+                            padding: 12px 15px;
+                            border-radius: 6px;
+                            margin-bottom: 25px;
+                            font-size: 13px;
+                        }
+                        .p-item span {
+                            display: block;
+                            font-size: 11px;
+                            text-transform: uppercase;
+                            color: #6c757d;
+                            font-weight: 700;
+                            margin-bottom: 2px;
+                        }
+                        .p-item strong {
+                            color: #212529;
+                            font-size: 14px;
+                        }
+                        .main-layout {
+                            display: flex;
+                            gap: 25px;
+                            align-items: flex-start;
+                        }
+                        .left-col {
+                            width: 32%;
+                            border-right: 1px dashed #dee2e6;
+                            padding-right: 25px;
+                        }
+                        .right-col {
+                            width: 68%;
+                        }
+                        .rx-symbol {
+                            font-size: 48px;
+                            font-family: serif;
+                            font-weight: bold;
+                            color: #212529;
+                            line-height: 1;
+                            margin-bottom: 20px;
+                        }
+                        .vitals-box {
+                            background: #fff;
+                            border: 1px solid #e9ecef;
+                            border-radius: 6px;
+                            padding: 12px;
+                            margin-bottom: 20px;
+                        }
+                        .vitals-box h3 {
+                            font-size: 14px;
+                            margin: 0 0 10px 0;
+                            text-transform: uppercase;
+                            color: #495057;
+                            border-bottom: 1px solid #e9ecef;
+                            padding-bottom: 5px;
+                        }
+                        .v-item {
+                            display: flex;
+                            justify-content: space-between;
+                            margin-bottom: 6px;
+                            font-size: 13px;
+                        }
+                        .v-item span {
+                            color: #6c757d;
+                        }
+                        .v-item strong {
+                            color: #212529;
+                        }
+                        .clinical-section {
+                            margin-bottom: 25px;
+                            page-break-inside: avoid;
+                        }
+                        .section-title {
+                            font-size: 14px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            color: #0d6efd;
+                            margin-bottom: 10px;
+                            border-bottom: 1px solid #e9ecef;
+                            padding-bottom: 4px;
+                        }
+                        .section-content {
+                            display: grid;
+                            grid-template-columns: 1fr;
+                            gap: 10px;
+                        }
+                        .field-item {
+                            margin-bottom: 2px;
+                        }
+                        .field-lbl {
+                            font-weight: 500;
+                            color: #495057;
+                            display: inline-block;
+                            min-width: 130px;
+                        }
+                        .field-val {
+                            color: #212529;
+                        }
+                        .footer {
+                            margin-top: 50px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-end;
+                            page-break-inside: avoid;
+                        }
+                        .signature {
+                            text-align: center;
+                            width: 200px;
+                            border-top: 1px solid #212529;
+                            padding-top: 8px;
+                            font-weight: 700;
+                            margin-top: 60px;
+                        }
+                        .disclaimer {
+                            text-align: center;
+                            font-size: 10px;
+                            color: #adb5bd;
+                            border-top: 1px solid #dee2e6;
+                            margin-top: 40px;
+                            padding-top: 10px;
+                        }
+                        @@media print {
+                            .main-layout { display: flex; }
+                        }
+                    </style>
+                <` + `/head>
+                <` + `body>
+                    
+                    <!-- Header -->
+                    <div class="header">
+                        <div class="clinic-info">
+                            <h1>eClinicPlus+</h1>
+                            <p>Premium Healthcare Services<br/>123 Health Avenue, Medical District<br/>Contact: +91-9876543210 | info@eclinicplus.com</p>
+                        </div>
+                        <div class="doc-info">
+                            <h2>${doctorName}</h2>
+                            <p>Consulting Specialist</p>
+                            <p>Reg No: MED-7890123</p>
+                        </div>
+                    </div>
+
+                    <!-- Patient Info Bar -->
+                    <div class="patient-bar">
+                        <div class="p-item"><span>Patient Name</span><strong>${name}</strong></div>
+                        <div class="p-item"><span>Age / Gender</span><strong>${age} / ${gender}</strong></div>
+                        <div class="p-item"><span>Date</span><strong>${visitDate}</strong></div>
+                        <div class="p-item"><span>OPD Bill No</span><strong>${opdBillNo}</strong></div>
+                        
+                        <div class="p-item"><span>Patient ID</span><strong>${patientCode}</strong></div>
+                        <div class="p-item"><span>Contact</span><strong>${mobileNumber}</strong></div>
+                        <div class="p-item"><span>Visit Type</span><strong>${visitType}</strong></div>
+                        <div class="p-item"><span>Consult Type</span><strong>${consultationType}</strong></div>
+                    </div>
+
+                    <!-- Main Body Layout -->
+                    <div class="main-layout">
+                        <!-- Left Column (Vitals & Short notes) -->
+                        <div class="left-col">
+                            <div class="vitals-box">
+                                <h3>Patient Vitals</h3>
+                                <div class="v-item"><span>BP</span><strong>${bp}</strong></div>
+                                <div class="v-item"><span>Pulse</span><strong>${pulse} bpm</strong></div>
+                                <div class="v-item"><span>Temp</span><strong>${temp} °F</strong></div>
+                                <div class="v-item"><span>SpO2</span><strong>${spo2}%</strong></div>
+                                <div class="v-item"><span>Weight</span><strong>${weight} kg</strong></div>
+                                <div class="v-item"><span>Sugar(RBS)</span><strong>${glucose}</strong></div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column (Rx & Main Details) -->
+                        <div class="right-col">
+                            <div class="rx-symbol">℞</div>
+                            ${dynamicHtml}
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="footer">
+                        <div>
+                            <strong>Follow-up Date:</strong> _______________________<br/><br/>
+                        </div>
+                        <div class="signature">
+                            ${doctorName}<br/>
+                            <span style="font-size:11px; font-weight:normal; color:#6c757d;">Authorized Signature</span>
+                        </div>
+                    </div>
+                    
+                    <div class="disclaimer">
+                        This is a computer-generated prescription. Not valid for medico-legal purposes. Please bring this prescription on your next visit.
+                    </div>
+                    
+                    <` + `script>
+                        window.onload = function() {
+                            setTimeout(function() { window.print(); }, 500);
+                        };
+                    <` + `/script>
+                <` + `/body>
+                <` + `/html>
+            `;
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
         }
 
         // Initialize lists on DOM content loaded
@@ -1553,6 +2397,10 @@
             fetchQueue();
             updateRoomBadge();
             toggleAutoRefresh();
+
+            // Bind EMR Action events
+            $('#btnSaveEmrRecord').on('click', saveEMRRecord);
+            $('#btnPrintEmrRecord').on('click', printEMRRecord);
         });
     </script>
 }

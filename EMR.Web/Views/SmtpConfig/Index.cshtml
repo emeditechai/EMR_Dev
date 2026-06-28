@@ -1,0 +1,316 @@
+@model List<EMR.Web.Models.ViewModels.SmtpConfigListItem>
+@{
+    ViewData["Title"] = "Email Configuration";
+}
+
+@section HeadStyles {
+<style>
+    /* ── Page-specific styles ── */
+    .smtp-page-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-bottom:1.5rem; }
+    .smtp-page-header .title-group { display:flex; align-items:center; gap:.75rem; }
+    .smtp-page-header .title-group i { font-size:1.6rem; color:var(--emr-primary); }
+    .smtp-page-header .title-group h1 { font-size:1.35rem; font-weight:700; margin:0; color:#212529; }
+    .smtp-page-header .title-group small { font-size:.78rem; color:#6c757d; }
+
+    /* ── Config cards ── */
+    .smtp-card { background:#fff; border:1px solid #e9ecef; border-radius:14px; padding:1.3rem 1.5rem; box-shadow:0 2px 10px rgba(0,0,0,.04); transition:transform .15s, box-shadow .15s; position:relative; overflow:hidden; }
+    .smtp-card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.08); }
+    .smtp-card.is-default { border-left:4px solid #198754; }
+    .smtp-card .provider-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; flex-shrink:0; }
+    .smtp-card .provider-icon.gmail   { background:linear-gradient(135deg,#ea4335 0%,#fbbc05 100%); color:#fff; }
+    .smtp-card .provider-icon.outlook { background:linear-gradient(135deg,#0078d4 0%,#00bcf2 100%); color:#fff; }
+    .smtp-card .provider-icon.yahoo   { background:linear-gradient(135deg,#6001d2 0%,#a88fcc 100%); color:#fff; }
+    .smtp-card .provider-icon.custom  { background:linear-gradient(135deg,#6c757d 0%,#adb5bd 100%); color:#fff; }
+    .smtp-card .config-info { flex:1; min-width:0; }
+    .smtp-card .config-name { font-weight:700; font-size:.95rem; color:#212529; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .smtp-card .config-sub { font-size:.78rem; color:#6c757d; margin-top:.15rem; }
+    .smtp-card .config-detail { font-size:.75rem; color:#6c757d; }
+    .smtp-card .config-detail i { width:16px; text-align:center; margin-right:.3rem; }
+
+    /* ── Badges ── */
+    .badge-ssl { font-size:.65rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+    .badge-ssl.on  { background:#d1fae5; color:#065f46; }
+    .badge-ssl.off { background:#fee2e2; color:#991b1b; }
+    .badge-default { font-size:.65rem; background:linear-gradient(135deg,#198754,#20c997); color:#fff; padding:2px 8px; border-radius:20px; font-weight:700; }
+    .badge-tested { font-size:.65rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+    .badge-tested.success { background:#d1fae5; color:#065f46; }
+    .badge-tested.failed  { background:#fee2e2; color:#991b1b; }
+    .badge-tested.none    { background:#f3f4f6; color:#6b7280; }
+
+    /* ── Action buttons ── */
+    .smtp-actions .btn { font-size:.72rem; padding:.3rem .55rem; border-radius:6px; }
+
+    /* ── Empty state ── */
+    .smtp-empty { text-align:center; padding:4rem 2rem; }
+    .smtp-empty i { font-size:3.5rem; color:#d1d5db; margin-bottom:1rem; display:block; }
+    .smtp-empty h5 { color:#6c757d; font-weight:600; margin-bottom:.5rem; }
+    .smtp-empty p { color:#9ca3af; font-size:.85rem; margin-bottom:1.5rem; }
+
+    /* ── Test Email Modal ── */
+    .test-modal-header { background:linear-gradient(135deg,var(--emr-primary),#4338ca); color:#fff; border-radius:12px 12px 0 0; padding:1rem 1.5rem; }
+    .test-modal-header .btn-close { filter:brightness(0) invert(1); }
+    #testEmailModal .modal-content { border:0; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.15); }
+</style>
+}
+
+@* ── Page Header ── *@
+<div class="smtp-page-header">
+    <div class="title-group">
+        <i class="bi bi-envelope-at-fill"></i>
+        <div>
+            <h1>Email Configuration</h1>
+            <small>Branch: <strong>@ViewBag.BranchName</strong> &mdash; Configure SMTP email engine for sending notifications, reports & alerts</small>
+        </div>
+    </div>
+    <a asp-action="Create" class="btn btn-primary btn-sm px-3 shadow-sm">
+        <i class="bi bi-plus-circle me-1"></i>Add Configuration
+    </a>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="smtp-empty">
+        <i class="bi bi-envelope-x"></i>
+        <h5>No Email Configurations Yet</h5>
+        <p>Set up your first SMTP email engine to start sending emails from eClinicPlus+.</p>
+        <a asp-action="Create" class="btn btn-primary px-4">
+            <i class="bi bi-plus-circle me-1"></i>Create First Configuration
+        </a>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var cfg in Model)
+        {
+            var providerClass = cfg.ProviderType.ToLower() switch { "gmail" => "gmail", "outlook" => "outlook", "yahoo" => "yahoo", _ => "custom" };
+            var providerIcon = cfg.ProviderType.ToLower() switch { "gmail" => "bi-google", "outlook" => "bi-microsoft", "yahoo" => "bi-yahoo", _ => "bi-envelope-fill" };
+            var testBadgeClass = cfg.LastTestResult switch { "Success" => "success", null => "none", _ => "failed" };
+            var testBadgeText = cfg.LastTestResult switch { "Success" => "Verified", null => "Not Tested", _ => "Failed" };
+
+            <div class="col-12 col-lg-6 col-xxl-4">
+                <div class="smtp-card @(cfg.IsDefault ? "is-default" : "")">
+                    <div class="d-flex align-items-start gap-3 mb-3">
+                        <div class="provider-icon @providerClass">
+                            <i class="bi @providerIcon"></i>
+                        </div>
+                        <div class="config-info">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="config-name">@cfg.ConfigName</span>
+                                @if (cfg.IsDefault)
+                                {
+                                    <span class="badge-default"><i class="bi bi-star-fill me-1"></i>Default</span>
+                                }
+                            </div>
+                            <div class="config-sub">@cfg.ProviderType &mdash; @cfg.SenderEmail</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="config-detail"><i class="bi bi-hdd-network"></i>@cfg.SmtpHost</div>
+                        </div>
+                        <div class="col-3">
+                            <div class="config-detail"><i class="bi bi-hash"></i>Port @cfg.SmtpPort</div>
+                        </div>
+                        <div class="col-3 text-end">
+                            <span class="badge-ssl @(cfg.UseSsl ? "on" : "off")">
+                                <i class="bi @(cfg.UseSsl ? "bi-shield-lock-fill" : "bi-shield-slash") me-1"></i>@(cfg.UseSsl ? "SSL" : "No SSL")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge-tested @testBadgeClass">
+                                <i class="bi @(testBadgeClass == "success" ? "bi-check-circle-fill" : testBadgeClass == "failed" ? "bi-x-circle-fill" : "bi-question-circle") me-1"></i>@testBadgeText
+                            </span>
+                            @if (cfg.LastTestedDate.HasValue)
+                            {
+                                <small class="text-muted" style="font-size:.68rem">@cfg.LastTestedDate.Value.ToString("dd MMM HH:mm")</small>
+                            }
+                        </div>
+                        <div class="smtp-actions d-flex gap-1">
+                            <button class="btn btn-outline-success btn-sm" title="Send Test Email" onclick="openTestEmailModal(@cfg.Id, '@cfg.ConfigName.Replace("'", "\\'")'); return false;">
+                                <i class="bi bi-send-fill"></i>
+                            </button>
+                            @if (!cfg.IsDefault)
+                            {
+                                <button class="btn btn-outline-warning btn-sm" title="Set as Default" onclick="setAsDefault(@cfg.Id, '@cfg.ConfigName.Replace("'", "\\'")'); return false;">
+                                    <i class="bi bi-star-fill"></i>
+                                </button>
+                            }
+                            <a asp-action="Edit" asp-route-id="@cfg.Id" class="btn btn-outline-primary btn-sm" title="Edit">
+                                <i class="bi bi-pencil-fill"></i>
+                            </a>
+                            <button class="btn btn-outline-danger btn-sm" title="Delete" onclick="deleteConfig(@cfg.Id, '@cfg.ConfigName.Replace("'", "\\'")'); return false;">
+                                <i class="bi bi-trash3-fill"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ── Test Email Modal ── *@
+<div class="modal fade" id="testEmailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="test-modal-header d-flex align-items-center justify-content-between">
+                <h5 class="mb-0"><i class="bi bi-send-fill me-2"></i>Send Test Email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="testConfigId" />
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Configuration</label>
+                    <input type="text" id="testConfigName" class="form-control" readonly />
+                </div>
+                <div class="mb-3">
+                    <label for="testRecipient" class="form-label fw-semibold">Recipient Email <span class="text-danger">*</span></label>
+                    <input type="email" id="testRecipient" class="form-control" placeholder="recipient@example.com" required />
+                </div>
+                <div class="mb-3">
+                    <label for="testSubject" class="form-label fw-semibold">Subject</label>
+                    <input type="text" id="testSubject" class="form-control" value="Test Email from eClinicPlus+" />
+                </div>
+                <div class="mb-3">
+                    <label for="testBody" class="form-label fw-semibold">Body</label>
+                    <textarea id="testBody" class="form-control" rows="3">This is a test email sent from eClinicPlus+ SMTP Configuration. If you received this, your email setup is working correctly!</textarea>
+                </div>
+            </div>
+            <div class="modal-footer px-4 pb-4 border-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="btnSendTestEmail" onclick="sendTestEmail()">
+                    <i class="bi bi-send-fill me-1"></i>Send Test
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    var testEmailModal = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        testEmailModal = new bootstrap.Modal(document.getElementById('testEmailModal'));
+    });
+
+    function openTestEmailModal(configId, configName) {
+        document.getElementById('testConfigId').value = configId;
+        document.getElementById('testConfigName').value = configName;
+        document.getElementById('testRecipient').value = '';
+        testEmailModal.show();
+    }
+
+    function sendTestEmail() {
+        var recipient = document.getElementById('testRecipient').value.trim();
+        if (!recipient) {
+            Swal.fire({ icon: 'warning', title: 'Required', text: 'Please enter a recipient email.' });
+            return;
+        }
+
+        var btn = document.getElementById('btnSendTestEmail');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+
+        var token = document.querySelector('input[name="__RequestVerificationToken"]')?.value
+            || document.querySelector('meta[name="__RequestVerificationToken"]')?.content;
+
+        // Build token from form if not found
+        if (!token) {
+            var hiddenForm = document.createElement('form');
+            hiddenForm.innerHTML = '@Html.AntiForgeryToken()';
+            token = hiddenForm.querySelector('input[name="__RequestVerificationToken"]').value;
+        }
+
+        fetch('@Url.Action("TestEmail", "SmtpConfig")', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': token
+            },
+            body: JSON.stringify({
+                configId: parseInt(document.getElementById('testConfigId').value),
+                recipientEmail: recipient,
+                subject: document.getElementById('testSubject').value,
+                body: document.getElementById('testBody').value
+            })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            testEmailModal.hide();
+            if (data.success) {
+                Swal.fire({ icon: 'success', title: 'Sent!', text: data.message, timer: 3000, showConfirmButton: false }).then(function () { location.reload(); });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Failed', text: data.message });
+            }
+        })
+        .catch(function (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network error: ' + err.message });
+        })
+        .finally(function () {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Send Test';
+        });
+    }
+
+    function setAsDefault(id, name) {
+        Swal.fire({
+            title: 'Set Default?',
+            html: 'Set <strong>' + name + '</strong> as the default email configuration?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Set Default',
+            confirmButtonColor: '#198754'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                postAction('@Url.Action("SetDefault", "SmtpConfig")' + '?id=' + id);
+            }
+        });
+    }
+
+    function deleteConfig(id, name) {
+        Swal.fire({
+            title: 'Delete Configuration?',
+            html: 'Are you sure you want to delete <strong>' + name + '</strong>? This action can be undone by an administrator.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete',
+            confirmButtonColor: '#dc3545'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                postAction('@Url.Action("Delete", "SmtpConfig")' + '?id=' + id);
+            }
+        });
+    }
+
+    function postAction(url) {
+        var token = document.createElement('form');
+        token.innerHTML = '@Html.AntiForgeryToken()';
+        var tokenVal = token.querySelector('input[name="__RequestVerificationToken"]').value;
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': tokenVal
+            }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.success) {
+                Swal.fire({ icon: 'success', title: 'Done!', text: data.message, timer: 2000, showConfirmButton: false }).then(function () { location.reload(); });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+            }
+        })
+        .catch(function (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Request failed: ' + err.message });
+        });
+    }
+</script>
+}

@@ -59,4 +59,20 @@ public class DoctorApiClient : IDoctorApiClient
         var result = await httpResponse.Content.ReadFromJsonAsync<ApiResponse<object>>();
         return result?.Success == true;
     }
+
+    public async Task<DoctorListItem?> GetLinkedDoctorAsync(int userId, string? email, string? displayName)
+    {
+        var url = $"api/doctors/linked?userId={userId}";
+        if (!string.IsNullOrEmpty(email)) url += $"&email={Uri.EscapeDataString(email)}";
+        if (!string.IsNullOrEmpty(displayName)) url += $"&displayName={Uri.EscapeDataString(displayName)}";
+
+        var response = await _http.GetAsync(url);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var res = await response.Content.ReadFromJsonAsync<ApiResponse<DoctorListItem>>();
+        return res?.Data;
+    }
 }

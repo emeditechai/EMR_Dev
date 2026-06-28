@@ -1,0 +1,219 @@
+@model EMR.Web.Models.ViewModels.EmailLogPagedResult
+@{
+    ViewData["Title"] = "Email Logs";
+    var f = Model.Filter;
+
+    string Q(int? pg = null, int? ps = null) {
+        var p = pg ?? f.Page;
+        var s = ps ?? f.PageSize;
+        var parts = new List<string> { $"page={p}", $"pageSize={s}" };
+        if (!string.IsNullOrWhiteSpace(f.Search)) parts.Add($"search={Uri.EscapeDataString(f.Search)}");
+        if (!string.IsNullOrWhiteSpace(f.Status)) parts.Add($"status={Uri.EscapeDataString(f.Status)}");
+        if (f.DateFrom.HasValue) parts.Add($"dateFrom={f.DateFrom.Value:yyyy-MM-dd}");
+        if (f.DateTo.HasValue)   parts.Add($"dateTo={f.DateTo.Value:yyyy-MM-dd}");
+        return "?" + string.Join("&", parts);
+    }
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+        <i class="bi bi-inbox-fill text-primary" style="font-size:2rem;"></i>
+        <div>
+            <h1 class="h4 mb-0 fw-bold">Email Logs</h1>
+            <small class="text-muted">History of all emails sent by the SMTP engine</small>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-envelope-paper"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalCount.ToString("N0")</div>
+                <div class="stat-label">Total Emails</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalSuccess.ToString("N0")</div>
+                <div class="stat-label">Successful Deliveries</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-x-circle"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalFailed.ToString("N0")</div>
+                <div class="stat-label">Failed Deliveries</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form method="get" asp-action="Index" class="dashboard-panel mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label fw-semibold small mb-1">Search</label>
+            <div class="input-icon-wrap">
+                <i class="bi bi-search input-icon"></i>
+                <input type="text" name="search" value="@f.Search" class="form-control ps-icon form-control-sm"
+                       placeholder="Recipient email or subject" />
+            </div>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-semibold small mb-1">Status</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">All Statuses</option>
+                @if (f.Status == "Success") { <option value="Success" selected>Success</option> } else { <option value="Success">Success</option> }
+                @if (f.Status == "Failed")  { <option value="Failed" selected>Failed</option> } else { <option value="Failed">Failed</option> }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-semibold small mb-1">From Date</label>
+            <input type="date" name="dateFrom" value="@(f.DateFrom?.ToString("yyyy-MM-dd"))"
+                   class="form-control form-control-sm" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-semibold small mb-1">To Date</label>
+            <input type="date" name="dateTo" value="@(f.DateTo?.ToString("yyyy-MM-dd"))"
+                   class="form-control form-control-sm" />
+        </div>
+        <div class="col-md-1">
+            <label class="form-label fw-semibold small mb-1">Per Page</label>
+            <select name="pageSize" class="form-select form-select-sm">
+                @if (f.PageSize == 25)  { <option value="25"  selected>25</option>  } else { <option value="25">25</option>  }
+                @if (f.PageSize == 50)  { <option value="50"  selected>50</option>  } else { <option value="50">50</option>  }
+                @if (f.PageSize == 100) { <option value="100" selected>100</option> } else { <option value="100">100</option> }
+            </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm w-100">
+                <i class="bi bi-funnel-fill me-1"></i>Filter
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm" title="Clear filters">
+                <i class="bi bi-x-lg"></i>
+            </a>
+        </div>
+    </div>
+    <input type="hidden" name="page" value="1" />
+</form>
+
+<div class="dashboard-panel table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Sent Date</th>
+                <th>Recipient</th>
+                <th>Subject</th>
+                <th>Configuration</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Items.Any())
+            {
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-5">
+                        <i class="bi bi-envelope-x fs-1 d-block mb-2 text-light-gray"></i>
+                        No email logs match your current filters.
+                    </td>
+                </tr>
+            }
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td class="text-nowrap">
+                        <div class="fw-semibold">@item.SentDate.ToString("dd MMM yyyy")</div>
+                        <small class="text-muted">@item.SentDate.ToString("hh:mm tt")</small>
+                    </td>
+                    <td>@item.RecipientEmail</td>
+                    <td class="text-truncate" style="max-width:250px;" title="@item.Subject">
+                        @(string.IsNullOrEmpty(item.Subject) ? "—" : item.Subject)
+                    </td>
+                    <td>
+                        <div>@item.ConfigName</div>
+                        <small class="text-muted">@item.ProviderType</small>
+                    </td>
+                    <td>
+                        @if (item.Status == "Success")
+                        {
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-check-circle-fill me-1"></i>Success</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger"><i class="bi bi-x-circle-fill me-1"></i>Failed</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        @if (item.Status == "Failed" && !string.IsNullOrEmpty(item.ErrorMessage))
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                    title="View Error" 
+                                    onclick="viewError('@Uri.EscapeDataString(item.ErrorMessage)')">
+                                <i class="bi bi-bug-fill"></i>
+                            </button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.TotalPages > 1)
+{
+    <div class="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
+        <small class="text-muted">
+            Showing @(((f.Page - 1) * f.PageSize) + 1)–@(Math.Min(f.Page * f.PageSize, Model.TotalCount))
+            of @Model.TotalCount.ToString("N0") logs
+        </small>
+        <nav aria-label="Email log pagination">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(f.Page == 1 ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: 1)" title="First">&laquo;</a>
+                </li>
+                <li class="page-item @(f.Page == 1 ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: f.Page - 1)">&lsaquo;</a>
+                </li>
+                @{
+                    int start = Math.Max(1, f.Page - 2);
+                    int end   = Math.Min(Model.TotalPages, f.Page + 2);
+                }
+                @for (int pg = start; pg <= end; pg++)
+                {
+                    <li class="page-item @(pg == f.Page ? "active" : "")">
+                        <a class="page-link" href="@Q(pg: pg)">@pg</a>
+                    </li>
+                }
+                <li class="page-item @(f.Page == Model.TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: f.Page + 1)">&rsaquo;</a>
+                </li>
+                <li class="page-item @(f.Page == Model.TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="@Q(pg: Model.TotalPages)" title="Last">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
+@section Scripts {
+<script>
+    function viewError(encodedMsg) {
+        var msg = decodeURIComponent(encodedMsg);
+        Swal.fire({
+            icon: 'error',
+            title: 'Delivery Failed',
+            html: '<div class="text-start p-2 rounded bg-light border" style="font-family: monospace; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">' + 
+                  msg.replace(/\n/g, '<br>') + '</div>',
+            width: '600px',
+            confirmButtonColor: 'var(--emr-primary)'
+        });
+    }
+</script>
+}

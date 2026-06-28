@@ -22,6 +22,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PatientMaster> PatientMasters => Set<PatientMaster>();
     public DbSet<PatientOPDService> PatientOPDServices => Set<PatientOPDService>();
     public DbSet<PatientOPDServiceItem> PatientOPDServiceItems => Set<PatientOPDServiceItem>();
+    public DbSet<ServiceMaster> ServiceMasters => Set<ServiceMaster>();
 
     // Payment
     public DbSet<PaymentMethodMaster> PaymentMethodMasters => Set<PaymentMethodMaster>();
@@ -39,6 +40,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // EMR Master Lists
     public DbSet<EmrInvestigationMaster> EmrInvestigationMasters => Set<EmrInvestigationMaster>();
     public DbSet<EmrMedicationMaster> EmrMedicationMasters => Set<EmrMedicationMaster>();
+
+    // Patient consultations
+    public DbSet<EmrPatientConsultation> EmrPatientConsultations => Set<EmrPatientConsultation>();
+
+    // SMTP Email Configuration
+    public DbSet<SmtpEmailConfiguration> SmtpEmailConfigurations => Set<SmtpEmailConfiguration>();
+
+    // Email Logs
+    public DbSet<EmailLog> EmailLogs => Set<EmailLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -178,6 +188,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<ServiceMaster>(entity =>
+        {
+            entity.ToTable("ServiceMaster");
+            entity.HasKey(x => x.ServiceId);
+        });
+
         // ── Payment ──────────────────────────────────────────────────────────
 
         modelBuilder.Entity<PaymentMethodMaster>(entity =>
@@ -231,6 +247,35 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<EmrTemplateSpecialityMap>(entity =>
         {
             entity.HasKey(x => new { x.TemplateId, x.SpecialityId });
+        });
+
+        // ── SMTP Email Configuration ────────────────────────────────────────
+        modelBuilder.Entity<SmtpEmailConfiguration>(entity =>
+        {
+            entity.ToTable("SmtpEmailConfiguration");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.BranchId).HasColumnName("BranchId");
+            entity.Property(x => x.ProviderType).HasMaxLength(50);
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Email Logs ──────────────────────────────────────────────────────
+        modelBuilder.Entity<EmailLog>(entity =>
+        {
+            entity.ToTable("EmailLogs");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Status).HasMaxLength(50);
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.BranchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Config)
+                .WithMany()
+                .HasForeignKey(x => x.ConfigId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

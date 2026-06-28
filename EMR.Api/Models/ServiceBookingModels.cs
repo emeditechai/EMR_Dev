@@ -84,6 +84,7 @@ public class DoctorDashboardQueueItem
     public string   Status                { get; set; } = string.Empty;
     public string   PaymentStatus         { get; set; } = "U";
     public string?  PhotoPath             { get; set; }
+    public bool     IsEmrDone             { get; set; }
 }
 
 public class DoctorDashboardQueueResult
