@@ -1,0 +1,799 @@
+@model EMR.Web.Models.ViewModels.PatientDetailsViewModel
+@{
+    ViewData["Title"] = "Patient Details";
+    var p = Model.Patient;
+    var fullName = string.Join(" ", new[] { p.Salutation, p.FirstName, p.MiddleName, p.LastName }.Where(x => !string.IsNullOrEmpty(x)));
+    var initials = ((p.FirstName?.Length > 0 ? p.FirstName[0].ToString() : "") + (p.LastName?.Length > 0 ? p.LastName[0].ToString() : "")).ToUpper();
+    if (string.IsNullOrEmpty(initials)) initials = "?";
+
+    var age = "";
+    if (p.DateOfBirth.HasValue)
+    {
+        var dob = p.DateOfBirth.Value;
+        var today = DateTime.Today;
+        var diff = today.Year - dob.Year;
+        if (today.Month < dob.Month || (today.Month == dob.Month && today.Day < dob.Day)) diff--;
+        age = diff + " yrs";
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold text-dark">
+            <i class="bi bi-person-bounding-box text-primary me-2"></i>Patient Profile
+        </h1>
+        <small class="text-muted">Detailed view of patient demographics, visits, and clinical vitals history.</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="PatientRegistration" asp-route-id="@p.PatientId" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil-fill me-1"></i>Edit Profile
+        </a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.close()">
+            <i class="bi bi-x-lg me-1"></i>Close Tab
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Patient Profile Header Card & Basic Details -->
+    <div class="col-lg-4">
+        
+        <!-- Header Card -->
+        <div class="card shadow-sm border-0 mb-4 overflow-hidden">
+            <div class="card-header bg-gradient bg-primary py-4 text-center text-white border-0 position-relative">
+                <div class="position-absolute top-0 end-0 p-2">
+                    @if (p.IsActive)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success border-opacity-25 px-3 py-1">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary border-opacity-25 px-3 py-1">Inactive</span>
+                    }
+                </div>
+                <div class="mx-auto mb-3 rounded-circle border border-3 border-white shadow-sm d-flex align-items-center justify-content-center bg-white text-primary fw-bold" 
+                     style="width: 100px; height: 100px; font-size: 2.2rem; overflow:hidden;">
+                    @if (!string.IsNullOrEmpty(p.PhotoPath))
+                    {
+                        <img src="@p.PhotoPath" class="w-100 h-100 object-fit-cover" alt="Profile photo" />
+                    }
+                    else
+                    {
+                        <span>@initials</span>
+                    }
+                </div>
+                <h4 class="fw-bold mb-1 text-white">@fullName</h4>
+                <div class="font-monospace text-white-50 small mb-2">@p.PatientCode</div>
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                    @if (!string.IsNullOrEmpty(p.Gender))
+                    {
+                        <span class="badge bg-white bg-opacity-25 px-3 py-1.5 rounded-pill">@p.Gender</span>
+                    }
+                    @if (!string.IsNullOrEmpty(age))
+                    {
+                        <span class="badge bg-white bg-opacity-25 px-3 py-1.5 rounded-pill">@age</span>
+                    }
+                    @if (!string.IsNullOrEmpty(p.BloodGroup))
+                    {
+                        <span class="badge bg-danger px-3 py-1.5 rounded-pill"><i class="bi bi-droplet-fill me-1"></i>@p.BloodGroup</span>
+                    }
+                </div>
+            </div>
+            <div class="card-body p-0 border-top">
+                <div class="list-group list-group-flush small">
+                    <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                        <span class="text-muted"><i class="bi bi-telephone-fill me-2 text-primary"></i>Mobile Number</span>
+                        <span class="fw-semibold text-dark">@p.PhoneNumber</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(p.SecondaryPhoneNumber))
+                    {
+                        <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                            <span class="text-muted"><i class="bi bi-telephone-plus-fill me-2 text-primary"></i>Secondary Mobile</span>
+                            <span class="fw-semibold text-dark">@p.SecondaryPhoneNumber</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(p.EmailId))
+                    {
+                        <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                            <span class="text-muted"><i class="bi bi-envelope-fill me-2 text-primary"></i>Email Address</span>
+                            <span class="fw-semibold text-dark">@p.EmailId</span>
+                        </div>
+                    }
+                    <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                        <span class="text-muted"><i class="bi bi-calendar-event-fill me-2 text-primary"></i>Registration Date</span>
+                        <span class="fw-semibold text-dark">@p.CreatedDate.ToString("dd MMM yyyy, HH:mm")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Address Card -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-dark text-uppercase mb-3" style="letter-spacing:.05em">
+                    <i class="bi bi-geo-alt-fill text-primary me-2"></i>Address Details
+                </h6>
+                <div class="text-dark mb-3">
+                    @p.Address
+                </div>
+                <hr class="my-3" />
+                <div class="row g-2 small text-muted">
+                    <div class="col-6"><strong>Area:</strong> @(Model.AreaName ?? "--")</div>
+                    <div class="col-6"><strong>City/Village:</strong> @(Model.CityName ?? "--")</div>
+                    <div class="col-6"><strong>District:</strong> @(Model.DistrictName ?? "--")</div>
+                    <div class="col-6"><strong>State:</strong> @(Model.StateName ?? "--")</div>
+                    <div class="col-12"><strong>Country:</strong> @(Model.CountryName ?? "--")</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Right Column: Full Details, Visits, and Vitals -->
+    <div class="col-lg-8">
+        
+        <!-- Personal & Demographic Details -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-dark text-uppercase mb-3" style="letter-spacing:.05em">
+                    <i class="bi bi-card-list text-primary me-2"></i>Demographics & Identification
+                </h6>
+                <div class="row g-3 small">
+                    <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Date of Birth</span>
+                        <span class="fw-semibold text-dark fs-6">@(p.DateOfBirth?.ToString("dd MMM yyyy") ?? "--")</span>
+                    </div>
+                    <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Salutation / Title</span>
+                        <span class="fw-semibold text-dark fs-6">@(p.Salutation ?? "--")</span>
+                    </div>
+                    <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Religion</span>
+                        <span class="fw-semibold text-dark fs-6">@(Model.ReligionName ?? "--")</span>
+                    </div>
+                    <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Occupation</span>
+                        <span class="fw-semibold text-dark fs-6">@(Model.OccupationName ?? "--")</span>
+                    </div>
+                    <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Marital Status</span>
+                        <span class="fw-semibold text-dark fs-6">@(Model.MaritalStatusName ?? "--")</span>
+                    </div>
+                    <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Guardian Name / Relation</span>
+                        <span class="fw-semibold text-dark fs-6">
+                            @if (!string.IsNullOrEmpty(p.GuardianName))
+                            {
+                                <span>@p.GuardianName</span>
+                            }
+                            else
+                            {
+                                <span>--</span>
+                            }
+                        </span>
+                    </div>
+
+                    <!-- Identification Doc -->
+                    <div class="col-12 pt-2">
+                        <div class="p-3 bg-light rounded d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <span class="text-muted d-block small">Identification Doc Type &amp; Number</span>
+                                <span class="fw-semibold text-dark">
+                                    @(Model.IdentificationTypeName ?? "Not Provided") @(string.IsNullOrEmpty(p.IdentificationNumber) ? "" : $"({p.IdentificationNumber})")
+                                </span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(p.IdentificationFilePath))
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="openDocModal('@p.IdentificationFilePath')">
+                                    <i class="bi bi-file-earmark-arrow-down-fill me-1"></i>View Document
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Medical Alerts & Remarks -->
+        <div class="card shadow-sm border-0 mb-4 bg-light border-start border-4 border-warning">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-dark text-uppercase mb-3" style="letter-spacing:.05em">
+                    <i class="bi bi-shield-fill-exclamation text-warning me-2"></i>Medical & General Notes
+                </h6>
+                <div class="row g-3 small">
+                    <div class="col-md-6">
+                        <span class="text-muted d-block mb-1 fw-bold text-danger">Known Allergies</span>
+                        <div class="p-2.5 bg-white rounded border border-danger border-opacity-10 text-dark">
+                            @(string.IsNullOrEmpty(p.KnownAllergies) ? "No known allergies recorded." : p.KnownAllergies)
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <span class="text-muted d-block mb-1 fw-bold text-dark">Remarks / Medical History Notes</span>
+                        <div class="p-2.5 bg-white rounded border text-dark">
+                            @(string.IsNullOrEmpty(p.Remarks) ? "No remarks or history recorded." : p.Remarks)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tabs Card -->
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-0 pt-3">
+                <ul class="nav nav-tabs card-header-tabs border-bottom-0" id="historyTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold text-dark border-bottom border-3" id="visits-tab" data-bs-toggle="tab" data-bs-target="#visits-pane" type="button" role="tab" aria-controls="visits-pane" aria-selected="true">
+                            <i class="bi bi-hospital me-2 text-primary"></i>OPD Visits History (@Model.VisitHistory.Count)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold text-dark border-bottom border-3" id="vitals-tab" data-bs-toggle="tab" data-bs-target="#vitals-pane" type="button" role="tab" aria-controls="vitals-pane" aria-selected="false">
+                            <i class="bi bi-activity me-2 text-success"></i>Patient Vitals Log (@Model.VitalHistory.Count)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold text-dark border-bottom border-3" id="vital-graph-tab" data-bs-toggle="tab" data-bs-target="#vital-graph-pane" type="button" role="tab" aria-controls="vital-graph-pane" aria-selected="false">
+                            <i class="bi bi-graph-up-arrow me-2 text-danger"></i>Vital Graph
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold text-dark border-bottom border-3" id="visit-graph-tab" data-bs-toggle="tab" data-bs-target="#visit-graph-pane" type="button" role="tab" aria-controls="visit-graph-pane" aria-selected="false">
+                            <i class="bi bi-graph-up me-2 text-warning"></i>Visit Graph
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body p-4 tab-content" id="historyTabsContent">
+                
+                <!-- Visits Tab Pane -->
+                <div class="tab-pane fade show active" id="visits-pane" role="tabpanel" aria-labelledby="visits-tab" tabindex="0">
+                    @if (Model.VisitHistory.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle small mb-0 border-top">
+                                <thead class="table-light text-muted uppercase font-monospace" style="font-size: 0.75rem;">
+                                    <tr>
+                                        <th>Visit Date</th>
+                                        <th>Bill No.</th>
+                                        <th>Token No.</th>
+                                        <th>Consulting Doctor</th>
+                                        <th>Services Taken</th>
+                                        <th>Total Amount</th>
+                                        <th>Payment</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var v in Model.VisitHistory)
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold text-dark">@v.VisitDate.ToString("dd MMM yyyy, HH:mm")</td>
+                                            <td class="font-monospace text-secondary">
+                                                <a href="/OPD/PrintBill?id=@v.OPDServiceId" target="_blank" class="text-decoration-none">
+                                                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i>@v.OPDBillNo
+                                                </a>
+                                            </td>
+                                            <td>
+                                                @if (!string.IsNullOrEmpty(v.TokenNo))
+                                                {
+                                                    <span class="badge bg-primary rounded-pill font-monospace px-2.5 py-1.5">@v.TokenNo</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted italic small">Pending</span>
+                                                }
+                                            </td>
+                                            <td>@(v.ConsultingDoctorName ?? "--")</td>
+                                            <td>
+                                                <span class="text-truncate d-inline-block" style="max-width: 220px;" title="@v.ServiceTypesSummary">
+                                                    @v.ServiceTypesSummary
+                                                </span>
+                                            </td>
+                                            <td class="fw-bold text-dark">₹ @v.TotalAmount.ToString("N2")</td>
+                                            <td>
+                                                @if (v.PaymentStatus == "P" || v.PaymentStatus == "Fully Paid")
+                                                {
+                                                    <span class="badge text-bg-success px-2.5 py-1.5">Fully Paid</span>
+                                                }
+                                                else if (v.PaymentStatus == "D" || v.PaymentStatus == "Partially Paid")
+                                                {
+                                                    <span class="badge text-bg-warning text-dark px-2.5 py-1.5">Partially Paid</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge text-bg-danger px-2.5 py-1.5">Unpaid</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-calendar-x text-muted display-6 mb-3 d-block"></i>
+                            <p class="text-muted mb-0">No outpatient service bookings found for this patient.</p>
+                        </div>
+                    }
+                </div>
+
+                <!-- Vitals Tab Pane -->
+                <div class="tab-pane fade" id="vitals-pane" role="tabpanel" aria-labelledby="vitals-tab" tabindex="0">
+                    @if (Model.VitalHistory.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle small mb-0 border-top">
+                                <thead class="table-light text-muted uppercase font-monospace" style="font-size: 0.75rem;">
+                                    <tr>
+                                        <th>Date Recorded</th>
+                                        <th>BP (mmHg)</th>
+                                        <th>Pulse (bpm)</th>
+                                        <th>SpO2</th>
+                                        <th>Temp (°F)</th>
+                                        <th>Ht/Wt/BMI</th>
+                                        <th>Blood Glucose</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var vt in Model.VitalHistory)
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold text-dark">@vt.RecordedOn.ToString("dd MMM yyyy, HH:mm")</td>
+                                            <td>
+                                                @if (vt.BPSystolic.HasValue || vt.BPDiastolic.HasValue)
+                                                {
+                                                    <span class="fw-bold">@vt.BPSystolic/@vt.BPDiastolic</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">--</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (vt.PulseRate.HasValue)
+                                                {
+                                                    <span>@vt.PulseRate <span class="text-muted small">bpm</span></span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">--</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (vt.SpO2.HasValue)
+                                                {
+                                                    <span class="fw-semibold text-success">@vt.SpO2%</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">--</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (vt.Temperature.HasValue)
+                                                {
+                                                    <span>@vt.Temperature <span class="text-muted small">°F</span></span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">--</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (vt.Height.HasValue || vt.Weight.HasValue)
+                                                {
+                                                    <div class="lh-sm">
+                                                        <div>Ht: @(vt.Height?.ToString("0.#") ?? "--") cm | Wt: @(vt.Weight?.ToString("0.#") ?? "--") kg</div>
+                                                        @if (vt.BMI.HasValue)
+                                                        {
+                                                            <div class="text-muted small">
+                                                                BMI: <strong>@vt.BMI.Value.ToString("F1")</strong> 
+                                                                <span class="badge px-1.5 py-0.5 ms-1 @(vt.BMICategory == "Normal" ? "text-bg-success" : "text-bg-warning text-dark")">@vt.BMICategory</span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">--</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (vt.BloodGlucose.HasValue)
+                                                {
+                                                    <div class="lh-sm">
+                                                        <span class="fw-semibold">@vt.BloodGlucose.Value.ToString("0.#")</span> <span class="text-muted small">mg/dL</span>
+                                                        @if (!string.IsNullOrEmpty(vt.GlucoseType))
+                                                        {
+                                                            <div class="text-muted small italic text-uppercase font-monospace">@vt.GlucoseType</div>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">--</span>
+                                                }
+                                            </td>
+                                            <td class="text-muted" style="max-width: 180px;" title="@vt.Notes">@vt.Notes</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-activity text-muted display-6 mb-3 d-block"></i>
+                            <p class="text-muted mb-0">No clinical vitals logged for this patient.</p>
+                        </div>
+                    }
+                </div>
+
+                <!-- Vital Graph Tab Pane -->
+                <div class="tab-pane fade" id="vital-graph-pane" role="tabpanel" aria-labelledby="vital-graph-tab" tabindex="0">
+                    <div class="row mb-3 align-items-center">
+                        <div class="col-auto">
+                            <label for="vitalMetricSelect" class="form-label mb-0 fw-semibold">Select Vital Metric:</label>
+                        </div>
+                        <div class="col-sm-4">
+                            <select id="vitalMetricSelect" class="form-select form-select-sm">
+                                <option value="bp">Blood Pressure (BP)</option>
+                                <option value="pulse">Pulse Rate</option>
+                                <option value="temp">Temperature</option>
+                                <option value="weight">Weight</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="position-relative p-2 border rounded bg-white" style="height: 380px;">
+                        <canvas id="vitalsChart"></canvas>
+                        <div id="vitalsChartLoader" class="position-absolute top-50 start-50 translate-middle text-center" style="display:none">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                        <div id="vitalsChartEmpty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display:none">
+                            <i class="bi bi-graph-up-arrow display-6 d-block mb-2"></i>
+                            <span>No vital metrics logged to plot graph.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visit Graph Tab Pane -->
+                <div class="tab-pane fade" id="visit-graph-pane" role="tabpanel" aria-labelledby="visit-graph-tab" tabindex="0">
+                    <div class="row mb-3 align-items-center">
+                        <div class="col-auto">
+                            <label for="visitMetricSelect" class="form-label mb-0 fw-semibold">Select Visit Metric:</label>
+                        </div>
+                        <div class="col-sm-4">
+                            <select id="visitMetricSelect" class="form-select form-select-sm">
+                                <option value="amount">Bill Amount (₹)</option>
+                                <option value="consulting">Doctor Consulting Count</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="position-relative p-2 border rounded bg-white" style="height: 380px;">
+                        <canvas id="visitsChart"></canvas>
+                        <div id="visitsChartLoader" class="position-absolute top-50 start-50 translate-middle text-center" style="display:none">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                        <div id="visitsChartEmpty" class="position-absolute top-50 start-50 translate-middle text-center text-muted" style="display:none">
+                            <i class="bi bi-graph-up display-6 d-block mb-2"></i>
+                            <span>No visit bookings logged to plot graph.</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal for Document View -->
+<div class="modal fade" id="docViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-dark text-white py-2 px-4">
+                <h6 class="modal-title fw-bold" id="docViewerTitle">View Document</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 bg-light d-flex align-items-center justify-content-center" style="min-height: 450px;">
+                <img id="docImg" class="w-100 h-100 object-fit-contain" style="display:none; max-height:75vh;" alt="Document content" />
+                <iframe id="docFrame" class="w-100 border-0" style="display:none; height: 75vh;" src=""></iframe>
+                <div id="docFallback" class="text-center py-5" style="display:none">
+                    <i class="bi bi-file-earmark-arrow-down text-muted display-3 mb-3 d-block"></i>
+                    <p class="mb-3 text-dark">This file format cannot be previewed directly in the browser.</p>
+                    <a id="docDownloadBtn" href="" class="btn btn-primary" download>
+                        <i class="bi bi-download me-1"></i>Download Document
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-4 bg-light border-top">
+                <span class="text-muted small me-auto font-monospace" id="docFileName"></span>
+                <a id="docOpenLink" href="" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Open in New Tab
+                </a>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        function openDocModal(path) {
+            if (!path) return;
+            const ext = path.split('.').pop().toLowerCase();
+            const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+            const isPdf = ext === 'pdf';
+
+            const img = document.getElementById('docImg');
+            const frame = document.getElementById('docFrame');
+            const fallback = document.getElementById('docFallback');
+
+            img.style.display = 'none';
+            frame.style.display = 'none';
+            fallback.style.display = 'none';
+            img.src = '';
+            frame.src = '';
+
+            if (isImg) {
+                img.src = path;
+                img.style.display = '';
+            } else if (isPdf) {
+                frame.src = path;
+                frame.style.display = '';
+            } else {
+                document.getElementById('docDownloadBtn').href = path;
+                fallback.style.display = '';
+            }
+
+            document.getElementById('docFileName').textContent = path.split('/').pop();
+            document.getElementById('docOpenLink').href = path;
+
+            new bootstrap.Modal(document.getElementById('docViewerModal')).show();
+        }
+
+        // ── Chart.js AJAX Rendering Logic ──────────────────────────────────────
+        const patientId = @Model.Patient.PatientId;
+        let vitalsData = null;
+        let visitsData = null;
+        let vitalsChartInstance = null;
+        let visitsChartInstance = null;
+
+        // Listen for tab changes
+        document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(tabEl => {
+            tabEl.addEventListener('shown.bs.tab', function (event) {
+                if (event.target.id === 'vital-graph-tab') {
+                    loadVitalsChart();
+                } else if (event.target.id === 'visit-graph-tab') {
+                    loadVisitsChart();
+                }
+            });
+        });
+
+        // Listen for metric change
+        document.getElementById('vitalMetricSelect')?.addEventListener('change', function () {
+            if (vitalsData) {
+                renderVitalsChart();
+            }
+        });
+
+        // Listen for visit metric change
+        document.getElementById('visitMetricSelect')?.addEventListener('change', function () {
+            if (visitsData) {
+                renderVisitsChart();
+            }
+        });
+
+        async function loadVitalsChart() {
+            if (vitalsData) return;
+
+            const loader = document.getElementById('vitalsChartLoader');
+            const emptyMsg = document.getElementById('vitalsChartEmpty');
+            const canvas = document.getElementById('vitalsChart');
+
+            loader.style.display = '';
+            emptyMsg.style.display = 'none';
+            canvas.style.display = 'none';
+
+            try {
+                const res = await fetch(`/OPD/GetPatientVitalsChartData?id=${patientId}`);
+                if (!res.ok) throw new Error();
+                vitalsData = await res.json();
+                
+                loader.style.display = 'none';
+                if (!vitalsData || vitalsData.length === 0) {
+                    emptyMsg.style.display = '';
+                } else {
+                    canvas.style.display = '';
+                    renderVitalsChart();
+                }
+            } catch (err) {
+                loader.style.display = 'none';
+                emptyMsg.style.display = '';
+                emptyMsg.querySelector('span').textContent = 'Error loading vitals graph data.';
+            }
+        }
+
+        function renderVitalsChart() {
+            const ctx = document.getElementById('vitalsChart').getContext('2d');
+            const metric = document.getElementById('vitalMetricSelect').value;
+
+            if (vitalsChartInstance) {
+                vitalsChartInstance.destroy();
+            }
+
+            const labels = vitalsData.map(d => d.recordedOn);
+            let datasets = [];
+
+            if (metric === 'bp') {
+                datasets = [
+                    {
+                        label: 'Systolic BP (mmHg)',
+                        data: vitalsData.map(d => d.bpSystolic),
+                        borderColor: '#dc3545',
+                        backgroundColor: '#dc354522',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        spanGaps: true
+                    },
+                    {
+                        label: 'Diastolic BP (mmHg)',
+                        data: vitalsData.map(d => d.bpDiastolic),
+                        borderColor: '#ffc107',
+                        backgroundColor: '#ffc10722',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        spanGaps: true
+                    }
+                ];
+            } else if (metric === 'pulse') {
+                datasets = [{
+                    label: 'Pulse Rate (bpm)',
+                    data: vitalsData.map(d => d.pulseRate),
+                    borderColor: '#198754',
+                    backgroundColor: '#19875422',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    spanGaps: true
+                }];
+            } else if (metric === 'temp') {
+                datasets = [{
+                    label: 'Temperature (°F)',
+                    data: vitalsData.map(d => d.temperature),
+                    borderColor: '#0d6efd',
+                    backgroundColor: '#0d6efd22',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    spanGaps: true
+                }];
+            } else if (metric === 'weight') {
+                datasets = [{
+                    label: 'Weight (kg)',
+                    data: vitalsData.map(d => d.weight),
+                    borderColor: '#6f42c1',
+                    backgroundColor: '#6f42c122',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    spanGaps: true
+                }];
+            }
+
+            vitalsChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadVisitsChart() {
+            if (visitsData) return;
+
+            const loader = document.getElementById('visitsChartLoader');
+            const emptyMsg = document.getElementById('visitsChartEmpty');
+            const canvas = document.getElementById('visitsChart');
+
+            loader.style.display = '';
+            emptyMsg.style.display = 'none';
+            canvas.style.display = 'none';
+
+            try {
+                const res = await fetch(`/OPD/GetPatientVisitsChartData?id=${patientId}`);
+                if (!res.ok) throw new Error();
+                visitsData = await res.json();
+
+                loader.style.display = 'none';
+                if (!visitsData || (!visitsData.billData.length && !visitsData.consultingData.length)) {
+                    emptyMsg.style.display = '';
+                } else {
+                    canvas.style.display = '';
+                    renderVisitsChart();
+                }
+            } catch (err) {
+                loader.style.display = 'none';
+                emptyMsg.style.display = '';
+                emptyMsg.querySelector('span').textContent = 'Error loading visit trends data.';
+            }
+        }
+
+        function renderVisitsChart() {
+            const ctx = document.getElementById('visitsChart').getContext('2d');
+            const metric = document.getElementById('visitMetricSelect').value;
+
+            if (visitsChartInstance) {
+                visitsChartInstance.destroy();
+            }
+
+            let labels = [];
+            let data = [];
+            let datasetLabel = '';
+            let bgColor = '';
+            let ticksCallback = null;
+            let stepSize = undefined;
+
+            if (metric === 'amount') {
+                labels = visitsData.billData.map(d => d.visitDate);
+                data = visitsData.billData.map(d => d.totalAmount);
+                datasetLabel = 'Billing Amount (₹)';
+                bgColor = '#ffc107dd';
+                ticksCallback = function(value) { return '₹ ' + value; };
+            } else {
+                labels = visitsData.consultingData.map(d => d.doctorName);
+                data = visitsData.consultingData.map(d => d.consultingCount);
+                datasetLabel = 'Doctor Consulting Count';
+                bgColor = '#198754dd'; // success color
+                ticksCallback = function(value) { return value; };
+                stepSize = 1;
+            }
+
+            visitsChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: datasetLabel,
+                        data: data,
+                        borderColor: bgColor.substring(0, 7),
+                        backgroundColor: bgColor,
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: ticksCallback,
+                                stepSize: stepSize
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+}

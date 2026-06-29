@@ -53,11 +53,11 @@ public class ServiceService(IDbConnectionFactory db) : IServiceService
         using var con = db.CreateConnection();
         return await con.ExecuteScalarAsync<int>(@"
             INSERT INTO ServiceMaster
-                (ItemCode, ItemName, ServiceType, ItemCharges, IsRegistration, ConsultingType, BranchId, IsActive, CreatedBy, CreatedDate)
+                (ItemCode, ItemName, ServiceType, ItemCharges, IsRegistration, ConsultingType, IsGstRequired, GstPercentage, BranchId, IsActive, CreatedBy, CreatedDate)
             VALUES
-                (@ItemCode, @ItemName, @ServiceType, @ItemCharges, @IsRegistration, @ConsultingType, @BranchId, @IsActive, @userId, GETDATE());
+                (@ItemCode, @ItemName, @ServiceType, @ItemCharges, @IsRegistration, @ConsultingType, @IsGstRequired, @GstPercentage, @BranchId, @IsActive, @userId, GETDATE());
             SELECT SCOPE_IDENTITY();",
-            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.ConsultingType, m.BranchId, m.IsActive, userId });
+            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.ConsultingType, m.IsGstRequired, m.GstPercentage, m.BranchId, m.IsActive, userId });
     }
 
     public async Task UpdateAsync(ServiceMaster m, int? userId)
@@ -71,10 +71,12 @@ public class ServiceService(IDbConnectionFactory db) : IServiceService
                 ItemCharges     = @ItemCharges,
                 IsRegistration  = @IsRegistration,
                 ConsultingType  = @ConsultingType,
+                IsGstRequired   = @IsGstRequired,
+                GstPercentage   = @GstPercentage,
                 IsActive        = @IsActive,
                 ModifiedBy      = @userId,
                 ModifiedDate    = GETDATE()
             WHERE ServiceId = @ServiceId AND BranchId = @BranchId",
-            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.ConsultingType, m.IsActive, userId, m.ServiceId, m.BranchId });
+            new { m.ItemCode, m.ItemName, m.ServiceType, m.ItemCharges, m.IsRegistration, m.ConsultingType, m.IsGstRequired, m.GstPercentage, m.IsActive, userId, m.ServiceId, m.BranchId });
     }
 }

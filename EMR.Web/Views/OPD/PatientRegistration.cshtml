@@ -202,6 +202,7 @@
                 <select id="searchType" class="form-select form-select-sm">
                     <option value="phone">Mobile No</option>
                     <option value="code">Patient ID</option>
+                    <option value="name">Patient Name</option>
                 </select>
             </div>
             <div class="col-12 col-md-6">
@@ -1067,9 +1068,12 @@
                 if (searchType.value === 'phone') {
                     searchLabel.textContent = 'Enter Mobile Number';
                     if (searchIcon) { searchIcon.className = 'bi bi-telephone'; }
-                } else {
+                } else if (searchType.value === 'code') {
                     searchLabel.textContent = 'Enter Patient ID';
                     if (searchIcon) { searchIcon.className = 'bi bi-hash'; }
+                } else if (searchType.value === 'name') {
+                    searchLabel.textContent = 'Enter Patient Name';
+                    if (searchIcon) { searchIcon.className = 'bi bi-person'; }
                 }
             });
         }
@@ -1088,9 +1092,14 @@
             btnSearch.addEventListener('click', async () => {
                 const val = searchInput.value.trim();
                 if (!val) return;
-                const url = searchType.value === 'phone'
-                    ? opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val)
-                    : opdBase + 'SearchPatientByCode?code='  + encodeURIComponent(val);
+                let url = '';
+                if (searchType.value === 'phone') {
+                    url = opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val);
+                } else if (searchType.value === 'code') {
+                    url = opdBase + 'SearchPatientByCode?code='  + encodeURIComponent(val);
+                } else if (searchType.value === 'name') {
+                    url = opdBase + 'SearchPatientByName?name=' + encodeURIComponent(val);
+                }
                 await openSearchModal(url);
             });
             searchInput?.addEventListener('keypress', e => {
@@ -1278,6 +1287,21 @@
                 return false;
             }
 
+            if (window._registrationValidityConfigured && !window._registrationValid) {
+                const hasConsultation = lineItems.some(item => item.serviceType === 'Consulting');
+                if (hasConsultation) {
+                    const hasReg = lineItems.some(item => item.isRegistration);
+                    if (!hasReg) {
+                        if (errEl) {
+                            errEl.textContent = 'Registration service is mandatory to take along with consultation as per Hospital Settings.';
+                            errEl.style.display = 'block';
+                        }
+                        document.getElementById('lineItemTable')?.classList.add('border-danger');
+                        return false;
+                    }
+                }
+            }
+
             if (errEl) {
                 errEl.textContent = '';
                 errEl.style.display = 'none';
@@ -1339,6 +1363,11 @@
             const sel = $item[0].options[$item[0].selectedIndex];
             const charges = sel?.dataset?.charges;
             setRowCharges($row, rowId, charges || '');
+
+            const rowItem = lineItems.find(r => r.rowId === rowId);
+            if (rowItem) {
+                rowItem.isRegistration = sel?.dataset?.isRegistration === 'true';
+            }
         }
 
         function initRowS2($el) {
@@ -1366,6 +1395,7 @@
                     row.serviceId      = parseInt(this.value) || null;
                     row.itemName       = sel?.text ?? '';
                     row.serviceCharges = parseFloat(sel?.dataset?.charges) || 0;
+                    row.isRegistration = sel?.dataset?.isRegistration === 'true';
                 }
                 setRowCharges($(this).closest('tr'), rid, sel?.dataset?.charges || '');
                 updateTotal();
@@ -1417,7 +1447,7 @@
                 $typeEl.on('change', function () {
                     const rid  = parseInt(this.closest('tr').id.replace('row-',''));
                     const row2 = lineItems.find(x => x.rowId === rid);
-                    if (row2) { row2.serviceType = this.value; row2.serviceId = null; row2.itemName = ''; row2.serviceCharges = 0; }
+                    if (row2) { row2.serviceType = this.value; row2.serviceId = null; row2.itemName = ''; row2.serviceCharges = 0; row2.isRegistration = false; }
                     loadItemsForRow(rid, this.value, null, '');
                     updateTotal(); saveJson();
                 });
@@ -1437,7 +1467,7 @@
 
         // Add Item button
         document.getElementById('btnAddItem')?.addEventListener('click', () => {
-            lineItems.push({ rowId: ++rowCounter, serviceType: '', serviceId: null, itemName: '', serviceCharges: 0 });
+            lineItems.push({ rowId: ++rowCounter, serviceType: '', serviceId: null, itemName: '', serviceCharges: 0, isRegistration: false });
             renderRows();
             saveJson();
         });
@@ -1578,6 +1608,7 @@
 
         // ── Registration Validity check ───────────────────────────────────────
         window._registrationValid = false;
+        window._registrationValidityConfigured = false;
 
         function clearRegValidityBadge() {
             window._registrationValid = false;
@@ -1590,6 +1621,7 @@
             const rv = await fetchJson(opdBase + 'GetRegistrationValidity?patientId=' + patientId);
             if (!rv || !rv.validityConfigured) return;  // no validity set — always allow registration
 
+            window._registrationValidityConfigured = true;
             const el = document.getElementById('regValidityBadge');
             if (rv.isRegistrationValid) {
                 // Patient's registration is still active — suppress registration items
@@ -1602,10 +1634,16 @@
                 el.classList.remove('d-none');
             } else {
                 // Expired or never registered — registration charge will be applied
+                window._registrationValid = false;
                 el.className = 'badge text-bg-success ms-2';
                 el.innerHTML = '<i class="bi bi-receipt me-1"></i>Registration Charge Applied';
                 el.classList.remove('d-none');
             }
+        }
+        
+        // Ensure new patients enforce registration validity rules immediately
+        if (!document.getElementById('PatientId')?.value || document.getElementById('PatientId').value === '0') {
+            checkRegistrationValidity(0);
         }
 
         // ── Open search-result modal ──────────────────────────────────────────
@@ -1646,8 +1684,9 @@
             const badge = document.getElementById('loadedPatientBadge');
             badge.textContent = '';
             badge.classList.add('d-none');
-            // Clear registration validity badge
+            // Clear registration validity badge and recheck for patientId 0 (new patient)
             clearRegValidityBadge();
+            checkRegistrationValidity(0);
             // Clear line items
             lineItems = [];
             renderRows();

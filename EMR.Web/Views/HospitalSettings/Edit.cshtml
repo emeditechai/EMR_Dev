@@ -201,6 +201,17 @@
                 <span asp-validation-for="OpdRegistrationValidityDays" class="text-danger small d-block mt-1"></span>
                 <div class="form-text">How long a patient's registration charge remains valid.</div>
             </div>
+
+            <div class="col-6 col-md-3">
+                <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                    <i class="bi bi-search me-1 text-primary"></i>Global Patient Search Required
+                </label>
+                <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" role="switch" asp-for="GlobalPatientSearchRequired">
+                    <label class="form-check-label ms-2" asp-for="GlobalPatientSearchRequired">Require global search for patient workflows</label>
+                </div>
+                <span asp-validation-for="GlobalPatientSearchRequired" class="text-danger small d-block mt-1"></span>
+            </div>
             @foreach (var p in new[] { "Bill Prefix","Token Prefix","Auto Token Reset","Default Consulting Fee","Allow Walk-In","Max Patients / Day","Print Bill on Save","GST on Services" })
             {
                 <div class="col-6 col-md-3">

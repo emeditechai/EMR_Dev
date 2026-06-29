@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using EMR.Web.Models.Entities;
 
 namespace EMR.Web.Models.ViewModels;
 
@@ -318,3 +319,39 @@ public class ServiceBookingDetailViewModel
     public string Status { get; set; } = string.Empty;
     public List<ServiceBookingDetailItem> Items { get; set; } = [];
 }
+
+// ─── Patient Visit History Item ──────────────────────────────────────────────
+public class PatientVisitHistoryItem
+{
+    public int OPDServiceId { get; set; }
+    public DateTime VisitDate { get; set; }
+    public string? OPDBillNo { get; set; }
+    public string? TokenNo { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string PaymentStatus { get; set; } = string.Empty;
+    public string? ConsultingDoctorName { get; set; }
+    public string ServiceTypesSummary { get; set; } = string.Empty;
+}
+
+// ─── Comprehensive Patient Details View Model ──────────────────────────────────
+public class PatientDetailsViewModel
+{
+    public PatientMaster Patient { get; set; } = null!;
+    
+    // Resolved demographic labels
+    public string? ReligionName { get; set; }
+    public string? MaritalStatusName { get; set; }
+    public string? OccupationName { get; set; }
+    public string? AreaName { get; set; }
+    public string? CityName { get; set; }
+    public string? DistrictName { get; set; }
+    public string? StateName { get; set; }
+    public string? CountryName { get; set; }
+    public string? IdentificationTypeName { get; set; }
+
+    // History logs
+    public List<PatientVisitHistoryItem> VisitHistory { get; set; } = [];
+    public List<EMR.Web.ApiClients.Models.VitalRow> VitalHistory { get; set; } = [];
+}
+

@@ -61,6 +61,11 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
                 ModelState.AddModelError(nameof(model.IsRegistration), "A registration service already exists for this branch. Only one is allowed.");
         }
 
+        if (model.IsGstRequired && (model.GstPercentage == null || model.GstPercentage <= 0))
+        {
+            ModelState.AddModelError(nameof(model.GstPercentage), "GST Percentage is required and must be greater than 0 when GST is enabled.");
+        }
+
         if (!ModelState.IsValid)
         {
             ViewBag.ServiceTypes = ServiceTypes;
@@ -75,6 +80,8 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             ItemCharges    = model.ItemCharges,
             IsRegistration = model.ServiceType == "Service" && model.IsRegistration,
             ConsultingType = model.ServiceType == "Consulting" ? model.ConsultingType : null,
+            IsGstRequired  = model.IsGstRequired,
+            GstPercentage  = model.IsGstRequired ? model.GstPercentage : null,
             BranchId       = branchId.Value,
             IsActive       = model.IsActive
         }, User.GetUserId());
@@ -103,6 +110,8 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             ItemCharges    = entity.ItemCharges,
             IsRegistration = entity.IsRegistration,
             ConsultingType = entity.ConsultingType,
+            IsGstRequired  = entity.IsGstRequired,
+            GstPercentage  = entity.GstPercentage,
             IsActive       = entity.IsActive
         });
     }
@@ -139,6 +148,11 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
                 ModelState.AddModelError(nameof(model.IsRegistration), "A registration service already exists for this branch. Only one is allowed.");
         }
 
+        if (model.IsGstRequired && (model.GstPercentage == null || model.GstPercentage <= 0))
+        {
+            ModelState.AddModelError(nameof(model.GstPercentage), "GST Percentage is required and must be greater than 0 when GST is enabled.");
+        }
+
         if (!ModelState.IsValid)
         {
             ViewBag.ServiceTypes = ServiceTypes;
@@ -154,6 +168,8 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
             ItemCharges    = model.ItemCharges,
             IsRegistration = model.ServiceType == "Service" && model.IsRegistration,
             ConsultingType = model.ServiceType == "Consulting" ? model.ConsultingType : null,
+            IsGstRequired  = model.IsGstRequired,
+            GstPercentage  = model.IsGstRequired ? model.GstPercentage : null,
             BranchId       = branchId.Value,
             IsActive       = model.IsActive
         }, User.GetUserId());

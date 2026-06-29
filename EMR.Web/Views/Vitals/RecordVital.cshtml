@@ -259,6 +259,7 @@
             @Html.AntiForgeryToken()
             <input asp-for="PatientVitalId" type="hidden" />
             <input asp-for="PatientId"      type="hidden" id="hdnPatientId" />
+            <input asp-for="ReturnUrl"      type="hidden" />
 
             <div id="formGuard" class="@(hasPatient || isEdit ? "unlocked" : "")">
 
@@ -788,6 +789,8 @@
                     if (isAnother) {
                         resetVitalInputs();
                         loadHistoryPage(1);
+                    } else if (data.returnUrl) {
+                        window.location.href = data.returnUrl;
                     } else {
                         window.location.href = `/Vitals/History?patientId=${data.patientId}`;
                     }

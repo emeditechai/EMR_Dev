@@ -32,6 +32,13 @@ public class ServiceFormViewModel
     [Display(Name = "Consulting Type")]
     public string? ConsultingType { get; set; }
 
+    [Display(Name = "Is GST Required")]
+    public bool IsGstRequired { get; set; }
+
+    [Display(Name = "GST Percentage (%)")]
+    [Range(0, 100, ErrorMessage = "GST must be between 0 and 100.")]
+    public decimal? GstPercentage { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 }

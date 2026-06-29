@@ -56,6 +56,9 @@ public class HospitalSettingsViewModel
     [Range(0, 3650, ErrorMessage = "Value must be between 0 and 3650 days.")]
     public int? OpdRegistrationValidityDays { get; set; }
 
+    [Display(Name = "Global Patient Search Required")]
+    public bool GlobalPatientSearchRequired { get; set; } = false;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

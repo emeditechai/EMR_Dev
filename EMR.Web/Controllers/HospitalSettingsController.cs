@@ -118,6 +118,7 @@ public class HospitalSettingsController(
             existing.CheckInTime = TimeSpan.TryParse(model.CheckInTime, out var cin) ? cin : null;
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
             existing.OpdRegistrationValidityDays = model.OpdRegistrationValidityDays;
+            existing.GlobalPatientSearchRequired = model.GlobalPatientSearchRequired;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -152,6 +153,7 @@ public class HospitalSettingsController(
             CheckOutTime = s.CheckOutTime.HasValue
                 ? s.CheckOutTime.Value.ToString(@"hh\:mm") : null,
             OpdRegistrationValidityDays = s.OpdRegistrationValidityDays,
+            GlobalPatientSearchRequired = s.GlobalPatientSearchRequired,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -172,6 +174,7 @@ public class HospitalSettingsController(
             CheckInTime = TimeSpan.TryParse(m.CheckInTime, out var cin) ? cin : null,
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
             OpdRegistrationValidityDays = m.OpdRegistrationValidityDays,
+            GlobalPatientSearchRequired = m.GlobalPatientSearchRequired,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

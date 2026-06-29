@@ -12,101 +12,104 @@
             margin-top: 0.25rem;
         }
         .dashboard-hero-card {
-            background: var(--emr-gradient);
-            border-radius: 22px;
-            padding: 1.6rem 1.8rem;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            box-shadow: 0 14px 34px rgba(100, 64, 152, 0.28);
+            background: linear-gradient(135deg, #644098 0%, #8960c7 100%);
+            border-radius: 16px;
+            padding: 2rem 2.5rem;
+            border: none;
+            box-shadow: 0 10px 30px rgba(100, 64, 152, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .dashboard-hero-card::after {
+            content: '';
+            position: absolute;
+            right: -10%;
+            top: -30%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
         }
         .dashboard-hero-content {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            gap: 1.25rem;
+            align-items: flex-end;
+            gap: 1.5rem;
             flex-wrap: wrap;
-        }
-        .dashboard-hero-subtitle {
-            color: rgba(255, 255, 255, 0.92);
-            font-size: 1.25rem;
-        }
-        .dashboard-hero-label {
-            color: rgba(255, 255, 255, 0.88);
-            font-size: 1.05rem;
-            font-weight: 600;
-        }
-        .dashboard-hero-pill {
-            color: #644098;
-            background: rgba(255, 255, 255, 0.94);
-            border-radius: 999px;
-            padding: 0.25rem 0.85rem;
-            font-weight: 700;
-            font-size: 1.05rem;
+            position: relative;
+            z-index: 1;
         }
         .dashboard-title {
-            font-size: 2.6rem;
-            font-weight: 800;
-            color: #644098;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+        .dashboard-hero-subtitle {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 1.05rem;
+            font-weight: 400;
+        }
+        .dashboard-hero-pill {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 0.35rem 0.85rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+            backdrop-filter: blur(4px);
         }
         .stat-card {
-            border: none;
+            background: #fff;
+            border: 1px solid #e9ecef;
             border-radius: 14px;
-            padding: 1.2rem 1.4rem;
+            padding: 1.5rem;
             display: flex;
             align-items: center;
-            gap: 1.2rem;
-            box-shadow: 0 4px 18px rgba(100, 64, 152, 0.10);
-            transition: box-shadow 0.2s, transform 0.2s;
+            gap: 1.25rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            transition: all 0.2s ease-in-out;
             position: relative;
-            overflow: hidden;
-        }
-        .stat-card::after {
-            content: '';
-            position: absolute;
-            right: -18px;
-            top: -18px;
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.12);
-            pointer-events: none;
         }
         .stat-card:hover {
-            box-shadow: 0 8px 28px rgba(100, 64, 152, 0.18);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.06);
             transform: translateY(-3px);
+            border-color: #dee2e6;
         }
         .stat-card .stat-icon {
-            width: 52px;
-            height: 52px;
+            width: 56px;
+            height: 56px;
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.22);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.7rem;
             flex-shrink: 0;
-            color: #fff;
         }
         .stat-card .stat-value {
-            font-size: 1.85rem;
-            font-weight: 800;
-            line-height: 1;
-            color: #fff;
-            letter-spacing: -0.02em;
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #2b3445;
+            letter-spacing: -0.01em;
         }
         .stat-card .stat-label {
-            font-size: 0.75rem;
-            font-weight: 700;
+            font-size: 0.8rem;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: rgba(255, 255, 255, 0.85);
+            letter-spacing: 0.04em;
+            color: #6c757d;
             margin-top: 4px;
         }
-        .stat-blue   { background: linear-gradient(135deg, #3a5fd9 0%, #5c82f5 100%); }
-        .stat-green  { background: linear-gradient(135deg, #059c6e 0%, #1fcf96 100%); }
-        .stat-purple { background: linear-gradient(135deg, #6a3fbc 0%, #9164e0 100%); }
-        .stat-yellow { background: linear-gradient(135deg, #c97d00 0%, #f0a500 100%); }
-        .stat-teal   { background: linear-gradient(135deg, #0a7f8a 0%, #12b3c2 100%); }
-        .stat-red    { background: linear-gradient(135deg, #d63447 0%, #f05663 100%); }
+        
+        .stat-blue .stat-icon   { background: #eff3ff; color: #3a5fd9; }
+        .stat-green .stat-icon  { background: #e6f8f2; color: #059c6e; }
+        .stat-purple .stat-icon { background: #f3edff; color: #6a3fbc; }
+        .stat-yellow .stat-icon { background: #fff5e6; color: #d97706; }
+        .stat-teal .stat-icon   { background: #e7f7f8; color: #0a7f8a; }
+        .stat-red .stat-icon    { background: #fce8e8; color: #d63447; }
 
         .dashboard-panel {
             background: #fff;
@@ -169,29 +172,28 @@
     <div class="dashboard-hero-card mb-4">
         <div class="dashboard-hero-content">
             <div>
-                <h1 class="dashboard-title text-white mb-1">@Model.CurrentHospitalName OPD</h1>
+                <div class="d-flex align-items-center mb-2">
+                    <h1 class="dashboard-title mb-0">@Model.CurrentHospitalName OPD</h1>
+                    <a href="/OPD/Index" target="_blank" class="btn btn-sm btn-light rounded-circle ms-3 shadow-sm d-flex align-items-center justify-content-center text-primary" style="width: 36px; height: 36px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)';" onmouseout="this.style.transform='scale(1)';" title="Go to Patient List" data-bs-toggle="tooltip">
+                        <i class="bi bi-people-fill fs-5"></i>
+                    </a>
+                </div>
                 <p class="dashboard-hero-subtitle mb-3">OPD Department Performance & Summary Statistics</p>
-                <div class="d-flex flex-wrap align-items-center gap-3">
-                    <span class="d-flex align-items-center gap-1 text-white">
-                        <i class="bi bi-geo-alt-fill"></i> Branch:
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="dashboard-hero-pill d-flex align-items-center gap-1">
+                        <i class="bi bi-geo-alt-fill opacity-75"></i> @Model.CurrentBranchName
                     </span>
-                    <span class="dashboard-hero-pill">@Model.CurrentBranchName</span>
-                    <span class="d-flex align-items-center gap-1 text-white ms-lg-2">
-                        <i class="bi bi-calendar-event-fill"></i> Date:
-                    </span>
-                    <span class="dashboard-hero-pill">@displayDate</span>
                 </div>
             </div>
             
             @* Date Picker Widget *@
-            <div class="bg-white p-3 rounded-4 shadow-sm border border-light" style="min-width:260px">
-                <form method="get" asp-action="Dashboard" id="dateFilterForm">
-                    <label class="form-label small fw-bold text-secondary mb-1">
-                        <i class="bi bi-funnel-fill me-1"></i>Filter Dashboard Date
+            <div class="date-filter-widget">
+                <form method="get" asp-action="Dashboard" id="dateFilterForm" class="d-flex align-items-center gap-2 bg-white bg-opacity-25 rounded-3 p-1 ps-3 border border-white border-opacity-25 shadow-sm backdrop-blur">
+                    <label class="form-label small fw-semibold text-white mb-0 text-nowrap">
+                        <i class="bi bi-calendar-event me-1 opacity-75"></i>Filter Date:
                     </label>
-                    <div class="input-group input-group-sm">
-                        <input type="date" name="date" value="@selectedDateStr" class="form-control" onchange="document.getElementById('dateFilterForm').submit()" />
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i></button>
+                    <div class="input-group input-group-sm rounded bg-white shadow-sm overflow-hidden" style="width: auto;">
+                        <input type="date" name="date" value="@selectedDateStr" class="form-control border-0 shadow-none fw-semibold text-dark px-2" style="font-size: 0.9rem;" onchange="document.getElementById('dateFilterForm').submit()" />
                     </div>
                 </form>
             </div>
@@ -254,7 +256,15 @@
                     </a>
                 </div>
                 
-                @if (!Model.Data.RecentBookings.Any())
+                @{
+                    var combinedBookings = Model.Data.RecentBookings.Concat(Model.Data.Appointments)
+                                            .GroupBy(x => x.OPDServiceId)
+                                            .Select(g => g.First())
+                                            .OrderBy(x => x.AppointmentTime ?? TimeSpan.MaxValue)
+                                            .ToList();
+                }
+                
+                @if (!combinedBookings.Any())
                 {
                     <div class="text-center py-5 text-muted">
                         <i class="bi bi-journal-x fs-1 opacity-50 d-block mb-2"></i>
@@ -267,6 +277,7 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
+                                    <th>Time</th>
                                     <th>Token</th>
                                     <th>Patient</th>
                                     <th>Doctor</th>
@@ -276,25 +287,39 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var b in Model.Data.RecentBookings)
+                                @foreach (var b in combinedBookings)
                                 {
                                     var badgeCls = b.Status switch { "Completed" => "badge-status-C", "Cancelled" => "badge-status-X", _ => "badge-status-R" };
-                                    <tr>
+                                    var appTimeStr = b.AppointmentTime.HasValue ? DateTime.Today.Add(b.AppointmentTime.Value).ToString("hh:mm tt") : "—";
+                                    
+                                    var isFuture = false;
+                                    if (parsedDate.Date == DateTime.Today && b.AppointmentTime.HasValue)
+                                    {
+                                        isFuture = b.AppointmentTime.Value > DateTime.Now.TimeOfDay;
+                                    }
+
+                                    var amountColorCls = "text-success";
+                                    if (b.TotalAmount > 0)
+                                    {
+                                        if (b.TotalPaid == 0) amountColorCls = "text-danger";
+                                        else if (b.TotalPaid < b.TotalAmount) amountColorCls = "text-warning";
+                                    }
+
+                                    <tr class="@(isFuture ? "table-info-subtle" : "")">
+                                        <td class="fw-bold text-nowrap">
+                                            <i class="bi bi-clock me-1 text-primary"></i>@appTimeStr
+                                            @if (isFuture)
+                                            {
+                                                <span class="badge text-bg-info ms-1 text-white" style="font-size:0.65rem">Future</span>
+                                            }
+                                        </td>
                                         <td><span class="badge text-bg-light font-monospace border">@(b.TokenNo ?? "—")</span></td>
                                         <td>
                                             <span class="fw-semibold text-primary d-block">@b.PatientName</span>
                                             <small class="text-muted font-monospace" style="font-size:.78rem">@b.PatientCode</small>
                                         </td>
-                                        <td>
-                                            <span class="fw-semibold">@b.ConsultingDoctorName</span>
-                                            @if (b.AppointmentTime.HasValue)
-                                            {
-                                                <small class="text-muted d-block" style="font-size:.72rem">
-                                                    <i class="bi bi-clock me-1"></i>@DateTime.Today.Add(b.AppointmentTime.Value).ToString("hh:mm tt")
-                                                </small>
-                                            }
-                                        </td>
-                                        <td class="text-end fw-bold text-success">₹@b.TotalAmount.ToString("N2")</td>
+                                        <td><span class="fw-semibold">@b.ConsultingDoctorName</span></td>
+                                        <td class="text-end fw-bold @amountColorCls">₹@b.TotalAmount.ToString("N2")</td>
                                         <td><span class="badge rounded-pill @badgeCls">@b.Status</span></td>
                                         <td class="text-center">
                                             <div class="dropdown">
@@ -309,91 +334,6 @@
                                                     </li>
                                                     <li>
                                                         <a class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank">
-                                                            <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
-                                                        </a>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
-
-            @* Today's Appointments (Future Bookings) *@
-            <div class="dashboard-panel mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h3 class="h5 m-0 fw-bold"><i class="bi bi-clock-history me-2 text-primary"></i>Today's Appointments</h3>
-                        <small class="text-muted">Scheduled consultations and future bookings based on selected date</small>
-                    </div>
-                </div>
-                
-                @if (!Model.Data.Appointments.Any())
-                {
-                    <div class="text-center py-4 text-muted">
-                        <i class="bi bi-calendar2-x fs-2 opacity-50 d-block mb-2"></i>
-                        <span>No scheduled appointments found for this day.</span>
-                    </div>
-                }
-                else
-                {
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Patient</th>
-                                    <th>Doctor</th>
-                                    <th>Token</th>
-                                    <th>Status</th>
-                                    <th class="text-center">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var app in Model.Data.Appointments)
-                                {
-                                    var badgeCls = app.Status switch { "Completed" => "badge-status-C", "Cancelled" => "badge-status-X", _ => "badge-status-R" };
-                                    var appTimeStr = app.AppointmentTime.HasValue ? DateTime.Today.Add(app.AppointmentTime.Value).ToString("hh:mm tt") : "—";
-                                    
-                                    // Highlight future appointments compared to current time if on the same day
-                                    var isFuture = false;
-                                    if (parsedDate.Date == DateTime.Today && app.AppointmentTime.HasValue)
-                                    {
-                                        isFuture = app.AppointmentTime.Value > DateTime.Now.TimeOfDay;
-                                    }
-                                    
-                                    <tr class="@(isFuture ? "table-info-subtle" : "")">
-                                        <td class="fw-bold text-nowrap">
-                                            <i class="bi bi-clock me-1 text-primary"></i>@appTimeStr
-                                            @if (isFuture)
-                                            {
-                                                <span class="badge text-bg-info ms-1 text-white" style="font-size:0.65rem">Future</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <span class="fw-semibold text-primary d-block">@app.PatientName</span>
-                                            <small class="text-muted font-monospace" style="font-size:.78rem">@app.PatientCode</small>
-                                        </td>
-                                        <td class="fw-semibold">@app.ConsultingDoctorName</td>
-                                        <td><span class="badge text-bg-light font-monospace border">@(app.TokenNo ?? "—")</span></td>
-                                        <td><span class="badge rounded-pill @badgeCls">@app.Status</span></td>
-                                        <td class="text-center">
-                                            <div class="dropdown">
-                                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false">
-                                                    <i class="bi bi-three-dots-vertical"></i>
-                                                </button>
-                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                                    <li>
-                                                        <button type="button" class="dropdown-item" onclick="viewBooking(@app.OPDServiceId)">
-                                                            <i class="bi bi-eye-fill me-2 text-primary"></i>View Detail
-                                                        </button>
-                                                    </li>
-                                                    <li>
-                                                        <a class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = app.OPDServiceId })" target="_blank">
                                                             <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
                                                         </a>
                                                     </li>

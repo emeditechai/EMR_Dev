@@ -779,6 +779,19 @@
                     
                     allQueuePatients = result.data || [];
                     renderQueueTable();
+
+                    // Auto-select patient from URL if present
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const autoPatientId = urlParams.get('patientId');
+                    if (autoPatientId && !window._autoSelected) {
+                        window._autoSelected = true;
+                        const patient = allQueuePatients.find(p => p.patientId == autoPatientId);
+                        if (patient) {
+                            const pyStatus = (patient.paymentStatus || 'U').toUpperCase();
+                            const hasDue = pyStatus === 'U' || pyStatus === 'R';
+                            startConsulting(patient.opdServiceId, patient.patientId, patient.patientName, patient.patientCode, patient.gender, patient.age, patient.tokenNo, hasDue);
+                        }
+                    }
                 } else {
                     console.error("Error loading queue details.");
                 }
@@ -1055,7 +1068,7 @@
                         <a href="/Vitals/History?patientId=${patientId}" target="_blank" class="btn btn-sm btn-outline-info flex-fill fw-semibold py-1" style="font-size: 0.76rem;">
                             <i class="bi bi-clock-history me-1"></i> History
                         </a>
-                        <a href="/Vitals/RecordVital?patientId=${patientId}&opdServiceId=${opdServiceId}" target="_blank" class="btn btn-sm btn-outline-primary flex-fill fw-semibold py-1" style="font-size: 0.76rem;">
+                        <a href="/Vitals/RecordVital?patientId=${patientId}&opdServiceId=${opdServiceId}&returnUrl=%2FOPD%2FDoctorDashboard%3FpatientId%3D${patientId}" class="btn btn-sm btn-outline-primary flex-fill fw-semibold py-1" style="font-size: 0.76rem;">
                             <i class="bi bi-plus-circle me-1"></i> Add Vitals
                         </a>
                     </div>

@@ -6,6 +6,7 @@ namespace EMR.Web.Models.ViewModels;
 public class VitalEntryViewModel
 {
     public int PatientVitalId { get; set; }   // 0 = new
+    public string? ReturnUrl { get; set; }
 
     // Patient context (readonly display)
     public int PatientId { get; set; }

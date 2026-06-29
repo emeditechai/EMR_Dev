@@ -5,12 +5,16 @@ using EMR.Web.Models.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using EMR.Web.Data;
+using Microsoft.EntityFrameworkCore;
+
 namespace EMR.Web.Controllers;
 
 [Authorize]
 public class VitalsController(
     IVitalApiClient   vitalApiClient,
-    IPatientApiClient patientApiClient) : Controller
+    IPatientApiClient patientApiClient,
+    ApplicationDbContext dbContext) : Controller
 {
     // ─── Index: patient search landing page ───────────────────────────────────
 
@@ -23,10 +27,10 @@ public class VitalsController(
     // ─── RecordVital GET — search + entry form ────────────────────────────────
 
     [HttpGet]
-    public async Task<IActionResult> RecordVital(int? patientId, int? editId)
+    public async Task<IActionResult> RecordVital(int? patientId, int? editId, string? returnUrl)
     {
         ViewData["Title"] = editId.HasValue ? "Edit Vital Record" : "Record New Vitals";
-        var model = new VitalEntryViewModel();
+        var model = new VitalEntryViewModel { ReturnUrl = returnUrl };
 
         try
         {
@@ -147,7 +151,8 @@ public class VitalsController(
             {
                 success = true,
                 message = model.PatientVitalId > 0 ? "Vital record updated successfully." : "Vital recorded successfully.",
-                patientId = model.PatientId
+                patientId = model.PatientId,
+                returnUrl = model.ReturnUrl
             });
         }
 
@@ -340,7 +345,10 @@ public class VitalsController(
         try
         {
             var branchId = User.GetCurrentBranchId();
-            var result   = await patientApiClient.GetByBranchAsync(branchId, 1, 10, phone.Trim());
+            var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+            int? searchBranchId = settings?.GlobalPatientSearchRequired == true ? null : branchId;
+
+            var result   = await patientApiClient.GetByBranchAsync(searchBranchId, 1, 10, phone.Trim());
             return Json(result.Items);
         }
         catch (HttpRequestException) { return StatusCode(503, new { apiDown = true }); }
@@ -354,7 +362,10 @@ public class VitalsController(
         try
         {
             var branchId = User.GetCurrentBranchId();
-            var result   = await patientApiClient.GetByBranchAsync(branchId, 1, 10, code.Trim());
+            var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+            int? searchBranchId = settings?.GlobalPatientSearchRequired == true ? null : branchId;
+
+            var result   = await patientApiClient.GetByBranchAsync(searchBranchId, 1, 10, code.Trim());
             return Json(result.Items);
         }
         catch (HttpRequestException) { return StatusCode(503, new { apiDown = true }); }
@@ -368,7 +379,10 @@ public class VitalsController(
         try
         {
             var branchId = User.GetCurrentBranchId();
-            var result   = await patientApiClient.GetByBranchAsync(branchId, 1, 10, name.Trim());
+            var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+            int? searchBranchId = settings?.GlobalPatientSearchRequired == true ? null : branchId;
+
+            var result   = await patientApiClient.GetByBranchAsync(searchBranchId, 1, 10, name.Trim());
             return Json(result.Items);
         }
         catch (HttpRequestException) { return StatusCode(503, new { apiDown = true }); }

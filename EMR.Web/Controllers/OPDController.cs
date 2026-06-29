@@ -764,7 +764,12 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(phone) || phone.Length < 3)
             return Json(Array.Empty<object>());
-        var results = await patientService.SearchByPhoneAsync(phone.Trim(), null);
+        
+        var branchId = User.GetCurrentBranchId();
+        var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+        int? searchBranchId = settings?.GlobalPatientSearchRequired == true ? null : branchId;
+
+        var results = await patientService.SearchByPhoneAsync(phone.Trim(), searchBranchId);
         return Json(results);
     }
 
@@ -773,7 +778,12 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(code) || code.Length < 2)
             return Json(Array.Empty<object>());
-        var results = await patientService.SearchByCodeAsync(code.Trim(), null);
+        
+        var branchId = User.GetCurrentBranchId();
+        var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+        int? searchBranchId = settings?.GlobalPatientSearchRequired == true ? null : branchId;
+
+        var results = await patientService.SearchByCodeAsync(code.Trim(), searchBranchId);
         return Json(results);
     }
 
@@ -782,8 +792,12 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length < 2)
             return Json(Array.Empty<object>());
+        
         var branchId = User.GetCurrentBranchId();
-        var results = await patientService.SearchByNameAsync(name.Trim(), branchId);
+        var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+        int? searchBranchId = settings?.GlobalPatientSearchRequired == true ? null : branchId;
+
+        var results = await patientService.SearchByNameAsync(name.Trim(), searchBranchId);
         return Json(results);
     }
 
@@ -822,6 +836,160 @@ public class OPDController(
             return Json(suggestions);
         }
         catch (HttpRequestException)
+        {
+            return Json(Array.Empty<object>());
+        }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Details(int id)
+    {
+        var patient = await patientService.GetByIdAsync(id);
+        if (patient is null) return NotFound();
+
+        var names = await patientService.GetDemographicNamesAsync(id);
+        string? idTypeName = patient.IdentificationTypeId.HasValue
+            ? await patientService.GetIdentificationTypeNameAsync(patient.IdentificationTypeId.Value)
+            : null;
+
+        List<EMR.Web.ApiClients.Models.VitalRow> vitals = [];
+        try
+        {
+            var vitalsResult = await vitalApiClient.GetHistoryAsync(id, 1, 50);
+            vitals = vitalsResult?.Rows ?? [];
+        }
+        catch (Exception)
+        {
+            // Silently fallback if Api is down
+        }
+
+        List<PatientVisitHistoryItem> visits = [];
+        try
+        {
+            using var con = db.CreateConnection();
+            visits = (await con.QueryAsync<PatientVisitHistoryItem>(@"
+                SELECT 
+                    s.OPDServiceId, 
+                    s.VisitDate, 
+                    s.OPDBillNo, 
+                    s.TokenNo, 
+                    s.TotalAmount, 
+                    s.Status, 
+                    ISNULL((SELECT TOP 1 ph.PaymentStatus FROM PaymentHeader ph 
+                            WHERE ph.ModuleCode = 'OPD' AND ph.ModuleRefId = s.OPDServiceId AND ph.IsActive = 1), 'U') AS PaymentStatus,
+                    ISNULL(d.NamePrefix + ' ', '') + d.FullName AS ConsultingDoctorName,
+                    ISNULL(
+                        STUFF((
+                            SELECT DISTINCT ', ' + ISNULL(si.ServiceType, '')
+                            FROM PatientOPDServiceItem si
+                            WHERE si.OPDServiceId = s.OPDServiceId AND si.IsActive = 1
+                            FOR XML PATH(''), TYPE
+                        ).value('.','NVARCHAR(MAX)'), 1, 2, ''), ''
+                    ) AS ServiceTypesSummary
+                FROM PatientOPDService s
+                LEFT JOIN DoctorMaster d ON d.DoctorId = s.ConsultingDoctorId
+                WHERE s.PatientId = @PatientId AND s.IsActive = 1
+                ORDER BY s.OPDServiceId DESC",
+                new { PatientId = id })).ToList();
+        }
+        catch (Exception)
+        {
+            // Silently fallback
+        }
+
+        var model = new PatientDetailsViewModel
+        {
+            Patient = patient,
+            ReligionName = names.ReligionName,
+            MaritalStatusName = names.MaritalStatusName,
+            OccupationName = names.OccupationName,
+            AreaName = names.AreaName,
+            CityName = names.CityName,
+            DistrictName = names.DistrictName,
+            StateName = names.StateName,
+            CountryName = names.CountryName,
+            IdentificationTypeName = idTypeName,
+            VisitHistory = visits,
+            VitalHistory = vitals
+        };
+
+        return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPatientVitalsChartData(int id)
+    {
+        try
+        {
+            var vitalsResult = await vitalApiClient.GetHistoryAsync(id, 1, 100);
+            var rows = vitalsResult?.Rows ?? new List<EMR.Web.ApiClients.Models.VitalRow>();
+            var chartData = rows
+                .OrderBy(v => v.RecordedOn)
+                .Select(v => new
+                {
+                    RecordedOn = v.RecordedOn.ToString("dd MMM yyyy, HH:mm"),
+                    v.Height,
+                    v.Weight,
+                    v.BPSystolic,
+                    v.BPDiastolic,
+                    v.PulseRate,
+                    v.SpO2,
+                    v.Temperature,
+                    v.BloodGlucose
+                }).ToList();
+
+            return Json(chartData);
+        }
+        catch (Exception)
+        {
+            return Json(Array.Empty<object>());
+        }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPatientVisitsChartData(int id)
+    {
+        try
+        {
+            using var con = db.CreateConnection();
+            var visitsByDate = await con.QueryAsync(@"
+                SELECT 
+                    CAST(s.VisitDate AS DATE) AS VisitDate, 
+                    SUM(ISNULL(s.TotalAmount, 0)) AS TotalAmount
+                FROM PatientOPDService s
+                WHERE s.PatientId = @PatientId AND s.IsActive = 1
+                GROUP BY CAST(s.VisitDate AS DATE)
+                ORDER BY CAST(s.VisitDate AS DATE) ASC",
+                new { PatientId = id });
+
+            var consultingByDoctor = await con.QueryAsync(@"
+                SELECT 
+                    ISNULL(d.NamePrefix + ' ', '') + d.FullName AS DoctorName,
+                    COUNT(s.OPDServiceId) AS ConsultingCount
+                FROM PatientOPDService s
+                INNER JOIN DoctorMaster d ON d.DoctorId = s.ConsultingDoctorId
+                WHERE s.PatientId = @PatientId AND s.IsActive = 1
+                GROUP BY d.NamePrefix, d.FullName
+                ORDER BY ConsultingCount DESC",
+                new { PatientId = id });
+
+            var chartData = new
+            {
+                billData = visitsByDate.Select(v => new
+                {
+                    visitDate = ((DateTime)v.VisitDate).ToString("dd MMM yyyy"),
+                    totalAmount = (decimal)v.TotalAmount
+                }).ToList(),
+                consultingData = consultingByDoctor.Select(c => new
+                {
+                    doctorName = (string)c.DoctorName,
+                    consultingCount = (int)c.ConsultingCount
+                }).ToList()
+            };
+
+            return Json(chartData);
+        }
+        catch (Exception)
         {
             return Json(Array.Empty<object>());
         }
@@ -882,8 +1050,6 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> GetRegistrationValidity(int patientId)
     {
-        if (patientId <= 0)
-            return Json(new { validityConfigured = false });
 
         var branchId = User.GetCurrentBranchId();
         var settings = await dbContext.HospitalSettings

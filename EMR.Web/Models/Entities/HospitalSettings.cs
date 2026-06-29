@@ -39,6 +39,8 @@ public class HospitalSettings
     // ── OPD Module Settings ──────────────────────────────────────────────────
     public int? OpdRegistrationValidityDays { get; set; }
 
+    public bool GlobalPatientSearchRequired { get; set; } = false;
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedDate { get; set; } = DateTime.Now;

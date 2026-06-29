@@ -90,6 +90,26 @@
             </div>
         </div>
 
+        <!-- GST Required | GST Percentage -->
+        <div class="row g-3 mb-3">
+            <div class="col-sm-6 d-flex align-items-center pt-4">
+                <div class="form-check form-switch ms-1">
+                    <input asp-for="IsGstRequired" class="form-check-input" type="checkbox" id="IsGstRequired"
+                           role="switch" style="width:2.5em;height:1.3em;" />
+                    <label asp-for="IsGstRequired" class="form-check-label fw-semibold ms-2">Is GST Required</label>
+                </div>
+            </div>
+            <div class="col-sm-6" id="gstPercentageCol" style="display:none;">
+                <label asp-for="GstPercentage" class="form-label fw-semibold">GST Percentage (%)</label>
+                <div class="input-group">
+                    <input asp-for="GstPercentage" class="form-control" type="number" id="GstPercentage"
+                           min="0" max="100" step="0.01" placeholder="e.g. 18.00" />
+                    <span class="input-group-text">%</span>
+                </div>
+                <span asp-validation-for="GstPercentage" class="text-danger small d-block mt-1"></span>
+            </div>
+        </div>
+
         <!-- IsRegistration — only visible when ServiceType = 'Service' -->
         <div id="isRegistrationRow" class="mb-4" style="display:none;">
             <div class="form-check">
@@ -125,6 +145,10 @@
             const consRow = document.getElementById('consultingTypeRow');
             const consSel = document.getElementById('ConsultingType');
 
+            const gstToggle = document.getElementById('IsGstRequired');
+            const gstCol = document.getElementById('gstPercentageCol');
+            const gstInput = document.getElementById('GstPercentage');
+
             function toggle() {
                 const isService = sel.value === 'Service';
                 regRow.style.display = isService ? '' : 'none';
@@ -135,8 +159,20 @@
                 if (!isConsulting) consSel.value = '';
             }
 
+            function toggleGst() {
+                if (gstToggle.checked) {
+                    gstCol.style.display = '';
+                } else {
+                    gstCol.style.display = 'none';
+                    gstInput.value = '';
+                }
+            }
+
             sel.addEventListener('change', toggle);
+            gstToggle.addEventListener('change', toggleGst);
+
             toggle(); // run on page load
+            toggleGst();
         })();
     </script>
 }

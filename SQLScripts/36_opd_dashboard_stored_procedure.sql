@@ -147,12 +147,14 @@ BEGIN
         s.OPDBillNo,
         d.FullName AS ConsultingDoctorName,
         ISNULL(s.TotalAmount, 0) AS TotalAmount,
+        ISNULL(ph.TotalPaid, 0) AS TotalPaid,
         s.Status,
         s.VisitDate,
         s.AppointmentTime
     FROM dbo.PatientOPDService s
     INNER JOIN dbo.PatientMaster p ON p.PatientId = s.PatientId
     LEFT JOIN dbo.DoctorMaster d ON d.DoctorId = s.ConsultingDoctorId
+    LEFT JOIN dbo.PaymentHeader ph ON ph.OPDServiceId = s.OPDServiceId AND ph.ModuleCode = 'OPD' AND ph.IsActive = 1
     WHERE s.BranchId = @BranchId
       AND CAST(s.VisitDate AS DATE) = @Date
     ORDER BY s.OPDServiceId DESC;
@@ -171,12 +173,14 @@ BEGIN
         s.OPDBillNo,
         d.FullName AS ConsultingDoctorName,
         ISNULL(s.TotalAmount, 0) AS TotalAmount,
+        ISNULL(ph.TotalPaid, 0) AS TotalPaid,
         s.Status,
         s.VisitDate,
         s.AppointmentTime
     FROM dbo.PatientOPDService s
     INNER JOIN dbo.PatientMaster p ON p.PatientId = s.PatientId
     LEFT JOIN dbo.DoctorMaster d ON d.DoctorId = s.ConsultingDoctorId
+    LEFT JOIN dbo.PaymentHeader ph ON ph.OPDServiceId = s.OPDServiceId AND ph.ModuleCode = 'OPD' AND ph.IsActive = 1
     WHERE s.BranchId = @BranchId
       AND CAST(s.VisitDate AS DATE) = @Date
       AND s.AppointmentTime IS NOT NULL

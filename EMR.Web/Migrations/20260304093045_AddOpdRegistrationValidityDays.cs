@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,30 +11,6 @@ namespace EMR.Web.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "ByPassActualDayRate",
-                table: "HospitalSettings");
-
-            migrationBuilder.DropColumn(
-                name: "CancellationRefundApprovalThreshold",
-                table: "HospitalSettings");
-
-            migrationBuilder.DropColumn(
-                name: "DiscountApprovalRequired",
-                table: "HospitalSettings");
-
-            migrationBuilder.DropColumn(
-                name: "MinimumBookingAmount",
-                table: "HospitalSettings");
-
-            migrationBuilder.DropColumn(
-                name: "MinimumBookingAmountRequired",
-                table: "HospitalSettings");
-
-            migrationBuilder.DropColumn(
-                name: "NoShowGraceHours",
-                table: "HospitalSettings");
-
             migrationBuilder.AddColumn<string>(
                 name: "ProfilePicturePath",
                 table: "Users",
@@ -471,46 +447,6 @@ namespace EMR.Web.Migrations
                 name: "OpdRegistrationValidityDays",
                 table: "HospitalSettings");
 
-            migrationBuilder.AddColumn<bool>(
-                name: "ByPassActualDayRate",
-                table: "HospitalSettings",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "CancellationRefundApprovalThreshold",
-                table: "HospitalSettings",
-                type: "decimal(18,2)",
-                nullable: true);
-
-            migrationBuilder.AddColumn<bool>(
-                name: "DiscountApprovalRequired",
-                table: "HospitalSettings",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "MinimumBookingAmount",
-                table: "HospitalSettings",
-                type: "decimal(18,2)",
-                nullable: false,
-                defaultValue: 0m);
-
-            migrationBuilder.AddColumn<bool>(
-                name: "MinimumBookingAmountRequired",
-                table: "HospitalSettings",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<int>(
-                name: "NoShowGraceHours",
-                table: "HospitalSettings",
-                type: "int",
-                nullable: false,
-                defaultValue: 0);
         }
     }
 }

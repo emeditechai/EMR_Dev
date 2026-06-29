@@ -18,6 +18,8 @@ public class ServiceMaster
     public decimal ItemCharges { get; set; }
     public bool IsRegistration { get; set; }
     public string? ConsultingType { get; set; }
+    public bool IsGstRequired { get; set; }
+    public decimal? GstPercentage { get; set; }
     public int BranchId { get; set; }
     public bool IsActive { get; set; } = true;
 
