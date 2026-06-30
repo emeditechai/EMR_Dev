@@ -66,7 +66,7 @@ VALUES
 </div>',
     1,
     1,
-    GETUTCDATE()
+    GETDATE()
 ),
 (
     1,
@@ -124,5 +124,5 @@ VALUES
 </div>',
     1,
     1,
-    GETUTCDATE()
+    GETDATE()
 );
