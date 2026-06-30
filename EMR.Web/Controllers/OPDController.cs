@@ -591,6 +591,15 @@ public class OPDController(
                 {
                     using var scope = scopeFactory.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                    // Check if email notification is enabled for this branch
+                    var settings = await db.HospitalSettings.AsNoTracking().FirstOrDefaultAsync(h => h.BranchId == branchIdVal);
+                    if (settings != null && !settings.EmailNotificationRequired)
+                    {
+                        Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] Email notifications disabled for Branch {branchIdVal}, skipping.");
+                        return;
+                    }
+
                     var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
                     var bookingApi = scope.ServiceProvider.GetRequiredService<IServiceBookingApiClient>();
 
@@ -1719,6 +1728,14 @@ public class OPDController(
                 {
                     using var scope = scopeFactory.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    
+                    // Check if email notification is enabled for this branch
+                    var settings = await db.HospitalSettings.AsNoTracking().FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
+                    if (settings != null && !settings.EmailNotificationRequired)
+                    {
+                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Email notifications disabled for Branch {activeBranchId}, skipping.");
+                        return;
+                    }
                     
                     // Fetch booking details (poll if token is not generated yet)
                     PatientOPDService? booking = null;

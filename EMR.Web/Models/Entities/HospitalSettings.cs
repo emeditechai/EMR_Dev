@@ -41,6 +41,8 @@ public class HospitalSettings
 
     public bool GlobalPatientSearchRequired { get; set; } = false;
 
+    public bool EmailNotificationRequired { get; set; } = true;
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedDate { get; set; } = DateTime.Now;

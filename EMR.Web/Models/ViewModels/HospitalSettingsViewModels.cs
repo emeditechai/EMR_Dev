@@ -59,6 +59,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Global Patient Search Required")]
     public bool GlobalPatientSearchRequired { get; set; } = false;
 
+    [Display(Name = "Email Notification (Bill/Prescription) Required")]
+    public bool EmailNotificationRequired { get; set; } = true;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

@@ -186,9 +186,16 @@ else
                     </div>
                 </div>
                 <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Bill Prefix</div>
-                        <div class="param-value text-muted">—</div>
+                    <div class="param-card">
+                        <div class="param-label"><i class="bi bi-envelope me-1"></i>Email Notification Required</div>
+                        @if (Model.EmailNotificationRequired)
+                        {
+                            <div class="param-value text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Yes</div>
+                        }
+                        else
+                        {
+                            <div class="param-value text-secondary fw-bold"><i class="bi bi-x-circle-fill me-1"></i>No</div>
+                        }
                     </div>
                 </div>
                 <div class="col-6 col-md-3">
