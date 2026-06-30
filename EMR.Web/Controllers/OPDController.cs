@@ -425,7 +425,7 @@ public class OPDController(
             await auditLogService.LogAsync("OPD", "Patient.Create",
                 $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
 
-            TriggerBookingEmail(branchId, newSvcId);
+            TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
 
             TempData["NewPatientCode"]  = patientCode;
             TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
@@ -470,7 +470,7 @@ public class OPDController(
 
             if (model.OPDServiceId == 0)   // new visit for returning patient
             {
-                TriggerBookingEmail(branchId, newSvcId);
+                TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
                 TempData["NewPatientCode"]  = patient.PatientCode;
                 TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
                 TempData["OPDBillNo"]       = billNo;
@@ -840,7 +840,7 @@ public class OPDController(
         await auditLogService.LogAsync("OPD", "ServiceBooking.New",
             $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {(string.IsNullOrEmpty(tokenNo) ? "(pending payment)" : tokenNo)}");
 
-        TriggerBookingEmail(branchId, newSvcId);
+        TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
 
         return RedirectToAction(nameof(ServiceBooking));
     }
@@ -1286,6 +1286,63 @@ public class OPDController(
         }
     }
 
+    [HttpGet, AllowAnonymous]
+    public async Task<IActionResult> PrintBillAnonymous(int id, string secret)
+    {
+        var expectedSecret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"bill-{id}-emr"));
+        if (secret != expectedSecret)
+        {
+            return Unauthorized("Invalid secret token.");
+        }
+
+        try
+        {
+            var apiDetail = await serviceBookingApiClient.GetByIdAsync(id);
+            if (apiDetail is null) return NotFound();
+
+            var detail = new ServiceBookingDetailViewModel
+            {
+                OPDServiceId         = apiDetail.OPDServiceId,
+                OPDBillNo            = apiDetail.OPDBillNo,
+                TokenNo              = apiDetail.TokenNo,
+                PatientCode          = apiDetail.PatientCode,
+                PatientName          = apiDetail.PatientName,
+                PhoneNumber          = apiDetail.PhoneNumber,
+                Gender               = apiDetail.Gender,
+                DateOfBirth          = apiDetail.DateOfBirth,
+                ConsultingDoctorName = apiDetail.ConsultingDoctorName,
+                VisitDate            = apiDetail.VisitDate,
+                AppointmentTime      = apiDetail.AppointmentTime,
+                CreatedDate          = apiDetail.CreatedDate,
+                CreatedByUser        = apiDetail.CreatedByUser,
+                TotalAmount          = apiDetail.TotalAmount,
+                Status               = apiDetail.Status,
+                Items                = apiDetail.Items.Select(i => new ServiceBookingDetailItem
+                {
+                    ServiceType    = i.ServiceType,
+                    ItemName       = i.ItemName,
+                    ServiceCharges = i.ServiceCharges
+                }).ToList()
+            };
+
+            var booking = await dbContext.PatientOPDServices.FirstOrDefaultAsync(b => b.OPDServiceId == id);
+            var branchId = booking?.BranchId ?? 1;
+            var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+            var branch = await dbContext.BranchMasters.FindAsync(branchId);
+
+            var payment = await paymentService.GetPaymentForBillAsync("OPD", id);
+
+            ViewBag.Settings   = settings;
+            ViewBag.BranchName = branch?.BranchName ?? string.Empty;
+            ViewBag.Payment    = payment;
+            return View("PrintBill", detail);
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(503, "API Down");
+        }
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private async Task PopulateSelectLists(PatientRegistrationViewModel model)
@@ -1577,7 +1634,7 @@ public class OPDController(
         return Json(new { success = true, message = "EMR consultation record saved successfully." });
     }
 
-    private void TriggerBookingEmail(int? branchId, int opdServiceId)
+    private void TriggerBookingEmail(int? branchId, int opdServiceId, string hostUrl)
     {
         try
         {
@@ -1671,9 +1728,72 @@ public class OPDController(
                             .Replace("{{SlotTime}}", slotTimeStr)
                             .Replace("{{HospitalName}}", hospitalName);
 
+                        List<System.Net.Mail.Attachment> attachments = new();
+                        string? tempPdfPath = null;
+
+                        // Check if booking is fully paid (meaning TokenNo is generated/assigned)
+                        if (!string.IsNullOrEmpty(booking.TokenNo))
+                        {
+                            try
+                            {
+                                var secret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"bill-{opdServiceId}-emr"));
+                                var billUrl = $"{hostUrl}/OPD/PrintBillAnonymous?id={opdServiceId}&secret={Uri.EscapeDataString(secret)}";
+                                
+                                var safeBillNo = booking.OPDBillNo ?? opdServiceId.ToString();
+                                tempPdfPath = Path.Combine(Path.GetTempPath(), $"OPD_Bill_{safeBillNo}.pdf");
+
+                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Generating PDF for fully paid bill. URL: {billUrl}, Output: {tempPdfPath}");
+
+                                var chromeArgs = $"--headless --disable-gpu --ignore-certificate-errors --print-to-pdf=\"{tempPdfPath}\" \"{billUrl}\"";
+                                var processInfo = new System.Diagnostics.ProcessStartInfo("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", chromeArgs)
+                                {
+                                    CreateNoWindow = true,
+                                    UseShellExecute = false
+                                };
+                                using var process = System.Diagnostics.Process.Start(processInfo);
+                                if (process != null)
+                                {
+                                    await process.WaitForExitAsync();
+                                }
+
+                                if (System.IO.File.Exists(tempPdfPath))
+                                {
+                                    var attachment = new System.Net.Mail.Attachment(tempPdfPath, "application/pdf");
+                                    attachments.Add(attachment);
+                                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PDF generated and attached successfully: {tempPdfPath}");
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PDF generation failed, file does not exist: {tempPdfPath}");
+                                }
+                            }
+                            catch (Exception pdfEx)
+                            {
+                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Error generating PDF attachment: {pdfEx}");
+                            }
+                        }
+
                         var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
-                        await emailSvc.SendEmailAsync(activeBranchId, patientEmail, subject, htmlBody);
+                        await emailSvc.SendEmailAsync(activeBranchId, patientEmail, subject, htmlBody, attachments.Any() ? attachments : null);
                         Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Email sent to {patientEmail} successfully.");
+
+                        // Clean up temporary PDF file after email is sent
+                        if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                        {
+                            try
+                            {
+                                foreach (var att in attachments)
+                                {
+                                    att.Dispose();
+                                }
+                                System.IO.File.Delete(tempPdfPath);
+                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Temporary PDF deleted: {tempPdfPath}");
+                            }
+                            catch (Exception deleteEx)
+                            {
+                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Failed to delete temporary PDF file: {deleteEx}");
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
