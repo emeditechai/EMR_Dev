@@ -41,7 +41,7 @@ VALUES
           </tr>
           <tr>
             <td style="padding: 10px 0; color: #718096; font-size: 14px;">Total Paid / Fee</td>
-            <td style="padding: 10px 0; color: #2b6cb0; font-size: 16px; font-weight: 700; text-align: right;">₹ {{TotalAmount}}</td>
+            <td style="padding: 10px 0; color: #2b6cb0; font-size: 16px; font-weight: 700; text-align: right;">Rs. {{TotalAmount}}</td>
           </tr>
         </table>
       </div>

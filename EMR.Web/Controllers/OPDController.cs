@@ -1591,9 +1591,30 @@ public class OPDController(
                     using var scope = scopeFactory.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                     
-                    // Fetch booking details
-                    var booking = await db.PatientOPDServices
-                        .FirstOrDefaultAsync(b => b.OPDServiceId == opdServiceId);
+                    // Fetch booking details (poll if token is not generated yet)
+                    PatientOPDService? booking = null;
+                    for (int i = 0; i < 6; i++)
+                    {
+                        booking = await db.PatientOPDServices
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(b => b.OPDServiceId == opdServiceId);
+
+                        if (booking != null && !string.IsNullOrEmpty(booking.TokenNo))
+                        {
+                            Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Found TokenNo: '{booking.TokenNo}' at attempt {i + 1}");
+                            break;
+                        }
+
+                        if (booking != null && booking.TotalAmount == 0)
+                        {
+                            // If total amount is 0, SP might not assign a token or it's processed. 
+                            // Either way, if it's 0 and we waited once, we can proceed.
+                            break;
+                        }
+
+                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] TokenNo is null/empty at attempt {i + 1}. Waiting 3 seconds...");
+                        await Task.Delay(3000);
+                    }
 
                     if (booking == null)
                     {
