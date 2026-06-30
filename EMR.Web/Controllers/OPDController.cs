@@ -627,33 +627,73 @@ public class OPDController(
                                 .Replace("{{VisitDate}}", bookingDetail.VisitDate.ToString("dd-MMM-yyyy"))
                                 .Replace("{{HospitalName}}", hospitalName);
 
-                            // Create an HTML attachment for the prescription
-                            var prescriptionUrl = $"{hostUrl}/OPD/PrintPrescription?opdServiceId={reqId}&doctorId={doctorId ?? 0}";
-                            var attachmentHtml = $@"
-                                <html>
-                                <head><title>Prescription</title></head>
-                                <body style='font-family: Arial; padding: 20px;'>
-                                    <h2>Prescription for {patient.FirstName} {patient.LastName}</h2>
-                                    <p>Consulting Doctor: {doctor}</p>
-                                    <p>Date: {bookingDetail.VisitDate.ToString("dd-MMM-yyyy")}</p>
-                                    <br/>
-                                    <a href='{prescriptionUrl}' style='padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;'>
-                                        View Full Prescription
-                                    </a>
-                                </body>
-                                </html>";
+                            List<System.Net.Mail.Attachment> attachments = new();
+                            string? tempPdfPath = null;
 
-                            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(attachmentHtml);
-                            using var ms = new System.IO.MemoryStream(bytes);
-                            var attachment = new System.Net.Mail.Attachment(ms, $"Prescription_{patient.PatientCode}.html", "text/html");
+                            try
+                            {
+                                var docIdVal = doctorId ?? 0;
+                                var secret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"prescription-{reqId}-{docIdVal}-emr"));
+                                var prescriptionUrl = $"{hostUrl}/OPD/PrintPrescriptionAnonymous?opdServiceId={reqId}&doctorId={docIdVal}&secret={Uri.EscapeDataString(secret)}";
+                                
+                                var safePatientCode = (string)(patient.PatientCode ?? reqId.ToString());
+                                tempPdfPath = Path.Combine(Path.GetTempPath(), $"Prescription_{safePatientCode}.pdf");
 
-                            await emailSvc.SendEmailAsync(branchId, (string)patient.EmailId, subject, htmlBody, new[] { attachment });
+                                Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] Generating PDF. URL: {prescriptionUrl}, Output: {tempPdfPath}");
+
+                                var chromeArgs = $"--headless --disable-gpu --ignore-certificate-errors --print-to-pdf=\"{tempPdfPath}\" \"{prescriptionUrl}\"";
+                                var processInfo = new System.Diagnostics.ProcessStartInfo("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", chromeArgs)
+                                {
+                                    CreateNoWindow = true,
+                                    UseShellExecute = false
+                                };
+                                using var process = System.Diagnostics.Process.Start(processInfo);
+                                if (process != null)
+                                {
+                                    await process.WaitForExitAsync();
+                                }
+
+                                if (System.IO.File.Exists(tempPdfPath))
+                                {
+                                    var attachment = new System.Net.Mail.Attachment(tempPdfPath, "application/pdf");
+                                    attachments.Add(attachment);
+                                    Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] PDF generated and attached successfully: {tempPdfPath}");
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] PDF generation failed, file does not exist: {tempPdfPath}");
+                                }
+                            }
+                            catch (Exception pdfEx)
+                            {
+                                Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] Error generating PDF prescription: {pdfEx}");
+                            }
+
+                            await emailSvc.SendEmailAsync(branchId, (string)patient.EmailId, subject, htmlBody, attachments.Any() ? attachments : null);
+                            Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] Prescription email sent to {patient.EmailId} successfully.");
+
+                            // Cleanup
+                            if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                            {
+                                try
+                                {
+                                    foreach (var att in attachments)
+                                    {
+                                        att.Dispose();
+                                    }
+                                    System.IO.File.Delete(tempPdfPath);
+                                    Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] Temporary PDF deleted: {tempPdfPath}");
+                                }
+                                catch (Exception deleteEx)
+                                {
+                                    Console.WriteLine($"[DEBUG-PRESCRIPTION-EMAIL] Failed to delete temporary PDF file: {deleteEx}");
+                                }
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    // Log error silently since it's a background task
                     Console.WriteLine($"Error sending prescription email: {ex.Message}");
                 }
             });
@@ -1605,6 +1645,38 @@ public class OPDController(
         };
 
         return View(vm);
+    }
+
+    [HttpGet, AllowAnonymous]
+    public async Task<IActionResult> PrintPrescriptionAnonymous(int opdServiceId, int doctorId, string secret)
+    {
+        var expectedSecret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"prescription-{opdServiceId}-{doctorId}-emr"));
+        if (secret != expectedSecret)
+        {
+            return Unauthorized("Invalid secret token.");
+        }
+
+        var booking = await serviceBookingApiClient.GetByIdAsync(opdServiceId);
+        if (booking == null) return NotFound("Booking not found");
+
+        var doctor = await doctorApiClient.GetByIdAsync(doctorId);
+        if (doctor == null) return NotFound("Doctor not found");
+
+        var patientId = await db.CreateConnection().ExecuteScalarAsync<int>(
+            "SELECT PatientId FROM PatientOPDService WHERE OPDServiceId = @OPDServiceId", new { OPDServiceId = opdServiceId });
+
+        var vitals = await vitalApiClient.GetLatestAsync(patientId);
+        var emrData = await emrConsultationApiClient.GetConsultationDataAsync(opdServiceId, doctorId);
+
+        var vm = new EMR.Web.Models.PrintPrescriptionViewModel
+        {
+            Booking = booking,
+            Doctor = doctor,
+            Vitals = vitals,
+            EmrData = emrData
+        };
+
+        return View("PrintPrescription", vm);
     }
 
     [HttpPost]
