@@ -12,6 +12,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<HospitalSettings> HospitalSettings => Set<HospitalSettings>();
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
 
     // Patient Registration masters
     public DbSet<ReligionMaster> ReligionMasters => Set<ReligionMaster>();

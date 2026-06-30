@@ -573,6 +573,88 @@ public class OPDController(
 
         var userId = User.GetUserId();
         var success = await serviceBookingApiClient.UpdateStatusAsync(req.Id, req.Status, userId);
+
+        if (success && req.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+        {
+            // Send Prescription Email
+            var scopeFactory = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
+            var reqId = req.Id;
+            var branchIdVal = User.GetCurrentBranchId() ?? 1;
+            var hostUrl = $"{Request.Scheme}://{Request.Host}";
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = scopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                    var bookingApi = scope.ServiceProvider.GetRequiredService<IServiceBookingApiClient>();
+
+                    var bookingDetail = await bookingApi.GetByIdAsync(reqId);
+                    if (bookingDetail != null)
+                    {
+                        var branchId = branchIdVal;
+
+                        var template = await db.EmailTemplates
+                            .FirstOrDefaultAsync(t => t.BranchId == branchId && t.TemplateName == "Prescription Delivery" && t.IsActive);
+
+                        var doctorId = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<int?>(
+                            "SELECT ConsultingDoctorId FROM PatientOPDService WHERE OPDServiceId = @Id", new { Id = req.Id });
+
+                        // Try to get patient email
+                        var patientId = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<int>(
+                            "SELECT PatientId FROM PatientOPDService WHERE OPDServiceId = @Id", new { Id = req.Id });
+                        var patient = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<dynamic>(
+                            "SELECT EmailId, FirstName, LastName, PatientCode FROM PatientMaster WHERE PatientId = @Id", new { Id = patientId });
+
+                        if (template != null && patient != null && !string.IsNullOrWhiteSpace(patient.EmailId))
+                        {
+                            var doctor = doctorId.HasValue ? await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<string>(
+                                "SELECT FullName FROM DoctorMaster WHERE DoctorId = @DocId", new { DocId = doctorId.Value }) : null;
+                            var hospital = await db.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == branchId);
+                            var hospitalName = hospital?.HospitalName ?? "Our Hospital";
+
+                            var subject = template.Subject.Replace("{{HospitalName}}", hospitalName);
+
+                            var htmlBody = template.HtmlBody
+                                .Replace("{{PatientName}}", $"{patient.FirstName} {patient.LastName}")
+                                .Replace("{{DoctorName}}", doctor ?? "")
+                                .Replace("{{TokenNo}}", bookingDetail.TokenNo ?? "N/A")
+                                .Replace("{{VisitDate}}", bookingDetail.VisitDate.ToString("dd-MMM-yyyy"));
+
+                            // Create an HTML attachment for the prescription
+                            var prescriptionUrl = $"{hostUrl}/OPD/PrintPrescription?opdServiceId={reqId}&doctorId={doctorId ?? 0}";
+                            var attachmentHtml = $@"
+                                <html>
+                                <head><title>Prescription</title></head>
+                                <body style='font-family: Arial; padding: 20px;'>
+                                    <h2>Prescription for {patient.FirstName} {patient.LastName}</h2>
+                                    <p>Consulting Doctor: {doctor}</p>
+                                    <p>Date: {bookingDetail.VisitDate.ToString("dd-MMM-yyyy")}</p>
+                                    <br/>
+                                    <a href='{prescriptionUrl}' style='padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;'>
+                                        View Full Prescription
+                                    </a>
+                                </body>
+                                </html>";
+
+                            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(attachmentHtml);
+                            using var ms = new System.IO.MemoryStream(bytes);
+                            var attachment = new System.Net.Mail.Attachment(ms, $"Prescription_{patient.PatientCode}.html", "text/html");
+
+                            await emailSvc.SendEmailAsync(branchId, (string)patient.EmailId, subject, htmlBody, new[] { attachment });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log error silently since it's a background task
+                    Console.WriteLine($"Error sending prescription email: {ex.Message}");
+                }
+            });
+        }
+
         return Json(new { isSuccess = success, message = success ? "Success" : "Failed to update." });
     }
 
@@ -753,6 +835,61 @@ public class OPDController(
 
         await auditLogService.LogAsync("OPD", "ServiceBooking.New",
             $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {(string.IsNullOrEmpty(tokenNo) ? "(pending payment)" : tokenNo)}");
+
+        var patientInfo = await dbContext.Database.GetDbConnection().QueryFirstOrDefaultAsync<dynamic>(
+            "SELECT EmailId, FirstName, LastName FROM PatientMaster WHERE PatientId = @Id", new { Id = model.PatientId });
+
+        var patientEmail = patientInfo?.EmailId as string ?? model.EmailId;
+        var firstName = patientInfo?.FirstName as string ?? model.FirstName;
+        var lastName = patientInfo?.LastName as string ?? model.LastName;
+
+        if (!string.IsNullOrWhiteSpace(patientEmail))
+        {
+            var activeBranchId = branchId ?? 1;
+            var template = await dbContext.EmailTemplates
+                .FirstOrDefaultAsync(t => t.BranchId == activeBranchId && t.TemplateName == "Booking Confirmation" && t.IsActive);
+            if (template != null)
+            {
+                var doctorName = await dbContext.Database.GetDbConnection().QueryFirstOrDefaultAsync<string>(
+                    "SELECT FullName FROM DoctorMaster WHERE DoctorId = @Id", new { Id = model.ConsultingDoctorId });
+                var hospital = await dbContext.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == branchId);
+                var hospitalName = hospital?.HospitalName ?? "Our Hospital";
+
+                var subject = template.Subject.Replace("{{HospitalName}}", hospitalName);
+                
+                var htmlBody = template.HtmlBody
+                    .Replace("{{PatientName}}", $"{firstName} {lastName}")
+                    .Replace("{{DoctorName}}", doctorName ?? "")
+                    .Replace("{{TokenNo}}", tokenNo ?? "Pending")
+                    .Replace("{{TotalAmount}}", bill.TotalAmount.ToString())
+                    .Replace("{{VisitDate}}", bill.VisitDate.ToString("dd-MMM-yyyy"))
+                    .Replace("{{SlotTime}}", "N/A"); // Adjust if SlotTime is added to model
+
+                try 
+                {
+                    var scopeFactory = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
+                    var branchIdVal = branchId ?? 1;
+
+                    // Run email sending in background to avoid blocking response
+                    _ = Task.Run(async () => {
+                        try 
+                        {
+                            using var scope = scopeFactory.CreateScope();
+                            var scopedEmailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                            await scopedEmailSvc.SendEmailAsync(branchIdVal, patientEmail, subject, htmlBody);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error sending booking email: {ex}");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error scheduling booking email: {ex}");
+                }
+            }
+        }
 
         return RedirectToAction(nameof(ServiceBooking));
     }

@@ -1,0 +1,59 @@
+@model EMR.Web.Models.Entities.EmailTemplate
+@{
+    ViewData["Title"] = "Add Email Template";
+    ViewData["PageName"] = "Email Templates";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="bi bi-envelope-plus me-2 text-primary"></i>Add Template
+        </h1>
+        <p class="text-muted small mb-0 mt-1">Create a new dynamic HTML email template.</p>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <form asp-action="Create" method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label asp-for="TemplateName" class="form-label fw-bold">Template Name</label>
+                    <input asp-for="TemplateName" class="form-control" placeholder="e.g. Booking Confirmation" />
+                    <span asp-validation-for="TemplateName" class="text-danger"></span>
+                    <small class="text-muted">Use a recognizable name as this will be queried by the system.</small>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Subject" class="form-label fw-bold">Email Subject</label>
+                    <input asp-for="Subject" class="form-control" placeholder="e.g. Booking Confirmation at {{HospitalName}}" />
+                    <span asp-validation-for="Subject" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label asp-for="HtmlBody" class="form-label fw-bold">HTML Body</label>
+                <div class="alert alert-info py-2 small mb-2">
+                    <i class="bi bi-info-circle me-1"></i> <strong>Available Placeholders:</strong> 
+                    <code>{{PatientName}}</code>, <code>{{DoctorName}}</code>, <code>{{VisitDate}}</code>, <code>{{SlotTime}}</code>, <code>{{TokenNo}}</code>, <code>{{TotalAmount}}</code>
+                </div>
+                <textarea asp-for="HtmlBody" class="form-control font-monospace" rows="15" placeholder="Enter HTML content here..."></textarea>
+                <span asp-validation-for="HtmlBody" class="text-danger"></span>
+            </div>
+
+            <div class="text-end">
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="bi bi-check-circle me-1"></i> Save Template
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

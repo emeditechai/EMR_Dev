@@ -11,5 +11,5 @@ public interface IEmailService
     /// <summary>
     /// Sends an email using the default SMTP configuration for the given branch.
     /// </summary>
-    Task<(bool Success, string Message)> SendEmailAsync(int branchId, string recipientEmail, string subject, string htmlBody);
+    Task<(bool Success, string Message)> SendEmailAsync(int branchId, string recipientEmail, string subject, string htmlBody, IEnumerable<System.Net.Mail.Attachment>? attachments = null);
 }

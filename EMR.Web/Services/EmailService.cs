@@ -72,7 +72,7 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
     }
 
     public async Task<(bool Success, string Message)> SendEmailAsync(
-        int branchId, string recipientEmail, string subject, string htmlBody)
+        int branchId, string recipientEmail, string subject, string htmlBody, IEnumerable<Attachment>? attachments = null)
     {
         var config = await dbContext.SmtpEmailConfigurations
             .Where(x => x.BranchId == branchId && x.IsActive && x.IsDefault)
@@ -97,7 +97,7 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
             await SendViaSmtpAsync(config.SmtpHost, config.SmtpPort, config.UseSsl,
                 config.SenderEmail, config.SenderDisplayName ?? config.SenderEmail,
                 config.Username, decryptedPassword,
-                recipientEmail, subject, htmlBody, isHtml: true);
+                recipientEmail, subject, htmlBody, isHtml: true, attachments: attachments);
 
             dbContext.EmailLogs.Add(new EmailLog
             {
@@ -142,7 +142,7 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
         string fromEmail, string fromName,
         string username, string password,
         string toEmail, string subject, string body,
-        bool isHtml = false)
+        bool isHtml = false, IEnumerable<Attachment>? attachments = null)
     {
         using var message = new MailMessage
         {
@@ -152,6 +152,14 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
             IsBodyHtml = isHtml
         };
         message.To.Add(new MailAddress(toEmail));
+
+        if (attachments != null)
+        {
+            foreach (var attachment in attachments)
+            {
+                message.Attachments.Add(attachment);
+            }
+        }
 
         using var client = new SmtpClient(host, port);
         client.EnableSsl = useSsl;
