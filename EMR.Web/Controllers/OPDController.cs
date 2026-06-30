@@ -425,7 +425,7 @@ public class OPDController(
             await auditLogService.LogAsync("OPD", "Patient.Create",
                 $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
 
-            TriggerBookingEmail(branchId, newPatientId, patient.EmailId, patient.FirstName, patient.LastName, opdBill.ConsultingDoctorId, tokenNo, opdBill.TotalAmount, opdBill.VisitDate);
+            TriggerBookingEmail(branchId, newSvcId);
 
             TempData["NewPatientCode"]  = patientCode;
             TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
@@ -470,7 +470,7 @@ public class OPDController(
 
             if (model.OPDServiceId == 0)   // new visit for returning patient
             {
-                TriggerBookingEmail(branchId, model.PatientId, patient.EmailId, patient.FirstName, patient.LastName, opdBill.ConsultingDoctorId, tokenNo, opdBill.TotalAmount, opdBill.VisitDate);
+                TriggerBookingEmail(branchId, newSvcId);
                 TempData["NewPatientCode"]  = patient.PatientCode;
                 TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
                 TempData["OPDBillNo"]       = billNo;
@@ -624,7 +624,8 @@ public class OPDController(
                                 .Replace("{{PatientName}}", $"{patient.FirstName} {patient.LastName}")
                                 .Replace("{{DoctorName}}", doctor ?? "")
                                 .Replace("{{TokenNo}}", bookingDetail.TokenNo ?? "N/A")
-                                .Replace("{{VisitDate}}", bookingDetail.VisitDate.ToString("dd-MMM-yyyy"));
+                                .Replace("{{VisitDate}}", bookingDetail.VisitDate.ToString("dd-MMM-yyyy"))
+                                .Replace("{{HospitalName}}", hospitalName);
 
                             // Create an HTML attachment for the prescription
                             var prescriptionUrl = $"{hostUrl}/OPD/PrintPrescription?opdServiceId={reqId}&doctorId={doctorId ?? 0}";
@@ -839,7 +840,7 @@ public class OPDController(
         await auditLogService.LogAsync("OPD", "ServiceBooking.New",
             $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {(string.IsNullOrEmpty(tokenNo) ? "(pending payment)" : tokenNo)}");
 
-        TriggerBookingEmail(branchId, model.PatientId, model.EmailId, model.FirstName, model.LastName, model.ConsultingDoctorId, tokenNo, bill.TotalAmount, bill.VisitDate);
+        TriggerBookingEmail(branchId, newSvcId);
 
         return RedirectToAction(nameof(ServiceBooking));
     }
@@ -1576,7 +1577,7 @@ public class OPDController(
         return Json(new { success = true, message = "EMR consultation record saved successfully." });
     }
 
-    private void TriggerBookingEmail(int? branchId, int patientId, string? modelEmail, string? modelFirstName, string? modelLastName, int? consultingDoctorId, string? tokenNo, decimal? totalAmount, DateTime visitDate)
+    private void TriggerBookingEmail(int? branchId, int opdServiceId)
     {
         try
         {
@@ -1590,19 +1591,35 @@ public class OPDController(
                     using var scope = scopeFactory.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                     
-                    // Fetch patient details from database
-                    var patientInfo = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<dynamic>(
-                        "SELECT EmailId, FirstName, LastName FROM PatientMaster WHERE PatientId = @Id", new { Id = patientId });
-                    
-                    var patientEmail = patientInfo?.EmailId as string ?? modelEmail;
-                    var firstName = patientInfo?.FirstName as string ?? modelFirstName;
-                    var lastName = patientInfo?.LastName as string ?? modelLastName;
+                    // Fetch booking details
+                    var booking = await db.PatientOPDServices
+                        .FirstOrDefaultAsync(b => b.OPDServiceId == opdServiceId);
 
-                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PatientId: {patientId}, Email: '{patientEmail}'");
+                    if (booking == null)
+                    {
+                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Booking ID {opdServiceId} not found, skipping.");
+                        return;
+                    }
+
+                    // Fetch patient details
+                    var patient = await db.PatientMasters
+                        .FirstOrDefaultAsync(p => p.PatientId == booking.PatientId);
+
+                    if (patient == null)
+                    {
+                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Patient ID {booking.PatientId} not found, skipping.");
+                        return;
+                    }
+
+                    var patientEmail = patient.EmailId;
+                    var firstName = patient.FirstName;
+                    var lastName = patient.LastName;
+
+                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PatientId: {booking.PatientId}, Email: '{patientEmail}'");
 
                     if (string.IsNullOrWhiteSpace(patientEmail))
                     {
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] No email for PatientId: {patientId}, skipping.");
+                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] No email for PatientId: {booking.PatientId}, skipping.");
                         return; // No email ID
                     }
 
@@ -1614,19 +1631,24 @@ public class OPDController(
                     if (template != null)
                     {
                         var doctorName = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<string>(
-                            "SELECT FullName FROM DoctorMaster WHERE DoctorId = @Id", new { Id = consultingDoctorId });
+                            "SELECT FullName FROM DoctorMaster WHERE DoctorId = @Id", new { Id = booking.ConsultingDoctorId });
                         var hospital = await db.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
                         var hospitalName = hospital?.HospitalName ?? "Our Hospital";
 
                         var subject = template.Subject.Replace("{{HospitalName}}", hospitalName);
                         
+                        var slotTimeStr = booking.AppointmentTime.HasValue 
+                            ? DateTime.Today.Add(booking.AppointmentTime.Value).ToString("hh:mm tt") 
+                            : "N/A";
+
                         var htmlBody = template.HtmlBody
                             .Replace("{{PatientName}}", $"{firstName} {lastName}")
                             .Replace("{{DoctorName}}", doctorName ?? "")
-                            .Replace("{{TokenNo}}", tokenNo ?? "Pending")
-                            .Replace("{{TotalAmount}}", totalAmount?.ToString() ?? "0.00")
-                            .Replace("{{VisitDate}}", visitDate.ToString("dd-MMM-yyyy"))
-                            .Replace("{{SlotTime}}", "N/A"); // Adjust if SlotTime is added to model
+                            .Replace("{{TokenNo}}", booking.TokenNo ?? "Pending")
+                            .Replace("{{TotalAmount}}", booking.TotalAmount?.ToString("0.00") ?? "0.00")
+                            .Replace("{{VisitDate}}", booking.VisitDate.ToString("dd-MMM-yyyy"))
+                            .Replace("{{SlotTime}}", slotTimeStr)
+                            .Replace("{{HospitalName}}", hospitalName);
 
                         var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
                         await emailSvc.SendEmailAsync(activeBranchId, patientEmail, subject, htmlBody);
