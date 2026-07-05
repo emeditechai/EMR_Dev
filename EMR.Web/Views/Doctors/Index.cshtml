@@ -231,6 +231,9 @@
                                 <span class="input-group-text bg-white"><i class="bi bi-stethoscope text-primary"></i></span>
                                 <input type="text" id="cfSearchInput" class="form-control"
                                        placeholder="Type item code or service name…" autocomplete="off" />
+                                <div id="cfGraceTimeWrapper" class="d-none">
+                                    <input type="number" id="cfGraceTimeInput" class="form-control" placeholder="Grace (mins)" style="width: 130px; border-radius: 0;" min="0" />
+                                </div>
                                 <button class="btn btn-primary px-3" id="cfAddBtn" disabled>
                                     <i class="bi bi-plus-lg me-1"></i>Add
                                 </button>
@@ -263,6 +266,7 @@
                                 <th>Item Code</th>
                                 <th>Item Name</th>
                                 <th class="text-end">Charges (₹)</th>
+                                <th class="text-center" style="width:120px">Grace (mins)</th>
                                 <th class="text-center" style="width:70px">Remove</th>
                             </tr>
                         </thead>
@@ -367,14 +371,33 @@
         cfTable.classList.remove('d-none');
         fees.forEach(f => {
             const tr = document.createElement('tr');
+            let graceTimeHtml = '<span class="text-muted small fst-italic">N/A</span>';
+            if (f.consultingType === 'Video') {
+                const val = f.graceTime !== null ? f.graceTime : '';
+                graceTimeHtml = '<input type="number" class="form-control form-control-sm text-center mx-auto" style="width: 80px;" min="0" value="' + val + '" onchange="window.updateGraceTime(' + f.mappingId + ', this.value)" placeholder="--" />';
+            }
             tr.innerHTML =
                 '<td><span class="badge text-bg-light border font-monospace text-dark">' + f.itemCode + '</span></td>' +
                 '<td class="fw-semibold">' + f.itemName + '</td>' +
                 '<td class="text-end fw-semibold text-success">₹' + Number(f.itemCharges).toFixed(2) + '</td>' +
+                '<td class="text-center">' + graceTimeHtml + '</td>' +
                 '<td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="window.removeFee(' + f.mappingId + ')" title="Remove"><i class="bi bi-trash3"></i></button></td>';
             cfTableBody.appendChild(tr);
         });
     }
+
+    window.updateGraceTime = async function(mappingId, val) {
+        const graceTime = val ? parseInt(val) : null;
+        try {
+            await fetch('/Doctors/UpdateGraceTime', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgeryToken() },
+                body: JSON.stringify({ mappingId: mappingId, doctorId: currentDoctorId, graceTime: graceTime })
+            });
+        } catch (e) {
+            console.error('Failed to update grace time', e);
+        }
+    };
 
     searchInput.addEventListener('input', function () {
         const q = this.value.trim().toLowerCase();
@@ -408,6 +431,15 @@
         suggestions.style.display = 'none';
         selectedLabel.textContent = svc.itemCode + ' — ' + svc.itemName + ' (₹' + Number(svc.itemCharges).toFixed(2) + ')';
         selectedPrev.classList.remove('d-none');
+        
+        if (svc.consultingType === 'Video') {
+            document.getElementById('cfGraceTimeWrapper').classList.remove('d-none');
+            document.getElementById('cfGraceTimeInput').value = '';
+        } else {
+            document.getElementById('cfGraceTimeWrapper').classList.add('d-none');
+            document.getElementById('cfGraceTimeInput').value = '';
+        }
+        
         addBtn.disabled = false;
     });
 
@@ -418,13 +450,20 @@
 
     addBtn.addEventListener('click', async function () {
         if (!selectedService) return;
+        
+        let graceTime = null;
+        if (selectedService.consultingType === 'Video') {
+            const val = document.getElementById('cfGraceTimeInput').value;
+            if (val) graceTime = parseInt(val);
+        }
+
         addBtn.disabled = true;
         addBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
         try {
             const res  = await fetch('/Doctors/AddConsultingFee', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgeryToken() },
-                body: JSON.stringify({ doctorId: currentDoctorId, serviceId: selectedService.serviceId })
+                body: JSON.stringify({ doctorId: currentDoctorId, serviceId: selectedService.serviceId, graceTime: graceTime })
             });
             const data = await res.json();
             if (data.success) {
@@ -432,6 +471,8 @@
                 searchInput.value = '';
                 selectedService   = null;
                 selectedPrev.classList.add('d-none');
+                document.getElementById('cfGraceTimeWrapper').classList.add('d-none');
+                document.getElementById('cfGraceTimeInput').value = '';
                 refreshRowFees(currentDoctorId, data.fees);
             }
         } finally {
@@ -485,6 +526,8 @@
         searchInput.value = '';
         suggestions.style.display = 'none';
         selectedPrev.classList.add('d-none');
+        document.getElementById('cfGraceTimeWrapper').classList.add('d-none');
+        document.getElementById('cfGraceTimeInput').value = '';
         addBtn.disabled = true;
         selectedService = null;
     });

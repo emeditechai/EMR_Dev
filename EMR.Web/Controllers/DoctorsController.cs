@@ -600,7 +600,7 @@ public class DoctorsController(
         if (req.DoctorId <= 0 || req.ServiceId <= 0)
             return BadRequest(new { error = "Invalid request." });
 
-        await consultingFeeService.AddAsync(req.DoctorId, req.ServiceId, branchId.Value, User.GetUserId());
+        await consultingFeeService.AddAsync(req.DoctorId, req.ServiceId, req.GraceTime, branchId.Value, User.GetUserId());
         var fees = await consultingFeeService.GetByDoctorAsync(req.DoctorId, branchId.Value);
         return Json(new { success = true, fees });
     }
@@ -618,7 +618,22 @@ public class DoctorsController(
         var fees = await consultingFeeService.GetByDoctorAsync(req.DoctorId, branchId.Value);
         return Json(new { success = true, fees });
     }
+
+    /// POST /Doctors/UpdateGraceTime
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateGraceTime([FromBody] ConsultingFeeUpdateGraceTimeRequest req)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Unauthorized();
+        if (req.MappingId <= 0 || req.DoctorId <= 0)
+            return BadRequest(new { error = "Invalid request." });
+
+        await consultingFeeService.UpdateGraceTimeAsync(req.MappingId, req.DoctorId, branchId.Value, req.GraceTime);
+        var fees = await consultingFeeService.GetByDoctorAsync(req.DoctorId, branchId.Value);
+        return Json(new { success = true, fees });
+    }
 }
 
-public record ConsultingFeeRequest(int DoctorId, int ServiceId);
+public record ConsultingFeeRequest(int DoctorId, int ServiceId, int? GraceTime);
 public record ConsultingFeeRemoveRequest(int MappingId, int DoctorId);
+public record ConsultingFeeUpdateGraceTimeRequest(int MappingId, int DoctorId, int? GraceTime);

@@ -10,7 +10,7 @@ public class DoctorConsultingFeeService(IDbConnectionFactory db) : IDoctorConsul
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<ConsultingServiceOptionDto>(@"
-            SELECT ServiceId, ItemCode, ItemName, ItemCharges
+            SELECT ServiceId, ItemCode, ItemName, ItemCharges, ConsultingType
             FROM   ServiceMaster
             WHERE  BranchId    = @branchId
               AND  ServiceType = 'Consulting'
@@ -23,7 +23,7 @@ public class DoctorConsultingFeeService(IDbConnectionFactory db) : IDoctorConsul
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<ConsultingFeeItemDto>(@"
-            SELECT m.MappingId, m.ServiceId, s.ItemCode, s.ItemName, s.ItemCharges
+            SELECT m.MappingId, m.ServiceId, s.ItemCode, s.ItemName, s.ItemCharges, s.ConsultingType, m.GraceTime
             FROM   DoctorConsultingFeeMap m
             INNER JOIN ServiceMaster s ON s.ServiceId = m.ServiceId
             WHERE  m.DoctorId  = @doctorId
@@ -33,7 +33,7 @@ public class DoctorConsultingFeeService(IDbConnectionFactory db) : IDoctorConsul
             new { doctorId, branchId });
     }
 
-    public async Task AddAsync(int doctorId, int serviceId, int branchId, int? userId)
+    public async Task AddAsync(int doctorId, int serviceId, int? graceTime, int branchId, int? userId)
     {
         using var con = db.CreateConnection();
         // Upsert: re-activate if soft-deleted, otherwise insert
@@ -41,12 +41,12 @@ public class DoctorConsultingFeeService(IDbConnectionFactory db) : IDoctorConsul
             IF EXISTS (SELECT 1 FROM DoctorConsultingFeeMap
                        WHERE DoctorId = @doctorId AND ServiceId = @serviceId AND BranchId = @branchId)
                 UPDATE DoctorConsultingFeeMap
-                SET    IsActive = 1
+                SET    IsActive = 1, GraceTime = @graceTime
                 WHERE  DoctorId = @doctorId AND ServiceId = @serviceId AND BranchId = @branchId
             ELSE
-                INSERT INTO DoctorConsultingFeeMap (DoctorId, ServiceId, BranchId, IsActive, CreatedBy, CreatedDate)
-                VALUES (@doctorId, @serviceId, @branchId, 1, @userId, GETDATE())",
-            new { doctorId, serviceId, branchId, userId });
+                INSERT INTO DoctorConsultingFeeMap (DoctorId, ServiceId, BranchId, IsActive, CreatedBy, CreatedDate, GraceTime)
+                VALUES (@doctorId, @serviceId, @branchId, 1, @userId, GETDATE(), @graceTime)",
+            new { doctorId, serviceId, branchId, userId, graceTime });
     }
 
     public async Task RemoveAsync(int mappingId, int doctorId, int branchId)
@@ -59,5 +59,17 @@ public class DoctorConsultingFeeService(IDbConnectionFactory db) : IDoctorConsul
               AND  DoctorId  = @doctorId
               AND  BranchId  = @branchId",
             new { mappingId, doctorId, branchId });
+    }
+
+    public async Task UpdateGraceTimeAsync(int mappingId, int doctorId, int branchId, int? graceTime)
+    {
+        using var con = db.CreateConnection();
+        await con.ExecuteAsync(@"
+            UPDATE DoctorConsultingFeeMap
+            SET    GraceTime = @graceTime
+            WHERE  MappingId = @mappingId
+              AND  DoctorId  = @doctorId
+              AND  BranchId  = @branchId",
+            new { mappingId, doctorId, branchId, graceTime });
     }
 }

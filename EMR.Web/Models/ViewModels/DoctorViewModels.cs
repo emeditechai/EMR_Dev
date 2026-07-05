@@ -119,6 +119,8 @@ public class ConsultingFeeItemDto
     public string ItemCode  { get; set; } = string.Empty;
     public string ItemName  { get; set; } = string.Empty;
     public decimal ItemCharges { get; set; }
+    public string? ConsultingType { get; set; }
+    public int? GraceTime { get; set; }
 }
 
 public class ConsultingServiceOptionDto
@@ -127,6 +129,7 @@ public class ConsultingServiceOptionDto
     public string ItemCode   { get; set; } = string.Empty;
     public string ItemName   { get; set; } = string.Empty;
     public decimal ItemCharges { get; set; }
+    public string? ConsultingType { get; set; }
     public string Label => $"{ItemCode} — {ItemName} (₹{ItemCharges:N2})";
 }
 

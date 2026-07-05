@@ -12,8 +12,11 @@ public interface IDoctorConsultingFeeService
     Task<IEnumerable<ConsultingFeeItemDto>> GetByDoctorAsync(int doctorId, int branchId);
 
     /// <summary>Map a consulting service to a doctor. Ignores duplicate (ON CONFLICT).</summary>
-    Task AddAsync(int doctorId, int serviceId, int branchId, int? userId);
+    Task AddAsync(int doctorId, int serviceId, int? graceTime, int branchId, int? userId);
 
     /// <summary>Remove a specific mapping.</summary>
     Task RemoveAsync(int mappingId, int doctorId, int branchId);
+
+    /// <summary>Update the grace time for a specific mapping.</summary>
+    Task UpdateGraceTimeAsync(int mappingId, int doctorId, int branchId, int? graceTime);
 }
