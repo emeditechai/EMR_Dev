@@ -7,6 +7,7 @@
 
 <!-- Bootstrap Select CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css">
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
 
 <div class="container-fluid" id="config-page-container">
     <!-- Header Bar -->
@@ -269,6 +270,14 @@
 @section Scripts {
     <!-- Bootstrap Select JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
+    <!-- Quill Rich Text Editor -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <style>
+        .pd-tool.active { background-color: #6c757d !important; color: #fff !important; border-color: #6c757d !important; }
+        .rt-wrapper-dash .ql-toolbar.ql-snow { border-radius: 6px 6px 0 0; border-color: #dee2e6; }
+        .rt-wrapper-dash .ql-container.ql-snow { border-radius: 0 0 6px 6px; border-color: #dee2e6; min-height: 130px; }
+        .pd-canvas { touch-action: none; }
+    </style>
 
     <!-- Google Fonts Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1791,7 +1800,8 @@
 
                     const fieldsRow = secCard.find(`#sec-fields-${sec.sectionId}`);
                     sec.fields.forEach(f => {
-                        const col = $('<div class="col-md-6 mb-1"></div>');
+                        const isWideField = ['Paint','RichText','ImageUpload','FileUpload'].includes(f.fieldType);
+                        const col = $(`<div class="${isWideField ? 'col-md-12' : 'col-md-6'} mb-2"></div>`);
                         const isRequiredAsterisk = f.isRequired ? '<span class="text-danger">*</span>' : '';
                         const requiredAttr = f.isRequired ? 'required' : '';
                         const label = $(`<label class="form-label fw-semibold small text-muted mb-1">${f.fieldName} ${isRequiredAsterisk}</label>`);
@@ -1845,10 +1855,42 @@
                             const color = f.fieldType === 'Investigation' ? 'success' : 'warning';
                             const icon = f.fieldType === 'Investigation' ? 'bi-eyedropper' : 'bi-capsule';
                             const placeholder = f.fieldType === 'Investigation' ? 'Search investigations...' : 'Search medications...';
+                            const isMed = f.fieldType === 'Medication';
+
+                            // Parse freq/proc options from OptionsString JSON (Medication only)
+                            let freqOpts = ['Daily', 'Weekly', 'Monthly', 'Yearly', 'Alternate Day'];
+                            let procOpts = ['Before Food', 'After Food', 'After Breakfast', 'Before Breakfast', 'After Lunch', 'After Dinner', 'Before Dinner'];
+                            let templateItems = '';
+
+                            if (isMed && f.optionsString) {
+                                try {
+                                    const cfg = JSON.parse(f.optionsString);
+                                    if (cfg.freqOptions && cfg.freqOptions.length) freqOpts = cfg.freqOptions;
+                                    if (cfg.procOptions && cfg.procOptions.length) procOpts = cfg.procOptions;
+                                    if (cfg.items) templateItems = cfg.items;
+                                } catch(e) { /* not JSON — use defaults */ }
+                            } else if (!isMed) {
+                                templateItems = f.optionsString || '';
+                            }
+
+                            const containerClass = isMed
+                                ? 'selected-items-container d-flex flex-column gap-1 mb-2 p-1 border rounded bg-light'
+                                : 'selected-items-container d-flex flex-wrap gap-1 mb-2 p-1 border rounded bg-light';
+
+                            const freqOptsHtml = `<option value="">-- Frequency --</option>` + freqOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+                            const procOptsHtml = `<option value="">-- Procedure --</option>` + procOpts.map(o => `<option value="${o}">${o}</option>`).join('');
 
                             const listComponent = $(`
-                                <div class="p-2 border rounded bg-white shadow-xs field-row" data-field-type="${f.fieldType}" data-field-id="${f.fieldId}">
-                                    <div class="selected-items-container d-flex flex-wrap gap-1 mb-2 p-1 border rounded bg-light" style="min-height: 32px;"></div>
+                                <div class="p-2 border rounded bg-white shadow-xs field-row" data-field-type="${f.fieldType}" data-field-id="${f.fieldId}"
+                                     data-freq-opts='${JSON.stringify(freqOpts)}' data-proc-opts='${JSON.stringify(procOpts)}'>
+                                    ${isMed ? `
+                                    <div class="d-flex align-items-center gap-2 mb-1 px-1">
+                                        <small class="text-muted fw-semibold" style="min-width:160px;">Medicine</small>
+                                        <small class="text-muted fw-semibold" style="min-width:100px;">Dose</small>
+                                        <small class="text-muted fw-semibold" style="min-width:130px;">Frequency</small>
+                                        <small class="text-muted fw-semibold" style="min-width:155px;">Procedure</small>
+                                    </div>` : ''}
+                                    <div class="${containerClass}" style="min-height: 32px;"></div>
                                     <div class="position-relative">
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text bg-light"><i class="bi ${icon} text-${color}"></i></span>
@@ -1859,30 +1901,171 @@
                                 </div>
                             `);
 
-                            // Hydrate previously saved medications/investigations
-                            if (savedVal) {
-                                const items = savedVal.split(',');
+                            // Hydrate previously saved medications/investigations from EmrDataJson
+                            const hydrateSrc = savedVal || templateItems;
+                            if (hydrateSrc) {
+                                const items = hydrateSrc.split(',');
                                 const container = listComponent.find('.selected-items-container');
                                 items.forEach(itm => {
                                     const parts = itm.split('|');
-                                    const itemId = parts[0];
+                                    const itemId   = parts[0];
                                     const itemText = parts.length > 1 ? parts[1] : parts[0];
-                                    
+                                    const itemDose = parts.length > 2 ? parts[2] : '';
+                                    const itemFreq = parts.length > 3 ? parts[3] : '';
+                                    const itemProc = parts.length > 4 ? parts[4] : '';
+
                                     if (itemId && itemText) {
-                                        const tag = $(`
-                                            <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="${itemId}" data-item-text="${itemText}">
-                                                ${itemText}
-                                                <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
-                                            </span>
-                                        `);
-                                        tag.find('.btn-close').on('click', function () { tag.remove(); });
-                                        container.append(tag);
+                                        if (isMed) {
+                                            // Build freq/proc selects pre-selected with saved values
+                                            const fq = freqOpts.map(o => `<option value="${o}"${o === itemFreq ? ' selected' : ''}>${o}</option>`).join('');
+                                            const pr = procOpts.map(o => `<option value="${o}"${o === itemProc ? ' selected' : ''}>${o}</option>`).join('');
+                                            const row = $(`
+                                                <div class="selected-item-tag d-flex align-items-center gap-2 flex-wrap p-1 bg-white border rounded" data-item-id="${itemId}" data-item-text="${itemText}">
+                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                                        <i class="bi bi-capsule me-1"></i>${itemText}
+                                                    </span>
+                                                    <input type="text" class="form-control form-control-sm item-dose-input" placeholder="Dose" value="${itemDose}" style="max-width:100px;" />
+                                                    <select class="form-select form-select-sm item-freq-select" style="max-width:130px;">
+                                                        <option value="">-- Frequency --</option>
+                                                        ${fq}
+                                                    </select>
+                                                    <select class="form-select form-select-sm item-proc-select" style="max-width:155px;">
+                                                        <option value="">-- Procedure --</option>
+                                                        ${pr}
+                                                    </select>
+                                                    <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-auto item-remove-btn" style="line-height:1;"><i class="bi bi-x-circle-fill"></i></button>
+                                                </div>
+                                            `);
+                                            row.find('.item-remove-btn').on('click', function () { row.remove(); });
+                                            container.append(row);
+                                        } else {
+                                            const tag = $(`
+                                                <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="${itemId}" data-item-text="${itemText}">
+                                                    ${itemText}
+                                                    <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
+                                                </span>
+                                            `);
+                                            tag.find('.btn-close').on('click', function () { tag.remove(); });
+                                            container.append(tag);
+                                        }
                                     }
                                 });
                             }
 
                             col.empty().append(label).append(listComponent);
                             setupAutoSuggest(listComponent, f.fieldType);
+                        }
+                        else if (f.fieldType === 'ImageUpload') {
+                            const imgHidden = $(`<input type="hidden" class="emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" value="" />`);
+                            const hasImg = typeof savedVal === 'string' && savedVal.startsWith('data:image');
+                            const imgArea = $(`
+                                <div class="img-upload-area-dash border border-2 border-dashed rounded-2 d-flex flex-column align-items-center justify-content-center p-3 text-muted bg-light-subtle" style="min-height:100px;cursor:pointer;">
+                                    <i class="bi bi-cloud-upload fs-3 mb-1 text-info"></i>
+                                    <div class="small fw-semibold">Click to upload or drag image here</div>
+                                    <div style="font-size:0.7rem;">PNG, JPG, GIF accepted</div>
+                                    <img class="dash-img-preview mt-2 ${hasImg ? '' : 'd-none'} rounded" src="${hasImg ? savedVal : ''}" style="max-height:150px;max-width:100%;" />
+                                    <input type="file" class="dash-img-file d-none" accept="image/*" />
+                                </div>
+                            `);
+                            if (hasImg) imgHidden.val(savedVal);
+                            imgArea.on('click', function(e) { if (!$(e.target).is(imgArea.find('.dash-img-file'))) imgArea.find('.dash-img-file').trigger('click'); });
+                            imgArea.find('.dash-img-file').on('change', function() {
+                                const file = this.files[0];
+                                if (file && file.type.startsWith('image/')) {
+                                    const reader = new FileReader();
+                                    reader.onload = ev => { imgArea.find('.dash-img-preview').attr('src', ev.target.result).removeClass('d-none'); imgHidden.val(ev.target.result); };
+                                    reader.readAsDataURL(file);
+                                }
+                            });
+                            imgArea[0].addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+                            imgArea[0].addEventListener('drop', function(e) {
+                                e.preventDefault(); e.stopPropagation();
+                                const file = e.dataTransfer.files[0];
+                                if (file && file.type.startsWith('image/')) {
+                                    const reader = new FileReader();
+                                    reader.onload = ev => { imgArea.find('.dash-img-preview').attr('src', ev.target.result).removeClass('d-none'); imgHidden.val(ev.target.result); };
+                                    reader.readAsDataURL(file);
+                                }
+                            });
+                            col.append(imgHidden).append(imgArea);
+                        }
+                        else if (f.fieldType === 'Paint') {
+                            const paintHidden = $(`<input type="hidden" class="emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" value="" />`);
+                            const paintWrap = $(`
+                                <div class="pd-wrapper">
+                                    <div class="pd-toolbar d-flex gap-1 align-items-center flex-wrap p-2 bg-light rounded-top border border-bottom-0">
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool active" data-tool="pen" title="Pen"><i class="bi bi-pencil-fill"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="highlighter" title="Highlighter"><i class="bi bi-highlighter"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="line" title="Straight line"><i class="bi bi-slash-lg"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="arrow" title="Arrow"><i class="bi bi-arrow-right"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="rect" title="Rectangle"><i class="bi bi-square"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="filled-rect" title="Filled rectangle"><i class="bi bi-square-fill"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="circle" title="Ellipse"><i class="bi bi-circle"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="filled-circle" title="Filled ellipse"><i class="bi bi-circle-fill"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="text" title="Text"><i class="bi bi-type"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary pd-tool" data-tool="eraser" title="Eraser"><i class="bi bi-eraser-fill"></i></button>
+                                        </div>
+                                        <input type="color" class="pd-color form-control form-control-color p-0" value="#000000" title="Colour" style="width:28px;height:28px;border:none;" />
+                                        <select class="pd-size form-select form-select-sm" style="width:auto;">
+                                            <option value="2">2 px</option>
+                                            <option value="4" selected>4 px</option>
+                                            <option value="8">8 px</option>
+                                            <option value="14">14 px</option>
+                                        </select>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary pd-undo-btn" title="Undo"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary pd-redo-btn" title="Redo"><i class="bi bi-arrow-clockwise"></i></button>
+                                        <input type="file" class="pd-bg-input d-none" accept="image/*" />
+                                        <button type="button" class="btn btn-sm btn-outline-info pd-bg-btn" title="Upload background image"><i class="bi bi-image me-1"></i>BG</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger pd-clear-btn ms-auto" title="Clear canvas"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <div class="position-relative">
+                                        <canvas class="pd-canvas border rounded-bottom w-100" height="280" style="cursor:crosshair;background:#fff;"></canvas>
+                                        <input type="text" class="pd-text-input form-control form-control-sm d-none" placeholder="Type text, press Enter..." style="position:absolute;top:8px;left:8px;max-width:280px;z-index:10;" />
+                                    </div>
+                                </div>
+                            `);
+                            col.append(paintHidden).append(paintWrap);
+                            const _pw = paintWrap, _ph = paintHidden, _sv = savedVal, _td = f.optionsString;
+                            setTimeout(() => initDashboardPaint(_pw, _ph, _sv, _td), 80);
+                        }
+                        else if (f.fieldType === 'FileUpload') {
+                            const fileHidden = $(`<input type="hidden" class="emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" value="${savedVal || ''}" />`);
+                            const fileWrap = $(`
+                                <div>
+                                    <div class="border border-2 border-dashed rounded-2 d-flex align-items-center justify-content-between p-2 bg-light-subtle" style="cursor:pointer;">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="bi bi-folder2-open fs-5 text-secondary"></i>
+                                            <div><div class="small fw-semibold">Attach files</div><div class="text-muted" style="font-size:0.7rem;">PDF, DOC, DOCX, XLS, JPG, PNG</div></div>
+                                        </div>
+                                        <input type="file" class="dash-file-input d-none" multiple />
+                                        <button type="button" class="btn btn-sm btn-outline-secondary dash-file-btn"><i class="bi bi-folder-open me-1"></i>Browse</button>
+                                    </div>
+                                    <div class="dash-files-list mt-1 small">
+                                        ${savedVal ? savedVal.split(',').filter(x=>x.trim()).map(fn=>`<span class="badge bg-secondary-subtle border me-1"><i class="bi bi-file-earmark me-1"></i>${fn.trim()}</span>`).join('') : ''}
+                                    </div>
+                                </div>
+                            `);
+                            fileWrap.find('.dash-file-btn').on('click', e => { e.stopPropagation(); fileWrap.find('.dash-file-input').trigger('click'); });
+                            fileWrap.find('.dash-file-input').on('change', function() {
+                                const files = Array.from(this.files);
+                                if (files.length) {
+                                    fileWrap.find('.dash-files-list').html(files.map(f => `<span class="badge bg-secondary-subtle border me-1"><i class="bi bi-file-earmark me-1"></i>${f.name}</span>`).join(''));
+                                    fileHidden.val(files.map(f => f.name).join(','));
+                                }
+                            });
+                            col.append(fileHidden).append(fileWrap);
+                        }
+                        else if (f.fieldType === 'RichText') {
+                            const rtHidden = $(`<input type="hidden" class="emr-field-input" data-field-id="${f.fieldId}" data-field-name="${f.fieldName}" value="" />`);
+                            const rtWrap = $(`
+                                <div class="rt-wrapper-dash border rounded-2 overflow-hidden">
+                                    <div class="rt-editor-dash" style="min-height:140px;background:#fff;"></div>
+                                </div>
+                            `);
+                            col.append(rtHidden).append(rtWrap);
+                            const _re = rtWrap.find('.rt-editor-dash')[0], _rh = rtHidden, _rv = savedVal;
+                            setTimeout(() => initDashboardQuill(_re, _rh, _rv), 80);
                         }
 
                         fieldsRow.append(col);
@@ -1910,12 +2093,153 @@
             }
         }
 
+        // ── Media Field Init Functions ─────────────────────────────────────────
+        function initDashboardPaint(wrapper, hiddenInput, savedVal, templateDefault) {
+            const canvas = wrapper.find('.pd-canvas')[0];
+            if (!canvas || $(canvas).data('pd-init')) return;
+            $(canvas).data('pd-init', true);
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Restore: patient saved data takes priority over template default background
+            const restore = (typeof savedVal === 'string' && savedVal.startsWith('data:image')) ? savedVal
+                : (typeof templateDefault === 'string' && templateDefault.startsWith('data:image')) ? templateDefault : null;
+            if (restore) {
+                const img = new Image();
+                img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                img.src = restore;
+                if (restore === savedVal) hiddenInput.val(savedVal);
+            }
+
+            let isDrawing = false, currentTool = 'pen';
+            let startX = 0, startY = 0, lastX = 0, lastY = 0;
+            let snapshot = null, history = [], redoStack = [];
+            const SHAPE = new Set(['line','arrow','rect','filled-rect','circle','filled-circle']);
+            const FREE  = new Set(['pen','highlighter','eraser']);
+
+            const commit  = () => hiddenInput.val(canvas.toDataURL());
+            const snap    = () => { history.push(canvas.toDataURL()); if (history.length > 30) history.shift(); redoStack = []; };
+            const getPos  = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX-r.left)*(canvas.width/r.width),(e.clientY-r.top)*(canvas.height/r.height)]; };
+            const setStyl = () => {
+                ctx.strokeStyle = currentTool === 'eraser' ? '#ffffff' : wrapper.find('.pd-color').val();
+                ctx.fillStyle   = wrapper.find('.pd-color').val();
+                ctx.lineWidth   = currentTool === 'highlighter' ? parseInt(wrapper.find('.pd-size').val()) * 6 : parseInt(wrapper.find('.pd-size').val());
+                ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.globalAlpha = currentTool === 'highlighter' ? 0.35 : 1.0;
+            };
+            const arrowHead = (x1, y1, x2, y2) => {
+                const len = Math.max(14, Math.min(50, ctx.lineWidth * 4)), ang = Math.atan2(y2-y1, x2-x1);
+                ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+                ctx.lineTo(x2-len*Math.cos(ang-Math.PI/6), y2-len*Math.sin(ang-Math.PI/6));
+                ctx.moveTo(x2,y2); ctx.lineTo(x2-len*Math.cos(ang+Math.PI/6), y2-len*Math.sin(ang+Math.PI/6));
+                ctx.stroke();
+            };
+            const drawSh = (x2, y2) => {
+                setStyl();
+                switch (currentTool) {
+                    case 'line': ctx.beginPath(); ctx.moveTo(startX,startY); ctx.lineTo(x2,y2); ctx.stroke(); break;
+                    case 'arrow': arrowHead(startX,startY,x2,y2); break;
+                    case 'rect': ctx.strokeRect(startX,startY,x2-startX,y2-startY); break;
+                    case 'filled-rect': ctx.fillRect(startX,startY,x2-startX,y2-startY); break;
+                    case 'circle': { const rx=(x2-startX)/2,ry=(y2-startY)/2; ctx.beginPath(); ctx.ellipse(startX+rx,startY+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2); ctx.stroke(); break; }
+                    case 'filled-circle': { const rx=(x2-startX)/2,ry=(y2-startY)/2; ctx.beginPath(); ctx.ellipse(startX+rx,startY+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2); ctx.fill(); break; }
+                }
+                ctx.globalAlpha = 1.0;
+            };
+
+            canvas.addEventListener('mousedown', e => {
+                e.preventDefault();
+                if (currentTool === 'text') {
+                    const [x,y] = getPos(e), ti = wrapper.find('.pd-text-input');
+                    ti.css({left:Math.min(x,canvas.width-290)+'px',top:Math.min(y,canvas.height-40)+'px'}).removeClass('d-none').focus().data({tx:x,ty:y});
+                    ti.off('keydown.pd').on('keydown.pd', function(ke) {
+                        if (ke.key === 'Enter') {
+                            const txt = $(this).val().trim();
+                            if (txt) { snap(); ctx.globalAlpha=1; ctx.font=`${parseInt(wrapper.find('.pd-size').val())*4}px Arial`; ctx.fillStyle=wrapper.find('.pd-color').val(); ctx.fillText(txt,$(this).data('tx'),$(this).data('ty')); commit(); }
+                            $(this).val('').addClass('d-none');
+                        }
+                    }); return;
+                }
+                isDrawing = true; [startX,startY] = getPos(e); [lastX,lastY] = [startX,startY];
+                snap();
+                if (SHAPE.has(currentTool)) { snapshot = ctx.getImageData(0,0,canvas.width,canvas.height); }
+                else { setStyl(); ctx.beginPath(); ctx.moveTo(startX,startY); }
+            });
+            canvas.addEventListener('mousemove', e => {
+                if (!isDrawing) return;
+                const [x,y] = getPos(e);
+                if (FREE.has(currentTool)) { setStyl(); ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke(); ctx.globalAlpha=1; [lastX,lastY]=[x,y]; }
+                else if (snapshot) { ctx.putImageData(snapshot,0,0); drawSh(x,y); }
+            });
+            canvas.addEventListener('mouseup', e => {
+                if (!isDrawing) return; isDrawing=false;
+                if (SHAPE.has(currentTool)) { const [x,y]=getPos(e); if(snapshot) ctx.putImageData(snapshot,0,0); drawSh(x,y); snapshot=null; }
+                ctx.globalAlpha=1; commit();
+            });
+            canvas.addEventListener('mouseleave', () => {
+                if (!isDrawing) return; isDrawing=false;
+                if (snapshot) { ctx.putImageData(snapshot,0,0); if(history.length) history.pop(); snapshot=null; }
+                ctx.globalAlpha=1; commit();
+            });
+
+            const cursors = {pen:'crosshair',highlighter:'crosshair',line:'crosshair',arrow:'crosshair',rect:'crosshair','filled-rect':'crosshair',circle:'crosshair','filled-circle':'crosshair',text:'text',eraser:'cell'};
+            wrapper.find('.pd-tool').on('click', function() {
+                wrapper.find('.pd-tool').removeClass('active'); $(this).addClass('active');
+                currentTool = $(this).data('tool'); canvas.style.cursor = cursors[currentTool] || 'crosshair';
+            });
+            wrapper.find('.pd-undo-btn').on('click', () => {
+                if (!history.length) return; redoStack.push(canvas.toDataURL()); const s=history.pop(), i=new Image();
+                i.onload=()=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(i,0,0);commit();}; i.src=s;
+            });
+            wrapper.find('.pd-redo-btn').on('click', () => {
+                if (!redoStack.length) return; history.push(canvas.toDataURL()); const s=redoStack.pop(), i=new Image();
+                i.onload=()=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(i,0,0);commit();}; i.src=s;
+            });
+            wrapper.find('.pd-bg-btn').on('click', e => { e.stopPropagation(); wrapper.find('.pd-bg-input').trigger('click'); });
+            wrapper.find('.pd-bg-input').on('change', function() {
+                const file = this.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    snap(); const reader = new FileReader();
+                    reader.onload = ev => { const img=new Image(); img.onload=()=>{const sc=Math.min(canvas.width/img.width,canvas.height/img.height);ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,(canvas.width-img.width*sc)/2,(canvas.height-img.height*sc)/2,img.width*sc,img.height*sc);commit();};img.src=ev.target.result;};
+                    reader.readAsDataURL(file);
+                }
+            });
+            wrapper.find('.pd-clear-btn').on('click', () => { snap(); ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); hiddenInput.val(''); });
+        }
+
+        function initDashboardQuill(container, hiddenInput, savedVal) {
+            if (!container || $(container).data('pd-quill-init')) return;
+            if (typeof Quill === 'undefined') { console.warn('Quill.js not loaded'); return; }
+            const quill = new Quill(container, {
+                theme: 'snow',
+                placeholder: 'Enter notes here...',
+                modules: {
+                    toolbar: [
+                        [{'header':[1,2,3,false]}],
+                        ['bold','italic','underline','strike'],
+                        [{'color':[]},{'background':[]}],
+                        [{'align':[]}],
+                        [{'list':'ordered'},{'list':'bullet'}],
+                        ['link'],['clean']
+                    ]
+                }
+            });
+            $(container).data('pd-quill-init', true).data('pd-quill-instance', quill);
+            if (savedVal) {
+                try { quill.setContents(JSON.parse(savedVal)); } catch(e) { quill.setText(savedVal); }
+            }
+            quill.on('text-change', () => hiddenInput.val(JSON.stringify(quill.getContents())));
+        }
+
         // AutoSuggest dynamic engine inside Dashboard EMR modal
         function setupAutoSuggest(fieldComponent, fieldType) {
             const endpoint = fieldType === 'Investigation' ? '/EmrInvestigations/Search' : '/EmrMedications/Search';
             const suggestBox = fieldComponent.find('.autosuggest-input');
             const dropdown = fieldComponent.find('.autosuggest-dropdown');
             const container = fieldComponent.find('.selected-items-container');
+            const isMed = fieldType === 'Medication';
 
             suggestBox.on('input', async function () {
                 const q = $(this).val().trim();
@@ -1932,21 +2256,57 @@
                     }
 
                     items.forEach(item => {
+                        const subtitle = isMed
+                            ? (item.genericName ? `<small class="text-muted ms-1">(${item.genericName})</small>` : '')
+                            : (item.category ? `<span class="badge bg-info-subtle text-info border ms-1" style="font-size:0.65rem;">${item.category}</span>` : '');
+
                         const li = $(`<button type="button" class="dropdown-item py-2 d-flex align-items-center gap-1">
                             <span class="fw-semibold">${item.text}</span>
+                            ${subtitle}
                         </button>`);
 
                         li.on('click', function () {
-                            // Add badge tag
-                            if (container.find(`[data-item-id="${item.id}"]`).length === 0) {
-                                const tag = $(`
-                                    <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="${item.id}" data-item-text="${item.text}">
-                                        ${item.text}
-                                        <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
-                                    </span>
-                                `);
-                                tag.find('.btn-close').on('click', function () { tag.remove(); });
-                                container.append(tag);
+                            // For Medication: add dose/freq row; for Investigation: add badge
+                            if (isMed) {
+                                if (container.find(`[data-item-id="${item.id}"]`).length === 0) {
+                                    const dosePlaceholder = (item.strength || '') + (item.unit ? ' ' + item.unit : '');
+                                    
+                                    const freqOpts = fieldComponent.data('freq-opts') || ['Daily', 'Weekly', 'Monthly', 'Yearly', 'Alternate Day'];
+                                    const procOpts = fieldComponent.data('proc-opts') || ['Before Food', 'After Food', 'After Breakfast', 'Before Breakfast', 'After Lunch', 'After Dinner', 'Before Dinner'];
+                                    const fq = freqOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+                                    const pr = procOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+
+                                    const row = $(`
+                                        <div class="selected-item-tag d-flex align-items-center gap-2 flex-wrap p-1 bg-white border rounded" data-item-id="${item.id}" data-item-text="${item.text}">
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                                <i class="bi bi-capsule me-1"></i>${item.text}
+                                            </span>
+                                            <input type="text" class="form-control form-control-sm item-dose-input" placeholder="${dosePlaceholder ? 'Dose (e.g. ' + dosePlaceholder.trim() + ')' : 'Dose'}" style="max-width:100px;" />
+                                            <select class="form-select form-select-sm item-freq-select" style="max-width:130px;">
+                                                <option value="">-- Frequency --</option>
+                                                ${fq}
+                                            </select>
+                                            <select class="form-select form-select-sm item-proc-select" style="max-width:155px;">
+                                                <option value="">-- Procedure --</option>
+                                                ${pr}
+                                            </select>
+                                            <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-auto item-remove-btn" style="line-height:1;"><i class="bi bi-x-circle-fill"></i></button>
+                                        </div>
+                                    `);
+                                    row.find('.item-remove-btn').on('click', function () { row.remove(); });
+                                    container.append(row);
+                                }
+                            } else {
+                                if (container.find(`[data-item-id="${item.id}"]`).length === 0) {
+                                    const tag = $(`
+                                        <span class="badge bg-light text-dark border me-1 mb-1 d-inline-flex align-items-center gap-1 selected-item-tag" data-item-id="${item.id}" data-item-text="${item.text}">
+                                            ${item.text}
+                                            <button type="button" class="btn-close btn-close-dark" style="font-size:0.5rem;"></button>
+                                        </span>
+                                    `);
+                                    tag.find('.btn-close').on('click', function () { tag.remove(); });
+                                    container.append(tag);
+                                }
                             }
                             suggestBox.val('');
                             dropdown.hide();
@@ -1992,12 +2352,19 @@
             $('#emrDynamicFieldsCanvas .field-row').each(function() {
                 const id = $(this).attr('data-field-id');
                 if (!id) return;
-                
+                const fieldType = $(this).attr('data-field-type');
                 const selected = [];
                 $(this).find('.selected-item-tag').each(function() {
                     const itemId = $(this).attr('data-item-id');
                     const itemText = $(this).attr('data-item-text');
-                    selected.push(itemId + '|' + itemText);
+                    if (fieldType === 'Medication') {
+                        const dose = $(this).find('.item-dose-input').val().trim();
+                        const freq = $(this).find('.item-freq-select').val().trim();
+                        const proc = $(this).find('.item-proc-select').val().trim();
+                        selected.push(itemId + '|' + itemText + '|' + dose + '|' + freq + '|' + proc);
+                    } else {
+                        selected.push(itemId + '|' + itemText);
+                    }
                 });
                 emrData[id] = selected.join(',');
             });
@@ -2103,20 +2470,66 @@
                 });
 
                 $(this).find('.field-row').each(function() {
+                    const fieldType = $(this).attr('data-field-type');
                     const fieldName = $(this).closest('div').find('label').text().replace('*', '').trim();
-                    const selectedTags = [];
-                    $(this).find('.selected-item-tag').each(function() {
-                        selectedTags.push($(this).attr('data-item-text'));
-                    });
-                    
-                    const val = selectedTags.length > 0 ? selectedTags.join(', ') : '';
-                    if (val && val !== 'N/A' && val !== 'None') {
-                        fieldItems += `
-                            <div class="field-item">
-                                <span class="field-lbl">${fieldName}:</span>
-                                <span class="field-val">${val}</span>
-                            </div>
-                        `;
+
+                    if (fieldType === 'Medication') {
+                        // Build a table of medications with Dose and Frequency
+                        const medRows = [];
+                        $(this).find('.selected-item-tag').each(function() {
+                            const medName = $(this).attr('data-item-text') || '';
+                            const dose = $(this).find('.item-dose-input').val().trim();
+                            const freq = $(this).find('.item-freq-select').val().trim();
+                            const proc = $(this).find('.item-proc-select').val().trim();
+                            if (medName) {
+                                medRows.push({ name: medName, dose: dose, freq: freq, proc: proc });
+                            }
+                        });
+                        if (medRows.length > 0) {
+                            let tableHtml = `
+                                <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;">
+                                    <thead>
+                                        <tr style="background:#f0f0f0;">
+                                            <th style="border:1px solid #ddd;padding:5px 8px;text-align:left;">#</th>
+                                            <th style="border:1px solid #ddd;padding:5px 8px;text-align:left;">Medicine</th>
+                                            <th style="border:1px solid #ddd;padding:5px 8px;text-align:left;">Dose</th>
+                                            <th style="border:1px solid #ddd;padding:5px 8px;text-align:left;">Frequency</th>
+                                            <th style="border:1px solid #ddd;padding:5px 8px;text-align:left;">Procedure</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                            medRows.forEach((m, idx) => {
+                                tableHtml += `<tr>
+                                    <td style="border:1px solid #ddd;padding:5px 8px;">${idx + 1}</td>
+                                    <td style="border:1px solid #ddd;padding:5px 8px;font-weight:500;">${m.name}</td>
+                                    <td style="border:1px solid #ddd;padding:5px 8px;">${m.dose || '—'}</td>
+                                    <td style="border:1px solid #ddd;padding:5px 8px;">${m.freq || '—'}</td>
+                                    <td style="border:1px solid #ddd;padding:5px 8px;">${m.proc || '—'}</td>
+                                </tr>`;
+                            });
+                            tableHtml += `</tbody></table>`;
+                            fieldItems += `
+                                <div class="field-item" style="flex-direction:column;align-items:flex-start;">
+                                    <span class="field-lbl">${fieldName}:</span>
+                                    ${tableHtml}
+                                </div>
+                            `;
+                        }
+                    } else {
+                        // Investigation or other list types — flat comma list
+                        const selectedTags = [];
+                        $(this).find('.selected-item-tag').each(function() {
+                            selectedTags.push($(this).attr('data-item-text'));
+                        });
+                        const val = selectedTags.length > 0 ? selectedTags.join(', ') : '';
+                        if (val && val !== 'N/A' && val !== 'None') {
+                            fieldItems += `
+                                <div class="field-item">
+                                    <span class="field-lbl">${fieldName}:</span>
+                                    <span class="field-val">${val}</span>
+                                </div>
+                            `;
+                        }
                     }
                 });
 

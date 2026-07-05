@@ -58,7 +58,7 @@ public class EmrFieldViewModel
     public string FieldName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Field Type is required.")]
-    public string FieldType { get; set; } = "Text"; // Text, TextArea, Select, MultiSelect, Number, Checkbox, Date
+    public string FieldType { get; set; } = "Text"; // Text, TextArea, Select, MultiSelect, Number, Checkbox, Date, ImageUpload, Paint, FileUpload, RichText
 
     public string? OptionsString { get; set; } // Comma-separated choice values (e.g. "None, Regular, Occasional")
 

@@ -41,6 +41,7 @@ public class EmrFieldInfo
     public string FieldType { get; set; } = string.Empty;
     public bool IsRequired { get; set; }
     public List<string> Options { get; set; } = new();
+    public string OptionsString { get; set; } = string.Empty; // Raw value for media types (base64, Quill JSON, etc.)
 }
 
 public class EmrSavedConsultationInfo

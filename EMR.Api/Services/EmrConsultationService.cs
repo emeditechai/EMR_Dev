@@ -94,7 +94,8 @@ public class EmrConsultationService(IDbConnectionFactory db) : IEmrConsultationS
                     FieldName = f.FieldName,
                     FieldType = f.FieldType,
                     IsRequired = f.IsRequired,
-                    Options = options
+                    Options = options,
+                    OptionsString = (string?)f.OptionsJson ?? string.Empty
                 };
             }).ToList();
             sec.Fields = secFields;

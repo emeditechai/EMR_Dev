@@ -24,6 +24,45 @@
         } 
         catch { }
     }
+
+    // Convert Quill delta JSON to safe HTML for print
+    string QuillDeltaToHtml(string quillJson)
+    {
+        try
+        {
+            var qdoc = JsonDocument.Parse(quillJson);
+            if (!qdoc.RootElement.TryGetProperty("ops", out var opsEl))
+                return System.Net.WebUtility.HtmlEncode(quillJson);
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var op in opsEl.EnumerateArray())
+            {
+                if (!op.TryGetProperty("insert", out var ins) || ins.ValueKind != JsonValueKind.String)
+                    continue;
+
+                var text = ins.GetString() ?? "";
+                var segments = text.Split('\n');
+                for (int si = 0; si < segments.Length; si++)
+                {
+                    var chunk = System.Net.WebUtility.HtmlEncode(segments[si]);
+                    if (op.TryGetProperty("attributes", out var at))
+                    {
+                        if (at.TryGetProperty("bold",      out var bv) && bv.ValueKind == JsonValueKind.True) chunk = $"<strong>{chunk}</strong>";
+                        if (at.TryGetProperty("italic",    out var iv) && iv.ValueKind == JsonValueKind.True) chunk = $"<em>{chunk}</em>";
+                        if (at.TryGetProperty("underline", out var uv) && uv.ValueKind == JsonValueKind.True) chunk = $"<u>{chunk}</u>";
+                        if (at.TryGetProperty("color", out var cv) && cv.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(cv.GetString()))
+                            chunk = $"<span style=\"color:{System.Net.WebUtility.HtmlEncode(cv.GetString()!)}\">{chunk}</span>";
+                    }
+                    sb.Append(chunk);
+                    if (si < segments.Length - 1) sb.Append("<br/>");
+                }
+            }
+            var html = sb.ToString();
+            // Trim trailing <br/> added for Quill's terminating newline
+            return html.EndsWith("<br/>") ? html[..^5] : html;
+        }
+        catch { return System.Net.WebUtility.HtmlEncode(quillJson); }
+    }
 }
 <!DOCTYPE html>
 <html>
@@ -268,10 +307,37 @@
                     foreach(var f in sec.Fields)
                     {
                         var val = fieldValues.ContainsKey(f.FieldId) ? fieldValues[f.FieldId] : "";
-                        if (!string.IsNullOrWhiteSpace(val) && val != "N/A" && val != "None")
+                        if (string.IsNullOrWhiteSpace(val) || val == "N/A" || val == "None") continue;
+
+                        string fieldHtml;
+                        if ((f.FieldType == "Paint" || f.FieldType == "ImageUpload") && val.StartsWith("data:image"))
                         {
-                            validFields.Add($"<div class=\"field-item\"><span class=\"field-lbl\">{f.FieldName}:</span><span class=\"field-val\">{val}</span></div>");
+                            // Render canvas/image as an <img> tag
+                            fieldHtml = $"<div class=\"field-item\"><span class=\"field-lbl\">{f.FieldName}:</span><div style=\"margin-top:5px;\"><img src=\"{val}\" style=\"max-width:100%;max-height:280px;border:1px solid #dee2e6;border-radius:4px;display:block;\" /></div></div>";
                         }
+                        else if (f.FieldType == "RichText" && val.StartsWith("{"))
+                        {
+                            // Convert Quill delta JSON to formatted HTML
+                            var rtHtml = QuillDeltaToHtml(val);
+                            if (string.IsNullOrWhiteSpace(rtHtml)) continue;
+                            fieldHtml = $"<div class=\"field-item\"><span class=\"field-lbl\">{f.FieldName}:</span><div class=\"field-val\" style=\"line-height:1.6;margin-top:2px;\">{rtHtml}</div></div>";
+                        }
+                        else if (f.FieldType == "FileUpload")
+                        {
+                            // Display file names as a readable list
+                            var files = val.Split(',').Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim());
+                            fieldHtml = $"<div class=\"field-item\"><span class=\"field-lbl\">{f.FieldName}:</span><span class=\"field-val\">{string.Join(", ", files)}</span></div>";
+                        }
+                        else if (f.FieldType is "Paint" or "ImageUpload" or "RichText")
+                        {
+                            // Media field with no renderable content — skip
+                            continue;
+                        }
+                        else
+                        {
+                            fieldHtml = $"<div class=\"field-item\"><span class=\"field-lbl\">{f.FieldName}:</span><span class=\"field-val\">{val}</span></div>";
+                        }
+                        validFields.Add(fieldHtml);
                     }
 
                     if (validFields.Count > 0)

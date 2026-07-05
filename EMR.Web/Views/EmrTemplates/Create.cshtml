@@ -6,6 +6,7 @@
 @section HeadStyles {
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
     <style>
         .toolbox-card {
             position: sticky;
@@ -83,6 +84,12 @@
         .empty-fields-msg {
             transition: all 0.2s ease;
         }
+        .image-upload-area { cursor: pointer; transition: all 0.2s ease; }
+        .image-upload-area:hover { border-color: #0dcaf0 !important; background-color: rgba(13,202,240,0.06) !important; }
+        .paint-canvas { touch-action: none; }
+        .paint-tool-btn.active { background-color: #6c757d !important; color: #fff !important; border-color: #6c757d !important; }
+        .ql-toolbar.ql-snow { border-radius: 6px 6px 0 0; border-color: #dee2e6; }
+        .ql-container.ql-snow { border-radius: 0 0 6px 6px; border-color: #dee2e6; min-height: 100px; }
     </style>
 }
 
@@ -222,6 +229,37 @@
                             <div class="text-muted" style="font-size: 0.7rem;">Auto-suggest from DB</div>
                         </div>
                     </div>
+
+                    <div class="text-uppercase fw-bold text-secondary small mb-2 mt-3 border-top pt-3">Media &amp; Content</div>
+
+                    <div class="tool-item border-info-subtle bg-info-subtle" draggable="true" data-type="ImageUpload" title="Image upload area for clinical photos and scans">
+                        <i class="bi bi-image text-info"></i>
+                        <div>
+                            <div class="fw-semibold text-info-emphasis">Image Area</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">Upload &amp; display images</div>
+                        </div>
+                    </div>
+
+                    <div class="tool-item border-danger-subtle bg-danger-subtle" draggable="true" data-type="Paint" title="Annotation canvas to mark on images and write text">
+                        <i class="bi bi-brush text-danger"></i>
+                        <div>
+                            <div class="fw-semibold text-danger-emphasis">Paint / Annotate</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">Draw &amp; annotate</div>
+                        </div>
+                    </div>
+
+                    <div class="tool-item" draggable="true" data-type="FileUpload" title="File attachment browser for documents">
+                        <i class="bi bi-paperclip"></i>
+                        <span class="fw-semibold">File Attachment</span>
+                    </div>
+
+                    <div class="tool-item border-primary-subtle bg-primary-subtle" draggable="true" data-type="RichText" title="Rich text editor with bold, italic, colour and formatting">
+                        <i class="bi bi-type-h1 text-primary"></i>
+                        <div>
+                            <div class="fw-semibold text-primary-emphasis">Rich Text Editor</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">Bold, italic, colour</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -305,6 +343,7 @@
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <script>
         // Track the active section element
         let activeSectionEl = null;
@@ -412,6 +451,10 @@
                     addInvestigationOrMedicationField(secCard, defaultFieldName, defaultFieldType);
                     return;
                 }
+                if (['ImageUpload', 'Paint', 'FileUpload', 'RichText'].includes(defaultFieldType)) {
+                    addMediaField(secCard, defaultFieldName, defaultFieldType);
+                    return;
+                }
 
                 const fieldsContainer = secCard.find('.fields-container');
                 const emptyMsg = secCard.find('.empty-fields-msg');
@@ -473,6 +516,10 @@
                     case 'Date': return 'Date';
                     case 'Investigation': return 'Investigation';
                     case 'Medication': return 'Medication';
+                    case 'ImageUpload': return 'Image';
+                    case 'Paint': return 'Paint';
+                    case 'FileUpload': return 'File';
+                    case 'RichText': return 'Rich Text';
                     default: return type;
                 }
             }
@@ -692,6 +739,16 @@
                                 selectedItems.push(itemId + '|' + itemText);
                             });
                             optionsInput.val(selectedItems.join(','));
+                        } else if (fieldType === 'RichText') {
+                            if (optionsInput.length === 0) {
+                                optionsInput = $('<input type="hidden" class="field-options-input" />');
+                                f.append(optionsInput);
+                            }
+                            const editorEl = f.find('.rich-text-editor')[0];
+                            if (editorEl) {
+                                const qi = $(editorEl).data('quill-instance');
+                                if (qi) optionsInput.val(JSON.stringify(qi.getContents()));
+                            }
                         }
                         optionsInput.attr('name', `Sections[${sIdx}].Fields[${fIdx}].OptionsString`);
                         
@@ -826,6 +883,37 @@
                                             </div>
                                         `;
                                         break;
+                                    case 'ImageUpload':
+                                        html += `<div class="border border-2 border-dashed rounded-2 d-flex flex-column align-items-center justify-content-center p-3 text-muted bg-light" style="min-height: 80px;">
+                                            <i class="bi bi-image fs-2 text-info mb-1 d-block"></i>
+                                            <div class="small fw-semibold">Image upload area</div>
+                                        </div>`;
+                                        break;
+                                    case 'Paint':
+                                        html += `<div class="border rounded-2 bg-white d-flex align-items-center justify-content-center" style="height: 120px;">
+                                            <div class="text-center text-muted small"><i class="bi bi-brush fs-2 d-block mb-1 text-danger"></i>Paint / Annotate Canvas</div>
+                                        </div>`;
+                                        break;
+                                    case 'FileUpload':
+                                        html += `<div class="border border-dashed rounded-2 d-flex align-items-center gap-2 p-2 bg-light">
+                                            <i class="bi bi-paperclip text-secondary fs-5"></i>
+                                            <span class="small text-muted">File attachment</span>
+                                            <button class="btn btn-sm btn-outline-secondary ms-auto" disabled><i class="bi bi-folder-open me-1"></i>Browse</button>
+                                        </div>`;
+                                        break;
+                                    case 'RichText':
+                                        html += `<div class="border rounded-2 overflow-hidden">
+                                            <div class="d-flex gap-1 p-2 border-bottom bg-light flex-wrap">
+                                                <span class="badge bg-secondary-subtle border fw-bold">B</span>
+                                                <span class="badge bg-secondary-subtle border fst-italic">I</span>
+                                                <span class="badge bg-secondary-subtle border text-decoration-underline">U</span>
+                                                <span class="badge bg-secondary-subtle border"><i class="bi bi-palette2"></i></span>
+                                                <span class="badge bg-secondary-subtle border">H1</span>
+                                                <span class="badge bg-secondary-subtle border">&#8226; List</span>
+                                            </div>
+                                            <div class="p-2 small text-muted bg-white" style="min-height: 60px;">Rich text content area...</div>
+                                        </div>`;
+                                        break;
                                     default:
                                         html += `<input type="text" class="form-control form-control-sm" disabled />`;
                                 }
@@ -884,6 +972,395 @@
                 setupAutoSuggest(el, defaultFieldType);
                 setupFieldDragDrop(el);
                 updateIndices();
+            }
+
+            // ── MEDIA FIELD BUILDER ──────────────────────────────────
+            function addMediaField(secCard, defaultFieldName, fieldType) {
+                const fieldsContainer = secCard.find('.fields-container');
+                const emptyMsg = secCard.find('.empty-fields-msg');
+
+                const configs = {
+                    ImageUpload: { color: 'info',      icon: 'bi-image',    label: 'Image Area' },
+                    Paint:       { color: 'danger',    icon: 'bi-brush',    label: 'Paint / Annotate' },
+                    FileUpload:  { color: 'secondary', icon: 'bi-paperclip',label: 'File Attachment' },
+                    RichText:    { color: 'primary',   icon: 'bi-type-h1',  label: 'Rich Text' }
+                };
+                const cfg = configs[fieldType];
+
+                let contentHtml = '';
+                if (fieldType === 'ImageUpload') {
+                    contentHtml = `
+                        <div class="image-upload-area border border-2 border-dashed rounded-2 d-flex flex-column align-items-center justify-content-center p-3 text-muted bg-light-subtle" style="min-height: 100px;">
+                            <i class="bi bi-cloud-upload fs-3 mb-1 text-info"></i>
+                            <div class="small fw-semibold">Click to upload or drag image here</div>
+                            <div style="font-size: 0.7rem;">PNG, JPG, GIF accepted</div>
+                            <img class="image-preview mt-2 d-none rounded" style="max-height: 150px; max-width: 100%;" />
+                            <input type="file" class="image-file-input d-none" accept="image/*" />
+                        </div>`;
+                } else if (fieldType === 'Paint') {
+                    contentHtml = `
+                        <div class="paint-control-wrapper">
+                            <div class="paint-toolbar p-2 bg-light rounded-top border border-bottom-0">
+                                <div class="d-flex gap-1 align-items-center flex-wrap">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn active" data-tool="pen" title="Pen (freehand)"><i class="bi bi-pencil-fill"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="highlighter" title="Highlighter"><i class="bi bi-highlighter"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="line" title="Straight line"><i class="bi bi-slash-lg"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="arrow" title="Arrow"><i class="bi bi-arrow-right"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="rect" title="Rectangle (outline)"><i class="bi bi-square"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="filled-rect" title="Filled rectangle"><i class="bi bi-square-fill"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="circle" title="Ellipse (outline)"><i class="bi bi-circle"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="filled-circle" title="Filled ellipse"><i class="bi bi-circle-fill"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="text" title="Text"><i class="bi bi-type"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary paint-tool-btn" data-tool="eraser" title="Eraser"><i class="bi bi-eraser-fill"></i></button>
+                                    </div>
+                                    <input type="color" class="paint-color form-control form-control-color p-0" value="#000000" title="Colour" style="width:28px; height:28px; border:none;" />
+                                    <select class="paint-size form-select form-select-sm" style="width:auto;" title="Stroke width">
+                                        <option value="1">1 px</option>
+                                        <option value="2">2 px</option>
+                                        <option value="4" selected>4 px</option>
+                                        <option value="8">8 px</option>
+                                        <option value="14">14 px</option>
+                                        <option value="24">24 px</option>
+                                    </select>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary paint-undo-btn" title="Undo"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary paint-redo-btn" title="Redo"><i class="bi bi-arrow-clockwise"></i></button>
+                                    <input type="file" class="paint-bg-input d-none" accept="image/*" />
+                                    <button type="button" class="btn btn-sm btn-outline-info paint-bg-btn" title="Upload background image"><i class="bi bi-image me-1"></i>BG</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger paint-clear-btn ms-auto" title="Clear canvas"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                            <div class="position-relative">
+                                <canvas class="paint-canvas border rounded-bottom w-100" height="260" style="cursor: crosshair; background: #fff;"></canvas>
+                                <input type="text" class="paint-text-input form-control form-control-sm d-none" placeholder="Type text, press Enter to place..." style="position: absolute; top: 8px; left: 8px; max-width: 280px; z-index: 10;" />
+                            </div>
+                        </div>`;
+                } else if (fieldType === 'FileUpload') {
+                    contentHtml = `
+                        <div class="file-upload-area border border-2 border-dashed rounded-2 d-flex align-items-center justify-content-between p-3 bg-light-subtle" style="cursor: pointer;">
+                            <div class="d-flex align-items-center gap-3">
+                                <i class="bi bi-folder2-open fs-4 text-secondary"></i>
+                                <div>
+                                    <div class="small fw-semibold">Click to browse files</div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">PDF, DOC, DOCX, XLS, JPG, PNG</div>
+                                </div>
+                            </div>
+                            <input type="file" class="file-browser-input d-none" multiple />
+                            <button type="button" class="btn btn-sm btn-outline-secondary file-browse-btn"><i class="bi bi-folder-open me-1"></i>Browse</button>
+                        </div>
+                        <div class="selected-files-list mt-1 small text-muted"></div>`;
+                } else if (fieldType === 'RichText') {
+                    contentHtml = `
+                        <div class="rich-text-wrapper border rounded-2 overflow-hidden">
+                            <div class="rich-text-editor" style="min-height: 120px; background: #fff;"></div>
+                        </div>`;
+                }
+
+                const el = $(`
+                    <div class="field-row p-2 mb-2 border rounded-2 bg-white" data-field-type="${fieldType}" draggable="true">
+                        <input type="hidden" class="field-id-input" />
+                        <input type="hidden" class="field-type-hidden-val" value="${fieldType}" />
+                        <input type="hidden" class="field-options-input" />
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-grip-vertical text-muted fs-5" style="cursor:grab;"></i>
+                                <span class="badge bg-${cfg.color}-subtle text-${cfg.color}-emphasis border border-${cfg.color}-subtle field-type-badge">
+                                    <i class="${cfg.icon} me-1"></i>${cfg.label}
+                                </span>
+                                <input type="text" class="form-control form-control-sm field-name-input" placeholder="Field label" value="${defaultFieldName}" style="max-width: 220px;" required />
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input field-required-checkbox" type="checkbox" role="switch" value="true" />
+                                    <input type="hidden" class="field-required-hidden" value="false" />
+                                    <label class="form-check-label text-secondary small">Required</label>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-link text-danger p-1 btn-remove-field" title="Remove Field">
+                                    <i class="bi bi-x-circle-fill fs-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="field-media-content">${contentHtml}</div>
+                    </div>
+                `);
+
+                fieldsContainer.append(el);
+                emptyMsg.addClass('d-none');
+                initMediaField(el, fieldType);
+                setupFieldDragDrop(el);
+
+                // Prevent drag conflicts on media content
+                el.find('.field-media-content').on('dragstart', e => e.stopPropagation());
+
+                updateIndices();
+            }
+
+            function initMediaField(el, fieldType) {
+                if      (fieldType === 'RichText')    initQuillEditor(el.find('.rich-text-editor')[0], null);
+                else if (fieldType === 'Paint')       initPaintCanvas(el);
+                else if (fieldType === 'ImageUpload') initImageUpload(el);
+                else if (fieldType === 'FileUpload')  initFileUpload(el);
+            }
+
+            function initQuillEditor(container, savedContent) {
+                if (!container || $(container).data('quill-init')) return;
+                const quill = new Quill(container, {
+                    theme: 'snow',
+                    placeholder: 'Enter rich text content here...',
+                    modules: {
+                        toolbar: [
+                            [{ 'header': [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ 'color': [] }, { 'background': [] }],
+                            [{ 'align': [] }],
+                            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                            ['link'],
+                            ['clean']
+                        ]
+                    }
+                });
+                $(container).data('quill-init', true).data('quill-instance', quill);
+                if (savedContent) {
+                    try { quill.setContents(JSON.parse(savedContent)); } catch(e) { quill.setText(savedContent); }
+                }
+                quill.on('text-change', function() {
+                    $(container).closest('.field-row').find('.field-options-input').val(JSON.stringify(quill.getContents()));
+                });
+            }
+
+            function initPaintCanvas(fieldRowEl) {
+                const canvas = fieldRowEl.find('.paint-canvas')[0];
+                if (!canvas || $(canvas).data('paint-init')) return;
+                $(canvas).data('paint-init', true);
+
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // ── State ─────────────────────────────────────────────────
+                let isDrawing = false, currentTool = 'pen';
+                let startX = 0, startY = 0, lastX = 0, lastY = 0;
+                let snapshot  = null;
+                let history   = [], redoStack = [];
+                const MAX_HIST    = 30;
+                const SHAPE_TOOLS = new Set(['line','arrow','rect','filled-rect','circle','filled-circle']);
+                const FREE_TOOLS  = new Set(['pen','highlighter','eraser']);
+
+                const saveState   = () => { history.push(canvas.toDataURL()); if (history.length > MAX_HIST) history.shift(); redoStack = []; };
+                const commitInput = () => fieldRowEl.find('.field-options-input').val(canvas.toDataURL());
+                const getPos = e => {
+                    const r = canvas.getBoundingClientRect();
+                    return [(e.clientX - r.left) * (canvas.width / r.width),
+                            (e.clientY - r.top)  * (canvas.height / r.height)];
+                };
+                const setStyle = () => {
+                    ctx.strokeStyle = currentTool === 'eraser' ? '#ffffff' : fieldRowEl.find('.paint-color').val();
+                    ctx.fillStyle   = fieldRowEl.find('.paint-color').val();
+                    ctx.lineWidth   = currentTool === 'highlighter'
+                        ? parseInt(fieldRowEl.find('.paint-size').val()) * 6
+                        : parseInt(fieldRowEl.find('.paint-size').val());
+                    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                    ctx.globalAlpha = currentTool === 'highlighter' ? 0.35 : 1.0;
+                };
+                const drawArrowHead = (x1, y1, x2, y2) => {
+                    const len = Math.max(14, Math.min(50, ctx.lineWidth * 4));
+                    const angle = Math.atan2(y2 - y1, x2 - x1);
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+                    ctx.lineTo(x2 - len * Math.cos(angle - Math.PI / 6), y2 - len * Math.sin(angle - Math.PI / 6));
+                    ctx.moveTo(x2, y2);
+                    ctx.lineTo(x2 - len * Math.cos(angle + Math.PI / 6), y2 - len * Math.sin(angle + Math.PI / 6));
+                    ctx.stroke();
+                };
+                const drawShape = (x2, y2) => {
+                    setStyle();
+                    switch (currentTool) {
+                        case 'line': ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(x2, y2); ctx.stroke(); break;
+                        case 'arrow': drawArrowHead(startX, startY, x2, y2); break;
+                        case 'rect': ctx.strokeRect(startX, startY, x2 - startX, y2 - startY); break;
+                        case 'filled-rect': ctx.fillRect(startX, startY, x2 - startX, y2 - startY); break;
+                        case 'circle': { const rx=(x2-startX)/2, ry=(y2-startY)/2; ctx.beginPath(); ctx.ellipse(startX+rx, startY+ry, Math.abs(rx), Math.abs(ry), 0, 0, Math.PI*2); ctx.stroke(); break; }
+                        case 'filled-circle': { const rx=(x2-startX)/2, ry=(y2-startY)/2; ctx.beginPath(); ctx.ellipse(startX+rx, startY+ry, Math.abs(rx), Math.abs(ry), 0, 0, Math.PI*2); ctx.fill(); break; }
+                    }
+                    ctx.globalAlpha = 1.0;
+                };
+
+                // ── Mouse Events ───────────────────────────────────────────
+                canvas.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    if (currentTool === 'text') {
+                        const [x, y] = getPos(e);
+                        const ti = fieldRowEl.find('.paint-text-input');
+                        ti.css({ left: Math.min(x, canvas.width - 290) + 'px', top: Math.min(y, canvas.height - 40) + 'px' })
+                          .removeClass('d-none').focus().data({ tx: x, ty: y });
+                        ti.off('keydown.paint').on('keydown.paint', function(ke) {
+                            if (ke.key === 'Enter') {
+                                const txt = $(this).val().trim();
+                                if (txt) {
+                                    saveState();
+                                    ctx.globalAlpha = 1.0;
+                                    ctx.font      = `${parseInt(fieldRowEl.find('.paint-size').val()) * 4}px Arial`;
+                                    ctx.fillStyle = fieldRowEl.find('.paint-color').val();
+                                    ctx.fillText(txt, $(this).data('tx'), $(this).data('ty'));
+                                    commitInput();
+                                }
+                                $(this).val('').addClass('d-none');
+                            }
+                        });
+                        return;
+                    }
+                    isDrawing = true;
+                    [startX, startY] = getPos(e); [lastX, lastY] = [startX, startY];
+                    saveState();
+                    if (SHAPE_TOOLS.has(currentTool)) {
+                        snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    } else {
+                        setStyle(); ctx.beginPath(); ctx.moveTo(startX, startY);
+                    }
+                });
+
+                canvas.addEventListener('mousemove', function(e) {
+                    if (!isDrawing) return;
+                    const [x, y] = getPos(e);
+                    if (FREE_TOOLS.has(currentTool)) {
+                        setStyle();
+                        ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+                        ctx.globalAlpha = 1.0; [lastX, lastY] = [x, y];
+                    } else if (snapshot) {
+                        ctx.putImageData(snapshot, 0, 0); drawShape(x, y);
+                    }
+                });
+
+                canvas.addEventListener('mouseup', function(e) {
+                    if (!isDrawing) return;
+                    isDrawing = false;
+                    if (SHAPE_TOOLS.has(currentTool)) {
+                        const [x, y] = getPos(e);
+                        if (snapshot) ctx.putImageData(snapshot, 0, 0);
+                        drawShape(x, y); snapshot = null;
+                    }
+                    ctx.globalAlpha = 1.0; commitInput();
+                });
+
+                canvas.addEventListener('mouseleave', function() {
+                    if (!isDrawing) return;
+                    isDrawing = false;
+                    if (snapshot) { ctx.putImageData(snapshot, 0, 0); if (history.length) history.pop(); snapshot = null; }
+                    ctx.globalAlpha = 1.0; commitInput();
+                });
+
+                // ── Toolbar ────────────────────────────────────────────────
+                const cursors = { pen:'crosshair', highlighter:'crosshair', line:'crosshair', arrow:'crosshair', rect:'crosshair', 'filled-rect':'crosshair', circle:'crosshair', 'filled-circle':'crosshair', text:'text', eraser:'cell' };
+                fieldRowEl.find('.paint-tool-btn').on('click', function() {
+                    fieldRowEl.find('.paint-tool-btn').removeClass('active');
+                    $(this).addClass('active');
+                    currentTool = $(this).data('tool');
+                    canvas.style.cursor = cursors[currentTool] || 'crosshair';
+                });
+
+                // ── Undo / Redo ────────────────────────────────────────────
+                fieldRowEl.find('.paint-undo-btn').on('click', function() {
+                    if (!history.length) return;
+                    redoStack.push(canvas.toDataURL());
+                    const s = history.pop();
+                    const img = new Image();
+                    img.onload = () => { ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); commitInput(); };
+                    img.src = s;
+                });
+                fieldRowEl.find('.paint-redo-btn').on('click', function() {
+                    if (!redoStack.length) return;
+                    history.push(canvas.toDataURL());
+                    const s = redoStack.pop();
+                    const img = new Image();
+                    img.onload = () => { ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); commitInput(); };
+                    img.src = s;
+                });
+
+                // ── Background Image ───────────────────────────────────────
+                fieldRowEl.find('.paint-bg-btn').on('click', e => { e.stopPropagation(); fieldRowEl.find('.paint-bg-input').trigger('click'); });
+                fieldRowEl.find('.paint-bg-input').on('change', function() {
+                    const file = this.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        saveState();
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const sc = Math.min(canvas.width / img.width, canvas.height / img.height);
+                                ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                ctx.drawImage(img, (canvas.width-img.width*sc)/2, (canvas.height-img.height*sc)/2, img.width*sc, img.height*sc);
+                                commitInput();
+                            };
+                            img.src = ev.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+
+                // ── Clear ──────────────────────────────────────────────────
+                fieldRowEl.find('.paint-clear-btn').on('click', function() {
+                    saveState();
+                    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    fieldRowEl.find('.field-options-input').val('');
+                });
+            }
+
+            function initImageUpload(fieldRowEl) {
+                const area      = fieldRowEl.find('.image-upload-area');
+                const fileInput = fieldRowEl.find('.image-file-input');
+                const preview   = fieldRowEl.find('.image-preview');
+                if (area.data('img-init')) return;
+                area.data('img-init', true);
+
+                area.on('click', function(e) {
+                    if (!$(e.target).is(fileInput)) fileInput.trigger('click');
+                });
+
+                fileInput.on('change', function() {
+                    const file = this.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                            preview.attr('src', ev.target.result).removeClass('d-none');
+                            fieldRowEl.find('.field-options-input').val(ev.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+
+                area[0].addEventListener('dragover',  e => { e.preventDefault(); e.stopPropagation(); area.addClass('border-info'); });
+                area[0].addEventListener('dragleave', () => area.removeClass('border-info'));
+                area[0].addEventListener('drop', function(e) {
+                    e.preventDefault(); e.stopPropagation();
+                    area.removeClass('border-info');
+                    const f = e.dataTransfer.files[0];
+                    if (f && f.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                            preview.attr('src', ev.target.result).removeClass('d-none');
+                            fieldRowEl.find('.field-options-input').val(ev.target.result);
+                        };
+                        reader.readAsDataURL(f);
+                    }
+                });
+            }
+
+            function initFileUpload(fieldRowEl) {
+                const fileInput = fieldRowEl.find('.file-browser-input');
+                const browseBtn = fieldRowEl.find('.file-browse-btn');
+                const filesList = fieldRowEl.find('.selected-files-list');
+                if (browseBtn.data('file-init')) return;
+                browseBtn.data('file-init', true);
+
+                browseBtn.on('click', e => { e.stopPropagation(); fileInput.trigger('click'); });
+
+                fileInput.on('change', function() {
+                    const files = Array.from(this.files);
+                    if (files.length > 0) {
+                        filesList.html(files.map(f => `<span class="badge bg-secondary-subtle border me-1"><i class="bi bi-file-earmark me-1"></i>${f.name}</span>`).join(''));
+                        fieldRowEl.find('.field-options-input').val(files.map(f => f.name).join(','));
+                    }
+                });
             }
 
             // Form Submit validations

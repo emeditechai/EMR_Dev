@@ -72,15 +72,30 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
                 string? optionsString = null;
                 if (!string.IsNullOrWhiteSpace(f.OptionsJson))
                 {
-                    try
+                    if (f.FieldType is "Select" or "MultiSelect")
                     {
-                        var options = JsonSerializer.Deserialize<List<string>>(f.OptionsJson);
-                        if (options != null)
+                        // Stored as a JSON string array — deserialise and rejoin for the UI
+                        try
                         {
-                            optionsString = string.Join(", ", options);
+                            var opts = JsonSerializer.Deserialize<List<string>>(f.OptionsJson);
+                            optionsString = opts != null ? string.Join(", ", opts) : f.OptionsJson;
                         }
+                        catch { optionsString = f.OptionsJson; }
                     }
-                    catch { /* fallback to raw */ }
+                    else
+                    {
+                        // Investigation/Medication   → stored as raw "id|name,id|name" (may be JSON array from old saves)
+                        // ImageUpload / Paint        → raw base64 data URL
+                        // FileUpload                 → raw comma-separated file names
+                        // RichText                   → raw Quill delta JSON string
+                        try
+                        {
+                            var opts = JsonSerializer.Deserialize<List<string>>(f.OptionsJson);
+                            // Rejoin without space to preserve the id|name pair format
+                            optionsString = opts != null ? string.Join(",", opts) : f.OptionsJson;
+                        }
+                        catch { optionsString = f.OptionsJson; }
+                    }
                 }
 
                 return new EmrFieldViewModel
@@ -165,10 +180,24 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
                     string? optionsJson = null;
                     if (!string.IsNullOrWhiteSpace(fieldVm.OptionsString))
                     {
-                        var list = fieldVm.OptionsString.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                            .Select(x => x.Trim())
-                            .ToList();
-                        optionsJson = JsonSerializer.Serialize(list);
+                        if (fieldVm.FieldType is "Select" or "MultiSelect")
+                        {
+                            // Serialize comma-separated options as a JSON string array
+                            var list = fieldVm.OptionsString
+                                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(x => x.Trim())
+                                .ToList();
+                            optionsJson = JsonSerializer.Serialize(list);
+                        }
+                        else
+                        {
+                            // Store raw for all other types:
+                            // Investigation/Medication → "id|name,id|name"
+                            // ImageUpload / Paint      → base64 data URL
+                            // FileUpload               → comma-separated file names
+                            // RichText                 → Quill delta JSON
+                            optionsJson = fieldVm.OptionsString;
+                        }
                     }
 
                     db.EmrTemplateFields.Add(new EmrTemplateField
@@ -258,10 +287,18 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
                     string? optionsJson = null;
                     if (!string.IsNullOrWhiteSpace(fieldVm.OptionsString))
                     {
-                        var list = fieldVm.OptionsString.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                            .Select(x => x.Trim())
-                            .ToList();
-                        optionsJson = JsonSerializer.Serialize(list);
+                        if (fieldVm.FieldType is "Select" or "MultiSelect")
+                        {
+                            var list = fieldVm.OptionsString
+                                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(x => x.Trim())
+                                .ToList();
+                            optionsJson = JsonSerializer.Serialize(list);
+                        }
+                        else
+                        {
+                            optionsJson = fieldVm.OptionsString;
+                        }
                     }
 
                     db.EmrTemplateFields.Add(new EmrTemplateField

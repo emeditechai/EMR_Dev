@@ -15,7 +15,7 @@ public class EmrTemplateField
     public string FieldName { get; set; } = string.Empty;
 
     [Required, MaxLength(50)]
-    public string FieldType { get; set; } = "Text"; // Text, TextArea, Select, MultiSelect, Number, Checkbox, Date
+    public string FieldType { get; set; } = "Text"; // Text, TextArea, Select, MultiSelect, Number, Checkbox, Date, ImageUpload, Paint, FileUpload, RichText
 
     public string? OptionsJson { get; set; } // JSON array of choices for Select/MultiSelect
 
