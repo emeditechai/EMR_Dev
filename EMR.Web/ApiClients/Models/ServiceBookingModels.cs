@@ -90,6 +90,10 @@ public class DoctorDashboardQueueItem
     public string   PaymentStatus         { get; set; } = "U";
     public string?  PhotoPath             { get; set; }
     public bool     IsEmrDone             { get; set; }
+    // ── Video fields ──────────────────────────────────────────────────────────
+    public string   ConsultingType        { get; set; } = "Walk-In";
+    public string?  VideoPatientUrl       { get; set; }
+    public string?  VideoHostUrl          { get; set; }
 }
 
 public class DoctorDashboardQueueResult

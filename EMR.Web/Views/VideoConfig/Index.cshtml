@@ -1,0 +1,248 @@
+@model List<EMR.Web.Models.Entities.VideoSystemConfig>
+@{
+    ViewData["Title"] = "Video Consultation Config";
+}
+
+<div class="container-fluid px-4 py-3">
+    @* Header *@
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h3 class="fw-bold mb-0"><i class="bi bi-camera-video-fill text-primary me-2"></i>Video Consultation Config</h3>
+            <p class="text-muted small mb-0">Manage Whereby API settings for video consultations</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-success" id="btnTestConnection">
+                <i class="bi bi-wifi me-1"></i>Test Connection
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addConfigModal">
+                <i class="bi bi-plus-lg me-1"></i>Add Config
+            </button>
+        </div>
+    </div>
+
+    @* Status Banner *@
+    <div id="statusBanner" class="d-none mb-3"></div>
+
+    @* Config Cards Grid *@
+    <div class="row g-3" id="configCardsContainer">
+        @foreach (var cfg in Model)
+        {
+            <div class="col-12 col-lg-6" id="card-@cfg.ConfigId">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body p-0">
+                        <div class="d-flex align-items-center px-4 py-3 border-bottom">
+                            <div class="flex-grow-1">
+                                <span class="badge text-bg-primary font-monospace fs-6 me-2">@cfg.ConfigKey</span>
+                                @if (!cfg.IsActive)
+                                {
+                                    <span class="badge text-bg-secondary">Inactive</span>
+                                }
+                            </div>
+                            <div class="form-check form-switch mb-0 me-3">
+                                <input class="form-check-input cfg-active-toggle" type="checkbox"
+                                       data-key="@cfg.ConfigKey" @(cfg.IsActive ? "checked" : "") />
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteConfig(@cfg.ConfigId)">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </div>
+                        <div class="p-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold text-muted small mb-1">Config Value</label>
+                                <div class="input-group">
+                                    @if (cfg.ConfigKey == "WherebyApiKey")
+                                    {
+                                        <input type="password" class="form-control font-monospace cfg-value-input"
+                                               data-key="@cfg.ConfigKey" value="@cfg.ConfigValue"
+                                               id="val-@cfg.ConfigId" />
+                                        <button class="btn btn-outline-secondary" type="button"
+                                                onclick="togglePass('val-@cfg.ConfigId', this)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <input type="text" class="form-control cfg-value-input"
+                                               data-key="@cfg.ConfigKey" value="@cfg.ConfigValue" />
+                                    }
+                                </div>
+                            </div>
+                            @if (cfg.MeetingCreationUrl != null || cfg.ConfigKey == "WherebyBaseUrl")
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-muted small mb-1">Meeting Creation URL</label>
+                                    <input type="text" class="form-control cfg-url-input"
+                                           data-key="@cfg.ConfigKey"
+                                           value="@cfg.MeetingCreationUrl"
+                                           placeholder="e.g. https://api.whereby.dev/v1/meetings" />
+                                </div>
+                            }
+                            <div class="d-flex align-items-center justify-content-between">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    Updated: @(cfg.ModifiedDate?.ToString("dd-MMM-yyyy HH:mm") ?? cfg.CreatedDate.ToString("dd-MMM-yyyy HH:mm"))
+                                    @if (!string.IsNullOrWhiteSpace(cfg.ModifiedBy)) { <span>by @cfg.ModifiedBy</span> }
+                                </small>
+                                <button class="btn btn-sm btn-primary" onclick="saveConfig('@cfg.ConfigKey')">
+                                    <i class="bi bi-check-lg me-1"></i>Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        @if (!Model.Any())
+        {
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>No video config entries found. Click <strong>Add Config</strong> to create one.
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@* Add Config Modal *@
+<div class="modal fade" id="addConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Config Entry</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Config Key</label>
+                    <input type="text" id="newConfigKey" class="form-control" placeholder="e.g. WherebyApiKey" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Config Value</label>
+                    <textarea id="newConfigValue" class="form-control font-monospace" rows="3" placeholder="Value..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Meeting Creation URL <span class="text-muted small">(optional)</span></label>
+                    <input type="text" id="newMeetingUrl" class="form-control" placeholder="https://api.whereby.dev/v1/meetings" />
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="newIsActive" checked />
+                    <label class="form-check-label fw-semibold" for="newIsActive">Active</label>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnSaveNewConfig">
+                    <i class="bi bi-plus-lg me-1"></i>Add
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+
+    function togglePass(id, btn) {
+        const el = document.getElementById(id);
+        if (el.type === 'password') { el.type = 'text'; btn.innerHTML = '<i class="bi bi-eye-slash"></i>'; }
+        else { el.type = 'password'; btn.innerHTML = '<i class="bi bi-eye"></i>'; }
+    }
+
+    function showBanner(msg, type = 'success') {
+        const b = document.getElementById('statusBanner');
+        b.className = `alert alert-${type} d-block`;
+        b.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'x-circle'} me-2"></i>${msg}`;
+        setTimeout(() => b.classList.add('d-none'), 5000);
+    }
+
+    async function saveConfig(key) {
+        const valueEl  = document.querySelector(`.cfg-value-input[data-key="${key}"]`);
+        const urlEl    = document.querySelector(`.cfg-url-input[data-key="${key}"]`);
+        const activeEl = document.querySelector(`.cfg-active-toggle[data-key="${key}"]`);
+
+        const payload = {
+            configKey: key,
+            configValue: valueEl?.value ?? '',
+            meetingCreationUrl: urlEl?.value ?? null,
+            isActive: activeEl?.checked ?? true
+        };
+
+        const res  = await fetch('/VideoConfig/Save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) showBanner(data.message, 'success');
+        else              showBanner(data.message, 'danger');
+    }
+
+    async function deleteConfig(configId) {
+        const confirmed = await Swal.fire({
+            title: 'Delete Config?',
+            text: 'This will remove the config entry permanently.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Yes, delete'
+        });
+        if (!confirmed.isConfirmed) return;
+
+        const res  = await fetch('/VideoConfig/Delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify(configId)
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById(`card-${configId}`)?.closest('.col-12, .col-lg-6')?.remove();
+            showBanner('Config entry deleted.', 'success');
+        } else {
+            showBanner(data.message, 'danger');
+        }
+    }
+
+    // Add new config
+    document.getElementById('btnSaveNewConfig').addEventListener('click', async function () {
+        const key   = document.getElementById('newConfigKey').value.trim();
+        const value = document.getElementById('newConfigValue').value.trim();
+        const url   = document.getElementById('newMeetingUrl').value.trim();
+        const active = document.getElementById('newIsActive').checked;
+
+        if (!key || !value) { showBanner('Config Key and Value are required.', 'warning'); return; }
+
+        const res  = await fetch('/VideoConfig/AddConfig', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify({ configKey: key, configValue: value, meetingCreationUrl: url || null, isActive: active })
+        });
+        const data = await res.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('addConfigModal')).hide();
+            showBanner(`Config '${key}' added. Refreshing...`, 'success');
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            showBanner(data.message, 'danger');
+        }
+    });
+
+    // Test Connection
+    document.getElementById('btnTestConnection').addEventListener('click', async function () {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Testing…';
+        try {
+            const res  = await fetch('/VideoConfig/TestConnection', {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token }
+            });
+            const data = await res.json();
+            showBanner(data.message, data.success ? 'success' : 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-wifi me-1"></i>Test Connection';
+        }
+    });
+</script>
+}

@@ -565,7 +565,22 @@ public class OPDController(
         var branchId = User.GetCurrentBranchId();
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var result = await serviceBookingApiClient.GetPagedAsync(branchId, today, today, 1, 200, null);
-        return Json(new { isSuccess = true, data = result });
+
+        // ── Exclude Video consulting patients: they bypass Token Management
+        //    and appear directly in Doctor Dashboard ──────────────────────────────
+        var videoOpdIds = new HashSet<int>(
+            await db.CreateConnection().QueryAsync<int>(@"
+                SELECT DISTINCT i.OPDServiceId
+                FROM PatientOPDServiceItem i
+                JOIN ServiceMaster s ON s.ServiceId = i.ServiceId
+                WHERE s.ConsultingType = 'Video' AND i.IsActive = 1
+                  AND CAST((SELECT VisitDate FROM PatientOPDService WHERE OPDServiceId = i.OPDServiceId) AS DATE) = CAST(GETDATE() AS DATE)"));
+
+        var filtered = result.Items
+            .Where(item => !videoOpdIds.Contains(item.OPDServiceId))
+            .ToList();
+
+        return Json(new { isSuccess = true, data = new { result.TotalCount, result.TotalFeesAll, result.RegisteredCount, result.CompletedCount, Items = filtered } });
     }
 
     [HttpPost]
@@ -1597,7 +1612,13 @@ public class OPDController(
 
         var userId = User.GetUserId();
         var result = await paymentService.SavePaymentAsync(request, userId);
-        // result.TokenNo is populated (non-null) if payment is now fully paid
+
+        // ── Video Consultation: trigger ONLY when payment becomes fully paid ──
+        if (result.Success && result.PaymentStatus == "P" && (request.OPDServiceId ?? 0) > 0)
+        {
+            TriggerVideoOnFullPayment(User.GetCurrentBranchId(), request.OPDServiceId!.Value);
+        }
+
         return Json(result);
     }
 
@@ -1715,6 +1736,103 @@ public class OPDController(
         return Json(new { success = true, message = "EMR consultation record saved successfully." });
     }
 
+    // ─── Video Consultation: Create room on Full Payment ────────────────────────
+    private void TriggerVideoOnFullPayment(int? branchId, int opdServiceId)
+    {
+        var scopeFactory = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
+        var activeBranchId = branchId ?? 1;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                // Skip if a meeting was already created for this booking
+                var alreadyExists = await db.VideoConsultations
+                    .AnyAsync(v => v.OPDServiceId == opdServiceId && v.Status == "Scheduled");
+                if (alreadyExists)
+                {
+                    Console.WriteLine($"[VIDEO-TRIGGER] Room already exists for OPDServiceId={opdServiceId}, skipping.");
+                    return;
+                }
+
+                // Check if there is a Video consulting line item
+                var videoServiceItem = await db.Database.GetDbConnection()
+                    .QueryFirstOrDefaultAsync<(int ServiceId, string? ConsultingType)>(
+                        @"SELECT i.ServiceId, s.ConsultingType
+                          FROM PatientOPDServiceItem i
+                          JOIN ServiceMaster s ON s.ServiceId = i.ServiceId
+                          WHERE i.OPDServiceId = @OpdId AND s.ConsultingType = 'Video' AND i.IsActive = 1",
+                        new { OpdId = opdServiceId });
+
+                if (videoServiceItem.ServiceId <= 0)
+                {
+                    Console.WriteLine($"[VIDEO-TRIGGER] OPDServiceId={opdServiceId} has no Video line item, skipping.");
+                    return;
+                }
+
+                var booking = await db.PatientOPDServices.AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.OPDServiceId == opdServiceId);
+
+                if (booking == null)
+                {
+                    Console.WriteLine($"[VIDEO-TRIGGER] Booking {opdServiceId} not found.");
+                    return;
+                }
+
+                Console.WriteLine($"[VIDEO-TRIGGER] Full payment confirmed for OPDServiceId={opdServiceId}. Creating Whereby room...");
+
+                // Get slot end time from DoctorScheduleMaster, default +30 min
+                TimeSpan slotStartTime = booking.AppointmentTime ?? TimeSpan.Zero;
+                TimeSpan slotEndTime = slotStartTime.Add(TimeSpan.FromMinutes(30));
+
+                if (booking.ScheduleId.HasValue)
+                {
+                    var schedEnd = await db.Database.GetDbConnection()
+                        .QueryFirstOrDefaultAsync<TimeSpan?>(
+                            "SELECT EndTime FROM DoctorScheduleMaster WHERE ScheduleId = @Id",
+                            new { Id = booking.ScheduleId.Value });
+                    if (schedEnd.HasValue) slotEndTime = schedEnd.Value;
+                }
+
+                // Get grace time from DoctorConsultingFeeMap, fallback to config
+                var graceTime = await db.Database.GetDbConnection()
+                    .QueryFirstOrDefaultAsync<int?>(
+                        @"SELECT TOP 1 GraceTime FROM DoctorConsultingFeeMap
+                          WHERE DoctorId = @DoctorId AND ServiceId = @ServiceId AND IsActive = 1",
+                        new { DoctorId = booking.ConsultingDoctorId ?? 0, ServiceId = videoServiceItem.ServiceId });
+
+                if (!graceTime.HasValue || graceTime.Value <= 0)
+                {
+                    var cfgGrace = await db.VideoSystemConfigs
+                        .Where(c => c.ConfigKey == "DefaultGraceMinutes" && c.IsActive)
+                        .Select(c => c.ConfigValue)
+                        .FirstOrDefaultAsync();
+                    graceTime = int.TryParse(cfgGrace, out var g) ? g : 15;
+                }
+
+                var videoSvc = scope.ServiceProvider.GetRequiredService<IVideoConsultationService>();
+                await videoSvc.CreateAndDispatchAsync(
+                    opdServiceId     : opdServiceId,
+                    doctorId         : booking.ConsultingDoctorId ?? 0,
+                    patientId        : booking.PatientId,
+                    appointmentDate  : booking.VisitDate.Date,
+                    slotStartTime    : slotStartTime,
+                    slotEndTime      : slotEndTime,
+                    graceTimeMinutes : graceTime ?? 15,
+                    branchId         : activeBranchId,
+                    createdBy        : "System");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VIDEO-TRIGGER] Error in TriggerVideoOnFullPayment: {ex}");
+            }
+        });
+    }
+
+    // ─── Email: Booking Confirmation ────────────────────────────────────────────
     private void TriggerBookingEmail(int? branchId, int opdServiceId, string hostUrl)
     {
         try
@@ -1784,10 +1902,13 @@ public class OPDController(
 
                     Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PatientId: {booking.PatientId}, Email: '{patientEmail}'");
 
+                    // Note: Video Consultation room is created on FULL PAYMENT,
+                    //       not at booking time. See TriggerVideoOnFullPayment().
+
                     if (string.IsNullOrWhiteSpace(patientEmail))
                     {
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] No email for PatientId: {booking.PatientId}, skipping.");
-                        return; // No email ID
+                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] No email for PatientId: {booking.PatientId}, skipping booking confirmation email.");
+                        return;
                     }
 
                     var template = await db.EmailTemplates

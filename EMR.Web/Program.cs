@@ -52,6 +52,15 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 // Email (SMTP)
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// Video Consultation (Whereby)
+builder.Services.AddHttpClient("Whereby", client =>
+{
+    client.BaseAddress = new Uri("https://api.whereby.dev/");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+builder.Services.AddScoped<IWherebyService, WherebyService>();
+builder.Services.AddScoped<IVideoConsultationService, VideoConsultationService>();
+
 // EMR.Api HTTP clients
 builder.Services.AddHttpClient("EmrApi", client =>
 {

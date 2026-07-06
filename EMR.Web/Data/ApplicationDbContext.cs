@@ -51,6 +51,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // Email Logs
     public DbSet<EmailLog> EmailLogs => Set<EmailLog>();
 
+    // Video Consultation
+    public DbSet<VideoSystemConfig> VideoSystemConfigs => Set<VideoSystemConfig>();
+    public DbSet<VideoConsultation> VideoConsultations => Set<VideoConsultation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -277,6 +281,29 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany()
                 .HasForeignKey(x => x.ConfigId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Video System Config ──────────────────────────────────────────────
+        modelBuilder.Entity<VideoSystemConfig>(entity =>
+        {
+            entity.ToTable("tbl_VideoSystemConfig");
+            entity.HasKey(x => x.ConfigId);
+            entity.HasIndex(x => x.ConfigKey).IsUnique();
+            entity.Property(x => x.ConfigKey).HasMaxLength(100);
+            entity.Property(x => x.MeetingCreationUrl).HasMaxLength(200);
+        });
+
+        // ── Video Consultation ───────────────────────────────────────────────
+        modelBuilder.Entity<VideoConsultation>(entity =>
+        {
+            entity.ToTable("tbl_VideoConsultation");
+            entity.HasKey(x => x.ConsultationId);
+            entity.Property(x => x.WherebyMeetingId).HasMaxLength(50);
+            entity.Property(x => x.DoctorHostUrl).HasMaxLength(500);
+            entity.Property(x => x.PatientRoomUrl).HasMaxLength(500);
+            entity.Property(x => x.RoomNamePrefix).HasMaxLength(100);
+            entity.Property(x => x.Status).HasMaxLength(20);
+            entity.Property(x => x.CreatedBy).HasMaxLength(100);
         });
     }
 }
