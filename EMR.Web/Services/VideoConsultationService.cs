@@ -111,7 +111,7 @@ public class VideoConsultationService(
             {
                 var patientSubject = $"Your Video Consultation with Dr. {doctorName} on {apptDateStr}";
                 var patientBody = BuildPatientEmailBody(
-                    patientName, doctorName, apptDateStr, slotStartStr, slotEndStr, result.RoomUrl);
+                    patientName, doctorName, apptDateStr, slotStartStr, slotEndStr, graceTimeMinutes, result.RoomUrl);
 
                 await emailService.SendEmailAsync(branchId, patientEmail, patientSubject, patientBody);
                 consultation.PatientEmailSent = true;
@@ -139,6 +139,7 @@ public class VideoConsultationService(
         string doctorName, string patientName, string date,
         string startTime, string endTime, int graceMin, string hostUrl)
     {
+        var graceText = graceMin > 0 ? $" (+{graceMin} min grace)" : "";
         return $"""
         <html><body style="font-family:Arial,sans-serif;color:#333;">
         <div style="max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
@@ -151,7 +152,7 @@ public class VideoConsultationService(
                 <table style="width:100%;border-collapse:collapse;margin:16px 0;">
                     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Patient</td><td style="padding:8px;">{patientName}</td></tr>
                     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Date</td><td style="padding:8px;">{date}</td></tr>
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Time</td><td style="padding:8px;">{startTime} to {endTime} (+{graceMin} min grace)</td></tr>
+                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Time</td><td style="padding:8px;">{startTime} to {endTime}{graceText}</td></tr>
                 </table>
                 <p>Click the button below to join the consultation as <strong>host</strong>:</p>
                 <div style="text-align:center;margin:24px 0;">
@@ -171,8 +172,9 @@ public class VideoConsultationService(
 
     private static string BuildPatientEmailBody(
         string patientName, string doctorName, string date,
-        string startTime, string endTime, string roomUrl)
+        string startTime, string endTime, int graceMin, string roomUrl)
     {
+        var graceText = graceMin > 0 ? $" (+{graceMin} min grace)" : "";
         return $"""
         <html><body style="font-family:Arial,sans-serif;color:#333;">
         <div style="max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
@@ -185,7 +187,7 @@ public class VideoConsultationService(
                 <table style="width:100%;border-collapse:collapse;margin:16px 0;">
                     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Doctor</td><td style="padding:8px;">Dr. {doctorName}</td></tr>
                     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Date</td><td style="padding:8px;">{date}</td></tr>
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Time</td><td style="padding:8px;">{startTime} to {endTime}</td></tr>
+                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Time</td><td style="padding:8px;">{startTime} to {endTime}{graceText}</td></tr>
                 </table>
                 <p>Click the button below to join your appointment:</p>
                 <div style="text-align:center;margin:24px 0;">

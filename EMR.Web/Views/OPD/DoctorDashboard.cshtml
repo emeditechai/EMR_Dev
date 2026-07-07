@@ -860,9 +860,32 @@
                     tr.classList.add('active-row');
                 }
                 
-                const visitTime = item.visitDate
-                    ? new Date(item.visitDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : '--:--';
+                let visitTime = '--:--';
+                if (item.slotStartTime) {
+                    const parts = item.slotStartTime.split(':');
+                    let hr = parseInt(parts[0], 10);
+                    let min = parseInt(parts[1], 10);
+                    
+                    const formatTime = (h, m) => {
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        const h12 = h % 12 || 12;
+                        return `${h12.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+                    };
+                    
+                    const startStr = formatTime(hr, min);
+                    
+                    if (item.slotDurationMinutes) {
+                        min += item.slotDurationMinutes;
+                        hr += Math.floor(min / 60);
+                        min = min % 60;
+                        const endStr = formatTime(hr, min);
+                        visitTime = `${startStr} - ${endStr}`;
+                    } else {
+                        visitTime = startStr;
+                    }
+                } else if (item.visitDate) {
+                    visitTime = new Date(item.visitDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
                     
                 const pyStatus = (item.paymentStatus || 'U').toUpperCase();
                 const hasDue = pyStatus === 'U' || pyStatus === 'R';

@@ -77,6 +77,17 @@ public class PatientMaster
     public int? BranchId { get; set; }
     public bool IsActive { get; set; } = true;
 
+    public bool IsLoginGenerated { get; set; } = false;
+
+    [MaxLength(255)]
+    public string? PasswordHash { get; set; }
+
+    [MaxLength(255)]
+    public string? Salt { get; set; }
+
+    public bool IsPasswordchanged { get; set; } = false;
+    public DateTime? Lastlogin { get; set; }
+
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? ModifiedBy { get; set; }

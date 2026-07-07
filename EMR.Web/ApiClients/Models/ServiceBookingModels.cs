@@ -94,6 +94,9 @@ public class DoctorDashboardQueueItem
     public string   ConsultingType        { get; set; } = "Walk-In";
     public string?  VideoPatientUrl       { get; set; }
     public string?  VideoHostUrl          { get; set; }
+    // ── Time fields ───────────────────────────────────────────────────────────
+    public TimeSpan? SlotStartTime        { get; set; }
+    public int?      SlotDurationMinutes  { get; set; }
 }
 
 public class DoctorDashboardQueueResult
