@@ -14,6 +14,8 @@ public class DoctorListItem
     public string? ConsultingFeeNames     { get; set; }
     /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
     public bool    HasOPDDept             { get; set; }
+    
+    public int     TotalCount             { get; set; }
 }
 
 public class DoctorDetail : DoctorListItem

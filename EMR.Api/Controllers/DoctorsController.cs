@@ -14,11 +14,11 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
 
     /// <summary>Get all doctors, optionally filtered by branch.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<DoctorListItem>>), 200)]
-    public async Task<IActionResult> GetList([FromQuery] int? branchId, [FromQuery] string? searchQuery = null)
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<DoctorListItem>>), 200)]
+    public async Task<IActionResult> GetList([FromQuery] int? branchId, [FromQuery] string? searchQuery = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
-        var data = await doctorService.GetListAsync(branchId, searchQuery);
-        return Ok(ApiResponse<IEnumerable<DoctorListItem>>.Ok(data));
+        var data = await doctorService.GetListAsync(branchId, searchQuery, pageNumber, pageSize);
+        return Ok(ApiResponse<PagedResult<DoctorListItem>>.Ok(data));
     }
 
     // ── GET /api/doctors/5 ───────────────────────────────────────────────────

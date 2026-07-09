@@ -1,0 +1,539 @@
+@model EMR.Web.ApiClients.Models.PortalFullProfile
+@{
+    ViewData["Title"] = "Patient Dashboard";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - eClinicPlus+</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="~/lib/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+    :root {
+        --primary: #4361ee;
+        --primary-light: #4895ef;
+        --secondary: #3f37c9;
+        --success: #4cc9f0;
+        --dark: #2b2d42;
+        --light-bg: #f8f9fa;
+        --card-bg: rgba(255, 255, 255, 0.95);
+    }
+    body {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        background-attachment: fixed;
+        font-family: 'Inter', sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        color: var(--dark);
+    }
+    .glass-nav {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+        padding: 15px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+    .nav-brand {
+        font-weight: 700;
+        color: var(--primary);
+        font-size: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .modern-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 10px;
+    }
+    .modern-table th {
+        background: transparent;
+        color: #64748b;
+        font-weight: 600;
+        padding: 0 15px 10px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .modern-table td {
+        background: white;
+        padding: 15px;
+        border-top: 1px solid #f1f5f9;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .modern-table td:first-child {
+        border-left: 1px solid #f1f5f9;
+        border-radius: 10px 0 0 10px;
+    }
+    .modern-table td:last-child {
+        border-right: 1px solid #f1f5f9;
+        border-radius: 0 10px 10px 0;
+    }
+    .modern-table tr {
+        box-shadow: 0 2px 5px rgba(0,0,0,0.01);
+        transition: transform 0.2s;
+    }
+    .modern-table tr:hover {
+        transform: scale(1.01);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+    }
+    .status-badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .bg-pending { background: #fff3cd; color: #856404; }
+    .bg-completed { background: #d4edda; color: #155724; }
+    .bg-paid { background: #d1e7dd; color: #0f5132; }
+    .bg-unpaid { background: #f8d7da; color: #842029; }
+    .loader {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 200px;
+        color: var(--primary);
+        font-size: 1.5rem;
+    }
+    .stat-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+        border-radius: 16px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        border: 1px solid rgba(255,255,255,0.8);
+    }
+    </style>
+</head>
+<body>
+    <input type="hidden" id="patientId" value="@Model.PatientId" />
+    <input type="hidden" id="apiUrl" value="https://localhost:5125/api/patientportal/" />
+
+    <div class="glass-nav">
+        <div class="nav-brand">
+            <i class="bi bi-heart-pulse-fill text-danger"></i> Patient Portal
+        </div>
+        <div class="d-flex align-items-center gap-4">
+            <span class="text-muted"><i class="bi bi-person-circle"></i> @Model.FullName</span>
+            <form asp-action="Logout" method="post" style="margin: 0;">
+                <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">Log Out</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container-fluid py-4" style="max-width: 1400px;">
+        
+        <!-- UPCOMING APPOINTMENTS FLASH BANNER -->
+        <div id="upcoming-appointments-banner"></div>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0 fw-bold text-dark">
+                    <i class="bi bi-person-bounding-box text-primary me-2"></i>My Profile Dashboard
+                </h1>
+                <small class="text-muted">Comprehensive view of your medical history, bookings, and invoices.</small>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="#" class="btn btn-primary btn-sm">
+                    <i class="bi bi-cloud-download-fill me-1"></i>Download Full Record
+                </a>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Left Column: Patient Profile Header Card & Basic Details -->
+            <div class="col-lg-4">
+                
+                <!-- Header Card -->
+                <div class="card shadow-sm border-0 mb-4 overflow-hidden">
+                    <div class="card-header bg-gradient bg-primary py-4 text-center text-white border-0 position-relative">
+                        <div class="position-absolute top-0 end-0 p-2">
+                            @if (Model.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success border-opacity-25 px-3 py-1">Active</span>
+                            }
+                        </div>
+                        <div class="mx-auto mb-3 rounded-circle border border-3 border-white shadow-sm d-flex align-items-center justify-content-center bg-white text-primary fw-bold" 
+                             style="width: 100px; height: 100px; font-size: 2.2rem; overflow:hidden;">
+                            @if (!string.IsNullOrEmpty(Model.PhotoPath))
+                            {
+                                <img src="@Model.PhotoPath" class="w-100 h-100 object-fit-cover" alt="Profile photo" />
+                            }
+                            else
+                            {
+                                <span>@Model.Initials</span>
+                            }
+                        </div>
+                        <h4 class="fw-bold mb-1 text-white">@Model.FullName</h4>
+                        <div class="font-monospace text-white-50 small mb-2">@Model.PatientCode</div>
+                        <div class="d-flex justify-content-center gap-2 flex-wrap">
+                            <span class="badge bg-white bg-opacity-25 px-3 py-1.5 rounded-pill">@Model.Gender</span>
+                            <span class="badge bg-white bg-opacity-25 px-3 py-1.5 rounded-pill">@Model.Age</span>
+                            <span class="badge bg-danger px-3 py-1.5 rounded-pill"><i class="bi bi-droplet-fill me-1"></i>@Model.BloodGroup</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 border-top">
+                        <div class="list-group list-group-flush small">
+                            <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                                <span class="text-muted"><i class="bi bi-telephone-fill me-2 text-primary"></i>Mobile Number</span>
+                                <span class="fw-semibold text-dark">@Model.PhoneNumber</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                                <span class="text-muted"><i class="bi bi-envelope-fill me-2 text-primary"></i>Email Address</span>
+                                <span class="fw-semibold text-dark">@Model.EmailId</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                                <span class="text-muted"><i class="bi bi-calendar-event-fill me-2 text-primary"></i>Registration Date</span>
+                                <span class="fw-semibold text-dark">@Model.RegistrationDate</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Address Card -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold text-dark text-uppercase mb-3" style="letter-spacing:.05em">
+                            <i class="bi bi-geo-alt-fill text-primary me-2"></i>Address Details
+                        </h6>
+                        <div class="text-dark mb-3">
+                            @Model.Address
+                        </div>
+                        <hr class="my-3" />
+                        <div class="row g-2 small text-muted">
+                            <div class="col-6"><strong>Area:</strong> @Model.Area</div>
+                            <div class="col-6"><strong>City/Village:</strong> @Model.City</div>
+                            <div class="col-6"><strong>District:</strong> @Model.District</div>
+                            <div class="col-6"><strong>State:</strong> @Model.State</div>
+                            <div class="col-12"><strong>Country:</strong> @Model.Country</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Full Details, Visits, and Vitals -->
+            <div class="col-lg-8">
+                
+                <!-- Personal & Demographic Details -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold text-dark text-uppercase mb-3" style="letter-spacing:.05em">
+                            <i class="bi bi-card-list text-primary me-2"></i>Demographics & Identification
+                        </h6>
+                        <div class="row g-3 small">
+                            <div class="col-sm-6 border-bottom pb-2">
+                                <span class="text-muted d-block mb-1">Date of Birth</span>
+                                <span class="fw-semibold text-dark fs-6">@Model.DateOfBirth</span>
+                            </div>
+                            <div class="col-sm-6 border-bottom pb-2">
+                                <span class="text-muted d-block mb-1">Salutation / Title</span>
+                                <span class="fw-semibold text-dark fs-6">@Model.Salutation</span>
+                            </div>
+                            <div class="col-sm-6 border-bottom pb-2">
+                                <span class="text-muted d-block mb-1">Religion</span>
+                                <span class="fw-semibold text-dark fs-6">@Model.Religion</span>
+                            </div>
+                            <div class="col-sm-6 border-bottom pb-2">
+                                <span class="text-muted d-block mb-1">Occupation</span>
+                                <span class="fw-semibold text-dark fs-6">@Model.Occupation</span>
+                            </div>
+                            <div class="col-sm-6 border-bottom pb-2">
+                                <span class="text-muted d-block mb-1">Marital Status</span>
+                                <span class="fw-semibold text-dark fs-6">@Model.MaritalStatus</span>
+                            </div>
+                            <div class="col-sm-6 border-bottom pb-2">
+                                <span class="text-muted d-block mb-1">Guardian Name / Relation</span>
+                                <span class="fw-semibold text-dark fs-6">@Model.GuardianName</span>
+                            </div>
+                        </div>
+                        <div class="mt-3 bg-light p-3 rounded border">
+                            <span class="text-muted d-block mb-1 small">Identification Doc Type & Number</span>
+                            <span class="fw-bold text-dark">@Model.IdentificationDoc</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Medical & General Notes -->
+                <div class="card shadow-sm border-0 mb-4 border-start border-warning border-4">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold text-dark text-uppercase mb-3" style="letter-spacing:.05em">
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Medical & General Notes
+                        </h6>
+                        <div class="row g-4 small">
+                            <div class="col-md-6">
+                                <span class="text-muted d-block mb-2 fw-semibold">Known Allergies</span>
+                                <div class="bg-white p-3 rounded border shadow-sm text-dark">@Model.KnownAllergies</div>
+                            </div>
+                            <div class="col-md-6">
+                                <span class="text-muted d-block mb-2 fw-semibold">Remarks / Medical History Notes</span>
+                                <div class="bg-white p-3 rounded border shadow-sm text-dark">@Model.Remarks</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dynamic Data Tabs -->
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white pt-4 pb-0 border-0">
+                        <ul class="nav nav-tabs border-bottom-0 gap-2" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active border-0 fw-semibold text-muted px-4 py-3 rounded-top" id="bookings-tab" data-bs-toggle="tab" data-bs-target="#bookings-pane" type="button" role="tab" onclick="loadBookings()">
+                                    <i class="bi bi-calendar-check me-2"></i>OPD Visits & Invoices
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link border-0 fw-semibold text-muted px-4 py-3 rounded-top" id="vitals-tab" data-bs-toggle="tab" data-bs-target="#vitals-pane" type="button" role="tab" onclick="loadVitals()">
+                                    <i class="bi bi-activity me-2"></i>Patient Vitals Log
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link border-0 fw-semibold text-muted px-4 py-3 rounded-top" id="prescriptions-tab" data-bs-toggle="tab" data-bs-target="#prescriptions-pane" type="button" role="tab" onclick="loadPrescriptions()">
+                                    <i class="bi bi-file-medical me-2"></i>Prescriptions
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link border-0 fw-semibold text-muted px-4 py-3 rounded-top" id="dependents-tab" data-bs-toggle="tab" data-bs-target="#dependents-pane" type="button" role="tab" onclick="loadDependents()">
+                                    <i class="bi bi-people me-2"></i>Dependents
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card-body bg-light rounded-bottom p-4">
+                        <div class="tab-content" id="myTabContent">
+                            <!-- BOOKINGS & INVOICES TAB -->
+                            <div class="tab-pane fade show active" id="bookings-pane" role="tabpanel" tabindex="0">
+                                <div id="bookings-content"><div class="loader"><i class="bi bi-arrow-repeat spin"></i> Loading...</div></div>
+                            </div>
+                            
+                            <!-- VITALS TAB -->
+                            <div class="tab-pane fade" id="vitals-pane" role="tabpanel" tabindex="0">
+                                <div id="vitals-content"><div class="loader">Loading...</div></div>
+                            </div>
+                            
+                            <!-- PRESCRIPTIONS TAB -->
+                            <div class="tab-pane fade" id="prescriptions-pane" role="tabpanel" tabindex="0">
+                                <div id="prescriptions-content"><div class="loader">Loading...</div></div>
+                            </div>
+
+                            <!-- DEPENDENTS TAB -->
+                            <div class="tab-pane fade" id="dependents-pane" role="tabpanel" tabindex="0">
+                                <div id="dependents-content"><div class="loader">Loading...</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const pId = document.getElementById('patientId').value;
+        const apiBase = document.getElementById('apiUrl').value;
+
+        // Auto-load the active tab
+        $(document).ready(function() {
+            loadBookings();
+            
+            // Tab styling active states
+            $('.nav-link').click(function() {
+                $('.nav-link').removeClass('text-primary bg-light').addClass('text-muted');
+                $(this).removeClass('text-muted').addClass('text-primary bg-light');
+            });
+            $('#bookings-tab').removeClass('text-muted').addClass('text-primary bg-light');
+        });
+
+        // Load Vitals
+        function loadVitals() {
+            document.getElementById('vitals-content').innerHTML = '<div class="loader">Loading...</div>';
+            fetch(`${apiBase}${pId}/vitals`)
+                .then(r => r.json())
+                .then(res => {
+                    let html = `<table class="modern-table">
+                                  <thead><tr><th>Date</th><th>BP (Sys/Dia)</th><th>Heart Rate</th><th>Temp</th><th>Weight</th><th>SpO2</th></tr></thead>
+                                  <tbody>`;
+                    if(res.data && res.data.length > 0) {
+                        res.data.forEach(v => {
+                            let date = new Date(v.recordDate).toLocaleDateString() + ' ' + new Date(v.recordDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                            html += `<tr>
+                                <td>${date}</td>
+                                <td><span class="badge bg-danger bg-opacity-10 text-danger">${v.bpSystolic || '--'} / ${v.bpDiastolic || '--'}</span></td>
+                                <td>${v.heartRate || '--'} bpm</td>
+                                <td>${v.temperature || '--'} °F</td>
+                                <td>${v.weight || '--'} kg</td>
+                                <td>${v.spo2 || '--'} %</td>
+                            </tr>`;
+                        });
+                    } else {
+                        html += `<tr><td colspan="6" class="text-center text-muted">No vitals recorded yet.</td></tr>`;
+                    }
+                    html += `</tbody></table>`;
+                    document.getElementById('vitals-content').innerHTML = html;
+                });
+        }
+
+        // Load Dependents
+        function loadDependents() {
+            document.getElementById('dependents-content').innerHTML = '<div class="loader">Loading...</div>';
+            fetch(`${apiBase}${pId}/dependents`)
+                .then(r => r.json())
+                .then(res => {
+                    let html = `<div class="row g-4">`;
+                    if(res.data && res.data.length > 0) {
+                        res.data.forEach(d => {
+                            html += `<div class="col-md-6">
+                                <div class="stat-card" style="display: flex; align-items: center; gap: 20px;">
+                                    <div style="background: #e0e7ff; color: #4361ee; width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.5rem;">
+                                        <i class="bi ${d.gender === 'Female' ? 'bi-person-standing-dress' : 'bi-person-standing'}"></i>
+                                    </div>
+                                    <div>
+                                        <h5 class="mb-1">${d.fullName}</h5>
+                                        <div class="text-muted small mb-1"><i class="bi bi-tag"></i> ${d.patientCode} &bull; ${d.age}</div>
+                                        <span class="badge bg-primary text-white rounded-pill">${d.relation || 'Dependent'}</span>
+                                    </div>
+                                </div>
+                            </div>`;
+                        });
+                    } else {
+                        html += `<div class="col-12 text-center text-muted p-5">No linked family members found.</div>`;
+                    }
+                    html += `</div>`;
+                    document.getElementById('dependents-content').innerHTML = html;
+                });
+        }
+
+        // Load Bookings & Invoices
+        function loadBookings() {
+            document.getElementById('bookings-content').innerHTML = '<div class="loader">Loading...</div>';
+            fetch(`${apiBase}${pId}/bookings`)
+                .then(r => r.json())
+                .then(res => {
+                    // 1. Flash Upcoming Appointments
+                    let upcomingHtml = '';
+                    let now = new Date();
+                    
+                    let html = `<table class="modern-table">
+                                  <thead><tr><th>Date</th><th>Token / Dept</th><th>Consulting Doctor</th><th>Status</th><th>Invoice Bill</th><th>Payment</th><th>Action</th></tr></thead>
+                                  <tbody>`;
+                    if(res.data && res.data.length > 0) {
+                        res.data.forEach(b => {
+                            let vDate = new Date(b.visitDate);
+                            let dateStr = vDate.toLocaleDateString() + ' ' + vDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                            let statusClass = b.status === 'Completed' ? 'bg-completed' : 'bg-pending';
+                            
+                            let payText = b.paymentStatus === 'P' ? 'Paid' : (b.paymentStatus === 'U' ? 'Unpaid' : b.paymentStatus);
+                            let payClass = b.paymentStatus === 'P' ? 'bg-paid' : 'bg-unpaid';
+
+                            // Check if upcoming (Today or future, and not completed/cancelled)
+                            let todayZero = new Date(now);
+                            todayZero.setHours(0,0,0,0);
+                            let apptZero = new Date(vDate);
+                            apptZero.setHours(0,0,0,0);
+
+                            if (apptZero >= todayZero && b.status !== 'Cancelled' && b.status !== 'Completed') {
+                                upcomingHtml += `
+                                    <div class="alert alert-info border-info border-start border-4 shadow-sm d-flex align-items-center mb-4" role="alert">
+                                        <i class="bi bi-bell-fill fs-4 text-info me-3"></i>
+                                        <div>
+                                            <h6 class="alert-heading mb-1 fw-bold text-dark">Upcoming Appointment Reminder</h6>
+                                            <p class="mb-0 small text-dark">You have an appointment with <strong>Dr. ${b.doctorName || 'N/A'}</strong> (${b.department || 'N/A'}) on <strong>${dateStr}</strong>. Token No: <strong>#${b.tokenNo}</strong>.</p>
+                                        </div>
+                                    </div>`;
+                            }
+
+                            html += `<tr>
+                                <td><b>${dateStr}</b></td>
+                                <td><span class="text-primary fw-bold">#${b.tokenNo}</span><br/><small class="text-muted">${b.department || 'N/A'}</small></td>
+                                <td>${b.doctorName || 'N/A'}</td>
+                                <td><span class="status-badge ${statusClass}">${b.status || 'Scheduled'}</span></td>
+                                <td><span class="fw-bold text-dark">₹${b.totalAmount.toFixed(2)}</span></td>
+                                <td><span class="status-badge ${payClass}">${payText}</span></td>
+                                <td>
+                                    <a href="/OPD/PrintBill/${b.opdServiceId}" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                        <i class="bi bi-printer me-1"></i> Print Bill
+                                    </a>
+                                </td>
+                            </tr>`;
+                        });
+                    } else {
+                        html += `<tr><td colspan="7" class="text-center text-muted">No appointments found.</td></tr>`;
+                    }
+                    html += `</tbody></table>`;
+                    document.getElementById('bookings-content').innerHTML = html;
+                    document.getElementById('upcoming-appointments-banner').innerHTML = upcomingHtml;
+                });
+        }
+
+        // Load Prescriptions
+        function loadPrescriptions() {
+            document.getElementById('prescriptions-content').innerHTML = '<div class="loader">Loading...</div>';
+            fetch(`${apiBase}${pId}/prescriptions`)
+                .then(r => r.json())
+                .then(res => {
+                    let html = `<div class="row g-4">`;
+                    if(res.data && res.data.length > 0) {
+                        res.data.forEach(p => {
+                            let date = new Date(p.consultationDate).toLocaleDateString();
+                            
+                            // Parse EMR JSON
+                            let diagnosis = 'None recorded';
+                            let advice = 'None recorded';
+                            try {
+                                let emr = JSON.parse(p.emrDataJson || '{}');
+                                // Simple extraction based on typical keys
+                                for (let key in emr) {
+                                    if (key.toLowerCase().includes('diagnos')) diagnosis = emr[key];
+                                    if (key.toLowerCase().includes('advice') || key.toLowerCase().includes('instruction')) advice = emr[key];
+                                }
+                            } catch(e) {}
+
+                            let printUrl = `/OPD/PrintPrescription?opdServiceId=${p.opdServiceId}&doctorId=${p.doctorId}`;
+
+                            html += `<div class="col-md-12">
+                                <div class="stat-card">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="mb-0 text-primary"><i class="bi bi-file-medical me-2"></i>Prescription: ${date}</h5>
+                                        <span class="text-muted small"><i class="bi bi-person-badge"></i> Dr. ${p.doctorName}</span>
+                                    </div>
+                                    <hr style="opacity: 0.1">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <p class="mb-1 text-muted small">Diagnosis</p>
+                                            <p class="fw-medium">${diagnosis}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p class="mb-1 text-muted small">Advice</p>
+                                            <p class="fw-medium">${advice}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 text-end">
+                                        <a href="${printUrl}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                            <i class="bi bi-download me-1"></i> Download PDF
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>`;
+                        });
+                    } else {
+                        html += `<div class="col-12 text-center text-muted p-5">No prescriptions found.</div>`;
+                    }
+                    html += `</div>`;
+                    document.getElementById('prescriptions-content').innerHTML = html;
+                });
+        }
+    </script>
+</body>
+</html>

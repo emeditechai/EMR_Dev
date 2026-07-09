@@ -12,7 +12,7 @@ public class DoctorApiClient : IDoctorApiClient
         _http = factory.CreateClient("EmrApi");
     }
 
-    public async Task<List<DoctorListItem>> GetListAsync(int? branchId = null, string? searchQuery = null)
+    public async Task<PagedResult<DoctorListItem>> GetListAsync(int? branchId = null, string? searchQuery = null, int pageNumber = 1, int pageSize = 10)
     {
         var url = "api/doctors";
         var queryParams = new List<string>();
@@ -23,11 +23,14 @@ public class DoctorApiClient : IDoctorApiClient
         if (!string.IsNullOrEmpty(searchQuery))
             queryParams.Add($"searchQuery={Uri.EscapeDataString(searchQuery)}");
             
+        queryParams.Add($"pageNumber={pageNumber}");
+        queryParams.Add($"pageSize={pageSize}");
+
         if (queryParams.Any())
             url += "?" + string.Join("&", queryParams);
 
-        var response = await _http.GetFromJsonAsync<ApiResponse<List<DoctorListItem>>>(url);
-        return response?.Data ?? new List<DoctorListItem>();
+        var response = await _http.GetFromJsonAsync<ApiResponse<PagedResult<DoctorListItem>>>(url);
+        return response?.Data ?? new PagedResult<DoctorListItem>();
     }
 
     public async Task<DoctorDetail?> GetByIdAsync(int doctorId, int? branchId = null)

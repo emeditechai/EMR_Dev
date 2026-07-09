@@ -4,7 +4,7 @@ namespace EMR.Web.ApiClients;
 
 public interface IDoctorApiClient
 {
-    Task<List<DoctorListItem>> GetListAsync(int? branchId = null, string? searchQuery = null);
+    Task<PagedResult<DoctorListItem>> GetListAsync(int? branchId = null, string? searchQuery = null, int pageNumber = 1, int pageSize = 10);
     Task<DoctorDetail?>        GetByIdAsync(int doctorId, int? branchId = null);
     Task<int?>                 CreateAsync(DoctorCreateRequest request);
     Task<bool>                 UpdateAsync(DoctorUpdateRequest request);

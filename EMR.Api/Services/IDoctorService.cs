@@ -4,7 +4,7 @@ namespace EMR.Api.Services;
 
 public interface IDoctorService
 {
-    Task<IEnumerable<DoctorListItem>>  GetListAsync(int? branchId, string? searchQuery = null);
+    Task<PagedResult<DoctorListItem>>  GetListAsync(int? branchId, string? searchQuery = null, int pageNumber = 1, int pageSize = 10);
     Task<DoctorDetail?>                GetByIdAsync(int doctorId, int? branchId = null);
     Task<int>                          CreateAsync(DoctorCreateRequest request);
     Task<bool>                         UpdateAsync(DoctorUpdateRequest request);

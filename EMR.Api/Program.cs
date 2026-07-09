@@ -29,6 +29,7 @@ builder.Services.AddScoped<IPaymentSummaryService,   PaymentSummaryService>();
 builder.Services.AddScoped<IVitalService,            VitalService>();
 builder.Services.AddScoped<IDoctorScheduleService,   DoctorScheduleService>();
 builder.Services.AddScoped<IEmrConsultationService,  EmrConsultationService>();
+builder.Services.AddScoped<IPatientPortalService,    PatientPortalService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────
 builder.Services.AddCors(opt =>

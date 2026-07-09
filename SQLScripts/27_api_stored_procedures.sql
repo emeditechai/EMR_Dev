@@ -18,12 +18,15 @@ SET ANSI_NULLS ON
 GO
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Doctor_GetList
     @BranchId INT = NULL,
-    @SearchQuery NVARCHAR(100) = NULL
+    @SearchQuery NVARCHAR(100) = NULL,
+    @PageNumber INT = 1,
+    @PageSize INT = 10
 AS
 BEGIN
     SET NOCOUNT ON;
 
     SELECT
+        COUNT(*) OVER() AS TotalCount,
         d.DoctorId,
         ISNULL(d.NamePrefix + ' ', '') + d.FullName AS FullName,
         ps.SpecialityName                    AS PrimarySpecialityName,
@@ -80,7 +83,9 @@ BEGIN
         OR d.EmailId LIKE '%' + @SearchQuery + '%'
         OR ps.SpecialityName LIKE '%' + @SearchQuery + '%'
     )
-    ORDER BY d.IsActive DESC, ISNULL(d.NamePrefix + ' ', '') + d.FullName ASC;
+    ORDER BY d.IsActive DESC, ISNULL(d.NamePrefix + ' ', '') + d.FullName ASC
+    OFFSET (@PageNumber - 1) * @PageSize ROWS
+    FETCH NEXT @PageSize ROWS ONLY;
 END
 GO
 

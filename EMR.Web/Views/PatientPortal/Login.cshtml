@@ -1,0 +1,163 @@
+@model EMR.Web.Models.ViewModels.PatientLoginViewModel
+@{
+    ViewData["Title"] = "Patient Portal Login";
+    Layout = null; 
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - eClinicPlus+</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="~/lib/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-light: #4895ef;
+            --secondary: #3f37c9;
+            --dark: #2b2d42;
+            --light-bg: #f8f9fa;
+        }
+        body {
+            background: linear-gradient(rgba(15, 32, 39, 0.7), rgba(32, 58, 67, 0.7), rgba(44, 83, 100, 0.7)), url('/images/login-bg.jpg') center/cover no-repeat fixed;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-wrapper {
+            width: 100%;
+            max-width: 450px;
+            padding: 15px;
+        }
+        .login-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+        .login-card:hover {
+            transform: translateY(-5px);
+        }
+        .brand-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .brand-icon {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+            filter: drop-shadow(0 4px 6px rgba(67, 97, 238, 0.2));
+        }
+        .brand-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+        .brand-subtitle {
+            color: #495057;
+            font-size: 0.95rem;
+            font-weight: 400;
+        }
+        .form-floating > .form-control {
+            border-radius: 12px;
+            border: 1px solid rgba(0,0,0,0.1);
+            background-color: rgba(255, 255, 255, 0.9);
+            box-shadow: none;
+        }
+        .form-floating > .form-control:focus {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.15);
+            background-color: #fff;
+        }
+        .form-floating > label {
+            color: #6c757d;
+        }
+        .btn-login {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            letter-spacing: 0.5px;
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(67, 97, 238, 0.3);
+        }
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(67, 97, 238, 0.4);
+            color: white;
+        }
+        .alert-glass {
+            background: rgba(220, 53, 69, 0.1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="brand-header">
+                <i class="bi bi-shield-plus brand-icon"></i>
+                <h2 class="brand-title">eClinicPlus+</h2>
+                <p class="brand-subtitle">Secure Patient Portal Access</p>
+            </div>
+
+            <form asp-action="Login" method="post">
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="alert alert-glass mb-4 px-3 py-2">
+                        <div asp-validation-summary="ModelOnly" class="mb-0 small fw-medium"></div>
+                    </div>
+                }
+
+                <div class="form-floating mb-3">
+                    <input asp-for="Username" class="form-control" id="floatingInput" placeholder="e.g. HO0001" />
+                    <label asp-for="Username">Patient ID (e.g. HO0001)</label>
+                    <span asp-validation-for="Username" class="text-danger small ms-1 mt-1 d-block"></span>
+                </div>
+
+                <div class="form-floating mb-4">
+                    <input asp-for="Password" class="form-control" id="floatingPassword" placeholder="Password" />
+                    <label asp-for="Password">Password</label>
+                    <span asp-validation-for="Password" class="text-danger small ms-1 mt-1 d-block"></span>
+                </div>
+
+                <button type="submit" class="btn btn-login w-100 mt-2">
+                    <i class="bi bi-box-arrow-in-right me-2"></i> Log In
+                </button>
+            </form>
+        </div>
+        
+        <div class="text-center mt-4">
+            <p class="small text-white-50 fw-medium">
+                &copy; @DateTime.Now.Year eClinicPlus+ Portal. All rights reserved.
+            </p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+</body>
+</html>

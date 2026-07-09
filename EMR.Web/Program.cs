@@ -81,8 +81,15 @@ builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
 builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();
+builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
 
 
 // Persist Data Protection keys to prevent random logouts on app recycle
@@ -123,6 +130,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseSession();
 
 app.UseAuthentication();
 

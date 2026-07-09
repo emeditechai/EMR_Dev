@@ -121,7 +121,7 @@ public class OPDController(
             if (!string.IsNullOrEmpty(userEmail))
             {
                 var apiDoctors = await doctorApiClient.GetListAsync(branchId.Value);
-                var doc = apiDoctors.FirstOrDefault(d => string.Equals(d.EmailId, userEmail, StringComparison.OrdinalIgnoreCase) && d.IsActive);
+                var doc = apiDoctors.Items.FirstOrDefault(d => string.Equals(d.EmailId, userEmail, StringComparison.OrdinalIgnoreCase) && d.IsActive);
                 if (doc != null)
                 {
                     defaultDoctorId = doc.DoctorId;

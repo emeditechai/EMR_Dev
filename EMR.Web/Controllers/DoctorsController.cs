@@ -22,7 +22,7 @@ public class DoctorsController(
     IAuditLogService auditLogService,
     IPasswordHasherService passwordHasherService) : Controller
 {
-    public async Task<IActionResult> Index([FromQuery] int? doctorId = null)
+    public async Task<IActionResult> Index([FromQuery] int? doctorId = null, [FromQuery] int page = 1)
     {
         var branchId = User.GetCurrentBranchId();
 
@@ -34,7 +34,8 @@ public class DoctorsController(
         try
         {
             // Strictly via EMR.Api — no DB fallback
-            var apiDoctors = await doctorApiClient.GetListAsync(branchId);
+            var pagedDoctors = await doctorApiClient.GetListAsync(branchId, pageNumber: page, pageSize: 10);
+            var apiDoctors = pagedDoctors.Items;
             
             if (doctorId.HasValue && doctorId.Value > 0)
             {
@@ -44,6 +45,11 @@ public class DoctorsController(
                 {
                     ViewBag.SelectedDoctorName = $"{selectedDoctor.FullName} ({selectedDoctor.PrimarySpecialityName})";
                 }
+                
+                // Override pagination stats for single-item filter
+                pagedDoctors.TotalCount = selectedDoctor != null ? 1 : 0;
+                pagedDoctors.Page = 1;
+                pagedDoctors.PageSize = 1;
             }
 
             var doctors = apiDoctors.Select(d => new DoctorListItemViewModel
@@ -58,6 +64,12 @@ public class DoctorsController(
                 ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
                 HasOPDDept            = d.HasOPDDept
             });
+            
+            // Stats from the paged result (before local filter if any)
+            ViewBag.TotalCount = pagedDoctors.TotalCount;
+            ViewBag.CurrentPage = pagedDoctors.Page;
+            ViewBag.TotalPages = pagedDoctors.TotalPages;
+            ViewBag.PageSize = pagedDoctors.PageSize;
 
             return View(doctors);
         }
@@ -75,7 +87,7 @@ public class DoctorsController(
         try
         {
             var apiDoctors = await doctorApiClient.GetListAsync(branchId, q);
-            var results = apiDoctors.Select(d => new
+            var results = apiDoctors.Items.Select(d => new
             {
                 id = d.DoctorId,
                 text = $"{d.FullName} - {d.PrimarySpecialityName} | Ph: {d.PhoneNumber} | Em: {d.EmailId}"

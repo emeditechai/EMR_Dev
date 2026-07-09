@@ -9,13 +9,21 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
 {
     // ─── GET LIST ─────────────────────────────────────────────────────────────
 
-    public async Task<IEnumerable<DoctorListItem>> GetListAsync(int? branchId, string? searchQuery = null)
+    public async Task<PagedResult<DoctorListItem>> GetListAsync(int? branchId, string? searchQuery = null, int pageNumber = 1, int pageSize = 10)
     {
         using var con = db.CreateConnection();
-        return await con.QueryAsync<DoctorListItem>(
+        var items = await con.QueryAsync<DoctorListItem>(
             "usp_Api_Doctor_GetList",
-            new { BranchId = branchId, SearchQuery = searchQuery },
+            new { BranchId = branchId, SearchQuery = searchQuery, PageNumber = pageNumber, PageSize = pageSize },
             commandType: CommandType.StoredProcedure);
+            
+        return new PagedResult<DoctorListItem>
+        {
+            Items = items.ToList(),
+            TotalCount = items.FirstOrDefault()?.TotalCount ?? 0,
+            Page = pageNumber,
+            PageSize = pageSize
+        };
     }
 
     // ─── GET BY ID ────────────────────────────────────────────────────────────
