@@ -395,27 +395,40 @@
                                 <th style="width:40px">#</th>
                                 <th style="width:120px">Type</th>
                                 <th>Item / Service Description</th>
-                                <th style="width:110px" class="text-end">Charges (₹)</th>
+                                <th style="width:90px" class="text-end">Amount (₹)</th>
+                                <th style="width:90px" class="text-end">CGST (₹)</th>
+                                <th style="width:90px" class="text-end">SGST (₹)</th>
+                                <th style="width:110px" class="text-end">Total (₹)</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @{ int rowNo = 0; }
+                            @{ 
+                                int rowNo = 0; 
+                                decimal grandTotal = 0;
+                            }
                             @foreach (var item in Model.Items)
                             {
                                 rowNo++;
                                 var badgeCls = item.ServiceType == "Consulting" ? "consulting" : "service";
+                                var linePayment = payment?.LineItems?.FirstOrDefault(l => l.ModuleLineRefId == item.ItemId);
+                                decimal cgst = linePayment != null ? linePayment.CgstAmount : (item.IsGstRequired && item.GstPercentage > 0 ? Math.Round((item.ServiceCharges * (item.GstPercentage.Value / 100M)) / 2, 2) : 0);
+                                decimal sgst = linePayment != null ? linePayment.SgstAmount : (item.IsGstRequired && item.GstPercentage > 0 ? Math.Round((item.ServiceCharges * (item.GstPercentage.Value / 100M)) / 2, 2) : 0);
+                                grandTotal += (item.ServiceCharges + cgst + sgst);
                                 <tr>
                                     <td class="text-muted">@rowNo</td>
                                     <td><span class="svc-badge @badgeCls">@(item.ServiceType ?? "—")</span></td>
                                     <td>@(item.ItemName ?? "—")</td>
-                                    <td class="text-end fw-semibold">₹@item.ServiceCharges.ToString("N2")</td>
+                                    <td class="text-end text-muted" style="font-size:0.8rem">@item.ServiceCharges.ToString("N2")</td>
+                                    <td class="text-end text-muted" style="font-size:0.8rem">@(cgst > 0 ? cgst.ToString("N2") : "—")</td>
+                                    <td class="text-end text-muted" style="font-size:0.8rem">@(sgst > 0 ? sgst.ToString("N2") : "—")</td>
+                                    <td class="text-end fw-semibold">₹@((item.ServiceCharges + cgst + sgst).ToString("N2"))</td>
                                 </tr>
                             }
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="3" class="text-end fw-bold text-secondary">Sub Total</td>
-                                <td class="text-end text-success fw-bold">₹@subTotal.ToString("N2")</td>
+                                <td colspan="6" class="text-end fw-bold text-secondary">Sub Total</td>
+                                <td class="text-end text-success fw-bold">₹@grandTotal.ToString("N2")</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -433,14 +446,14 @@
             <div class="bill-section-body">
                 @* Summary boxes *@
                 <div class="row g-2 mb-3">
-                    <div class="col-4">
-                        <div class="p-2 border rounded text-center">
+                    <div class="col-6 col-md-3">
+                        <div class="p-2 border rounded text-center h-100">
                             <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Sub Total</div>
                             <div style="font-size:1rem;font-weight:700">₹@subTotal.ToString("N2")</div>
                         </div>
                     </div>
-                    <div class="col-4">
-                        <div class="p-2 border rounded text-center">
+                    <div class="col-6 col-md-3">
+                        <div class="p-2 border rounded text-center h-100">
                             <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Discount</div>
                             @if (payment != null && discountAmt > 0)
                             {
@@ -458,8 +471,22 @@
                             }
                         </div>
                     </div>
-                    <div class="col-4">
-                        <div class="p-2 border rounded text-center">
+                    <div class="col-6 col-md-3">
+                        <div class="p-2 border rounded text-center h-100">
+                            <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Total Tax</div>
+                            @if (payment != null && (payment.TotalCgstAmount + payment.TotalSgstAmount) > 0)
+                            {
+                                <div style="font-size:1rem;font-weight:700;color:#dc3545">₹@((payment.TotalCgstAmount + payment.TotalSgstAmount).ToString("N2"))</div>
+                                <div style="font-size:.7rem;color:#6c757d">CGST: ₹@payment.TotalCgstAmount.ToString("N2") | SGST: ₹@payment.TotalSgstAmount.ToString("N2")</div>
+                            }
+                            else
+                            {
+                                <div style="font-size:1rem;font-weight:700">—</div>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="p-2 border rounded text-center h-100">
                             <div style="font-size:.68rem;color:#adb5bd;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Net Payable</div>
                             <div style="font-size:1rem;font-weight:700;color:#0d6efd">₹@netAmount.ToString("N2")</div>
                         </div>

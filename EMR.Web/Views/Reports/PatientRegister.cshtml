@@ -1,0 +1,333 @@
+@{
+    ViewData["Title"] = "Patient Register";
+}
+<!-- Include external libraries for Excel/PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+    .kpi-card {
+        border-radius: 12px;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border: none;
+        overflow: hidden;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+    }
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .bg-gradient-primary { background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white; }
+    .bg-gradient-info { background: linear-gradient(135deg, #36b9cc 0%, #258391 100%); color: white; }
+    .bg-gradient-pink { background: linear-gradient(135deg, #e83e8c 0%, #b82b6c 100%); color: white; }
+    .bg-gradient-warning { background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%); color: white; }
+    
+    .filter-panel {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        padding: 1.25rem;
+        border: 1px solid rgba(0,0,0,0.05);
+    }
+    
+    .table-custom {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+    }
+    .table-custom thead th {
+        background: #f8f9fc;
+        color: #5a5c69;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        padding: 12px 15px;
+        border-bottom: 2px solid #e3e6f0;
+    }
+    .table-custom tbody tr {
+        transition: all 0.2s;
+    }
+    .table-custom tbody tr:hover {
+        background-color: #f1f3f9;
+    }
+    .table-custom tbody td {
+        padding: 12px 15px;
+        vertical-align: middle;
+        border-bottom: 1px solid #e3e6f0;
+        font-size: 0.85rem;
+    }
+</style>
+
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-people-fill text-primary me-2"></i>Patient Register Dashboard</h1>
+    <div class="d-flex gap-2" id="exportButtons" style="display: none !important;">
+        <button class="btn btn-sm btn-outline-success shadow-sm" onclick="exportToExcel()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Export Excel</button>
+        <button class="btn btn-sm btn-outline-danger shadow-sm" onclick="exportToPdf()"><i class="bi bi-file-earmark-pdf-fill me-1"></i>Export PDF</button>
+    </div>
+</div>
+
+<!-- KPI Cards Row -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card kpi-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Patients</div>
+                        <div class="h4 mb-0 fw-bold text-dark" id="kpiTotal">0</div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="kpi-icon bg-gradient-primary shadow-sm"><i class="bi bi-people"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card kpi-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Male Patients</div>
+                        <div class="h4 mb-0 fw-bold text-dark" id="kpiMale">0</div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="kpi-icon bg-gradient-info shadow-sm"><i class="bi bi-gender-male"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card kpi-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-pink text-uppercase mb-1" style="color: #e83e8c;">Female Patients</div>
+                        <div class="h4 mb-0 fw-bold text-dark" id="kpiFemale">0</div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="kpi-icon bg-gradient-pink shadow-sm"><i class="bi bi-gender-female"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card kpi-card shadow-sm h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Other / Unknown</div>
+                        <div class="h4 mb-0 fw-bold text-dark" id="kpiOther">0</div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="kpi-icon bg-gradient-warning shadow-sm"><i class="bi bi-gender-ambiguous"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Panel -->
+<div class="filter-panel mb-4">
+    <form id="filterForm" class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label text-muted small fw-bold text-uppercase">From Date</label>
+            <input type="date" class="form-control form-control-sm" id="fromDate" name="fromDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label text-muted small fw-bold text-uppercase">To Date</label>
+            <input type="date" class="form-control form-control-sm" id="toDate" name="toDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label text-muted small fw-bold text-uppercase d-block">Report Scope</label>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="reportType" id="typeAll" value="all" checked>
+                <label class="btn btn-outline-primary btn-sm" for="typeAll">All Patients</label>
+
+                <input type="radio" class="btn-check" name="reportType" id="typeDependent" value="dependent">
+                <label class="btn btn-outline-primary btn-sm" for="typeDependent">Dependent Only</label>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-primary btn-sm w-100 shadow-sm" id="btnSearch">
+                <i class="bi bi-search me-1"></i> Generate
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Data Table Card -->
+<div class="card shadow-sm border-0 mb-4" style="border-radius: 12px; overflow: hidden;">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table-custom" id="reportTable">
+                <thead id="tableHead">
+                    <!-- Dynamic Headers -->
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox fs-1 text-light mb-3 d-block"></i>Please click generate to load data.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentData = [];
+    let isDependentView = false;
+
+    document.getElementById('btnSearch').addEventListener('click', function() {
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate = document.getElementById('toDate').value;
+        isDependentView = document.getElementById('typeDependent').checked;
+
+        const btn = this;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading...';
+        btn.disabled = true;
+
+        fetch(`/Reports/GetPatientRegisterData?fromDate=${fromDate}&toDate=${toDate}&dependentOnly=${isDependentView}`)
+            .then(res => res.json())
+            .then(res => {
+                if(res.success) {
+                    currentData = res.data;
+                    renderTable();
+                    updateKPIs();
+                    document.getElementById('exportButtons').style.display = currentData.length > 0 ? 'flex' : 'none';
+                } else {
+                    Swal.fire('Error', res.message || 'Failed to fetch report data', 'error');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.fire('Error', 'Failed to fetch report.', 'error');
+            })
+            .finally(() => {
+                btn.innerHTML = '<i class="bi bi-search me-1"></i> Generate';
+                btn.disabled = false;
+            });
+    });
+
+    function updateKPIs() {
+        let total = currentData ? currentData.length : 0;
+        let maleCount = 0;
+        let femaleCount = 0;
+        let otherCount = 0;
+
+        if (currentData) {
+            currentData.forEach(r => {
+                let g = (r.gender || '').toLowerCase();
+                if (g === 'male' || g === 'm') maleCount++;
+                else if (g === 'female' || g === 'f') femaleCount++;
+                else otherCount++;
+            });
+        }
+
+        document.getElementById('kpiTotal').innerText = total;
+        document.getElementById('kpiMale').innerText = maleCount;
+        document.getElementById('kpiFemale').innerText = femaleCount;
+        document.getElementById('kpiOther').innerText = otherCount;
+    }
+
+    function renderTable() {
+        const thead = document.getElementById('tableHead');
+        const tbody = document.getElementById('tableBody');
+        
+        let headHtml = '';
+        if(isDependentView) {
+            headHtml = `<tr>
+                <th>Date</th>
+                <th>Code</th>
+                <th>Patient Name</th>
+                <th>Gender</th>
+                <th class="text-center">Age</th>
+                <th>Phone No</th>
+                <th>Relation</th>
+                <th>Parent (Self)</th>
+            </tr>`;
+        } else {
+            headHtml = `<tr>
+                <th>Date</th>
+                <th>Code</th>
+                <th>Patient Name</th>
+                <th>Gender</th>
+                <th class="text-center">Age</th>
+                <th>Phone No</th>
+            </tr>`;
+        }
+        thead.innerHTML = headHtml;
+
+        if(!currentData || currentData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox fs-1 text-light mb-3 d-block"></i>No records found for the selected date range.</td></tr>`;
+            return;
+        }
+
+        let bodyHtml = '';
+        currentData.forEach(r => {
+            let genderIcon = '';
+            let g = (r.gender || '').toLowerCase();
+            if(g === 'male' || g === 'm') genderIcon = '<i class="bi bi-gender-male text-info me-1"></i>';
+            else if(g === 'female' || g === 'f') genderIcon = '<i class="bi bi-gender-female text-danger me-1"></i>';
+
+            if(isDependentView) {
+                bodyHtml += `<tr>
+                    <td>${new Date(r.registrationDate).toLocaleDateString('en-GB')}</td>
+                    <td class="fw-medium text-dark">${r.patientCode}</td>
+                    <td class="fw-bold text-primary">${r.patientName}</td>
+                    <td>${genderIcon}${r.gender || '—'}</td>
+                    <td class="text-center">${r.age !== null ? r.age : '—'}</td>
+                    <td>${r.phoneNumber || '—'}</td>
+                    <td><span class="badge bg-light text-secondary border">${r.relationName || 'Dependent'}</span></td>
+                    <td class="text-secondary">${r.parentName || '—'}</td>
+                </tr>`;
+            } else {
+                bodyHtml += `<tr>
+                    <td>${new Date(r.registrationDate).toLocaleDateString('en-GB')}</td>
+                    <td class="fw-medium text-dark">${r.patientCode}</td>
+                    <td class="fw-bold text-primary">${r.patientName}</td>
+                    <td>${genderIcon}${r.gender || '—'}</td>
+                    <td class="text-center">${r.age !== null ? r.age : '—'}</td>
+                    <td>${r.phoneNumber || '—'}</td>
+                </tr>`;
+            }
+        });
+        tbody.innerHTML = bodyHtml;
+    }
+
+    function exportToExcel() {
+        const table = document.getElementById("reportTable");
+        const wb = XLSX.utils.table_to_book(table, {sheet: "Patient Register"});
+        XLSX.writeFile(wb, `Patient_Register_${new Date().getTime()}.xlsx`);
+    }
+
+    function exportToPdf() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape');
+        
+        doc.text("Patient Register Dashboard Report", 14, 15);
+        doc.setFontSize(10);
+        doc.text(`Date Range: ${document.getElementById('fromDate').value} to ${document.getElementById('toDate').value}`, 14, 22);
+        
+        doc.autoTable({
+            html: '#reportTable',
+            startY: 28,
+            theme: 'grid',
+            styles: { fontSize: 9 },
+            headStyles: { fillColor: [41, 128, 185] }
+        });
+        
+        doc.save(`Patient_Register_${new Date().getTime()}.pdf`);
+    }
+</script>

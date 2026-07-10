@@ -534,7 +534,7 @@
         <div id="secOtherInfo" class="collapse">
         <div class="reg-section-body">
 
-            @* ── Row 1: Occupation | Marital Status ── *@
+            @* ── Row 1: Occupation | Marital Status | Referral Doctor ── *@
             <div class="row g-3 mb-3">
                 <div class="col-12 col-sm-6 col-md-4">
                     <label asp-for="OccupationId" class="form-label fw-semibold small">Occupation</label>
@@ -549,6 +549,18 @@
                             asp-items="Model.MaritalStatusOptions">
                         <option value="">-- Select Status --</option>
                     </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referral Doctor</label>
+                    <div class="input-group">
+                        <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search"
+                                asp-items="Model.ReferralDoctorOptions">
+                            <option value="">-- Select Referral Doctor --</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalAddReferralDoctor" title="Add Referral Doctor">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -845,6 +857,32 @@
         </div>
     </div>
 </div>
+
+    <!-- Modal: Add Referral Doctor -->
+    <div class="modal fade" id="modalAddReferralDoctor" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-plus text-primary me-2"></i>Add Referral Doctor</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="txtNewRefDoctorName" class="form-label fw-semibold small">Doctor Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="txtNewRefDoctorName" placeholder="e.g. Dr. John Doe">
+                    </div>
+                    <div class="mb-3">
+                        <label for="txtNewRefDoctorPhone" class="form-label fw-semibold small">Phone Number</label>
+                        <input type="text" class="form-control" id="txtNewRefDoctorPhone" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveRefDoctor">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
@@ -1144,7 +1182,7 @@
                         phoneDrop.style.display = 'none';
                         kbdIndex = -1;
                     }
-                } else if (e.key === 'Escape') {
+                } else if (e.key === 'Escape' || e.key === 'Tab') {
                     phoneDrop.style.display = 'none';
                     kbdIndex = -1;
                 }
@@ -1947,6 +1985,43 @@
             }
             video.srcObject = null;
         }
+
+        // ── Quick Add Referral Doctor ──
+        $('#btnSaveRefDoctor').on('click', async function () {
+            const name = $('#txtNewRefDoctorName').val().trim();
+            const phone = $('#txtNewRefDoctorPhone').val().trim();
+            if (!name) {
+                showToast('Doctor name is required', 'danger');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('phone', phone);
+            
+            try {
+                const res = await fetch('@Url.Action("CreateReferralDoctorQuick", "OPD")', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Referral Doctor added successfully!');
+                    
+                    const newOption = new Option(data.name, data.id, true, true);
+                    $('#ddlReferralDoctor').append(newOption).trigger('change');
+                    
+                    $('#modalAddReferralDoctor').modal('hide');
+                    $('#txtNewRefDoctorName').val('');
+                    $('#txtNewRefDoctorPhone').val('');
+                } else {
+                    showToast(data.message || 'Failed to add doctor', 'danger');
+                }
+            } catch (err) {
+                showToast('Network error occurred.', 'danger');
+            }
+        });
 
     })();
     </script>

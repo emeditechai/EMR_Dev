@@ -293,16 +293,16 @@
                                     var appTimeStr = b.AppointmentTime.HasValue ? DateTime.Today.Add(b.AppointmentTime.Value).ToString("hh:mm tt") : "—";
                                     
                                     var isFuture = false;
+                                    var amountColorCls = "";
                                     if (parsedDate.Date == DateTime.Today && b.AppointmentTime.HasValue)
                                     {
                                         isFuture = b.AppointmentTime.Value > DateTime.Now.TimeOfDay;
                                     }
 
-                                    var amountColorCls = "text-success";
                                     if (b.TotalAmount > 0)
                                     {
-                                        if (b.TotalPaid == 0) amountColorCls = "text-danger";
-                                        else if (b.TotalPaid < b.TotalAmount) amountColorCls = "text-warning";
+                                        if (b.PaymentStatus == "U") amountColorCls = "text-danger";
+                                        else if (b.PaymentStatus == "R") amountColorCls = "text-warning";
                                     }
 
                                     <tr class="@(isFuture ? "table-info-subtle" : "")">

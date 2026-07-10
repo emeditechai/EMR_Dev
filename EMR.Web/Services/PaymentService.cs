@@ -115,8 +115,11 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             con.Open();
             using var tx = con.BeginTransaction();
 
-            // ── Compute line discount total from submitted line items ──────────
+            // ── Compute line discount and GST totals from submitted line items ──────────
             decimal lineDiscountTotal = request.LineItems.Sum(li => li.LineDiscountAmount);
+            decimal totalCgst = request.LineItems.Sum(li => li.CgstAmount);
+            decimal totalSgst = request.LineItems.Sum(li => li.SgstAmount);
+            decimal totalIgst = request.LineItems.Sum(li => li.IgstAmount);
 
             // ── Resolve or create PaymentHeader ───────────────────────────────
             var existingHeaderId = await con.QuerySingleOrDefaultAsync<int?>(@"
@@ -140,12 +143,14 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         (ModuleCode, ModuleRefId, OPDServiceId, BranchId, PatientId,
                          SubTotal, LineDiscountTotal,
                          HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
+                         TotalCgstAmount, TotalSgstAmount, TotalIgstAmount,
                          NetAmount, TotalPaid, BalanceDue, PaymentStatus,
                          Notes, CreatedDate, CreatedBy, IsActive)
                     VALUES
                         (@ModuleCode, @ModuleRefId, @OPDServiceId, @BranchId, @PatientId,
                          @SubTotal, @LineDiscountTotal,
                          @HeaderDiscountType, @HeaderDiscountValue, @HeaderDiscountAmount,
+                         @TotalCgstAmount, @TotalSgstAmount, @TotalIgstAmount,
                          @NetAmount, 0, @NetAmount, 'U',
                          @Notes, GETDATE(), @CreatedBy, 1);
                     SELECT SCOPE_IDENTITY();",
@@ -161,6 +166,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         HeaderDiscountType  = request.HeaderDiscountType,
                         HeaderDiscountValue  = request.HeaderDiscountValue,
                         HeaderDiscountAmount = request.HeaderDiscountAmount,
+                        TotalCgstAmount = totalCgst,
+                        TotalSgstAmount = totalSgst,
+                        TotalIgstAmount = totalIgst,
                         request.NetAmount,
                         request.Notes,
                         CreatedBy = userId
@@ -173,11 +181,15 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         INSERT INTO PaymentLineItem
                             (PaymentHeaderId, ModuleLineRefId, ItemDescription, ServiceType,
                              OriginalAmount, LineDiscountType, LineDiscountValue,
-                             LineDiscountAmount, NetLineAmount, CreatedDate, CreatedBy, IsActive)
+                             LineDiscountAmount, NetLineAmount, 
+                             IsGstApplicable, GstPercentage, CgstAmount, SgstAmount, IgstAmount,
+                             CreatedDate, CreatedBy, IsActive)
                         VALUES
                             (@PaymentHeaderId, @ModuleLineRefId, @ItemDescription, @ServiceType,
                              @OriginalAmount, @LineDiscountType, @LineDiscountValue,
-                             @LineDiscountAmount, @NetLineAmount, GETDATE(), @CreatedBy, 1)",
+                             @LineDiscountAmount, @NetLineAmount,
+                             @IsGstApplicable, @GstPercentage, @CgstAmount, @SgstAmount, @IgstAmount,
+                             GETDATE(), @CreatedBy, 1)",
                         new
                         {
                             PaymentHeaderId = paymentHeaderId,
@@ -189,6 +201,11 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                             LineDiscountValue  = li.LineDiscountValue,
                             li.LineDiscountAmount,
                             li.NetLineAmount,
+                            IsGstApplicable = li.IsGstRequired,
+                            li.GstPercentage,
+                            li.CgstAmount,
+                            li.SgstAmount,
+                            li.IgstAmount,
                             CreatedBy = userId
                         }, tx);
                 }
@@ -297,16 +314,16 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
         using var con = db.CreateConnection();
 
         var header = await con.QuerySingleOrDefaultAsync(@"
-            SELECT
-                PaymentHeaderId,
-                SubTotal,
-                HeaderDiscountType  AS DiscountType,
-                HeaderDiscountValue AS DiscountValue,
-                HeaderDiscountAmount AS DiscountAmount,
-                NetAmount, TotalPaid, BalanceDue, PaymentStatus,
-                CreatedDate AS PaidOn
-            FROM PaymentHeader
-            WHERE ModuleCode = @ModuleCode AND ModuleRefId = @ModuleRefId AND IsActive = 1",
+            SELECT PaymentHeaderId,
+                   SubTotal, 
+                   HeaderDiscountType AS DiscountType, 
+                   HeaderDiscountValue AS DiscountValue, 
+                   HeaderDiscountAmount AS DiscountAmount,
+                   TotalCgstAmount, TotalSgstAmount, TotalIgstAmount,
+                   NetAmount, TotalPaid, BalanceDue, PaymentStatus, 
+                   LastModifiedDate AS PaidOn
+            FROM PaymentHeader 
+            WHERE ModuleCode = @ModuleCode AND ModuleRefId = @ModuleRefId AND IsActive = 1", 
             new { ModuleCode = moduleCode, ModuleRefId = moduleRefId });
 
         if (header == null) return null;
@@ -326,18 +343,28 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             ORDER BY pd.PaymentDetailId",
             new { HeaderId = (int)header.PaymentHeaderId });
 
+        var lineItems = await con.QueryAsync<BillPaymentLineItem>(@"
+            SELECT ModuleLineRefId, CgstAmount, SgstAmount, IgstAmount, NetLineAmount
+            FROM PaymentLineItem
+            WHERE PaymentHeaderId = @HeaderId AND IsActive = 1",
+            new { HeaderId = (int)header.PaymentHeaderId });
+
         return new BillPaymentSummary
         {
             SubTotal       = (decimal)header.SubTotal,
             DiscountType   = (string?)header.DiscountType,
             DiscountValue  = (decimal)header.DiscountValue,
             DiscountAmount = (decimal)header.DiscountAmount,
+            TotalCgstAmount= (decimal)header.TotalCgstAmount,
+            TotalSgstAmount= (decimal)header.TotalSgstAmount,
+            TotalIgstAmount= (decimal)header.TotalIgstAmount,
             NetAmount      = (decimal)header.NetAmount,
             TotalPaid      = (decimal)header.TotalPaid,
             BalanceDue     = (decimal)header.BalanceDue,
             PaymentStatus  = (string)header.PaymentStatus,
             PaidOn         = (DateTime?)header.PaidOn,
-            Rows           = rows.ToList()
+            Rows           = rows.ToList(),
+            LineItems      = lineItems.ToList()
         };
     }
 }

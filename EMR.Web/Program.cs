@@ -79,6 +79,7 @@ builder.Services.AddScoped<IEmrConsultationApiClient,   EmrConsultationApiClient
 builder.Services.AddScoped<IPatientApiClient,           PatientApiClient>();
 builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>();
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
+builder.Services.AddScoped<IReportApiClient, ReportApiClient>();
 builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();
 builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>();

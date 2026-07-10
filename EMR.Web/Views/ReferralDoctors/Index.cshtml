@@ -1,0 +1,97 @@
+@model IEnumerable<EMR.Web.Models.Entities.ReferralDoctorMaster>
+@{
+    ViewData["Title"] = "Referral Doctor Master";
+    var total  = Model.Count();
+    var active = Model.Count(x => x.IsActive);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Referral Doctor Master</h1>
+        <small class="text-muted">Manage external referral doctors</small>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Add Doctor
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-sm-4 col-md-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Doctors</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-panel table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Phone Number</th>
+                <th>Email ID</th>
+                <th>Registration No.</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td class="fw-semibold">
+                        @if (!string.IsNullOrEmpty(item.Salutation))
+                        {
+                            <span class="text-muted">@item.Salutation.</span>
+                        }
+                        @item.DoctorName
+                    </td>
+                    <td>@item.PhoneNumber</td>
+                    <td>@item.EmailId</td>
+                    <td>@item.RegistrationNumber</td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Edit" asp-route-id="@item.ReferralDoctorId"
+                           class="btn btn-sm btn-outline-primary" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="bi bi-person-hearts fs-2 d-block mb-2 opacity-50"></i>
+                        No referral doctors found. <a asp-action="Create">Add one now.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

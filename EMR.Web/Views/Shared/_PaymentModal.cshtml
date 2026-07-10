@@ -53,10 +53,12 @@
                         <table class="table table-sm table-bordered mb-0" style="font-size:.84rem">
                             <thead class="table-light">
                                 <tr>
-                                    <th>#</th>
+                                    <th style="width:40px">#</th>
                                     <th>Item</th>
-                                    <th>Type</th>
-                                    <th class="text-end">Amount (₹)</th>
+                                    <th style="width:110px">Type</th>
+                                    <th style="width:80px" class="text-end d-none d-sm-table-cell">CGST</th>
+                                    <th style="width:80px" class="text-end d-none d-sm-table-cell">SGST</th>
+                                    <th style="width:110px" class="text-end">Amount (₹)</th>
                                 </tr>
                             </thead>
                             <tbody id="pmLineItemsTbody"></tbody>
@@ -94,6 +96,10 @@
                                 <span class="text-muted small">Discount amt: </span>
                                 <span class="fw-semibold text-danger" id="pmDiscAmt">₹0.00</span>
                             </div>
+                        </div>
+                        <div class="mt-2 pt-2 d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Total Tax (GST)</span>
+                            <span class="fw-semibold text-danger" id="pmTotalTax">₹0.00</span>
                         </div>
                         <div class="mt-2 border-top pt-2 d-flex justify-content-between align-items-center">
                             <span class="fw-bold">Net Payable</span>
@@ -216,12 +222,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Line items
         const tbody = document.getElementById('pmLineItemsTbody');
-        tbody.innerHTML = '';
-        (_summary.items ?? []).forEach((item, i) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${i+1}</td><td>${esc(item.itemName)}</td><td class="text-muted">${esc(item.serviceType??'')}</td><td class="text-end font-monospace">₹${fmt(item.originalAmount)}</td>`;
-            tbody.appendChild(tr);
-        });
+        // Line items are rendered dynamically in recalcDiscount
         document.getElementById('pmSubTotal').textContent = '₹' + fmt(_summary.subTotal);
 
         // Existing payment info
@@ -236,7 +237,8 @@ document.addEventListener('DOMContentLoaded', function () {
             r.addEventListener('change', recalcDiscount));
         document.getElementById('pmDiscValue').addEventListener('input', recalcDiscount);
 
-        updateNetAmount(_summary.hasExistingPayment ? _summary.balanceDue : _summary.subTotal);
+        // Trigger calculation to include GST initially
+        recalcDiscount();
 
         // Add first payment method row
         addMethodRow();
@@ -264,7 +266,60 @@ document.addEventListener('DOMContentLoaded', function () {
         if (type === 'P') discAmt = Math.min(base, base * raw / 100);
         else if (type === 'F') discAmt = Math.min(base, raw);
         document.getElementById('pmDiscAmt').textContent = '₹' + fmt(discAmt);
-        const net = Math.max(0, base - discAmt);
+        
+        let totalCgst = 0;
+        let totalSgst = 0;
+
+        const tbody = document.getElementById('pmLineItemsTbody');
+        tbody.innerHTML = '';
+
+        if (!_summary.hasExistingPayment && _summary.items) {
+            _summary.items.forEach((item, i) => {
+                let proportion = base > 0 ? (item.originalAmount / base) : 0;
+                item.lineDiscountAmount = discAmt * proportion;
+                item.netLineAmount = Math.max(0, item.originalAmount - item.lineDiscountAmount);
+                
+                item.cgstAmount = 0;
+                item.sgstAmount = 0;
+                item.igstAmount = 0;
+
+                if (item.isGstRequired && item.gstPercentage) {
+                    let tax = item.netLineAmount * (item.gstPercentage / 100.0);
+                    item.cgstAmount = parseFloat((tax / 2).toFixed(2));
+                    item.sgstAmount = parseFloat((tax / 2).toFixed(2));
+                    totalCgst += item.cgstAmount;
+                    totalSgst += item.sgstAmount;
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${i+1}</td>
+                                <td>${esc(item.itemName)}</td>
+                                <td class="text-muted">${esc(item.serviceType??'')}</td>
+                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${item.cgstAmount > 0 ? '₹'+fmt(item.cgstAmount) : '—'}</td>
+                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${item.sgstAmount > 0 ? '₹'+fmt(item.sgstAmount) : '—'}</td>
+                                <td class="text-end font-monospace">₹${fmt(item.originalAmount)}</td>`;
+                tbody.appendChild(tr);
+            });
+        } else if (_summary.hasExistingPayment && _summary.items) {
+            _summary.items.forEach((item, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${i+1}</td>
+                                <td>${esc(item.itemName)}</td>
+                                <td class="text-muted">${esc(item.serviceType??'')}</td>
+                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${(item.cgstAmount && item.cgstAmount > 0) ? '₹'+fmt(item.cgstAmount) : '—'}</td>
+                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${(item.sgstAmount && item.sgstAmount > 0) ? '₹'+fmt(item.sgstAmount) : '—'}</td>
+                                <td class="text-end font-monospace">₹${fmt(item.originalAmount)}</td>`;
+                tbody.appendChild(tr);
+                totalCgst += (item.cgstAmount || 0);
+                totalSgst += (item.sgstAmount || 0);
+            });
+        }
+        
+        let totalTax = totalCgst + totalSgst;
+        let elTax = document.getElementById('pmTotalTax');
+        if (elTax) elTax.textContent = '₹' + fmt(totalTax);
+
+        const net = Math.max(0, base - discAmt + totalTax);
         updateNetAmount(net);
     }
 
@@ -418,15 +473,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
-            const lineItems = (_summary.items ?? []).map(item => ({
-                moduleLineRefId:  item.lineRefId,
-                itemDescription:  item.itemName,
-                serviceType:      item.serviceType,
-                originalAmount:   item.originalAmount,
-                lineDiscountType:   null,
-                lineDiscountValue:  0,
-                lineDiscountAmount: 0,
-                netLineAmount:      item.originalAmount
+            const lineItems = (_summary.items || []).map(li => ({
+                moduleLineRefId: li.lineRefId,
+                itemDescription: li.itemName,
+                serviceType: li.serviceType,
+                originalAmount: li.originalAmount,
+                lineDiscountType: discType,
+                lineDiscountValue: 0,
+                lineDiscountAmount: li.lineDiscountAmount || 0,
+                netLineAmount: li.netLineAmount || li.originalAmount,
+                isGstRequired: li.isGstRequired || false,
+                gstPercentage: li.gstPercentage || 0,
+                cgstAmount: li.cgstAmount || 0,
+                sgstAmount: li.sgstAmount || 0,
+                igstAmount: li.igstAmount || 0
             }));
 
             const payload = {

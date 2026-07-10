@@ -6,6 +6,7 @@ namespace EMR.Web.Data;
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<ReferralDoctorMaster> ReferralDoctorMasters => Set<ReferralDoctorMaster>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<BranchMaster> BranchMasters => Set<BranchMaster>();
     public DbSet<UserBranch> UserBranches => Set<UserBranch>();

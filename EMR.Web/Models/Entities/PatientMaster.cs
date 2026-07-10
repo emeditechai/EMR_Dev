@@ -51,6 +51,8 @@ public class PatientMaster
 
     public int? RelationId { get; set; }
 
+    public int? ReferralDoctorId { get; set; }
+
     public int? IdentificationTypeId { get; set; }
 
     [MaxLength(100)]

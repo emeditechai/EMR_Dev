@@ -62,6 +62,7 @@ public class OpdRecentBooking
     public string? ConsultingDoctorName { get; set; }
     public decimal TotalAmount { get; set; }
     public decimal TotalPaid { get; set; }
+    public string PaymentStatus { get; set; } = "U";
     public string Status { get; set; } = string.Empty;
     public DateTime VisitDate { get; set; }
     public TimeSpan? AppointmentTime { get; set; }

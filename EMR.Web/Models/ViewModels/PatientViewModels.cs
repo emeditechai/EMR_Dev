@@ -166,6 +166,9 @@ public class PatientRegistrationViewModel
     [Display(Name = "Remarks")]
     public string? Remarks { get; set; }
 
+    [Display(Name = "Referral Doctor")]
+    public int? ReferralDoctorId { get; set; }
+
     // ── Section 3: Doctor & Services ─────────────────────────────────────────
 
     /// <summary>ID of the PatientOPDService (bill header) row; 0 = new visit.</summary>
@@ -200,6 +203,7 @@ public class PatientRegistrationViewModel
     public List<SelectListItem> CityOptions { get; set; } = [];
     public List<SelectListItem> AreaOptions { get; set; } = [];
     public List<SelectListItem> DoctorOptions { get; set; } = [];
+    public List<SelectListItem> ReferralDoctorOptions { get; set; } = [];
 
     // ── After-save info (used by success modal) ───────────────────────────────
     public string? OPDBillNo { get; set; }
@@ -292,9 +296,12 @@ public class ServiceBookingPagedListViewModel
 // ─── Detail popup DTO ─────────────────────────────────────────────────────────
 public class ServiceBookingDetailItem
 {
-    public string? ServiceType { get; set; }
-    public string? ItemName { get; set; }
-    public decimal ServiceCharges { get; set; }
+    public int      ItemId          { get; set; }
+    public string?  ServiceType     { get; set; }
+    public string?  ItemName        { get; set; }
+    public decimal  ServiceCharges  { get; set; }
+    public bool     IsGstRequired   { get; set; }
+    public decimal? GstPercentage   { get; set; }
 }
 
 public class ServiceBookingDetailViewModel

@@ -40,4 +40,8 @@ public class PaymentLineItem
     public decimal OriginalAmount      { get; set; }
     public decimal LineDiscountAmount  { get; set; }
     public decimal NetLineAmount       { get; set; }
+    public bool    IsGstRequired       { get; set; }
+    public decimal? GstPercentage      { get; set; }
+    public decimal CgstAmount { get; set; }
+    public decimal SgstAmount { get; set; }
 }

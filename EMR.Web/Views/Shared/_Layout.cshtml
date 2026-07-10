@@ -62,6 +62,7 @@
                                     <ul class="dropdown-menu dropdown-submenu-menu">
                                         <li><a class="dropdown-item" asp-controller="OPD" asp-action="Index"><i class="bi bi-person-heart me-2"></i>Patient Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Doctors" asp-action="Index"><i class="bi bi-heart-pulse-fill me-2"></i>Doctor Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="ReferralDoctors" asp-action="Index"><i class="bi bi-person-lines-fill me-2"></i>Referral Doctor Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="DoctorSpecialities" asp-action="Index"><i class="bi bi-award-fill me-2"></i>Doctor Speciality Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Departments" asp-action="Index"><i class="bi bi-building me-2"></i>Department Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Floors" asp-action="Index"><i class="bi bi-layers-fill me-2"></i>Floor Master</a></li>
@@ -159,7 +160,14 @@
                                 <i class="bi bi-bar-chart-line-fill me-2"></i>Reports
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="reportsMenu">
-                                <li><a class="dropdown-item" asp-controller="Reports" asp-action="OPDReport"><i class="bi bi-file-medical me-2"></i>OPD Report</a></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-submenu-toggle" href="#"><i class="bi bi-file-medical me-2"></i>OPD<i class="bi bi-chevron-right submenu-arrow"></i></a>
+                                    <ul class="dropdown-menu dropdown-submenu-menu">
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="DailyCollection"><i class="bi bi-cash-stack me-2"></i>Daily Collection</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="PatientRegister"><i class="bi bi-people-fill me-2"></i>Patient Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="OPDReport">Other OPD Report</a></li>
+                                    </ul>
+                                </li>
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="IPDReport"><i class="bi bi-hospital me-2"></i>IPD Report</a></li>
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="PatientReport"><i class="bi bi-person-lines-fill me-2"></i>Patient Report</a></li>
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="BillingReport"><i class="bi bi-receipt me-2"></i>Billing Report</a></li>

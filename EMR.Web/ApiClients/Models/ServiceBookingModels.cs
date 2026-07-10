@@ -41,9 +41,12 @@ public class ServiceBookingPagedResult
 // ── Detail line item ──────────────────────────────────────────────────────────
 public class ServiceBookingDetailItem
 {
+    public int      ItemId          { get; set; }
     public string?  ServiceType     { get; set; }
     public string   ItemName        { get; set; } = string.Empty;
     public decimal  ServiceCharges  { get; set; }
+    public bool     IsGstRequired   { get; set; }
+    public decimal? GstPercentage   { get; set; }
 }
 
 // ── Detail header ─────────────────────────────────────────────────────────────

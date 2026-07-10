@@ -58,6 +58,9 @@ public class PaymentLineItemSummary
     public decimal? LineDiscountValue { get; set; }
     public decimal LineDiscountAmount { get; set; }
     public decimal NetLineAmount { get; set; }
+
+    public bool IsGstRequired { get; set; }
+    public decimal? GstPercentage { get; set; }
 }
 
 // ── Save Payment Request ──────────────────────────────────────────────────────
@@ -111,6 +114,12 @@ public class PaymentLineItemRow
     public decimal LineDiscountValue { get; set; }
     public decimal LineDiscountAmount { get; set; }
     public decimal NetLineAmount { get; set; }
+
+    public bool IsGstRequired { get; set; }
+    public decimal? GstPercentage { get; set; }
+    public decimal CgstAmount { get; set; }
+    public decimal SgstAmount { get; set; }
+    public decimal IgstAmount { get; set; }
 }
 
 // ── Bill Payment Summary (for PrintBill view) ───────────────────────────────
@@ -137,7 +146,22 @@ public class BillPaymentSummary
     public decimal BalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";  // P=Paid R=Partial U=Unpaid
     public DateTime? PaidOn { get; set; }
+
+    public decimal TotalCgstAmount { get; set; }
+    public decimal TotalSgstAmount { get; set; }
+    public decimal TotalIgstAmount { get; set; }
+
     public List<BillPaymentRow> Rows { get; set; } = [];
+    public List<BillPaymentLineItem> LineItems { get; set; } = [];
+}
+
+public class BillPaymentLineItem
+{
+    public int ModuleLineRefId { get; set; }
+    public decimal CgstAmount { get; set; }
+    public decimal SgstAmount { get; set; }
+    public decimal IgstAmount { get; set; }
+    public decimal NetLineAmount { get; set; }
 }
 
 // ── Save Payment Result ───────────────────────────────────────────────────────

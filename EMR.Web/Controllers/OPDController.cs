@@ -413,6 +413,27 @@ public class OPDController(
             }
         }
 
+        // ── Uniqueness: Email ID + Relation must be unique per active patient ──
+        if (!string.IsNullOrWhiteSpace(model.EmailId) && model.RelationId.HasValue)
+        {
+            var dupEmailExists = await dbContext.PatientMasters.AnyAsync(p =>
+                p.EmailId == model.EmailId.Trim() &&
+                p.RelationId == model.RelationId &&
+                p.IsActive &&
+                p.PatientId != model.PatientId);
+
+            if (dupEmailExists)
+            {
+                var relName = await dbContext.RelationMasters
+                    .Where(r => r.RelationId == model.RelationId)
+                    .Select(r => r.RelationName)
+                    .FirstOrDefaultAsync() ?? "selected relation";
+                ModelState.AddModelError("EmailId", $"A patient with relation \"{relName}\" is already registered with Email {model.EmailId}.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
+        }
+
         var patient = MapViewModelToPatient(model);
         patient.BranchId = branchId;
 
@@ -1333,9 +1354,12 @@ public class OPDController(
                 Status               = apiDetail.Status,
                 Items                = apiDetail.Items.Select(i => new ServiceBookingDetailItem
                 {
+                    ItemId         = i.ItemId,
                     ServiceType    = i.ServiceType,
                     ItemName       = i.ItemName,
-                    ServiceCharges = i.ServiceCharges
+                    ServiceCharges = i.ServiceCharges,
+                    IsGstRequired  = i.IsGstRequired,
+                    GstPercentage  = i.GstPercentage
                 }).ToList()
             };
 
@@ -1394,9 +1418,12 @@ public class OPDController(
                 Status               = apiDetail.Status,
                 Items                = apiDetail.Items.Select(i => new ServiceBookingDetailItem
                 {
+                    ItemId         = i.ItemId,
                     ServiceType    = i.ServiceType,
                     ItemName       = i.ItemName,
-                    ServiceCharges = i.ServiceCharges
+                    ServiceCharges = i.ServiceCharges,
+                    IsGstRequired  = i.IsGstRequired,
+                    GstPercentage  = i.GstPercentage
                 }).ToList()
             };
 
@@ -1506,6 +1533,39 @@ public class OPDController(
         model.DoctorOptions = doctors
             .Select(d => new SelectListItem(d.FullName, d.DoctorId.ToString()))
             .ToList();
+
+        model.ReferralDoctorOptions = await dbContext.ReferralDoctorMasters
+            .Where(r => r.IsActive)
+            .OrderBy(r => r.DoctorName)
+            .Select(r => new SelectListItem(r.DoctorName, r.ReferralDoctorId.ToString()))
+            .ToListAsync();
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CreateReferralDoctorQuick([FromForm] string name, [FromForm] string phone)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return Json(new { success = false, message = "Doctor name is required." });
+
+        var doc = new ReferralDoctorMaster
+        {
+            DoctorName = name.Trim(),
+            PhoneNumber = phone?.Trim(),
+            IsActive = true,
+            CreatedBy = User.GetUserId(),
+            CreatedDate = DateTime.Now
+        };
+        
+        dbContext.ReferralDoctorMasters.Add(doc);
+        await dbContext.SaveChangesAsync();
+        
+        return Json(new { success = true, id = doc.ReferralDoctorId, name = doc.DoctorName });
+    }
+
+    private static string? CapitalizeName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return name;
+        return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name.Trim().ToLower());
     }
 
     private static PatientMaster MapViewModelToPatient(PatientRegistrationViewModel m) => new()
@@ -1515,9 +1575,9 @@ public class OPDController(
         PhoneNumber           = m.PhoneNumber.Trim(),
         SecondaryPhoneNumber  = m.SecondaryPhoneNumber?.Trim(),
         Salutation            = m.Salutation,
-        FirstName             = m.FirstName.Trim(),
-        MiddleName            = m.MiddleName?.Trim(),
-        LastName              = m.LastName.Trim(),
+        FirstName             = CapitalizeName(m.FirstName) ?? "",
+        MiddleName            = CapitalizeName(m.MiddleName),
+        LastName              = CapitalizeName(m.LastName) ?? "",
         Gender                = m.Gender,
         DateOfBirth           = m.DateOfBirth,
         ReligionId            = m.ReligionId,
@@ -1539,6 +1599,7 @@ public class OPDController(
         BloodGroup            = m.BloodGroup,
         KnownAllergies        = m.KnownAllergies?.Trim(),
         Remarks               = m.Remarks?.Trim(),
+        ReferralDoctorId      = m.ReferralDoctorId,
     };
 
     private static PatientOPDService MapViewModelToOPDBill(PatientRegistrationViewModel m) => new()
@@ -1582,6 +1643,7 @@ public class OPDController(
         BloodGroup            = p.BloodGroup,
         KnownAllergies        = p.KnownAllergies,
         Remarks               = p.Remarks,
+        ReferralDoctorId      = p.ReferralDoctorId,
     };
 
     private static void MapOPDBillToViewModel(PatientOPDService svc, PatientRegistrationViewModel m)
@@ -2047,14 +2109,6 @@ public class OPDController(
         if (isAlreadyGenerated)
             return;
 
-        bool emailHasLogin = await dbContext.PatientMasters
-            .AnyAsync(p => p.EmailId == email && p.IsLoginGenerated && p.PatientId != patientId);
-
-        if (emailHasLogin)
-        {
-            TempData["Warning"] = "Duplicate Email ID Exists with Login! Please change the Email ID.";
-            return;
-        }
 
         TriggerPatientLoginEmail(branchId, patientId, patientCode, name, email);
     }
@@ -2113,7 +2167,7 @@ public class OPDController(
                                     <table style='width: 100%; border-collapse: collapse;'>
                                         <tr>
                                             <td style='padding: 8px 0; color: #555555; width: 100px;'><strong>Username:</strong></td>
-                                            <td style='padding: 8px 0; color: #333333; font-size: 16px; font-weight: 600;'>{patientCode}</td>
+                                            <td style='padding: 8px 0; color: #333333; font-size: 16px; font-weight: 600;'>{patientEmail}</td>
                                         </tr>
                                         <tr>
                                             <td style='padding: 8px 0; color: #555555;'><strong>Password:</strong></td>
