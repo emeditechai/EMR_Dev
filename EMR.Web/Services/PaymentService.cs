@@ -91,6 +91,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 summary.TotalPaid    = (decimal)existing.TotalPaid;
                 summary.BalanceDue   = (decimal)existing.BalanceDue;
                 summary.PaymentStatus = (string)existing.PaymentStatus;
+
+                var receipts = await con.QueryAsync<string>("SELECT ReceiptNo FROM PaymentDetail WHERE PaymentHeaderId = @PaymentHeaderId AND ReceiptNo IS NOT NULL AND IsActive = 1", new { PaymentHeaderId = (int)existing.PaymentHeaderId });
+                summary.ReceiptNos = string.Join(", ", receipts);
             }
             else
             {
@@ -212,17 +215,33 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             }
 
             // ── Insert PaymentDetail rows ──────────────────────────────────────
+            var branchCode = await con.QuerySingleOrDefaultAsync<string>("SELECT BranchCode FROM Branchmaster WHERE BranchId = @BranchId", new { request.BranchId }, tx) ?? "BR";
+            string financialYear = DateTime.Now.Month >= 4 ? $"{DateTime.Now.Year}-{DateTime.Now.Year + 1}" : $"{DateTime.Now.Year - 1}-{DateTime.Now.Year}";
+            string datePart = DateTime.Now.ToString("ddMMyyyy");
+
             foreach (var p in request.Payments)
             {
+                int nextSeq = await con.QuerySingleAsync<int>(@"
+                    DECLARE @NextSeq INT;
+                    UPDATE ReceiptSequence SET @NextSeq = LastSeq = LastSeq + 1 WHERE BranchId = @BranchId AND FinancialYear = @FinancialYear;
+                    IF @NextSeq IS NULL
+                    BEGIN
+                        SET @NextSeq = 1;
+                        INSERT INTO ReceiptSequence (BranchId, FinancialYear, LastSeq) VALUES (@BranchId, @FinancialYear, @NextSeq);
+                    END
+                    SELECT @NextSeq;", new { request.BranchId, FinancialYear = financialYear }, tx);
+
+                string receiptNo = $"{branchCode}{datePart}{nextSeq:D6}";
+
                 await con.ExecuteAsync(@"
                     INSERT INTO PaymentDetail
                         (PaymentHeaderId, PaymentMethodId, PaidAmount,
                          TransactionRef, ChequeNo, BankName, UPIRefNo, CardLast4,
-                         PaymentDate, Notes, CreatedDate, CreatedBy, IsActive)
+                         PaymentDate, Notes, CreatedDate, CreatedBy, IsActive, ReceiptNo)
                     VALUES
                         (@PaymentHeaderId, @PaymentMethodId, @PaidAmount,
                          @TransactionRef, @ChequeNo, @BankName, @UPIRefNo, @CardLast4,
-                         GETDATE(), @Notes, GETDATE(), @CreatedBy, 1)",
+                         GETDATE(), @Notes, GETDATE(), @CreatedBy, 1, @ReceiptNo)",
                     new
                     {
                         PaymentHeaderId = paymentHeaderId,
@@ -234,7 +253,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         p.UPIRefNo,
                         p.CardLast4,
                         p.Notes,
-                        CreatedBy = userId
+                        CreatedBy = userId,
+                        ReceiptNo = receiptNo
                     }, tx);
             }
 
@@ -336,7 +356,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 pd.ChequeNo,
                 pd.BankName,
                 pd.UPIRefNo,
-                pd.CardLast4
+                pd.CardLast4,
+                pd.ReceiptNo
             FROM PaymentDetail pd
             INNER JOIN PaymentMethodMaster pm ON pm.PaymentMethodId = pd.PaymentMethodId
             WHERE pd.PaymentHeaderId = @HeaderId AND pd.IsActive = 1

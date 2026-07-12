@@ -44,6 +44,14 @@
                                 <li><a class="dropdown-item" asp-controller="Vitals" asp-action="Index"><i class="bi bi-activity me-2"></i>Patient Vitals</a></li>
                             </ul>
                         </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="labMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-droplet-half me-2"></i>LAB
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="labMenu">
+                                <li><a class="dropdown-item" href="#"><i class="bi bi-speedometer2 me-2"></i>LAB Dashboard</a></li>
+                            </ul>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="IPD" asp-action="Index"><i class="bi bi-hospital me-2"></i>IPD</a>
                         </li>
@@ -189,7 +197,6 @@
                     </ul>
 
                     <div class="d-flex align-items-center gap-2 ms-xl-3 emr-top-actions">
-                        <button type="button" class="btn btn-sm emr-icon-btn" title="Fullscreen"><i class="bi bi-fullscreen"></i></button>
                         <button type="button" class="btn btn-sm emr-icon-btn" title="Notifications"><i class="bi bi-bell-fill"></i></button>
                         <span class="emr-branch-pill"><i class="bi bi-building me-2"></i>@(User.FindFirst("BranchCode")?.Value ?? User.FindFirst("BranchName")?.Value)</span>
 

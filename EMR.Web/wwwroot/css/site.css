@@ -41,6 +41,10 @@ body {
 .brand-plus     { color: #f59e0b; }   /* Yellow */
 .brand-plussign { color: #ec4899; }   /* Pink   */
 
+.emr-main-menu {
+  flex-wrap: wrap;
+}
+
 .emr-main-menu > li > .nav-link > i {
   font-size: 0.85rem;
   margin-right: 0.2rem !important;

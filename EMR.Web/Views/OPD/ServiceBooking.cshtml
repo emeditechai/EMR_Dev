@@ -633,7 +633,11 @@
                     <div class="fw-bold font-monospace text-danger">${fmtAmt(pay.balanceDue)}</div>
                 </div>`;
         }
-        html += `</div><div class="text-end"><span class="badge ${statusCls}">${statusLabel}</span></div></div>`;
+        html += `</div>`;
+        if (pay.receiptNos) {
+            html += `<div class="mb-2" style="font-size:.7rem;color:#6c757d;"><strong>Receipt(s):</strong> <span class="font-monospace text-primary">${pay.receiptNos}</span></div>`;
+        }
+        html += `<div class="text-end"><span class="badge ${statusCls}">${statusLabel}</span></div></div>`;
         return html;
     }
 

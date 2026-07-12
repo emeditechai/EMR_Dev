@@ -517,6 +517,7 @@
                                 <thead>
                                     <tr>
                                         <th>#</th>
+                                        <th>Receipt No</th>
                                         <th>Payment Method</th>
                                         <th class="text-end">Amount Paid (₹)</th>
                                         <th>Reference / Details</th>
@@ -537,6 +538,7 @@
                                         var refStr = refParts.Any() ? string.Join(" · ", refParts) : "—";
                                         <tr>
                                             <td class="text-muted">@pRow</td>
+                                            <td><strong class="text-primary font-monospace">@(row.ReceiptNo ?? "—")</strong></td>
                                             <td><strong>@row.MethodName</strong></td>
                                             <td class="text-end fw-bold font-monospace">₹@row.PaidAmount.ToString("N2")</td>
                                             <td class="text-muted" style="font-size:.78rem">@refStr</td>
@@ -545,7 +547,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="2" class="text-end">Total Paid</td>
+                                        <td colspan="3" class="text-end">Total Paid</td>
                                         <td class="text-end font-monospace text-success">₹@totalPaid.ToString("N2")</td>
                                         <td></td>
                                     </tr>

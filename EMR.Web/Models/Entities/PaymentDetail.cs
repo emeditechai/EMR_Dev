@@ -18,6 +18,7 @@ public class PaymentDetail
     public string? CardLast4 { get; set; }
 
     public DateTime PaymentDate { get; set; } = DateTime.Now;
+    public string? ReceiptNo { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? CreatedBy { get; set; }

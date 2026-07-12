@@ -44,6 +44,7 @@ public class PaymentSummaryViewModel
     public decimal TotalPaid { get; set; }
     public decimal BalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
+    public string? ReceiptNos { get; set; }
 }
 
 public class PaymentLineItemSummary
@@ -133,6 +134,7 @@ public class BillPaymentRow
     public string? BankName { get; set; }
     public string? UPIRefNo { get; set; }
     public string? CardLast4 { get; set; }
+    public string? ReceiptNo { get; set; }
 }
 
 public class BillPaymentSummary
