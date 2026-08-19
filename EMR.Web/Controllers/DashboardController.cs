@@ -20,6 +20,12 @@ public class DashboardController(ApplicationDbContext dbContext) : Controller
         var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
         var branchId = int.TryParse(User.FindFirstValue("BranchId"), out var bid) ? bid : 0;
 
+        var branch = branchId > 0
+            ? await dbContext.BranchMasters
+                .Include(x => x.Company)
+                .FirstOrDefaultAsync(x => x.BranchId == branchId)
+            : null;
+
         var hospitalSettings = branchId > 0
             ? await dbContext.HospitalSettings
                 .Where(x => x.BranchId == branchId)
@@ -27,7 +33,9 @@ public class DashboardController(ApplicationDbContext dbContext) : Controller
                 .FirstOrDefaultAsync()
             : null;
 
-        var currentBranchName = User.FindFirstValue("BranchName") ?? "N/A";
+        var currentBranchName = User.FindFirstValue("BranchName") ?? branch?.BranchName ?? "N/A";
+        var companyName = branch?.Company?.CompanyName ?? User.FindFirstValue("CompanyName") ?? "Primary Healthcare Network";
+        var companyCode = branch?.Company?.CompanyCode ?? User.FindFirstValue("CompanyCode") ?? "CMP-001";
 
         var model = new DashboardViewModel
         {
@@ -36,11 +44,14 @@ public class DashboardController(ApplicationDbContext dbContext) : Controller
             CurrentHospitalName = string.IsNullOrWhiteSpace(hospitalSettings?.HospitalName)
                 ? currentBranchName
                 : hospitalSettings.HospitalName!,
+            CompanyName = companyName,
+            CompanyCode = companyCode,
             HospitalLogoPath = hospitalSettings?.LogoPath,
             TotalUsers = await dbContext.Users.CountAsync(),
             TotalBranches = await dbContext.BranchMasters.CountAsync(x => x.IsActive),
             ActiveMappings = await dbContext.UserBranches.CountAsync(x => x.IsActive),
         };
+
 
         ViewData["IsSuperAdmin"] = User.HasClaim("IsSuperAdmin", "true");
         ViewData["CurrentUserId"] = userId;
