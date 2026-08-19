@@ -1,0 +1,222 @@
+@model EMR.Web.Models.ViewModels.BedFormViewModel
+@{
+    ViewData["Title"] = "Edit Bed";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Bed</h1>
+        <small class="text-muted">Update bed status, category, room mapping, and capabilities</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-pencil-square me-2"></i>Edit Bed Details</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="BedId" />
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div class="row g-3">
+                        <!-- Building -->
+                        <div class="col-md-4">
+                            <label asp-for="BuildingId" class="form-label fw-semibold required-label">
+                                Building <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-buildings text-muted"></i></span>
+                                <select id="buildingSelect" asp-for="BuildingId" asp-items="Model.BuildingOptions" class="form-select" required>
+                                    <option value="">-- Select Building --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="BuildingId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Ward (Cascading) -->
+                        <div class="col-md-4">
+                            <label asp-for="WardId" class="form-label fw-semibold required-label">
+                                Ward <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-hospital text-muted"></i></span>
+                                <select id="wardSelect" asp-for="WardId" asp-items="Model.WardOptions" class="form-select" required>
+                                    <option value="">-- Select Ward --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="WardId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- IPD Room (Cascading) -->
+                        <div class="col-md-4">
+                            <label asp-for="RoomId" class="form-label fw-semibold required-label">
+                                IPD Room <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-door-open text-muted"></i></span>
+                                <select id="roomSelect" asp-for="RoomId" asp-items="Model.RoomOptions" class="form-select" required>
+                                    <option value="">-- Select Room --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="RoomId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Bed Number -->
+                        <div class="col-md-4">
+                            <label asp-for="BedNumber" class="form-label fw-semibold required-label">
+                                Bed Number <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-hash text-muted"></i></span>
+                                <input asp-for="BedNumber" class="form-control text-uppercase font-monospace"
+                                       maxlength="50" placeholder="e.g. BED-101-A1" required
+                                       oninput="this.value=this.value.toUpperCase()" />
+                            </div>
+                            <span asp-validation-for="BedNumber" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Bed Category -->
+                        <div class="col-md-4">
+                            <label asp-for="BedCategoryId" class="form-label fw-semibold required-label">
+                                Bed Category <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-bookmark-star text-muted"></i></span>
+                                <select asp-for="BedCategoryId" asp-items="Model.BedCategoryOptions" class="form-select" required>
+                                    <option value="">-- Select Category --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="BedCategoryId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Bed Status -->
+                        <div class="col-md-4">
+                            <label asp-for="BedStatus" class="form-label fw-semibold required-label">
+                                Bed Status <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-activity text-muted"></i></span>
+                                <select asp-for="BedStatus" asp-items="Model.BedStatusOptions" class="form-select" required></select>
+                            </div>
+                            <span asp-validation-for="BedStatus" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Capabilities Toggles -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold mb-2">Bed Capabilities & Specialized Care</label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch p-2 border rounded bg-light">
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsIsolation">
+                                        <label class="form-check-label fw-semibold" asp-for="IsIsolation">Isolation / Negative Pressure</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch p-2 border rounded bg-light">
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsICU">
+                                        <label class="form-check-label fw-semibold" asp-for="IsICU">ICU / Critical Care</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch p-2 border rounded bg-light">
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsVentilatorCapable">
+                                        <label class="form-check-label fw-semibold" asp-for="IsVentilatorCapable">Ventilator Capable</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold">Description / Features</label>
+                            <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-check form-switch p-2 border rounded bg-light">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                                <label class="form-check-label fw-semibold" asp-for="IsActive">Active Bed</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Update Bed
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const buildingSelect = document.getElementById('buildingSelect');
+            const wardSelect = document.getElementById('wardSelect');
+            const roomSelect = document.getElementById('roomSelect');
+
+            buildingSelect.addEventListener('change', async function () {
+                const buildingId = this.value;
+                wardSelect.innerHTML = '<option value="">-- Select Ward --</option>';
+                roomSelect.innerHTML = '<option value="">-- Select Room --</option>';
+
+                if (!buildingId) return;
+
+                try {
+                    const res = await fetch(`/Beds/GetWardsByBuilding?buildingId=${buildingId}`);
+                    if (res.ok) {
+                        const wards = await res.json();
+                        wards.forEach(w => {
+                            const opt = document.createElement('option');
+                            opt.value = w.wardId;
+                            opt.textContent = `${w.wardName} (${w.wardCode}) - ${w.wardType}`;
+                            wardSelect.appendChild(opt);
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error fetching wards:', err);
+                }
+            });
+
+            wardSelect.addEventListener('change', async function () {
+                const wardId = this.value;
+                roomSelect.innerHTML = '<option value="">-- Select Room --</option>';
+
+                if (!wardId) return;
+
+                try {
+                    const res = await fetch(`/Beds/GetRoomsByWard?wardId=${wardId}`);
+                    if (res.ok) {
+                        const rooms = await res.json();
+                        rooms.forEach(r => {
+                            const opt = document.createElement('option');
+                            opt.value = r.roomId;
+                            opt.textContent = `Room ${r.roomNumber} (${r.roomType} - ${r.roomCategory})`;
+                            roomSelect.appendChild(opt);
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error fetching rooms:', err);
+                }
+            });
+        });
+    </script>
+}

@@ -13,6 +13,14 @@ public class HospitalSettingsViewModel
     [MaxLength(200)]
     public string? HospitalName { get; set; }
 
+    [Display(Name = "Hospital Type")]
+    [MaxLength(100)]
+    public string? HospitalType { get; set; }
+
+    [Display(Name = "Registration / License Number")]
+    [MaxLength(100)]
+    public string? RegistrationNumber { get; set; }
+
     [Display(Name = "Address")]
     [MaxLength(500)]
     public string? Address { get; set; }
@@ -24,6 +32,10 @@ public class HospitalSettingsViewModel
     [Display(Name = "Contact Number 2")]
     [MaxLength(20)]
     public string? ContactNumber2 { get; set; }
+
+    [Display(Name = "Emergency Helpline Number")]
+    [MaxLength(50)]
+    public string? EmergencyNumber { get; set; }
 
     [Display(Name = "Email Address")]
     [EmailAddress]
@@ -45,11 +57,30 @@ public class HospitalSettingsViewModel
     [Display(Name = "Upload Logo")]
     public IFormFile? LogoFile { get; set; }
 
+    // ── Accreditation & Classification ───────────────────────────────────────
+    [Display(Name = "NABH Status")]
+    [MaxLength(100)]
+    public string? NabhStatus { get; set; }
+
+    [Display(Name = "NABH Certificate Number")]
+    [MaxLength(100)]
+    public string? NabhCertificateNo { get; set; }
+
+    [Display(Name = "NABH Valid From")]
+    public string? NabhValidFrom { get; set; } // yyyy-MM-dd for HTML date input
+
+    [Display(Name = "NABH Valid To")]
+    public string? NabhValidTo { get; set; } // yyyy-MM-dd for HTML date input
+
+    [Display(Name = "Teaching Hospital")]
+    public bool IsTeachingHospital { get; set; } = false;
+
     [Display(Name = "Check-In Time")]
     public string? CheckInTime { get; set; }   // "HH:mm" string for HTML time input
 
     [Display(Name = "Check-Out Time")]
     public string? CheckOutTime { get; set; }
+
 
     // ── OPD Module Settings ──────────────────────────────────────────────────
     [Display(Name = "Registration Charges Validity (Days)")]

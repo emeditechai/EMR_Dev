@@ -1,0 +1,152 @@
+@model EMR.Web.Models.ViewModels.BedDetailsViewModel
+@{
+    ViewData["Title"] = $"Bed {Model.BedNumber} - Details";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+        <div>
+            <h1 class="h3 mb-0 fw-bold">Bed @Model.BedNumber</h1>
+            <small class="text-muted">Room: <strong class="text-primary">@Model.RoomNumber</strong> | Ward: <strong class="text-primary">@Model.WardName</strong></small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.BedId" class="btn btn-outline-primary btn-sm px-3">
+            <i class="bi bi-pencil me-1"></i> Edit Bed
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-list me-1"></i> All Beds
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-hospital me-2"></i>Bed Details & Status</h6>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">Bed Number</p>
+                        <p class="fw-bold font-monospace fs-5 mb-0">
+                            <span class="badge text-bg-light border text-dark">@Model.BedNumber</span>
+                        </p>
+                    </div>
+
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">Current Bed Status</p>
+                        @switch (Model.BedStatus)
+                        {
+                            case "Available":
+                                <span class="badge text-bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle me-1"></i>Available</span>
+                                break;
+                            case "Occupied":
+                                <span class="badge text-bg-danger fs-6 px-3 py-2"><i class="bi bi-person-fill me-1"></i>Occupied</span>
+                                break;
+                            case "Reserved":
+                                <span class="badge text-bg-warning text-dark fs-6 px-3 py-2"><i class="bi bi-clock-history me-1"></i>Reserved</span>
+                                break;
+                            case "Cleaning":
+                                <span class="badge text-bg-info fs-6 px-3 py-2"><i class="bi bi-stars me-1"></i>Cleaning in Progress</span>
+                                break;
+                            case "Maintenance":
+                                <span class="badge text-bg-dark fs-6 px-3 py-2"><i class="bi bi-tools me-1"></i>Under Maintenance</span>
+                                break;
+                            case "Blocked":
+                                <span class="badge text-bg-secondary fs-6 px-3 py-2"><i class="bi bi-slash-circle me-1"></i>Blocked</span>
+                                break;
+                            default:
+                                <span class="badge text-bg-light border fs-6 px-3 py-2">@Model.BedStatus</span>
+                                break;
+                        }
+                    </div>
+
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">Bed Category</p>
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 fs-6 px-3 py-2">
+                            <i class="bi bi-bookmark-star me-1"></i>@Model.BedCategoryName
+                        </span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">IPD Room & Ward</p>
+                        <p class="fw-semibold fs-6 mb-0 text-dark">
+                            <a asp-controller="Rooms" asp-action="Details" asp-route-id="@Model.RoomId" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 text-decoration-none px-3 py-2 me-1">
+                                <i class="bi bi-door-open me-1"></i>Room @Model.RoomNumber
+                            </a>
+                            <a asp-controller="Wards" asp-action="Details" asp-route-id="@Model.WardId" class="badge bg-secondary bg-opacity-10 text-dark border text-decoration-none px-3 py-2">
+                                <i class="bi bi-hospital me-1"></i>@Model.WardName
+                            </a>
+                        </p>
+                    </div>
+
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">Building & Floor</p>
+                        <p class="fw-semibold fs-6 mb-0 text-dark">
+                            <i class="bi bi-buildings text-primary me-1"></i>@Model.BuildingName
+                            <small class="text-muted d-block mt-1"><i class="bi bi-layers me-1"></i>@Model.FloorName</small>
+                        </p>
+                    </div>
+
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">Active Status</p>
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge text-bg-success px-3 py-2">Active Bed</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary px-3 py-2">Inactive</span>
+                        }
+                    </div>
+
+                    <div class="col-12">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">Specialized Capabilities</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            @if (Model.IsICU)
+                            {
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 fs-6 px-3 py-2">
+                                    <i class="bi bi-heart-pulse-fill me-1"></i>ICU / Critical Care
+                                </span>
+                            }
+                            @if (Model.IsVentilatorCapable)
+                            {
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 px-3 py-2">
+                                    <i class="bi bi-lungs-fill me-1"></i>Ventilator Capable Bed
+                                </span>
+                            }
+                            @if (Model.IsIsolation)
+                            {
+                                <span class="badge bg-warning bg-opacity-10 text-dark border border-warning fs-6 px-3 py-2">
+                                    <i class="bi bi-shield-shaded me-1"></i>Isolation / Negative Pressure
+                                </span>
+                            }
+                            @if (!Model.IsICU && !Model.IsVentilatorCapable && !Model.IsIsolation)
+                            {
+                                <span class="text-muted">Standard Inpatient Hospital Bed</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <p class="text-muted small mb-1 text-uppercase fw-semibold">Description & Features</p>
+                        <p class="text-dark bg-light p-3 rounded-2 mb-0">
+                            @(string.IsNullOrWhiteSpace(Model.Description) ? "No description provided." : Model.Description)
+                        </p>
+                    </div>
+
+                    <div class="col-12 pt-3 border-top text-muted small d-flex justify-content-between flex-wrap gap-2">
+                        <div>Created: @Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</div>
+                        @if (Model.ModifiedDate.HasValue)
+                        {
+                            <div>Last Modified: @Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm")</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

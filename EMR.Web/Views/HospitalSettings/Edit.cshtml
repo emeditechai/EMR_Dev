@@ -24,133 +24,202 @@
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-hospital-fill fs-4" style="color:var(--emr-primary)"></i>
+        <i class="bi bi-hospital-fill fs-4 text-primary"></i>
         <div>
-            <h1 class="h4 mb-0 fw-bold">Edit Hospital Settings</h1>
-            <small class="text-muted">Branch: <strong>@Model.BranchName</strong></small>
+            <h4 class="h4 mb-0 fw-bold text-dark">Edit Hospital Settings</h4>
+            <small class="text-muted">Branch: <strong class="text-primary">@Model.BranchName</strong></small>
         </div>
     </div>
     <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
-        <i class="bi bi-arrow-left me-1"></i>Back
+        <i class="bi bi-arrow-left me-1"></i> Back to Overview
     </a>
 </div>
 
 <form asp-action="Edit" method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
     <input type="hidden" asp-for="Id" />
     <input type="hidden" asp-for="BranchId" />
     <input type="hidden" asp-for="BranchName" />
 
-    <!-- Basic Information -->
-    <div class="uf-section mb-3">
-        <div class="uf-section-header"><i class="bi bi-info-circle-fill me-2"></i>Basic Information</div>
-        <div class="uf-section-body">
+    <!-- 1. General Profile & Classification -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+            <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-building me-2"></i>Hospital Identity & Classification</h6>
+        </div>
+        <div class="card-body p-4">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label asp-for="HospitalName" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-building input-icon"></i>
-                        <input asp-for="HospitalName" class="form-control ps-icon" placeholder="Enter hospital name" />
+                    <label asp-for="HospitalName" class="form-label fw-semibold required-label">Hospital / Center Name</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-building text-muted"></i></span>
+                        <input asp-for="HospitalName" class="form-control" placeholder="e.g. CarePlus Super Speciality Hospital" required />
                     </div>
                     <span asp-validation-for="HospitalName" class="text-danger small"></span>
                 </div>
-                <div class="col-md-6">
-                    <label asp-for="Address" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-geo-alt input-icon"></i>
-                        <textarea asp-for="Address" class="form-control ps-icon" rows="2" placeholder="Full address"></textarea>
+                <div class="col-md-3">
+                    <label asp-for="HospitalType" class="form-label fw-semibold">Hospital Type</label>
+                    <select asp-for="HospitalType" class="form-select">
+                        <option value="">-- Select Type --</option>
+                        <option value="Day Care">Day Care</option>
+                        <option value="Clinic">Clinic</option>
+                        <option value="Speciality Hospital">Speciality Hospital</option>
+                        <option value="Super Speciality Hospital">Super Speciality Hospital</option>
+                        <option value="Multi Speciality Hospital">Multi Speciality Hospital</option>
+                        <option value="General Hospital">General Hospital</option>
+                        <option value="Tertiary Care Hospital">Tertiary Care Hospital</option>
+                        <option value="Diagnostic Center">Diagnostic Center</option>
+                        <option value="Nursing Home">Nursing Home</option>
+                    </select>
+                    <span asp-validation-for="HospitalType" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="RegistrationNumber" class="form-label fw-semibold">Registration / License No.</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-card-heading text-muted"></i></span>
+                        <input asp-for="RegistrationNumber" class="form-control" placeholder="e.g. WB/KOL/2022/1234" />
                     </div>
+                    <span asp-validation-for="RegistrationNumber" class="text-danger small"></span>
+                </div>
+
+                <div class="col-md-8">
+                    <label asp-for="Address" class="form-label fw-semibold">Hospital Physical Address</label>
+                    <textarea asp-for="Address" class="form-control" rows="2" placeholder="Complete address with landmark and pincode"></textarea>
                     <span asp-validation-for="Address" class="text-danger small"></span>
                 </div>
                 <div class="col-md-4">
-                    <label asp-for="ContactNumber1" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-telephone input-icon"></i>
-                        <input asp-for="ContactNumber1" class="form-control ps-icon" placeholder="Primary contact" />
+                    <label asp-for="IsTeachingHospital" class="form-label fw-semibold">Teaching Hospital</label>
+                    <select asp-for="IsTeachingHospital" class="form-select">
+                        <option value="false">No (Non-Teaching Hospital)</option>
+                        <option value="true">Yes (Teaching Hospital / Medical College)</option>
+                    </select>
+                    <span asp-validation-for="IsTeachingHospital" class="text-danger small"></span>
+                </div>
+
+                <div class="col-md-3">
+                    <label asp-for="ContactNumber1" class="form-label fw-semibold">Primary Contact</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-telephone text-muted"></i></span>
+                        <input asp-for="ContactNumber1" class="form-control" placeholder="e.g. 033-24567890" />
                     </div>
                     <span asp-validation-for="ContactNumber1" class="text-danger small"></span>
                 </div>
-                <div class="col-md-4">
-                    <label asp-for="ContactNumber2" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-telephone input-icon"></i>
-                        <input asp-for="ContactNumber2" class="form-control ps-icon" placeholder="Secondary contact" />
+                <div class="col-md-3">
+                    <label asp-for="ContactNumber2" class="form-label fw-semibold">Secondary Contact</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-telephone text-muted"></i></span>
+                        <input asp-for="ContactNumber2" class="form-control" placeholder="e.g. 9876543210" />
                     </div>
                     <span asp-validation-for="ContactNumber2" class="text-danger small"></span>
                 </div>
-                <div class="col-md-4">
-                    <label asp-for="EmailAddress" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-envelope input-icon"></i>
-                        <input asp-for="EmailAddress" class="form-control ps-icon" placeholder="email@hospital.com" />
+                <div class="col-md-3">
+                    <label asp-for="EmergencyNumber" class="form-label fw-semibold text-danger"><i class="bi bi-telephone-plus-fill me-1"></i>Emergency Helpline</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-danger-subtle text-danger"><i class="bi bi-telephone-fill"></i></span>
+                        <input asp-for="EmergencyNumber" class="form-control border-danger-subtle" placeholder="e.g. +91 33 2456 9999 or 108" />
+                    </div>
+                    <span asp-validation-for="EmergencyNumber" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="EmailAddress" class="form-label fw-semibold">Official Email</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-envelope text-muted"></i></span>
+                        <input asp-for="EmailAddress" class="form-control" placeholder="contact@hospital.com" />
                     </div>
                     <span asp-validation-for="EmailAddress" class="text-danger small"></span>
                 </div>
-                <div class="col-md-6">
-                    <label asp-for="Website" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-globe input-icon"></i>
-                        <input asp-for="Website" class="form-control ps-icon" placeholder="https://www.hospital.com" />
+
+                <div class="col-md-4">
+                    <label asp-for="Website" class="form-label fw-semibold">Website URL</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-globe text-muted"></i></span>
+                        <input asp-for="Website" class="form-control" placeholder="https://www.hospital.com" />
                     </div>
                     <span asp-validation-for="Website" class="text-danger small"></span>
                 </div>
-                <div class="col-md-3">
-                    <label asp-for="GSTCode" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-receipt input-icon"></i>
-                        <input asp-for="GSTCode" class="form-control ps-icon" placeholder="GST number" />
+                <div class="col-md-4">
+                    <label asp-for="GSTCode" class="form-label fw-semibold">GSTIN</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-receipt text-muted"></i></span>
+                        <input asp-for="GSTCode" class="form-control text-uppercase" placeholder="19AAACP1234A1Z5" />
                     </div>
                     <span asp-validation-for="GSTCode" class="text-danger small"></span>
                 </div>
-                <div class="col-md-3">
-                    <label asp-for="LogoFile" class="form-label fw-semibold">Logo Upload</label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-image input-icon"></i>
-                        <input asp-for="LogoFile" type="file" class="form-control ps-icon" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
-                    </div>
-                    <span asp-validation-for="LogoFile" class="text-danger small"></span>
+                <div class="col-md-4">
+                    <label asp-for="LogoFile" class="form-label fw-semibold">Hospital Logo</label>
+                    <input asp-for="LogoFile" type="file" class="form-control" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
                     <input asp-for="LogoPath" type="hidden" />
                     @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
                     {
                         <div class="mt-2 d-flex align-items-center gap-2">
-                            <img src="@Model.LogoPath" alt="Hospital Logo" style="width:48px;height:48px;object-fit:contain;border:1px solid var(--bs-border-color);border-radius:.5rem;background:#fff" />
-                            <small class="text-muted">Current logo</small>
+                            <img src="@Model.LogoPath" alt="Hospital Logo" class="rounded border p-1" style="width:36px;height:36px;object-fit:contain;background:#fff;" />
+                            <small class="text-muted">Current logo uploaded</small>
                         </div>
                     }
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label fw-semibold">Status</label>
-                    <div class="uf-toggle-row border rounded px-3 py-2">
-                        <span class="uf-toggle-label">Active</span>
-                        <label class="ios-toggle ms-auto">
-                            <input type="checkbox" asp-for="IsActive" />
-                            <span class="ios-slider"></span>
-                        </label>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Timing -->
-    <div class="uf-section mb-3">
-        <div class="uf-section-header"><i class="bi bi-clock-fill me-2"></i>Timing</div>
-        <div class="uf-section-body">
+    <!-- 2. NABH Accreditation & Certification -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+            <h6 class="mb-0 fw-bold text-success"><i class="bi bi-patch-check-fill me-2"></i>NABH Accreditation & Certification</h6>
+        </div>
+        <div class="card-body p-4">
             <div class="row g-3">
-                <div class="col-md-6">
-                    <label asp-for="CheckInTime" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-box-arrow-in-right input-icon"></i>
-                        <input asp-for="CheckInTime" type="time" class="form-control ps-icon" />
-                    </div>
+                <div class="col-md-3">
+                    <label asp-for="NabhStatus" class="form-label fw-semibold">NABH Status</label>
+                    <select asp-for="NabhStatus" class="form-select">
+                        <option value="Not Applied">Not Applied</option>
+                        <option value="Applied">Applied (In Process)</option>
+                        <option value="Pre-Entry Level">Pre-Entry Level</option>
+                        <option value="Entry Level Accredited">Entry Level Accredited</option>
+                        <option value="Full Accredited">Full Accredited</option>
+                        <option value="Exempted">Exempted</option>
+                    </select>
+                    <span asp-validation-for="NabhStatus" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="NabhCertificateNo" class="form-label fw-semibold">NABH Certificate Number</label>
+                    <input asp-for="NabhCertificateNo" class="form-control" placeholder="e.g. NABH-2024-HOSP-0941" />
+                    <span asp-validation-for="NabhCertificateNo" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="NabhValidFrom" class="form-label fw-semibold">NABH Valid From</label>
+                    <input asp-for="NabhValidFrom" type="date" class="form-control" />
+                    <span asp-validation-for="NabhValidFrom" class="text-danger small"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="NabhValidTo" class="form-label fw-semibold">NABH Valid To</label>
+                    <input asp-for="NabhValidTo" type="date" class="form-control" />
+                    <span asp-validation-for="NabhValidTo" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Operating Timings & Global Status -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+            <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-clock-fill me-2"></i>Operating Hours & Branch Status</h6>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="CheckInTime" class="form-label fw-semibold">Hospital Daily Opening / Check-In Time</label>
+                    <input asp-for="CheckInTime" type="time" class="form-control" />
                     <span asp-validation-for="CheckInTime" class="text-danger small"></span>
                 </div>
-                <div class="col-md-6">
-                    <label asp-for="CheckOutTime" class="form-label fw-semibold"></label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-box-arrow-right input-icon"></i>
-                        <input asp-for="CheckOutTime" type="time" class="form-control ps-icon" />
-                    </div>
+                <div class="col-md-4">
+                    <label asp-for="CheckOutTime" class="form-label fw-semibold">Hospital Daily Closing / Check-Out Time</label>
+                    <input asp-for="CheckOutTime" type="time" class="form-control" />
                     <span asp-validation-for="CheckOutTime" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check form-switch p-3 border rounded w-100 bg-light">
+                        <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                        <label class="form-check-label fw-semibold" asp-for="IsActive">Hospital Settings Active</label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -162,136 +231,136 @@
     </div>
 
     <ul class="nav module-tab-nav mb-0" id="moduleTabs" role="tablist">
-    <li class="nav-item">
-        <button class="nav-link active" data-tab="opd" data-bs-toggle="tab" data-bs-target="#editTabOpd" type="button" role="tab">
-            <i class="bi bi-person-plus-fill me-1"></i>OPD
-        </button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link" data-tab="ipd" data-bs-toggle="tab" data-bs-target="#editTabIpd" type="button" role="tab">
-            <i class="bi bi-hospital me-1"></i>IPD
-        </button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link" data-tab="lab" data-bs-toggle="tab" data-bs-target="#editTabLab" type="button" role="tab">
-            <i class="bi bi-eyedropper me-1"></i>LAB
-        </button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link" data-tab="med" data-bs-toggle="tab" data-bs-target="#editTabMed" type="button" role="tab">
-            <i class="bi bi-capsule me-1"></i>MED
-        </button>
-    </li>
-</ul>
+        <li class="nav-item">
+            <button class="nav-link active" data-tab="opd" data-bs-toggle="tab" data-bs-target="#editTabOpd" type="button" role="tab">
+                <i class="bi bi-person-plus-fill me-1"></i>OPD
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-tab="ipd" data-bs-toggle="tab" data-bs-target="#editTabIpd" type="button" role="tab">
+                <i class="bi bi-hospital me-1"></i>IPD
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-tab="lab" data-bs-toggle="tab" data-bs-target="#editTabLab" type="button" role="tab">
+                <i class="bi bi-eyedropper me-1"></i>LAB
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-tab="med" data-bs-toggle="tab" data-bs-target="#editTabMed" type="button" role="tab">
+                <i class="bi bi-capsule me-1"></i>MED
+            </button>
+        </li>
+    </ul>
 
-<div class="tab-content mb-4">
+    <div class="tab-content mb-4">
 
-    @* OPD *@
-    <div class="tab-pane fade show active module-tab-pane" id="editTabOpd" role="tabpanel">
-        <div class="row g-3">
-            <div class="col-6 col-md-3">
-                <label asp-for="OpdRegistrationValidityDays" class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                    <i class="bi bi-calendar-check me-1 text-primary"></i>Registration Charges Validity
-                </label>
-                <div class="input-group">
-                    <input asp-for="OpdRegistrationValidityDays" type="number" class="form-control"
-                           min="0" max="3650" placeholder="e.g. 365" />
-                    <span class="input-group-text">Days</span>
+        @* OPD *@
+        <div class="tab-pane fade show active module-tab-pane" id="editTabOpd" role="tabpanel">
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <label asp-for="OpdRegistrationValidityDays" class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                        <i class="bi bi-calendar-check me-1 text-primary"></i>Registration Charges Validity
+                    </label>
+                    <div class="input-group">
+                        <input asp-for="OpdRegistrationValidityDays" type="number" class="form-control"
+                               min="0" max="3650" placeholder="e.g. 365" />
+                        <span class="input-group-text">Days</span>
+                    </div>
+                    <span asp-validation-for="OpdRegistrationValidityDays" class="text-danger small d-block mt-1"></span>
+                    <div class="form-text">How long a patient's registration charge remains valid.</div>
                 </div>
-                <span asp-validation-for="OpdRegistrationValidityDays" class="text-danger small d-block mt-1"></span>
-                <div class="form-text">How long a patient's registration charge remains valid.</div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                        <i class="bi bi-search me-1 text-primary"></i>Global Patient Search Required
+                    </label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="GlobalPatientSearchRequired">
+                        <label class="form-check-label ms-2" asp-for="GlobalPatientSearchRequired">Require global search for patient workflows</label>
+                    </div>
+                    <span asp-validation-for="GlobalPatientSearchRequired" class="text-danger small d-block mt-1"></span>
+                </div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                        <i class="bi bi-envelope me-1 text-primary"></i>Email Notification Required
+                    </label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="EmailNotificationRequired">
+                        <label class="form-check-label ms-2" asp-for="EmailNotificationRequired">Send emails for Bills & Prescriptions</label>
+                    </div>
+                    <span asp-validation-for="EmailNotificationRequired" class="text-danger small d-block mt-1"></span>
+                </div>
+                
+                @foreach (var p in new[] { "Token Prefix","Auto Token Reset","Default Consulting Fee","Allow Walk-In","Max Patients / Day","Print Bill on Save","GST on Services" })
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="param-placeholder">
+                            <div class="param-label">@p</div>
+                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                        </div>
+                    </div>
+                }
             </div>
+        </div>
 
-            <div class="col-6 col-md-3">
-                <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                    <i class="bi bi-search me-1 text-primary"></i>Global Patient Search Required
-                </label>
-                <div class="form-check form-switch mt-2">
-                    <input class="form-check-input" type="checkbox" role="switch" asp-for="GlobalPatientSearchRequired">
-                    <label class="form-check-label ms-2" asp-for="GlobalPatientSearchRequired">Require global search for patient workflows</label>
-                </div>
-                <span asp-validation-for="GlobalPatientSearchRequired" class="text-danger small d-block mt-1"></span>
+        @* IPD *@
+        <div class="tab-pane fade module-tab-pane" id="editTabIpd" role="tabpanel">
+            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>IPD-specific parameters will be configurable here.</p>
+            <div class="row g-3">
+                @foreach (var p in new[] { "Admission Prefix","Default Ward","Bed Booking Advance (Days)","Auto Discharge Reminder","Diet Plan Enabled","Nursing Notes","OT Module","Print Discharge Summary" })
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="param-placeholder">
+                            <div class="param-label">@p</div>
+                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                        </div>
+                    </div>
+                }
             </div>
+        </div>
 
-            <div class="col-6 col-md-3">
-                <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                    <i class="bi bi-envelope me-1 text-primary"></i>Email Notification Required
-                </label>
-                <div class="form-check form-switch mt-2">
-                    <input class="form-check-input" type="checkbox" role="switch" asp-for="EmailNotificationRequired">
-                    <label class="form-check-label ms-2" asp-for="EmailNotificationRequired">Send emails for Bills & Prescriptions</label>
-                </div>
-                <span asp-validation-for="EmailNotificationRequired" class="text-danger small d-block mt-1"></span>
+        @* LAB *@
+        <div class="tab-pane fade module-tab-pane" id="editTabLab" role="tabpanel">
+            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>LAB-specific parameters will be configurable here.</p>
+            <div class="row g-3">
+                @foreach (var p in new[] { "Report Prefix","Default Sample Type","Auto Report Delivery","Report TAT (Hours)","External Lab Integration","Critical Alert","Print Header on Report","Barcode on Sample" })
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="param-placeholder">
+                            <div class="param-label">@p</div>
+                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                        </div>
+                    </div>
+                }
             </div>
-            
-            @foreach (var p in new[] { "Token Prefix","Auto Token Reset","Default Consulting Fee","Allow Walk-In","Max Patients / Day","Print Bill on Save","GST on Services" })
-            {
-                <div class="col-6 col-md-3">
-                    <div class="param-placeholder">
-                        <div class="param-label">@p</div>
-                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                    </div>
-                </div>
-            }
         </div>
+
+        @* MED *@
+        <div class="tab-pane fade module-tab-pane" id="editTabMed" role="tabpanel">
+            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Pharmacy/MED specific parameters will be configurable here.</p>
+            <div class="row g-3">
+                @foreach (var p in new[] { "Invoice Prefix","GST Registration No.","Drug License No.","Low Stock Alert (Qty)","Expiry Alert (Days)","Return Policy (Days)","Auto Reorder","Print Prescription" })
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="param-placeholder">
+                            <div class="param-label">@p</div>
+                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
     </div>
 
-    @* IPD *@
-    <div class="tab-pane fade module-tab-pane" id="editTabIpd" role="tabpanel">
-        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>IPD-specific parameters will be configurable here.</p>
-        <div class="row g-3">
-            @foreach (var p in new[] { "Admission Prefix","Default Ward","Bed Booking Advance (Days)","Auto Discharge Reminder","Diet Plan Enabled","Nursing Notes","OT Module","Print Discharge Summary" })
-            {
-                <div class="col-6 col-md-3">
-                    <div class="param-placeholder">
-                        <div class="param-label">@p</div>
-                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
-
-    @* LAB *@
-    <div class="tab-pane fade module-tab-pane" id="editTabLab" role="tabpanel">
-        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>LAB-specific parameters will be configurable here.</p>
-        <div class="row g-3">
-            @foreach (var p in new[] { "Report Prefix","Default Sample Type","Auto Report Delivery","Report TAT (Hours)","External Lab Integration","Critical Alert","Print Header on Report","Barcode on Sample" })
-            {
-                <div class="col-6 col-md-3">
-                    <div class="param-placeholder">
-                        <div class="param-label">@p</div>
-                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
-
-    @* MED *@
-    <div class="tab-pane fade module-tab-pane" id="editTabMed" role="tabpanel">
-        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Pharmacy/MED specific parameters will be configurable here.</p>
-        <div class="row g-3">
-            @foreach (var p in new[] { "Invoice Prefix","GST Registration No.","Drug License No.","Low Stock Alert (Qty)","Expiry Alert (Days)","Return Policy (Days)","Auto Reorder","Print Prescription" })
-            {
-                <div class="col-6 col-md-3">
-                    <div class="param-placeholder">
-                        <div class="param-label">@p</div>
-                        <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
-
-</div>
-
-    <div class="d-flex gap-2 justify-content-end mb-4">
-        <a asp-action="Index" class="btn btn-outline-secondary">
-            <i class="bi bi-x-circle me-1"></i>Cancel
+    <div class="d-flex gap-2 justify-content-end mb-5">
+        <a asp-action="Index" class="btn btn-outline-secondary px-3">
+            <i class="bi bi-x-circle me-1"></i> Cancel
         </a>
-        <button type="submit" class="btn btn-primary px-4">
-            <i class="bi bi-floppy-fill me-1"></i>Save Settings
+        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+            <i class="bi bi-floppy-fill me-1"></i> Save Hospital Settings
         </button>
     </div>
 

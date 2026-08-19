@@ -72,8 +72,14 @@
                                         <li><a class="dropdown-item" asp-controller="Doctors" asp-action="Index"><i class="bi bi-heart-pulse-fill me-2"></i>Doctor Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="ReferralDoctors" asp-action="Index"><i class="bi bi-person-lines-fill me-2"></i>Referral Doctor Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="DoctorSpecialities" asp-action="Index"><i class="bi bi-award-fill me-2"></i>Doctor Speciality Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSubSpecialities" asp-action="Index"><i class="bi bi-patch-plus-fill me-2"></i>Doctor Sub-Speciality Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Departments" asp-action="Index"><i class="bi bi-building me-2"></i>Department Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="ClinicalUnits" asp-action="Index"><i class="bi bi-diagram-3-fill me-2"></i>Clinical Unit Master</a></li>
+
+
+                                        <li><a class="dropdown-item" asp-controller="Buildings" asp-action="Index"><i class="bi bi-buildings-fill me-2"></i>Building Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Floors" asp-action="Index"><i class="bi bi-layers-fill me-2"></i>Floor Master</a></li>
+
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="Countries" asp-action="Index"><i class="bi bi-globe me-2"></i>Country Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="States" asp-action="Index"><i class="bi bi-map me-2"></i>State Master</a></li>
@@ -106,9 +112,21 @@
                                         <i class="bi bi-chevron-right ms-auto submenu-arrow"></i>
                                     </a>
                                     <ul class="dropdown-menu dropdown-submenu-menu">
-                                        <li><a class="dropdown-item disabled" href="#"><i class="bi bi-layers me-2"></i>Ward Master</a></li>
-                                        <li><a class="dropdown-item disabled" href="#"><i class="bi bi-door-open me-2"></i>Room Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Wards" asp-action="Index"><i class="bi bi-hospital me-2"></i>Ward Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="NursingStations" asp-action="Index"><i class="bi bi-person-workspace me-2"></i>Nursing Station Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Rooms" asp-action="Index"><i class="bi bi-door-open me-2"></i>IPD Room Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="BedCategories" asp-action="Index"><i class="bi bi-bookmark-star me-2"></i>Bed Category Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Beds" asp-action="Index"><i class="bi bi-hospital-fill me-2"></i>Bed Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="TariffCategories" asp-action="Index"><i class="bi bi-tags-fill me-2"></i>Tariff Category Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="BedRoomTariffs" asp-action="Index"><i class="bi bi-receipt-cutoff me-2"></i>Bed/Room Tariff Master</a></li>
                                     </ul>
+
+
+
+
+
+
+
                                 </li>
 
                                 @* Lab Master *@

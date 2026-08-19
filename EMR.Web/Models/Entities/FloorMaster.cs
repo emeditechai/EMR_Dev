@@ -12,10 +12,17 @@ public class FloorMaster
     [Required, MaxLength(100)]
     public string FloorName { get; set; } = string.Empty;
 
+    public int? BuildingId { get; set; }
+    public string? BuildingName { get; set; }
+    public string? BuildingCode { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
+
+    public BuildingMaster? Building { get; set; }
 }
+

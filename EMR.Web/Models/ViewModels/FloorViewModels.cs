@@ -1,10 +1,17 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace EMR.Web.Models.ViewModels;
 
 public class FloorFormViewModel
 {
     public int FloorId { get; set; }
+
+    [Required(ErrorMessage = "Please select a Building.")]
+    [Display(Name = "Building")]
+    public int? BuildingId { get; set; }
+
+    public string? BuildingName { get; set; }
 
     [Required(ErrorMessage = "Floor Code is required.")]
     [MaxLength(20, ErrorMessage = "Maximum 20 characters allowed.")]
@@ -19,4 +26,6 @@ public class FloorFormViewModel
 
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
+
+    public IEnumerable<SelectListItem> BuildingOptions { get; set; } = new List<SelectListItem>();
 }

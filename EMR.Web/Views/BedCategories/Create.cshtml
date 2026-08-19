@@ -1,0 +1,89 @@
+@model EMR.Web.Models.ViewModels.BedCategoryFormViewModel
+@{
+    ViewData["Title"] = "Add Bed Category";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Bed Category</h1>
+        <small class="text-muted">Create a new bed category or tier for inpatient accommodations</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-bookmark-star me-2"></i>Bed Category Details</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div class="row g-3">
+                        <!-- Category Code -->
+                        <div class="col-md-5">
+                            <label asp-for="CategoryCode" class="form-label fw-semibold">
+                                Category Code
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-qr-code text-muted"></i></span>
+                                <input asp-for="CategoryCode" class="form-control text-uppercase font-monospace"
+                                       maxlength="50" placeholder="e.g. ICU, DLX"
+                                       oninput="this.value=this.value.toUpperCase()" />
+                            </div>
+                            <span asp-validation-for="CategoryCode" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Category Name -->
+                        <div class="col-md-7">
+                            <label asp-for="CategoryName" class="form-label fw-semibold required-label">
+                                Bed Category Name <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-bookmark-star text-muted"></i></span>
+                                <input asp-for="CategoryName" class="form-control"
+                                       maxlength="150" placeholder="e.g. Deluxe or Semi Private" required />
+                            </div>
+                            <span asp-validation-for="CategoryName" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold">Description / Scope</label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Room amenities, pricing tier, monitoring level..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-check form-switch p-2 border rounded bg-light">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                                <label class="form-check-label fw-semibold" asp-for="IsActive">Active Category</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Save Category
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,136 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.BuildingListItemViewModel>
+@{
+    ViewData["Title"] = "Building Master";
+    var total = Model.Count();
+    var active = Model.Count(x => x.IsActive);
+    var inactive = total - active;
+    var totalFloors = Model.Sum(x => x.TotalFloorsConfigured);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Building Master</h1>
+        <small class="text-muted">Manage hospital buildings, blocks, and multi-story complexes</small>
+    </div>
+    <a asp-action="Create" class="btn btn-primary shadow-sm">
+        <i class="bi bi-plus-lg me-1"></i> Add Building
+    </a>
+</div>
+
+<!-- Metric Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-building"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Buildings</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active Buildings</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@inactive</div>
+                <div class="stat-label">Inactive</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-cyan">
+            <div class="stat-icon"><i class="bi bi-layers-fill"></i></div>
+            <div>
+                <div class="stat-value">@totalFloors</div>
+                <div class="stat-label">Total Configured Floors</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 50px;">#</th>
+                <th>Building Code</th>
+                <th>Building Name</th>
+                <th>Capacity / Configured Floors</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-end" style="width: 140px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace fs-6 px-2 py-1">
+                            @item.BuildingCode
+                        </span>
+                    </td>
+                    <td class="fw-semibold">
+                        <i class="bi bi-hospital text-primary me-2"></i>@item.BuildingName
+                    </td>
+                    <td>
+                        <span class="fw-bold text-dark">@item.TotalFloorsConfigured</span>
+                        <span class="text-muted small">/ @item.NumberOfFloors expected</span>
+                        @if (item.TotalFloorsConfigured > 0)
+                        {
+                            <a asp-controller="Floors" asp-action="Index" asp-route-buildingId="@item.BuildingId" class="badge bg-info bg-opacity-10 text-info text-decoration-none ms-1">
+                                View Floors
+                            </a>
+                        }
+                    </td>
+                    <td class="text-muted small">
+                        @(string.IsNullOrWhiteSpace(item.Description) ? "—" : item.Description)
+                    </td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.BuildingId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.BuildingId"
+                           class="btn btn-sm btn-outline-primary" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-5">
+                        <i class="bi bi-building fs-1 d-block mb-2 opacity-50"></i>
+                        No buildings found. <a asp-action="Create" class="fw-bold">Create your first building.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

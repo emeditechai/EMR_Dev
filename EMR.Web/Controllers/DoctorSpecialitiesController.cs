@@ -8,7 +8,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class DoctorSpecialitiesController(IDoctorSpecialityService specialityService, IAuditLogService auditLogService) : Controller
+public class DoctorSpecialitiesController(
+    IDoctorSpecialityService specialityService, 
+    IDoctorSubSpecialityService subSpecialityService,
+    IAuditLogService auditLogService) : Controller
+
 {
     public async Task<IActionResult> Index()
     {
@@ -86,8 +90,10 @@ public class DoctorSpecialitiesController(IDoctorSpecialityService specialitySer
     {
         var entity = await specialityService.GetByIdAsync(id);
         if (entity is null) return NotFound();
+        entity.SubSpecialities = (await subSpecialityService.GetBySpecialityIdAsync(id)).ToList();
         return View(entity);
     }
+
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)

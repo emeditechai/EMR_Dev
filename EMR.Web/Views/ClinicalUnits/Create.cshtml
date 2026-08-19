@@ -1,0 +1,164 @@
+@model EMR.Web.Models.ViewModels.ClinicalUnitFormViewModel
+@{
+    ViewData["Title"] = "Add Clinical Unit";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Clinical Unit</h1>
+        <small class="text-muted">Create a clinical unit / care team under a department and speciality</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-diagram-3-fill me-2"></i>Clinical Unit Details</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div class="row g-3">
+                        <!-- Department -->
+                        <div class="col-md-6">
+                            <label asp-for="DepartmentId" class="form-label fw-semibold required-label">
+                                Department <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-building text-muted"></i></span>
+                                <select asp-for="DepartmentId" asp-items="Model.DepartmentOptions" class="form-select" required>
+                                    <option value="">-- Select Department --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="DepartmentId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Speciality -->
+                        <div class="col-md-6">
+                            <label asp-for="SpecialityId" class="form-label fw-semibold required-label">
+                                Doctor Speciality <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-award text-muted"></i></span>
+                                <select asp-for="SpecialityId" asp-items="Model.SpecialityOptions" id="specialitySelect" class="form-select" required>
+                                    <option value="">-- Select Speciality --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="SpecialityId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Consultant In Charge (Speciality-wise dynamic populate) -->
+                        <div class="col-12">
+                            <label asp-for="ConsultantInChargeDoctorId" class="form-label fw-semibold">
+                                Consultant-in-Charge
+                                <span id="doctorFilterBadge" class="badge bg-info bg-opacity-10 text-info ms-1">Speciality Filtered</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-person-badge text-muted"></i></span>
+                                <select asp-for="ConsultantInChargeDoctorId" asp-items="Model.DoctorOptions" id="doctorSelect" class="form-select">
+                                    <option value="">-- Select Consultant (Optional) --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="ConsultantInChargeDoctorId" class="text-danger small d-block mt-1"></span>
+                            <small class="form-text text-muted">Doctors are filtered automatically based on the selected Speciality.</small>
+                        </div>
+
+                        <!-- Unit Code -->
+                        <div class="col-md-5">
+                            <label asp-for="UnitCode" class="form-label fw-semibold required-label">
+                                Unit Code <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-qr-code text-muted"></i></span>
+                                <input asp-for="UnitCode" class="form-control text-uppercase font-monospace"
+                                       maxlength="50" placeholder="e.g. CARD-U1" required
+                                       oninput="this.value=this.value.toUpperCase()" />
+                            </div>
+                            <span asp-validation-for="UnitCode" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Unit Name -->
+                        <div class="col-md-7">
+                            <label asp-for="UnitName" class="form-label fw-semibold required-label">
+                                Unit Name <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-diagram-3 text-muted"></i></span>
+                                <input asp-for="UnitName" class="form-control"
+                                       maxlength="150" placeholder="e.g. Cardiology Unit 1" required />
+                            </div>
+                            <span asp-validation-for="UnitName" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold">Description / Clinical Focus</label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Clinical activities, team roster, specialty procedures..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-check form-switch p-2 border rounded bg-light">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                                <label class="form-check-label fw-semibold" asp-for="IsActive">Active Clinical Unit</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Save Clinical Unit
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const specialitySelect = document.getElementById("specialitySelect");
+            const doctorSelect = document.getElementById("doctorSelect");
+
+            if (specialitySelect && doctorSelect) {
+                specialitySelect.addEventListener("change", function () {
+                    const specId = this.value;
+                    const currentSelectedDoc = doctorSelect.value;
+                    
+                    fetch(`/ClinicalUnits/GetDoctorsBySpeciality?specialityId=${encodeURIComponent(specId)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            doctorSelect.innerHTML = '<option value="">-- Select Consultant (Optional) --</option>';
+                            let matchFound = false;
+                            data.forEach(doc => {
+                                const option = document.createElement("option");
+                                option.value = doc.doctorId;
+                                option.textContent = `${doc.fullName} (${doc.specialityName})`;
+                                if (currentSelectedDoc && doc.doctorId == currentSelectedDoc) {
+                                    option.selected = true;
+                                    matchFound = true;
+                                }
+                                doctorSelect.appendChild(option);
+                            });
+                        })
+                        .catch(err => console.error("Error loading doctors:", err));
+                });
+            }
+        });
+    </script>
+}

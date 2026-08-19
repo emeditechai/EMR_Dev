@@ -12,6 +12,12 @@ public class HospitalSettings
     [MaxLength(200)]
     public string? HospitalName { get; set; }
 
+    [MaxLength(100)]
+    public string? HospitalType { get; set; }
+
+    [MaxLength(100)]
+    public string? RegistrationNumber { get; set; }
+
     [MaxLength(500)]
     public string? Address { get; set; }
 
@@ -20,6 +26,9 @@ public class HospitalSettings
 
     [MaxLength(20)]
     public string? ContactNumber2 { get; set; }
+
+    [MaxLength(50)]
+    public string? EmergencyNumber { get; set; }
 
     [MaxLength(150)]
     public string? EmailAddress { get; set; }
@@ -33,9 +42,23 @@ public class HospitalSettings
     [MaxLength(500)]
     public string? LogoPath { get; set; }
 
+    // ── Accreditation & Classification ───────────────────────────────────────
+    [MaxLength(100)]
+    public string? NabhStatus { get; set; }
+
+    [MaxLength(100)]
+    public string? NabhCertificateNo { get; set; }
+
+    public DateTime? NabhValidFrom { get; set; }
+
+    public DateTime? NabhValidTo { get; set; }
+
+    public bool IsTeachingHospital { get; set; } = false;
+
     public TimeSpan? CheckInTime { get; set; }
 
     public TimeSpan? CheckOutTime { get; set; }
+
 
     // ── OPD Module Settings ──────────────────────────────────────────────────
     public int? OpdRegistrationValidityDays { get; set; }

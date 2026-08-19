@@ -109,13 +109,21 @@ public class HospitalSettingsController(
         else
         {
             existing.HospitalName = model.HospitalName;
+            existing.HospitalType = model.HospitalType;
+            existing.RegistrationNumber = model.RegistrationNumber;
             existing.Address = model.Address;
             existing.ContactNumber1 = model.ContactNumber1;
             existing.ContactNumber2 = model.ContactNumber2;
+            existing.EmergencyNumber = model.EmergencyNumber;
             existing.EmailAddress = model.EmailAddress;
             existing.Website = model.Website;
             existing.GSTCode = model.GSTCode;
             existing.LogoPath = await SaveLogoFileAsync(model.LogoFile, existing.LogoPath);
+            existing.NabhStatus = model.NabhStatus;
+            existing.NabhCertificateNo = model.NabhCertificateNo;
+            existing.NabhValidFrom = DateTime.TryParse(model.NabhValidFrom, out var nvf) ? nvf : null;
+            existing.NabhValidTo = DateTime.TryParse(model.NabhValidTo, out var nvt) ? nvt : null;
+            existing.IsTeachingHospital = model.IsTeachingHospital;
             existing.CheckInTime = TimeSpan.TryParse(model.CheckInTime, out var cin) ? cin : null;
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
             existing.OpdRegistrationValidityDays = model.OpdRegistrationValidityDays;
@@ -143,13 +151,21 @@ public class HospitalSettingsController(
             BranchId = s.BranchId,
             BranchName = branchName,
             HospitalName = s.HospitalName,
+            HospitalType = s.HospitalType,
+            RegistrationNumber = s.RegistrationNumber,
             Address = s.Address,
             ContactNumber1 = s.ContactNumber1,
             ContactNumber2 = s.ContactNumber2,
+            EmergencyNumber = s.EmergencyNumber,
             EmailAddress = s.EmailAddress,
             Website = s.Website,
             GSTCode = s.GSTCode,
             LogoPath = s.LogoPath,
+            NabhStatus = s.NabhStatus,
+            NabhCertificateNo = s.NabhCertificateNo,
+            NabhValidFrom = s.NabhValidFrom?.ToString("yyyy-MM-dd"),
+            NabhValidTo = s.NabhValidTo?.ToString("yyyy-MM-dd"),
+            IsTeachingHospital = s.IsTeachingHospital,
             CheckInTime = s.CheckInTime.HasValue
                 ? s.CheckInTime.Value.ToString(@"hh\:mm") : null,
             CheckOutTime = s.CheckOutTime.HasValue
@@ -168,13 +184,21 @@ public class HospitalSettingsController(
             CompanyId = companyId,
             BranchId = m.BranchId,
             HospitalName = m.HospitalName,
+            HospitalType = m.HospitalType,
+            RegistrationNumber = m.RegistrationNumber,
             Address = m.Address,
             ContactNumber1 = m.ContactNumber1,
             ContactNumber2 = m.ContactNumber2,
+            EmergencyNumber = m.EmergencyNumber,
             EmailAddress = m.EmailAddress,
             Website = m.Website,
             GSTCode = m.GSTCode,
             LogoPath = m.LogoPath,
+            NabhStatus = m.NabhStatus,
+            NabhCertificateNo = m.NabhCertificateNo,
+            NabhValidFrom = DateTime.TryParse(m.NabhValidFrom, out var nvf) ? nvf : null,
+            NabhValidTo = DateTime.TryParse(m.NabhValidTo, out var nvt) ? nvt : null,
+            IsTeachingHospital = m.IsTeachingHospital,
             CheckInTime = TimeSpan.TryParse(m.CheckInTime, out var cin) ? cin : null,
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
             OpdRegistrationValidityDays = m.OpdRegistrationValidityDays,
@@ -184,6 +208,7 @@ public class HospitalSettingsController(
             CreatedDate = DateTime.Now,
             CreatedBy = userId
         };
+
 
 
     private void ValidateLogoFile(HospitalSettingsViewModel model)

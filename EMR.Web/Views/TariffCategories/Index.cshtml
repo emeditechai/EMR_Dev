@@ -1,0 +1,202 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.TariffCategoryListItemViewModel>
+@{
+    ViewData["Title"] = "Tariff Category Master";
+    var total = Model.Count();
+    var active = Model.Count(x => x.IsActive);
+    var cashCount = Model.Count(x => x.PatientCategory == "Cash / Self Pay");
+    var corpCount = Model.Count(x => x.PatientCategory == "Corporate");
+    var insCount = Model.Count(x => x.PatientCategory == "Insurance / TPA");
+    var govtCount = Model.Count(x => x.PatientCategory == "Government / Public Scheme");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Tariff Category Master</h1>
+        <small class="text-muted">Define billing schedules, payer agreements, corporate contracts, and insurance tariff classes</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="BedCategories" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-bookmark-star me-1"></i>Bed Categories
+        </a>
+        <a asp-action="Create" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Tariff Category
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-tags-fill"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Categories</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
+            <div>
+                <div class="stat-value">@cashCount</div>
+                <div class="stat-label">Cash / Retail (B2C)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-cyan">
+            <div class="stat-icon"><i class="bi bi-building"></i></div>
+            <div>
+                <div class="stat-value">@corpCount</div>
+                <div class="stat-label">Corporate & PSU</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+            <div>
+                <div class="stat-value">@(insCount + govtCount)</div>
+                <div class="stat-label">Insurance / TPA & Govt</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0 fw-semibold text-muted small"><i class="bi bi-funnel me-1"></i>Filter Patient Category:</label>
+            </div>
+            <div class="col-md-3">
+                <select name="patientCategory" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Patient Categories --</option>
+                    @if (ViewBag.PatientCategoryOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.PatientCategoryOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.SelectedCategory?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(ViewBag.SelectedCategory?.ToString()))
+            {
+                <div class="col-auto">
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Clear Filter</a>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 50px;">#</th>
+                <th style="width: 140px;">Tariff Code</th>
+                <th>Tariff Category Name</th>
+                <th>Patient Category Classification</th>
+                <th>Description / Contract Scope</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-end" style="width: 140px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="badge text-bg-light border text-dark font-monospace fs-6">
+                            @item.Code
+                        </span>
+                    </td>
+                    <td class="fw-semibold">
+                        <i class="bi bi-tag-fill text-primary me-2"></i>@item.Name
+                    </td>
+                    <td>
+                        @switch (item.PatientCategory)
+                        {
+                            case "Cash / Self Pay":
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-cash-stack me-1"></i>@item.PatientCategory
+                                </span>
+                                break;
+                            case "Corporate":
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-building me-1"></i>@item.PatientCategory
+                                </span>
+                                break;
+                            case "Insurance / TPA":
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-shield-check me-1"></i>@item.PatientCategory
+                                </span>
+                                break;
+                            case "Government / Public Scheme":
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+                                    <i class="bi bi-bank me-1"></i>@item.PatientCategory
+                                </span>
+                                break;
+                            case "Staff / Employee":
+                                <span class="badge bg-secondary bg-opacity-10 text-dark border px-2 py-1">
+                                    <i class="bi bi-person-badge me-1"></i>@item.PatientCategory
+                                </span>
+                                break;
+                            default:
+                                <span class="badge text-bg-light border px-2 py-1">@item.PatientCategory</span>
+                                break;
+                        }
+                    </td>
+                    <td class="text-muted small">
+                        @(string.IsNullOrWhiteSpace(item.Description) ? "Standard rates" : item.Description)
+                    </td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.TariffCategoryId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.TariffCategoryId"
+                           class="btn btn-sm btn-outline-primary me-1" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form asp-action="Delete" asp-route-id="@item.TariffCategoryId" method="post" class="d-inline"
+                              onsubmit="return confirm('Are you sure you want to delete @item.Name?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-5">
+                        <i class="bi bi-tags fs-1 d-block mb-2 opacity-50"></i>
+                        No tariff categories found. <a asp-action="Create" class="fw-bold">Create one now.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

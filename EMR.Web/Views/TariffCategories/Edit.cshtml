@@ -1,0 +1,102 @@
+@model EMR.Web.Models.ViewModels.TariffCategoryFormViewModel
+@{
+    ViewData["Title"] = "Edit Tariff Category";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Tariff Category</h1>
+        <small class="text-muted">Update tariff name, code, patient category classification, and contract notes</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-pencil-square me-2"></i>Edit Tariff Category Details</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="TariffCategoryId" />
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div class="row g-3">
+                        <!-- Code -->
+                        <div class="col-md-4">
+                            <label asp-for="Code" class="form-label fw-semibold required-label">
+                                Tariff Code <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-upc-scan text-muted"></i></span>
+                                <input asp-for="Code" class="form-control text-uppercase font-monospace"
+                                       maxlength="10" placeholder="e.g. CORP, INS" required
+                                       oninput="this.value=this.value.toUpperCase()" />
+                            </div>
+                            <span asp-validation-for="Code" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Name -->
+                        <div class="col-md-8">
+                            <label asp-for="Name" class="form-label fw-semibold required-label">
+                                Tariff Category Name <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-tag text-muted"></i></span>
+                                <input asp-for="Name" class="form-control"
+                                       maxlength="150" placeholder="e.g. Corporate / Insurance / B2C" required />
+                            </div>
+                            <span asp-validation-for="Name" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Patient Category -->
+                        <div class="col-12">
+                            <label asp-for="PatientCategory" class="form-label fw-semibold required-label">
+                                Patient Category Classification <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-person-lines-fill text-muted"></i></span>
+                                <select asp-for="PatientCategory" asp-items="Model.PatientCategoryOptions" class="form-select" required></select>
+                            </div>
+                            <span asp-validation-for="PatientCategory" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold">Description / Contract Scope</label>
+                            <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-check form-switch p-2 border rounded bg-light">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                                <label class="form-check-label fw-semibold" asp-for="IsActive">Active Tariff Category</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Update Tariff Category
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

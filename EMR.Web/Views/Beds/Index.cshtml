@@ -1,0 +1,281 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.BedListItemViewModel>
+@{
+    ViewData["Title"] = "Bed Master";
+    var total = Model.Count();
+    var available = Model.Count(x => x.BedStatus == "Available" && x.IsActive);
+    var occupied = Model.Count(x => x.BedStatus == "Occupied");
+    var icuCount = Model.Count(x => x.IsICU);
+    var ventCount = Model.Count(x => x.IsVentilatorCapable);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Bed Master</h1>
+        <small class="text-muted">Manage hospital inpatient beds, occupancy statuses, ICU/ventilator capabilities, and room mappings</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="Rooms" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-door-open me-1"></i>IPD Room Master
+        </a>
+        <a asp-controller="BedCategories" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-bookmark-star me-1"></i>Bed Categories
+        </a>
+        <a asp-action="Create" asp-route-buildingId="@ViewBag.BuildingId" asp-route-wardId="@ViewBag.WardId" asp-route-roomId="@ViewBag.RoomId" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Bed
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-hospital"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Beds</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@available</div>
+                <div class="stat-label">Available Beds</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-person-fill-lock"></i></div>
+            <div>
+                <div class="stat-value">@occupied</div>
+                <div class="stat-label">Occupied</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-cyan">
+            <div class="stat-icon"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div>
+                <div class="stat-value">@icuCount <span class="fs-6 fw-normal text-muted">(@ventCount Vent)</span></div>
+                <div class="stat-label">ICU / Critical Beds</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0 fw-semibold text-muted small"><i class="bi bi-funnel me-1"></i>Filters:</label>
+            </div>
+            <div class="col-md-2">
+                <select name="buildingId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Buildings --</option>
+                    @if (ViewBag.BuildingOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.BuildingOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.BuildingId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="wardId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Wards --</option>
+                    @if (ViewBag.WardOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.WardOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.WardId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="roomId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Rooms --</option>
+                    @if (ViewBag.RoomOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.RoomOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.RoomId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="bedCategoryId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Categories --</option>
+                    @if (ViewBag.BedCategoryOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.BedCategoryOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.BedCategoryId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="bedStatus" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Statuses --</option>
+                    @if (ViewBag.BedStatusOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.BedStatusOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.BedStatus?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            @if (ViewBag.BuildingId != null || ViewBag.WardId != null || ViewBag.RoomId != null || ViewBag.BedCategoryId != null || !string.IsNullOrWhiteSpace(ViewBag.BedStatus?.ToString()))
+            {
+                <div class="col-auto">
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Clear Filters</a>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 50px;">#</th>
+                <th>Bed Number</th>
+                <th>Room & Ward</th>
+                <th>Building</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Capabilities</th>
+                <th>Active</th>
+                <th class="text-end" style="width: 140px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="badge text-bg-light border text-dark font-monospace fs-6">
+                            @item.BedNumber
+                        </span>
+                    </td>
+                    <td>
+                        <span class="fw-semibold text-dark">
+                            <i class="bi bi-door-open text-primary me-1"></i>Room @item.RoomNumber
+                        </span>
+                        <a asp-controller="Wards" asp-action="Details" asp-route-id="@item.WardId" class="badge bg-secondary bg-opacity-10 text-dark border d-block mt-1 text-decoration-none" style="width: fit-content;">
+                            <i class="bi bi-hospital me-1"></i>@item.WardName
+                        </a>
+                    </td>
+                    <td>
+                        <span class="text-dark small">@item.BuildingName</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
+                            @item.BedCategoryName
+                        </span>
+                    </td>
+                    <td>
+                        @switch (item.BedStatus)
+                        {
+                            case "Available":
+                                <span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>Available</span>
+                                break;
+                            case "Occupied":
+                                <span class="badge text-bg-danger"><i class="bi bi-person-fill me-1"></i>Occupied</span>
+                                break;
+                            case "Reserved":
+                                <span class="badge text-bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Reserved</span>
+                                break;
+                            case "Cleaning":
+                                <span class="badge bg-purple text-bg-info"><i class="bi bi-stars me-1"></i>Cleaning</span>
+                                break;
+                            case "Maintenance":
+                                <span class="badge text-bg-dark"><i class="bi bi-tools me-1"></i>Maintenance</span>
+                                break;
+                            case "Blocked":
+                                <span class="badge text-bg-secondary"><i class="bi bi-slash-circle me-1"></i>Blocked</span>
+                                break;
+                            default:
+                                <span class="badge text-bg-light border">@item.BedStatus</span>
+                                break;
+                        }
+                    </td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-1">
+                            @if (item.IsICU)
+                            {
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" title="ICU Bed">
+                                    <i class="bi bi-heart-pulse-fill me-1"></i>ICU
+                                </span>
+                            }
+                            @if (item.IsVentilatorCapable)
+                            {
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" title="Ventilator Capable">
+                                    <i class="bi bi-lungs-fill me-1"></i>Ventilator
+                                </span>
+                            }
+                            @if (item.IsIsolation)
+                            {
+                                <span class="badge bg-warning bg-opacity-10 text-dark border border-warning" title="Isolation Bed">
+                                    <i class="bi bi-shield-shaded me-1"></i>Isolation
+                                </span>
+                            }
+                            @if (!item.IsICU && !item.IsVentilatorCapable && !item.IsIsolation)
+                            {
+                                <span class="text-muted small">Standard</span>
+                            }
+                        </div>
+                    </td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.BedId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.BedId"
+                           class="btn btn-sm btn-outline-primary me-1" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form asp-action="Delete" asp-route-id="@item.BedId" method="post" class="d-inline"
+                              onsubmit="return confirm('Are you sure you want to delete Bed @item.BedNumber?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-5">
+                        <i class="bi bi-hospital fs-1 d-block mb-2 opacity-50"></i>
+                        No beds found. <a asp-action="Create" class="fw-bold">Add your first bed.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

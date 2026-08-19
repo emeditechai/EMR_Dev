@@ -1,0 +1,99 @@
+@model EMR.Web.Models.ViewModels.DoctorSubSpecialityFormViewModel
+@{
+    ViewData["Title"] = "Edit Sub-Speciality";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Doctor Sub-Speciality</h1>
+        <small class="text-muted">Update sub-speciality details</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-pencil-square me-2"></i>Edit Sub-Speciality Details</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="SubSpecialityId" />
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label asp-for="SpecialityId" class="form-label fw-semibold required-label">
+                                Parent Doctor Speciality <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-award text-muted"></i></span>
+                                <select asp-for="SpecialityId" asp-items="Model.SpecialityOptions" class="form-select" required>
+                                    <option value="">-- Select Parent Speciality --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="SpecialityId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <div class="col-md-5">
+                            <label asp-for="SubSpecialityCode" class="form-label fw-semibold required-label">
+                                Sub-Speciality Code <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-qr-code text-muted"></i></span>
+                                <input asp-for="SubSpecialityCode" class="form-control text-uppercase font-monospace"
+                                       maxlength="50" placeholder="e.g. RETINA" required
+                                       oninput="this.value=this.value.toUpperCase()" />
+                            </div>
+                            <span asp-validation-for="SubSpecialityCode" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <div class="col-md-7">
+                            <label asp-for="SubSpecialityName" class="form-label fw-semibold required-label">
+                                Sub-Speciality Name <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-patch-plus text-muted"></i></span>
+                                <input asp-for="SubSpecialityName" class="form-control"
+                                       maxlength="150" placeholder="e.g. Retina & Vitreous Services" required />
+                            </div>
+                            <span asp-validation-for="SubSpecialityName" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold">Description / Scope of Practice</label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Clinical scope, diagnostic procedures..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-check form-switch p-2 border rounded bg-light">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                                <label class="form-check-label fw-semibold" asp-for="IsActive">Active Sub-Speciality</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Update Sub-Speciality
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

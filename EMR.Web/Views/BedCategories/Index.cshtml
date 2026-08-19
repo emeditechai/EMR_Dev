@@ -1,0 +1,134 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.BedCategoryListItemViewModel>
+@{
+    ViewData["Title"] = "Bed Category Master";
+    var total = Model.Count();
+    var active = Model.Count(x => x.IsActive);
+    var inactive = total - active;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Bed Category Master</h1>
+        <small class="text-muted">Configure inpatient bed tiers, clinical classifications, and pricing levels</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="Rooms" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-door-open me-1"></i>IPD Room Master
+        </a>
+        <a asp-action="Create" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Bed Category
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-bookmark-star-fill"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Categories</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active Categories</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@inactive</div>
+                <div class="stat-label">Inactive</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 50px;">#</th>
+                <th style="width: 140px;">Code</th>
+                <th>Bed Category Name</th>
+                <th>Description / Scope</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-end" style="width: 140px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(item.CategoryCode))
+                        {
+                            <span class="badge text-bg-light border text-dark font-monospace fs-6">
+                                @item.CategoryCode
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">—</span>
+                        }
+                    </td>
+                    <td class="fw-semibold">
+                        <i class="bi bi-bookmark-star text-primary me-2"></i>@item.CategoryName
+                    </td>
+                    <td class="text-muted small">
+                        @(string.IsNullOrWhiteSpace(item.Description) ? "Standard category" : item.Description)
+                    </td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.BedCategoryId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.BedCategoryId"
+                           class="btn btn-sm btn-outline-primary me-1" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form asp-action="Delete" asp-route-id="@item.BedCategoryId" method="post" class="d-inline"
+                              onsubmit="return confirm('Are you sure you want to delete @item.CategoryName?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="bi bi-bookmark-star fs-1 d-block mb-2 opacity-50"></i>
+                        No bed categories found. <a asp-action="Create" class="fw-bold">Create one now.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

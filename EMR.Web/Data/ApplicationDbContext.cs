@@ -15,6 +15,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<HospitalSettings> HospitalSettings => Set<HospitalSettings>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+    public DbSet<BuildingMaster> BuildingMasters => Set<BuildingMaster>();
+    public DbSet<FloorMaster> FloorMasters => Set<FloorMaster>();
 
 
     // Patient Registration masters
@@ -40,6 +42,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<EmrTemplateSection> EmrTemplateSections => Set<EmrTemplateSection>();
     public DbSet<EmrTemplateField> EmrTemplateFields => Set<EmrTemplateField>();
     public DbSet<DoctorSpecialityMaster> DoctorSpecialityMasters => Set<DoctorSpecialityMaster>();
+    public DbSet<DoctorSubSpecialityMaster> DoctorSubSpecialityMasters => Set<DoctorSubSpecialityMaster>();
+    public DbSet<ClinicalUnitMaster> ClinicalUnitMasters => Set<ClinicalUnitMaster>();
+    public DbSet<WardMaster> WardMasters => Set<WardMaster>();
+    public DbSet<NursingStationMaster> NursingStationMasters => Set<NursingStationMaster>();
+    public DbSet<RoomMaster> RoomMasters => Set<RoomMaster>();
+    public DbSet<BedCategoryMaster> BedCategoryMasters => Set<BedCategoryMaster>();
+    public DbSet<BedMaster> BedMasters => Set<BedMaster>();
+    public DbSet<TariffCategoryMaster> TariffCategoryMasters => Set<TariffCategoryMaster>();
+    public DbSet<BedRoomTariffMaster> BedRoomTariffMasters => Set<BedRoomTariffMaster>();
+    public DbSet<BedRoomTariffHistory> BedRoomTariffHistories => Set<BedRoomTariffHistory>();
+
+
+
+
+
+
+
+
 
     // EMR Master Lists
     public DbSet<EmrInvestigationMaster> EmrInvestigationMasters => Set<EmrInvestigationMaster>();
@@ -144,6 +164,184 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<BuildingMaster>(entity =>
+        {
+            entity.ToTable("BuildingMaster");
+            entity.HasKey(x => x.BuildingId);
+            entity.HasMany(x => x.Floors)
+                .WithOne(x => x.Building)
+                .HasForeignKey(x => x.BuildingId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FloorMaster>(entity =>
+        {
+            entity.ToTable("FloorMaster");
+            entity.HasKey(x => x.FloorId);
+        });
+
+        modelBuilder.Entity<DepartmentMaster>(entity =>
+        {
+            entity.ToTable("DepartmentMaster");
+            entity.HasKey(x => x.DeptId);
+        });
+
+        modelBuilder.Entity<DoctorMaster>(entity =>
+        {
+            entity.ToTable("DoctorMaster");
+            entity.HasKey(x => x.DoctorId);
+        });
+
+        modelBuilder.Entity<DoctorSubSpecialityMaster>(entity =>
+        {
+            entity.ToTable("DoctorSubSpecialityMaster");
+            entity.HasKey(x => x.SubSpecialityId);
+            entity.HasOne(x => x.Speciality)
+                .WithMany(x => x.SubSpecialities)
+                .HasForeignKey(x => x.SpecialityId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+
+        modelBuilder.Entity<ClinicalUnitMaster>(entity =>
+        {
+            entity.ToTable("ClinicalUnitMaster");
+            entity.HasKey(x => x.UnitId);
+            entity.HasOne(x => x.Department)
+                .WithMany()
+                .HasForeignKey(x => x.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Speciality)
+                .WithMany()
+                .HasForeignKey(x => x.SpecialityId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ConsultantInCharge)
+                .WithMany()
+                .HasForeignKey(x => x.ConsultantInChargeDoctorId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<WardMaster>(entity =>
+
+        {
+            entity.ToTable("WardMaster");
+            entity.HasKey(x => x.WardId);
+            entity.HasOne(x => x.Floor)
+                .WithMany()
+                .HasForeignKey(x => x.FloorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Department)
+                .WithMany()
+                .HasForeignKey(x => x.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(x => x.NursingStations)
+                .WithOne(x => x.Ward)
+                .HasForeignKey(x => x.WardId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<NursingStationMaster>(entity =>
+        {
+            entity.ToTable("NursingStationMaster");
+            entity.HasKey(x => x.NursingStationId);
+            entity.HasOne(x => x.Ward)
+                .WithMany(x => x.NursingStations)
+                .HasForeignKey(x => x.WardId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RoomMaster>(entity =>
+        {
+            entity.ToTable("RoomMaster");
+            entity.HasKey(x => x.RoomId);
+            entity.HasOne(x => x.Building)
+                .WithMany()
+                .HasForeignKey(x => x.BuildingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Floor)
+                .WithMany()
+                .HasForeignKey(x => x.FloorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Ward)
+                .WithMany()
+                .HasForeignKey(x => x.WardId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BedCategoryMaster>(entity =>
+        {
+            entity.ToTable("BedCategoryMaster");
+            entity.HasKey(x => x.BedCategoryId);
+        });
+
+        modelBuilder.Entity<BedMaster>(entity =>
+        {
+            entity.ToTable("BedMaster");
+            entity.HasKey(x => x.BedId);
+            entity.HasOne(x => x.Building)
+                .WithMany()
+                .HasForeignKey(x => x.BuildingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Ward)
+                .WithMany()
+                .HasForeignKey(x => x.WardId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Room)
+                .WithMany()
+                .HasForeignKey(x => x.RoomId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.BedCategory)
+                .WithMany()
+                .HasForeignKey(x => x.BedCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TariffCategoryMaster>(entity =>
+        {
+            entity.ToTable("TariffCategoryMaster");
+            entity.HasKey(x => x.TariffCategoryId);
+        });
+
+        modelBuilder.Entity<BedRoomTariffMaster>(entity =>
+        {
+            entity.ToTable("BedRoomTariffMaster");
+            entity.HasKey(x => x.BedRateId);
+            entity.HasOne(x => x.Ward)
+                .WithMany()
+                .HasForeignKey(x => x.WardId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Room)
+                .WithMany()
+                .HasForeignKey(x => x.RoomId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.BedCategory)
+                .WithMany()
+                .HasForeignKey(x => x.BedCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.TariffCategory)
+                .WithMany()
+                .HasForeignKey(x => x.TariffCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BedRoomTariffHistory>(entity =>
+        {
+            entity.ToTable("BedRoomTariffHistory");
+            entity.HasKey(x => x.HistoryId);
+            entity.HasOne(x => x.BedRate)
+                .WithMany()
+                .HasForeignKey(x => x.BedRateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+
+
+
+
+
+
+
+
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.ToTable("AuditLogs");
@@ -151,6 +349,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(x => x.CreatedDate);
             entity.HasIndex(x => new { x.UserId, x.BranchId, x.CreatedDate });
         });
+
 
         // ── Patient Registration Masters ─────────────────────────────────────
 

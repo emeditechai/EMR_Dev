@@ -1,0 +1,163 @@
+@model EMR.Web.Models.ViewModels.WardFormViewModel
+@{
+    ViewData["Title"] = "Edit Ward";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Ward</h1>
+        <small class="text-muted">Update ward parameters, bed capacity, and floor assignment</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-pencil-square me-2"></i>Edit Ward Details</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="WardId" />
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div class="row g-3">
+                        <!-- Floor -->
+                        <div class="col-md-6">
+                            <label asp-for="FloorId" class="form-label fw-semibold required-label">
+                                Floor <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-layers text-muted"></i></span>
+                                <select asp-for="FloorId" asp-items="Model.FloorOptions" class="form-select" required>
+                                    <option value="">-- Select Floor --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="FloorId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- IPD Department -->
+                        <div class="col-md-6">
+                            <label asp-for="DepartmentId" class="form-label fw-semibold required-label">
+                                IPD Department <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-building text-muted"></i></span>
+                                <select asp-for="DepartmentId" asp-items="Model.DepartmentOptions" class="form-select" required>
+                                    <option value="">-- Select IPD Department --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="DepartmentId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Ward Code (Max 5 Digits/Chars) -->
+                        <div class="col-md-5">
+                            <label asp-for="WardCode" class="form-label fw-semibold required-label">
+                                Ward Code <span class="badge bg-primary bg-opacity-10 text-primary ms-1">Max 5 Digits/Chars</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-qr-code text-muted"></i></span>
+                                <input asp-for="WardCode" class="form-control text-uppercase font-monospace"
+                                       maxlength="5" placeholder="e.g. GW001" required
+                                       oninput="this.value=this.value.toUpperCase()" />
+                            </div>
+                            <span asp-validation-for="WardCode" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Ward Name -->
+                        <div class="col-md-7">
+                            <label asp-for="WardName" class="form-label fw-semibold required-label">
+                                Ward Name <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-hospital text-muted"></i></span>
+                                <input asp-for="WardName" class="form-control"
+                                       maxlength="150" placeholder="e.g. General Medical Ward A" required />
+                            </div>
+                            <span asp-validation-for="WardName" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Ward Type -->
+                        <div class="col-md-6">
+                            <label asp-for="WardType" class="form-label fw-semibold required-label">
+                                Ward Type <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-tag text-muted"></i></span>
+                                <select asp-for="WardType" asp-items="Model.WardTypeOptions" class="form-select" required></select>
+                            </div>
+                            <span asp-validation-for="WardType" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Gender -->
+                        <div class="col-md-6">
+                            <label asp-for="Gender" class="form-label fw-semibold required-label">
+                                Gender Suitability <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-gender-ambiguous text-muted"></i></span>
+                                <select asp-for="Gender" asp-items="Model.GenderOptions" class="form-select" required></select>
+                            </div>
+                            <span asp-validation-for="Gender" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Capacity -->
+                        <div class="col-md-6">
+                            <label asp-for="Capacity" class="form-label fw-semibold required-label">
+                                Bed Capacity <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-heart-pulse text-muted"></i></span>
+                                <input asp-for="Capacity" type="number" min="1" max="500" class="form-control" required />
+                            </div>
+                            <span asp-validation-for="Capacity" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Is Isolation Ward Toggle -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Isolation Ward</label>
+                            <div class="form-check form-switch p-2 border rounded bg-light mt-1">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsIsolationWard">
+                                <label class="form-check-label fw-semibold" asp-for="IsIsolationWard">Isolation / Quarantine Unit</label>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold">Description / Notes</label>
+                            <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-check form-switch p-2 border rounded bg-light">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                                <label class="form-check-label fw-semibold" asp-for="IsActive">Active Ward</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Update Ward
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,187 @@
+@model EMR.Web.Models.ViewModels.WardDetailsViewModel
+@{
+    ViewData["Title"] = $"{Model.WardName} - Details";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+        <div>
+            <h1 class="h3 mb-0 fw-bold">@Model.WardName</h1>
+            <small class="text-muted">Ward Code: <strong class="font-monospace text-primary">@Model.WardCode</strong></small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.WardId" class="btn btn-outline-primary btn-sm px-3">
+            <i class="bi bi-pencil me-1"></i> Edit Ward
+        </a>
+        <a asp-controller="NursingStations" asp-action="Create" asp-route-wardId="@Model.WardId" class="btn btn-primary btn-sm px-3 shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Add Nursing Station
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Ward Overview Card -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-3 h-100">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-hospital me-2"></i>Ward Overview</h6>
+            </div>
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Status</span>
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge text-bg-success px-2 py-1">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge text-bg-secondary px-2 py-1">Inactive</span>
+                    }
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Ward Code</span>
+                    <span class="badge text-bg-light border text-dark font-monospace fs-6">@Model.WardCode</span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Ward Type</span>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6">@Model.WardType</span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Bed Capacity</span>
+                    <span class="fw-bold text-dark fs-6">@Model.Capacity Beds</span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Gender Suitability</span>
+                    <span class="text-dark fw-semibold">@Model.Gender</span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Floor & Building</span>
+                    <span class="text-dark fw-semibold">
+                        <i class="bi bi-layers me-1 text-primary"></i>@Model.FloorName (@Model.FloorCode)
+                        @if (!string.IsNullOrWhiteSpace(Model.BuildingName))
+                        {
+                            <span class="text-muted small d-block text-end">@Model.BuildingName</span>
+                        }
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">IPD Department</span>
+                    <span class="text-dark fw-semibold">@Model.DepartmentName (@Model.DepartmentCode)</span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Isolation Facility</span>
+                    @if (Model.IsIsolationWard)
+                    {
+                        <span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-shield-shaded me-1"></i>Yes - Isolation Ward</span>
+                    }
+                    else
+                    {
+                        <span class="text-muted small">Standard Ward</span>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <span class="text-muted small text-uppercase fw-semibold d-block mb-1">Description</span>
+                    <p class="text-dark small mb-0">@(string.IsNullOrWhiteSpace(Model.Description) ? "No description provided." : Model.Description)</p>
+                </div>
+
+                <div class="mt-4 pt-3 border-top text-muted small">
+                    <div>Created: @Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</div>
+                    @if (Model.ModifiedDate.HasValue)
+                    {
+                        <div>Modified: @Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm")</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nursing Stations Card -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-3 h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-person-workspace me-2"></i>Nursing Stations in @Model.WardName (@Model.NursingStations.Count)
+                </h6>
+                <a asp-controller="NursingStations" asp-action="Create" asp-route-wardId="@Model.WardId" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus-lg me-1"></i> Add Station
+                </a>
+            </div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;">#</th>
+                            <th>Station Code</th>
+                            <th>Station Name</th>
+                            <th>In-Charge Nurse</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{int idx = 1;}
+                        @foreach (var ns in Model.NursingStations)
+                        {
+                            <tr>
+                                <td class="text-muted small">@(idx++)</td>
+                                <td>
+                                    <span class="badge text-bg-light border text-dark font-monospace fs-6">
+                                        @ns.StationCode
+                                    </span>
+                                </td>
+                                <td class="fw-semibold">
+                                    <i class="bi bi-person-workspace text-primary me-2"></i>@ns.StationName
+                                </td>
+                                <td class="small text-muted">
+                                    @(string.IsNullOrWhiteSpace(ns.ResponsibleNurse) ? "—" : ns.ResponsibleNurse)
+                                </td>
+                                <td>
+                                    @if (ns.IsActive)
+                                    {
+                                        <span class="badge text-bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a asp-controller="NursingStations" asp-action="Details" asp-route-id="@ns.NursingStationId"
+                                       class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a asp-controller="NursingStations" asp-action="Edit" asp-route-id="@ns.NursingStationId"
+                                       class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.NursingStations.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-5">
+                                    <i class="bi bi-person-workspace fs-1 d-block mb-2 opacity-50"></i>
+                                    No nursing stations assigned to this ward yet.<br />
+                                    <a asp-controller="NursingStations" asp-action="Create" asp-route-wardId="@Model.WardId" class="btn btn-sm btn-primary mt-2">
+                                        <i class="bi bi-plus-lg me-1"></i> Add First Station
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

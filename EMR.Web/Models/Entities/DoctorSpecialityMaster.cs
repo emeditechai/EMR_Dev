@@ -21,4 +21,7 @@ public class DoctorSpecialityMaster
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
+
+    public ICollection<DoctorSubSpecialityMaster> SubSpecialities { get; set; } = new List<DoctorSubSpecialityMaster>();
 }
+

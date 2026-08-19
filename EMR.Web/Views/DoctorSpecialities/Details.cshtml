@@ -1,57 +1,142 @@
 @model EMR.Web.Models.Entities.DoctorSpecialityMaster
 @{
-    ViewData["Title"] = "Speciality Details";
+    ViewData["Title"] = $"{Model.SpecialityName} - Details";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="h3 mb-0 fw-bold">Speciality Details</h1>
-        <small class="text-muted">Viewing: @Model.SpecialityName</small>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+        <div>
+            <h1 class="h3 mb-0 fw-bold">@Model.SpecialityName</h1>
+            <small class="text-muted">Speciality Code: <strong class="font-monospace text-primary">@Model.SpecialityCode</strong></small>
+        </div>
     </div>
     <div class="d-flex gap-2">
-        <a asp-action="Edit" asp-route-id="@Model.SpecialityId" class="btn btn-outline-primary">
-            <i class="bi bi-pencil me-1"></i>Edit
+        <a asp-action="Edit" asp-route-id="@Model.SpecialityId" class="btn btn-outline-primary btn-sm px-3">
+            <i class="bi bi-pencil me-1"></i> Edit Speciality
         </a>
-        <a asp-action="Index" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Back
+        <a asp-controller="DoctorSubSpecialities" asp-action="Create" asp-route-specialityId="@Model.SpecialityId" class="btn btn-primary btn-sm px-3 shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Add Sub-Speciality
         </a>
     </div>
 </div>
 
-<div class="dashboard-panel" style="max-width:560px;">
-    <div class="row g-4">
-        <div class="col-sm-6">
-            <p class="text-muted small mb-1">Speciality Code</p>
-            <p class="fw-semibold fs-5 mb-0">@Model.SpecialityCode</p>
-        </div>
-        <div class="col-sm-6">
-            <p class="text-muted small mb-1">Speciality Name</p>
-            <p class="fw-semibold fs-5 mb-0">
-                <i class="bi bi-award text-primary me-2"></i>@Model.SpecialityName
-            </p>
-        </div>
-        <div class="col-sm-6">
-            <p class="text-muted small mb-1">Status</p>
-            @if (Model.IsActive)
-            {
-                <span class="badge text-bg-success px-3 py-2">Active</span>
-            }
-            else
-            {
-                <span class="badge text-bg-secondary px-3 py-2">Inactive</span>
-            }
-        </div>
-        <div class="col-sm-6">
-            <p class="text-muted small mb-1">Created On</p>
-            <p class="fw-semibold mb-0">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm") UTC</p>
-        </div>
-        @if (Model.ModifiedDate.HasValue)
-        {
-            <div class="col-sm-6">
-                <p class="text-muted small mb-1">Last Modified</p>
-                <p class="fw-semibold mb-0">@Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm") UTC</p>
+<div class="row g-4">
+    <!-- Speciality Overview Card -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-3 h-100">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-award me-2"></i>Speciality Overview</h6>
             </div>
-        }
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Status</span>
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge text-bg-success px-2 py-1">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge text-bg-secondary px-2 py-1">Inactive</span>
+                    }
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Speciality Code</span>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace fs-6">
+                        @Model.SpecialityCode
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                    <span class="text-muted small text-uppercase fw-semibold">Sub-Specialities</span>
+                    <span class="badge bg-info bg-opacity-10 text-info fw-bold fs-6">@Model.SubSpecialities.Count</span>
+                </div>
+
+                <div class="mt-4 pt-3 border-top text-muted small">
+                    <div>Created: @Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</div>
+                    @if (Model.ModifiedDate.HasValue)
+                    {
+                        <div>Last Modified: @Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm")</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub-Specialities List Card -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-3 h-100">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-patch-plus-fill me-2"></i>Sub-Specialities under @Model.SpecialityName (@Model.SubSpecialities.Count)
+                </h6>
+                <a asp-controller="DoctorSubSpecialities" asp-action="Create" asp-route-specialityId="@Model.SpecialityId" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus-lg me-1"></i> Add Sub-Speciality
+                </a>
+            </div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Code</th>
+                            <th>Sub-Speciality Name</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{int idx = 1;}
+                        @foreach (var sub in Model.SubSpecialities)
+                        {
+                            <tr>
+                                <td class="text-muted small">@(idx++)</td>
+                                <td>
+                                    <span class="badge text-bg-light border text-dark font-monospace fs-6">
+                                        @sub.SubSpecialityCode
+                                    </span>
+                                </td>
+                                <td class="fw-semibold">
+                                    <i class="bi bi-patch-plus text-primary me-2"></i>@sub.SubSpecialityName
+                                </td>
+                                <td>
+                                    @if (sub.IsActive)
+                                    {
+                                        <span class="badge text-bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a asp-controller="DoctorSubSpecialities" asp-action="Details" asp-route-id="@sub.SubSpecialityId"
+                                       class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a asp-controller="DoctorSubSpecialities" asp-action="Edit" asp-route-id="@sub.SubSpecialityId"
+                                       class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.SubSpecialities.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-5">
+                                    <i class="bi bi-patch-plus fs-1 d-block mb-2 opacity-50"></i>
+                                    No sub-specialities configured under @Model.SpecialityName yet.<br />
+                                    <a asp-controller="DoctorSubSpecialities" asp-action="Create" asp-route-specialityId="@Model.SpecialityId" class="btn btn-sm btn-primary mt-2">
+                                        <i class="bi bi-plus-lg me-1"></i> Add First Sub-Speciality
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
-

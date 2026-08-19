@@ -1,0 +1,224 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.RoomListItemViewModel>
+@{
+    ViewData["Title"] = "IPD Room Master";
+    var total = Model.Count();
+    var active = Model.Count(x => x.IsActive);
+    var inactive = total - active;
+    var totalBeds = Model.Sum(x => x.BedCapacity);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">IPD Room Master</h1>
+        <small class="text-muted">Manage inpatient rooms, bed configurations, isolation rooms, and ward assignments</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="Wards" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-hospital me-1"></i>Ward Master
+        </a>
+        <a asp-action="Create" asp-route-buildingId="@ViewBag.BuildingId" asp-route-floorId="@ViewBag.FloorId" asp-route-wardId="@ViewBag.WardId" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add IPD Room
+        </a>
+    </div>
+</div>
+
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-door-open-fill"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Rooms</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active Rooms</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@inactive</div>
+                <div class="stat-label">Inactive</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-cyan">
+            <div class="stat-icon"><i class="bi bi-heart-pulse-fill"></i></div>
+            <div>
+                <div class="stat-value">@totalBeds</div>
+                <div class="stat-label">Configured Beds</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0 fw-semibold text-muted small"><i class="bi bi-funnel me-1"></i>Filters:</label>
+            </div>
+            <div class="col-md-2">
+                <select name="buildingId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Buildings --</option>
+                    @if (ViewBag.BuildingOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.BuildingOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.BuildingId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="floorId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Floors --</option>
+                    @if (ViewBag.FloorOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.FloorOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.FloorId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="wardId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Wards --</option>
+                    @if (ViewBag.WardOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.WardOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.WardId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="roomCategory" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Categories --</option>
+                    @if (ViewBag.RoomCategoryOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.RoomCategoryOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.RoomCategory?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            @if (ViewBag.BuildingId != null || ViewBag.FloorId != null || ViewBag.WardId != null || !string.IsNullOrWhiteSpace(ViewBag.RoomCategory?.ToString()))
+            {
+                <div class="col-auto">
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Clear Filters</a>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 50px;">#</th>
+                <th>Room Number</th>
+                <th>Parent Ward</th>
+                <th>Floor / Building</th>
+                <th>Room Type</th>
+                <th>Category</th>
+                <th>Bed Capacity</th>
+                <th>Status</th>
+                <th class="text-end" style="width: 140px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="badge text-bg-light border text-dark font-monospace fs-6">
+                            @item.RoomNumber
+                        </span>
+                        @if (item.IsIsolation)
+                        {
+                            <span class="badge bg-warning bg-opacity-10 text-dark border border-warning ms-1" title="Isolation Room">
+                                <i class="bi bi-shield-shaded me-1"></i>Isolation
+                            </span>
+                        }
+                    </td>
+                    <td>
+                        <a asp-controller="Wards" asp-action="Details" asp-route-id="@item.WardId" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 text-decoration-none px-2 py-1">
+                            <i class="bi bi-hospital me-1"></i>@item.WardName (@item.WardCode)
+                        </a>
+                    </td>
+                    <td>
+                        <span class="text-dark small"><i class="bi bi-layers me-1 text-primary"></i>@item.FloorName</span>
+                        <small class="text-muted d-block">@item.BuildingName</small>
+                    </td>
+                    <td class="small fw-semibold text-dark">
+                        @item.RoomType
+                    </td>
+                    <td>
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
+                            @item.RoomCategory
+                        </span>
+                    </td>
+                    <td>
+                        <span class="fw-bold text-dark fs-6">@item.BedCapacity Bed(s)</span>
+                    </td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.RoomId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.RoomId"
+                           class="btn btn-sm btn-outline-primary me-1" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form asp-action="Delete" asp-route-id="@item.RoomId" method="post" class="d-inline"
+                              onsubmit="return confirm('Are you sure you want to delete Room @item.RoomNumber?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-5">
+                        <i class="bi bi-door-open fs-1 d-block mb-2 opacity-50"></i>
+                        No rooms found. <a asp-action="Create" class="fw-bold">Add your first room.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

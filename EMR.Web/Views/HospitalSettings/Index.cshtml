@@ -5,13 +5,14 @@
 
 @section HeadStyles {
 <style>
-    .hs-info-bar { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:.75rem 1.2rem; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+    .hs-info-bar { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.25rem 1.4rem; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+    .hs-meta-badge { font-size:0.75rem; font-weight:600; padding:0.35rem 0.65rem; border-radius:6px; }
     .hs-info-item { display:flex; flex-direction:column; min-width:0; }
-    .hs-info-item .lbl { font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:#6c757d; font-weight:600; }
-    .hs-info-item .val { font-size:.9rem; font-weight:700; color:#212529; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .hs-divider { width:1px; background:#e9ecef; align-self:stretch; margin:0 .5rem; }
+    .hs-info-item .lbl { font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:700; margin-bottom: 2px; }
+    .hs-info-item .val { font-size:.92rem; font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .hs-divider { width:1px; background:#e2e8f0; align-self:stretch; margin:0 .35rem; }
 
-    .module-tab-nav .nav-link { font-size:.82rem; font-weight:600; letter-spacing:.02em; padding:.55rem 1.2rem; border-radius:8px 8px 0 0; color:#6c757d; border:1px solid transparent; }
+    .module-tab-nav .nav-link { font-size:.82rem; font-weight:600; letter-spacing:.02em; padding:.6rem 1.4rem; border-radius:10px 10px 0 0; color:#64748b; border:1px solid transparent; }
     .module-tab-nav .nav-link.active { color:#fff; border-color: transparent; }
     .module-tab-nav .nav-link[data-tab="opd"].active  { background:#0d6efd; }
     .module-tab-nav .nav-link[data-tab="ipd"].active  { background:#198754; }
@@ -23,26 +24,26 @@
     .module-tab-nav .nav-link[data-tab="lab"]:not(.active):hover { background:#fff3e0; color:#fd7e14; }
     .module-tab-nav .nav-link[data-tab="med"]:not(.active):hover { background:#f1ecff; color:#6f42c1; }
 
-    .module-tab-pane { background:#fff; border:1px solid #e9ecef; border-radius:0 12px 12px 12px; padding:1.4rem; min-height:260px; }
-    .param-card { background:#f8f9fc; border:1px solid #e9ecef; border-radius:10px; padding:1rem 1.2rem; }
-    .param-card .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#6c757d; font-weight:700; margin-bottom:.3rem; }
-    .param-card .param-value { font-size:.95rem; font-weight:600; color:#343a40; }
-    .param-soon { opacity:.5; }
-    .coming-soon-badge { font-size:.65rem; background:#e9ecef; color:#6c757d; padding:2px 7px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; }
+    .module-tab-pane { background:#fff; border:1px solid #e2e8f0; border-radius:0 14px 14px 14px; padding:1.5rem; min-height:260px; box-shadow:0 2px 6px rgba(0,0,0,.03); }
+    .param-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1rem 1.2rem; height:100%; }
+    .param-card .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:700; margin-bottom:.35rem; }
+    .param-card .param-value { font-size:.95rem; font-weight:600; color:#1e293b; }
+    .param-soon { opacity:.55; }
+    .coming-soon-badge { font-size:.65rem; background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; border:1px solid #e2e8f0; }
 </style>
 }
 
 @* ── Page header ── *@
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-hospital-fill fs-4" style="color:var(--emr-primary)"></i>
+        <i class="bi bi-hospital-fill fs-4 text-primary"></i>
         <div>
-            <h1 class="h4 mb-0 fw-bold">Hospital Settings</h1>
-            <small class="text-muted">Branch: <strong>@Model.BranchName</strong></small>
+            <h4 class="h4 mb-0 fw-bold text-dark">Hospital Settings</h4>
+            <small class="text-muted">Branch: <strong class="text-primary">@Model.BranchName</strong></small>
         </div>
     </div>
-    <a asp-action="Edit" class="btn btn-primary btn-sm px-3">
-        <i class="bi bi-pencil-square me-1"></i>Edit Settings
+    <a asp-action="Edit" class="btn btn-primary btn-sm px-3 shadow-sm">
+        <i class="bi bi-pencil-square me-1"></i> Edit Settings
     </a>
 </div>
 
@@ -52,77 +53,125 @@
         <div class="uf-section-body text-center py-5">
             <i class="bi bi-exclamation-circle fs-1 text-warning d-block mb-3"></i>
             <h5 class="text-muted">No settings configured for this branch yet.</h5>
-            <a asp-action="Edit" class="btn btn-primary mt-2"><i class="bi bi-plus-circle me-1"></i>Configure Now</a>
+            <a asp-action="Edit" class="btn btn-primary mt-2"><i class="bi bi-plus-circle me-1"></i> Configure Now</a>
         </div>
     </div>
 }
 else
 {
-    @* ── Compact info bar ── *@
-    <div class="hs-info-bar d-flex flex-wrap align-items-center gap-3 mb-4">
-        @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
-        {
-            <img src="@Model.LogoPath" alt="Logo" style="height:44px;width:44px;object-fit:contain;border-radius:8px;border:1px solid #e9ecef;background:#fff" />
-            <div class="hs-divider d-none d-md-block"></div>
-        }
-        <div class="hs-info-item" style="flex:1 1 160px">
-            <span class="lbl"><i class="bi bi-building me-1"></i>Hospital</span>
-            <span class="val">@(Model.HospitalName ?? "—")</span>
-        </div>
-        <div class="hs-divider d-none d-md-block"></div>
-        <div class="hs-info-item" style="flex:1 1 200px">
-            <span class="lbl"><i class="bi bi-geo-alt me-1"></i>Address</span>
-            <span class="val" style="white-space:normal;font-size:.82rem">@(Model.Address ?? "—")</span>
-        </div>
-        <div class="hs-divider d-none d-md-block"></div>
-        <div class="hs-info-item">
-            <span class="lbl"><i class="bi bi-telephone me-1"></i>Contact 1</span>
-            <span class="val">@(Model.ContactNumber1 ?? "—")</span>
-        </div>
-        @if (!string.IsNullOrWhiteSpace(Model.ContactNumber2))
-        {
-            <div class="hs-divider d-none d-md-block"></div>
-            <div class="hs-info-item">
-                <span class="lbl"><i class="bi bi-telephone me-1"></i>Contact 2</span>
-                <span class="val">@Model.ContactNumber2</span>
+    @* ── Comprehensive Hospital Header Card ── *@
+    <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+        <div class="card-body p-4">
+            <div class="row align-items-center g-3">
+                <div class="col-auto">
+                    @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
+                    {
+                        <img src="@Model.LogoPath" alt="Logo" class="rounded-3 border p-1 shadow-sm" style="height:68px;width:68px;object-fit:contain;background:#fff;" />
+                    }
+                    else
+                    {
+                        <div class="rounded-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold shadow-sm" style="width:68px;height:68px;font-size:1.8rem;">
+                            <i class="bi bi-hospital"></i>
+                        </div>
+                    }
+                </div>
+                <div class="col-lg-6 col-md-5">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h4 class="mb-0 fw-bold text-dark">@(Model.HospitalName ?? "Hospital Name Not Set")</h4>
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">Inactive</span>
+                        }
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+                        @if (!string.IsNullOrWhiteSpace(Model.HospitalType))
+                        {
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
+                                <i class="bi bi-tag-fill me-1"></i>@Model.HospitalType
+                            </span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.RegistrationNumber))
+                        {
+                            <span class="badge bg-secondary bg-opacity-10 text-dark border px-2 py-1" title="Registration / License Number">
+                                <i class="bi bi-card-heading me-1 text-muted"></i>Reg: @Model.RegistrationNumber
+                            </span>
+                        }
+                        @if (Model.IsTeachingHospital)
+                        {
+                            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
+                                <i class="bi bi-mortarboard-fill me-1"></i>Teaching Hospital
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <!-- Emergency & Accreditation Badges -->
+                <div class="col-lg-5 col-md-5">
+                    <div class="d-flex flex-column gap-2 align-items-md-end">
+                        @if (!string.IsNullOrWhiteSpace(Model.EmergencyNumber))
+                        {
+                            <div class="d-inline-flex align-items-center gap-2 bg-danger bg-opacity-10 border border-danger border-opacity-25 text-danger px-3 py-1 rounded-pill">
+                                <i class="bi bi-telephone-plus-fill fs-6"></i>
+                                <span class="small fw-bold">Emergency Helpline: @Model.EmergencyNumber</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.NabhStatus) && Model.NabhStatus != "Not Applied")
+                        {
+                            <div class="d-inline-flex align-items-center gap-2 bg-success bg-opacity-10 border border-success border-opacity-25 text-success px-3 py-1 rounded-pill">
+                                <i class="bi bi-patch-check-fill fs-6"></i>
+                                <span class="small fw-bold">NABH: @Model.NabhStatus</span>
+                            </div>
+                        }
+                    </div>
+                </div>
             </div>
-        }
-        <div class="hs-divider d-none d-md-block"></div>
-        <div class="hs-info-item">
-            <span class="lbl"><i class="bi bi-envelope me-1"></i>Email</span>
-            <span class="val">@(Model.EmailAddress ?? "—")</span>
-        </div>
-        @if (!string.IsNullOrWhiteSpace(Model.Website))
-        {
-            <div class="hs-divider d-none d-md-block"></div>
-            <div class="hs-info-item">
-                <span class="lbl"><i class="bi bi-globe me-1"></i>Website</span>
-                <span class="val"><a href="@Model.Website" target="_blank">@Model.Website</a></span>
+
+            <hr class="my-3 text-muted opacity-25" />
+
+            <!-- Detailed Metadata Grid -->
+            <div class="row g-3 small">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="text-muted text-uppercase fw-semibold" style="font-size:0.7rem;"><i class="bi bi-geo-alt me-1 text-primary"></i>Address</div>
+                    <div class="text-dark fw-medium mt-1">@(Model.Address ?? "—")</div>
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <div class="text-muted text-uppercase fw-semibold" style="font-size:0.7rem;"><i class="bi bi-telephone me-1 text-primary"></i>Contacts</div>
+                    <div class="text-dark fw-medium mt-1">@(Model.ContactNumber1 ?? "—")</div>
+                    @if (!string.IsNullOrWhiteSpace(Model.ContactNumber2))
+                    {
+                        <div class="text-muted small">@Model.ContactNumber2</div>
+                    }
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <div class="text-muted text-uppercase fw-semibold" style="font-size:0.7rem;"><i class="bi bi-envelope me-1 text-primary"></i>Email & Web</div>
+                    <div class="text-dark fw-medium mt-1 text-truncate" title="@Model.EmailAddress">@(Model.EmailAddress ?? "—")</div>
+                    @if (!string.IsNullOrWhiteSpace(Model.Website))
+                    {
+                        <div class="text-truncate"><a href="@Model.Website" target="_blank" class="text-decoration-none small">@Model.Website</a></div>
+                    }
+                </div>
+                <div class="col-sm-6 col-lg-2">
+                    <div class="text-muted text-uppercase fw-semibold" style="font-size:0.7rem;"><i class="bi bi-receipt me-1 text-primary"></i>Taxation & Timings</div>
+                    <div class="text-dark fw-medium mt-1">GST: @(Model.GSTCode ?? "—")</div>
+                    <div class="text-muted small"><i class="bi bi-clock me-1"></i>@(Model.CheckInTime ?? "—") to @(Model.CheckOutTime ?? "—")</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="text-muted text-uppercase fw-semibold" style="font-size:0.7rem;"><i class="bi bi-shield-check me-1 text-primary"></i>NABH Accreditation</div>
+                    <div class="text-dark fw-medium mt-1">
+                        Cert No: @(string.IsNullOrWhiteSpace(Model.NabhCertificateNo) ? "—" : Model.NabhCertificateNo)
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(Model.NabhValidFrom) || !string.IsNullOrWhiteSpace(Model.NabhValidTo))
+                    {
+                        <div class="text-muted small">
+                            Valid: @(Model.NabhValidFrom ?? "—") to @(Model.NabhValidTo ?? "—")
+                        </div>
+                    }
+                </div>
             </div>
-        }
-        <div class="hs-divider d-none d-md-block"></div>
-        <div class="hs-info-item">
-            <span class="lbl"><i class="bi bi-receipt me-1"></i>GST</span>
-            <span class="val">@(Model.GSTCode ?? "—")</span>
-        </div>
-        <div class="hs-divider d-none d-md-block"></div>
-        <div class="hs-info-item">
-            <span class="lbl"><i class="bi bi-clock me-1"></i>Timing</span>
-            <span class="val">@(Model.CheckInTime ?? "—") – @(Model.CheckOutTime ?? "—")</span>
-        </div>
-        <div class="hs-divider d-none d-md-block"></div>
-        <div class="hs-info-item">
-            <span class="lbl"><i class="bi bi-toggles me-1"></i>Status</span>
-            <span class="val">
-                <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary")">
-                    @(Model.IsActive ? "Active" : "Inactive")
-                </span>
-            </span>
-        </div>
-        <div class="hs-divider d-none d-md-block"></div>
-        <div class="hs-info-item">
-            <span class="lbl"><i class="bi bi-clock-history me-1"></i>Modified</span>
-            <span class="val" style="font-size:.8rem">@(Model.LastModifiedDate?.ToString("dd MMM yyyy") ?? Model.CreatedDate.ToString("dd MMM yyyy"))</span>
         </div>
     </div>
 
@@ -130,7 +179,7 @@ else
     <ul class="nav module-tab-nav mb-0" id="moduleTabs" role="tablist">
         <li class="nav-item">
             <button class="nav-link active" data-tab="opd" data-bs-toggle="tab" data-bs-target="#tabOpd" type="button" role="tab">
-                <i class="bi bi-person-plus-fill me-1"></i>OPD
+                <i class="bi bi-person-plus-fill me-1"></i>OPD Configuration
             </button>
         </li>
         <li class="nav-item">
@@ -145,7 +194,7 @@ else
         </li>
         <li class="nav-item">
             <button class="nav-link" data-tab="med" data-bs-toggle="tab" data-bs-target="#tabMed" type="button" role="tab">
-                <i class="bi bi-capsule me-1"></i>MED
+                <i class="bi bi-capsule me-1"></i>MED / Pharmacy
             </button>
         </li>
     </ul>
@@ -155,7 +204,7 @@ else
         @* ── OPD Tab ── *@
         <div class="tab-pane fade show active module-tab-pane" id="tabOpd" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
-                <span class="fw-bold" style="color:#0d6efd"><i class="bi bi-person-plus-fill me-1"></i>OPD Configuration</span>
+                <span class="fw-bold" style="color:#0d6efd"><i class="bi bi-person-plus-fill me-1"></i>OPD Module Settings</span>
                 <span class="coming-soon-badge">More parameters coming soon</span>
             </div>
             <div class="row g-3">

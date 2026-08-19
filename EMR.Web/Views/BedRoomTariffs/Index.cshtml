@@ -1,0 +1,231 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.BedRoomTariffListItemViewModel>
+@{
+    ViewData["Title"] = "Bed/Room Tariff Master";
+    var total = Model.Count();
+    var active = Model.Count(x => x.IsActive);
+    var avgDaily = total > 0 ? Model.Average(x => x.TotalGrossAmount) : 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Bed/Room Tariff Master</h1>
+        <small class="text-muted">Manage IPD bed and room daily rates, nursing/attendant allowances, GST schedules, and audit history</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="TariffCategories" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-tags-fill me-1"></i>Tariff Categories
+        </a>
+        <a asp-controller="BedCategories" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-bookmark-star me-1"></i>Bed Categories
+        </a>
+        <a asp-action="Create" asp-route-wardId="@ViewBag.WardId" asp-route-roomId="@ViewBag.RoomId" asp-route-bedCategoryId="@ViewBag.BedCategoryId" asp-route-tariffCategoryId="@ViewBag.TariffCategoryId" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Tariff Rate
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-receipt-cutoff"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Tariff Schedules</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active Tariffs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="stat-card stat-cyan">
+            <div class="stat-icon"><i class="bi bi-currency-rupee"></i></div>
+            <div>
+                <div class="stat-value">₹@avgDaily.ToString("N2")</div>
+                <div class="stat-label">Average Daily Gross Tariff</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0 fw-semibold text-muted small"><i class="bi bi-funnel me-1"></i>Filters:</label>
+            </div>
+            <div class="col-md-3">
+                <select name="wardId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Wards --</option>
+                    @if (ViewBag.WardOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.WardOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.WardId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="roomId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Rooms --</option>
+                    @if (ViewBag.RoomOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.RoomOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.RoomId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="bedCategoryId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Bed Categories --</option>
+                    @if (ViewBag.BedCategoryOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.BedCategoryOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.BedCategoryId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="tariffCategoryId" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Tariff Categories --</option>
+                    @if (ViewBag.TariffCategoryOptions != null)
+                    {
+                        foreach (var opt in (IEnumerable<SelectListItem>)ViewBag.TariffCategoryOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == (ViewBag.TariffCategoryId?.ToString()))">@opt.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            @if (ViewBag.WardId != null || ViewBag.RoomId != null || ViewBag.BedCategoryId != null || ViewBag.TariffCategoryId != null)
+            {
+                <div class="col-auto">
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Clear Filters</a>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 50px;">#</th>
+                <th>Ward & Room</th>
+                <th>Bed Category</th>
+                <th>Tariff / Payer Class</th>
+                <th>Effective Period</th>
+                <th class="text-end">Base Charges</th>
+                <th class="text-end">GST %</th>
+                <th class="text-end">Total / Day (Gross)</th>
+                <th>Status</th>
+                <th class="text-end" style="width: 140px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="fw-semibold text-dark">
+                            <i class="bi bi-door-open text-primary me-1"></i>Room @item.RoomNumber
+                        </span>
+                        <div class="small text-muted">@item.WardName</div>
+                    </td>
+                    <td>
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
+                            <i class="bi bi-bookmark-star me-1"></i>@item.BedCategoryName
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">
+                            <i class="bi bi-tag-fill me-1"></i>@item.TariffCategoryName
+                        </span>
+                        <div class="text-muted small mt-1">@item.PatientCategory</div>
+                    </td>
+                    <td>
+                        <div class="small font-monospace">
+                            <i class="bi bi-calendar-check text-success me-1"></i>@item.EffectiveFrom.ToString("dd MMM yyyy")
+                        </div>
+                        @if (item.EffectiveTo.HasValue)
+                        {
+                            <div class="small font-monospace text-muted">
+                                <i class="bi bi-calendar-x text-danger me-1"></i>@item.EffectiveTo.Value.ToString("dd MMM yyyy")
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-light border text-muted small">Open-ended</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <span class="fw-semibold font-monospace">₹@item.TotalBaseCharge.ToString("N2")</span>
+                        <div class="small text-muted" title="Room: ₹@item.RoomCharge, Bed: ₹@item.BedCharge, Nursing: ₹@item.NursingCharge">
+                            R: ₹@item.RoomCharge.ToString("N0") | B: ₹@item.BedCharge.ToString("N0") | N: ₹@item.NursingCharge.ToString("N0")
+                        </div>
+                    </td>
+                    <td class="text-end font-monospace">
+                        <span class="badge text-bg-light border">@item.GstPercentage%</span>
+                        <div class="text-muted small">+₹@item.TotalGstAmount.ToString("N2")</div>
+                    </td>
+                    <td class="text-end font-monospace">
+                        <strong class="text-primary fs-6">₹@item.TotalGrossAmount.ToString("N2")</strong>
+                    </td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.BedRateId"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details & History">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.BedRateId"
+                           class="btn btn-sm btn-outline-primary me-1" title="Edit Rate">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form asp-action="Delete" asp-route-id="@item.BedRateId" method="post" class="d-inline"
+                              onsubmit="return confirm('Are you sure you want to delete this Tariff Schedule?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Any())
+            {
+                <tr>
+                    <td colspan="10" class="text-center text-muted py-5">
+                        <i class="bi bi-receipt-cutoff fs-1 d-block mb-2 opacity-50"></i>
+                        No tariff schedules found. <a asp-action="Create" class="fw-bold">Create your first tariff rate.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,276 @@
+@model EMR.Web.Models.ViewModels.BedRoomTariffFormViewModel
+@{
+    ViewData["Title"] = "Add Bed/Room Tariff Rate";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Bed/Room Tariff Rate</h1>
+        <small class="text-muted">Configure daily IPD pricing schedule, breakdown charges, and GST rates</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<form asp-action="Create" method="post" id="tariffForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="CompanyId" />
+    <input type="hidden" asp-for="BranchId" />
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm mb-4"></div>
+
+    <div class="row g-4">
+        <!-- Configuration & Location Card -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-geo-alt me-2"></i>Location & Classification</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <!-- Ward (Cascading) -->
+                        <div class="col-md-6">
+                            <label asp-for="WardId" class="form-label fw-semibold required-label">
+                                Ward <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-hospital text-muted"></i></span>
+                                <select id="wardSelect" asp-for="WardId" asp-items="Model.WardOptions" class="form-select" required>
+                                    <option value="">-- Select Ward --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="WardId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- IPD Room (Cascading) -->
+                        <div class="col-md-6">
+                            <label asp-for="RoomId" class="form-label fw-semibold required-label">
+                                IPD Room <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-door-open text-muted"></i></span>
+                                <select id="roomSelect" asp-for="RoomId" asp-items="Model.RoomOptions" class="form-select" required>
+                                    <option value="">-- Select Room --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="RoomId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Bed Category -->
+                        <div class="col-md-6">
+                            <label asp-for="BedCategoryId" class="form-label fw-semibold required-label">
+                                Bed Category <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-bookmark-star text-muted"></i></span>
+                                <select asp-for="BedCategoryId" asp-items="Model.BedCategoryOptions" class="form-select" required>
+                                    <option value="">-- Select Bed Category --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="BedCategoryId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Tariff Category -->
+                        <div class="col-md-6">
+                            <label asp-for="TariffCategoryId" class="form-label fw-semibold required-label">
+                                Tariff Category <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-tags text-muted"></i></span>
+                                <select asp-for="TariffCategoryId" asp-items="Model.TariffCategoryOptions" class="form-select" required>
+                                    <option value="">-- Select Tariff Category --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="TariffCategoryId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Effective From -->
+                        <div class="col-md-6">
+                            <label asp-for="EffectiveFrom" class="form-label fw-semibold required-label">
+                                Effective From <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-calendar-event text-muted"></i></span>
+                                <input asp-for="EffectiveFrom" type="date" class="form-control" required />
+                            </div>
+                            <span asp-validation-for="EffectiveFrom" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Effective To -->
+                        <div class="col-md-6">
+                            <label asp-for="EffectiveTo" class="form-label fw-semibold">
+                                Effective To (Optional / Open-ended)
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-calendar-x text-muted"></i></span>
+                                <input asp-for="EffectiveTo" type="date" class="form-control" />
+                            </div>
+                            <span asp-validation-for="EffectiveTo" class="text-danger small d-block mt-1"></span>
+                        </div>
+
+                        <!-- Change Reason -->
+                        <div class="col-12">
+                            <label asp-for="ChangeReason" class="form-label fw-semibold">Initial Setup Reason / Notes</label>
+                            <textarea asp-for="ChangeReason" class="form-control" rows="2" placeholder="e.g. Annual revision, New TPA agreement..."></textarea>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="col-12">
+                            <div class="form-check form-switch p-2 border rounded bg-light">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="IsActive">
+                                <label class="form-check-label fw-semibold" asp-for="IsActive">Active Tariff Schedule</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tariff Charges & Live Real-time Calculator -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-cash-coin me-2"></i>Daily Charge Breakdown (₹)</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label asp-for="RoomCharge" class="form-label fw-semibold">Room Charge (₹)</label>
+                            <input asp-for="RoomCharge" type="number" step="0.01" min="0" class="form-control text-end rate-input" />
+                            <span asp-validation-for="RoomCharge" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="BedCharge" class="form-label fw-semibold">Bed Charge (₹)</label>
+                            <input asp-for="BedCharge" type="number" step="0.01" min="0" class="form-control text-end rate-input" />
+                            <span asp-validation-for="BedCharge" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="NursingCharge" class="form-label fw-semibold">Nursing Charge (₹)</label>
+                            <input asp-for="NursingCharge" type="number" step="0.01" min="0" class="form-control text-end rate-input" />
+                            <span asp-validation-for="NursingCharge" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="AttendantCharge" class="form-label fw-semibold">Attendant / Utility Charge (₹)</label>
+                            <input asp-for="AttendantCharge" type="number" step="0.01" min="0" class="form-control text-end rate-input" />
+                            <span asp-validation-for="AttendantCharge" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="IsolationCharge" class="form-label fw-semibold">Isolation / ICU Surcharge (₹)</label>
+                            <input asp-for="IsolationCharge" type="number" step="0.01" min="0" class="form-control text-end rate-input" />
+                            <span asp-validation-for="IsolationCharge" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="GstPercentage" class="form-label fw-semibold">Applicable GST (%)</label>
+                            <div class="input-group">
+                                <input asp-for="GstPercentage" type="number" step="0.01" min="0" max="100" class="form-control text-end rate-input" />
+                                <span class="input-group-text bg-light">%</span>
+                            </div>
+                            <span asp-validation-for="GstPercentage" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <!-- Live Calculation Summary Card -->
+                    <div class="mt-4 p-3 bg-light rounded-3 border border-primary border-opacity-25">
+                        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-calculator me-1"></i>Real-time Daily Rate Summary</h6>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Total Base Rate:</span>
+                            <strong class="font-monospace fs-6" id="dispBase">₹0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">GST Amount (<span id="dispGstPercent">0</span>%):</span>
+                            <strong class="font-monospace text-secondary fs-6" id="dispGstAmount">+₹0.00</strong>
+                        </div>
+                        <hr class="my-2" />
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-dark">Total Gross / Day:</span>
+                            <strong class="font-monospace text-primary fs-4" id="dispGross">₹0.00</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 text-end">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4 me-2">Cancel</a>
+            <button type="submit" class="btn btn-primary px-5 shadow-sm">
+                <i class="bi bi-floppy-fill me-1"></i> Save Tariff Rate
+            </button>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const wardSelect = document.getElementById('wardSelect');
+            const roomSelect = document.getElementById('roomSelect');
+
+            // Cascading Ward -> Room
+            wardSelect.addEventListener('change', async function () {
+                const wardId = this.value;
+                roomSelect.innerHTML = '<option value="">-- Select Room --</option>';
+                if (!wardId) return;
+
+                try {
+                    const res = await fetch(`/BedRoomTariffs/GetRoomsByWard?wardId=${wardId}`);
+                    if (res.ok) {
+                        const rooms = await res.json();
+                        rooms.forEach(r => {
+                            const opt = document.createElement('option');
+                            opt.value = r.value;
+                            opt.textContent = r.text;
+                            roomSelect.appendChild(opt);
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error fetching rooms:', err);
+                }
+            });
+
+            // Live Rate Calculation
+            const rateInputs = document.querySelectorAll('.rate-input');
+            const roomInput = document.getElementById('RoomCharge');
+            const bedInput = document.getElementById('BedCharge');
+            const nursingInput = document.getElementById('NursingCharge');
+            const attendantInput = document.getElementById('AttendantCharge');
+            const isolationInput = document.getElementById('IsolationCharge');
+            const gstInput = document.getElementById('GstPercentage');
+
+            const dispBase = document.getElementById('dispBase');
+            const dispGstPercent = document.getElementById('dispGstPercent');
+            const dispGstAmount = document.getElementById('dispGstAmount');
+            const dispGross = document.getElementById('dispGross');
+
+            function recalculate() {
+                const r = parseFloat(roomInput.value) || 0;
+                const b = parseFloat(bedInput.value) || 0;
+                const n = parseFloat(nursingInput.value) || 0;
+                const a = parseFloat(attendantInput.value) || 0;
+                const iso = parseFloat(isolationInput.value) || 0;
+                const gst = parseFloat(gstInput.value) || 0;
+
+                const base = r + b + n + a + iso;
+                const gstAmt = (base * (gst / 100.0));
+                const gross = base + gstAmt;
+
+                dispBase.textContent = '₹' + base.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                dispGstPercent.textContent = gst.toString();
+                dispGstAmount.textContent = '+₹' + gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                dispGross.textContent = '₹' + gross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            rateInputs.forEach(input => {
+                input.addEventListener('input', recalculate);
+            });
+
+            recalculate();
+        });
+    </script>
+}

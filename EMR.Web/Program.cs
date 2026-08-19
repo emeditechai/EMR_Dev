@@ -29,10 +29,30 @@ builder.Services.AddScoped<IAreaService, AreaService>();
 
 // Clinical Masters (Dapper)
 builder.Services.AddScoped<IDoctorSpecialityService, DoctorSpecialityService>();
+builder.Services.AddScoped<IDoctorSubSpecialityService, DoctorSubSpecialityService>();
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
+builder.Services.AddScoped<IClinicalUnitService, ClinicalUnitService>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
+
+builder.Services.AddScoped<IBuildingService, BuildingService>();
+
 builder.Services.AddScoped<IFloorService, FloorService>();
+builder.Services.AddScoped<IWardService, WardService>();
+builder.Services.AddScoped<INursingStationService, NursingStationService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<IBedCategoryService, BedCategoryService>();
+builder.Services.AddScoped<IBedService, BedService>();
+builder.Services.AddScoped<ITariffCategoryService, TariffCategoryService>();
+builder.Services.AddScoped<IBedRoomTariffService, BedRoomTariffService>();
 builder.Services.AddScoped<IDoctorRoomService, DoctorRoomService>();
+
+
+
+
+
+
+
+
 builder.Services.AddScoped<IRoomDoctorAssignmentService, RoomDoctorAssignmentService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IDoctorConsultingFeeService, DoctorConsultingFeeService>();

@@ -1,9 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EMR.Web.Models.Entities;
 
+[Table("DoctorMaster", Schema = "dbo")]
 public class DoctorMaster
 {
+    [Key]
     public int DoctorId { get; set; }
     public int CompanyId { get; set; } = 1;
 

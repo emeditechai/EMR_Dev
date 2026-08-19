@@ -1,0 +1,229 @@
+@model EMR.Web.Models.ViewModels.BedRoomTariffDetailsViewModel
+@{
+    ViewData["Title"] = $"Tariff Details - Room {Model.RoomNumber}";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+        <div>
+            <h1 class="h3 mb-0 fw-bold">Room @Model.RoomNumber Tariff</h1>
+            <small class="text-muted">Ward: <strong class="text-primary">@Model.WardName</strong> | Tariff: <strong class="text-primary">@Model.TariffCategoryName</strong> (@Model.PatientCategory)</small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.BedRateId" class="btn btn-outline-primary btn-sm px-3">
+            <i class="bi bi-pencil me-1"></i> Edit / Revise Rate
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-list me-1"></i> All Tariffs
+        </a>
+    </div>
+</div>
+
+<!-- Tabs Navigation -->
+<ul class="nav nav-pills mb-4 gap-2" id="tariffTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active px-4 py-2 fw-semibold" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab">
+            <i class="bi bi-receipt-cutoff me-2"></i>Tariff Breakdown & Scope
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link px-4 py-2 fw-semibold" id="history-tab" data-bs-toggle="pill" data-bs-target="#history" type="button" role="tab">
+            <i class="bi bi-clock-history me-2"></i>ChangesHistory
+            <span class="badge bg-secondary ms-1">@Model.HistoryLogs.Count</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="tariffTabContent">
+    <!-- Tab 1: Overview & Charge Breakdown -->
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+        <div class="row g-4">
+            <!-- Left Info Panel -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-info-circle me-2"></i>Tariff Scope & Classification</h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <span class="text-muted small text-uppercase fw-semibold d-block">IPD Room</span>
+                                <span class="fw-bold fs-5 text-dark">Room @Model.RoomNumber</span>
+                                <span class="badge bg-light text-dark border ms-1">@Model.RoomType</span>
+                            </div>
+                            <div class="col-sm-6">
+                                <span class="text-muted small text-uppercase fw-semibold d-block">Ward</span>
+                                <span class="fw-semibold fs-6 text-dark">@Model.WardName (@Model.WardCode)</span>
+                            </div>
+                            <div class="col-sm-6">
+                                <span class="text-muted small text-uppercase fw-semibold d-block">Bed Category</span>
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 fs-6 px-3 py-2">
+                                    <i class="bi bi-bookmark-star me-1"></i>@Model.BedCategoryName
+                                </span>
+                            </div>
+                            <div class="col-sm-6">
+                                <span class="text-muted small text-uppercase fw-semibold d-block">Tariff / Payer Class</span>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 px-3 py-2">
+                                    <i class="bi bi-tags me-1"></i>@Model.TariffCategoryName
+                                </span>
+                                <small class="text-muted d-block mt-1">@Model.PatientCategory</small>
+                            </div>
+                            <div class="col-sm-6">
+                                <span class="text-muted small text-uppercase fw-semibold d-block">Effective Period</span>
+                                <span class="font-monospace fw-semibold text-dark">
+                                    @Model.EffectiveFrom.ToString("dd MMM yyyy")
+                                    @(Model.EffectiveTo.HasValue ? $" to {Model.EffectiveTo.Value.ToString("dd MMM yyyy")}" : " (Open-ended)")
+                                </span>
+                            </div>
+                            <div class="col-sm-6">
+                                <span class="text-muted small text-uppercase fw-semibold d-block">Status</span>
+                                @if (Model.IsActive)
+                                {
+                                    <span class="badge text-bg-success px-3 py-1">Active Tariff</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-secondary px-3 py-1">Inactive</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Pricing Panel -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-calculator me-2"></i>Daily Price Breakdown</h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <table class="table table-sm align-middle mb-3">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">Room Charge</td>
+                                    <td class="text-end font-monospace fw-semibold">₹@Model.RoomCharge.ToString("N2")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Bed Charge</td>
+                                    <td class="text-end font-monospace fw-semibold">₹@Model.BedCharge.ToString("N2")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Nursing Care Charge</td>
+                                    <td class="text-end font-monospace fw-semibold">₹@Model.NursingCharge.ToString("N2")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Attendant / Utility Charge</td>
+                                    <td class="text-end font-monospace fw-semibold">₹@Model.AttendantCharge.ToString("N2")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Isolation / ICU Surcharge</td>
+                                    <td class="text-end font-monospace fw-semibold">₹@Model.IsolationCharge.ToString("N2")</td>
+                                </tr>
+                                <tr class="table-light border-top">
+                                    <td class="fw-bold">Total Base Amount / Day</td>
+                                    <td class="text-end font-monospace fw-bold fs-6">₹@Model.TotalBaseCharge.ToString("N2")</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">GST Applicable (@Model.GstPercentage%)</td>
+                                    <td class="text-end font-monospace text-secondary">+₹@Model.TotalGstAmount.ToString("N2")</td>
+                                </tr>
+                                <tr class="table-primary border-top">
+                                    <td class="fw-bold fs-6 text-primary">Total Gross Tariff / Day</td>
+                                    <td class="text-end font-monospace fw-bold fs-5 text-primary">₹@Model.TotalGrossAmount.ToString("N2")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: ChangesHistory Audit Tab -->
+    <div class="tab-pane fade" id="history" role="tabpanel">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-clock-history me-2"></i>Rate Revision & Historical Audit Trail
+                </h6>
+                <span class="badge text-bg-light border text-muted">@Model.HistoryLogs.Count Revision(s) Recorded</span>
+            </div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Revision Date</th>
+                            <th>Action</th>
+                            <th>Effective Period</th>
+                            <th class="text-end">Base Rate</th>
+                            <th class="text-end">GST %</th>
+                            <th class="text-end">Total Gross</th>
+                            <th>Change Justification</th>
+                            <th>Modified By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in Model.HistoryLogs)
+                        {
+                            <tr>
+                                <td class="font-monospace small">
+                                    <i class="bi bi-clock me-1 text-muted"></i>@log.ChangedDate.ToString("dd MMM yyyy, HH:mm")
+                                </td>
+                                <td>
+                                    @if (log.ChangeAction == "CREATED")
+                                    {
+                                        <span class="badge text-bg-success">CREATED</span>
+                                    }
+                                    else if (log.ChangeAction == "UPDATED")
+                                    {
+                                        <span class="badge text-bg-primary">UPDATED</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary">@log.ChangeAction</span>
+                                    }
+                                </td>
+                                <td class="font-monospace small">
+                                    @log.EffectiveFrom.ToString("dd MMM yyyy")
+                                    @(log.EffectiveTo.HasValue ? $" to {log.EffectiveTo.Value.ToString("dd MMM yyyy")}" : " (Open)")
+                                </td>
+                                <td class="text-end font-monospace small">
+                                    ₹@log.TotalBaseCharge.ToString("N2")
+                                    <div class="text-muted" style="font-size: 0.75rem;">
+                                        R: ₹@log.RoomCharge.ToString("N0") | B: ₹@log.BedCharge.ToString("N0") | N: ₹@log.NursingCharge.ToString("N0")
+                                    </div>
+                                </td>
+                                <td class="text-end font-monospace small">
+                                    @log.GstPercentage%
+                                    <div class="text-muted" style="font-size: 0.75rem;">+₹@log.TotalGstAmount.ToString("N2")</div>
+                                </td>
+                                <td class="text-end font-monospace fw-bold text-primary">
+                                    ₹@log.TotalGrossAmount.ToString("N2")
+                                </td>
+                                <td class="small text-muted">
+                                    @(string.IsNullOrWhiteSpace(log.ChangeReason) ? "—" : log.ChangeReason)
+                                </td>
+                                <td class="small">
+                                    <span class="badge bg-light text-dark border">
+                                        <i class="bi bi-person me-1"></i>@(log.ChangedByName ?? "System Admin")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.HistoryLogs.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    No prior revision history recorded for this tariff.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

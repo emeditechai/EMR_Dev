@@ -6,20 +6,25 @@
     var inactive = total - active;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
         <h1 class="h3 mb-0 fw-bold">Floor Master</h1>
-        <small class="text-muted">Manage hospital floor definitions</small>
+        <small class="text-muted">Manage hospital floor definitions mapped to buildings</small>
     </div>
-    <a asp-action="Create" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i>Add Floor
-    </a>
+    <div class="d-flex gap-2">
+        <a asp-controller="Buildings" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-building me-1"></i>Building Master
+        </a>
+        <a asp-action="Create" asp-route-buildingId="@ViewBag.BuildingId" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Floor
+        </a>
+    </div>
 </div>
 
 <div class="row g-3 mb-4">
     <div class="col-12 col-sm-4">
         <div class="stat-card stat-blue">
-            <div class="stat-icon"><i class="bi bi-buildings-fill"></i></div>
+            <div class="stat-icon"><i class="bi bi-layers-fill"></i></div>
             <div>
                 <div class="stat-value">@total</div>
                 <div class="stat-label">Total Floors</div>
@@ -31,7 +36,7 @@
             <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
             <div>
                 <div class="stat-value">@active</div>
-                <div class="stat-label">Active</div>
+                <div class="stat-label">Active Floors</div>
             </div>
         </div>
     </div>
@@ -46,16 +51,17 @@
     </div>
 </div>
 
-<div class="dashboard-panel table-responsive">
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
-                <th>#</th>
+                <th style="width: 50px;">#</th>
                 <th>Floor Code</th>
                 <th>Floor Name</th>
+                <th>Parent Building</th>
                 <th>Status</th>
                 <th>Created</th>
-                <th class="text-end">Actions</th>
+                <th class="text-end" style="width: 130px;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -68,7 +74,19 @@
                         <span class="badge text-bg-light border text-dark font-monospace fs-6">@item.FloorCode</span>
                     </td>
                     <td class="fw-semibold">
-                        <i class="bi bi-building text-primary me-2"></i>@item.FloorName
+                        <i class="bi bi-layers text-primary me-2"></i>@item.FloorName
+                    </td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(item.BuildingName))
+                        {
+                            <a asp-controller="Buildings" asp-action="Details" asp-route-id="@item.BuildingId" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 text-decoration-none px-2 py-1">
+                                <i class="bi bi-building me-1"></i>@item.BuildingName (@item.BuildingCode)
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">—</span>
+                        }
                     </td>
                     <td>
                         @if (item.IsActive)
@@ -96,8 +114,8 @@
             @if (!Model.Any())
             {
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-5">
-                        <i class="bi bi-building fs-2 d-block mb-2 opacity-50"></i>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="bi bi-layers fs-1 d-block mb-2 opacity-50"></i>
                         No floors found. <a asp-action="Create">Add one now.</a>
                     </td>
                 </tr>

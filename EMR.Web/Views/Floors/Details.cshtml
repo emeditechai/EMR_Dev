@@ -3,7 +3,7 @@
     ViewData["Title"] = "Floor Details";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
         <h1 class="h3 mb-0 fw-bold">Floor Details</h1>
         <small class="text-muted">Viewing: @Model.FloorName</small>
@@ -18,7 +18,7 @@
     </div>
 </div>
 
-<div class="dashboard-panel" style="max-width:600px;">
+<div class="dashboard-panel" style="max-width:640px;">
     <div class="row g-4">
         <div class="col-sm-4">
             <p class="text-muted small mb-1">Floor Code</p>
@@ -27,10 +27,25 @@
         <div class="col-sm-8">
             <p class="text-muted small mb-1">Floor Name</p>
             <p class="fw-semibold fs-5 mb-0">
-                <i class="bi bi-building text-primary me-2"></i>@Model.FloorName
+                <i class="bi bi-layers text-primary me-2"></i>@Model.FloorName
             </p>
         </div>
-        <div class="col-sm-4">
+        <div class="col-sm-6">
+            <p class="text-muted small mb-1">Parent Building</p>
+            @if (!string.IsNullOrWhiteSpace(Model.BuildingName))
+            {
+                <p class="fw-semibold mb-0">
+                    <a asp-controller="Buildings" asp-action="Details" asp-route-id="@Model.BuildingId" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 text-decoration-none px-3 py-2 fs-6">
+                        <i class="bi bi-building me-1"></i>@Model.BuildingName (@Model.BuildingCode)
+                    </a>
+                </p>
+            }
+            else
+            {
+                <p class="text-muted mb-0">—</p>
+            }
+        </div>
+        <div class="col-sm-6">
             <p class="text-muted small mb-1">Status</p>
             @if (Model.IsActive)
             {
@@ -41,15 +56,15 @@
                 <span class="badge text-bg-secondary px-3 py-2">Inactive</span>
             }
         </div>
-        <div class="col-sm-4">
+        <div class="col-sm-6">
             <p class="text-muted small mb-1">Created On</p>
-            <p class="fw-semibold mb-0">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm") UTC</p>
+            <p class="fw-semibold mb-0">@Model.CreatedDate.ToString("dd MMM yyyy, HH:mm")</p>
         </div>
         @if (Model.ModifiedDate.HasValue)
         {
             <div class="col-sm-6">
                 <p class="text-muted small mb-1">Last Modified</p>
-                <p class="fw-semibold mb-0">@Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm") UTC</p>
+                <p class="fw-semibold mb-0">@Model.ModifiedDate.Value.ToString("dd MMM yyyy, HH:mm")</p>
             </div>
         }
     </div>
