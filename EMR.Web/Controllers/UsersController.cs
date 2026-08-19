@@ -57,6 +57,8 @@ public class UsersController(
                 FullName = x.FullName ?? string.Concat(x.FirstName, " ", x.LastName),
                 Email = x.Email ?? string.Empty,
                 IsActive = x.IsActive,
+                IsNursingStaff = x.IsNursingStaff,
+                IsPhlebotomist = x.IsPhlebotomist,
                 Branches = string.Join(", ", x.UserBranches.Where(b => b.IsActive).Select(b => b.Branch.BranchName))
             })
             .ToListAsync();
@@ -106,6 +108,8 @@ public class UsersController(
             LastName = user.LastName ?? string.Empty,
             PhoneNumber = user.PhoneNumber,
             IsActive = user.IsActive,
+            IsNursingStaff = user.IsNursingStaff,
+            IsPhlebotomist = user.IsPhlebotomist,
             IsLockedOut = user.IsLockedOut,
             LastLoginDate = user.LastLoginDate,
             CreatedDate = user.CreatedDate,
@@ -184,6 +188,8 @@ public class UsersController(
             Phone = model.PhoneNumber,
             ProfilePicturePath = profilePicturePath,
             IsActive = model.IsActive,
+            IsNursingStaff = model.IsNursingStaff,
+            IsPhlebotomist = model.IsPhlebotomist,
             PasswordLastChanged = DateTime.Now,
             CreatedDate = DateTime.Now,
             LastModifiedDate = DateTime.Now,
@@ -228,6 +234,8 @@ public class UsersController(
             EmployeeCode = user.UserBranches.Where(x => x.IsActive).Select(x => x.EmployeeCode).FirstOrDefault() ?? string.Empty,
             ExistingProfilePicturePath = user.ProfilePicturePath,
             IsActive = user.IsActive,
+            IsNursingStaff = user.IsNursingStaff,
+            IsPhlebotomist = user.IsPhlebotomist,
             SelectedBranchIds = user.UserBranches.Where(x => x.IsActive).Select(x => x.BranchId).ToList(),
             SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList()
         };
@@ -282,6 +290,8 @@ public class UsersController(
         user.PhoneNumber = model.PhoneNumber;
         user.Phone = model.PhoneNumber;
         user.IsActive = model.IsActive;
+        user.IsNursingStaff = model.IsNursingStaff;
+        user.IsPhlebotomist = model.IsPhlebotomist;
         user.LastModifiedDate = DateTime.Now;
 
         user.ProfilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, user.ProfilePicturePath);

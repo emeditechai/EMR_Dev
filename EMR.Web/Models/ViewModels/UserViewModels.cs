@@ -12,6 +12,8 @@ public class UserListItemViewModel
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public bool IsNursingStaff { get; set; }
+    public bool IsPhlebotomist { get; set; }
     public string Branches { get; set; } = string.Empty;
 }
 
@@ -61,6 +63,12 @@ public class UserFormViewModel
 
     public bool IsActive { get; set; } = true;
 
+    [Display(Name = "Is Nursing Staff")]
+    public bool IsNursingStaff { get; set; }
+
+    [Display(Name = "Is Phlebotomist")]
+    public bool IsPhlebotomist { get; set; }
+
     public List<int> SelectedBranchIds { get; set; } = new();
     public List<int> SelectedRoleIds { get; set; } = new();
 
@@ -91,6 +99,8 @@ public class UserDetailsViewModel
     public string LastName { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
     public bool IsActive { get; set; }
+    public bool IsNursingStaff { get; set; }
+    public bool IsPhlebotomist { get; set; }
     public bool IsLockedOut { get; set; }
     public DateTime? LastLoginDate { get; set; }
     public DateTime CreatedDate { get; set; }

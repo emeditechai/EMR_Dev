@@ -6,37 +6,22 @@ var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospi
 using var conn = new SqlConnection(cs);
 conn.Open();
 
-Console.WriteLine("=== VERIFYING GetHistoryByTariffId QUERY WITH USERS TABLE ===");
+Console.WriteLine("=== VERIFYING USER 2 COLUMNS AND UPDATES ===");
 
-var sql = @"
-    SELECT 
-        h.HistoryId,
-        h.BedRateId,
-        h.EffectiveFrom,
-        h.EffectiveTo,
-        h.RoomCharge,
-        h.BedCharge,
-        h.NursingCharge,
-        h.AttendantCharge,
-        h.IsolationCharge,
-        h.GstPercentage,
-        h.IsActive,
-        h.ChangeAction,
-        h.ChangeReason,
-        COALESCE(u.FullName, u.FirstName + ' ' + u.LastName, u.Username, 'System Admin') AS ChangedByName,
-        h.ChangedDate
-    FROM BedRoomTariffHistory h
-    LEFT JOIN Users u ON h.ChangedBy = u.Id
-    WHERE h.BedRateId = 1
-    ORDER BY h.ChangedDate DESC, h.HistoryId DESC";
-
-using (var cmd = new SqlCommand(sql, conn))
+using (var cmd = new SqlCommand(@"
+    SELECT Id, Username, FullName, IsActive, IsNursingStaff, IsPhlebotomist 
+    FROM Users 
+    WHERE Id = 2", conn))
 using (var reader = cmd.ExecuteReader())
 {
-    while (reader.Read())
+    if (reader.Read())
     {
-        Console.WriteLine($"✓ History ID: {reader["HistoryId"]} | Rate ID: {reader["BedRateId"]} | Action: {reader["ChangeAction"]} | ChangedBy: {reader["ChangedByName"]} | Date: {reader["ChangedDate"]}");
+        Console.WriteLine($"User ID: {reader["Id"]} | Name: {reader["FullName"]} | Active: {reader["IsActive"]} | IsNursingStaff: {reader["IsNursingStaff"]} | IsPhlebotomist: {reader["IsPhlebotomist"]}");
+    }
+    else
+    {
+        Console.WriteLine("User 2 not found");
     }
 }
 
-Console.WriteLine("=== QUERY EXECUTED SUCCESSFULLY WITHOUT ANY ERRORS ===");
+Console.WriteLine("=== VERIFIED SUCCESSFULLY ===");

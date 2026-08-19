@@ -196,16 +196,42 @@
 
 <div class="uf-section mb-3">
     <div class="uf-section-header">
-        <i class="bi bi-toggles me-2"></i>Status
+        <i class="bi bi-person-gear me-2"></i>Clinical Roles & Status
     </div>
     <div class="uf-section-body">
-        <div class="uf-toggle-row">
-            <div class="form-check form-switch mb-0">
-                <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light">
+                    <div class="form-check form-switch mb-0">
+                        <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Account Active</div>
+                        <div class="text-muted small">Enable or disable user access</div>
+                    </div>
+                </div>
             </div>
-            <div>
-                <div class="fw-semibold">Account Active</div>
-                <div class="text-muted small">Enable or disable user access</div>
+            <div class="col-md-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light">
+                    <div class="form-check form-switch mb-0">
+                        <input asp-for="IsNursingStaff" class="form-check-input uf-big-toggle" id="isNursingStaffToggle" role="switch">
+                    </div>
+                    <div>
+                        <div class="fw-semibold text-primary"><i class="bi bi-heart-pulse-fill me-1"></i>Is Nursing Staff</div>
+                        <div class="text-muted small">Designate as clinical nursing personnel</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light">
+                    <div class="form-check form-switch mb-0">
+                        <input asp-for="IsPhlebotomist" class="form-check-input uf-big-toggle" id="isPhlebotomistToggle" role="switch">
+                    </div>
+                    <div>
+                        <div class="fw-semibold text-danger"><i class="bi bi-droplet-fill me-1"></i>Is Phlebotomist</div>
+                        <div class="text-muted small">Designate as lab sample collection staff</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

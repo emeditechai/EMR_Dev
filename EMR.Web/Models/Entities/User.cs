@@ -41,6 +41,8 @@ public class User
     public string? Role { get; set; }
 
     public bool IsActive { get; set; } = true;
+    public bool IsNursingStaff { get; set; }
+    public bool IsPhlebotomist { get; set; }
     public bool IsLockedOut { get; set; }
     public int FailedLoginAttempts { get; set; }
     public DateTime? LastLoginDate { get; set; }
@@ -49,6 +51,7 @@ public class User
     public bool MustChangePassword { get; set; }
     public DateTime? PasswordLastChanged { get; set; }
     public bool RequiresMFA { get; set; }
+
 
     public int? CompanyId { get; set; } = 1;
     public CompanyMaster? Company { get; set; }
