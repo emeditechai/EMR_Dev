@@ -5,6 +5,7 @@ namespace EMR.Web.Data;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
+    public DbSet<CompanyMaster> CompanyMasters => Set<CompanyMaster>();
     public DbSet<User> Users => Set<User>();
     public DbSet<ReferralDoctorMaster> ReferralDoctorMasters => Set<ReferralDoctorMaster>();
     public DbSet<Role> Roles => Set<Role>();
@@ -14,6 +15,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<HospitalSettings> HospitalSettings => Set<HospitalSettings>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+
 
     // Patient Registration masters
     public DbSet<ReligionMaster> ReligionMasters => Set<ReligionMaster>();
@@ -60,11 +62,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<CompanyMaster>(entity =>
+        {
+            entity.ToTable("CompanyMaster");
+            entity.HasKey(x => x.CompanyId);
+            entity.HasIndex(x => x.CompanyCode).IsUnique();
+        });
+
         modelBuilder.Entity<User>(entity =>
         {
             entity.ToTable("Users");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.Username).IsUnique();
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Users)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -83,7 +96,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.ToTable("Branchmaster");
             entity.HasKey(x => x.BranchId);
             entity.Property(x => x.BranchId).HasColumnName("BranchID");
+            entity.HasOne(x => x.Company)
+                .WithMany(x => x.Branches)
+                .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
+
 
         modelBuilder.Entity<UserBranch>(entity =>
         {

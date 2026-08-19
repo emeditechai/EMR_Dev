@@ -31,10 +31,11 @@ public class ReportsController : Controller
     public async Task<IActionResult> GetDailyCollectionData(string fromDate, string toDate, bool isDetailed)
     {
         var branchId = User.GetCurrentBranchId() ?? 1; // Fallback to 1 if not set
+        var companyId = User.GetCompanyId();
         if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
         if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
 
-        var result = await _reportApi.GetDailyCollectionRegisterAsync(branchId, fDate, tDate, isDetailed);
+        var result = await _reportApi.GetDailyCollectionRegisterAsync(branchId, fDate, tDate, isDetailed, companyId);
         if (result.IsSuccess)
         {
             return Json(new { success = true, data = result.Data });
@@ -52,14 +53,16 @@ public class ReportsController : Controller
     public async Task<IActionResult> GetPatientRegisterData(string fromDate, string toDate, bool dependentOnly)
     {
         var branchId = User.GetCurrentBranchId() ?? 1; // Fallback to 1 if not set
+        var companyId = User.GetCompanyId();
         if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
         if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
 
-        var result = await _reportApi.GetPatientRegisterAsync(branchId, fDate, tDate, dependentOnly);
+        var result = await _reportApi.GetPatientRegisterAsync(branchId, fDate, tDate, dependentOnly, companyId);
         if (result.IsSuccess)
         {
             return Json(new { success = true, data = result.Data });
         }
         return Json(new { success = false, message = result.ErrorMessage });
     }
+
 }

@@ -36,6 +36,10 @@ public class BranchMaster
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
 
+    public int CompanyId { get; set; } = 1;
+    public CompanyMaster? Company { get; set; }
+
     public ICollection<UserBranch> UserBranches { get; set; } = new List<UserBranch>();
     public ICollection<Role> Roles { get; set; } = new List<Role>();
 }
+

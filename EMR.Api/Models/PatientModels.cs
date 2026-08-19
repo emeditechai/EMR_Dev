@@ -4,6 +4,7 @@ namespace EMR.Api.Models;
 public class PatientListItem
 {
     public int      PatientId    { get; set; }
+    public int      CompanyId    { get; set; } = 1;
     public string   PatientCode  { get; set; } = string.Empty;
     public string   FullName     { get; set; } = string.Empty;
     public string?  PhoneNumber  { get; set; }
@@ -16,6 +17,7 @@ public class PatientListItem
     public DateTime CreatedDate           { get; set; }
     public string?  ConsultingDoctorName  { get; set; }
 }
+
 
 // ── Patient full detail ──────────────────────────────────────────────────────
 public class PatientDetail : PatientListItem
@@ -38,8 +40,10 @@ public class PatientDetail : PatientListItem
 // ── Create / Update request ──────────────────────────────────────────────────
 public class PatientCreateRequest
 {
+    public int      CompanyId              { get; set; } = 1;
     public string   PhoneNumber            { get; set; } = string.Empty;
     public string?  SecondaryPhoneNumber   { get; set; }
+
     public string?  Salutation             { get; set; }
     public string   FirstName              { get; set; } = string.Empty;
     public string?  MiddleName             { get; set; }

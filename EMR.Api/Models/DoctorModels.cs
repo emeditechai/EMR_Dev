@@ -4,6 +4,7 @@ namespace EMR.Api.Models;
 public class DoctorListItem
 {
     public int     DoctorId              { get; set; }
+    public int     CompanyId             { get; set; } = 1;
     public string MedicalLicenseNo { get; set; } = string.Empty;
     public int? PrimarySpecialityId { get; set; }
     public string PrimarySpeciality { get; set; } = string.Empty;
@@ -25,6 +26,7 @@ public class DoctorListItem
 public class DoctorDetail
 {
     public int      DoctorId              { get; set; }
+    public int      CompanyId             { get; set; } = 1;
     public string   FullName              { get; set; } = string.Empty;
     public string   Gender                { get; set; } = string.Empty;
     public DateTime? DateOfBirth          { get; set; }
@@ -47,6 +49,7 @@ public class DoctorDetail
 // ── Create / Update request ──────────────────────────────────────────────────
 public class DoctorCreateRequest
 {
+    public int      CompanyId             { get; set; } = 1;
     public string   FullName              { get; set; } = string.Empty;
     public string   Gender                { get; set; } = string.Empty;
     public DateTime? DateOfBirth          { get; set; }
@@ -62,6 +65,7 @@ public class DoctorCreateRequest
     public List<int> DepartmentIds        { get; set; } = [];
     public int?     RequestedByUserId     { get; set; }
 }
+
 
 public class DoctorUpdateRequest : DoctorCreateRequest
 {

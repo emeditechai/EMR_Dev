@@ -16,7 +16,9 @@ public class PaymentHeader
     public int? OPDServiceId { get; set; }                  // FK to PatientOPDService
 
     public int BranchId { get; set; }
+    public int CompanyId { get; set; } = 1;
     public int PatientId { get; set; }
+
 
     // Financial — gross
     public decimal SubTotal { get; set; }

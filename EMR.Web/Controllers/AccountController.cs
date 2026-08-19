@@ -388,12 +388,18 @@ public class AccountController(
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
+        var companyId = user.CompanyId ?? branch?.CompanyId ?? 1;
+        var company = user.Company ?? branch?.Company ?? await dbContext.CompanyMasters.FindAsync(companyId);
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.Username),
             new("DisplayName", string.IsNullOrWhiteSpace(user.FullName) ? user.Username : user.FullName),
-            new("IsSuperAdmin", isSuperAdmin ? "true" : "false")
+            new("IsSuperAdmin", isSuperAdmin ? "true" : "false"),
+            new("CompanyId", companyId.ToString()),
+            new("CompanyName", company?.CompanyName ?? "Primary Healthcare Network"),
+            new("CompanyCode", company?.CompanyCode ?? "CMP-001")
         };
 
         if (!string.IsNullOrWhiteSpace(user.ProfilePicturePath))
@@ -407,6 +413,7 @@ public class AccountController(
             claims.Add(new Claim("BranchName", branch.BranchName));
             claims.Add(new Claim("BranchCode", branch.BranchCode));
         }
+
 
         if (!string.IsNullOrWhiteSpace(activeRole))
         {

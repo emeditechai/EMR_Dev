@@ -1,0 +1,267 @@
+@model EMR.Web.Models.ViewModels.CompanyDetailsViewModel
+@{
+    ViewData["Title"] = "Company Profile - " + Model.CompanyName;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+        @if (!string.IsNullOrWhiteSpace(Model.LogoPath))
+        {
+            <img src="@Model.LogoPath" alt="@Model.CompanyName" class="rounded-3 border p-1 shadow-sm" style="width: 58px; height: 58px; object-fit: contain; background: #fff;" />
+        }
+        else
+        {
+            <div class="rounded-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold shadow-sm" style="width: 58px; height: 58px; font-size: 1.5rem;">
+                @Model.CompanyName.Substring(0, 1).ToUpper()
+            </div>
+        }
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <h4 class="mb-0 fw-bold text-dark">@Model.CompanyName</h4>
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border">@Model.CompanyCode</span>
+                @if (Model.IsActive)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Active</span>
+                }
+                else
+                {
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">Inactive</span>
+                }
+            </div>
+            <p class="text-muted small mb-0">@(Model.LegalName ?? "Parent Healthcare Organization") · Created @Model.CreatedDate.ToString("dd MMM yyyy")</p>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.CompanyId" class="btn btn-outline-primary btn-sm px-3">
+            <i class="bi bi-pencil-fill me-1"></i> Edit Profile
+        </a>
+        <a asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-primary btn-sm px-3 shadow-sm">
+            <i class="bi bi-plus-circle-fill me-1"></i> Add Branch
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Left Column: Company Details -->
+    <div class="col-lg-4">
+        <!-- Tax & Legal Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-card-checklist me-2"></i>Legal & Tax Details</h6>
+            </div>
+            <div class="card-body p-3">
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">GSTIN:</span>
+                        <span class="fw-semibold text-dark">@(Model.GSTIN ?? "—")</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">PAN:</span>
+                        <span class="fw-semibold text-dark">@(Model.PAN ?? "—")</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Registration / CIN:</span>
+                        <span class="fw-semibold text-dark">@(Model.RegistrationNumber ?? "—")</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Contact & Web Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-telephone-fill me-2"></i>Contact Information</h6>
+            </div>
+            <div class="card-body p-3">
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Email:</span>
+                        <span class="fw-semibold text-dark">@(Model.Email ?? "—")</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Phone:</span>
+                        <span class="fw-semibold text-dark">@(Model.Phone ?? "—")</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Website:</span>
+                        <span class="fw-semibold">
+                            @if (!string.IsNullOrWhiteSpace(Model.Website))
+                            {
+                                <a href="@Model.Website" target="_blank" class="text-decoration-none">@Model.Website</a>
+                            }
+                            else
+                            {
+                                <span class="text-dark">—</span>
+                            }
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Registered Address Card -->
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-geo-alt-fill me-2"></i>Headquarters Address</h6>
+            </div>
+            <div class="card-body p-3">
+                <p class="small text-muted mb-0">@(string.IsNullOrWhiteSpace(Model.FullAddress) ? "No address specified." : Model.FullAddress)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Associated Branches & Users -->
+    <div class="col-lg-8">
+        <!-- Associated Branches -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-diagram-3-fill me-2"></i>Operating Branches 
+                    <span class="badge bg-primary bg-opacity-10 text-primary ms-1">@Model.Branches.Count</span>
+                </h6>
+                <a asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus-lg me-1"></i> Add Branch
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small text-uppercase">
+                            <tr>
+                                <th class="ps-3">Code & Name</th>
+                                <th>Location</th>
+                                <th class="text-center">Active Users</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Model.Branches.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">
+                                        <i class="bi bi-diagram-3 fs-3 text-secondary opacity-50 d-block mb-2"></i>
+                                        <div>No branches created under this company yet.</div>
+                                        <a asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-primary mt-2">Create First Branch</a>
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var b in Model.Branches)
+                                {
+                                    <tr>
+                                        <td class="ps-3">
+                                            <div class="fw-bold text-dark">@b.BranchName</div>
+                                            <div class="small text-muted d-flex align-items-center gap-1">
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary border">@b.BranchCode</span>
+                                                @if (b.IsHOBranch)
+                                                {
+                                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">Head Office</span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="small text-muted">@string.Join(", ", new[] { b.City, b.State }.Where(s => !string.IsNullOrWhiteSpace(s)))</div>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark border px-2 py-1">@b.ActiveUsersCount Users</span>
+                                        </td>
+                                        <td class="text-center">
+                                            @if (b.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <a asp-controller="Branches" asp-action="Details" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-secondary" title="View Branch">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a asp-controller="Branches" asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-primary" title="Edit Branch">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mapped Users -->
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-people-fill me-2"></i>Company Users 
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1">@Model.Users.Count</span>
+                </h6>
+                <a asp-controller="Users" asp-action="Create" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-person-plus-fill me-1"></i> Add User
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small text-uppercase">
+                            <tr>
+                                <th class="ps-3">Username & Name</th>
+                                <th>Role</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Model.Users.Any())
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">
+                                        No users directly mapped to this company.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var u in Model.Users)
+                                {
+                                    <tr>
+                                        <td class="ps-3">
+                                            <div class="fw-bold text-dark">@u.FullName</div>
+                                            <div class="small text-muted">@("@" + u.Username)</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-light text-dark border">@(string.IsNullOrWhiteSpace(u.Role) ? "Staff" : u.Role)</span>
+                                        </td>
+                                        <td class="text-center">
+                                            @if (u.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <a asp-controller="Users" asp-action="Details" asp-route-id="@u.UserId" class="btn btn-sm btn-outline-secondary" title="View User">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

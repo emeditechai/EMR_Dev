@@ -5,6 +5,7 @@ namespace EMR.Web.Models.Entities;
 public class PatientMaster
 {
     public int PatientId { get; set; }
+    public int CompanyId { get; set; } = 1;
 
     [Required, MaxLength(30)]
     public string PatientCode { get; set; } = string.Empty;

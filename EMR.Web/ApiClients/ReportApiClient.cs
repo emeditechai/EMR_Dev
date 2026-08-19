@@ -8,11 +8,15 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
 {
     private readonly HttpClient _http = factory.CreateClient("EmrApi");
 
-    public async Task<ReportApiResult<List<DailyCollectionRegisterItem>>> GetDailyCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool isDetailed)
+    public async Task<ReportApiResult<List<DailyCollectionRegisterItem>>> GetDailyCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool isDetailed, int? companyId = null)
     {
         try
         {
             var url = $"/api/reports/daily-collection?branchId={branchId}&fromDate={fromDate:yyyy-MM-dd}&toDate={toDate:yyyy-MM-dd}&isDetailed={isDetailed}";
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                url += $"&companyId={companyId.Value}";
+            }
             var response = await _http.GetAsync(url);
             
             if (response.IsSuccessStatusCode)
@@ -28,11 +32,15 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
         }
     }
 
-    public async Task<ReportApiResult<List<PatientRegisterItem>>> GetPatientRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool dependentOnly)
+    public async Task<ReportApiResult<List<PatientRegisterItem>>> GetPatientRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool dependentOnly, int? companyId = null)
     {
         try
         {
             var url = $"/api/reports/patient-register?branchId={branchId}&fromDate={fromDate:yyyy-MM-dd}&toDate={toDate:yyyy-MM-dd}&dependentOnly={dependentOnly}";
+            if (companyId.HasValue && companyId.Value > 0)
+            {
+                url += $"&companyId={companyId.Value}";
+            }
             var response = await _http.GetAsync(url);
             
             if (response.IsSuccessStatusCode)
@@ -47,4 +55,5 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
             return ReportApiResult<List<PatientRegisterItem>>.FailureResult(ex.Message);
         }
     }
+
 }

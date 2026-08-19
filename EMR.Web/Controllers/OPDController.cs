@@ -59,10 +59,10 @@ public class OPDController(
             .FirstOrDefaultAsync();
 
         var currentBranchName = User.FindFirstValue("BranchName") ?? "N/A";
-
-        var opdData = await patientApiClient.GetOpdDashboardAsync(branchId.Value, dateStr) ?? new EMR.Web.ApiClients.Models.OpdDashboardData();
+        var opdData = await patientApiClient.GetOpdDashboardAsync(branchId.Value, dateStr, User.GetCompanyId()) ?? new EMR.Web.ApiClients.Models.OpdDashboardData();
 
         var model = new OpdDashboardViewModel
+
         {
             UserDisplayName = User.FindFirstValue("DisplayName") ?? User.Identity?.Name ?? "User",
             CurrentBranchName = currentBranchName,
@@ -229,7 +229,8 @@ public class OPDController(
         try
         {
             // Strictly via EMR.Api — no DB fallback
-            var apiResult = await patientApiClient.GetByBranchAsync(branchId, page, pageSize, search?.Trim());
+            var apiResult = await patientApiClient.GetByBranchAsync(branchId, page, pageSize, search?.Trim(), companyId: User.GetCompanyId());
+
 
             var paged = new PatientPagedListViewModel
             {

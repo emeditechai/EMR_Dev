@@ -26,6 +26,7 @@ public class UsersController(
         }
 
         var branchId = User.GetCurrentBranchId();
+        var companyId = User.GetCompanyId();
 
         var query = dbContext.Users
             .Include(x => x.UserBranches)
@@ -33,11 +34,17 @@ public class UsersController(
             .OrderBy(x => x.Username)
             .AsQueryable();
 
+        if (!User.IsSuperAdmin())
+        {
+            query = query.Where(x => x.CompanyId == companyId);
+        }
+
         // Filter to current branch if a branch is active in session
         if (branchId.HasValue)
         {
             query = query.Where(x => x.UserBranches.Any(ub => ub.BranchId == branchId.Value && ub.IsActive));
         }
+
 
         var users = await query
             .Select(x => new UserListItemViewModel
@@ -165,6 +172,7 @@ public class UsersController(
         var (hash, salt) = passwordHasherService.HashPassword(model.Password!);
         var user = new User
         {
+            CompanyId = User.GetCompanyId(),
             Username = model.Username.Trim(),
             Email = model.Email?.Trim(),
             PasswordHash = hash,
@@ -180,6 +188,7 @@ public class UsersController(
             CreatedDate = DateTime.Now,
             LastModifiedDate = DateTime.Now,
         };
+
 
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();

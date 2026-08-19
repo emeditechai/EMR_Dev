@@ -1,16 +1,33 @@
 @model EMR.Web.Models.ViewModels.BranchFormViewModel
 
 <div class="row g-3">
+    <div class="col-md-12">
+        <label asp-for="CompanyId" class="form-label fw-semibold"></label>
+        @if (Model.CompanyOptions != null && Model.CompanyOptions.Any())
+        {
+            <select asp-for="CompanyId" asp-items="Model.CompanyOptions" class="form-select" required>
+                <option value="">-- Select Parent Organization / Company --</option>
+            </select>
+        }
+        else
+        {
+            <input type="hidden" asp-for="CompanyId" />
+            <input type="text" class="form-control" value="Primary Healthcare Network" readonly />
+        }
+        <span asp-validation-for="CompanyId" class="text-danger small"></span>
+    </div>
+
     <div class="col-md-6">
-        <label asp-for="BranchName" class="form-label"></label>
-        <input asp-for="BranchName" class="form-control" />
-        <span asp-validation-for="BranchName" class="text-danger"></span>
+        <label asp-for="BranchName" class="form-label fw-semibold"></label>
+        <input asp-for="BranchName" class="form-control" placeholder="e.g. Kolkata Central Clinic" required />
+        <span asp-validation-for="BranchName" class="text-danger small"></span>
     </div>
     <div class="col-md-6">
-        <label asp-for="BranchCode" class="form-label"></label>
-        <input asp-for="BranchCode" class="form-control" />
-        <span asp-validation-for="BranchCode" class="text-danger"></span>
+        <label asp-for="BranchCode" class="form-label fw-semibold"></label>
+        <input asp-for="BranchCode" class="form-control text-uppercase" placeholder="e.g. KOL-01" required />
+        <span asp-validation-for="BranchCode" class="text-danger small"></span>
     </div>
+
 
     @* ── Country ── *@
     <div class="col-md-4">

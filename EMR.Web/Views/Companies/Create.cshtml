@@ -1,0 +1,136 @@
+@model EMR.Web.Models.ViewModels.CompanyFormViewModel
+@{
+    ViewData["Title"] = "Add New Company";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-10 col-xl-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="mb-1 fw-bold text-dark"><i class="bi bi-building-add me-2 text-primary"></i>Create Organization / Company</h4>
+                <p class="text-muted small mb-0">First step in onboarding: define parent corporate details, taxation info, and central contacts.</p>
+            </div>
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3"><i class="bi bi-arrow-left me-1"></i> Back to List</a>
+        </div>
+
+        <form asp-action="Create" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+            <!-- Card 1: Core Company Profile -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-info-circle-fill me-2"></i>General Information</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label asp-for="CompanyCode" class="form-label fw-semibold required-label">Company Code</label>
+                            <input asp-for="CompanyCode" class="form-control text-uppercase" placeholder="e.g. CMP001 or HEALTHGRP" required />
+                            <span asp-validation-for="CompanyCode" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-8">
+                            <label asp-for="CompanyName" class="form-label fw-semibold required-label">Company / Brand Name</label>
+                            <input asp-for="CompanyName" class="form-control" placeholder="e.g. CarePlus Health Group" required />
+                            <span asp-validation-for="CompanyName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="LegalName" class="form-label fw-semibold">Legal / Registered Name</label>
+                            <input asp-for="LegalName" class="form-control" placeholder="e.g. CarePlus Healthcare Pvt Ltd" />
+                            <span asp-validation-for="LegalName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="RegistrationNumber" class="form-label fw-semibold">CIN / Registration No.</label>
+                            <input asp-for="RegistrationNumber" class="form-control" placeholder="e.g. U85110WB2022PTC123456" />
+                            <span asp-validation-for="RegistrationNumber" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="GSTIN" class="form-label fw-semibold">GSTIN</label>
+                            <input asp-for="GSTIN" class="form-control text-uppercase" placeholder="e.g. 19AAACP1234A1Z5" />
+                            <span asp-validation-for="GSTIN" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="PAN" class="form-label fw-semibold">PAN Number</label>
+                            <input asp-for="PAN" class="form-control text-uppercase" placeholder="e.g. AAACP1234A" />
+                            <span asp-validation-for="PAN" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Contact & Branding -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-telephone-fill me-2"></i>Contact, Web & Branding</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label asp-for="Email" class="form-label fw-semibold">Official Email</label>
+                            <input asp-for="Email" class="form-control" placeholder="info@careplushealth.com" />
+                            <span asp-validation-for="Email" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Phone" class="form-label fw-semibold">Central Phone</label>
+                            <input asp-for="Phone" class="form-control" placeholder="+91 33 2456 7890" />
+                            <span asp-validation-for="Phone" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Website" class="form-label fw-semibold">Website</label>
+                            <input asp-for="Website" class="form-control" placeholder="https://careplushealth.com" />
+                            <span asp-validation-for="Website" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-12">
+                            <label asp-for="LogoFile" class="form-label fw-semibold">Company Logo</label>
+                            <input asp-for="LogoFile" type="file" class="form-control" accept="image/*" />
+                            <small class="text-muted">Recommended: Square or horizontal PNG/JPG, transparent background.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Address & Location -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-geo-alt-fill me-2"></i>Registered Headquarters Address</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label asp-for="Address" class="form-label fw-semibold">Address Line</label>
+                            <textarea asp-for="Address" class="form-control" rows="2" placeholder="Corporate HQ Address"></textarea>
+                            <span asp-validation-for="Address" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="Country" class="form-label fw-semibold">Country</label>
+                            <input asp-for="Country" class="form-control" />
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="State" class="form-label fw-semibold">State</label>
+                            <input asp-for="State" class="form-control" placeholder="e.g. West Bengal" />
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="City" class="form-label fw-semibold">City</label>
+                            <input asp-for="City" class="form-control" placeholder="e.g. Kolkata" />
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="Pincode" class="form-label fw-semibold">Pincode</label>
+                            <input asp-for="Pincode" class="form-control" placeholder="e.g. 700091" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-5">
+                <div class="form-check form-switch">
+                    <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" checked />
+                    <label asp-for="IsActive" class="form-check-label fw-semibold">Company is Active</label>
+                </div>
+                <div class="d-flex gap-2">
+                    <a asp-action="Index" class="btn btn-light px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-check-circle-fill me-1"></i> Save Company</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

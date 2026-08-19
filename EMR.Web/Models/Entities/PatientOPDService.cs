@@ -7,10 +7,10 @@ namespace EMR.Web.Models.Entities;
 public class PatientOPDService
 {
     public int OPDServiceId { get; set; }
-
+    public int CompanyId { get; set; } = 1;
     public int PatientId { get; set; }
-
     public int? BranchId { get; set; }
+
 
     public int? ConsultingDoctorId { get; set; }
     

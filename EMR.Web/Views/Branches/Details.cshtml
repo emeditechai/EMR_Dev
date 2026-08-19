@@ -23,6 +23,16 @@
     <div class="uf-section-header"><i class="bi bi-info-circle-fill me-2"></i>Branch Information</div>
     <div class="uf-section-body">
         <div class="row g-3">
+            <div class="col-md-12">
+                <div class="detail-field bg-primary bg-opacity-10 border-primary border-opacity-25">
+                    <div class="detail-label text-primary"><i class="bi bi-buildings me-1"></i>Parent Organization / Company</div>
+                    <div class="detail-value fw-bold text-dark">
+                        <a asp-controller="Companies" asp-action="Details" asp-route-id="@Model.CompanyId" class="text-decoration-none text-dark">
+                            @Model.CompanyName <i class="bi bi-arrow-up-right-square small text-primary ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
             <div class="col-md-6">
                 <div class="detail-field">
                     <div class="detail-label">Branch Name</div>
@@ -35,6 +45,7 @@
                     <div class="detail-value">@Model.BranchCode</div>
                 </div>
             </div>
+
             <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-geo-alt me-1"></i>City</div>

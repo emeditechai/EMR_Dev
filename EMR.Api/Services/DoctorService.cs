@@ -9,12 +9,12 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
 {
     // ─── GET LIST ─────────────────────────────────────────────────────────────
 
-    public async Task<PagedResult<DoctorListItem>> GetListAsync(int? branchId, string? searchQuery = null, int pageNumber = 1, int pageSize = 10)
+    public async Task<PagedResult<DoctorListItem>> GetListAsync(int? companyId, int? branchId, string? searchQuery = null, int pageNumber = 1, int pageSize = 10)
     {
         using var con = db.CreateConnection();
         var items = await con.QueryAsync<DoctorListItem>(
             "usp_Api_Doctor_GetList",
-            new { BranchId = branchId, SearchQuery = searchQuery, PageNumber = pageNumber, PageSize = pageSize },
+            new { CompanyId = companyId, BranchId = branchId, SearchQuery = searchQuery, PageNumber = pageNumber, PageSize = pageSize },
             commandType: CommandType.StoredProcedure);
             
         return new PagedResult<DoctorListItem>
@@ -28,13 +28,13 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
 
     // ─── GET BY ID ────────────────────────────────────────────────────────────
 
-    public async Task<DoctorDetail?> GetByIdAsync(int doctorId, int? branchId = null)
+    public async Task<DoctorDetail?> GetByIdAsync(int doctorId, int? branchId = null, int? companyId = null)
     {
         using var con = db.CreateConnection();
 
         using var multi = await con.QueryMultipleAsync(
             "usp_Api_Doctor_GetById",
-            new { DoctorId = doctorId, BranchId = branchId },
+            new { DoctorId = doctorId, BranchId = branchId, CompanyId = companyId },
             commandType: CommandType.StoredProcedure);
 
         var detail     = await multi.ReadFirstOrDefaultAsync<DoctorDetail>();
@@ -58,6 +58,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                 "usp_Api_Doctor_Create",
                 new
                 {
+                    CompanyId = req.CompanyId > 0 ? req.CompanyId : 1,
                     req.FullName,
                     req.Gender,
                     req.DateOfBirth,
@@ -73,6 +74,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                 },
                 tx,
                 commandType: CommandType.StoredProcedure);
+
 
             // Insert branch/department maps
             foreach (var bid in req.BranchIds.Distinct())

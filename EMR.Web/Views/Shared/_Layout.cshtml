@@ -142,8 +142,9 @@
                                 <i class="bi bi-gear-fill me-2"></i>Settings
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="settingsMenu">
-                                <li><a class="dropdown-item" asp-controller="Users" asp-action="Index"><i class="bi bi-people me-2"></i>User Master</a></li>
+                                <li><a class="dropdown-item" asp-controller="Companies" asp-action="Index"><i class="bi bi-buildings me-2"></i>Company Master</a></li>
                                 <li><a class="dropdown-item" asp-controller="Branches" asp-action="Index"><i class="bi bi-diagram-3 me-2"></i>Branch Master</a></li>
+                                <li><a class="dropdown-item" asp-controller="Users" asp-action="Index"><i class="bi bi-people me-2"></i>User Master</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="HospitalSettings" asp-action="Index"><i class="bi bi-hospital-fill me-2"></i>Hospital Settings</a></li>
                                 <li><a class="dropdown-item" asp-controller="SmtpConfig" asp-action="Index"><i class="bi bi-envelope-at me-2"></i>Email Configuration</a></li>
@@ -198,7 +199,10 @@
 
                     <div class="d-flex align-items-center gap-2 ms-xl-3 emr-top-actions">
                         <button type="button" class="btn btn-sm emr-icon-btn" title="Notifications"><i class="bi bi-bell-fill"></i></button>
-                        <span class="emr-branch-pill"><i class="bi bi-building me-2"></i>@(User.FindFirst("BranchCode")?.Value ?? User.FindFirst("BranchName")?.Value)</span>
+                        <span class="emr-branch-pill" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);" title="Organization: @(User.FindFirst("CompanyName")?.Value ?? "Primary Healthcare Network")">
+                            <i class="bi bi-buildings me-1 text-info"></i>@(User.FindFirst("CompanyCode")?.Value ?? "CMP")
+                        </span>
+                        <span class="emr-branch-pill"><i class="bi bi-building me-1"></i>@(User.FindFirst("BranchCode")?.Value ?? User.FindFirst("BranchName")?.Value)</span>
 
                         <div class="dropdown">
                             <button class="btn emr-profile-btn dropdown-toggle" type="button" id="profileMenu" data-bs-toggle="dropdown" aria-expanded="false">
@@ -220,12 +224,16 @@
                                 <div class="px-3 pt-2 pb-3 border-bottom">
                                     <h5 class="mb-0">@User.FindFirst("DisplayName")?.Value</h5>
                                     <div class="text-muted small">@User.Identity?.Name</div>
-                                    <span class="badge bg-primary mt-1">@User.FindFirst("BranchName")?.Value</span>
+                                    <div class="d-flex gap-1 flex-wrap mt-2">
+                                        <span class="badge bg-dark border text-light"><i class="bi bi-buildings me-1 text-info"></i>@(User.FindFirst("CompanyName")?.Value ?? "Primary Healthcare Network")</span>
+                                        <span class="badge bg-primary"><i class="bi bi-geo-alt-fill me-1"></i>@User.FindFirst("BranchName")?.Value</span>
+                                    </div>
                                     @if (User.GetActiveRole() is { Length: > 0 } activeRole) {
                                         <div class="text-uppercase fw-semibold small mt-2" style="color:var(--emr-primary)">Active Role</div>
                                         <div class="h5 mb-0">@activeRole</div>
                                     }
                                 </div>
+
                                 <div class="p-3 d-grid gap-2">
                                     <a asp-controller="Account" asp-action="SwitchRole" class="btn btn-light text-start"><i class="bi bi-arrow-left-right me-2"></i>Switch Role</a>
                                     <button type="button" class="btn btn-light text-start"><i class="bi bi-key-fill me-2"></i>Change Password</button>

@@ -97,9 +97,10 @@ public class HospitalSettingsController(
 
         if (existing is null)
         {
-            var entity = MapToEntity(model, userId);
+            var entity = MapToEntity(model, userId, User.GetCompanyId());
             entity.LogoPath = await SaveLogoFileAsync(model.LogoFile, entity.LogoPath);
             dbContext.HospitalSettings.Add(entity);
+
             await dbContext.SaveChangesAsync();
             await auditLogService.LogAsync("Create", "HospitalSettings",
                 $"Hospital settings created for branch {branchId}", userId, branchId);
@@ -161,9 +162,10 @@ public class HospitalSettingsController(
             LastModifiedDate = s.LastModifiedDate
         };
 
-    private static HospitalSettings MapToEntity(HospitalSettingsViewModel m, int userId) =>
+    private static HospitalSettings MapToEntity(HospitalSettingsViewModel m, int userId, int companyId = 1) =>
         new()
         {
+            CompanyId = companyId,
             BranchId = m.BranchId,
             HospitalName = m.HospitalName,
             Address = m.Address,
@@ -182,6 +184,7 @@ public class HospitalSettingsController(
             CreatedDate = DateTime.Now,
             CreatedBy = userId
         };
+
 
     private void ValidateLogoFile(HospitalSettingsViewModel model)
     {

@@ -50,6 +50,10 @@ public class User
     public DateTime? PasswordLastChanged { get; set; }
     public bool RequiresMFA { get; set; }
 
+    public int? CompanyId { get; set; } = 1;
+    public CompanyMaster? Company { get; set; }
+
     public ICollection<UserBranch> UserBranches { get; set; } = new List<UserBranch>();
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }
+

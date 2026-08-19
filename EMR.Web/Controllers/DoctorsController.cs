@@ -34,7 +34,7 @@ public class DoctorsController(
         try
         {
             // Strictly via EMR.Api — no DB fallback
-            var pagedDoctors = await doctorApiClient.GetListAsync(branchId, pageNumber: page, pageSize: 10);
+            var pagedDoctors = await doctorApiClient.GetListAsync(branchId, pageNumber: page, pageSize: 10, companyId: User.GetCompanyId());
             var apiDoctors = pagedDoctors.Items;
             
             if (doctorId.HasValue && doctorId.Value > 0)
@@ -86,7 +86,8 @@ public class DoctorsController(
         var branchId = User.GetCurrentBranchId();
         try
         {
-            var apiDoctors = await doctorApiClient.GetListAsync(branchId, q);
+            var apiDoctors = await doctorApiClient.GetListAsync(branchId, q, companyId: User.GetCompanyId());
+
             var results = apiDoctors.Items.Select(d => new
             {
                 id = d.DoctorId,
@@ -142,6 +143,7 @@ public class DoctorsController(
 
         var doctor = new DoctorMaster
         {
+            CompanyId = User.GetCompanyId(),
             NamePrefix = model.NamePrefix,
             FullName = model.FullName.Trim(),
             Gender = model.Gender,
@@ -156,6 +158,7 @@ public class DoctorsController(
             CreatedBranchId = currentBranchId.Value,
             LinkedUserId = linkedUserId
         };
+
 
         await doctorService.CreateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
 
@@ -376,6 +379,7 @@ public class DoctorsController(
 
         var user = new User
         {
+            CompanyId        = User.GetCompanyId(),
             Username         = model.LoginUsername!.Trim(),
             Email            = model.EmailId.Trim(),
             PasswordHash     = hash,
@@ -390,6 +394,7 @@ public class DoctorsController(
             CreatedDate      = DateTime.Now,
             LastModifiedDate = DateTime.Now
         };
+
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync(); // get new user.Id
 

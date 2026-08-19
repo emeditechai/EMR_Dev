@@ -5,6 +5,7 @@ namespace EMR.Web.Models.Entities;
 public class DoctorMaster
 {
     public int DoctorId { get; set; }
+    public int CompanyId { get; set; } = 1;
 
     [Required, MaxLength(20)]
     public string NamePrefix { get; set; } = "Dr.";

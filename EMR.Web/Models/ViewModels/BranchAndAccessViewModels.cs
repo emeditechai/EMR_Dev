@@ -7,10 +7,18 @@ public class BranchFormViewModel
 {
     public int BranchId { get; set; }
 
+    [Required(ErrorMessage = "Company is required")]
+    [Display(Name = "Parent Organization / Company")]
+    public int CompanyId { get; set; } = 1;
+
+    public string? CompanyName { get; set; }
+    public List<SelectListItem> CompanyOptions { get; set; } = [];
+
     [Required]
     [Display(Name = "Branch Name")]
     [MaxLength(150)]
     public string BranchName { get; set; } = string.Empty;
+
 
     [Required]
     [Display(Name = "Branch Code")]
@@ -88,6 +96,8 @@ public class RoleCardItem
 public class BranchDetailsViewModel
 {
     public int BranchId { get; set; }
+    public int CompanyId { get; set; }
+    public string CompanyName { get; set; } = string.Empty;
     public string BranchName { get; set; } = string.Empty;
     public string BranchCode { get; set; } = string.Empty;
     public string? Country { get; set; }
@@ -103,3 +113,4 @@ public class BranchDetailsViewModel
     public List<string> MappedUsers { get; set; } = new();
     public List<string> Roles { get; set; } = new();
 }
+

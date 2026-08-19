@@ -3,6 +3,7 @@ namespace EMR.Web.ApiClients.Models;
 public class PatientListItem
 {
     public int       PatientId     { get; set; }
+    public int       CompanyId     { get; set; } = 1;
     public string    PatientCode   { get; set; } = string.Empty;
     public string    FullName      { get; set; } = string.Empty;
     public string?   PhoneNumber   { get; set; }
@@ -16,6 +17,7 @@ public class PatientListItem
     public string?   ConsultingDoctorName  { get; set; }
     public int       TotalCount            { get; set; }   // populated by paged SP
 }
+
 
 public class PatientDetail : PatientListItem
 {
@@ -44,7 +46,9 @@ public class PagedResult<T>
 
 public class PatientCreateRequest
 {
+    public int       CompanyId            { get; set; } = 1;
     public string    PhoneNumber          { get; set; } = string.Empty;
+
     public string?   SecondaryPhoneNumber { get; set; }
     public string?   Salutation           { get; set; }
     public string    FirstName            { get; set; } = string.Empty;

@@ -6,7 +6,9 @@ using EMR.Web.Services;
 using EMR.Web.Services.Geography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+
 
 namespace EMR.Web.Controllers;
 
@@ -19,16 +21,39 @@ public class BranchesController(
     IDistrictService districtService,
     ICityService cityService) : Controller
 {
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(int? companyId = null)
     {
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
         }
 
-        var branches = await dbContext.BranchMasters
-            .OrderBy(x => x.BranchName)
+        var query = dbContext.BranchMasters
+            .Include(x => x.Company)
+            .AsQueryable();
+
+        var userCompanyId = User.GetCompanyId();
+        if (!User.IsSuperAdmin())
+        {
+            query = query.Where(x => x.CompanyId == userCompanyId);
+        }
+        else if (companyId.HasValue && companyId.Value > 0)
+        {
+            query = query.Where(x => x.CompanyId == companyId.Value);
+        }
+
+        var branches = await query
+            .OrderBy(x => x.Company.CompanyName)
+            .ThenBy(x => x.BranchName)
             .ToListAsync();
+
+        ViewBag.Companies = await dbContext.CompanyMasters
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.CompanyName)
+            .Select(x => new SelectListItem(x.CompanyName, x.CompanyId.ToString(), companyId.HasValue && x.CompanyId == companyId.Value))
+            .ToListAsync();
+
+        ViewBag.SelectedCompanyId = companyId;
 
         return View(branches);
     }
@@ -37,6 +62,7 @@ public class BranchesController(
     public async Task<IActionResult> Details(int id)
     {
         var branch = await dbContext.BranchMasters
+            .Include(x => x.Company)
             .Include(x => x.UserBranches.Where(ub => ub.IsActive))
                 .ThenInclude(x => x.User)
             .Include(x => x.Roles.OrderBy(r => r.Name))
@@ -47,6 +73,8 @@ public class BranchesController(
         var model = new BranchDetailsViewModel
         {
             BranchId = branch.BranchId,
+            CompanyId = branch.CompanyId,
+            CompanyName = branch.Company?.CompanyName ?? "Primary Healthcare Network",
             BranchName = branch.BranchName,
             BranchCode = branch.BranchCode,
             Country = branch.Country,
@@ -71,14 +99,20 @@ public class BranchesController(
     }
 
     [HttpGet]
-    public IActionResult Create()
+    public async Task<IActionResult> Create(int? companyId = null)
     {
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
         }
 
-        return View(new BranchFormViewModel());
+        var model = new BranchFormViewModel
+        {
+            CompanyId = companyId ?? User.GetCompanyId(),
+            CompanyOptions = await GetActiveCompanyOptionsAsync()
+        };
+
+        return View(model);
     }
 
     [HttpPost]
@@ -97,11 +131,13 @@ public class BranchesController(
 
         if (!ModelState.IsValid)
         {
+            model.CompanyOptions = await GetActiveCompanyOptionsAsync();
             return View(model);
         }
 
         var branch = new BranchMaster
         {
+            CompanyId = model.CompanyId > 0 ? model.CompanyId : User.GetCompanyId(),
             BranchName = model.BranchName.Trim(),
             BranchCode = model.BranchCode.Trim(),
             Country = model.Country,
@@ -121,6 +157,7 @@ public class BranchesController(
         // Auto-create a default HospitalSettings record for the new branch
         var defaultSettings = new HospitalSettings
         {
+            CompanyId = branch.CompanyId,
             BranchId = branch.BranchId,
             HospitalName = branch.BranchName,
             IsActive = true,
@@ -130,7 +167,7 @@ public class BranchesController(
         dbContext.HospitalSettings.Add(defaultSettings);
         await dbContext.SaveChangesAsync();
 
-        await auditLogService.LogAsync("MasterData", "Branches.Create", $"Created branch: {branch.BranchName}", branchId: branch.BranchId);
+        await auditLogService.LogAsync("MasterData", "Branches.Create", $"Created branch: {branch.BranchName} under CompanyId: {branch.CompanyId}", branchId: branch.BranchId);
         TempData["Success"] = "Branch created successfully.";
 
         return RedirectToAction(nameof(Index));
@@ -153,6 +190,8 @@ public class BranchesController(
         var model = new BranchFormViewModel
         {
             BranchId = branch.BranchId,
+            CompanyId = branch.CompanyId,
+            CompanyOptions = await GetActiveCompanyOptionsAsync(),
             BranchName = branch.BranchName,
             BranchCode = branch.BranchCode,
             Country = branch.Country,
@@ -189,9 +228,11 @@ public class BranchesController(
 
         if (!ModelState.IsValid)
         {
+            model.CompanyOptions = await GetActiveCompanyOptionsAsync();
             return View(model);
         }
 
+        branch.CompanyId = model.CompanyId > 0 ? model.CompanyId : branch.CompanyId;
         branch.BranchName = model.BranchName.Trim();
         branch.BranchCode = model.BranchCode.Trim();
         branch.Country = model.Country;
@@ -210,6 +251,16 @@ public class BranchesController(
 
         return RedirectToAction(nameof(Index));
     }
+
+    private async Task<List<SelectListItem>> GetActiveCompanyOptionsAsync()
+    {
+        return await dbContext.CompanyMasters
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.CompanyName)
+            .Select(x => new SelectListItem(x.CompanyName, x.CompanyId.ToString()))
+            .ToListAsync();
+    }
+
 
     private bool CanManage() => true; // TODO: re-enable role check when authorization is implemented
 

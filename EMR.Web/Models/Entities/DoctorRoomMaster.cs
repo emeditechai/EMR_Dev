@@ -13,7 +13,9 @@ public class DoctorRoomMaster
     public string? FloorName { get; set; }
 
     public int BranchId { get; set; }
+    public int CompanyId { get; set; } = 1;
     public bool IsActive { get; set; } = true;
+
 
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;

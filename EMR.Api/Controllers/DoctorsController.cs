@@ -12,12 +12,17 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
 {
     // ── GET /api/doctors?branchId=1 ──────────────────────────────────────────
 
-    /// <summary>Get all doctors, optionally filtered by branch.</summary>
+    /// <summary>Get all doctors, optionally filtered by branch and company.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<DoctorListItem>>), 200)]
-    public async Task<IActionResult> GetList([FromQuery] int? branchId, [FromQuery] string? searchQuery = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+    public async Task<IActionResult> GetList(
+        [FromQuery] int? companyId,
+        [FromQuery] int? branchId,
+        [FromQuery] string? searchQuery = null,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10)
     {
-        var data = await doctorService.GetListAsync(branchId, searchQuery, pageNumber, pageSize);
+        var data = await doctorService.GetListAsync(companyId, branchId, searchQuery, pageNumber, pageSize);
         return Ok(ApiResponse<PagedResult<DoctorListItem>>.Ok(data));
     }
 
@@ -27,13 +32,14 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ApiResponse<DoctorDetail>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 404)]
-    public async Task<IActionResult> GetById(int id, [FromQuery] int? branchId)
+    public async Task<IActionResult> GetById(int id, [FromQuery] int? branchId, [FromQuery] int? companyId = null)
     {
-        var data = await doctorService.GetByIdAsync(id, branchId);
+        var data = await doctorService.GetByIdAsync(id, branchId, companyId);
         if (data is null)
             return NotFound(ApiResponse<object>.Fail($"Doctor {id} not found."));
         return Ok(ApiResponse<DoctorDetail>.Ok(data));
     }
+
 
     // ── POST /api/doctors ────────────────────────────────────────────────────
 

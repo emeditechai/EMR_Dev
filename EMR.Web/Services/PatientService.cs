@@ -243,8 +243,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     private static void AddPatientParams(DynamicParameters p, PatientMaster patient)
     {
+        p.Add("@CompanyId",              patient.CompanyId > 0 ? patient.CompanyId : 1);
         p.Add("@PhoneNumber",            patient.PhoneNumber);
         p.Add("@SecondaryPhoneNumber",   patient.SecondaryPhoneNumber);
+
         p.Add("@Salutation",             patient.Salutation);
         p.Add("@FirstName",              patient.FirstName);
         p.Add("@MiddleName",             patient.MiddleName);

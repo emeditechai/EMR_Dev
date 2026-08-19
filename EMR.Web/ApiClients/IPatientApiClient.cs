@@ -5,10 +5,11 @@ namespace EMR.Web.ApiClients;
 public interface IPatientApiClient
 {
     Task<PagedResult<PatientListItem>> GetByBranchAsync(
-        int? branchId, int page = 1, int pageSize = 20, string? search = null);
+        int? branchId, int page = 1, int pageSize = 20, string? search = null, int? companyId = null);
 
-    Task<PatientDetail?> GetByIdAsync(int patientId);
+    Task<PatientDetail?> GetByIdAsync(int patientId, int? companyId = null);
     Task<int?>           CreateAsync(PatientCreateRequest request);
     Task<bool>           UpdateAsync(PatientUpdateRequest request);
-    Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, string date);
+    Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, string date, int? companyId = null);
 }
+

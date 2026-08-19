@@ -10,12 +10,12 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
     // ─── GET BY BRANCH (paged) ────────────────────────────────────────────────
 
     public async Task<PagedResult<PatientListItem>> GetByBranchAsync(
-        int? branchId, int page, int pageSize, string? search = null)
+        int? companyId, int? branchId, int page, int pageSize, string? search = null)
     {
         using var con = db.CreateConnection();
         var rows = (await con.QueryAsync<PatientListItemWithTotal>(
             "usp_Api_Patient_GetByBranch",
-            new { BranchId = branchId, PageNumber = page, PageSize = pageSize, Search = search },
+            new { CompanyId = companyId, BranchId = branchId, PageNumber = page, PageSize = pageSize, Search = search },
             commandType: CommandType.StoredProcedure)).ToList();
 
         return new PagedResult<PatientListItem>
@@ -29,12 +29,12 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── GET BY ID ────────────────────────────────────────────────────────────
 
-    public async Task<PatientDetail?> GetByIdAsync(int patientId)
+    public async Task<PatientDetail?> GetByIdAsync(int patientId, int? companyId = null)
     {
         using var con = db.CreateConnection();
         return await con.QueryFirstOrDefaultAsync<PatientDetail>(
             "usp_Api_Patient_GetById",
-            new { PatientId = patientId },
+            new { PatientId = patientId, CompanyId = companyId },
             commandType: CommandType.StoredProcedure);
     }
 
@@ -47,6 +47,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             "usp_Api_Patient_Create",
             new
             {
+                CompanyId = req.CompanyId > 0 ? req.CompanyId : 1,
                 req.PhoneNumber,
                 req.SecondaryPhoneNumber,
                 req.Salutation,
@@ -79,6 +80,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             new
             {
                 req.PatientId,
+                CompanyId = req.CompanyId > 0 ? (int?)req.CompanyId : null,
                 req.PhoneNumber,
                 req.SecondaryPhoneNumber,
                 req.Salutation,
@@ -101,12 +103,12 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         return rows > 0;
     }
 
-    public async Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, DateTime date)
+    public async Task<OpdDashboardData?> GetOpdDashboardAsync(int? companyId, int branchId, DateTime date)
     {
         using var con = db.CreateConnection();
         using var multi = await con.QueryMultipleAsync(
             "usp_Api_OPD_Dashboard_GetStats",
-            new { BranchId = branchId, Date = date.Date },
+            new { CompanyId = companyId, BranchId = branchId, Date = date.Date },
             commandType: CommandType.StoredProcedure);
 
         var data = new OpdDashboardData();
@@ -120,6 +122,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
         return data;
     }
+
 
     // ─── Private helper with TotalCount ──────────────────────────────────────
     private class PatientListItemWithTotal : PatientListItem

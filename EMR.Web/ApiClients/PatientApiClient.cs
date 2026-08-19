@@ -14,9 +14,10 @@ public class PatientApiClient : IPatientApiClient
     }
 
     public async Task<PagedResult<PatientListItem>> GetByBranchAsync(
-        int? branchId, int page = 1, int pageSize = 20, string? search = null)
+        int? branchId, int page = 1, int pageSize = 20, string? search = null, int? companyId = null)
     {
         var qs = HttpUtility.ParseQueryString(string.Empty);
+        if (companyId.HasValue && companyId.Value > 0) qs["companyId"] = companyId.ToString();
         if (branchId.HasValue) qs["branchId"] = branchId.ToString();
         qs["page"]     = page.ToString();
         qs["pageSize"] = pageSize.ToString();
@@ -28,9 +29,11 @@ public class PatientApiClient : IPatientApiClient
         return response?.Data ?? new PagedResult<PatientListItem>();
     }
 
-    public async Task<PatientDetail?> GetByIdAsync(int patientId)
+    public async Task<PatientDetail?> GetByIdAsync(int patientId, int? companyId = null)
     {
-        var response = await _http.GetFromJsonAsync<ApiResponse<PatientDetail>>($"api/patients/{patientId}");
+        var url = $"api/patients/{patientId}";
+        if (companyId.HasValue && companyId.Value > 0) url += $"?companyId={companyId.Value}";
+        var response = await _http.GetFromJsonAsync<ApiResponse<PatientDetail>>(url);
         return response?.Data;
     }
 
@@ -54,10 +57,12 @@ public class PatientApiClient : IPatientApiClient
         return result?.Success == true;
     }
 
-    public async Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, string date)
+    public async Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, string date, int? companyId = null)
     {
         var url = $"api/patients/opd-dashboard?branchId={branchId}&date={date}";
+        if (companyId.HasValue && companyId.Value > 0) url += $"&companyId={companyId.Value}";
         var response = await _http.GetFromJsonAsync<ApiResponse<OpdDashboardData>>(url);
         return response?.Data;
     }
+
 }

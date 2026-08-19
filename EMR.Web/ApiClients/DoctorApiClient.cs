@@ -12,11 +12,14 @@ public class DoctorApiClient : IDoctorApiClient
         _http = factory.CreateClient("EmrApi");
     }
 
-    public async Task<PagedResult<DoctorListItem>> GetListAsync(int? branchId = null, string? searchQuery = null, int pageNumber = 1, int pageSize = 10)
+    public async Task<PagedResult<DoctorListItem>> GetListAsync(int? branchId = null, string? searchQuery = null, int pageNumber = 1, int pageSize = 10, int? companyId = null)
     {
         var url = "api/doctors";
         var queryParams = new List<string>();
         
+        if (companyId.HasValue && companyId.Value > 0)
+            queryParams.Add($"companyId={companyId.Value}");
+
         if (branchId.HasValue)
             queryParams.Add($"branchId={branchId.Value}");
             
@@ -33,15 +36,19 @@ public class DoctorApiClient : IDoctorApiClient
         return response?.Data ?? new PagedResult<DoctorListItem>();
     }
 
-    public async Task<DoctorDetail?> GetByIdAsync(int doctorId, int? branchId = null)
+    public async Task<DoctorDetail?> GetByIdAsync(int doctorId, int? branchId = null, int? companyId = null)
     {
-        var url = branchId.HasValue
-            ? $"api/doctors/{doctorId}?branchId={branchId}"
-            : $"api/doctors/{doctorId}";
+        var queryParams = new List<string>();
+        if (branchId.HasValue) queryParams.Add($"branchId={branchId.Value}");
+        if (companyId.HasValue && companyId.Value > 0) queryParams.Add($"companyId={companyId.Value}");
+
+        var url = $"api/doctors/{doctorId}";
+        if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
 
         var response = await _http.GetFromJsonAsync<ApiResponse<DoctorDetail>>(url);
         return response?.Data;
     }
+
 
     public async Task<int?> CreateAsync(DoctorCreateRequest request)
     {

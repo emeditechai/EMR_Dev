@@ -21,9 +21,10 @@ public class ReportsController : ControllerBase
         [FromQuery] int branchId,
         [FromQuery] DateTime fromDate,
         [FromQuery] DateTime toDate,
-        [FromQuery] bool isDetailed = false)
+        [FromQuery] bool isDetailed = false,
+        [FromQuery] int? companyId = null)
     {
-        var result = await _reportService.GetDailyCollectionRegisterAsync(branchId, fromDate, toDate, isDetailed);
+        var result = await _reportService.GetDailyCollectionRegisterAsync(companyId, branchId, fromDate, toDate, isDetailed);
         return Ok(result);
     }
 
@@ -32,9 +33,11 @@ public class ReportsController : ControllerBase
         [FromQuery] int branchId,
         [FromQuery] DateTime fromDate,
         [FromQuery] DateTime toDate,
-        [FromQuery] bool dependentOnly = false)
+        [FromQuery] bool dependentOnly = false,
+        [FromQuery] int? companyId = null)
     {
-        var result = await _reportService.GetPatientRegisterAsync(branchId, fromDate, toDate, dependentOnly);
+        var result = await _reportService.GetPatientRegisterAsync(companyId, branchId, fromDate, toDate, dependentOnly);
         return Ok(result);
     }
 }
+

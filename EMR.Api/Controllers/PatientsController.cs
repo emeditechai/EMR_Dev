@@ -16,12 +16,13 @@ public class PatientsController(IPatientService patientService) : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<PatientListItem>>), 200)]
     public async Task<IActionResult> GetByBranch(
+        [FromQuery] int?   companyId,
         [FromQuery] int?   branchId,
         [FromQuery] int    page     = 1,
         [FromQuery] int    pageSize = 20,
         [FromQuery] string? search  = null)
     {
-        var data = await patientService.GetByBranchAsync(branchId, page, pageSize, search);
+        var data = await patientService.GetByBranchAsync(companyId, branchId, page, pageSize, search);
         return Ok(ApiResponse<PagedResult<PatientListItem>>.Ok(data));
     }
 
@@ -31,9 +32,9 @@ public class PatientsController(IPatientService patientService) : ControllerBase
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ApiResponse<PatientDetail>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 404)]
-    public async Task<IActionResult> GetById(int id)
+    public async Task<IActionResult> GetById(int id, [FromQuery] int? companyId = null)
     {
-        var data = await patientService.GetByIdAsync(id);
+        var data = await patientService.GetByIdAsync(id, companyId);
         if (data is null)
             return NotFound(ApiResponse<object>.Fail($"Patient {id} not found."));
         return Ok(ApiResponse<PatientDetail>.Ok(data));
@@ -76,7 +77,10 @@ public class PatientsController(IPatientService patientService) : ControllerBase
     // ── GET /api/patients/opd-dashboard?branchId=1&date=2026-06-13 ──────────
     [HttpGet("opd-dashboard")]
     [ProducesResponseType(typeof(ApiResponse<OpdDashboardData>), 200)]
-    public async Task<IActionResult> GetOpdDashboard([FromQuery] int branchId, [FromQuery] string date)
+    public async Task<IActionResult> GetOpdDashboard(
+        [FromQuery] int branchId, 
+        [FromQuery] string date,
+        [FromQuery] int? companyId = null)
     {
         if (branchId <= 0)
             return BadRequest(ApiResponse<object>.Fail("Invalid branch ID."));
@@ -84,7 +88,8 @@ public class PatientsController(IPatientService patientService) : ControllerBase
         if (!DateTime.TryParse(date, out var dt))
             dt = DateTime.Today;
 
-        var data = await patientService.GetOpdDashboardAsync(branchId, dt);
+        var data = await patientService.GetOpdDashboardAsync(companyId, branchId, dt);
         return Ok(ApiResponse<OpdDashboardData>.Ok(data));
     }
+
 }

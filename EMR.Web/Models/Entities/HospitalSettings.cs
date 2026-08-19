@@ -6,6 +6,7 @@ public class HospitalSettings
 {
     public int Id { get; set; }
 
+    public int CompanyId { get; set; } = 1;
     public int BranchId { get; set; }
 
     [MaxLength(200)]
