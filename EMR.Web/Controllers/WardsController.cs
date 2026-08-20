@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,22 +11,31 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class WardsController(
     IWardService wardService,
+    IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(int? floorId = null, int? departmentId = null, string? wardType = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await wardService.GetAllAsync(floorId, departmentId, wardType, companyId, branchId);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await ipdMasterApiClient.GetWardsAsync(floorId, departmentId, wardType, companyId, branchId);
 
-        ViewBag.FloorId = floorId;
-        ViewBag.DepartmentId = departmentId;
-        ViewBag.WardType = wardType;
-        ViewBag.FloorOptions = await wardService.GetFloorOptionsAsync(floorId);
-        ViewBag.DepartmentOptions = await wardService.GetIpdDepartmentOptionsAsync(departmentId);
-        ViewBag.WardTypeOptions = wardService.GetWardTypeOptions(wardType);
+            ViewBag.FloorId = floorId;
+            ViewBag.DepartmentId = departmentId;
+            ViewBag.WardType = wardType;
+            ViewBag.FloorOptions = await wardService.GetFloorOptionsAsync(floorId);
+            ViewBag.DepartmentOptions = await wardService.GetIpdDepartmentOptionsAsync(departmentId);
+            ViewBag.WardTypeOptions = wardService.GetWardTypeOptions(wardType);
 
-        return View(list);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Ward Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

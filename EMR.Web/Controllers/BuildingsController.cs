@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,14 +11,23 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class BuildingsController(
     IBuildingService buildingService, 
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 {
     public async Task<IActionResult> Index()
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await buildingService.GetAllAsync(companyId, branchId);
-        return View(list);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await masterApiClient.GetBuildingsAsync(companyId, branchId);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Building Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

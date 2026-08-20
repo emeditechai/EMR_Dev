@@ -14,5 +14,5 @@ public interface INursingStationService
     Task UpdateAsync(NursingStationMaster model, int? userId);
     Task<bool> DeleteAsync(int id);
     Task<IEnumerable<SelectListItem>> GetWardOptionsAsync(int? selectedWardId = null);
-    IEnumerable<SelectListItem> GetNurseOptions(string? selectedNurse = null);
+    Task<IEnumerable<SelectListItem>> GetNurseOptionsAsync(int? companyId = null, int? branchId = null, string? selectedNurse = null);
 }

@@ -17,6 +17,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
     public DbSet<BuildingMaster> BuildingMasters => Set<BuildingMaster>();
     public DbSet<FloorMaster> FloorMasters => Set<FloorMaster>();
+    public DbSet<DepartmentMaster> DepartmentMasters => Set<DepartmentMaster>();
 
 
     // Patient Registration masters
@@ -52,6 +53,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<TariffCategoryMaster> TariffCategoryMasters => Set<TariffCategoryMaster>();
     public DbSet<BedRoomTariffMaster> BedRoomTariffMasters => Set<BedRoomTariffMaster>();
     public DbSet<BedRoomTariffHistory> BedRoomTariffHistories => Set<BedRoomTariffHistory>();
+    public DbSet<HospitalServiceMaster> HospitalServiceMasters => Set<HospitalServiceMaster>();
+    public DbSet<HospitalServiceRateMaster> HospitalServiceRateMasters => Set<HospitalServiceRateMaster>();
+    public DbSet<ProcedureMaster> ProcedureMasters => Set<ProcedureMaster>();
+    public DbSet<ProcedureTariffMaster> ProcedureTariffMasters => Set<ProcedureTariffMaster>();
+    public DbSet<OtMaster> OtMasters => Set<OtMaster>();
+    public DbSet<OtEquipmentMaster> OtEquipmentMasters => Set<OtEquipmentMaster>();
+    public DbSet<OtTariffMaster> OtTariffMasters => Set<OtTariffMaster>();
+    public DbSet<AnaesthesiaTypeMaster> AnaesthesiaTypeMasters => Set<AnaesthesiaTypeMaster>();
+    public DbSet<AnaesthesiaRateMaster> AnaesthesiaRateMasters => Set<AnaesthesiaRateMaster>();
+    public DbSet<IcuMaster> IcuMasters => Set<IcuMaster>();
+    public DbSet<IcuTariffMaster> IcuTariffMasters => Set<IcuTariffMaster>();
+    public DbSet<IcuTariffDetail> IcuTariffDetails => Set<IcuTariffDetail>();
 
 
 

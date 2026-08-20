@@ -1,0 +1,115 @@
+@model EMR.Web.Models.ViewModels.OtEquipmentFormViewModel
+@{
+    ViewData["Title"] = "Edit OT Equipment";
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">OT Equipment Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit Equipment</li>
+            </ol>
+        </nav>
+
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit OT Equipment</h5>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit" asp-route-id="@Model.EquipmentId" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="EquipmentId" />
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3" role="alert"></div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="OtId" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <select asp-for="OtId" asp-items="Model.OtOptions" class="form-select">
+                                <option value="">-- Select Operation Theatre --</option>
+                            </select>
+                            <span asp-validation-for="OtId" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="EquipmentType" class="form-label fw-semibold"></label>
+                            <select asp-for="EquipmentType" asp-items="Model.EquipmentTypeOptions" class="form-select">
+                                <option value="">-- Select Category / Type --</option>
+                            </select>
+                            <span asp-validation-for="EquipmentType" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="EquipmentCode" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <input asp-for="EquipmentCode" class="form-control font-monospace" placeholder="e.g. EQ-CARM-01" style="text-transform:uppercase" />
+                            <span asp-validation-for="EquipmentCode" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="EquipmentName" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <input asp-for="EquipmentName" class="form-control" placeholder="e.g. C-Arm Image Intensifier" />
+                            <span asp-validation-for="EquipmentName" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="SerialNo" class="form-label fw-semibold"></label>
+                            <input asp-for="SerialNo" class="form-control font-monospace" placeholder="e.g. SN-GE-9800-4412" />
+                            <span asp-validation-for="SerialNo" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Calibration Settings -->
+                        <div class="col-12">
+                            <div class="card bg-light border-0 p-3 rounded-3 mt-2">
+                                <div class="form-check form-switch mb-3">
+                                    <input asp-for="CalibrationRequired" class="form-check-input" type="checkbox" role="switch" id="switchCalibration" />
+                                    <label class="form-check-label fw-semibold" for="switchCalibration">
+                                        <i class="bi bi-patch-check me-1 text-primary"></i>Periodic Calibration & Biomedical Maintenance Required
+                                    </label>
+                                </div>
+                                <div class="row g-3" id="calibrationFields">
+                                    <div class="col-md-6">
+                                        <label asp-for="LastCalibrationDate" class="form-label fw-semibold small"></label>
+                                        <input asp-for="LastCalibrationDate" class="form-control form-control-sm" type="date" />
+                                        <span asp-validation-for="LastCalibrationDate" class="text-danger small"></span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label asp-for="CalibrationDueDate" class="form-label fw-semibold small"></label>
+                                        <input asp-for="CalibrationDueDate" class="form-control form-control-sm" type="date" />
+                                        <span asp-validation-for="CalibrationDueDate" class="text-danger small"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold"></label>
+                            <textarea asp-for="Description" class="form-control" rows="2" placeholder="Optional notes regarding manufacturer, warranty, power specs, or clinical instructions..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="switchIsActive" />
+                                <label class="form-check-label fw-semibold" for="switchIsActive">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

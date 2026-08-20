@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,20 +11,29 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class ClinicalUnitsController(
     IClinicalUnitService clinicalUnitService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 {
     public async Task<IActionResult> Index(int? departmentId = null, int? specialityId = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await clinicalUnitService.GetAllAsync(departmentId, specialityId, companyId, branchId);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await masterApiClient.GetClinicalUnitsAsync(departmentId, specialityId, companyId, branchId);
 
-        ViewBag.DepartmentId = departmentId;
-        ViewBag.SpecialityId = specialityId;
-        ViewBag.DepartmentOptions = await clinicalUnitService.GetDepartmentOptionsAsync(departmentId);
-        ViewBag.SpecialityOptions = await clinicalUnitService.GetSpecialityOptionsAsync(specialityId);
+            ViewBag.DepartmentId = departmentId;
+            ViewBag.SpecialityId = specialityId;
+            ViewBag.DepartmentOptions = await clinicalUnitService.GetDepartmentOptionsAsync(departmentId);
+            ViewBag.SpecialityOptions = await clinicalUnitService.GetSpecialityOptionsAsync(specialityId);
 
-        return View(list);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Clinical Unit Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

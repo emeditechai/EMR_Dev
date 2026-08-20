@@ -56,15 +56,25 @@ public class BedRoomTariffMaster
     public DateTime? ModifiedDate { get; set; }
 
     // Join helper fields
+    [NotMapped]
     public string? WardName { get; set; }
+    [NotMapped]
     public string? WardCode { get; set; }
+    [NotMapped]
     public string? RoomNumber { get; set; }
+    [NotMapped]
     public string? RoomType { get; set; }
+    [NotMapped]
     public string? BedCategoryName { get; set; }
+    [NotMapped]
     public string? BedCategoryCode { get; set; }
+    [NotMapped]
     public string? TariffCategoryName { get; set; }
+    [NotMapped]
     public string? TariffCategoryCode { get; set; }
+    [NotMapped]
     public string? PatientCategory { get; set; }
+    [NotMapped]
     public string? BranchName { get; set; }
 
     // Computed helper properties

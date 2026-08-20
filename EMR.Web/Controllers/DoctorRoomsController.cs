@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -9,15 +10,27 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class DoctorRoomsController(IDoctorRoomService doctorRoomService, IFloorService floorService, IAuditLogService auditLogService) : Controller
+public class DoctorRoomsController(
+    IDoctorRoomService doctorRoomService, 
+    IFloorService floorService, 
+    IAuditLogService auditLogService,
+    IOpdMasterApiClient opdApiClient) : Controller
 {
     public async Task<IActionResult> Index()
     {
         var branchId = User.GetCurrentBranchId();
         if (branchId is null) return RedirectToAction("Login", "Account");
 
-        var list = await doctorRoomService.GetAllByBranchAsync(branchId.Value);
-        return View(list);
+        try
+        {
+            var list = await opdApiClient.GetDoctorRoomsAsync(branchId.Value);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Doctor Room Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

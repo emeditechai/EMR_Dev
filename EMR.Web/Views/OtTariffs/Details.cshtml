@@ -1,0 +1,137 @@
+@model EMR.Web.Models.Entities.OtTariffMaster
+@{
+    ViewData["Title"] = "OT Tariff Details";
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">OT Tariff Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Tariff Details</li>
+            </ol>
+        </nav>
+
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-calculator me-2 text-primary"></i>OT Tariff Details</h5>
+                <div>
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2">Inactive</span>
+                    }
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Tariff Category</label>
+                        <span class="fs-5 fw-bold text-primary">@(Model.TariffCategory?.Name ?? "N/A")</span>
+                        @if (!string.IsNullOrWhiteSpace(Model.TariffCategory?.PatientCategory))
+                        {
+                            <span class="badge bg-secondary-subtle text-secondary ms-1">@Model.TariffCategory.PatientCategory</span>
+                        }
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Operation Theatre</label>
+                        <span class="fs-5 fw-semibold">@(Model.Ot?.OtName ?? "N/A")</span>
+                        <div class="small text-muted">
+                            <span class="font-monospace text-primary">@(Model.Ot?.OtCode)</span>
+                            <span class="mx-1">•</span>
+                            <span class="badge bg-info-subtle text-info-emphasis">@(Model.Ot?.OtType)</span>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Location (Building & Floor)</label>
+                        <span class="fw-medium">@(Model.Ot?.Floor?.FloorName ?? "N/A")</span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">OT Capacity</label>
+                        <span class="fw-medium">@(Model.Ot?.Capacity ?? "1 Table")</span>
+                    </div>
+
+                    <!-- Charges Breakdown Card -->
+                    <div class="col-12">
+                        <div class="card bg-light border-0 p-3 rounded-3">
+                            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-receipt me-2 text-primary"></i>OT Charges & Breakdown</h6>
+                            <div class="row g-3">
+                                <div class="col-sm-4">
+                                    <label class="text-muted small d-block">OT Usage Rate</label>
+                                    <span class="fw-bold">@Model.OtUsageRate.ToString("C2")</span>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label class="text-muted small d-block">Nursing Charges</label>
+                                    <span class="fw-bold">@Model.NursingCharges.ToString("C2")</span>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label class="text-muted small d-block">Standard Equipment Charges</label>
+                                    <span class="fw-bold">@Model.EquipmentCharges.ToString("C2")</span>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label class="text-muted small d-block">Recovery Room Charges</label>
+                                    <span class="fw-bold">@Model.RecoveryCharges.ToString("C2")</span>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label class="text-muted small d-block">Surgical Consumables</label>
+                                    <span class="fw-bold">@Model.ConsumableCharges.ToString("C2")</span>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label class="text-muted small d-block">Special Equipment Charges</label>
+                                    <span class="fw-bold">@Model.SpecialEquipmentCharges.ToString("C2")</span>
+                                </div>
+                                <div class="col-sm-12">
+                                    <div class="p-3 bg-white rounded-3 border d-flex justify-content-between align-items-center mt-2">
+                                        <div>
+                                            <span class="fw-bold text-dark">Total OT Tariff Rate:</span>
+                                            <small class="text-muted d-block">All-inclusive standard theatre charge</small>
+                                        </div>
+                                        <span class="fs-4 fw-bold text-success font-monospace">@Model.TotalRate.ToString("C2")</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Effective From</label>
+                        <span class="fw-medium">@Model.EffectiveFrom.ToString("dd MMM yyyy")</span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Effective To</label>
+                        <span class="fw-medium">@(Model.EffectiveTo.HasValue ? Model.EffectiveTo.Value.ToString("dd MMM yyyy") : "Ongoing")</span>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="text-muted small d-block">Description / Package Remarks</label>
+                        <p class="mb-0 text-secondary">@(string.IsNullOrWhiteSpace(Model.Description) ? "No remarks." : Model.Description)</p>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Branch</label>
+                        <span class="text-muted">@(Model.Branch?.BranchName ?? "Current Branch")</span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Created Date</label>
+                        <span class="text-muted">@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between gap-2 mt-4 pt-3 border-top">
+                    <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to List</a>
+                    <a asp-action="Edit" asp-route-id="@Model.OtTariffId" class="btn btn-primary">
+                        <i class="bi bi-pencil me-1"></i>Edit Tariff
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

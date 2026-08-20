@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,20 +11,29 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class StatesController(IStateService stateService, ICountryService countryService, IAuditLogService auditLogService) : Controller
+public class StatesController(
+    IStateService stateService, 
+    ICountryService countryService, 
+    IAuditLogService auditLogService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 {
     public async Task<IActionResult> Index(int? countryId)
     {
-        var all = await stateService.GetAllAsync();
-        var list = countryId.HasValue
-            ? all.Where(s => s.CountryId == countryId.Value)
-            : all;
+        try
+        {
+            var list = await masterApiClient.GetStatesAsync(countryId);
 
-        ViewBag.Countries = (await countryService.GetActiveAsync())
-            .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), c.CountryId == countryId))
-            .ToList();
-        ViewBag.SelectedCountryId = countryId;
-        return View(list);
+            ViewBag.Countries = (await countryService.GetActiveAsync())
+                .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), c.CountryId == countryId))
+                .ToList();
+            ViewBag.SelectedCountryId = countryId;
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "State Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

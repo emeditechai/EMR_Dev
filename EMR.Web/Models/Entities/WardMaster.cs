@@ -45,11 +45,16 @@ public class WardMaster
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
 
-    // Join helper fields
+    // Join helper fields (not in table)
+    [NotMapped]
     public string? FloorName { get; set; }
+    [NotMapped]
     public string? FloorCode { get; set; }
+    [NotMapped]
     public string? BuildingName { get; set; }
+    [NotMapped]
     public string? DepartmentName { get; set; }
+    [NotMapped]
     public string? DepartmentCode { get; set; }
 
     // Navigations

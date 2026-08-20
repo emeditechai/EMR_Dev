@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -12,34 +13,32 @@ namespace EMR.Web.Controllers;
 public class DistrictsController(
     IDistrictService districtService,
     IStateService stateService,
-    ICountryService countryService) : Controller
+    ICountryService countryService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 {
     public async Task<IActionResult> Index(int? countryId, int? stateId)
     {
-        var all = await districtService.GetAllAsync();
-        IEnumerable<DistrictMaster> list = all;
-        if (stateId.HasValue)
+        try
         {
-            list = all.Where(d => d.StateId == stateId.Value);
-        }
-        else if (countryId.HasValue)
-        {
-            var states = await stateService.GetByCountryAsync(countryId.Value);
-            var stateIds = states.Select(s => s.StateId).ToHashSet();
-            list = all.Where(d => stateIds.Contains(d.StateId));
-        }
+            var list = await masterApiClient.GetDistrictsAsync(countryId, stateId);
 
-        ViewBag.Countries = (await countryService.GetActiveAsync())
-            .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), c.CountryId == countryId))
-            .ToList();
-        ViewBag.States = countryId.HasValue
-            ? (await stateService.GetByCountryAsync(countryId.Value))
-                .Select(s => new SelectListItem(s.StateName, s.StateId.ToString(), s.StateId == stateId))
-                .ToList()
-            : new List<SelectListItem>();
-        ViewBag.SelectedCountryId = countryId;
-        ViewBag.SelectedStateId = stateId;
-        return View(list);
+            ViewBag.Countries = (await countryService.GetActiveAsync())
+                .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), c.CountryId == countryId))
+                .ToList();
+            ViewBag.States = countryId.HasValue
+                ? (await stateService.GetByCountryAsync(countryId.Value))
+                    .Select(s => new SelectListItem(s.StateName, s.StateId.ToString(), s.StateId == stateId))
+                    .ToList()
+                : new List<SelectListItem>();
+            ViewBag.SelectedCountryId = countryId;
+            ViewBag.SelectedStateId = stateId;
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "District Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

@@ -1,0 +1,206 @@
+@model EMR.Web.Models.ViewModels.ProcedureDetailsViewModel
+@{
+    ViewData["Title"] = "Procedure Details";
+    var procedure = Model.Procedure;
+    var tariffs = Model.Tariffs;
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-9">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Procedure Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Procedure Details</li>
+            </ol>
+        </nav>
+
+        <!-- Procedure Details Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-heart-pulse me-2 text-primary"></i>Procedure Details</h5>
+                <div>
+                    @if (procedure.IsActive)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2">Inactive</span>
+                    }
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Procedure Code</label>
+                        <span class="font-monospace fs-5 fw-bold text-primary">@procedure.ProcedureCode</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Procedure Name</label>
+                        <span class="fs-5 fw-semibold">@procedure.ProcedureName</span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">IPD Department</label>
+                        <span class="fw-medium">@(procedure.Department?.DeptName ?? "N/A")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Doctor Speciality</label>
+                        <span class="fw-medium">@(procedure.Speciality?.SpecialityName ?? "N/A")</span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Procedure Category</label>
+                        <span class="badge bg-info-subtle text-info-emphasis border fs-6">@procedure.ProcedureCategory</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Estimated Duration</label>
+                        <span class="badge bg-light text-dark border fs-6 font-monospace">
+                            <i class="bi bi-clock me-1"></i>@procedure.DurationFormatted
+                        </span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Anaesthesia Requirement</label>
+                        @if (procedure.AnaesthesiaRequired)
+                        {
+                            <span class="badge bg-warning-subtle text-warning-emphasis border"><i class="bi bi-shield-plus me-1"></i>Anaesthesia Required</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>Not Required</span>
+                        }
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Consent Form Requirement</label>
+                        @if (procedure.ConsentRequired)
+                        {
+                            <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-file-earmark-check me-1"></i>Signed Consent Mandatory</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>Not Mandatory</span>
+                        }
+                    </div>
+
+                    <div class="col-12">
+                        <label class="text-muted small d-block">Description / Remarks</label>
+                        <p class="mb-0 text-secondary">@(string.IsNullOrWhiteSpace(procedure.Description) ? "No description provided." : procedure.Description)</p>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Branch</label>
+                        <span class="text-muted">@(procedure.Branch?.BranchName ?? "Current Branch")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Created Date</label>
+                        <span class="text-muted">@procedure.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configured Tariffs Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0 fw-bold @(Model.HasConfiguredTariffs ? "text-success" : "text-secondary")">
+                    <i class="bi bi-cash-coin me-2"></i>Configured Tariffs & Packages
+                    @if (Model.HasConfiguredTariffs)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-2">@tariffs.Count Configured</span>
+                    }
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.HasConfiguredTariffs)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4">Tariff Category</th>
+                                    <th>Total Rate</th>
+                                    <th>Fee Breakdown</th>
+                                    <th>Effective From</th>
+                                    <th>Status</th>
+                                    <th class="text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tariff in tariffs)
+                                {
+                                    <tr>
+                                        <td class="ps-4">
+                                            <div class="fw-bold">@(tariff.TariffCategory?.Name ?? "General")</div>
+                                            @if (!string.IsNullOrWhiteSpace(tariff.TariffCategory?.PatientCategory))
+                                            {
+                                                <small class="text-muted">@tariff.TariffCategory.PatientCategory</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="fs-5 fw-bold text-success">@tariff.TotalRate.ToString("C2")</span>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted d-block">Surgeon: @tariff.SurgeonFee.ToString("C0") | OT: @tariff.OtCharges.ToString("C0")</small>
+                                            <small class="text-muted d-block">Equip: @tariff.EquipmentCharges.ToString("C0") | Consumable: @tariff.ConsumableCharges.ToString("C0")</small>
+                                        </td>
+                                        <td>
+                                            <div>@tariff.EffectiveFrom.ToString("dd MMM yyyy")</div>
+                                            <small class="text-muted">@(tariff.EffectiveTo.HasValue ? tariff.EffectiveTo.Value.ToString("dd MMM yyyy") : "Ongoing")</small>
+                                        </td>
+                                        <td>
+                                            @if (tariff.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <div class="btn-group btn-group-sm">
+                                                <a asp-controller="ProcedureTariffs" asp-action="Details" asp-route-id="@tariff.ProcedureTariffId" class="btn btn-outline-info" title="View Tariff Details">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <a asp-controller="ProcedureTariffs" asp-action="Edit" asp-route-id="@tariff.ProcedureTariffId" class="btn btn-outline-primary" title="Edit Tariff">
+                                                    <i class="bi bi-pencil me-1"></i>Edit Tariff
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-4 text-center text-muted">
+                        <i class="bi bi-cash-coin fs-1 d-block mb-2 text-secondary"></i>
+                        <p class="mb-1 fw-semibold text-secondary">No tariffs configured yet for this procedure</p>
+                        <small class="text-muted d-block mb-3">Click the "Configure Tariff" button below to set pricing and fee breakdown.</small>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Action Footer -->
+        <div class="d-flex justify-content-between align-items-center gap-2 pt-2">
+            <a asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to List
+            </a>
+            <div class="d-flex gap-2">
+                @if (!Model.HasConfiguredTariffs)
+                {
+                    <a asp-controller="ProcedureTariffs" asp-action="Create" asp-route-procedureId="@procedure.ProcedureId" class="btn btn-success">
+                        <i class="bi bi-plus-lg me-1"></i>Configure Tariff
+                    </a>
+                }
+                <a asp-action="Edit" asp-route-id="@procedure.ProcedureId" class="btn btn-primary">
+                    <i class="bi bi-pencil me-1"></i>Edit Procedure
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

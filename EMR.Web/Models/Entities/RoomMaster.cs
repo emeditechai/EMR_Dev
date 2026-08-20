@@ -46,12 +46,19 @@ public class RoomMaster
     public DateTime? ModifiedDate { get; set; }
 
     // Join helper fields
+    [NotMapped]
     public string? BuildingName { get; set; }
+    [NotMapped]
     public string? BuildingCode { get; set; }
+    [NotMapped]
     public string? FloorName { get; set; }
+    [NotMapped]
     public string? FloorCode { get; set; }
+    [NotMapped]
     public string? WardName { get; set; }
+    [NotMapped]
     public string? WardCode { get; set; }
+    [NotMapped]
     public string? WardType { get; set; }
 
     // Navigations

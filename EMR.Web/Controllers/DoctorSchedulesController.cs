@@ -39,41 +39,48 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> Configure(int doctorId)
         {
-            var branchId = GetCurrentBranchId();
-            var doctor = await _doctorApiClient.GetByIdAsync(doctorId, branchId);
-            
-            if (doctor == null)
+            try
             {
-                TempData["ErrorMessage"] = "Doctor not found or you do not have access.";
-                return RedirectToAction("Index", "Doctors");
+                var branchId = GetCurrentBranchId();
+                var doctor = await _doctorApiClient.GetByIdAsync(doctorId, branchId);
+                
+                if (doctor == null)
+                {
+                    TempData["ErrorMessage"] = "Doctor not found or you do not have access.";
+                    return RedirectToAction("Index", "Doctors");
+                }
+
+                var schedules = await _scheduleApiClient.GetByDoctorAsync(doctorId, branchId);
+                var exceptions = await _scheduleApiClient.GetExceptionsAsync(doctorId, branchId);
+
+                // Create SelectList for Days of Week
+                var days = new List<SelectListItem>
+                {
+                    new() { Value = "1", Text = "Monday" },
+                    new() { Value = "2", Text = "Tuesday" },
+                    new() { Value = "3", Text = "Wednesday" },
+                    new() { Value = "4", Text = "Thursday" },
+                    new() { Value = "5", Text = "Friday" },
+                    new() { Value = "6", Text = "Saturday" },
+                    new() { Value = "0", Text = "Sunday" }
+                };
+
+                var model = new DoctorScheduleIndexViewModel
+                {
+                    DoctorId = doctorId,
+                    DoctorName = doctor.FullName,
+                    Schedules = schedules,
+                    Exceptions = exceptions,
+                    DayOfWeekOptions = new SelectList(days, "Value", "Text")
+                };
+
+                return View(model);
             }
-
-            var schedules = await _scheduleApiClient.GetByDoctorAsync(doctorId, branchId);
-            var exceptions = await _scheduleApiClient.GetExceptionsAsync(doctorId, branchId);
-
-            // Create SelectList for Days of Week
-            var days = new List<SelectListItem>
+            catch (HttpRequestException)
             {
-                new() { Value = "1", Text = "Monday" },
-                new() { Value = "2", Text = "Tuesday" },
-                new() { Value = "3", Text = "Wednesday" },
-                new() { Value = "4", Text = "Thursday" },
-                new() { Value = "5", Text = "Friday" },
-                new() { Value = "6", Text = "Saturday" },
-                new() { Value = "7", Text = "Sunday" }
-            };
-
-            var model = new DoctorScheduleIndexViewModel
-            {
-                DoctorId = doctorId,
-                DoctorName = doctor.FullName,
-                Schedules = schedules,
-                Exceptions = exceptions,
-                DayOfWeekOptions = new SelectList(days, "Value", "Text")
-                // RoomOptions can be added if you have a RoomApiClient or similar
-            };
-
-            return View(model);
+                ViewData["PageName"] = "Doctor Schedule Configuration";
+                return View("ApiDown");
+            }
         }
 
         [HttpGet]

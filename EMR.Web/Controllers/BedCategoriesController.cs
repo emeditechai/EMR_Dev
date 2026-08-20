@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,14 +11,23 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class BedCategoriesController(
     IBedCategoryService bedCategoryService,
+    IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index()
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await bedCategoryService.GetAllAsync(companyId, branchId);
-        return View(list);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await ipdMasterApiClient.GetBedCategoriesAsync(companyId, branchId);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Bed Category Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

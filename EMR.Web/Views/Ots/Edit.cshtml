@@ -1,0 +1,103 @@
+@model EMR.Web.Models.ViewModels.OtFormViewModel
+@{
+    ViewData["Title"] = "Edit Operation Theatre";
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">OT Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit Operation Theatre</li>
+            </ol>
+        </nav>
+
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Operation Theatre (OT)</h5>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit" asp-route-id="@Model.OtId" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="OtId" />
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="BranchId" />
+
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3" role="alert"></div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="FloorId" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <select asp-for="FloorId" asp-items="Model.FloorOptions" class="form-select">
+                                <option value="">-- Select Building & Floor --</option>
+                            </select>
+                            <span asp-validation-for="FloorId" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="OtType" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <select asp-for="OtType" asp-items="Model.OtTypeOptions" class="form-select">
+                                <option value="">-- Select OT Type --</option>
+                            </select>
+                            <span asp-validation-for="OtType" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="OtCode" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <input asp-for="OtCode" class="form-control font-monospace" placeholder="e.g. OT-MAJ-01" style="text-transform:uppercase" />
+                            <span asp-validation-for="OtCode" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="OtName" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <input asp-for="OtName" class="form-control" placeholder="e.g. Main Major Surgery OT 1" />
+                            <span asp-validation-for="OtName" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="Capacity" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <input asp-for="Capacity" class="form-control" placeholder="e.g. 1 Table (Modular) or 2 Stations" />
+                            <span asp-validation-for="Capacity" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card bg-light border-0 p-3 rounded-3 mt-1">
+                                <div class="form-check form-switch mb-0">
+                                    <input asp-for="EmergencyAvailable" class="form-check-input" type="checkbox" role="switch" id="switchEmergency" />
+                                    <label class="form-check-label fw-semibold" for="switchEmergency">
+                                        <i class="bi bi-lightning-charge-fill me-1 text-danger"></i>24x7 Emergency Available
+                                    </label>
+                                    <small class="text-muted d-block mt-1">Check if this OT is staffed/available 24x7 for trauma or emergency surgeries.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold"></label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Optional notes regarding laminar flow, sterility class, specialized setups..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="switchIsActive" />
+                                <label class="form-check-label fw-semibold" for="switchIsActive">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

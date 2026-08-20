@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -8,7 +9,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class ServicesController(IServiceService serviceService, IAuditLogService auditLogService) : Controller
+public class ServicesController(
+    IServiceService serviceService, 
+    IAuditLogService auditLogService,
+    IOpdMasterApiClient opdApiClient) : Controller
 {
     private static readonly List<string> ServiceTypes = ["Consulting", "Service"];
 
@@ -17,8 +21,16 @@ public class ServicesController(IServiceService serviceService, IAuditLogService
         var branchId = User.GetCurrentBranchId();
         if (branchId is null) return RedirectToAction("Login", "Account");
 
-        var list = await serviceService.GetAllByBranchAsync(branchId.Value);
-        return View(list);
+        try
+        {
+            var list = await opdApiClient.GetServicesAsync(branchId.Value);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Service Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

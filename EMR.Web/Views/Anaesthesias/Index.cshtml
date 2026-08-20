@@ -1,0 +1,687 @@
+@model EMR.Web.Models.ViewModels.AnaesthesiaUnifiedViewModel
+@{
+    ViewData["Title"] = "Anaesthesia Master";
+    var rates = Model.Rates ?? [];
+    var types = Model.Types ?? [];
+    var isRatesActive = Model.ActiveTab != "types";
+}
+
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item">Master</li>
+                    <li class="breadcrumb-item">IPD Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">Anaesthesia Master</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 fw-bold text-dark">
+                <i class="bi bi-shield-plus me-2 text-primary"></i>Anaesthesia Master & Rates
+            </h1>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addTypeModal">
+                <i class="bi bi-plus-circle me-1"></i>Add Anaesthesia Type
+            </button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRateModal">
+                <i class="bi bi-plus-lg me-1"></i>Configure Anaesthesia Rate
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-primary-subtle text-primary p-3 me-3">
+                        <i class="bi bi-shield-plus fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Anaesthesia Types</div>
+                        <div class="fs-4 fw-bold text-dark">@Model.TotalTypesCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-success-subtle text-success p-3 me-3">
+                        <i class="bi bi-check-circle fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Active Types</div>
+                        <div class="fs-4 fw-bold text-success">@Model.ActiveTypesCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-info-subtle text-info-emphasis p-3 me-3">
+                        <i class="bi bi-calculator fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Configured Rates</div>
+                        <div class="fs-4 fw-bold text-dark">@Model.TotalRatesCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-warning-subtle text-warning-emphasis p-3 me-3">
+                        <i class="bi bi-cash-coin fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Active Rates</div>
+                        <div class="fs-4 fw-bold text-warning-emphasis">@Model.ActiveRatesCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Master Card with Tabs -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white border-bottom pt-3 pb-0">
+            <ul class="nav nav-tabs card-header-tabs" id="anaesthesiaTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-semibold @(isRatesActive ? "active" : "")" id="rates-tab" data-bs-toggle="tab" data-bs-target="#rates-pane" type="button" role="tab">
+                        <i class="bi bi-cash-coin me-2"></i>Anaesthesia Rate Master
+                        <span class="badge bg-primary-subtle text-primary border ms-2">@rates.Count</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-semibold @(!isRatesActive ? "active" : "")" id="types-tab" data-bs-toggle="tab" data-bs-target="#types-pane" type="button" role="tab">
+                        <i class="bi bi-list-check me-2"></i>Anaesthesia Types
+                        <span class="badge bg-secondary-subtle text-secondary border ms-2">@types.Count</span>
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="tab-content" id="anaesthesiaTabsContent">
+            <!-- TAB 1: Anaesthesia Rate Master -->
+            <div class="tab-pane fade @(isRatesActive ? "show active" : "") p-3" id="rates-pane" role="tabpanel">
+                <!-- Rates Filter Bar -->
+                <div class="bg-light p-3 rounded-3 mb-3">
+                    <form method="get" asp-action="Index" class="row g-2 align-items-end">
+                        <input type="hidden" name="tab" value="rates" />
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold text-muted mb-1">Procedure</label>
+                            <select name="procedureId" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">-- All Procedures --</option>
+                                @foreach (var opt in Model.ProcedureOptions)
+                                {
+                                    <option value="@opt.Value" selected="@(opt.Value == Model.SelectedProcedureId?.ToString())">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-muted mb-1">Anaesthesia Type</label>
+                            <select name="anaesthesiaTypeId" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">-- All Anaesthesia Types --</option>
+                                @foreach (var opt in Model.AnaesthesiaTypeOptions)
+                                {
+                                    <option value="@opt.Value" selected="@(opt.Value == Model.SelectedAnaesthesiaTypeId?.ToString())">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+                                <i class="bi bi-filter me-1"></i>Filter
+                            </button>
+                            @if (Model.SelectedProcedureId.HasValue || Model.SelectedAnaesthesiaTypeId.HasValue)
+                            {
+                                <a asp-action="Index" asp-route-tab="rates" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                                    <i class="bi bi-x-circle"></i>
+                                </a>
+                            }
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Rates Table -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Procedure Details</th>
+                                <th>Anaesthesia Type</th>
+                                <th>Anaesthetist Fee</th>
+                                <th>Consumables & Gases</th>
+                                <th>Total Rate</th>
+                                <th>Effective Period</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (rates.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        No anaesthesia rates configured. Click "Configure Anaesthesia Rate" to set pricing.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in rates)
+                                {
+                                    <tr>
+                                        <td class="ps-3">
+                                            <div class="fw-semibold">@item.ProcedureName</div>
+                                            <div class="small text-muted">
+                                                <span class="font-monospace text-primary fw-bold">@item.ProcedureCode</span>
+                                                <span class="mx-1">•</span>
+                                                <span>@item.ProcedureCategory</span>
+                                                @if (!string.IsNullOrWhiteSpace(item.DepartmentName))
+                                                {
+                                                    <span class="mx-1">•</span>
+                                                    <span>@item.DepartmentName</span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info-subtle text-info-emphasis border fs-6">
+                                                @item.AnaesthesiaTypeName
+                                            </span>
+                                            <small class="font-monospace text-muted d-block mt-1">@item.AnaesthesiaTypeCode</small>
+                                        </td>
+                                        <td>
+                                            <span class="fw-medium">@item.AnaesthetistFee.ToString("C2")</span>
+                                        </td>
+                                        <td>
+                                            <span class="fw-medium">@item.ConsumableCharge.ToString("C2")</span>
+                                        </td>
+                                        <td>
+                                            <span class="fs-5 fw-bold text-success font-monospace">@item.TotalRate.ToString("C2")</span>
+                                        </td>
+                                        <td>
+                                            <div><i class="bi bi-calendar-event me-1 text-muted"></i>@item.EffectiveFrom.ToString("dd MMM yyyy")</div>
+                                            <small class="text-muted">
+                                                @(item.EffectiveTo.HasValue ? $"to {item.EffectiveTo.Value:dd MMM yyyy}" : "Ongoing")
+                                            </small>
+                                        </td>
+                                        <td>
+                                            @if (item.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary" onclick="openEditRateModal(@item.AnaesthesiaRateId)" title="Edit Rate">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form asp-action="ToggleRateStatus" asp-route-id="@item.AnaesthesiaRateId" method="post" class="d-inline" onsubmit="return confirm('Toggle status for this rate?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
+                                                        <i class="bi @(item.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
+                                                    </button>
+                                                </form>
+                                                <form asp-action="DeleteRate" asp-route-id="@item.AnaesthesiaRateId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this anaesthesia rate?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: Anaesthesia Types -->
+            <div class="tab-pane fade @(!isRatesActive ? "show active" : "") p-3" id="types-pane" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Type Code</th>
+                                <th>Anaesthesia Type Name</th>
+                                <th>Description / Clinical Scope</th>
+                                <th>Rates Configured</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (types.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        No anaesthesia types found. Click "Add Anaesthesia Type" to create one.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var t in types)
+                                {
+                                    <tr>
+                                        <td class="ps-3">
+                                            <span class="font-monospace fw-bold text-primary">@t.TypeCode</span>
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold">@t.TypeName</div>
+                                        </td>
+                                        <td>
+                                            <small class="text-secondary">@(string.IsNullOrWhiteSpace(t.Description) ? "—" : t.Description)</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-light text-dark border">
+                                                <i class="bi bi-cash-coin me-1"></i>@t.TotalRatesConfigured Rates
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if (t.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary" onclick="openEditTypeModal(@t.AnaesthesiaTypeId)" title="Edit Type">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form asp-action="ToggleTypeStatus" asp-route-id="@t.AnaesthesiaTypeId" method="post" class="d-inline" onsubmit="return confirm('Toggle status for this type?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-warning" title="@(t.IsActive ? "Deactivate" : "Activate")">
+                                                        <i class="bi @(t.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
+                                                    </button>
+                                                </form>
+                                                <form asp-action="DeleteType" asp-route-id="@t.AnaesthesiaTypeId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this type?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: ADD ANAESTHESIA TYPE                                               -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="addTypeModal" tabindex="-1" aria-labelledby="addTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="addTypeModalLabel"><i class="bi bi-shield-plus me-2 text-primary"></i>Add Anaesthesia Type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="CreateType" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Type Code <span class="text-danger">*</span></label>
+                        <input name="TypeCode" class="form-control font-monospace" placeholder="e.g. GEN, SPN, EPI, LOC" style="text-transform:uppercase" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Type Name <span class="text-danger">*</span></label>
+                        <input name="TypeName" class="form-control" placeholder="e.g. General Anaesthesia" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description / Clinical Scope</label>
+                        <textarea name="Description" class="form-control" rows="3" placeholder="Optional notes regarding anaesthesia delivery..."></textarea>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" checked id="addTypeIsActive" />
+                        <label class="form-check-label fw-semibold" for="addTypeIsActive">Active Status</label>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Type</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: EDIT ANAESTHESIA TYPE                                              -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="editTypeModal" tabindex="-1" aria-labelledby="editTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="editTypeModalLabel"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Anaesthesia Type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="EditType" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="AnaesthesiaTypeId" id="editTypeId" />
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Type Code <span class="text-danger">*</span></label>
+                        <input name="TypeCode" id="editTypeCode" class="form-control font-monospace" style="text-transform:uppercase" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Type Name <span class="text-danger">*</span></label>
+                        <input name="TypeName" id="editTypeName" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description / Clinical Scope</label>
+                        <textarea name="Description" id="editTypeDesc" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" id="editTypeIsActive" />
+                        <label class="form-check-label fw-semibold" for="editTypeIsActive">Active Status</label>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: CONFIGURE ANAESTHESIA RATE                                         -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="addRateModal" tabindex="-1" aria-labelledby="addRateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="addRateModalLabel"><i class="bi bi-cash-coin me-2 text-primary"></i>Configure Anaesthesia Rate</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="CreateRate" method="post" id="addRateForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Procedure <span class="text-danger">*</span></label>
+                            <select name="ProcedureId" class="form-select" required>
+                                <option value="">-- Select Procedure --</option>
+                                @foreach (var opt in Model.ProcedureOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Anaesthesia Type <span class="text-danger">*</span></label>
+                            <select name="AnaesthesiaTypeId" class="form-select" required>
+                                <option value="">-- Select Anaesthesia Type --</option>
+                                @foreach (var opt in Model.AnaesthesiaTypeOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Fees & Charges Breakdown -->
+                        <div class="col-12">
+                            <div class="card bg-light border-0 p-3 rounded-3">
+                                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-receipt me-2 text-primary"></i>Rate & Fee Breakdown</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">Anaesthetist Professional Fee <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="bi bi-currency-rupee"></i></span>
+                                            <input name="AnaesthetistFee" class="form-control fee-input add-rate-calc" type="number" step="0.01" min="0" value="0.00" required />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">Consumables & Gases Charge <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="bi bi-currency-rupee"></i></span>
+                                            <input name="ConsumableCharge" class="form-control fee-input add-rate-calc" type="number" step="0.01" min="0" value="0.00" required />
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="p-3 bg-white rounded-3 border d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="fw-bold text-dark">Total Anaesthesia Rate:</span>
+                                                <small class="text-muted d-block">Anaesthetist Fee + Consumables Charge</small>
+                                            </div>
+                                            <div class="fs-4 fw-bold text-success font-monospace" id="addTotalRateDisplay">₹0.00</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                            <input name="EffectiveFrom" class="form-control" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective To</label>
+                            <input name="EffectiveTo" class="form-control" type="date" />
+                            <small class="text-muted d-block mt-1">Leave empty for ongoing rate</small>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Description / Remarks</label>
+                            <textarea name="Description" class="form-control" rows="2" placeholder="Optional notes regarding this rate package..."></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" checked id="addRateIsActive" />
+                                <label class="form-check-label fw-semibold" for="addRateIsActive">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Rate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: EDIT ANAESTHESIA RATE                                              -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="editRateModal" tabindex="-1" aria-labelledby="editRateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="editRateModalLabel"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Anaesthesia Rate</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="EditRate" method="post" id="editRateForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="AnaesthesiaRateId" id="editRateId" />
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Procedure <span class="text-danger">*</span></label>
+                            <select name="ProcedureId" id="editRateProcId" class="form-select" required>
+                                <option value="">-- Select Procedure --</option>
+                                @foreach (var opt in Model.ProcedureOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Anaesthesia Type <span class="text-danger">*</span></label>
+                            <select name="AnaesthesiaTypeId" id="editRateTypeId" class="form-select" required>
+                                <option value="">-- Select Anaesthesia Type --</option>
+                                @foreach (var opt in Model.AnaesthesiaTypeOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Fees & Charges Breakdown -->
+                        <div class="col-12">
+                            <div class="card bg-light border-0 p-3 rounded-3">
+                                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-receipt me-2 text-primary"></i>Rate & Fee Breakdown</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">Anaesthetist Professional Fee <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="bi bi-currency-rupee"></i></span>
+                                            <input name="AnaesthetistFee" id="editRateFee" class="form-control fee-input edit-rate-calc" type="number" step="0.01" min="0" required />
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">Consumables & Gases Charge <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="bi bi-currency-rupee"></i></span>
+                                            <input name="ConsumableCharge" id="editRateConsumable" class="form-control fee-input edit-rate-calc" type="number" step="0.01" min="0" required />
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="p-3 bg-white rounded-3 border d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="fw-bold text-dark">Total Anaesthesia Rate:</span>
+                                                <small class="text-muted d-block">Anaesthetist Fee + Consumables Charge</small>
+                                            </div>
+                                            <div class="fs-4 fw-bold text-success font-monospace" id="editTotalRateDisplay">₹0.00</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                            <input name="EffectiveFrom" id="editRateEffectiveFrom" class="form-control" type="date" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective To</label>
+                            <input name="EffectiveTo" id="editRateEffectiveTo" class="form-control" type="date" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Description / Remarks</label>
+                            <textarea name="Description" id="editRateDesc" class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" id="editRateIsActive" />
+                                <label class="form-check-label fw-semibold" for="editRateIsActive">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Total calculation for Add Rate Modal
+        function calcAddTotal() {
+            var fee = parseFloat(document.querySelector('#addRateForm input[name="AnaesthetistFee"]').value) || 0;
+            var con = parseFloat(document.querySelector('#addRateForm input[name="ConsumableCharge"]').value) || 0;
+            var tot = fee + con;
+            document.getElementById('addTotalRateDisplay').innerText = '₹' + tot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        document.querySelectorAll('.add-rate-calc').forEach(function (el) {
+            el.addEventListener('input', calcAddTotal);
+            el.addEventListener('change', calcAddTotal);
+        });
+
+        // Total calculation for Edit Rate Modal
+        function calcEditTotal() {
+            var fee = parseFloat(document.getElementById('editRateFee').value) || 0;
+            var con = parseFloat(document.getElementById('editRateConsumable').value) || 0;
+            var tot = fee + con;
+            document.getElementById('editTotalRateDisplay').innerText = '₹' + tot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        document.querySelectorAll('.edit-rate-calc').forEach(function (el) {
+            el.addEventListener('input', calcEditTotal);
+            el.addEventListener('change', calcEditTotal);
+        });
+
+        // AJAX edit type modal
+        function openEditTypeModal(id) {
+            fetch('/Anaesthesias/GetTypeJson/' + id)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('editTypeId').value = data.anaesthesiaTypeId;
+                    document.getElementById('editTypeCode').value = data.typeCode;
+                    document.getElementById('editTypeName').value = data.typeName;
+                    document.getElementById('editTypeDesc').value = data.description || '';
+                    document.getElementById('editTypeIsActive').checked = data.isActive;
+
+                    var modal = new bootstrap.Modal(document.getElementById('editTypeModal'));
+                    modal.show();
+                })
+                .catch(err => alert('Failed to load Anaesthesia Type details.'));
+        }
+
+        // AJAX edit rate modal
+        function openEditRateModal(id) {
+            fetch('/Anaesthesias/GetRateJson/' + id)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('editRateId').value = data.anaesthesiaRateId;
+                    document.getElementById('editRateProcId').value = data.procedureId;
+                    document.getElementById('editRateTypeId').value = data.anaesthesiaTypeId;
+                    document.getElementById('editRateFee').value = data.anaesthetistFee;
+                    document.getElementById('editRateConsumable').value = data.consumableCharge;
+
+                    if (data.effectiveFrom) {
+                        document.getElementById('editRateEffectiveFrom').value = data.effectiveFrom.substring(0, 10);
+                    }
+                    if (data.effectiveTo) {
+                        document.getElementById('editRateEffectiveTo').value = data.effectiveTo.substring(0, 10);
+                    } else {
+                        document.getElementById('editRateEffectiveTo').value = '';
+                    }
+
+                    document.getElementById('editRateDesc').value = data.description || '';
+                    document.getElementById('editRateIsActive').checked = data.isActive;
+
+                    calcEditTotal();
+
+                    var modal = new bootstrap.Modal(document.getElementById('editRateModal'));
+                    modal.show();
+                })
+                .catch(err => alert('Failed to load Anaesthesia Rate details.'));
+        }
+    </script>
+}

@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,27 +11,36 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class BedRoomTariffsController(
     IBedRoomTariffService tariffService,
+    IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(
         int? wardId = null, int? roomId = null, 
         int? bedCategoryId = null, int? tariffCategoryId = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await tariffService.GetAllAsync(wardId, roomId, bedCategoryId, tariffCategoryId, companyId, branchId);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await ipdMasterApiClient.GetBedRoomTariffsAsync(wardId, roomId, bedCategoryId, tariffCategoryId, companyId, branchId);
 
-        ViewBag.WardId = wardId;
-        ViewBag.RoomId = roomId;
-        ViewBag.BedCategoryId = bedCategoryId;
-        ViewBag.TariffCategoryId = tariffCategoryId;
+            ViewBag.WardId = wardId;
+            ViewBag.RoomId = roomId;
+            ViewBag.BedCategoryId = bedCategoryId;
+            ViewBag.TariffCategoryId = tariffCategoryId;
 
-        ViewBag.WardOptions = await tariffService.GetWardOptionsAsync(wardId);
-        ViewBag.RoomOptions = await tariffService.GetRoomOptionsAsync(wardId, roomId);
-        ViewBag.BedCategoryOptions = await tariffService.GetBedCategoryOptionsAsync(bedCategoryId);
-        ViewBag.TariffCategoryOptions = await tariffService.GetTariffCategoryOptionsAsync(tariffCategoryId);
+            ViewBag.WardOptions = await tariffService.GetWardOptionsAsync(wardId);
+            ViewBag.RoomOptions = await tariffService.GetRoomOptionsAsync(wardId, roomId);
+            ViewBag.BedCategoryOptions = await tariffService.GetBedCategoryOptionsAsync(bedCategoryId);
+            ViewBag.TariffCategoryOptions = await tariffService.GetTariffCategoryOptionsAsync(tariffCategoryId);
 
-        return View(list);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Bed/Room Tariff Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

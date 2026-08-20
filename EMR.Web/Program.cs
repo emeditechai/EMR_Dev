@@ -44,6 +44,15 @@ builder.Services.AddScoped<IBedCategoryService, BedCategoryService>();
 builder.Services.AddScoped<IBedService, BedService>();
 builder.Services.AddScoped<ITariffCategoryService, TariffCategoryService>();
 builder.Services.AddScoped<IBedRoomTariffService, BedRoomTariffService>();
+builder.Services.AddScoped<IHospitalServiceService, HospitalServiceService>();
+builder.Services.AddScoped<IHospitalServiceRateService, HospitalServiceRateService>();
+builder.Services.AddScoped<IProcedureService, ProcedureService>();
+builder.Services.AddScoped<IProcedureTariffService, ProcedureTariffService>();
+builder.Services.AddScoped<IOtService, OtService>();
+builder.Services.AddScoped<IOtEquipmentService, OtEquipmentService>();
+builder.Services.AddScoped<IOtTariffService, OtTariffService>();
+builder.Services.AddScoped<IAnaesthesiaService, AnaesthesiaService>();
+builder.Services.AddScoped<IIcuService, IcuService>();
 builder.Services.AddScoped<IDoctorRoomService, DoctorRoomService>();
 
 
@@ -103,6 +112,9 @@ builder.Services.AddScoped<IReportApiClient, ReportApiClient>();
 builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();
 builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>();
+builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
+builder.Services.AddScoped<IGeneralMasterApiClient,     GeneralMasterApiClient>();
+builder.Services.AddScoped<IOpdMasterApiClient,        OpdMasterApiClient>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>

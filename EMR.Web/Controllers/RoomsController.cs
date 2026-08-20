@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,29 +11,38 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class RoomsController(
     IRoomService roomService,
+    IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(
         int? buildingId = null, int? floorId = null, int? wardId = null, 
         string? roomCategory = null, string? roomType = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await roomService.GetAllAsync(buildingId, floorId, wardId, roomCategory, roomType, companyId, branchId);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await ipdMasterApiClient.GetRoomsAsync(buildingId, floorId, wardId, roomCategory, roomType, companyId, branchId);
 
-        ViewBag.BuildingId = buildingId;
-        ViewBag.FloorId = floorId;
-        ViewBag.WardId = wardId;
-        ViewBag.RoomCategory = roomCategory;
-        ViewBag.RoomType = roomType;
+            ViewBag.BuildingId = buildingId;
+            ViewBag.FloorId = floorId;
+            ViewBag.WardId = wardId;
+            ViewBag.RoomCategory = roomCategory;
+            ViewBag.RoomType = roomType;
 
-        ViewBag.BuildingOptions = await roomService.GetBuildingOptionsAsync(buildingId);
-        ViewBag.FloorOptions = await roomService.GetFloorOptionsAsync(buildingId, floorId);
-        ViewBag.WardOptions = await roomService.GetWardOptionsAsync(floorId, wardId);
-        ViewBag.RoomCategoryOptions = roomService.GetRoomCategoryOptions(roomCategory);
-        ViewBag.RoomTypeOptions = roomService.GetRoomTypeOptions(roomType);
+            ViewBag.BuildingOptions = await roomService.GetBuildingOptionsAsync(buildingId);
+            ViewBag.FloorOptions = await roomService.GetFloorOptionsAsync(buildingId, floorId);
+            ViewBag.WardOptions = await roomService.GetWardOptionsAsync(floorId, wardId);
+            ViewBag.RoomCategoryOptions = roomService.GetRoomCategoryOptions(roomCategory);
+            ViewBag.RoomTypeOptions = roomService.GetRoomTypeOptions(roomType);
 
-        return View(list);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "IPD Room Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

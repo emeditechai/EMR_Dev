@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,29 +11,38 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class BedsController(
     IBedService bedService,
+    IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(
         int? buildingId = null, int? wardId = null, int? roomId = null, 
         int? bedCategoryId = null, string? bedStatus = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await bedService.GetAllAsync(buildingId, wardId, roomId, bedCategoryId, bedStatus, companyId, branchId);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await ipdMasterApiClient.GetBedsAsync(buildingId, wardId, roomId, bedCategoryId, bedStatus, companyId, branchId);
 
-        ViewBag.BuildingId = buildingId;
-        ViewBag.WardId = wardId;
-        ViewBag.RoomId = roomId;
-        ViewBag.BedCategoryId = bedCategoryId;
-        ViewBag.BedStatus = bedStatus;
+            ViewBag.BuildingId = buildingId;
+            ViewBag.WardId = wardId;
+            ViewBag.RoomId = roomId;
+            ViewBag.BedCategoryId = bedCategoryId;
+            ViewBag.BedStatus = bedStatus;
 
-        ViewBag.BuildingOptions = await bedService.GetBuildingOptionsAsync(buildingId);
-        ViewBag.WardOptions = await bedService.GetWardOptionsAsync(buildingId, wardId);
-        ViewBag.RoomOptions = await bedService.GetRoomOptionsAsync(wardId, roomId);
-        ViewBag.BedCategoryOptions = await bedService.GetBedCategoryOptionsAsync(bedCategoryId);
-        ViewBag.BedStatusOptions = bedService.GetBedStatusOptions(bedStatus);
+            ViewBag.BuildingOptions = await bedService.GetBuildingOptionsAsync(buildingId);
+            ViewBag.WardOptions = await bedService.GetWardOptionsAsync(buildingId, wardId);
+            ViewBag.RoomOptions = await bedService.GetRoomOptionsAsync(wardId, roomId);
+            ViewBag.BedCategoryOptions = await bedService.GetBedCategoryOptionsAsync(bedCategoryId);
+            ViewBag.BedStatusOptions = bedService.GetBedStatusOptions(bedStatus);
 
-        return View(list);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Bed Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

@@ -1,0 +1,1283 @@
+@model EMR.Web.Models.ViewModels.IcuUnifiedViewModel
+@{
+    ViewData["Title"] = "ICU Configuration & Tariff Master";
+    var icus = Model.Icus ?? [];
+    var tariffs = Model.Tariffs ?? [];
+    var isIcusActive = Model.ActiveTab != "tariffs";
+}
+
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item">Master</li>
+                    <li class="breadcrumb-item">IPD Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">ICU Master</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 fw-bold text-dark">
+                <i class="bi bi-hospital-fill me-2 text-primary"></i>ICU Configuration & Dynamic Tariffs
+            </h1>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addIcuModal">
+                <i class="bi bi-plus-circle me-1"></i>Add ICU Configuration
+            </button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTariffModal">
+                <i class="bi bi-plus-lg me-1"></i>Configure Dynamic Tariff
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-primary-subtle text-primary p-3 me-3">
+                        <i class="bi bi-hospital fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">ICU Units</div>
+                        <div class="fs-4 fw-bold text-dark">@Model.TotalIcusCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-success-subtle text-success p-3 me-3">
+                        <i class="bi bi-check-circle fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Active Units</div>
+                        <div class="fs-4 fw-bold text-success">@Model.ActiveIcusCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-info-subtle text-info-emphasis p-3 me-3">
+                        <i class="bi bi-layout-wtf fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Total Beds</div>
+                        <div class="fs-4 fw-bold text-info-emphasis">@Model.TotalBedCapacity</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-danger-subtle text-danger p-3 me-3">
+                        <i class="bi bi-heart-pulse-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Ventilator Beds</div>
+                        <div class="fs-4 fw-bold text-danger">@Model.TotalVentilatorCapacity</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-warning-subtle text-warning-emphasis p-3 me-3">
+                        <i class="bi bi-calculator fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Active Tariffs</div>
+                        <div class="fs-4 fw-bold text-warning-emphasis">@Model.ActiveTariffsCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Master Card with Tabs -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white border-bottom pt-3 pb-0">
+            <ul class="nav nav-tabs card-header-tabs" id="icuTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-semibold @(isIcusActive ? "active" : "")" id="icus-tab" data-bs-toggle="tab" data-bs-target="#icus-pane" type="button" role="tab">
+                        <i class="bi bi-hospital me-2"></i>ICU Configurations (Header)
+                        <span class="badge bg-primary-subtle text-primary border ms-2">@icus.Count</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-semibold @(!isIcusActive ? "active" : "")" id="tariffs-tab" data-bs-toggle="tab" data-bs-target="#tariffs-pane" type="button" role="tab">
+                        <i class="bi bi-calculator me-2"></i>ICU Tariff Master (Header & Dynamic Details)
+                        <span class="badge bg-secondary-subtle text-secondary border ms-2">@tariffs.Count</span>
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="tab-content" id="icuTabsContent">
+            <!-- TAB 1: ICU Configurations -->
+            <div class="tab-pane fade @(isIcusActive ? "show active" : "") p-3" id="icus-pane" role="tabpanel">
+                <!-- Filters -->
+                <div class="bg-light p-3 rounded-3 mb-3">
+                    <form method="get" asp-action="Index" class="row g-2 align-items-end">
+                        <input type="hidden" name="tab" value="icus" />
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold text-muted mb-1">Ward / Location</label>
+                            <select name="wardId" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">-- All Wards --</option>
+                                @foreach (var opt in Model.WardOptions)
+                                {
+                                    <option value="@opt.Value" selected="@(opt.Value == Model.SelectedWardId?.ToString())">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-muted mb-1">ICU Type</label>
+                            <select name="icuType" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">-- All Types (ICU, HDU, NICU, PICU, CCU) --</option>
+                                @foreach (var opt in Model.IcuTypeOptions)
+                                {
+                                    <option value="@opt.Value" selected="@(opt.Value == Model.SelectedIcuType)">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+                                <i class="bi bi-filter me-1"></i>Filter
+                            </button>
+                            @if (Model.SelectedWardId.HasValue || !string.IsNullOrWhiteSpace(Model.SelectedIcuType))
+                            {
+                                <a asp-action="Index" asp-route-tab="icus" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                                    <i class="bi bi-x-circle"></i>
+                                </a>
+                            }
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Table -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">ICU Unit Details</th>
+                                <th>Type</th>
+                                <th>Ward & Location</th>
+                                <th class="text-center">Bed Capacity</th>
+                                <th class="text-center">Ventilators</th>
+                                <th class="text-center">Isolation</th>
+                                <th>Tariff Packages</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (icus.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="9" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        No ICU configurations found. Click "Add ICU Configuration" to setup an intensive care unit.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in icus)
+                                {
+                                    <tr>
+                                        <td class="ps-3">
+                                            <div class="fw-semibold text-dark">@item.IcuName</div>
+                                            <div class="small text-muted font-monospace text-primary fw-bold">@item.IcuCode</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary-subtle text-primary border fs-6">
+                                                @item.IcuType
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="fw-medium">@item.WardName</div>
+                                            <div class="small text-muted">@(string.IsNullOrWhiteSpace(item.FloorName) ? "—" : item.FloorName)</div>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark border px-3 py-2 fs-6">
+                                                <i class="bi bi-layout-wtf me-1 text-primary"></i>@item.BedCapacity
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            @if (item.VentilatorCapacity > 0)
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border px-2 py-1">
+                                                    <i class="bi bi-heart-pulse-fill me-1"></i>@item.VentilatorCapacity
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted small">0</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (item.IsolationCapacity > 0)
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border px-2 py-1">
+                                                    <i class="bi bi-shield-shaded me-1"></i>@item.IsolationCapacity
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted small">0</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <a asp-action="Index" asp-route-tab="tariffs" asp-route-icuId="@item.IcuId" class="badge bg-info-subtle text-info-emphasis border text-decoration-none" title="View configured tariffs">
+                                                <i class="bi bi-cash-coin me-1"></i>@item.ActiveTariffsCount Active (@item.TotalTariffsCount Total)
+                                            </a>
+                                        </td>
+                                        <td>
+                                            @if (item.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-info" onclick="openViewIcuModal(@item.IcuId)" title="View ICU Details">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-success" onclick="openAddTariffForIcu(@item.IcuId)" title="Configure Tariff">
+                                                    <i class="bi bi-plus-lg"></i> Tariff
+                                                </button>
+                                                <button type="button" class="btn btn-outline-primary" onclick="openEditIcuModal(@item.IcuId)" title="Edit ICU">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form asp-action="ToggleIcuStatus" asp-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Toggle active status for this ICU?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
+                                                        <i class="bi @(item.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
+                                                    </button>
+                                                </form>
+                                                <form asp-action="DeleteIcu" asp-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this ICU configuration?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: Dynamic ICU Tariff Master -->
+            <div class="tab-pane fade @(!isIcusActive ? "show active" : "") p-3" id="tariffs-pane" role="tabpanel">
+                <!-- Filters -->
+                <div class="bg-light p-3 rounded-3 mb-3">
+                    <form method="get" asp-action="Index" class="row g-2 align-items-end">
+                        <input type="hidden" name="tab" value="tariffs" />
+                        <div class="col-md-5">
+                            <label class="form-label small fw-semibold text-muted mb-1">ICU Unit</label>
+                            <select name="icuId" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">-- All ICU Units --</option>
+                                @foreach (var opt in Model.IcuOptions)
+                                {
+                                    <option value="@opt.Value" selected="@(opt.Value == Model.SelectedIcuId?.ToString())">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-muted mb-1">Tariff Category</label>
+                            <select name="tariffCategoryId" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">-- All Tariff Categories --</option>
+                                @foreach (var opt in Model.TariffCategoryOptions)
+                                {
+                                    <option value="@opt.Value" selected="@(opt.Value == Model.SelectedTariffCategoryId?.ToString())">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+                                <i class="bi bi-filter me-1"></i>Filter
+                            </button>
+                            @if (Model.SelectedIcuId.HasValue || Model.SelectedTariffCategoryId.HasValue)
+                            {
+                                <a asp-action="Index" asp-route-tab="tariffs" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                                    <i class="bi bi-x-circle"></i>
+                                </a>
+                            }
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Tariffs Table -->
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">ICU Unit</th>
+                                <th>Tariff Category</th>
+                                <th>Dynamic Rate Heads Breakdown</th>
+                                <th>Total Rate</th>
+                                <th>Effective Period</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (tariffs.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                        No ICU dynamic tariffs configured. Click "Configure Dynamic Tariff" to set rate heads.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in tariffs)
+                                {
+                                    <tr>
+                                        <td class="ps-3">
+                                            <div class="fw-semibold text-dark">
+                                                <a href="javascript:void(0)" onclick="openViewTariffModal(@item.IcuTariffId)" class="text-dark text-decoration-none fw-bold hover-primary">
+                                                    @item.IcuName
+                                                </a>
+                                            </div>
+                                            <div class="small text-muted">
+                                                <span class="font-monospace text-primary fw-bold">@item.IcuCode</span>
+                                                <span class="mx-1">•</span>
+                                                <span class="badge bg-primary-subtle text-primary">@item.IcuType</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="fw-bold text-primary">@item.TariffCategoryName</span>
+                                            @if (!string.IsNullOrWhiteSpace(item.PatientCategory))
+                                            {
+                                                <span class="badge bg-secondary-subtle text-secondary ms-1">@item.PatientCategory</span>
+                                            }
+                                        </td>
+                                        <td style="max-width: 380px;">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <span class="fw-semibold text-dark"><i class="bi bi-list-stars me-1 text-primary"></i>@item.TotalRateHeadsCount Components:</span>
+                                                <button type="button" class="btn btn-xs btn-outline-info py-0 px-2 rounded-pill" onclick="openViewTariffModal(@item.IcuTariffId)" title="View All Rate Heads">
+                                                    <i class="bi bi-eye me-1"></i>View All
+                                                </button>
+                                            </div>
+                                            <div class="small text-muted text-truncate" title="@item.RateHeadsSummary">
+                                                @item.RateHeadsSummary
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="fs-5 fw-bold text-success font-monospace">@item.TotalRate.ToString("C2")</span>
+                                        </td>
+                                        <td>
+                                            <div><i class="bi bi-calendar-event me-1 text-muted"></i>@item.EffectiveFrom.ToString("dd MMM yyyy")</div>
+                                            <small class="text-muted">
+                                                @(item.EffectiveTo.HasValue ? $"to {item.EffectiveTo.Value:dd MMM yyyy}" : "Ongoing")
+                                            </small>
+                                        </td>
+                                        <td>
+                                            @if (item.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-info" onclick="openViewTariffModal(@item.IcuTariffId)" title="View Details">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-primary" onclick="openEditTariffModal(@item.IcuTariffId)" title="Edit Tariff">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form asp-action="ToggleTariffStatus" asp-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Toggle status for this tariff package?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
+                                                        <i class="bi @(item.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
+                                                    </button>
+                                                </form>
+                                                <form asp-action="DeleteTariff" asp-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this dynamic tariff package?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: ADD ICU CONFIGURATION                                              -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="addIcuModal" tabindex="-1" aria-labelledby="addIcuModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="addIcuModalLabel"><i class="bi bi-hospital me-2 text-primary"></i>Add ICU Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="CreateIcu" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Ward / Location <span class="text-danger">*</span></label>
+                            <select name="WardId" class="form-select" required>
+                                <option value="">-- Select IPD Ward --</option>
+                                @foreach (var opt in Model.WardOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Type <span class="text-danger">*</span></label>
+                            <select name="IcuType" class="form-select" required>
+                                @foreach (var opt in Model.IcuTypeOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Code <span class="text-danger">*</span></label>
+                            <input name="IcuCode" class="form-control font-monospace" placeholder="e.g. ICU-MAIN-01, NICU-01" style="text-transform:uppercase" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Name <span class="text-danger">*</span></label>
+                            <input name="IcuName" class="form-control" placeholder="e.g. Main Medical Intensive Care Unit" required />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Total Bed Capacity <span class="text-danger">*</span></label>
+                            <input name="BedCapacity" class="form-control" type="number" min="1" max="500" value="10" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Ventilator Beds</label>
+                            <input name="VentilatorCapacity" class="form-control" type="number" min="0" max="500" value="4" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Isolation Beds</label>
+                            <input name="IsolationCapacity" class="form-control" type="number" min="0" max="500" value="1" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Clinical Scope / Description</label>
+                            <textarea name="Description" class="form-control" rows="2" placeholder="Optional notes regarding medical capabilities..."></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" checked id="addIcuIsActive" />
+                                <label class="form-check-label fw-semibold" for="addIcuIsActive">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: EDIT ICU CONFIGURATION                                             -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="editIcuModal" tabindex="-1" aria-labelledby="editIcuModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="editIcuModalLabel"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit ICU Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="EditIcu" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="IcuId" id="editIcuId" />
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Ward / Location <span class="text-danger">*</span></label>
+                            <select name="WardId" id="editIcuWardId" class="form-select" required>
+                                <option value="">-- Select IPD Ward --</option>
+                                @foreach (var opt in Model.WardOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Type <span class="text-danger">*</span></label>
+                            <select name="IcuType" id="editIcuType" class="form-select" required>
+                                @foreach (var opt in Model.IcuTypeOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Code <span class="text-danger">*</span></label>
+                            <input name="IcuCode" id="editIcuCode" class="form-control font-monospace" style="text-transform:uppercase" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Name <span class="text-danger">*</span></label>
+                            <input name="IcuName" id="editIcuName" class="form-control" required />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Total Bed Capacity <span class="text-danger">*</span></label>
+                            <input name="BedCapacity" id="editIcuBedCapacity" class="form-control" type="number" min="1" max="500" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Ventilator Beds</label>
+                            <input name="VentilatorCapacity" id="editIcuVentCapacity" class="form-control" type="number" min="0" max="500" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Isolation Beds</label>
+                            <input name="IsolationCapacity" id="editIcuIsoCapacity" class="form-control" type="number" min="0" max="500" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Clinical Scope / Description</label>
+                            <textarea name="Description" id="editIcuDesc" class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" id="editIcuIsActive" />
+                                <label class="form-check-label fw-semibold" for="editIcuIsActive">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: CONFIGURE DYNAMIC ICU TARIFF                                       -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="addTariffModal" tabindex="-1" aria-labelledby="addTariffModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="addTariffModalLabel"><i class="bi bi-calculator me-2 text-primary"></i>Configure Dynamic ICU Tariff</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="CreateTariff" method="post" id="addTariffForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Unit (Header) <span class="text-danger">*</span></label>
+                            <select name="IcuId" id="addTariffIcuId" class="form-select" required>
+                                <option value="">-- Select ICU Unit --</option>
+                                @foreach (var opt in Model.IcuOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Tariff Category <span class="text-danger">*</span></label>
+                            <select name="TariffCategoryId" class="form-select" required>
+                                <option value="">-- Select Tariff Category --</option>
+                                @foreach (var opt in Model.TariffCategoryOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                            <input name="EffectiveFrom" class="form-control" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective To</label>
+                            <input name="EffectiveTo" class="form-control" type="date" />
+                            <small class="text-muted">Leave empty for ongoing rate</small>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Rate Heads Section -->
+                    <div class="card bg-light border-0 p-3 rounded-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <div>
+                                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-list-stars me-2 text-primary"></i>Dynamic Rate Heads & Components (Details)</h6>
+                                <small class="text-muted">Add, remove, or customize any rate head name as required</small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="addRateRow('addRateTable')">
+                                <i class="bi bi-plus-circle me-1"></i>Add Custom Rate Head
+                            </button>
+                        </div>
+
+                        <!-- Quick Presets -->
+                        <div class="mb-3">
+                            <span class="small text-muted me-2">Quick Add Presets:</span>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'ICU Bed & Accommodation', 'BED', 4500, 'Per Day')">+ ICU Bed</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Critical Care Nursing', 'NUR', 3000, 'Per Day')">+ Nursing</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Mechanical Ventilator', 'VENT', 3500, 'Per Day')">+ Ventilator</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Multi-para Monitoring', 'MON', 1500, 'Per Day')">+ Monitoring</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Infusion Pump', 'INF', 1000, 'Per Day')">+ Infusion Pump</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Syringe Pump', 'SYR', 1000, 'Per Day')">+ Syringe Pump</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Central High-flow Oxygen', 'O2', 2000, 'Per Day')">+ Oxygen</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Negative Pressure Isolation', 'ISO', 1000, 'Per Day')">+ Isolation</button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill me-1 mb-1" onclick="addPresetRow('addRateTable', 'Critical-care Bedside Procedures', 'PROC', 1000, 'Per Day')">+ Critical Procedures</button>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="table-responsive bg-white rounded-3 border">
+                            <table class="table table-sm align-middle mb-0" id="addRateTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 35%;">Rate Head Component Name <span class="text-danger">*</span></th>
+                                        <th style="width: 15%;">Code</th>
+                                        <th style="width: 25%;">Rate Amount (₹) <span class="text-danger">*</span></th>
+                                        <th style="width: 20%;">Billing Frequency</th>
+                                        <th style="width: 5%;" class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows will be inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Live Total -->
+                        <div class="p-3 bg-white rounded-3 border d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <span class="fw-bold text-dark">Total Dynamic Package Rate:</span>
+                                <small class="text-muted d-block">Sum of all active rate head components</small>
+                            </div>
+                            <div class="fs-3 fw-bold text-success font-monospace" id="addTotalDisplay">₹0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description / Remarks</label>
+                        <textarea name="Description" class="form-control" rows="2" placeholder="Optional package description..."></textarea>
+                    </div>
+
+                    <div class="form-check form-switch">
+                        <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" checked id="addTariffIsActive" />
+                        <label class="form-check-label fw-semibold" for="addTariffIsActive">Active Status</label>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Dynamic Tariff</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: EDIT DYNAMIC ICU TARIFF                                         -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="editTariffModal" tabindex="-1" aria-labelledby="editTariffModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="editTariffModalLabel"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Dynamic ICU Tariff</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="EditTariff" method="post" id="editTariffForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="IcuTariffId" id="editTariffId" />
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">ICU Unit (Header) <span class="text-danger">*</span></label>
+                            <select name="IcuId" id="editTariffIcuId" class="form-select" required>
+                                <option value="">-- Select ICU Unit --</option>
+                                @foreach (var opt in Model.IcuOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Tariff Category <span class="text-danger">*</span></label>
+                            <select name="TariffCategoryId" id="editTariffCatId" class="form-select" required>
+                                <option value="">-- Select Tariff Category --</option>
+                                @foreach (var opt in Model.TariffCategoryOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                            <input name="EffectiveFrom" id="editTariffEffectiveFrom" class="form-control" type="date" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective To</label>
+                            <input name="EffectiveTo" id="editTariffEffectiveTo" class="form-control" type="date" />
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Rate Heads Section -->
+                    <div class="card bg-light border-0 p-3 rounded-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <div>
+                                <h6 class="fw-bold text-dark mb-0"><i class="bi bi-list-stars me-2 text-primary"></i>Dynamic Rate Heads & Components (Details)</h6>
+                                <small class="text-muted">Modify rate head amounts or add new components</small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="addRateRow('editRateTable')">
+                                <i class="bi bi-plus-circle me-1"></i>Add Custom Rate Head
+                            </button>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="table-responsive bg-white rounded-3 border">
+                            <table class="table table-sm align-middle mb-0" id="editRateTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 35%;">Rate Head Component Name <span class="text-danger">*</span></th>
+                                        <th style="width: 15%;">Code</th>
+                                        <th style="width: 25%;">Rate Amount (₹) <span class="text-danger">*</span></th>
+                                        <th style="width: 20%;">Billing Frequency</th>
+                                        <th style="width: 5%;" class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows loaded via AJAX -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Live Total -->
+                        <div class="p-3 bg-white rounded-3 border d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <span class="fw-bold text-dark">Total Dynamic Package Rate:</span>
+                                <small class="text-muted d-block">Sum of all active rate head components</small>
+                            </div>
+                            <div class="fs-3 fw-bold text-success font-monospace" id="editTotalDisplay">₹0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description / Remarks</label>
+                        <textarea name="Description" id="editTariffDesc" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="form-check form-switch">
+                        <input name="IsActive" class="form-check-input" type="checkbox" role="switch" value="true" id="editTariffIsActive" />
+                        <label class="form-check-label fw-semibold" for="editTariffIsActive">Active Status</label>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: VIEW DYNAMIC ICU TARIFF & RATE HEADS DETAILS                       -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="viewTariffModal" tabindex="-1" aria-labelledby="viewTariffModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="p-2 rounded-3 bg-primary-subtle text-primary">
+                        <i class="bi bi-hospital fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="viewTariffModalLabel">ICU Tariff & Rate Heads Details</h5>
+                        <small class="text-muted" id="viewTariffHeaderSubtitle"></small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Tariff Info Header Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <span class="text-muted small fw-semibold d-block">ICU Unit</span>
+                            <div class="fw-bold text-dark fs-6" id="viewTariffIcuName">—</div>
+                            <div class="small text-muted"><span class="font-monospace fw-bold text-primary" id="viewTariffIcuCode">—</span> • <span class="badge bg-primary-subtle text-primary" id="viewTariffIcuType">—</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <span class="text-muted small fw-semibold d-block">Tariff Category</span>
+                            <div class="fw-bold text-primary fs-6" id="viewTariffCategoryName">—</div>
+                            <div class="small text-muted" id="viewTariffPatientCategory">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <span class="text-muted small fw-semibold d-block">Effective Period</span>
+                            <div class="fw-semibold text-dark" id="viewTariffPeriod">—</div>
+                            <div class="small mt-1" id="viewTariffStatusBadge">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3 bg-success-subtle rounded-3 border border-success-subtle h-100 d-flex flex-column justify-content-center">
+                            <span class="text-success-emphasis small fw-semibold d-block">Total Package Rate</span>
+                            <div class="fs-4 fw-bold text-success font-monospace" id="viewTariffTotalRate">₹0.00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dynamic Rate Heads Breakdown Table -->
+                <div class="card border-0 bg-light p-3 rounded-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-list-stars me-2 text-primary"></i>Configured Rate Heads & Components (<span id="viewTariffHeadsCount">0</span>)
+                        </h6>
+                        <span class="badge bg-white text-secondary border">Itemized Breakdown</span>
+                    </div>
+
+                    <div class="table-responsive bg-white rounded-3 border">
+                        <table class="table table-hover align-middle mb-0" id="viewTariffDetailsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 5%;" class="ps-3">#</th>
+                                    <th style="width: 35%;">Component / Rate Head Name</th>
+                                    <th style="width: 15%;">Code</th>
+                                    <th style="width: 20%;">Billing Frequency</th>
+                                    <th style="width: 10%;">Type</th>
+                                    <th style="width: 15%;" class="text-end pe-3">Rate Amount (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic items loaded via AJAX -->
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="5" class="text-end pe-3 ps-3">Total ICU Tariff Rate:</td>
+                                    <td class="text-end pe-3 fs-6 text-success font-monospace" id="viewTariffTableTotal">₹0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Description / Remarks -->
+                <div class="p-3 bg-light rounded-3 border" id="viewTariffDescContainer">
+                    <span class="text-muted small fw-semibold d-block mb-1">Remarks / Description:</span>
+                    <div class="text-dark small" id="viewTariffDesc">No remarks provided.</div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="viewTariffEditBtn" onclick=""><i class="bi bi-pencil me-1"></i>Edit Tariff</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: VIEW ICU CONFIGURATION DETAILS                                     -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="viewIcuModal" tabindex="-1" aria-labelledby="viewIcuModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="p-2 rounded-3 bg-primary-subtle text-primary">
+                        <i class="bi bi-hospital fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="viewIcuModalLabel">ICU Configuration Details</h5>
+                        <small class="text-muted" id="viewIcuHeaderSubtitle"></small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <span class="text-muted small fw-semibold d-block">ICU Name & Code</span>
+                            <div class="fw-bold text-dark fs-6" id="viewIcuName">—</div>
+                            <div class="small text-muted"><span class="font-monospace fw-bold text-primary" id="viewIcuCode">—</span> • <span class="badge bg-primary-subtle text-primary" id="viewIcuType">—</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3 border h-100">
+                            <span class="text-muted small fw-semibold d-block">Ward / Location</span>
+                            <div class="fw-bold text-dark fs-6" id="viewIcuWardName">—</div>
+                            <div class="small text-muted" id="viewIcuWardType">—</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded-3 border text-center">
+                            <span class="text-muted small fw-semibold d-block mb-1">Total Bed Capacity</span>
+                            <span class="fs-4 fw-bold text-primary" id="viewIcuBedCapacity">0</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded-3 border text-center">
+                            <span class="text-muted small fw-semibold d-block mb-1">Ventilator Beds</span>
+                            <span class="fs-4 fw-bold text-danger" id="viewIcuVentCapacity">0</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded-3 border text-center">
+                            <span class="text-muted small fw-semibold d-block mb-1">Isolation Beds</span>
+                            <span class="fs-4 fw-bold text-warning-emphasis" id="viewIcuIsoCapacity">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configured Tariff Packages Table -->
+                <div class="card border-0 bg-light p-3 rounded-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-calculator me-2 text-primary"></i>Configured Tariff Packages (<span id="viewIcuTariffsCount">0</span>)
+                        </h6>
+                    </div>
+                    <div class="table-responsive bg-white rounded-3 border">
+                        <table class="table table-hover align-middle mb-0" id="viewIcuTariffsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Tariff Category</th>
+                                    <th>Rate Heads</th>
+                                    <th>Total Rate</th>
+                                    <th>Effective Period</th>
+                                    <th>Status</th>
+                                    <th class="text-end pe-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic items loaded via AJAX -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Description / Remarks -->
+                <div class="p-3 bg-light rounded-3 border">
+                    <span class="text-muted small fw-semibold d-block mb-1">Clinical Scope / Notes:</span>
+                    <div class="text-dark small" id="viewIcuDesc">No clinical scope provided.</div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-success" id="viewIcuAddTariffBtn" onclick=""><i class="bi bi-plus-lg me-1"></i>Configure Tariff</button>
+                <button type="button" class="btn btn-primary" id="viewIcuEditBtn" onclick=""><i class="bi bi-pencil me-1"></i>Edit ICU</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Initial setup for Add Modal default rate heads
+        document.addEventListener('DOMContentLoaded', function () {
+            // Seed initial rows for Add Modal
+            addPresetRow('addRateTable', 'ICU Bed & Accommodation', 'BED', 4500, 'Per Day');
+            addPresetRow('addRateTable', 'Critical Care 1:1 Nursing', 'NUR', 3000, 'Per Day');
+            addPresetRow('addRateTable', 'Continuous Multi-para Monitoring', 'MON', 1500, 'Per Day');
+            addPresetRow('addRateTable', 'Central High-flow Oxygen', 'O2', 2000, 'Per Day');
+        });
+
+        function addRateRow(tableId, name = '', code = '', amount = 0, freq = 'Per Day') {
+            var tbody = document.querySelector('#' + tableId + ' tbody');
+            var rowIdx = tbody.children.length;
+
+            var tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <input name="Details[${rowIdx}].RateHeadName" class="form-control form-control-sm" value="${name}" placeholder="e.g. Ventilator Support" required />
+                </td>
+                <td>
+                    <input name="Details[${rowIdx}].RateHeadCode" class="form-control form-control-sm font-monospace text-uppercase" value="${code}" placeholder="e.g. VENT" />
+                </td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-currency-rupee"></i></span>
+                        <input name="Details[${rowIdx}].RateAmount" class="form-control form-control-sm rate-amt-input" type="number" step="0.01" min="0" value="${amount}" oninput="recalcTotal('${tableId}')" required />
+                    </div>
+                </td>
+                <td>
+                    <select name="Details[${rowIdx}].BillingFrequency" class="form-select form-select-sm">
+                        <option value="Per Day" ${freq === 'Per Day' ? 'selected' : ''}>Per Day</option>
+                        <option value="Per Hour" ${freq === 'Per Hour' ? 'selected' : ''}>Per Hour</option>
+                        <option value="Per Usage" ${freq === 'Per Usage' ? 'selected' : ''}>Per Usage</option>
+                        <option value="Fixed" ${freq === 'Fixed' ? 'selected' : ''}>Fixed Package</option>
+                    </select>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRateRow(this, '${tableId}')" title="Remove">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            recalcTotal(tableId);
+        }
+
+        function addPresetRow(tableId, name, code, amount, freq) {
+            addRateRow(tableId, name, code, amount, freq);
+        }
+
+        function removeRateRow(btn, tableId) {
+            var tr = btn.closest('tr');
+            tr.remove();
+            reindexRows(tableId);
+            recalcTotal(tableId);
+        }
+
+        function reindexRows(tableId) {
+            var tbody = document.querySelector('#' + tableId + ' tbody');
+            Array.from(tbody.children).forEach((tr, idx) => {
+                tr.querySelectorAll('input, select').forEach(input => {
+                    var name = input.getAttribute('name');
+                    if (name) {
+                        input.setAttribute('name', name.replace(/Details\[\d+\]/, `Details[${idx}]`));
+                    }
+                });
+            });
+        }
+
+        function recalcTotal(tableId) {
+            var total = 0;
+            document.querySelectorAll('#' + tableId + ' .rate-amt-input').forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+            var displayId = tableId === 'addRateTable' ? 'addTotalDisplay' : 'editTotalDisplay';
+            document.getElementById(displayId).innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function openAddTariffForIcu(icuId) {
+            document.getElementById('addTariffIcuId').value = icuId;
+            var modal = new bootstrap.Modal(document.getElementById('addTariffModal'));
+            modal.show();
+        }
+
+        function openEditIcuModal(id) {
+            fetch('/Icus/GetIcuJson/' + id)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('editIcuId').value = data.icuId;
+                    document.getElementById('editIcuWardId').value = data.wardId;
+                    document.getElementById('editIcuType').value = data.icuType;
+                    document.getElementById('editIcuCode').value = data.icuCode;
+                    document.getElementById('editIcuName').value = data.icuName;
+                    document.getElementById('editIcuBedCapacity').value = data.bedCapacity;
+                    document.getElementById('editIcuVentCapacity').value = data.ventilatorCapacity;
+                    document.getElementById('editIcuIsoCapacity').value = data.isolationCapacity;
+                    document.getElementById('editIcuDesc').value = data.description || '';
+                    document.getElementById('editIcuIsActive').checked = data.isActive;
+
+                    var modal = new bootstrap.Modal(document.getElementById('editIcuModal'));
+                    modal.show();
+                })
+                .catch(err => alert('Failed to load ICU details.'));
+        }
+
+        function openEditTariffModal(id) {
+            fetch('/Icus/GetTariffJson/' + id)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('editTariffId').value = data.icuTariffId;
+                    document.getElementById('editTariffIcuId').value = data.icuId;
+                    document.getElementById('editTariffCatId').value = data.tariffCategoryId;
+
+                    if (data.effectiveFrom) {
+                        document.getElementById('editTariffEffectiveFrom').value = data.effectiveFrom.substring(0, 10);
+                    }
+                    if (data.effectiveTo) {
+                        document.getElementById('editTariffEffectiveTo').value = data.effectiveTo.substring(0, 10);
+                    } else {
+                        document.getElementById('editTariffEffectiveTo').value = '';
+                    }
+
+                    document.getElementById('editTariffDesc').value = data.description || '';
+                    document.getElementById('editTariffIsActive').checked = data.isActive;
+
+                    // Clear and populate dynamic rate heads
+                    var tbody = document.querySelector('#editRateTable tbody');
+                    tbody.innerHTML = '';
+
+                    if (data.details && data.details.length > 0) {
+                        data.details.forEach(d => {
+                            addRateRow('editRateTable', d.rateHeadName, d.rateHeadCode || '', d.rateAmount, d.billingFrequency || 'Per Day');
+                        });
+                    } else {
+                        addRateRow('editRateTable', 'ICU Bed & Accommodation', 'BED', 0, 'Per Day');
+                    }
+
+                    recalcTotal('editRateTable');
+
+                    var modal = new bootstrap.Modal(document.getElementById('editTariffModal'));
+                    modal.show();
+                })
+                .catch(err => alert('Failed to load Tariff details.'));
+        }
+
+        function openViewTariffModal(id) {
+            fetch('/Icus/GetTariffViewJson/' + id)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('viewTariffHeaderSubtitle').innerText = `${data.icuName} (${data.icuCode}) - ${data.tariffCategoryName}`;
+                    document.getElementById('viewTariffIcuName').innerText = data.icuName;
+                    document.getElementById('viewTariffIcuCode').innerText = data.icuCode;
+                    document.getElementById('viewTariffIcuType').innerText = data.icuType;
+
+                    document.getElementById('viewTariffCategoryName').innerText = data.tariffCategoryName;
+                    document.getElementById('viewTariffPatientCategory').innerText = data.patientCategory ? `Category: ${data.patientCategory}` : 'All Patients';
+
+                    document.getElementById('viewTariffPeriod').innerText = `${data.effectiveFrom} to ${data.effectiveTo}`;
+                    document.getElementById('viewTariffStatusBadge').innerHTML = data.isActive
+                        ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Active Package</span>'
+                        : '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive Package</span>';
+
+                    var totalFormatted = '₹' + data.totalRate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    document.getElementById('viewTariffTotalRate').innerText = totalFormatted;
+                    document.getElementById('viewTariffTableTotal').innerText = totalFormatted;
+
+                    document.getElementById('viewTariffHeadsCount').innerText = data.details ? data.details.length : 0;
+
+                    var tbody = document.querySelector('#viewTariffDetailsTable tbody');
+                    tbody.innerHTML = '';
+
+                    if (data.details && data.details.length > 0) {
+                        data.details.forEach((d, idx) => {
+                            var tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td class="ps-3 text-muted">${idx + 1}</td>
+                                <td>
+                                    <div class="fw-semibold text-dark">${d.rateHeadName}</div>
+                                    ${d.remarks ? `<small class="text-muted">${d.remarks}</small>` : ''}
+                                </td>
+                                <td>
+                                    ${d.rateHeadCode ? `<span class="badge bg-light text-dark font-monospace border">${d.rateHeadCode}</span>` : '<span class="text-muted">—</span>'}
+                                </td>
+                                <td>
+                                    <span class="badge bg-info-subtle text-info-emphasis border">${d.billingFrequency || 'Per Day'}</span>
+                                </td>
+                                <td>
+                                    ${d.isMandatory ? '<span class="badge bg-primary-subtle text-primary border">Mandatory</span>' : '<span class="badge bg-secondary-subtle text-secondary border">Optional</span>'}
+                                </td>
+                                <td class="text-end pe-3 font-monospace fw-bold text-dark">
+                                    ₹${d.rateAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No rate heads configured.</td></tr>';
+                    }
+
+                    document.getElementById('viewTariffDesc').innerText = data.description || 'No additional remarks provided.';
+                    document.getElementById('viewTariffEditBtn').setAttribute('onclick', `bootstrap.Modal.getInstance(document.getElementById('viewTariffModal')).hide(); openEditTariffModal(${data.icuTariffId});`);
+
+                    var modal = new bootstrap.Modal(document.getElementById('viewTariffModal'));
+                    modal.show();
+                })
+                .catch(err => alert('Failed to load Tariff details.'));
+        }
+
+        function openViewIcuModal(id) {
+            fetch('/Icus/GetIcuViewJson/' + id)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('viewIcuHeaderSubtitle').innerText = `${data.icuName} (${data.icuCode})`;
+                    document.getElementById('viewIcuName').innerText = data.icuName;
+                    document.getElementById('viewIcuCode').innerText = data.icuCode;
+                    document.getElementById('viewIcuType').innerText = data.icuType;
+
+                    document.getElementById('viewIcuWardName').innerText = data.wardName || '—';
+                    document.getElementById('viewIcuWardType').innerText = data.wardType ? `Type: ${data.wardType}` : '';
+
+                    document.getElementById('viewIcuBedCapacity').innerText = data.bedCapacity;
+                    document.getElementById('viewIcuVentCapacity').innerText = data.ventilatorCapacity;
+                    document.getElementById('viewIcuIsoCapacity').innerText = data.isolationCapacity;
+
+                    document.getElementById('viewIcuDesc').innerText = data.description || 'No clinical scope provided.';
+
+                    document.getElementById('viewIcuTariffsCount').innerText = data.tariffs ? data.tariffs.length : 0;
+
+                    var tbody = document.querySelector('#viewIcuTariffsTable tbody');
+                    tbody.innerHTML = '';
+
+                    if (data.tariffs && data.tariffs.length > 0) {
+                        data.tariffs.forEach(t => {
+                            var tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td class="ps-3">
+                                    <div class="fw-semibold text-primary">${t.tariffCategoryName}</div>
+                                    ${t.patientCategory ? `<small class="badge bg-secondary-subtle text-secondary">${t.patientCategory}</small>` : ''}
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">${t.rateHeadsCount} Components</span>
+                                </td>
+                                <td class="font-monospace fw-bold text-success">
+                                    ₹${t.totalRate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td class="small">
+                                    ${t.effectiveFrom} to ${t.effectiveTo}
+                                </td>
+                                <td>
+                                    ${t.isActive ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>'}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <button type="button" class="btn btn-xs btn-outline-info" onclick="bootstrap.Modal.getInstance(document.getElementById('viewIcuModal')).hide(); openViewTariffModal(${t.icuTariffId});" title="View Tariff Breakdown">
+                                        <i class="bi bi-eye"></i> Details
+                                    </button>
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No tariff packages configured for this ICU yet.</td></tr>';
+                    }
+
+                    document.getElementById('viewIcuAddTariffBtn').setAttribute('onclick', `bootstrap.Modal.getInstance(document.getElementById('viewIcuModal')).hide(); openAddTariffForIcu(${data.icuId});`);
+                    document.getElementById('viewIcuEditBtn').setAttribute('onclick', `bootstrap.Modal.getInstance(document.getElementById('viewIcuModal')).hide(); openEditIcuModal(${data.icuId});`);
+
+                    var modal = new bootstrap.Modal(document.getElementById('viewIcuModal'));
+                    modal.show();
+                })
+                .catch(err => alert('Failed to load ICU details.'));
+        }
+    </script>
+}
+

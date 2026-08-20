@@ -1,0 +1,197 @@
+@model IEnumerable<EMR.Web.Models.ViewModels.ProcedureListItemViewModel>
+@{
+    ViewData["Title"] = "Procedure Master";
+    var list = Model?.ToList() ?? [];
+    var deptOptions = ViewBag.DepartmentOptions as List<SelectListItem> ?? [];
+    var specOptions = ViewBag.SpecialityOptions as List<SelectListItem> ?? [];
+    var catOptions = ViewBag.ProcedureCategoryOptions as List<SelectListItem> ?? [];
+    int? selectedDept = ViewBag.SelectedDepartmentId;
+    int? selectedSpec = ViewBag.SelectedSpecialityId;
+    string? selectedCat = ViewBag.SelectedCategory;
+}
+
+<div class="container-fluid px-0">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item">Master</li>
+                    <li class="breadcrumb-item">IPD Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">Procedure Master</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 fw-bold text-dark">
+                <i class="bi bi-heart-pulse me-2 text-primary"></i>Procedure Master
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 ms-2">@list.Count</span>
+            </h1>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-controller="ProcedureTariffs" asp-action="Index" class="btn btn-outline-success">
+                <i class="bi bi-cash-coin me-1"></i>Procedure Tariffs
+            </a>
+            <a asp-action="Create" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Add Procedure
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-body p-3">
+            <form method="get" asp-action="Index" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">IPD Department</label>
+                    <select name="departmentId" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- All Departments --</option>
+                        @foreach (var opt in deptOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == selectedDept?.ToString())">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">Doctor Speciality</label>
+                    <select name="specialityId" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- All Specialities --</option>
+                        @foreach (var opt in specOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == selectedSpec?.ToString())">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">Procedure Category</label>
+                    <select name="procedureCategory" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- All Categories --</option>
+                        @foreach (var opt in catOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == selectedCat)">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+                        <i class="bi bi-filter me-1"></i>Apply Filters
+                    </button>
+                    @if (selectedDept.HasValue || selectedSpec.HasValue || !string.IsNullOrWhiteSpace(selectedCat))
+                    {
+                        <a asp-action="Index" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                            <i class="bi bi-x-circle"></i>
+                        </a>
+                    }
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Code</th>
+                            <th>Procedure Name</th>
+                            <th>Category</th>
+                            <th>Department & Speciality</th>
+                            <th>Est. Duration</th>
+                            <th>Requirements</th>
+                            <th>Status</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (list.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    No procedures found matching your criteria.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in list)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        <span class="font-monospace fw-bold text-primary">@item.ProcedureCode</span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold">@item.ProcedureName</div>
+                                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                                        {
+                                            <small class="text-muted text-truncate d-inline-block" style="max-width: 250px;">@item.Description</small>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">
+                                            @item.ProcedureCategory
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="small fw-medium">@item.DepartmentName</div>
+                                        <small class="text-muted"><i class="bi bi-person-badge me-1"></i>@item.SpecialityName</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border font-monospace">
+                                            <i class="bi bi-clock me-1"></i>@item.DurationFormatted
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            @if (item.AnaesthesiaRequired)
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Anaesthesia Required">Anaesthesia</span>
+                                            }
+                                            @if (item.ConsentRequired)
+                                            {
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Consent Required">Consent</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (item.IsActive)
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group btn-group-sm">
+                                            <a asp-action="Details" asp-route-id="@item.ProcedureId" class="btn btn-outline-info" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a asp-action="Edit" asp-route-id="@item.ProcedureId" class="btn btn-outline-primary" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <form asp-action="ToggleStatus" asp-route-id="@item.ProcedureId" method="post" class="d-inline" onsubmit="return confirm('Toggle status for this procedure?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
+                                                    <i class="bi @(item.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
+                                                </button>
+                                            </form>
+                                            <form asp-action="Delete" asp-route-id="@item.ProcedureId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this procedure?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -8,15 +9,26 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class DepartmentsController(IDepartmentService departmentService, IAuditLogService auditLogService) : Controller
+public class DepartmentsController(
+    IDepartmentService departmentService, 
+    IAuditLogService auditLogService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 {
     // ── Dept Type options (hardcoded) ──────────────────────────────────────
-    private static readonly List<string> DeptTypes = ["OPD", "IPD", "Lab", "Med"];
+    private static readonly List<string> DeptTypes = ["OPD", "IPD", "Lab", "Med", "GENERAL", "OTHER"];
 
     public async Task<IActionResult> Index()
     {
-        var list = await departmentService.GetAllAsync();
-        return View(list);
+        try
+        {
+            var list = await masterApiClient.GetDepartmentsAsync();
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Department Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

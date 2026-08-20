@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Models.Entities;
 using EMR.Web.Services;
@@ -8,19 +9,25 @@ using Microsoft.EntityFrameworkCore;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class EmrMedicationsController(ApplicationDbContext db, IAuditLogService auditLog) : Controller
+public class EmrMedicationsController(
+    ApplicationDbContext db, 
+    IAuditLogService auditLog,
+    IOpdMasterApiClient opdApiClient) : Controller
 {
     // ── LIST ──────────────────────────────────────────────
     public async Task<IActionResult> Index(string? search)
     {
-        var query = db.EmrMedicationMasters.AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(search))
-            query = query.Where(x => x.MedicationName.Contains(search) || (x.GenericName != null && x.GenericName.Contains(search)) || (x.Category != null && x.Category.Contains(search)));
-
-        var list = await query.OrderBy(x => x.Category).ThenBy(x => x.MedicationName).ToListAsync();
-        ViewBag.Search = search;
-        return View(list);
+        try
+        {
+            var list = await opdApiClient.GetEmrMedicationsAsync(search);
+            ViewBag.Search = search;
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "EMR Medication Master List";
+            return View("ApiDown");
+        }
     }
 
     // ── JSON AUTO-SUGGEST ENDPOINT ────────────────────────

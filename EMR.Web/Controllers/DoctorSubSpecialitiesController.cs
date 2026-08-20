@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,19 +11,28 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class DoctorSubSpecialitiesController(
     IDoctorSubSpecialityService subSpecialityService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 
 {
     public async Task<IActionResult> Index(int? specialityId = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await subSpecialityService.GetAllAsync(specialityId, companyId, branchId);
-        
-        ViewBag.SpecialityId = specialityId;
-        ViewBag.SpecialityOptions = await subSpecialityService.GetSpecialityOptionsAsync(specialityId);
-        
-        return View(list);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await masterApiClient.GetDoctorSubSpecialitiesAsync(specialityId, companyId, branchId);
+            
+            ViewBag.SpecialityId = specialityId;
+            ViewBag.SpecialityOptions = await subSpecialityService.GetSpecialityOptionsAsync(specialityId);
+            
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Doctor Sub-Speciality Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

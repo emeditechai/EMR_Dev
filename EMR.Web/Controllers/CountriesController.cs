@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -9,12 +10,23 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class CountriesController(ICountryService countryService, IAuditLogService auditLogService) : Controller
+public class CountriesController(
+    ICountryService countryService, 
+    IAuditLogService auditLogService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 {
     public async Task<IActionResult> Index()
     {
-        var list = await countryService.GetAllAsync();
-        return View(list);
+        try
+        {
+            var list = await masterApiClient.GetCountriesAsync();
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Country Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

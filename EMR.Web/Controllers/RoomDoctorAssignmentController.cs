@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
@@ -9,18 +10,27 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class RoomDoctorAssignmentController(
     IRoomDoctorAssignmentService assignmentService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IOpdMasterApiClient opdApiClient) : Controller
 {
     public async Task<IActionResult> Index()
     {
         var branchId = User.GetCurrentBranchId();
         if (branchId == null) return RedirectToAction("SelectBranch", "Account");
 
-        var rooms = await assignmentService.GetRoomAssignmentsAsync(branchId.Value);
-        var opdDoctors = await assignmentService.GetOPDDoctorsAsync(branchId.Value);
+        try
+        {
+            var rooms = await opdApiClient.GetRoomDoctorAssignmentsAsync(branchId.Value);
+            var opdDoctors = await opdApiClient.GetOPDDoctorsAsync(branchId.Value);
 
-        ViewBag.OpdDoctors = opdDoctors;
-        return View(rooms);
+            ViewBag.OpdDoctors = opdDoctors;
+            return View(rooms);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Room Doctor Assignment";
+            return View("ApiDown");
+        }
     }
 
     [HttpPost]

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EMR.Web.Models.Entities;
 
@@ -13,7 +14,11 @@ public class FloorMaster
     public string FloorName { get; set; } = string.Empty;
 
     public int? BuildingId { get; set; }
+
+    [NotMapped]
     public string? BuildingName { get; set; }
+
+    [NotMapped]
     public string? BuildingCode { get; set; }
 
     public bool IsActive { get; set; } = true;

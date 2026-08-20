@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
@@ -9,16 +10,25 @@ using Microsoft.EntityFrameworkCore;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class ReferralDoctorsController(ApplicationDbContext dbContext, IAuditLogService auditLogService) : Controller
+public class ReferralDoctorsController(
+    ApplicationDbContext dbContext, 
+    IAuditLogService auditLogService,
+    IGeneralMasterApiClient masterApiClient) : Controller
 {
     private static readonly List<string> Salutations = ["Dr", "Prof", "Mr", "Ms", "Other"];
 
     public async Task<IActionResult> Index()
     {
-        var list = await dbContext.ReferralDoctorMasters
-            .OrderByDescending(x => x.CreatedDate)
-            .ToListAsync();
-        return View(list);
+        try
+        {
+            var list = await masterApiClient.GetReferralDoctorsAsync();
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Referral Doctor Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,18 +11,27 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class TariffCategoriesController(
     ITariffCategoryService tariffCategoryService,
+    IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(string? patientCategory = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await tariffCategoryService.GetAllAsync(patientCategory, companyId, branchId);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await ipdMasterApiClient.GetTariffCategoriesAsync(patientCategory, companyId, branchId);
 
-        ViewBag.SelectedCategory = patientCategory;
-        ViewBag.PatientCategoryOptions = tariffCategoryService.GetPatientCategoryOptions(patientCategory);
+            ViewBag.SelectedCategory = patientCategory;
+            ViewBag.PatientCategoryOptions = tariffCategoryService.GetPatientCategoryOptions(patientCategory);
 
-        return View(list);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Tariff Category Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]

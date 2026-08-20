@@ -192,24 +192,55 @@ public class NursingStationService(IDbConnectionFactory db) : INursingStationSer
         });
     }
 
-    public IEnumerable<SelectListItem> GetNurseOptions(string? selectedNurse = null)
+    public async Task<IEnumerable<SelectListItem>> GetNurseOptionsAsync(int? companyId = null, int? branchId = null, string? selectedNurse = null)
     {
-        var sampleNurses = new[]
-        {
-            "Sr. Nurse Priya Sharma (Nursing Supervisor)",
-            "Sr. Nurse Anjali Menon (ICU In-Charge)",
-            "Nurse Sunita Paul (Ward In-Charge)",
-            "Nurse Rajeshwari Nair (Staff Nurse)",
-            "Nurse Kavita Deshmukh (Staff Nurse)",
-            "Nurse Pooja Sengupta (Staff Nurse)",
-            "Duty Nursing Officer (Rotating Shift)"
-        };
+        using var con = db.CreateConnection();
+        var sql = @"
+            SELECT 
+                u.Id,
+                u.Username,
+                COALESCE(u.FullName, u.FirstName + ' ' + u.LastName, u.Username) AS FullName,
+                (SELECT TOP 1 ub.EmployeeCode FROM UserBranches ub WHERE ub.UserId = u.Id AND ub.IsActive = 1) AS EmployeeCode
+            FROM Users u
+            WHERE u.IsNursingStaff = 1
+              AND u.IsActive = 1
+              AND (@companyId IS NULL OR u.CompanyId = @companyId)
+              AND (@branchId IS NULL OR EXISTS (SELECT 1 FROM UserBranches ub WHERE ub.UserId = u.Id AND ub.BranchId = @branchId AND ub.IsActive = 1))
+            ORDER BY FullName";
 
-        return sampleNurses.Select(n => new SelectListItem
+        var users = (await con.QueryAsync(sql, new { companyId, branchId })).ToList();
+
+        var items = new List<SelectListItem>();
+
+        foreach (var u in users)
         {
-            Value = n,
-            Text = n,
-            Selected = string.Equals(n, selectedNurse, StringComparison.OrdinalIgnoreCase)
-        });
+            string fullName = (string)u.FullName;
+            string? empCode = (string?)u.EmployeeCode;
+            string? username = (string?)u.Username;
+            string display = !string.IsNullOrWhiteSpace(empCode)
+                ? $"{fullName} ({empCode})"
+                : (!string.IsNullOrWhiteSpace(username) ? $"{fullName} ({username})" : fullName);
+
+            items.Add(new SelectListItem
+            {
+                Value = fullName,
+                Text = display,
+                Selected = string.Equals(fullName, selectedNurse, StringComparison.OrdinalIgnoreCase)
+            });
+        }
+
+        // If a previously selected nurse exists but is not in the current list, preserve it as an option
+        if (!string.IsNullOrWhiteSpace(selectedNurse) && !items.Any(x => string.Equals(x.Value, selectedNurse, StringComparison.OrdinalIgnoreCase)))
+        {
+            items.Insert(0, new SelectListItem
+            {
+                Value = selectedNurse,
+                Text = $"{selectedNurse} (Current In-Charge)",
+                Selected = true
+            });
+        }
+
+        return items;
     }
 }
+

@@ -1,0 +1,275 @@
+@model EMR.Web.Models.ViewModels.OtDetailsViewModel
+@{
+    ViewData["Title"] = "Operation Theatre Details";
+    var ot = Model.Ot;
+    var equipments = Model.Equipments;
+    var tariffs = Model.Tariffs;
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-9">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">OT Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">OT Details</li>
+            </ol>
+        </nav>
+
+        <!-- OT Details Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-hospital me-2 text-primary"></i>Operation Theatre Details</h5>
+                <div>
+                    @if (ot.IsActive)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2">Inactive</span>
+                    }
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">OT Code</label>
+                        <span class="font-monospace fs-5 fw-bold text-primary">@ot.OtCode</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Operation Theatre Name</label>
+                        <span class="fs-5 fw-semibold">@ot.OtName</span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">OT Type</label>
+                        <span class="badge bg-info-subtle text-info-emphasis border fs-6">@ot.OtType</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Location (Building & Floor)</label>
+                        <span class="fw-medium"><i class="bi bi-building me-1 text-muted"></i>@(ot.Floor?.FloorName ?? "N/A")</span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Capacity / Stations</label>
+                        <span class="badge bg-light text-dark border fs-6"><i class="bi bi-layout-text-sidebar-reverse me-1"></i>@ot.Capacity</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">24x7 Emergency Availability</label>
+                        @if (ot.EmergencyAvailable)
+                        {
+                            <span class="badge bg-danger-subtle text-danger border fs-6"><i class="bi bi-lightning-charge-fill me-1"></i>24x7 Emergency Ready</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>Scheduled Procedures Only</span>
+                        }
+                    </div>
+
+                    <div class="col-12">
+                        <label class="text-muted small d-block">Description / Special Features</label>
+                        <p class="mb-0 text-secondary">@(string.IsNullOrWhiteSpace(ot.Description) ? "No description provided." : ot.Description)</p>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Branch</label>
+                        <span class="text-muted">@(ot.Branch?.BranchName ?? "Current Branch")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Created Date</label>
+                        <span class="text-muted">@ot.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assigned OT Equipments Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0 fw-bold @(Model.HasEquipments ? "text-primary" : "text-secondary")">
+                    <i class="bi bi-tools me-2"></i>Assigned OT Equipments
+                    @if (Model.HasEquipments)
+                    {
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2">@equipments.Count Equipments</span>
+                    }
+                </h6>
+                <a asp-controller="OtEquipments" asp-action="Create" asp-route-otId="@ot.OtId" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus-lg me-1"></i>Add Equipment
+                </a>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.HasEquipments)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4">Code</th>
+                                    <th>Equipment Name</th>
+                                    <th>Category</th>
+                                    <th>Serial No</th>
+                                    <th>Calibration</th>
+                                    <th>Status</th>
+                                    <th class="text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var eq in equipments)
+                                {
+                                    <tr>
+                                        <td class="ps-4">
+                                            <span class="font-monospace fw-bold text-primary">@eq.EquipmentCode</span>
+                                        </td>
+                                        <td class="fw-semibold">@eq.EquipmentName</td>
+                                        <td><span class="badge bg-light text-dark border">@(eq.EquipmentType ?? "General")</span></td>
+                                        <td class="font-monospace small text-muted">@(eq.SerialNo ?? "—")</td>
+                                        <td>
+                                            @if (eq.CalibrationRequired)
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border">Required</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted small">Not Required</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (eq.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <div class="btn-group btn-group-sm">
+                                                <a asp-controller="OtEquipments" asp-action="Details" asp-route-id="@eq.EquipmentId" class="btn btn-outline-info" title="View Equipment">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <a asp-controller="OtEquipments" asp-action="Edit" asp-route-id="@eq.EquipmentId" class="btn btn-outline-primary" title="Edit Equipment">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-4 text-center text-muted">
+                        <i class="bi bi-tools fs-2 d-block mb-2 text-secondary"></i>
+                        <p class="mb-0 fw-semibold text-secondary">No equipment assigned yet to this Operation Theatre.</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Configured Tariffs Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0 fw-bold @(Model.HasConfiguredTariffs ? "text-success" : "text-secondary")">
+                    <i class="bi bi-cash-coin me-2"></i>Configured OT Tariffs & Rates
+                    @if (Model.HasConfiguredTariffs)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-2">@tariffs.Count Configured</span>
+                    }
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.HasConfiguredTariffs)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4">Tariff Category</th>
+                                    <th>Total OT Rate</th>
+                                    <th>Charges Breakdown</th>
+                                    <th>Effective From</th>
+                                    <th>Status</th>
+                                    <th class="text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tariff in tariffs)
+                                {
+                                    <tr>
+                                        <td class="ps-4">
+                                            <div class="fw-bold">@(tariff.TariffCategory?.Name ?? "General")</div>
+                                            @if (!string.IsNullOrWhiteSpace(tariff.TariffCategory?.PatientCategory))
+                                            {
+                                                <small class="text-muted">@tariff.TariffCategory.PatientCategory</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="fs-5 fw-bold text-success font-monospace">@tariff.TotalRate.ToString("C2")</span>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted d-block">OT Usage: @tariff.OtUsageRate.ToString("C0") | Nursing: @tariff.NursingCharges.ToString("C0") | Equip: @tariff.EquipmentCharges.ToString("C0")</small>
+                                            <small class="text-muted d-block">Recovery: @tariff.RecoveryCharges.ToString("C0") | Consumable: @tariff.ConsumableCharges.ToString("C0") | Special Equip: @tariff.SpecialEquipmentCharges.ToString("C0")</small>
+                                        </td>
+                                        <td>
+                                            <div>@tariff.EffectiveFrom.ToString("dd MMM yyyy")</div>
+                                            <small class="text-muted">@(tariff.EffectiveTo.HasValue ? tariff.EffectiveTo.Value.ToString("dd MMM yyyy") : "Ongoing")</small>
+                                        </td>
+                                        <td>
+                                            @if (tariff.IsActive)
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Inactive</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <div class="btn-group btn-group-sm">
+                                                <a asp-controller="OtTariffs" asp-action="Details" asp-route-id="@tariff.OtTariffId" class="btn btn-outline-info" title="View Tariff">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <a asp-controller="OtTariffs" asp-action="Edit" asp-route-id="@tariff.OtTariffId" class="btn btn-outline-primary" title="Edit Tariff">
+                                                    <i class="bi bi-pencil me-1"></i>Edit Tariff
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-4 text-center text-muted">
+                        <i class="bi bi-cash-coin fs-1 d-block mb-2 text-secondary"></i>
+                        <p class="mb-1 fw-semibold text-secondary">No tariffs configured yet for this Operation Theatre</p>
+                        <small class="text-muted d-block mb-3">Click the "Configure Tariff" button below to set standard rates and component charges.</small>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Action Footer -->
+        <div class="d-flex justify-content-between align-items-center gap-2 pt-2">
+            <a asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to List
+            </a>
+            <div class="d-flex gap-2">
+                @if (!Model.HasConfiguredTariffs)
+                {
+                    <a asp-controller="OtTariffs" asp-action="Create" asp-route-otId="@ot.OtId" class="btn btn-success">
+                        <i class="bi bi-plus-lg me-1"></i>Configure Tariff
+                    </a>
+                }
+                <a asp-action="Edit" asp-route-id="@ot.OtId" class="btn btn-primary">
+                    <i class="bi bi-pencil me-1"></i>Edit OT
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

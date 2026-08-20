@@ -1,0 +1,142 @@
+@model EMR.Web.Models.ViewModels.ProcedureFormViewModel
+@{
+    ViewData["Title"] = "Add Procedure";
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Procedure Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Add Procedure</li>
+            </ol>
+        </nav>
+
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-heart-pulse me-2 text-primary"></i>Add Procedure</h5>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3" role="alert"></div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="DepartmentId" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <select asp-for="DepartmentId" asp-items="Model.DepartmentOptions" class="form-select">
+                                <option value="">-- Select IPD Department --</option>
+                            </select>
+                            <span asp-validation-for="DepartmentId" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="SpecialityId" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <select asp-for="SpecialityId" asp-items="Model.SpecialityOptions" class="form-select">
+                                <option value="">-- Select Doctor Speciality --</option>
+                            </select>
+                            <span asp-validation-for="SpecialityId" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="ProcedureCode" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <input asp-for="ProcedureCode" class="form-control font-monospace" placeholder="e.g. PROC-SURG-01" style="text-transform:uppercase" />
+                            <span asp-validation-for="ProcedureCode" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="ProcedureName" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <input asp-for="ProcedureName" class="form-control" placeholder="e.g. Laparoscopic Appendectomy" />
+                            <span asp-validation-for="ProcedureName" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label asp-for="ProcedureCategory" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                            <select asp-for="ProcedureCategory" asp-items="Model.ProcedureCategoryOptions" class="form-select">
+                                <option value="">-- Select Procedure Category --</option>
+                            </select>
+                            <span asp-validation-for="ProcedureCategory" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Duration -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold mb-1">Estimated Duration <span class="text-danger">*</span></label>
+                            <div class="row g-2">
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <input asp-for="DurationHours" class="form-control" type="number" min="0" max="72" placeholder="0" />
+                                        <span class="input-group-text">Hours</span>
+                                    </div>
+                                    <span asp-validation-for="DurationHours" class="text-danger small"></span>
+                                </div>
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <input asp-for="DurationMinutes" class="form-control" type="number" min="0" max="59" placeholder="0" />
+                                        <span class="input-group-text">Minutes</span>
+                                    </div>
+                                    <span asp-validation-for="DurationMinutes" class="text-danger small"></span>
+                                </div>
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <input asp-for="DurationSeconds" class="form-control" type="number" min="0" max="59" placeholder="0" />
+                                        <span class="input-group-text">Seconds</span>
+                                    </div>
+                                    <span asp-validation-for="DurationSeconds" class="text-danger small"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Clinical Flags -->
+                        <div class="col-md-6">
+                            <div class="card bg-light border-0 p-3 rounded-3">
+                                <div class="form-check form-switch mb-0">
+                                    <input asp-for="AnaesthesiaRequired" class="form-check-input" type="checkbox" role="switch" id="switchAnaesthesia" />
+                                    <label class="form-check-label fw-semibold" for="switchAnaesthesia">
+                                        <i class="bi bi-shield-plus me-1 text-warning"></i>Anaesthesia Required
+                                    </label>
+                                    <small class="text-muted d-block mt-1">Check if general/local anaesthesia is needed for this procedure.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card bg-light border-0 p-3 rounded-3">
+                                <div class="form-check form-switch mb-0">
+                                    <input asp-for="ConsentRequired" class="form-check-input" type="checkbox" role="switch" id="switchConsent" />
+                                    <label class="form-check-label fw-semibold" for="switchConsent">
+                                        <i class="bi bi-file-earmark-check me-1 text-primary"></i>Consent Form Required
+                                    </label>
+                                    <small class="text-muted d-block mt-1">Check if formal signed patient consent is mandatory.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold"></label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Optional notes or clinical indications..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="switchIsActive" />
+                                <label class="form-check-label fw-semibold" for="switchIsActive">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Save Procedure
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

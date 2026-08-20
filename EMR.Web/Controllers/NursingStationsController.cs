@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -10,30 +11,41 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class NursingStationsController(
     INursingStationService nursingStationService,
+    IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
 {
     public async Task<IActionResult> Index(int? wardId = null)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId();
-        var list = await nursingStationService.GetAllAsync(wardId, companyId, branchId);
+        try
+        {
+            var companyId = User.GetCompanyId();
+            var branchId = User.GetCurrentBranchId();
+            var list = await ipdMasterApiClient.GetNursingStationsAsync(wardId, companyId, branchId);
 
-        ViewBag.WardId = wardId;
-        ViewBag.WardOptions = await nursingStationService.GetWardOptionsAsync(wardId);
+            ViewBag.WardId = wardId;
+            ViewBag.WardOptions = await nursingStationService.GetWardOptionsAsync(wardId);
 
-        return View(list);
+            return View(list);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Nursing Station Master List";
+            return View("ApiDown");
+        }
     }
 
     [HttpGet]
     public async Task<IActionResult> Create(int? wardId = null)
     {
+        var companyId = User.GetCompanyId();
+        var branchId = User.GetCurrentBranchId();
         var model = new NursingStationFormViewModel
         {
-            CompanyId = User.GetCompanyId(),
-            BranchId = User.GetCurrentBranchId(),
+            CompanyId = companyId,
+            BranchId = branchId,
             WardId = wardId,
             WardOptions = await nursingStationService.GetWardOptionsAsync(wardId),
-            NurseOptions = nursingStationService.GetNurseOptions()
+            NurseOptions = await nursingStationService.GetNurseOptionsAsync(companyId, branchId)
         };
         return View(model);
     }
@@ -52,7 +64,7 @@ public class NursingStationsController(
         if (!ModelState.IsValid)
         {
             model.WardOptions = await nursingStationService.GetWardOptionsAsync(model.WardId);
-            model.NurseOptions = nursingStationService.GetNurseOptions(model.ResponsibleNurse);
+            model.NurseOptions = await nursingStationService.GetNurseOptionsAsync(companyId, branchId, model.ResponsibleNurse);
             return View(model);
         }
 
@@ -82,6 +94,9 @@ public class NursingStationsController(
         var entity = await nursingStationService.GetByIdAsync(id);
         if (entity is null) return NotFound();
 
+        var companyId = entity.CompanyId;
+        var branchId = entity.BranchId;
+
         return View(new NursingStationFormViewModel
         {
             NursingStationId = entity.NursingStationId,
@@ -94,7 +109,7 @@ public class NursingStationsController(
             Description = entity.Description,
             IsActive = entity.IsActive,
             WardOptions = await nursingStationService.GetWardOptionsAsync(entity.WardId),
-            NurseOptions = nursingStationService.GetNurseOptions(entity.ResponsibleNurse)
+            NurseOptions = await nursingStationService.GetNurseOptionsAsync(companyId, branchId, entity.ResponsibleNurse)
         });
     }
 
@@ -112,7 +127,7 @@ public class NursingStationsController(
         if (!ModelState.IsValid)
         {
             model.WardOptions = await nursingStationService.GetWardOptionsAsync(model.WardId);
-            model.NurseOptions = nursingStationService.GetNurseOptions(model.ResponsibleNurse);
+            model.NurseOptions = await nursingStationService.GetNurseOptionsAsync(companyId, branchId, model.ResponsibleNurse);
             return View(model);
         }
 

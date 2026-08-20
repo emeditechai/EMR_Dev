@@ -38,10 +38,15 @@ public class ClinicalUnitMaster
     public DateTime? ModifiedDate { get; set; }
 
     // Join helper fields
+    [NotMapped]
     public string? DepartmentName { get; set; }
+    [NotMapped]
     public string? DepartmentCode { get; set; }
+    [NotMapped]
     public string? SpecialityName { get; set; }
+    [NotMapped]
     public string? SpecialityCode { get; set; }
+    [NotMapped]
     public string? ConsultantName { get; set; }
 
     // Navigations
