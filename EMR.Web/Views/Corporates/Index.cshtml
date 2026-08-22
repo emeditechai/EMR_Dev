@@ -1,0 +1,255 @@
+@model EMR.Web.Models.ViewModels.CorporateIndexViewModel
+@{
+    ViewData["Title"] = "Corporate Master";
+    var total = Model.Corporates.Count;
+    var active = Model.Corporates.Count(x => x.Status);
+    var inactive = total - active;
+    var totalCreditExposure = Model.Corporates.Sum(x => x.Credit_Limit ?? 0);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Corporate Master</h1>
+        <small class="text-muted">Manage corporate tie-ups, institutional billing, credit limits, and validity terms</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Create" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Corporate
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-briefcase-fill"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Corporates</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active</div>
+                <div class="stat-label">Active Tie-ups</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-red">
+            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@inactive</div>
+                <div class="stat-label">Inactive</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-purple">
+            <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
+            <div>
+                <div class="stat-value">₹@totalCreditExposure.ToString("N0")</div>
+                <div class="stat-label">Total Credit Limit</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0 fw-semibold text-muted small"><i class="bi bi-funnel me-1"></i>Filters:</label>
+            </div>
+            <div class="col-md-3">
+                <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Types (IPD/OPD/LAB/MED) --</option>
+                    @foreach (var opt in Model.TypeOptions)
+                    {
+                        <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Status --</option>
+                    @foreach (var opt in Model.StatusOptions)
+                    {
+                        <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <input type="text" name="search" class="form-control" placeholder="Search by name, code, contact, billing cycle..." value="@Model.SearchTerm" />
+                    <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Search</button>
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.SelectedType) || Model.SelectedStatus.HasValue || !string.IsNullOrWhiteSpace(Model.SearchTerm))
+            {
+                <div class="col-auto">
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Clear</a>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 45px;">#</th>
+                <th>Corporate Code</th>
+                <th>Corporate Name</th>
+                <th>Type</th>
+                <th>Validity (From - To)</th>
+                <th>Credit Limit</th>
+                <th>Credit Days</th>
+                <th>Billing Cycle</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th class="text-end" style="width: 150px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model.Corporates)
+            {
+                var isExpired = item.Effective_To < DateTime.Today;
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        <span class="badge text-bg-light border text-dark font-monospace">
+                            @(string.IsNullOrWhiteSpace(item.Corporate_Code) ? "—" : item.Corporate_Code)
+                        </span>
+                    </td>
+                    <td>
+                        <div class="fw-semibold text-dark">
+                            <i class="bi bi-briefcase text-primary me-1"></i>@item.Corporate_Name
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(item.Address))
+                        {
+                            <small class="text-muted d-block text-truncate" style="max-width: 240px;" title="@item.Address">
+                                <i class="bi bi-geo-alt me-1"></i>@item.Address @(string.IsNullOrWhiteSpace(item.Pincode) ? "" : $"({item.Pincode})")
+                            </small>
+                        }
+                    </td>
+                    <td>
+                        @{
+                            var badgeClass = item.Corporate_Type switch
+                            {
+                                "IPD" => "bg-primary text-white",
+                                "OPD" => "bg-info text-dark",
+                                "LAB" => "bg-warning text-dark",
+                                "MED" => "bg-success text-white",
+                                "GENERAL" => "bg-secondary text-white",
+                                _ => "bg-dark text-white"
+                            };
+                        }
+                        <span class="badge @badgeClass">@item.Corporate_Type</span>
+                    </td>
+                    <td>
+                        <div class="small">
+                            <span class="fw-medium">@item.Effective_From.ToString("dd MMM yyyy")</span>
+                            <span class="text-muted"> to </span>
+                            <span class="fw-medium @(isExpired ? "text-danger fw-bold" : "")">
+                                @item.Effective_To.ToString("dd MMM yyyy")
+                            </span>
+                        </div>
+                        @if (isExpired)
+                        {
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 mt-1">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Expired
+                            </span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.Credit_Limit.HasValue && item.Credit_Limit.Value > 0)
+                        {
+                            <span class="fw-semibold text-success">₹@item.Credit_Limit.Value.ToString("N2")</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">No Limit</span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.Credit_Days.HasValue && item.Credit_Days.Value > 0)
+                        {
+                            <span class="badge bg-light text-dark border font-monospace">@item.Credit_Days Days</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">—</span>
+                        }
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary bg-opacity-10 text-dark border">
+                            <i class="bi bi-arrow-repeat me-1"></i>@item.BillingCycle
+                        </span>
+                    </td>
+                    <td>
+                        <div class="small fw-semibold"><i class="bi bi-telephone text-muted me-1"></i>@item.Contact_No</div>
+                        @if (!string.IsNullOrWhiteSpace(item.Email))
+                        {
+                            <div class="small text-muted text-truncate" style="max-width: 140px;" title="@item.Email">
+                                <i class="bi bi-envelope me-1"></i>@item.Email
+                            </div>
+                        }
+                    </td>
+                    <td>
+                        @if (item.Status)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.Corporate_ID"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.Corporate_ID"
+                           class="btn btn-sm btn-outline-primary me-1" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form asp-action="ToggleStatus" asp-route-id="@item.Corporate_ID" method="post" class="d-inline"
+                              onsubmit="return confirm('Toggle status for @item.Corporate_Name?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1" 
+                                    title="@(item.Status ? "Deactivate" : "Activate")">
+                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
+                            </button>
+                        </form>
+                        <form asp-action="Delete" asp-route-id="@item.Corporate_ID" method="post" class="d-inline"
+                              onsubmit="return confirm('Are you sure you want to delete @item.Corporate_Name?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.Corporates.Any())
+            {
+                <tr>
+                    <td colspan="11" class="text-center text-muted py-5">
+                        <i class="bi bi-briefcase fs-1 d-block mb-2 opacity-50"></i>
+                        No corporate tie-ups found. <a asp-action="Create" class="fw-bold">Add your first corporate tie-up.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

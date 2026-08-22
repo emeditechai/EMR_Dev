@@ -18,6 +18,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BuildingMaster> BuildingMasters => Set<BuildingMaster>();
     public DbSet<FloorMaster> FloorMasters => Set<FloorMaster>();
     public DbSet<DepartmentMaster> DepartmentMasters => Set<DepartmentMaster>();
+    public DbSet<CorporateMaster> CorporateMasters => Set<CorporateMaster>();
 
 
     // Patient Registration masters

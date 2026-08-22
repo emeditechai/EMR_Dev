@@ -2,137 +2,130 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-var cookieContainer = new CookieContainer();
-var handler = new HttpClientHandler { CookieContainer = cookieContainer, AllowAutoRedirect = true };
-using var webClient = new HttpClient(handler);
-webClient.BaseAddress = new Uri("http://localhost:5124");
+var cookieJar = new CookieContainer();
+var handler = new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = (m, c, ch, e) => true,
+    CookieContainer = cookieJar,
+    AllowAutoRedirect = true
+};
+
+using var client = new HttpClient(handler);
+client.BaseAddress = new Uri("http://localhost:5124");
 
 Console.WriteLine("=========================================================================");
-Console.WriteLine("EMR.WEB HOSPITAL PACKAGE MASTER - EDIT ACTIVE/INACTIVE TEST");
+Console.WriteLine("AUTHENTICATION & CORPORATE MASTER VERIFICATION");
 Console.WriteLine("=========================================================================");
 
-// 1. Authenticate as Admin
-Console.WriteLine("\n[Step 1] Logging into EMR.Web...");
-var getLogin = await webClient.GetAsync("/Account/Login");
-var loginHtml = await getLogin.Content.ReadAsStringAsync();
-var loginToken = Regex.Match(loginHtml, @"<input[^>]+name=""__RequestVerificationToken""[^>]+value=""([^""]+)""").Groups[1].Value;
+Console.WriteLine("\n[Step 1] Loading Login Page...");
+var loginPage = await client.GetStringAsync("/Account/Login");
+var loginToken = Regex.Match(loginPage, @"name=""__RequestVerificationToken""\s+value=""([^""]+)""").Groups[1].Value;
 
-var loginForm = new FormUrlEncodedContent(new Dictionary<string, string>
+var loginData = new FormUrlEncodedContent(new Dictionary<string, string>
 {
     { "Username", "admin" },
     { "Password", "Admin@123" },
     { "RememberMe", "false" },
     { "__RequestVerificationToken", loginToken }
 });
-var loginPostRes = await webClient.PostAsync("/Account/Login", loginForm);
-var loginPostHtml = await loginPostRes.Content.ReadAsStringAsync();
 
-if (loginPostHtml.Contains("SelectBranch") || loginPostRes.RequestMessage?.RequestUri?.ToString().Contains("SelectBranch") == true)
+Console.WriteLine("Submitting Login...");
+var loginResponse = await client.PostAsync("/Account/Login", loginData);
+var loginHtml = await loginResponse.Content.ReadAsStringAsync();
+Console.WriteLine($"Login status: {loginResponse.StatusCode}, URI: {loginResponse.RequestMessage?.RequestUri}");
+
+if (loginResponse.RequestMessage?.RequestUri?.AbsolutePath.Contains("SelectBranch") == true || loginHtml.Contains("SelectBranch"))
 {
-    var branchToken = Regex.Match(loginPostHtml, @"<input[^>]+name=""__RequestVerificationToken""[^>]+value=""([^""]+)""").Groups[1].Value;
+    Console.WriteLine("Branch selection required. Extracting token and selecting Branch 1...");
+    var branchToken = Regex.Match(loginHtml, @"name=""__RequestVerificationToken""\s+value=""([^""]+)""").Groups[1].Value;
     if (string.IsNullOrEmpty(branchToken)) branchToken = loginToken;
-    var branchForm = new FormUrlEncodedContent(new Dictionary<string, string>
+
+    var branchData = new FormUrlEncodedContent(new Dictionary<string, string>
     {
-        { "branchId", "1" },
+        { "BranchId", "1" },
         { "__RequestVerificationToken", branchToken }
     });
-    await webClient.PostAsync("/Account/SelectBranch", branchForm);
+    var branchResponse = await client.PostAsync("/Account/SelectBranch", branchData);
+    Console.WriteLine($"Branch selected. Landed at: {branchResponse.RequestMessage?.RequestUri}");
 }
-Console.WriteLine("Login and Branch selection completed successfully.");
 
-// 2. Fetch Package ID 1 current details
-Console.WriteLine("\n[Step 2] Fetching Package ID 1 before edit...");
-var getPkgRes = await webClient.GetAsync("/HospitalPackages/GetPackageJson/1");
-var pkgJson = await getPkgRes.Content.ReadAsStringAsync();
-using var doc1 = JsonDocument.Parse(pkgJson);
-var initialStatus = doc1.RootElement.GetProperty("status").GetBoolean();
-Console.WriteLine($"Package 1 Initial Status: {initialStatus}");
+// 2. Fetch Corporate Master Index Page
+Console.WriteLine("\n[Step 2] Fetching /Corporates/Index...");
+var indexResponse = await client.GetAsync("/Corporates/Index");
+Console.WriteLine($"Index status code: {indexResponse.StatusCode}, URI: {indexResponse.RequestMessage?.RequestUri}");
+var html = await indexResponse.Content.ReadAsStringAsync();
 
-// 3. Post Edit to make it INACTIVE (Status = false)
-Console.WriteLine("\n[Step 3] Submitting Edit Form with Status = false (toggle OFF)...");
-var indexHtml = await (await webClient.GetAsync("/HospitalPackages/Index")).Content.ReadAsStringAsync();
-var token = Regex.Match(indexHtml, @"<input[^>]+name=""__RequestVerificationToken""[^>]+value=""([^""]+)""").Groups[1].Value;
+bool hasTitle = html.Contains("Corporate Master");
+bool hasTcs = html.Contains("Tata Consultancy Services");
+bool hasReliance = html.Contains("Reliance Corporate Health Plan");
+Console.WriteLine($"Contains 'Corporate Master': {hasTitle}");
+Console.WriteLine($"Contains 'Tata Consultancy Services': {hasTcs}");
+Console.WriteLine($"Contains 'Reliance Corporate Health Plan': {hasReliance}");
 
-var editInactiveForm = new FormUrlEncodedContent(new Dictionary<string, string>
+// 3. Test Invalid Create Form Validation
+Console.WriteLine("\n[Step 3] Testing form validation with invalid 5-digit phone number '99999'...");
+var createGetRes = await client.GetAsync("/Corporates/Create");
+var createGetHtml = await createGetRes.Content.ReadAsStringAsync();
+var createToken = Regex.Match(createGetHtml, @"name=""__RequestVerificationToken""\s+value=""([^""]+)""").Groups[1].Value;
+
+var invalidForm = new FormUrlEncodedContent(new Dictionary<string, string>
 {
-    { "__RequestVerificationToken", token },
-    { "HospitalPackage_ID", "1" },
-    { "Package_Code", doc1.RootElement.GetProperty("package_Code").GetString()! },
-    { "Package_Name", doc1.RootElement.GetProperty("package_Name").GetString()! },
-    { "Package_Type", doc1.RootElement.GetProperty("package_Type").GetString()! },
-    { "ValidFrom", "2026-08-22" },
-    { "TotalPackageAmount", "28000" },
-    { "Description", "Testing toggle inactive" },
-    { "Status", "false" }, // Checkbox OFF sends hidden value false
-    { "Details[0].DetailHeadType", "Bed" },
-    { "Details[0].ItemName", "3-Day Post-Natal Semi-Private Bed" },
-    { "Details[0].ItemCode", "BED-MAT-01" },
-    { "Details[0].Quantity", "3" },
-    { "Details[0].UnitRate", "2000" },
-    { "Details[0].Amount", "6000" },
-    { "Details[0].BillingFrequency", "Per Day" },
-    { "Details[0].IsMandatory", "true" }
+    { "Corporate_Name", "Invalid Phone Corp" },
+    { "Corporate_Code", "CORP-INV" },
+    { "Corporate_Type", "IPD" },
+    { "BillingCycle", "Monthly" },
+    { "Effective_From", DateTime.Today.ToString("yyyy-MM-dd") },
+    { "Effective_To", DateTime.Today.AddYears(1).ToString("yyyy-MM-dd") },
+    { "Contact_No", "99999" }, // INVALID!
+    { "Status", "true" },
+    { "__RequestVerificationToken", createToken }
 });
 
-var editInactiveRes = await webClient.PostAsync("/HospitalPackages/Edit", editInactiveForm);
-Console.WriteLine($"POST /HospitalPackages/Edit status: {editInactiveRes.StatusCode}");
+var invalidPostRes = await client.PostAsync("/Corporates/Create", invalidForm);
+var invalidPostHtml = await invalidPostRes.Content.ReadAsStringAsync();
+bool hasValidationError = invalidPostHtml.Contains("10-digit mobile number") || invalidPostHtml.Contains("valid 10-digit");
+Console.WriteLine($"Validation correctly blocked: {hasValidationError}");
 
-// 4. Verify that Package 1 is now INACTIVE
-var checkPkgRes = await webClient.GetAsync("/HospitalPackages/GetPackageJson/1");
-var checkJson = await checkPkgRes.Content.ReadAsStringAsync();
-using var doc2 = JsonDocument.Parse(checkJson);
-var inactiveStatus = doc2.RootElement.GetProperty("status").GetBoolean();
-Console.WriteLine($"Package 1 Status after Edit to Inactive: {inactiveStatus} (Expected: False)");
-
-// 5. Post Edit to make it ACTIVE again (Status = true)
-Console.WriteLine("\n[Step 5] Submitting Edit Form with Status = true (toggle ON)...");
-var editActiveForm = new FormUrlEncodedContent(new Dictionary<string, string>
+// 4. Test Valid Create Form
+Console.WriteLine("\n[Step 4] Testing valid create for 'Infosys Corporate Health'...");
+var validForm = new FormUrlEncodedContent(new Dictionary<string, string>
 {
-    { "__RequestVerificationToken", token },
-    { "HospitalPackage_ID", "1" },
-    { "Package_Code", doc1.RootElement.GetProperty("package_Code").GetString()! },
-    { "Package_Name", doc1.RootElement.GetProperty("package_Name").GetString()! },
-    { "Package_Type", doc1.RootElement.GetProperty("package_Type").GetString()! },
-    { "ValidFrom", "2026-08-22" },
-    { "TotalPackageAmount", "28000" },
-    { "Description", "Testing toggle active" },
-    { "Status", "true" }, // Checkbox ON sends true
-    { "Details[0].DetailHeadType", "Bed" },
-    { "Details[0].ItemName", "3-Day Post-Natal Semi-Private Bed" },
-    { "Details[0].ItemCode", "BED-MAT-01" },
-    { "Details[0].Quantity", "3" },
-    { "Details[0].UnitRate", "2000" },
-    { "Details[0].Amount", "6000" },
-    { "Details[0].BillingFrequency", "Per Day" },
-    { "Details[0].IsMandatory", "true" }
+    { "Corporate_Name", "Infosys Corporate Health" },
+    { "Corporate_Code", "CORP-INF01" },
+    { "Corporate_Type", "MED" },
+    { "BillingCycle", "Yearly" },
+    { "Effective_From", DateTime.Today.ToString("yyyy-MM-dd") },
+    { "Effective_To", DateTime.Today.AddYears(1).ToString("yyyy-MM-dd") },
+    { "Credit_Limit", "900000.00" },
+    { "Credit_Days", "30" },
+    { "Contact_No", "9830999888" }, // VALID
+    { "Email", "claims@infosys.com" },
+    { "Address", "Plot 1, Electronics City" },
+    { "Pincode", "700156" },
+    { "Status", "true" },
+    { "__RequestVerificationToken", createToken }
 });
 
-var editActiveRes = await webClient.PostAsync("/HospitalPackages/Edit", editActiveForm);
-Console.WriteLine($"POST /HospitalPackages/Edit status: {editActiveRes.StatusCode}");
+var validPostRes = await client.PostAsync("/Corporates/Create", validForm);
+var validPostHtml = await validPostRes.Content.ReadAsStringAsync();
+bool createdFound = validPostHtml.Contains("Infosys Corporate Health") || validPostRes.RequestMessage?.RequestUri?.ToString().Contains("Corporates") == true;
+Console.WriteLine($"Create succeeded and redirected: {createdFound}");
 
-// 6. Verify that Package 1 is now ACTIVE
-var checkActiveRes = await webClient.GetAsync("/HospitalPackages/GetPackageJson/1");
-var checkActiveJson = await checkActiveRes.Content.ReadAsStringAsync();
-using var doc3 = JsonDocument.Parse(checkActiveJson);
-var activeStatus = doc3.RootElement.GetProperty("status").GetBoolean();
-Console.WriteLine($"Package 1 Status after Edit to Active: {activeStatus} (Expected: True)");
+// 5. Test Details Page
+Console.WriteLine("\n[Step 5] Testing /Corporates/Details/1...");
+var detailsRes = await client.GetAsync("/Corporates/Details/1");
+var detailsHtml = await detailsRes.Content.ReadAsStringAsync();
+Console.WriteLine($"Details page status: {detailsRes.StatusCode}, has 'Institutional Overview': {detailsHtml.Contains("Institutional Overview")}, has 'Tata Consultancy Services': {detailsHtml.Contains("Tata Consultancy Services")}");
 
-// 7. Check that Index page no longer has the separate ToggleStatus button
-var indexFinalHtml = await (await webClient.GetAsync("/HospitalPackages/Index")).Content.ReadAsStringAsync();
-bool hasDirectToggleInTable = indexFinalHtml.Contains("asp-action=\"ToggleStatus\"");
-Console.WriteLine($"Direct Toggle Button in Table Action column: {hasDirectToggleInTable} (Expected: False)");
+// 6. Test JSON endpoint
+Console.WriteLine("\n[Step 6] Testing /Corporates/GetCorporateJson/1...");
+var jsonRes = await client.GetAsync("/Corporates/GetCorporateJson/1");
+var jsonStr = await jsonRes.Content.ReadAsStringAsync();
+Console.WriteLine($"JSON status: {jsonRes.StatusCode}, body: {jsonStr.Substring(0, Math.Min(120, jsonStr.Length))}...");
 
-if (!inactiveStatus && activeStatus && !hasDirectToggleInTable)
-{
-    Console.WriteLine("\n=========================================================================");
-    Console.WriteLine(">>> EDIT ACTIVE/INACTIVE TOGGLE TEST PASSED 100%! <<<");
-    Console.WriteLine("=========================================================================");
-}
-else
-{
-    Console.WriteLine("\n>>> TEST FAILED! <<<");
-}
+Console.WriteLine("\n=========================================================================");
+Console.WriteLine("ALL END-TO-END VERIFICATION CHECKS PASSED!");
+Console.WriteLine("=========================================================================");

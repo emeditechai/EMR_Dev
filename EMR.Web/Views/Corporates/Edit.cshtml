@@ -1,0 +1,260 @@
+@model EMR.Web.Models.ViewModels.CorporateFormViewModel
+@{
+    ViewData["Title"] = "Edit Corporate Tie-up";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Corporate Tie-up</h1>
+        <small class="text-muted">Update corporate billing parameters, validity dates, and contact information</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Details" asp-route-id="@Model.Corporate_ID" class="btn btn-outline-info btn-sm px-3">
+            <i class="bi bi-eye me-1"></i> View Details
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-pencil-square me-2"></i>Edit Corporate Master (#@Model.Corporate_ID)</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit" asp-route-id="@Model.Corporate_ID" method="post" id="corporateEditForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="Corporate_ID" />
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="Branch_ID" />
+
+                    @if (!ViewData.ModelState.IsValid && ViewData.ModelState[string.Empty]?.Errors.Count > 0)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            @foreach (var error in ViewData.ModelState[string.Empty]!.Errors)
+                            {
+                                <div>@error.ErrorMessage</div>
+                            }
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+
+                    <!-- Section 1: Basic & Institutional Details -->
+                    <div class="mb-4">
+                        <div class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-1">
+                            <i class="bi bi-building me-1"></i>1. Corporate & Department Information
+                        </div>
+                        <div class="row g-3">
+                            <!-- Corporate Name -->
+                            <div class="col-md-8">
+                                <label asp-for="Corporate_Name" class="form-label fw-semibold">
+                                    Corporate Name <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-briefcase text-muted"></i></span>
+                                    <input asp-for="Corporate_Name" class="form-control" placeholder="e.g. Tata Consultancy Services (TCS)" required maxlength="200" />
+                                </div>
+                                <span asp-validation-for="Corporate_Name" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Corporate Code -->
+                            <div class="col-md-4">
+                                <label asp-for="Corporate_Code" class="form-label fw-semibold">
+                                    Corporate Code <small class="text-muted">(Optional)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-qr-code text-muted"></i></span>
+                                    <input asp-for="Corporate_Code" class="form-control text-uppercase font-monospace" placeholder="Auto / CORP-001" maxlength="50" oninput="this.value=this.value.toUpperCase()" />
+                                </div>
+                                <span asp-validation-for="Corporate_Code" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Type (IPD/OPD/LAB/MED/GENERAL/ALL) -->
+                            <div class="col-md-6">
+                                <label asp-for="Corporate_Type" class="form-label fw-semibold">
+                                    Type (Department Master TYPE) <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-layers text-muted"></i></span>
+                                    <select asp-for="Corporate_Type" asp-items="Model.CorporateTypeOptions" class="form-select" required>
+                                    </select>
+                                </div>
+                                <small class="form-text text-muted">Select the applicable department scope (IPD, OPD, LAB, MED, GENERAL, or ALL).</small>
+                                <span asp-validation-for="Corporate_Type" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Billing Cycle -->
+                            <div class="col-md-6">
+                                <label asp-for="BillingCycle" class="form-label fw-semibold">
+                                    Billing Cycle <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-calendar-cycle text-muted"></i></span>
+                                    <select asp-for="BillingCycle" asp-items="Model.BillingCycleOptions" class="form-select" required>
+                                    </select>
+                                </div>
+                                <small class="form-text text-muted">Select invoice generation frequency.</small>
+                                <span asp-validation-for="BillingCycle" class="text-danger small d-block mt-1"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Validity & Credit Terms -->
+                    <div class="mb-4">
+                        <div class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-1">
+                            <i class="bi bi-cash-coin me-1"></i>2. Validity & Credit Limits
+                        </div>
+                        <div class="row g-3">
+                            <!-- Effective From -->
+                            <div class="col-md-6">
+                                <label asp-for="Effective_From" class="form-label fw-semibold">
+                                    Effective From <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-calendar-check text-muted"></i></span>
+                                    <input asp-for="Effective_From" type="date" class="form-control" id="effectiveFrom" value="@Model.Effective_From.ToString("yyyy-MM-dd")" required />
+                                </div>
+                                <span asp-validation-for="Effective_From" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Effective To -->
+                            <div class="col-md-6">
+                                <label asp-for="Effective_To" class="form-label fw-semibold">
+                                    Effective To <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-calendar-x text-muted"></i></span>
+                                    <input asp-for="Effective_To" type="date" class="form-control" id="effectiveTo" value="@Model.Effective_To.ToString("yyyy-MM-dd")" required />
+                                </div>
+                                <span asp-validation-for="Effective_To" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Credit Limit -->
+                            <div class="col-md-6">
+                                <label asp-for="Credit_Limit" class="form-label fw-semibold">
+                                    Credit Limit (₹) <small class="text-muted">(Optional Numeric)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light">₹</span>
+                                    <input asp-for="Credit_Limit" type="number" step="0.01" min="0" class="form-control" placeholder="e.g. 500000.00" />
+                                </div>
+                                <span asp-validation-for="Credit_Limit" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Credit Days -->
+                            <div class="col-md-6">
+                                <label asp-for="Credit_Days" class="form-label fw-semibold">
+                                    Credit Days <small class="text-muted">(Numeric)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-hourglass-split text-muted"></i></span>
+                                    <input asp-for="Credit_Days" type="number" min="0" max="365" class="form-control" placeholder="e.g. 30" />
+                                </div>
+                                <span asp-validation-for="Credit_Days" class="text-danger small d-block mt-1"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Contact & Address Information -->
+                    <div class="mb-4">
+                        <div class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-1">
+                            <i class="bi bi-pin-map me-1"></i>3. Contact & Address Details
+                        </div>
+                        <div class="row g-3">
+                            <!-- Contact No (10-Digit Mobile Mandatory) -->
+                            <div class="col-md-6">
+                                <label asp-for="Contact_No" class="form-label fw-semibold">
+                                    Contact No (Mobile) <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-phone text-muted"></i></span>
+                                    <input asp-for="Contact_No" type="tel" class="form-control" placeholder="10-digit mobile number (e.g. 9876543210)" 
+                                           maxlength="10" pattern="[6-9][0-9]{9}" required id="contactNoInput" />
+                                </div>
+                                <small class="form-text text-muted">Must be a valid 10-digit mobile number starting with 6, 7, 8, or 9.</small>
+                                <span asp-validation-for="Contact_No" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Email -->
+                            <div class="col-md-6">
+                                <label asp-for="Email" class="form-label fw-semibold">
+                                    Email Address <small class="text-muted">(Optional)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-envelope text-muted"></i></span>
+                                    <input asp-for="Email" type="email" class="form-control" placeholder="e.g. corporate.claims@partner.com" maxlength="150" />
+                                </div>
+                                <span asp-validation-for="Email" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Address -->
+                            <div class="col-md-8">
+                                <label asp-for="Address" class="form-label fw-semibold">Address</label>
+                                <textarea asp-for="Address" class="form-control" rows="2" placeholder="Office address, registered premises, floor, sector..." maxlength="500"></textarea>
+                                <span asp-validation-for="Address" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Pincode -->
+                            <div class="col-md-4">
+                                <label asp-for="Pincode" class="form-label fw-semibold">Pincode</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-geo text-muted"></i></span>
+                                    <input asp-for="Pincode" class="form-control" placeholder="e.g. 700091" maxlength="6" pattern="[1-9][0-9]{5}" />
+                                </div>
+                                <span asp-validation-for="Pincode" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-12">
+                                <div class="form-check form-switch p-3 border rounded-3 bg-light mt-2">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="Status" id="statusSwitch">
+                                    <label class="form-check-label fw-semibold" for="statusSwitch">Active Corporate Partner</label>
+                                    <div class="small text-muted ms-4">When active, this corporate will be available in billing and registration tie-up selections.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Update Corporate Master
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const fromDate = document.getElementById("effectiveFrom");
+            const toDate = document.getElementById("effectiveTo");
+            const contactInput = document.getElementById("contactNoInput");
+
+            if (fromDate && toDate) {
+                fromDate.addEventListener("change", function () {
+                    if (fromDate.value && toDate.value && toDate.value < fromDate.value) {
+                        toDate.value = fromDate.value;
+                    }
+                    toDate.min = fromDate.value;
+                });
+            }
+
+            if (contactInput) {
+                contactInput.addEventListener("input", function () {
+                    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+                });
+            }
+        });
+    </script>
+}
