@@ -1,0 +1,375 @@
+@model EMR.Web.Models.ViewModels.GovernmentSchemeFormViewModel
+@{
+    ViewData["Title"] = "Add Government Scheme";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Government Scheme</h1>
+        <small class="text-muted">Register and configure Indian Government & PSU healthcare schemes, rule parameters, and portal integrations</small>
+    </div>
+    <div>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<form asp-action="Create" method="post" id="schemeForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="CompanyId" />
+    <input type="hidden" asp-for="Branch_ID" />
+    <input type="hidden" asp-for="RuleConfigJSON" id="RuleConfigJSON" />
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger shadow-sm mb-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Please correct the errors below:</strong>
+            <div asp-validation-summary="All" class="text-danger small mt-2"></div>
+        </div>
+    }
+
+    <!-- Quick Preset Buttons for Indian Government Standard Schemes -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-light">
+        <div class="card-body p-3">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                    <span class="fw-bold small text-dark"><i class="bi bi-magic me-1 text-primary"></i>Quick Scheme Presets:</span>
+                    <span class="small text-muted ms-1">Pre-fill standard Indian Government healthcare guidelines</span>
+                </div>
+                <div class="btn-group btn-group-sm flex-wrap" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="applyPreset('PMJAY')">
+                        <i class="bi bi-shield-check me-1"></i>PM-JAY (Ayushman)
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="applyPreset('CGHS')">
+                        <i class="bi bi-building me-1"></i>CGHS
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="applyPreset('ECHS')">
+                        <i class="bi bi-shield-shaded me-1"></i>ECHS (Defence)
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="applyPreset('STATE')">
+                        <i class="bi bi-geo-alt me-1"></i>State Health Scheme
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="applyPreset('ESIC')">
+                        <i class="bi bi-people me-1"></i>ESIC
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="applyPreset('PSU')">
+                        <i class="bi bi-briefcase me-1"></i>PSU Scheme (SAIL/ONGC)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left Column: Primary Scheme Information -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-bank2 me-2"></i>Scheme Identification & Authority</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="SchemeCode" class="form-label fw-semibold small"></label>
+                            <input asp-for="SchemeCode" class="form-control font-monospace" placeholder="e.g. PMJAY-01" required />
+                            <span asp-validation-for="SchemeCode" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="SchemeType" class="form-label fw-semibold small"></label>
+                            <select asp-for="SchemeType" asp-items="Model.SchemeTypeOptions" class="form-select" required></select>
+                            <span asp-validation-for="SchemeType" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="SchemeName" class="form-label fw-semibold small"></label>
+                            <input asp-for="SchemeName" class="form-control fw-medium" placeholder="e.g. Ayushman Bharat – Pradhan Mantri Jan Arogya Yojana (PM-JAY)" required />
+                            <span asp-validation-for="SchemeName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="AuthorityName" class="form-label fw-semibold small"></label>
+                            <input asp-for="AuthorityName" class="form-control" placeholder="e.g. National Health Authority (NHA) / Ministry of Health & Family Welfare" required />
+                            <span asp-validation-for="AuthorityName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Effective_From" class="form-label fw-semibold small"></label>
+                            <input asp-for="Effective_From" class="form-control" type="date" required />
+                            <span asp-validation-for="Effective_From" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Effective_To" class="form-label fw-semibold small"></label>
+                            <input asp-for="Effective_To" class="form-control" type="date" required />
+                            <span asp-validation-for="Effective_To" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch pt-2">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="IsActive" />
+                                <label class="form-check-label fw-semibold small" asp-for="IsActive">Scheme Active</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Indian Government Standard Healthcare Rule Configuration -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-sliders me-2"></i>Rule Configuration (RuleConfigJSON)</h6>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 small">Indian Govt Standard</span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="AnnualCoverageLimit" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">₹</span>
+                                <input asp-for="AnnualCoverageLimit" class="form-control" placeholder="500000" onchange="syncJsonPreview()" />
+                            </div>
+                            <small class="text-muted extra-small">0 for Unlimited / Rank Entitlement</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="MaxClaimSubmissionDays" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <input asp-for="MaxClaimSubmissionDays" class="form-control" placeholder="7" onchange="syncJsonPreview()" />
+                                <span class="input-group-text">Days</span>
+                            </div>
+                            <small class="text-muted extra-small">Post-discharge claim filing window</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="CoPayPercentage" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <input asp-for="CoPayPercentage" class="form-control" placeholder="0" onchange="syncJsonPreview()" />
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="PackageRateDiscountPercent" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <input asp-for="PackageRateDiscountPercent" class="form-control" placeholder="0" onchange="syncJsonPreview()" />
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="DefaultBedCategory" class="form-label fw-semibold small"></label>
+                            <input asp-for="DefaultBedCategory" class="form-control form-control-sm" placeholder="General Ward" onchange="syncJsonPreview()" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="NHA_SchemeCode" class="form-label fw-semibold small"></label>
+                            <input asp-for="NHA_SchemeCode" class="form-control form-control-sm font-monospace" placeholder="PMJAY_V2" onchange="syncJsonPreview()" />
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="TMSPortalUrl" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-globe"></i></span>
+                                <input asp-for="TMSPortalUrl" class="form-control" placeholder="https://tms.pmjay.gov.in" onchange="syncJsonPreview()" />
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="BeneficiaryIdType" class="form-label fw-semibold small"></label>
+                            <input asp-for="BeneficiaryIdType" class="form-control form-control-sm" placeholder="PM-JAY Golden Card / Aadhaar / Ration Card" onchange="syncJsonPreview()" />
+                        </div>
+                        
+                        <!-- Policy Flags -->
+                        <div class="col-12 border-top pt-2">
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PreAuthMandatory" onchange="syncJsonPreview()" />
+                                        <label class="form-check-label small fw-semibold" asp-for="PreAuthMandatory">Pre-Authorization Mandatory</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="BiometricAuthRequired" onchange="syncJsonPreview()" />
+                                        <label class="form-check-label small fw-semibold" asp-for="BiometricAuthRequired">Aadhaar Biometric Auth</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="AbhaCreationMandatory" onchange="syncJsonPreview()" />
+                                        <label class="form-check-label small fw-semibold" asp-for="AbhaCreationMandatory">Mandatory ABHA Creation & Linking (ABDM)</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="SpecialRemarks" class="form-label fw-semibold small"></label>
+                            <textarea asp-for="SpecialRemarks" class="form-control form-control-sm" rows="2" placeholder="Special settlement terms, admission guidelines..." onchange="syncJsonPreview()"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="col-12 text-end pt-3 border-top">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4 me-2">Cancel</a>
+            <button type="submit" class="btn btn-primary px-5 fw-semibold shadow-sm">
+                <i class="bi bi-check2-circle me-1"></i> Save Government Scheme
+            </button>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <style>
+        .extra-small { font-size: 0.75rem; }
+    </style>
+
+    <script>
+        const presets = {
+            PMJAY: {
+                code: 'PMJAY-01',
+                name: 'Ayushman Bharat – Pradhan Mantri Jan Arogya Yojana (PM-JAY)',
+                type: 'Central Government',
+                authority: 'National Health Authority (NHA)',
+                coverage: 500000,
+                preAuth: true,
+                biometric: true,
+                abha: true,
+                copay: 0,
+                days: 7,
+                bed: 'General Ward',
+                tms: 'https://tms.pmjay.gov.in',
+                nhaCode: 'PMJAY_V2',
+                idType: 'PM-JAY Golden Card / Aadhaar / Ration Card',
+                remarks: '100% Cashless secondary & tertiary hospitalisation coverage up to Rs 5 Lakh per family per year.'
+            },
+            CGHS: {
+                code: 'CGHS-DEL',
+                name: 'Central Government Health Scheme (CGHS)',
+                type: 'Central Government',
+                authority: 'Ministry of Health & Family Welfare (MoHFW)',
+                coverage: 0,
+                preAuth: true,
+                biometric: true,
+                abha: true,
+                copay: 0,
+                days: 15,
+                bed: 'Semi-Private / Private as per Pay Matrix',
+                tms: 'https://cghs.nic.in',
+                nhaCode: 'CGHS_CENTRAL',
+                idType: 'CGHS Plastic Card / Beneficiary ID',
+                remarks: 'Comprehensive healthcare for central government employees and pensioners.'
+            },
+            ECHS: {
+                code: 'ECHS-HQ',
+                name: 'Ex-Servicemen Contributory Health Scheme (ECHS)',
+                type: 'Defence / Ex-Servicemen',
+                authority: 'Central Organisation ECHS / Ministry of Defence',
+                coverage: 0,
+                preAuth: true,
+                biometric: true,
+                abha: false,
+                copay: 0,
+                days: 30,
+                bed: 'As per Rank / Entitlement',
+                tms: 'https://echs.gov.in',
+                nhaCode: 'ECHS_DEFENCE',
+                idType: 'ECHS 64Kb Smart Card',
+                remarks: 'Cashless treatment for Armed Forces veterans, war widows, and legitimate dependents.'
+            },
+            STATE: {
+                code: 'SWS-WB',
+                name: 'Swasthya Sathi Scheme',
+                type: 'State Government',
+                authority: 'State Health Agency - Government of West Bengal',
+                coverage: 500000,
+                preAuth: true,
+                biometric: true,
+                abha: false,
+                copay: 0,
+                days: 7,
+                bed: 'General Ward',
+                tms: 'https://swasthyasathi.gov.in',
+                nhaCode: 'SWS_WB_01',
+                idType: 'Swasthya Sathi Smart Card (Family Head: Female)',
+                remarks: 'Flagship universal health insurance scheme of Government of West Bengal covering up to Rs 5 Lakh per family per annum.'
+            },
+            ESIC: {
+                code: 'ESIC-HQ',
+                name: 'Employees State Insurance Corporation (ESIC)',
+                type: 'Social Security / Labour',
+                authority: 'Ministry of Labour & Employment - ESIC',
+                coverage: 0,
+                preAuth: true,
+                biometric: true,
+                abha: true,
+                copay: 0,
+                days: 15,
+                bed: 'General Ward',
+                tms: 'https://esic.gov.in',
+                nhaCode: 'ESIC_SOCIAL',
+                idType: 'ESIC Pehchan Card / IP Number',
+                remarks: 'Full medical care and cash benefits for insured persons and dependent family members.'
+            },
+            PSU: {
+                code: 'PSU-SAIL',
+                name: 'Steel Authority of India Ltd (SAIL) Mediclaim Scheme',
+                type: 'PSU / Autonomous Body',
+                authority: 'SAIL Corporate Medical Directorate',
+                coverage: 400000,
+                preAuth: true,
+                biometric: false,
+                abha: false,
+                copay: 5,
+                days: 30,
+                bed: 'As per Grade (Non-Executive / Executive)',
+                tms: 'https://sail.co.in',
+                nhaCode: 'PSU_SAIL_MED',
+                idType: 'SAIL Medical Booklet / Employee ID',
+                remarks: 'Indoor hospitalisation coverage for serving and retired employees of Steel Authority of India Ltd.'
+            }
+        };
+
+        function applyPreset(key) {
+            const p = presets[key];
+            if (!p) return;
+
+            document.getElementById('SchemeCode').value = p.code;
+            document.getElementById('SchemeName').value = p.name;
+            document.getElementById('SchemeType').value = p.type;
+            document.getElementById('AuthorityName').value = p.authority;
+            document.getElementById('AnnualCoverageLimit').value = p.coverage;
+            document.getElementById('PreAuthMandatory').checked = p.preAuth;
+            document.getElementById('BiometricAuthRequired').checked = p.biometric;
+            document.getElementById('AbhaCreationMandatory').checked = p.abha;
+            document.getElementById('CoPayPercentage').value = p.copay;
+            document.getElementById('MaxClaimSubmissionDays').value = p.days;
+            document.getElementById('DefaultBedCategory').value = p.bed;
+            document.getElementById('TMSPortalUrl').value = p.tms;
+            document.getElementById('NHA_SchemeCode').value = p.nhaCode;
+            document.getElementById('BeneficiaryIdType').value = p.idType;
+            document.getElementById('SpecialRemarks').value = p.remarks;
+
+            syncJsonPreview();
+        }
+
+        function syncJsonPreview() {
+            const obj = {
+                AnnualCoverageLimit: parseFloat(document.getElementById('AnnualCoverageLimit').value) || 0,
+                PreAuthMandatory: document.getElementById('PreAuthMandatory').checked,
+                BiometricAuthRequired: document.getElementById('BiometricAuthRequired').checked,
+                AbhaCreationMandatory: document.getElementById('AbhaCreationMandatory').checked,
+                CoPayPercentage: parseFloat(document.getElementById('CoPayPercentage').value) || 0,
+                MaxClaimSubmissionDays: parseInt(document.getElementById('MaxClaimSubmissionDays').value) || 7,
+                PackageRateDiscountPercent: parseFloat(document.getElementById('PackageRateDiscountPercent').value) || 0,
+                DefaultBedCategory: document.getElementById('DefaultBedCategory').value || 'General Ward',
+                TMSPortalUrl: document.getElementById('TMSPortalUrl').value || '',
+                NHA_SchemeCode: document.getElementById('NHA_SchemeCode').value || '',
+                BeneficiaryIdType: document.getElementById('BeneficiaryIdType').value || '',
+                SpecialRemarks: document.getElementById('SpecialRemarks').value || ''
+            };
+
+            document.getElementById('RuleConfigJSON').value = JSON.stringify(obj, null, 2);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            syncJsonPreview();
+        });
+    </script>
+}

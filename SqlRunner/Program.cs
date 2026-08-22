@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 Console.WriteLine("=========================================================================");
-Console.WriteLine("INSURANCE TARIFF CONFIGURATION INTEGRATION VERIFICATION SUITE");
+Console.WriteLine("GOVERNMENT SCHEME MASTER END-TO-END VERIFICATION SUITE");
 Console.WriteLine("=========================================================================");
 
 var cookieContainer = new CookieContainer();
@@ -22,7 +22,7 @@ using var client = new HttpClient(handler)
     BaseAddress = new Uri("http://localhost:5124")
 };
 
-// 1. Authenticate - Step A: Login
+// 1. Authenticate
 Console.WriteLine("\n[Step 1] Authenticating as Administrator...");
 var loginPageResponse = await client.GetAsync("/Account/Login");
 var loginHtml = await loginPageResponse.Content.ReadAsStringAsync();
@@ -40,7 +40,6 @@ var formContent = new FormUrlEncodedContent(new[]
 var loginResponse = await client.PostAsync("/Account/Login", formContent);
 Console.WriteLine($"Step 1A (Login POST) status: {loginResponse.StatusCode}");
 
-// 1. Authenticate - Step B: Select Branch
 var selectBranchGet = await client.GetAsync("/Account/SelectBranch");
 var selectBranchHtml = await selectBranchGet.Content.ReadAsStringAsync();
 
@@ -57,134 +56,126 @@ var branchSelectResponse = await client.PostAsync("/Account/SelectBranch", branc
 Console.WriteLine($"Step 1B (Select Branch POST) status: {branchSelectResponse.StatusCode}");
 Console.WriteLine("Authentication successful!");
 
-// 2. Load /Insurances/Index
-Console.WriteLine("\n[Step 2] GET /Insurances/Index...");
-var indexResponse = await client.GetAsync("/Insurances/Index");
+// 2. Direct API check
+Console.WriteLine("\n[Step 2] Verifying EMR.Api GET /api/government-schemes...");
+using var apiClient = new HttpClient();
+var apiListRes = await apiClient.GetFromJsonAsync<JsonElement>("http://localhost:5201/api/government-schemes");
+var apiSchemes = apiListRes.GetProperty("data");
+Console.WriteLine($"API returned {apiSchemes.GetArrayLength()} government schemes directly from database.");
+
+// 3. Web GET /GovernmentSchemes/Index
+Console.WriteLine("\n[Step 3] GET /GovernmentSchemes/Index...");
+var indexResponse = await client.GetAsync("/GovernmentSchemes/Index");
 var indexHtml = await indexResponse.Content.ReadAsStringAsync();
-Console.WriteLine($"Index loaded: {indexResponse.StatusCode}, Has Title: {indexHtml.Contains("Insurance / TPA Master")}, Has Tariffs Modal: {indexHtml.Contains("insuranceTariffsModal")}, Has Tariff Buttons: {indexHtml.Contains("openInsuranceTariffsModal")}");
+Console.WriteLine($"Index loaded: {indexResponse.StatusCode}, Contains Title: {indexHtml.Contains("Government Scheme Master")}, Contains Ayushman: {indexHtml.Contains("Ayushman Bharat")}, Contains CGHS: {indexHtml.Contains("CGHS")}");
 
-// 3. Test dynamic master items for each entitlement head
-Console.WriteLine("\n[Step 3] Testing dynamic master service items for each entitlement head...");
-string[] heads = ["Procedure", "Room", "Package", "HospitalService", "NonPayableItem"];
-foreach (var head in heads)
+// 4. Web GET /GovernmentSchemes/Create
+Console.WriteLine("\n[Step 4] GET /GovernmentSchemes/Create...");
+var createPageRes = await client.GetAsync("/GovernmentSchemes/Create");
+var createPageHtml = await createPageRes.Content.ReadAsStringAsync();
+Console.WriteLine($"Create page loaded: {createPageRes.StatusCode}, Has Presets: {createPageHtml.Contains("Quick Scheme Presets")}, Has RuleConfig: {createPageHtml.Contains("RuleConfigJSON")}");
+
+var createTokenMatch = Regex.Match(createPageHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string createToken = createTokenMatch.Success ? createTokenMatch.Groups[1].Value : "";
+
+// 5. Web POST /GovernmentSchemes/Create (creating CAPF Ayushman Scheme)
+Console.WriteLine("\n[Step 5] Creating new Government Scheme: Ayushman CAPF Scheme...");
+var createForm = new FormUrlEncodedContent(new[]
 {
-    var res = await client.GetAsync($"/Insurances/GetTariffMasterItems?entitlementType={head}");
-    var json = await res.Content.ReadAsStringAsync();
-    using var doc = JsonDocument.Parse(json);
-    var count = doc.RootElement.GetProperty("data").GetArrayLength();
-    Console.WriteLine($"Head '{head}': {count} master items available.");
-}
+    new KeyValuePair<string, string>("SchemeCode", "CAPF-01"),
+    new KeyValuePair<string, string>("SchemeName", "Ayushman CAPF Healthcare Scheme (MHA)"),
+    new KeyValuePair<string, string>("SchemeType", "Central Government"),
+    new KeyValuePair<string, string>("AuthorityName", "Ministry of Home Affairs & NHA"),
+    new KeyValuePair<string, string>("Effective_From", DateTime.Today.ToString("yyyy-MM-dd")),
+    new KeyValuePair<string, string>("Effective_To", DateTime.Today.AddYears(5).ToString("yyyy-MM-dd")),
+    new KeyValuePair<string, string>("IsActive", "true"),
+    new KeyValuePair<string, string>("AnnualCoverageLimit", "500000"),
+    new KeyValuePair<string, string>("PreAuthMandatory", "true"),
+    new KeyValuePair<string, string>("BiometricAuthRequired", "true"),
+    new KeyValuePair<string, string>("AbhaCreationMandatory", "true"),
+    new KeyValuePair<string, string>("CoPayPercentage", "0"),
+    new KeyValuePair<string, string>("MaxClaimSubmissionDays", "7"),
+    new KeyValuePair<string, string>("PackageRateDiscountPercent", "0"),
+    new KeyValuePair<string, string>("DefaultBedCategory", "Semi-Private"),
+    new KeyValuePair<string, string>("TMSPortalUrl", "https://tms.pmjay.gov.in"),
+    new KeyValuePair<string, string>("NHA_SchemeCode", "CAPF_NHA_01"),
+    new KeyValuePair<string, string>("BeneficiaryIdType", "Ayushman CAPF e-Card / Force ID / Aadhaar"),
+    new KeyValuePair<string, string>("SpecialRemarks", "Direct Cashless medical cover for serving personnel of Central Armed Police Forces (BSF, CRPF, CISF, ITBP, SSB, NSG, Assam Rifles) and their dependent families."),
+    new KeyValuePair<string, string>("__RequestVerificationToken", createToken)
+});
 
-// 4. Get Insurance Tariffs for Insurance #1
-Console.WriteLine("\n[Step 4] GET /Insurances/GetInsuranceTariffs?insuranceTpaId=1...");
-var tariffsRes = await client.GetAsync("/Insurances/GetInsuranceTariffs?insuranceTpaId=1");
-var tariffsJson = await tariffsRes.Content.ReadAsStringAsync();
-using var tariffsDoc = JsonDocument.Parse(tariffsJson);
-var existingTariffsCount = tariffsDoc.RootElement.GetProperty("data").GetArrayLength();
-Console.WriteLine($"Insurance #1 has {existingTariffsCount} existing tariff rules.");
+var createPostRes = await client.PostAsync("/GovernmentSchemes/Create", createForm);
+Console.WriteLine($"Create POST status: {createPostRes.StatusCode} (Redirect: {createPostRes.Headers.Location})");
 
-// 5. Create new Package Tariff rule
-Console.WriteLine("\n[Step 5] Creating new Package Tariff rule (Agreed Tariff Cap = ₹36,000.00)...");
-var createPkgPayload = new
-{
-    InsTariff_ID = 0,
-    InsuranceTPA_ID = 1,
-    EntitlementType = "Package",
-    Reference_ID = 1,
-    DeductionRuleType = "Agreed Tariff Cap (₹)",
-    DeductionValue = 0.00,
-    Rate = 36000.00,
-    Effective_From = DateTime.Today.ToString("yyyy-MM-dd"),
-    Effective_To = DateTime.Today.AddYears(1).ToString("yyyy-MM-dd"),
-    Status = true
-};
-var createPkgRes = await client.PostAsJsonAsync("/Insurances/SaveInsuranceTariff", createPkgPayload);
-var createPkgJson = await createPkgRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Create Package tariff response: {createPkgJson}");
-using var pkgDoc = JsonDocument.Parse(createPkgJson);
-int createdTariffId = pkgDoc.RootElement.GetProperty("id").GetInt32();
+// 6. Find Created Scheme ID from API
+var refreshedApi = await apiClient.GetFromJsonAsync<JsonElement>("http://localhost:5201/api/government-schemes?search=CAPF");
+var capfScheme = refreshedApi.GetProperty("data")[0];
+int createdSchemeId = capfScheme.GetProperty("scheme_ID").GetInt32();
+Console.WriteLine($"Created Scheme ID: #{createdSchemeId} ({capfScheme.GetProperty("schemeName").GetString()})");
 
-// 6. Create new Co-Pay Tariff rule (Room with 12.5% Co-Pay)
-Console.WriteLine("\n[Step 6] Creating new Co-Pay Tariff rule (12.5% Co-Pay on Room)...");
-var createCoPayPayload = new
-{
-    InsTariff_ID = 0,
-    InsuranceTPA_ID = 1,
-    EntitlementType = "Room",
-    Reference_ID = 1,
-    DeductionRuleType = "Percentage Co-Pay (%)",
-    DeductionValue = 12.50,
-    Rate = 2250.00,
-    Effective_From = DateTime.Today.ToString("yyyy-MM-dd"),
-    Effective_To = DateTime.Today.AddYears(1).ToString("yyyy-MM-dd"),
-    Status = true
-};
-var createCoPayRes = await client.PostAsJsonAsync("/Insurances/SaveInsuranceTariff", createCoPayPayload);
-var createCoPayJson = await createCoPayRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Create Co-Pay tariff response: {createCoPayJson}");
-
-// 7. Create new Non-Payable Item rule (100% Deduction)
-Console.WriteLine("\n[Step 7] Creating new Non-Payable Item rule (100% Deduction)...");
-var createNonPayPayload = new
-{
-    InsTariff_ID = 0,
-    InsuranceTPA_ID = 1,
-    EntitlementType = "NonPayableItem",
-    Reference_ID = 1,
-    DeductionRuleType = "Non-Payable (100% Deducted)",
-    DeductionValue = 100.00,
-    Rate = 0.00,
-    Effective_From = DateTime.Today.ToString("yyyy-MM-dd"),
-    Effective_To = DateTime.Today.AddYears(1).ToString("yyyy-MM-dd"),
-    Status = true
-};
-var createNonPayRes = await client.PostAsJsonAsync("/Insurances/SaveInsuranceTariff", createNonPayPayload);
-var createNonPayJson = await createNonPayRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Create Non-Payable tariff response: {createNonPayJson}");
-
-// 8. Get Single Tariff by ID
-Console.WriteLine($"\n[Step 8] GET /Insurances/GetInsuranceTariff?id={createdTariffId}...");
-var getSingleRes = await client.GetAsync($"/Insurances/GetInsuranceTariff?id={createdTariffId}");
-var getSingleJson = await getSingleRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Get tariff response: {getSingleJson.Substring(0, Math.Min(120, getSingleJson.Length))}...");
-
-// 9. Update Tariff Rule
-Console.WriteLine($"\n[Step 9] Updating tariff rule #{createdTariffId} (changing agreed rate to ₹38,500.00)...");
-var updatePayload = new
-{
-    InsTariff_ID = createdTariffId,
-    InsuranceTPA_ID = 1,
-    EntitlementType = "Package",
-    Reference_ID = 1,
-    DeductionRuleType = "Agreed Tariff Cap (₹)",
-    DeductionValue = 0.00,
-    Rate = 38500.00,
-    Effective_From = DateTime.Today.ToString("yyyy-MM-dd"),
-    Effective_To = DateTime.Today.AddYears(2).ToString("yyyy-MM-dd"),
-    Status = true
-};
-var updateRes = await client.PostAsJsonAsync("/Insurances/SaveInsuranceTariff", updatePayload);
-var updateJson = await updateRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Update response: {updateJson}");
-
-// 10. Toggle Tariff Status
-Console.WriteLine($"\n[Step 10] Toggling status for tariff rule #{createdTariffId}...");
-var toggleRes = await client.PostAsync($"/Insurances/ToggleTariffStatus?id={createdTariffId}", null);
-var toggleJson = await toggleRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Toggle response: {toggleJson}");
-
-// 11. Delete Tariff Rule
-Console.WriteLine($"\n[Step 11] Deleting tariff rule #{createdTariffId}...");
-var deleteRes = await client.PostAsync($"/Insurances/DeleteInsuranceTariff?id={createdTariffId}", null);
-var deleteJson = await deleteRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Delete response: {deleteJson}");
-
-// 12. Load Details Page
-Console.WriteLine("\n[Step 12] GET /Insurances/Details/1...");
-var detailsRes = await client.GetAsync("/Insurances/Details/1");
+// 7. GET /GovernmentSchemes/Details/{id}
+Console.WriteLine($"\n[Step 7] GET /GovernmentSchemes/Details/{createdSchemeId}...");
+var detailsRes = await client.GetAsync($"/GovernmentSchemes/Details/{createdSchemeId}");
 var detailsHtml = await detailsRes.Content.ReadAsStringAsync();
-Console.WriteLine($"Details page loaded: {detailsRes.StatusCode}, contains Agreed Insurance Tariff Schedule: {detailsHtml.Contains("Agreed Insurance Tariff & Deduction Schedule")}");
+Console.WriteLine($"Details page loaded: {detailsRes.StatusCode}, Has NHA Code: {detailsHtml.Contains("CAPF_NHA_01")}, Has Coverage Limit: {detailsHtml.Contains("500,000")}, Has RuleConfigJSON: {detailsHtml.Contains("RuleConfigJSON")}");
+
+// 8. GET /GovernmentSchemes/Edit/{id}
+Console.WriteLine($"\n[Step 8] GET /GovernmentSchemes/Edit/{createdSchemeId}...");
+var editPageRes = await client.GetAsync($"/GovernmentSchemes/Edit/{createdSchemeId}");
+var editPageHtml = await editPageRes.Content.ReadAsStringAsync();
+Console.WriteLine($"Edit page loaded: {editPageRes.StatusCode}, Has Scheme Code: {editPageHtml.Contains("CAPF-01")}");
+
+var editTokenMatch = Regex.Match(editPageHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string editToken = editTokenMatch.Success ? editTokenMatch.Groups[1].Value : "";
+
+// 9. POST /GovernmentSchemes/Edit/{id}
+Console.WriteLine($"\n[Step 9] Updating Scheme #{createdSchemeId}...");
+var editForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("Scheme_ID", createdSchemeId.ToString()),
+    new KeyValuePair<string, string>("SchemeCode", "CAPF-01"),
+    new KeyValuePair<string, string>("SchemeName", "Ayushman CAPF Healthcare Scheme (MHA / NHA V2)"),
+    new KeyValuePair<string, string>("SchemeType", "Central Government"),
+    new KeyValuePair<string, string>("AuthorityName", "Ministry of Home Affairs & National Health Authority"),
+    new KeyValuePair<string, string>("Effective_From", DateTime.Today.ToString("yyyy-MM-dd")),
+    new KeyValuePair<string, string>("Effective_To", DateTime.Today.AddYears(7).ToString("yyyy-MM-dd")),
+    new KeyValuePair<string, string>("IsActive", "true"),
+    new KeyValuePair<string, string>("AnnualCoverageLimit", "750000"),
+    new KeyValuePair<string, string>("PreAuthMandatory", "true"),
+    new KeyValuePair<string, string>("BiometricAuthRequired", "true"),
+    new KeyValuePair<string, string>("AbhaCreationMandatory", "true"),
+    new KeyValuePair<string, string>("CoPayPercentage", "0"),
+    new KeyValuePair<string, string>("MaxClaimSubmissionDays", "10"),
+    new KeyValuePair<string, string>("PackageRateDiscountPercent", "0"),
+    new KeyValuePair<string, string>("DefaultBedCategory", "Semi-Private"),
+    new KeyValuePair<string, string>("TMSPortalUrl", "https://tms.pmjay.gov.in"),
+    new KeyValuePair<string, string>("NHA_SchemeCode", "CAPF_NHA_V2"),
+    new KeyValuePair<string, string>("BeneficiaryIdType", "Ayushman CAPF Golden Card"),
+    new KeyValuePair<string, string>("SpecialRemarks", "Updated: Expanded coverage limit to Rs 7.5 Lakh with priority cashless clearance."),
+    new KeyValuePair<string, string>("__RequestVerificationToken", editToken)
+});
+
+var editPostRes = await client.PostAsync($"/GovernmentSchemes/Edit/{createdSchemeId}", editForm);
+Console.WriteLine($"Edit POST status: {editPostRes.StatusCode} (Redirect: {editPostRes.Headers.Location})");
+
+// 10. POST /GovernmentSchemes/ToggleStatus/{id}
+Console.WriteLine($"\n[Step 10] Toggling status for Scheme #{createdSchemeId}...");
+var toggleForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("__RequestVerificationToken", editToken)
+});
+var toggleRes = await client.PostAsync($"/GovernmentSchemes/ToggleStatus/{createdSchemeId}", toggleForm);
+Console.WriteLine($"Toggle POST status: {toggleRes.StatusCode}");
+
+// 11. POST /GovernmentSchemes/Delete/{id}
+Console.WriteLine($"\n[Step 11] Deleting Scheme #{createdSchemeId}...");
+var deleteForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("__RequestVerificationToken", editToken)
+});
+var deleteRes = await client.PostAsync($"/GovernmentSchemes/Delete/{createdSchemeId}", deleteForm);
+Console.WriteLine($"Delete POST status: {deleteRes.StatusCode}");
 
 Console.WriteLine("\n=========================================================================");
-Console.WriteLine("ALL INSURANCE TARIFF CONFIGURATION INTEGRATION TESTS PASSED 100%!");
+Console.WriteLine("ALL GOVERNMENT SCHEME MASTER END-TO-END VERIFICATION TESTS PASSED 100%!");
 Console.WriteLine("=========================================================================");

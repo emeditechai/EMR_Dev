@@ -22,6 +22,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CorporateHospitalRateMaster> CorporateHospitalRateMasters => Set<CorporateHospitalRateMaster>();
     public DbSet<InsuranceTPAMaster> InsuranceTPAMasters => Set<InsuranceTPAMaster>();
     public DbSet<InsuranceTariffMaster> InsuranceTariffMasters => Set<InsuranceTariffMaster>();
+    public DbSet<GovernmentSchemeMaster> GovernmentSchemeMasters => Set<GovernmentSchemeMaster>();
 
 
     // Patient Registration masters
@@ -585,6 +586,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany()
                 .HasForeignKey(x => x.InsuranceTPA_ID)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Government Scheme Master ────────────────────────────────────────
+        modelBuilder.Entity<GovernmentSchemeMaster>(entity =>
+        {
+            entity.ToTable("GovernmentSchemeMaster");
+            entity.HasKey(x => x.Scheme_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.Branch_ID)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

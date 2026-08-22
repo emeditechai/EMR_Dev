@@ -1,0 +1,216 @@
+@model EMR.Web.Models.ViewModels.GovernmentSchemeFormViewModel
+@{
+    ViewData["Title"] = "Edit Government Scheme";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Edit Government Scheme</h1>
+        <small class="text-muted">Updating parameters for <span class="fw-bold text-primary">@Model.SchemeName</span> (#@Model.Scheme_ID)</small>
+    </div>
+    <div>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<form asp-action="Edit" asp-route-id="@Model.Scheme_ID" method="post" id="schemeForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Scheme_ID" />
+    <input type="hidden" asp-for="CompanyId" />
+    <input type="hidden" asp-for="Branch_ID" />
+    <input type="hidden" asp-for="RuleConfigJSON" id="RuleConfigJSON" />
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger shadow-sm mb-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Please correct the errors below:</strong>
+            <div asp-validation-summary="All" class="text-danger small mt-2"></div>
+        </div>
+    }
+
+    <div class="row g-4">
+        <!-- Left Column: Primary Scheme Information -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-bank2 me-2"></i>Scheme Identification & Authority</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="SchemeCode" class="form-label fw-semibold small"></label>
+                            <input asp-for="SchemeCode" class="form-control font-monospace" required />
+                            <span asp-validation-for="SchemeCode" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="SchemeType" class="form-label fw-semibold small"></label>
+                            <select asp-for="SchemeType" asp-items="Model.SchemeTypeOptions" class="form-select" required></select>
+                            <span asp-validation-for="SchemeType" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="SchemeName" class="form-label fw-semibold small"></label>
+                            <input asp-for="SchemeName" class="form-control fw-medium" required />
+                            <span asp-validation-for="SchemeName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="AuthorityName" class="form-label fw-semibold small"></label>
+                            <input asp-for="AuthorityName" class="form-control" required />
+                            <span asp-validation-for="AuthorityName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Effective_From" class="form-label fw-semibold small"></label>
+                            <input asp-for="Effective_From" class="form-control" type="date" required />
+                            <span asp-validation-for="Effective_From" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Effective_To" class="form-label fw-semibold small"></label>
+                            <input asp-for="Effective_To" class="form-control" type="date" required />
+                            <span asp-validation-for="Effective_To" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch pt-2">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="IsActive" />
+                                <label class="form-check-label fw-semibold small" asp-for="IsActive">Scheme Active</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Indian Government Standard Healthcare Rule Configuration -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-sliders me-2"></i>Rule Configuration (RuleConfigJSON)</h6>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 small">Indian Govt Standard</span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="AnnualCoverageLimit" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">₹</span>
+                                <input asp-for="AnnualCoverageLimit" class="form-control" onchange="syncJsonPreview()" />
+                            </div>
+                            <small class="text-muted extra-small">0 for Unlimited / Rank Entitlement</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="MaxClaimSubmissionDays" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <input asp-for="MaxClaimSubmissionDays" class="form-control" onchange="syncJsonPreview()" />
+                                <span class="input-group-text">Days</span>
+                            </div>
+                            <small class="text-muted extra-small">Post-discharge claim filing window</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="CoPayPercentage" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <input asp-for="CoPayPercentage" class="form-control" onchange="syncJsonPreview()" />
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="PackageRateDiscountPercent" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <input asp-for="PackageRateDiscountPercent" class="form-control" onchange="syncJsonPreview()" />
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="DefaultBedCategory" class="form-label fw-semibold small"></label>
+                            <input asp-for="DefaultBedCategory" class="form-control form-control-sm" onchange="syncJsonPreview()" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="NHA_SchemeCode" class="form-label fw-semibold small"></label>
+                            <input asp-for="NHA_SchemeCode" class="form-control form-control-sm font-monospace" onchange="syncJsonPreview()" />
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="TMSPortalUrl" class="form-label fw-semibold small"></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-globe"></i></span>
+                                <input asp-for="TMSPortalUrl" class="form-control" onchange="syncJsonPreview()" />
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="BeneficiaryIdType" class="form-label fw-semibold small"></label>
+                            <input asp-for="BeneficiaryIdType" class="form-control form-control-sm" onchange="syncJsonPreview()" />
+                        </div>
+                        
+                        <!-- Policy Flags -->
+                        <div class="col-12 border-top pt-2">
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PreAuthMandatory" onchange="syncJsonPreview()" />
+                                        <label class="form-check-label small fw-semibold" asp-for="PreAuthMandatory">Pre-Authorization Mandatory</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="BiometricAuthRequired" onchange="syncJsonPreview()" />
+                                        <label class="form-check-label small fw-semibold" asp-for="BiometricAuthRequired">Aadhaar Biometric Auth</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="AbhaCreationMandatory" onchange="syncJsonPreview()" />
+                                        <label class="form-check-label small fw-semibold" asp-for="AbhaCreationMandatory">Mandatory ABHA Creation & Linking (ABDM)</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="SpecialRemarks" class="form-label fw-semibold small"></label>
+                            <textarea asp-for="SpecialRemarks" class="form-control form-control-sm" rows="2" onchange="syncJsonPreview()"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="col-12 text-end pt-3 border-top">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4 me-2">Cancel</a>
+            <button type="submit" class="btn btn-primary px-5 fw-semibold shadow-sm">
+                <i class="bi bi-check2-circle me-1"></i> Update Government Scheme
+            </button>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <style>
+        .extra-small { font-size: 0.75rem; }
+    </style>
+
+    <script>
+        function syncJsonPreview() {
+            const obj = {
+                AnnualCoverageLimit: parseFloat(document.getElementById('AnnualCoverageLimit').value) || 0,
+                PreAuthMandatory: document.getElementById('PreAuthMandatory').checked,
+                BiometricAuthRequired: document.getElementById('BiometricAuthRequired').checked,
+                AbhaCreationMandatory: document.getElementById('AbhaCreationMandatory').checked,
+                CoPayPercentage: parseFloat(document.getElementById('CoPayPercentage').value) || 0,
+                MaxClaimSubmissionDays: parseInt(document.getElementById('MaxClaimSubmissionDays').value) || 7,
+                PackageRateDiscountPercent: parseFloat(document.getElementById('PackageRateDiscountPercent').value) || 0,
+                DefaultBedCategory: document.getElementById('DefaultBedCategory').value || 'General Ward',
+                TMSPortalUrl: document.getElementById('TMSPortalUrl').value || '',
+                NHA_SchemeCode: document.getElementById('NHA_SchemeCode').value || '',
+                BeneficiaryIdType: document.getElementById('BeneficiaryIdType').value || '',
+                SpecialRemarks: document.getElementById('SpecialRemarks').value || ''
+            };
+
+            document.getElementById('RuleConfigJSON').value = JSON.stringify(obj, null, 2);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            syncJsonPreview();
+        });
+    </script>
+}

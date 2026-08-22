@@ -57,6 +57,7 @@ builder.Services.AddScoped<ICorporateService, CorporateService>();
 builder.Services.AddScoped<ICorporateHospitalRateService, CorporateHospitalRateService>();
 builder.Services.AddScoped<IInsuranceTPAService, InsuranceTPAService>();
 builder.Services.AddScoped<IInsuranceTariffService, InsuranceTariffService>();
+builder.Services.AddScoped<IGovernmentSchemeService, GovernmentSchemeService>();
 builder.Services.AddScoped<IDoctorRoomService, DoctorRoomService>();
 
 
@@ -122,6 +123,7 @@ builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();
 builder.Services.AddScoped<ICorporateHospitalRateApiClient, CorporateHospitalRateApiClient>();
 builder.Services.AddScoped<IInsuranceTPAApiClient,      InsuranceTPAApiClient>();
 builder.Services.AddScoped<IInsuranceTariffApiClient,   InsuranceTariffApiClient>();
+builder.Services.AddScoped<IGovernmentSchemeApiClient,  GovernmentSchemeApiClient>();
 builder.Services.AddScoped<IGeneralMasterApiClient,     GeneralMasterApiClient>();
 builder.Services.AddScoped<IOpdMasterApiClient,        OpdMasterApiClient>();
 
