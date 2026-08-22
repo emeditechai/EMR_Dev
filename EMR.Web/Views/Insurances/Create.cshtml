@@ -1,0 +1,272 @@
+@model EMR.Web.Models.ViewModels.InsuranceTPAFormViewModel
+@{
+    ViewData["Title"] = "Add Insurance / TPA Partner";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Insurance / TPA Partner</h1>
+        <small class="text-muted">Configure a new Insurance Company or Third Party Administrator (TPA) with policy prefix & claims rules</small>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+        <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-shield-plus me-2"></i>Insurance / TPA Master Information</h6>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Create" method="post" id="insuranceForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="CompanyId" />
+                    <input type="hidden" asp-for="Branch_ID" />
+
+                    @if (!ViewData.ModelState.IsValid && ViewData.ModelState[string.Empty]?.Errors.Count > 0)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            @foreach (var error in ViewData.ModelState[string.Empty]!.Errors)
+                            {
+                                <div>@error.ErrorMessage</div>
+                            }
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+
+                    <!-- Section 1: Classification & Primary Identifiers -->
+                    <div class="mb-4">
+                        <div class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-1">
+                            <i class="bi bi-card-checklist me-1"></i>1. Entity Classification & Identifiers
+                        </div>
+                        <div class="row g-3">
+                            <!-- Type (Insurance Company / TPA) -->
+                            <div class="col-md-6">
+                                <label asp-for="Type" class="form-label fw-semibold">
+                                    Entity Type <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-layers text-muted"></i></span>
+                                    <select asp-for="Type" asp-items="Model.TypeOptions" class="form-select" id="typeSelect" required>
+                                    </select>
+                                </div>
+                                <small class="form-text text-muted">Choose whether this partner is an Insurance Company or a Third Party Administrator (TPA).</small>
+                                <span asp-validation-for="Type" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Code -->
+                            <div class="col-md-6">
+                                <label asp-for="Code" class="form-label fw-semibold">
+                                    Partner Code <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-qr-code text-muted"></i></span>
+                                    <input asp-for="Code" class="form-control text-uppercase font-monospace" id="codeInput" 
+                                           placeholder="e.g. INS-STAR01 or TPA-MEDI01" maxlength="50" required oninput="this.value=this.value.toUpperCase()" />
+                                </div>
+                                <span asp-validation-for="Code" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Name -->
+                            <div class="col-md-12">
+                                <label asp-for="Name" class="form-label fw-semibold">
+                                    Insurance / TPA Name <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-building text-muted"></i></span>
+                                    <input asp-for="Name" class="form-control" placeholder="e.g. Star Health and Allied Insurance Co Ltd" required maxlength="200" />
+                                </div>
+                                <span asp-validation-for="Name" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Scheme Name -->
+                            <div class="col-md-12">
+                                <label asp-for="SchemeName" class="form-label fw-semibold">
+                                    Scheme Name <small class="text-muted">(Optional)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-bookmark-star text-muted"></i></span>
+                                    <input asp-for="SchemeName" class="form-control" placeholder="e.g. Family Health Optima / Corporate Cashless Scheme" maxlength="200" />
+                                </div>
+                                <span asp-validation-for="SchemeName" class="text-danger small d-block mt-1"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Policy Prefix & Network Rules -->
+                    <div class="mb-4">
+                        <div class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-1">
+                            <i class="bi bi-gear-wide-connected me-1"></i>2. Policy Prefix & Claims Configuration
+                        </div>
+                        <div class="row g-3">
+                            <!-- Policy Prefix (Auto Generate Unique) -->
+                            <div class="col-md-6">
+                                <label asp-for="PolicyPrefix" class="form-label fw-semibold">
+                                    Policy Prefix <span class="text-danger">*</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1">Auto-Generated</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light font-monospace"><i class="bi bi-tag text-muted"></i></span>
+                                    <input asp-for="PolicyPrefix" class="form-control text-uppercase font-monospace fw-bold" id="policyPrefixInput"
+                                           placeholder="e.g. POL-STAR-0001" maxlength="50" required />
+                                    <button class="btn btn-outline-secondary" type="button" id="btnRegeneratePrefix" title="Regenerate unique prefix">
+                                        <i class="bi bi-arrow-clockwise"></i> Generate
+                                    </button>
+                                </div>
+                                <small class="form-text text-muted">Auto-generated prefix for patient policies, pre-auths, and claim IDs.</small>
+                                <span asp-validation-for="PolicyPrefix" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Network Category -->
+                            <div class="col-md-6">
+                                <label asp-for="NetworkCategory" class="form-label fw-semibold">
+                                    Network Category <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-credit-card text-muted"></i></span>
+                                    <select asp-for="NetworkCategory" asp-items="Model.NetworkCategoryOptions" class="form-select" required>
+                                    </select>
+                                </div>
+                                <small class="form-text text-muted">Select settlement model (Cashless, Reimbursement, or Both).</small>
+                                <span asp-validation-for="NetworkCategory" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Authorization Required (Toggle) -->
+                            <div class="col-12">
+                                <div class="form-check form-switch p-3 border rounded-3 bg-light">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="AuthorizationRequired" id="authSwitch">
+                                    <label class="form-check-label fw-semibold" for="authSwitch">Pre-Authorization Required</label>
+                                    <div class="small text-muted ms-4">When enabled, cashless admissions and procedures will require pre-authorization approval before billing discount is applied.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Contact & Communication Details -->
+                    <div class="mb-4">
+                        <div class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-1">
+                            <i class="bi bi-person-lines-fill me-1"></i>3. Contact & Communication Details
+                        </div>
+                        <div class="row g-3">
+                            <!-- Contact Person -->
+                            <div class="col-md-6">
+                                <label asp-for="ContactPerson" class="form-label fw-semibold">
+                                    Contact Person <small class="text-muted">(Optional)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-person text-muted"></i></span>
+                                    <input asp-for="ContactPerson" class="form-control" placeholder="e.g. Sanjay Mukherjee (Claims Desk)" maxlength="150" />
+                                </div>
+                                <span asp-validation-for="ContactPerson" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Contact Number (Mobile Validation) -->
+                            <div class="col-md-6">
+                                <label asp-for="ContactNumber" class="form-label fw-semibold">
+                                    Contact Number (Mobile) <small class="text-muted">(10-Digit Mobile)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-phone text-muted"></i></span>
+                                    <input asp-for="ContactNumber" type="tel" class="form-control" placeholder="e.g. 9830112233" 
+                                           maxlength="10" pattern="[6-9][0-9]{9}" id="contactNoInput" />
+                                </div>
+                                <small class="form-text text-muted">Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.</small>
+                                <span asp-validation-for="ContactNumber" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Email -->
+                            <div class="col-md-12">
+                                <label asp-for="Email" class="form-label fw-semibold">
+                                    Official Email Address <small class="text-muted">(Optional / Valid Email)</small>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-envelope text-muted"></i></span>
+                                    <input asp-for="Email" type="email" class="form-control" placeholder="e.g. preauth.desk@starhealth.in" maxlength="150" />
+                                </div>
+                                <span asp-validation-for="Email" class="text-danger small d-block mt-1"></span>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-12">
+                                <div class="form-check form-switch p-3 border rounded-3 bg-light mt-2">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" role="switch" asp-for="Status" id="statusSwitch">
+                                    <label class="form-check-label fw-semibold" for="statusSwitch">Active Insurance / TPA Partner</label>
+                                    <div class="small text-muted ms-4">When active, this entity will be available for patient insurance mapping, cashless claims, and IPD billing.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary px-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> Save Insurance / TPA Master
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const typeSelect = document.getElementById("typeSelect");
+            const codeInput = document.getElementById("codeInput");
+            const prefixInput = document.getElementById("policyPrefixInput");
+            const btnRegenerate = document.getElementById("btnRegeneratePrefix");
+            const contactInput = document.getElementById("contactNoInput");
+
+            // Helper function to fetch auto-generated prefix
+            async function fetchPrefix() {
+                const type = typeSelect ? typeSelect.value : "Insurance Company";
+                const code = codeInput ? codeInput.value : "";
+                try {
+                    const response = await fetch(`/Insurances/GeneratePrefix?type=${encodeURIComponent(type)}&code=${encodeURIComponent(code)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && data.prefix) {
+                            prefixInput.value = data.prefix;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to generate prefix", e);
+                }
+            }
+
+            if (btnRegenerate) {
+                btnRegenerate.addEventListener("click", fetchPrefix);
+            }
+
+            if (typeSelect) {
+                typeSelect.addEventListener("change", function () {
+                    if (!prefixInput.value || prefixInput.value.startsWith("POL-")) {
+                        fetchPrefix();
+                    }
+                });
+            }
+
+            if (codeInput) {
+                codeInput.addEventListener("blur", function () {
+                    if (!prefixInput.value || prefixInput.value.startsWith("POL-")) {
+                        fetchPrefix();
+                    }
+                });
+            }
+
+            // Only allow numbers in 10-digit mobile contact input
+            if (contactInput) {
+                contactInput.addEventListener("input", function () {
+                    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+                });
+            }
+        });
+    </script>
+}

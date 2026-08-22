@@ -1,0 +1,980 @@
+@model EMR.Web.Models.ViewModels.InsuranceTPAIndexViewModel
+@{
+    ViewData["Title"] = "Insurance / TPA Master";
+    var total = Model.InsuranceList.Count;
+    var active = Model.InsuranceList.Count(x => x.Status);
+    var inactive = total - active;
+    var totalInsurers = Model.InsuranceList.Count(x => x.Type == "Insurance Company");
+    var totalTPAs = Model.InsuranceList.Count(x => x.Type == "TPA");
+    var cashlessCount = Model.InsuranceList.Count(x => x.NetworkCategory == "Cashless" || x.NetworkCategory == "Both");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Insurance / TPA Master</h1>
+        <small class="text-muted">Manage Insurance Companies, Third Party Administrators (TPAs), agreed tariff schedules, cashless terms & claims settings</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Create" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Insurance / TPA
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+            <div>
+                <div class="stat-value">@total</div>
+                <div class="stat-label">Total Partners</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-building"></i></div>
+            <div>
+                <div class="stat-value">@totalInsurers <span class="fs-6 fw-normal text-muted">/ @totalTPAs TPAs</span></div>
+                <div class="stat-label">Insurers / TPAs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-purple">
+            <div class="stat-icon"><i class="bi bi-credit-card-2-front-fill"></i></div>
+            <div>
+                <div class="stat-value">@cashlessCount</div>
+                <div class="stat-label">Cashless Network Enabled</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-cyan">
+            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+                <div class="stat-value">@active <span class="fs-6 fw-normal text-muted">(@inactive inactive)</span></div>
+                <div class="stat-label">Active Entities</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0 fw-semibold text-muted small"><i class="bi bi-funnel me-1"></i>Filters:</label>
+            </div>
+            <div class="col-md-2">
+                <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Types --</option>
+                    @foreach (var opt in Model.TypeOptions)
+                    {
+                        <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="networkCategory" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Network Categories --</option>
+                    @foreach (var opt in Model.NetworkCategoryOptions)
+                    {
+                        <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- All Status --</option>
+                    @foreach (var opt in Model.StatusOptions)
+                    {
+                        <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <input type="text" name="search" class="form-control" placeholder="Search by name, code, scheme, prefix, contact..." value="@Model.SearchTerm" />
+                    <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i> Search</button>
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.SelectedType) || !string.IsNullOrWhiteSpace(Model.SelectedNetworkCategory) || Model.SelectedStatus.HasValue || !string.IsNullOrWhiteSpace(Model.SearchTerm))
+            {
+                <div class="col-auto">
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Clear</a>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="dashboard-panel table-responsive shadow-sm border rounded-3 bg-white">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 40px;">#</th>
+                <th>Type</th>
+                <th>Company / TPA Name</th>
+                <th>Code</th>
+                <th>Policy Prefix</th>
+                <th>Tariff Rules</th>
+                <th>Scheme Name</th>
+                <th>Network Category</th>
+                <th>Pre-Auth</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th class="text-end" style="width: 160px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{int i = 1;}
+            @foreach (var item in Model.InsuranceList)
+            {
+                <tr>
+                    <td class="text-muted small">@(i++)</td>
+                    <td>
+                        @if (item.Type == "TPA")
+                        {
+                            <span class="badge bg-purple bg-opacity-10 text-purple border border-purple border-opacity-25">
+                                <i class="bi bi-people-fill me-1"></i>TPA
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                <i class="bi bi-shield-check me-1"></i>Insurance Co.
+                            </span>
+                        }
+                    </td>
+                    <td>
+                        <div class="fw-semibold text-dark">
+                            @item.Name
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(item.ContactPerson))
+                        {
+                            <small class="text-muted d-block">
+                                <i class="bi bi-person me-1"></i>@item.ContactPerson
+                            </small>
+                        }
+                    </td>
+                    <td>
+                        <span class="badge text-bg-light border text-dark font-monospace">
+                            @item.Code
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-info bg-opacity-10 text-dark border border-info border-opacity-25 font-monospace fw-bold">
+                            <i class="bi bi-tag-fill me-1 text-info"></i>@item.PolicyPrefix
+                        </span>
+                    </td>
+                    <td>
+                        <!-- Insurance Tariffs Button with Live Count Badge -->
+                        <button type="button" 
+                                class="btn btn-sm btn-outline-primary rounded-pill px-2 py-1 shadow-sm d-inline-flex align-items-center gap-1"
+                                onclick="openInsuranceTariffsModal(@item.InsuranceTPA_ID, '@Html.Raw(Html.Encode(item.Name))', '@item.Code', '@item.Type', '@item.PolicyPrefix')"
+                                title="Manage Insurance Tariff Configuration">
+                            <i class="bi bi-shield-check text-primary"></i>
+                            <span class="fw-semibold">Tariffs</span>
+                            <span class="badge bg-primary text-white rounded-pill" id="badge-tariff-count-@item.InsuranceTPA_ID">
+                                @item.TariffsCount
+                            </span>
+                        </button>
+                    </td>
+                    <td>
+                        <span class="small text-muted">
+                            @(string.IsNullOrWhiteSpace(item.SchemeName) ? "—" : item.SchemeName)
+                        </span>
+                    </td>
+                    <td>
+                        @{
+                            var netBadge = item.NetworkCategory switch
+                            {
+                                "Cashless" => "bg-success text-white",
+                                "Reimbursement" => "bg-warning text-dark",
+                                "Both" => "bg-info text-white",
+                                _ => "bg-secondary text-white"
+                            };
+                        }
+                        <span class="badge @netBadge">
+                            @item.NetworkCategory
+                        </span>
+                    </td>
+                    <td>
+                        @if (item.AuthorizationRequired)
+                        {
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">
+                                <i class="bi bi-lock-fill me-1"></i>Required
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary bg-opacity-10 text-muted border">
+                                <i class="bi bi-unlock me-1"></i>No Pre-Auth
+                            </span>
+                        }
+                    </td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(item.ContactNumber))
+                        {
+                            <div class="small fw-semibold"><i class="bi bi-telephone text-muted me-1"></i>@item.ContactNumber</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(item.Email))
+                        {
+                            <div class="small text-muted text-truncate" style="max-width: 130px;" title="@item.Email">
+                                <i class="bi bi-envelope me-1"></i>@item.Email
+                            </div>
+                        }
+                        @if (string.IsNullOrWhiteSpace(item.ContactNumber) && string.IsNullOrWhiteSpace(item.Email))
+                        {
+                            <span class="text-muted small">—</span>
+                        }
+                    </td>
+                    <td>
+                        @if (item.Status)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <a asp-action="Details" asp-route-id="@item.InsuranceTPA_ID"
+                           class="btn btn-sm btn-outline-secondary me-1" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a asp-action="Edit" asp-route-id="@item.InsuranceTPA_ID"
+                           class="btn btn-sm btn-outline-primary me-1" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form asp-action="ToggleStatus" asp-route-id="@item.InsuranceTPA_ID" method="post" class="d-inline"
+                              onsubmit="return confirm('Toggle status for @item.Name?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1" 
+                                    title="@(item.Status ? "Deactivate" : "Activate")">
+                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
+                            </button>
+                        </form>
+                        <form asp-action="Delete" asp-route-id="@item.InsuranceTPA_ID" method="post" class="d-inline"
+                              onsubmit="return confirm('Are you sure you want to delete @item.Name?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (!Model.InsuranceList.Any())
+            {
+                <tr>
+                    <td colspan="12" class="text-center text-muted py-5">
+                        <i class="bi bi-shield-slash fs-1 d-block mb-2 opacity-50"></i>
+                        No Insurance Companies or TPAs found. <a asp-action="Create" class="fw-bold">Add your first Insurance / TPA Partner.</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- ========================================================================= -->
+<!-- INSURANCE TARIFF CONFIGURATION INTEGRATED MODAL (No separate page needed)  -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="insuranceTariffsModal" tabindex="-1" aria-labelledby="insuranceTariffsModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            
+            <!-- Modal Header -->
+            <div class="modal-header bg-primary text-white py-3 px-4">
+                <div class="d-flex align-items-center gap-2 overflow-hidden me-auto">
+                    <i class="bi bi-shield-check fs-4 text-warning flex-shrink-0"></i>
+                    <div class="text-truncate">
+                        <h5 class="modal-title fw-bold mb-0 text-truncate" id="insuranceTariffsModalLabel">Insurance Tariff Configuration</h5>
+                        <small class="text-white-50 d-block text-truncate" id="modalInsSubtitle">Managing agreed insurer tariffs, co-pay & deduction rules</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white ms-3 flex-shrink-0" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body p-4 bg-light">
+
+                <!-- Alert Message container -->
+                <div id="tariffModalAlert" class="alert d-none py-2 px-3 mb-3 small" role="alert"></div>
+
+                <!-- ADD / EDIT TARIFF FORM CARD (Accordion / Toggleable) -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4 d-none" id="tariffFormCard">
+                    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                        <div class="fw-bold text-primary" id="tariffFormCardTitle">
+                            <i class="bi bi-plus-square-fill me-2"></i>New Insurance Tariff Rule
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link text-muted p-0 text-decoration-none" onclick="toggleTariffForm(false)">
+                            <i class="bi bi-x-lg"></i> Close Form
+                        </button>
+                    </div>
+                    <div class="card-body p-4 bg-white">
+                        <form id="insuranceTariffForm" onsubmit="handleSaveInsuranceTariff(event)">
+                            <input type="hidden" id="formInsTariffId" value="0" />
+                            <input type="hidden" id="formInsuranceTPAId" value="0" />
+
+                            <div class="row g-3">
+                                <!-- 1. Entitlement Type (Head: Room, Package, Procedure, HospitalService, NonPayableItem) -->
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-dark">
+                                        Entitlement Type (Head) <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="formEntitlementType" class="form-select form-select-sm" onchange="onEntitlementTypeChange()" required>
+                                        <option value="Procedure" selected>Procedure (Surgical & Clinical)</option>
+                                        <option value="Room">Room (Bed / Accommodation)</option>
+                                        <option value="Package">Package (Comprehensive Hospital Packages)</option>
+                                        <option value="HospitalService">Hospital Service (General / Diagnostics)</option>
+                                        <option value="NonPayableItem">Non-Payable Item (Consumables / Non-Medical)</option>
+                                    </select>
+                                    <small class="text-muted extra-small">Select entitlement category head</small>
+                                </div>
+
+                                <!-- 2. Reference Master Service Item -->
+                                <div class="col-md-5">
+                                    <label class="form-label fw-bold small text-dark">
+                                        Master Service Item <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="formReferenceId" class="form-select form-select-sm" onchange="onTariffItemSelectChange()" required>
+                                        <option value="">-- Loading items... --</option>
+                                    </select>
+                                    <small class="text-muted extra-small" id="selectedBaseRateNote">
+                                        Hospital Standard Rate: <span class="fw-bold text-dark" id="tariffBaseRateDisplay">₹0.00</span>
+                                    </small>
+                                </div>
+
+                                <!-- 3. Deduction Rule Type -->
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-dark">
+                                        Deduction / Tariff Rule <span class="text-danger">*</span>
+                                    </label>
+                                    <select id="formDeductionRuleType" class="form-select form-select-sm" onchange="onDeductionRuleChange()" required>
+                                        <option value="Standard Tariff" selected>Standard Tariff</option>
+                                        <option value="Fixed Deduction (₹)">Fixed Deduction (₹)</option>
+                                        <option value="Percentage Co-Pay (%)">Percentage Co-Pay (%)</option>
+                                        <option value="Proportional Capping (%)">Proportional Capping (%)</option>
+                                        <option value="Non-Payable (100% Deducted)">Non-Payable (100% Deducted)</option>
+                                        <option value="Agreed Tariff Cap (₹)">Agreed Tariff Cap (₹)</option>
+                                    </select>
+                                    <small class="text-muted extra-small">Settlement deduction / co-pay model</small>
+                                </div>
+
+                                <!-- 4. Deduction Value (Amount or %) -->
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-dark" id="lblDeductionValue">
+                                        Deduction / Co-Pay Value <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" id="formDeductionValue" class="form-control" placeholder="0.00" step="0.01" min="0" value="0.00" />
+                                        <span class="input-group-text bg-light fw-bold" id="deductionSuffix">%</span>
+                                    </div>
+                                    <small class="text-muted extra-small" id="deductionHelpText">Applicable deduction rate</small>
+                                </div>
+
+                                <!-- 5. Agreed Insurer Tariff Rate (₹) -->
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-dark">
+                                        Agreed Insurer Tariff Rate (₹) <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light fw-bold">₹</span>
+                                        <input type="number" id="formRate" class="form-control" placeholder="0.00" step="0.01" min="0" required />
+                                    </div>
+                                    <small class="text-muted extra-small">Insurer approved/cleared price</small>
+                                </div>
+
+                                <!-- 6. Effective From -->
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-dark">
+                                        Effective From <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" id="formEffectiveFrom" class="form-control form-control-sm" required />
+                                </div>
+
+                                <!-- 7. Effective To -->
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small text-dark">
+                                        Effective To <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" id="formEffectiveTo" class="form-control form-control-sm" required />
+                                </div>
+
+                                <!-- 8. Status & Action Buttons -->
+                                <div class="col-12 d-flex justify-content-between align-items-center pt-2 border-top">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="formStatus" checked />
+                                        <label class="form-check-label fw-semibold small" for="formStatus">Rule Active</label>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleTariffForm(false)">
+                                            Cancel
+                                        </button>
+                                        <button type="submit" class="btn btn-sm btn-primary px-4 fw-semibold shadow-sm" id="btnSaveTariff">
+                                            <i class="bi bi-check2-circle me-1"></i>Save Tariff Rule
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- KPI Summary Pills for Tariffs -->
+                <div class="row g-2 mb-3">
+                    <div class="col-auto">
+                        <span class="badge bg-white text-dark border px-3 py-2 shadow-sm fs-7">
+                            Total Rules: <strong class="text-primary ms-1" id="statTotalTariffs">0</strong>
+                        </span>
+                    </div>
+                    <div class="col-auto">
+                        <span class="badge bg-white text-dark border px-3 py-2 shadow-sm fs-7">
+                            Approved Rates (₹): <strong class="text-success ms-1" id="statApprovedRates">0</strong>
+                        </span>
+                    </div>
+                    <div class="col-auto">
+                        <span class="badge bg-white text-dark border px-3 py-2 shadow-sm fs-7">
+                            Deduction / Co-Pay Rules: <strong class="text-warning text-dark ms-1" id="statDeductionRules">0</strong>
+                        </span>
+                    </div>
+                    <div class="col-auto">
+                        <span class="badge bg-white text-dark border px-3 py-2 shadow-sm fs-7">
+                            Active Rules: <strong class="text-success ms-1" id="statActiveTariffs">0</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Tariff Rules List Filter Tabs & Action Toolbar -->
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <ul class="nav nav-pills nav-pills-sm bg-white p-1 rounded border shadow-sm" id="tariffHeadTabs">
+                        <li class="nav-item">
+                            <a class="nav-link active py-1 px-3 small fw-medium" href="javascript:void(0)" onclick="filterTariffsByHead('ALL', this)">All Heads</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link py-1 px-3 small fw-medium" href="javascript:void(0)" onclick="filterTariffsByHead('Procedure', this)">Procedure</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link py-1 px-3 small fw-medium" href="javascript:void(0)" onclick="filterTariffsByHead('Room', this)">Room</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link py-1 px-3 small fw-medium" href="javascript:void(0)" onclick="filterTariffsByHead('Package', this)">Package</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link py-1 px-3 small fw-medium" href="javascript:void(0)" onclick="filterTariffsByHead('HospitalService', this)">Hospital Service</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link py-1 px-3 small fw-medium" href="javascript:void(0)" onclick="filterTariffsByHead('NonPayableItem', this)">Non-Payable Items</a>
+                        </li>
+                    </ul>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" id="tariffSearchInput" class="form-control border-start-0" placeholder="Filter items..." onkeyup="filterTariffTableRows()" />
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm fw-semibold shadow-sm d-flex align-items-center gap-1" id="btnToggleTariffForm" onclick="toggleTariffForm(true)">
+                            <i class="bi bi-plus-circle-fill me-1"></i>Add Tariff Rule
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tariff Rules Data Table -->
+                <div class="table-responsive bg-white rounded-3 border shadow-sm">
+                    <table class="table table-hover align-middle mb-0" id="insuranceTariffsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Entitlement Head</th>
+                                <th>Service Item Code & Name</th>
+                                <th>Hospital Base Rate</th>
+                                <th>Agreed Insurer Tariff</th>
+                                <th>Deduction / Co-Pay Rule</th>
+                                <th>Validity Period</th>
+                                <th>Status</th>
+                                <th class="text-end" style="width: 120px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tariffsTableBody">
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                    Loading tariff rules...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer bg-white border-top py-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">
+                    Close
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <style>
+        .fs-7 { font-size: 0.85rem; }
+        .extra-small { font-size: 0.75rem; }
+        .nav-pills .nav-link.active {
+            background-color: var(--bs-primary);
+            color: #fff;
+        }
+        .nav-pills .nav-link {
+            color: #495057;
+            border-radius: 4px;
+        }
+    </style>
+
+    <script>
+        let currentInsuranceTPAId = 0;
+        let currentInsuranceName = '';
+        let currentInsuranceCode = '';
+        let currentInsuranceType = '';
+        let currentPolicyPrefix = '';
+        let masterTariffItemsCache = {};
+        let loadedTariffs = [];
+        let currentEntitlementFilter = 'ALL';
+
+        // 1. Open Insurance Tariffs Modal
+        function openInsuranceTariffsModal(insuranceId, name, code, type, prefix) {
+            currentInsuranceTPAId = insuranceId;
+            currentInsuranceName = name;
+            currentInsuranceCode = code;
+            currentInsuranceType = type;
+            currentPolicyPrefix = prefix;
+
+            document.getElementById('insuranceTariffsModalLabel').innerHTML = 
+                `Insurance Tariff: <span class="text-warning">${name}</span>`;
+            document.getElementById('modalInsSubtitle').innerText = 
+                `Code: ${code || '—'} | Type: ${type} | Policy Prefix: ${prefix || '—'}`;
+
+            toggleTariffForm(false);
+            loadInsuranceTariffs();
+
+            const modal = new bootstrap.Modal(document.getElementById('insuranceTariffsModal'));
+            modal.show();
+        }
+
+        // 2. Load Tariffs via AJAX
+        async function loadInsuranceTariffs() {
+            const tbody = document.getElementById('tariffsTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-4 text-muted">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                        Loading agreed tariffs...
+                    </td>
+                </tr>`;
+
+            try {
+                const response = await fetch(`/Insurances/GetInsuranceTariffs?insuranceTpaId=${currentInsuranceTPAId}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    loadedTariffs = result.data || [];
+                    renderTariffsTable();
+                    updateTariffsKPIs();
+                    // Update count badge on parent table
+                    const badge = document.getElementById(`badge-tariff-count-${currentInsuranceTPAId}`);
+                    if (badge) badge.innerText = loadedTariffs.length;
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-3">${result.message || 'Failed to load tariffs.'}</td></tr>`;
+                }
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-3">Error connecting to server.</td></tr>`;
+            }
+        }
+
+        // 3. Render Tariffs Table with Filters
+        function renderTariffsTable() {
+            const tbody = document.getElementById('tariffsTableBody');
+            const search = (document.getElementById('tariffSearchInput').value || '').toLowerCase();
+
+            const filtered = loadedTariffs.filter(t => {
+                const matchHead = (currentEntitlementFilter === 'ALL' || t.entitlementType.toLowerCase() === currentEntitlementFilter.toLowerCase());
+                const matchSearch = !search || 
+                    (t.itemName && t.itemName.toLowerCase().includes(search)) ||
+                    (t.itemCode && t.itemCode.toLowerCase().includes(search)) ||
+                    (t.entitlementType && t.entitlementType.toLowerCase().includes(search)) ||
+                    (t.deductionRuleType && t.deductionRuleType.toLowerCase().includes(search));
+                return matchHead && matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="bi bi-shield-slash fs-2 d-block mb-1 opacity-50"></i>
+                            No tariff rules configured for this filter. Click <strong>"Add Tariff Rule"</strong> to create one.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach((t, idx) => {
+                const headBadgeClass = getEntitlementBadgeClass(t.entitlementType);
+                const fromDate = new Date(t.effective_From).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                const toDate = new Date(t.effective_To).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                const isExpired = new Date(t.effective_To) < new Date();
+
+                // Format Deduction Rule badge
+                let ruleBadgeHtml = '';
+                if (t.deductionRuleType.includes('Percentage') || t.deductionRuleType.includes('Co-Pay')) {
+                    ruleBadgeHtml = `<span class="badge bg-warning bg-opacity-10 text-dark border border-warning font-monospace">${t.deductionRuleType}: ${t.deductionValue}%</span>`;
+                } else if (t.deductionRuleType.includes('Non-Payable')) {
+                    ruleBadgeHtml = `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger">100% Non-Payable</span>`;
+                } else if (t.deductionValue > 0) {
+                    ruleBadgeHtml = `<span class="badge bg-info bg-opacity-10 text-dark border font-monospace">${t.deductionRuleType}: ₹${t.deductionValue.toLocaleString('en-IN')}</span>`;
+                } else {
+                    ruleBadgeHtml = `<span class="badge bg-light text-dark border">${t.deductionRuleType}</span>`;
+                }
+
+                html += `
+                    <tr>
+                        <td class="text-muted small">${idx + 1}</td>
+                        <td>
+                            <span class="badge ${headBadgeClass}">${t.entitlementType}</span>
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">${t.itemName || 'Service Item #' + t.reference_ID}</div>
+                            <span class="badge bg-light text-dark border font-monospace extra-small">${t.itemCode || '—'}</span>
+                        </td>
+                        <td>
+                            <span class="text-muted small">₹${(t.standardBaseRate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </td>
+                        <td>
+                            <span class="fw-bold text-success fs-7">₹${(t.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </td>
+                        <td>
+                            ${ruleBadgeHtml}
+                        </td>
+                        <td>
+                            <div class="small">
+                                <span class="text-dark">${fromDate}</span>
+                                <span class="text-muted"> to </span>
+                                <span class="${isExpired ? 'text-danger fw-bold' : 'text-dark'}">${toDate}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" role="switch" ${t.status ? 'checked' : ''} 
+                                       onchange="handleToggleTariffStatus(${t.insTariff_ID})" title="${t.status ? 'Deactivate' : 'Activate'}" />
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editTariffRule(${t.insTariff_ID})" title="Edit Tariff Rule">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteTariffRule(${t.insTariff_ID})" title="Delete Tariff Rule">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function getEntitlementBadgeClass(head) {
+            switch (head) {
+                case 'Room': return 'bg-secondary text-white';
+                case 'Procedure': return 'bg-primary text-white';
+                case 'Package': return 'bg-success text-white';
+                case 'HospitalService': return 'bg-info text-dark';
+                case 'NonPayableItem': return 'bg-danger text-white';
+                default: return 'bg-dark text-white';
+            }
+        }
+
+        // 4. Update Summary KPIs
+        function updateTariffsKPIs() {
+            document.getElementById('statTotalTariffs').innerText = loadedTariffs.length;
+            document.getElementById('statApprovedRates').innerText = loadedTariffs.filter(t => t.rate > 0).length;
+            document.getElementById('statDeductionRules').innerText = loadedTariffs.filter(t => t.deductionValue > 0 || t.deductionRuleType.includes('Non-Payable')).length;
+            document.getElementById('statActiveTariffs').innerText = loadedTariffs.filter(t => t.status).length;
+        }
+
+        // 5. Head Filter Tabs
+        function filterTariffsByHead(head, el) {
+            currentEntitlementFilter = head;
+            document.querySelectorAll('#tariffHeadTabs .nav-link').forEach(l => l.classList.remove('active'));
+            el.classList.add('active');
+            renderTariffsTable();
+        }
+
+        function filterTariffTableRows() {
+            renderTariffsTable();
+        }
+
+        // 6. Form Visibility & State
+        function toggleTariffForm(show, isEdit = false) {
+            const card = document.getElementById('tariffFormCard');
+            const btn = document.getElementById('btnToggleTariffForm');
+
+            if (show) {
+                card.classList.remove('d-none');
+                if (btn) btn.classList.add('d-none');
+                if (!isEdit) {
+                    resetTariffForm();
+                }
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                card.classList.add('d-none');
+                if (btn) btn.classList.remove('d-none');
+                resetTariffForm();
+            }
+        }
+
+        function resetTariffForm() {
+            document.getElementById('formInsTariffId').value = '0';
+            document.getElementById('formInsuranceTPAId').value = currentInsuranceTPAId;
+            document.getElementById('tariffFormCardTitle').innerHTML = '<i class="bi bi-plus-square-fill me-2"></i>New Insurance Tariff Rule';
+            document.getElementById('formEntitlementType').value = 'Procedure';
+            document.getElementById('formDeductionRuleType').value = 'Standard Tariff';
+            document.getElementById('formDeductionValue').value = '0.00';
+            document.getElementById('formRate').value = '';
+            
+            // Set today to 1 year
+            const today = new Date().toISOString().split('T')[0];
+            const nextYear = new Date();
+            nextYear.setFullYear(nextYear.getFullYear() + 1);
+            document.getElementById('formEffectiveFrom').value = today;
+            document.getElementById('formEffectiveTo').value = nextYear.toISOString().split('T')[0];
+            document.getElementById('formStatus').checked = true;
+
+            onEntitlementTypeChange();
+            onDeductionRuleChange();
+        }
+
+        // 7. Dynamic Entitlement Type selection -> load Master Items
+        async function onEntitlementTypeChange(preSelectId = null) {
+            const head = document.getElementById('formEntitlementType').value;
+            const select = document.getElementById('formReferenceId');
+            select.innerHTML = '<option value="">Loading services...</option>';
+
+            if (!masterTariffItemsCache[head]) {
+                try {
+                    const res = await fetch(`/Insurances/GetTariffMasterItems?entitlementType=${encodeURIComponent(head)}`);
+                    const json = await res.json();
+                    if (json.success) {
+                        masterTariffItemsCache[head] = json.data || [];
+                    } else {
+                        masterTariffItemsCache[head] = [];
+                    }
+                } catch {
+                    masterTariffItemsCache[head] = [];
+                }
+            }
+
+            const items = masterTariffItemsCache[head] || [];
+            if (items.length === 0) {
+                select.innerHTML = '<option value="">No items found for this head</option>';
+                document.getElementById('tariffBaseRateDisplay').innerText = '₹0.00';
+                return;
+            }
+
+            let optHtml = '<option value="">-- Select Service Item --</option>';
+            items.forEach(it => {
+                const sel = (preSelectId && it.reference_ID === preSelectId) ? 'selected' : '';
+                optHtml += `<option value="${it.reference_ID}" data-rate="${it.baseRate}" ${sel}>${it.itemCode ? '[' + it.itemCode + '] ' : ''}${it.itemName} (₹${it.baseRate.toLocaleString('en-IN')})</option>`;
+            });
+            select.innerHTML = optHtml;
+
+            onTariffItemSelectChange();
+        }
+
+        function onTariffItemSelectChange() {
+            const select = document.getElementById('formReferenceId');
+            const selectedOpt = select.options[select.selectedIndex];
+            const baseRate = selectedOpt ? parseFloat(selectedOpt.getAttribute('data-rate') || '0') : 0;
+            document.getElementById('tariffBaseRateDisplay').innerText = `₹${baseRate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+            // If empty rate, pre-fill with base rate
+            const rateInput = document.getElementById('formRate');
+            if (!rateInput.value && baseRate > 0) {
+                rateInput.value = baseRate.toFixed(2);
+            }
+        }
+
+        // 8. Deduction Rule Change
+        function onDeductionRuleChange() {
+            const rule = document.getElementById('formDeductionRuleType').value;
+            const suffix = document.getElementById('deductionSuffix');
+            const helpText = document.getElementById('deductionHelpText');
+            const dedVal = document.getElementById('formDeductionValue');
+            const rateInput = document.getElementById('formRate');
+
+            if (rule.includes('Percentage') || rule.includes('Co-Pay') || rule.includes('Capping')) {
+                suffix.innerText = '%';
+                helpText.innerText = 'Co-pay or capping percentage value (e.g. 10%, 15%)';
+            } else if (rule.includes('Non-Payable')) {
+                suffix.innerText = '%';
+                dedVal.value = '100.00';
+                rateInput.value = '0.00';
+                helpText.innerText = '100% patient deduction / non-payable item';
+            } else if (rule.includes('Fixed') || rule.includes('Cap')) {
+                suffix.innerText = '₹';
+                helpText.innerText = 'Fixed deduction or capping threshold amount in ₹';
+            } else {
+                suffix.innerText = '—';
+                dedVal.value = '0.00';
+                helpText.innerText = 'No deduction applied / full standard coverage';
+            }
+        }
+
+        // 9. Save Tariff Rule
+        async function handleSaveInsuranceTariff(e) {
+            e.preventDefault();
+
+            const insTariffId = parseInt(document.getElementById('formInsTariffId').value) || 0;
+            const refId = parseInt(document.getElementById('formReferenceId').value) || 0;
+            const rateVal = parseFloat(document.getElementById('formRate').value) || 0;
+            const dedVal = parseFloat(document.getElementById('formDeductionValue').value) || 0;
+            const effFrom = document.getElementById('formEffectiveFrom').value;
+            const effTo = document.getElementById('formEffectiveTo').value;
+
+            if (!refId) {
+                showTariffAlert('Please select a master service item.', 'danger');
+                return;
+            }
+
+            if (effTo < effFrom) {
+                showTariffAlert('Effective To date cannot be earlier than Effective From date.', 'danger');
+                return;
+            }
+
+            const payload = {
+                InsTariff_ID: insTariffId,
+                InsuranceTPA_ID: currentInsuranceTPAId,
+                EntitlementType: document.getElementById('formEntitlementType').value,
+                Reference_ID: refId,
+                DeductionRuleType: document.getElementById('formDeductionRuleType').value,
+                DeductionValue: dedVal,
+                Rate: rateVal,
+                Effective_From: effFrom,
+                Effective_To: effTo,
+                Status: document.getElementById('formStatus').checked
+            };
+
+            const btn = document.getElementById('btnSaveTariff');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/Insurances/SaveInsuranceTariff', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    showTariffAlert(result.message || 'Insurance tariff rule saved successfully!', 'success');
+                    toggleTariffForm(false);
+                    await loadInsuranceTariffs();
+                } else {
+                    showTariffAlert(result.message || 'Failed to save tariff rule.', 'danger');
+                }
+            } catch (err) {
+                showTariffAlert('Error submitting request: ' + err.message, 'danger');
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        }
+
+        // 10. Edit Tariff Rule
+        async function editTariffRule(tariffId) {
+            try {
+                const res = await fetch(`/Insurances/GetInsuranceTariff?id=${tariffId}`);
+                const result = await res.json();
+                if (!result.success || !result.data) {
+                    showTariffAlert('Failed to retrieve tariff rule details.', 'danger');
+                    return;
+                }
+
+                const t = result.data;
+                toggleTariffForm(true, true);
+
+                document.getElementById('formInsTariffId').value = t.insTariff_ID;
+                document.getElementById('formInsuranceTPAId').value = t.insuranceTPA_ID;
+                document.getElementById('tariffFormCardTitle').innerHTML = `<i class="bi bi-pencil-square me-2"></i>Edit Tariff Rule [#${t.insTariff_ID}]`;
+                document.getElementById('formEntitlementType').value = t.entitlementType;
+                document.getElementById('formDeductionRuleType').value = t.deductionRuleType;
+                document.getElementById('formDeductionValue').value = t.deductionValue;
+                document.getElementById('formRate').value = t.rate;
+                document.getElementById('formEffectiveFrom').value = t.effective_From.split('T')[0];
+                document.getElementById('formEffectiveTo').value = t.effective_To.split('T')[0];
+                document.getElementById('formStatus').checked = t.status;
+
+                onDeductionRuleChange();
+                await onEntitlementTypeChange(t.reference_ID);
+
+                document.getElementById('tariffFormCard').scrollIntoView({ behavior: 'smooth' });
+            } catch (err) {
+                showTariffAlert('Error: ' + err.message, 'danger');
+            }
+        }
+
+        // 11. Toggle Status
+        async function handleToggleTariffStatus(tariffId) {
+            try {
+                const res = await fetch(`/Insurances/ToggleTariffStatus?id=${tariffId}`, { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    await loadInsuranceTariffs();
+                } else {
+                    showTariffAlert(result.message || 'Failed to toggle status.', 'danger');
+                }
+            } catch (err) {
+                showTariffAlert('Error updating status: ' + err.message, 'danger');
+            }
+        }
+
+        // 12. Delete Tariff Rule
+        async function deleteTariffRule(tariffId) {
+            if (!confirm('Are you sure you want to delete this Insurance Tariff rule?')) return;
+
+            try {
+                const res = await fetch(`/Insurances/DeleteInsuranceTariff?id=${tariffId}`, { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    showTariffAlert(result.message || 'Tariff rule deleted successfully.', 'success');
+                    await loadInsuranceTariffs();
+                } else {
+                    showTariffAlert(result.message || 'Failed to delete tariff rule.', 'danger');
+                }
+            } catch (err) {
+                showTariffAlert('Error deleting tariff rule: ' + err.message, 'danger');
+            }
+        }
+
+        // Alert helper
+        function showTariffAlert(msg, type = 'info') {
+            const alertBox = document.getElementById('tariffModalAlert');
+            alertBox.className = `alert alert-${type} py-2 px-3 mb-3 small`;
+            alertBox.innerHTML = `<i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i>${msg}`;
+            alertBox.classList.remove('d-none');
+            setTimeout(() => { alertBox.classList.add('d-none'); }, 5000);
+        }
+    </script>
+}

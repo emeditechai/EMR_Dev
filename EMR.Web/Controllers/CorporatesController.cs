@@ -11,11 +11,15 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class CorporatesController(
     ICorporateApiClient corporateApiClient,
+    ICorporateHospitalRateApiClient rateApiClient,
     ICorporateService corporateService,
+    ICorporateHospitalRateService rateService,
     IAuditLogService auditLogService) : Controller
 {
     private static readonly List<string> CorporateTypes = ["IPD", "OPD", "LAB", "MED", "GENERAL", "ALL"];
     private static readonly List<string> BillingCycles = ["Monthly", "Daily", "Yearly", "Bi-Monthly", "Half-Yearly"];
+    private static readonly List<string> RateServiceTypes = ["Room", "Procedure", "OT", "ICU", "HospitalService", "Package"];
+    private static readonly List<string> RateTypes = ["Percentage", "Rate", "Both"];
 
     [HttpGet]
     public async Task<IActionResult> Index(string? type = null, bool? status = null, string? search = null)
@@ -26,6 +30,25 @@ public class CorporatesController(
         try
         {
             var list = (await corporateApiClient.GetListAsync(branchId, type, status, search, companyId)).ToList();
+
+            // Fetch rate rules in parallel or batch for rich UI rate count pill
+            try
+            {
+                var allRates = (await rateApiClient.GetListAsync(branchId: branchId, companyId: companyId)).ToList();
+                var ratesByCorp = allRates.GroupBy(r => r.Corporate_ID).ToDictionary(g => g.Key, g => g.ToList());
+                foreach (var c in list)
+                {
+                    if (ratesByCorp.TryGetValue(c.Corporate_ID, out var corpRates))
+                    {
+                        c.RatesCount = corpRates.Count;
+                        c.Rates = corpRates;
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback gracefully if rate API returns error
+            }
 
             var model = new CorporateIndexViewModel
             {
@@ -208,10 +231,24 @@ public class CorporatesController(
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
+        var companyId = User.GetCompanyId();
+        var branchId = User.GetCurrentBranchId() ?? 1;
+
         try
         {
             var entity = await corporateApiClient.GetByIdAsync(id);
             if (entity is null) return NotFound();
+
+            try
+            {
+                var rates = (await rateApiClient.GetListAsync(corporateId: id, branchId: branchId, companyId: companyId)).ToList();
+                entity.Rates = rates;
+                entity.RatesCount = rates.Count;
+            }
+            catch
+            {
+                // Non-blocking fallback
+            }
 
             return View(entity);
         }
@@ -272,6 +309,133 @@ public class CorporatesController(
         var item = await corporateApiClient.GetByIdAsync(id);
         if (item is null) return NotFound();
         return Json(item);
+    }
+
+    // =========================================================================
+    // CORPORATE HOSPITAL RATE MASTER - INTEGRATED AJAX ACTIONS
+    // =========================================================================
+
+    [HttpGet]
+    public async Task<IActionResult> GetCorporateRates(int corporateId)
+    {
+        var companyId = User.GetCompanyId();
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        var rates = await rateApiClient.GetListAsync(corporateId: corporateId, branchId: branchId, companyId: companyId);
+        return Json(new { success = true, data = rates });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetMasterServiceItems(string? serviceType)
+    {
+        var companyId = User.GetCompanyId();
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        var items = await rateApiClient.GetMasterItemsAsync(serviceType, branchId, companyId);
+        return Json(new { success = true, data = items });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCorporateRate(int id)
+    {
+        var rate = await rateApiClient.GetByIdAsync(id);
+        if (rate is null) return Json(new { success = false, message = "Corporate rate not found." });
+        return Json(new { success = true, data = rate });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveCorporateRate([FromBody] CorporateHospitalRateFormViewModel model)
+    {
+        var companyId = User.GetCompanyId();
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        var userId = User.GetUserId();
+
+        model.CompanyId = companyId;
+        model.Branch_ID = branchId;
+
+        if (model.Corporate_ID <= 0)
+            return Json(new { success = false, message = "Valid Corporate ID is required." });
+
+        if (string.IsNullOrWhiteSpace(model.RateServiceType))
+            return Json(new { success = false, message = "Rate Service Type is required." });
+
+        if (model.ReferenceMaster_ID <= 0)
+            return Json(new { success = false, message = "Please select a master service item." });
+
+        if (model.Effective_To < model.Effective_From)
+            return Json(new { success = false, message = "Effective To date cannot be earlier than Effective From date." });
+
+        if (model.RateType == "Rate" && (!model.Rate.HasValue || model.Rate.Value < 0))
+            return Json(new { success = false, message = "Please enter a valid rate amount." });
+
+        if (model.RateType == "Percentage" && (!model.DiscountPercent.HasValue || model.DiscountPercent.Value < 0 || model.DiscountPercent.Value > 100))
+            return Json(new { success = false, message = "Please enter a valid discount percentage between 0 and 100%." });
+
+        if (model.RateType == "Both")
+        {
+            if (!model.Rate.HasValue || model.Rate.Value < 0)
+                return Json(new { success = false, message = "Please enter a valid contracted rate amount." });
+            if (!model.DiscountPercent.HasValue || model.DiscountPercent.Value < 0 || model.DiscountPercent.Value > 100)
+                return Json(new { success = false, message = "Please enter a valid discount percentage." });
+        }
+
+        try
+        {
+            if (model.CorpRate_ID > 0)
+            {
+                await rateApiClient.UpdateAsync(model.CorpRate_ID, model, userId);
+                await auditLogService.LogAsync("MasterData", "CorporateRate.Update",
+                    $"Updated Corporate Rate [ID: {model.CorpRate_ID}] for Corporate [ID: {model.Corporate_ID}]: Head={model.RateServiceType}, RateType={model.RateType}",
+                    branchId: branchId);
+                return Json(new { success = true, message = "Corporate rate rule updated successfully!", id = model.CorpRate_ID });
+            }
+            else
+            {
+                var newId = await rateApiClient.CreateAsync(model, userId);
+                await auditLogService.LogAsync("MasterData", "CorporateRate.Create",
+                    $"Created Corporate Rate [ID: {newId}] for Corporate [ID: {model.Corporate_ID}]: Head={model.RateServiceType}, RateType={model.RateType}",
+                    branchId: branchId);
+                return Json(new { success = true, message = "Corporate rate rule created successfully!", id = newId });
+            }
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ToggleRateStatus(int id)
+    {
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            await rateApiClient.ToggleStatusAsync(id, User.GetUserId());
+            await auditLogService.LogAsync("MasterData", "CorporateRate.ToggleStatus",
+                $"Toggled active status for Corporate Rate [ID: {id}]",
+                branchId: branchId);
+            return Json(new { success = true, message = "Status toggled successfully." });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteCorporateRate(int id)
+    {
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            await rateApiClient.DeleteAsync(id, User.GetUserId());
+            await auditLogService.LogAsync("MasterData", "CorporateRate.Delete",
+                $"Deleted Corporate Rate [ID: {id}]",
+                branchId: branchId);
+            return Json(new { success = true, message = "Corporate rate rule deleted successfully." });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
     }
 
     private static List<SelectListItem> GetTypeSelectList(string? selected = null) =>

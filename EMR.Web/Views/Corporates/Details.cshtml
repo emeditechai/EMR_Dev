@@ -2,9 +2,10 @@
 @{
     ViewData["Title"] = "Corporate Master Details";
     var isExpired = Model.Effective_To < DateTime.Today;
+    var rates = Model.Rates ?? [];
 }
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
     <div>
         <h1 class="h3 mb-0 fw-bold">@Model.Corporate_Name</h1>
         <small class="text-muted">Corporate partner code: <span class="font-monospace fw-bold">@(Model.Corporate_Code ?? "—")</span></small>
@@ -130,6 +131,107 @@
                             <i class="bi bi-calendar-x @(isExpired ? "text-danger" : "text-primary") me-1"></i>@Model.Effective_To.ToString("dd MMMM yyyy")
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Corporate Hospital Rate Schedule Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary">
+                    <i class="bi bi-tag-fill me-2"></i>Agreed Hospital Rate Schedule (@rates.Count Rules)
+                </h6>
+                <a asp-action="Index" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-pencil-square me-1"></i>Manage in Index
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Service Head</th>
+                                <th>Service Item</th>
+                                <th>Hospital Base Rate</th>
+                                <th>Rate Type</th>
+                                <th>Agreed Rate / Discount</th>
+                                <th>Validity</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{int rIdx = 1;}
+                            @foreach (var r in rates)
+                            {
+                                var rHeadBadge = r.RateServiceType switch
+                                {
+                                    "Room" => "bg-secondary text-white",
+                                    "Procedure" => "bg-primary text-white",
+                                    "OT" => "bg-warning text-dark",
+                                    "ICU" => "bg-danger text-white",
+                                    "HospitalService" => "bg-info text-dark",
+                                    "Package" => "bg-success text-white",
+                                    _ => "bg-dark text-white"
+                                };
+                                var rTypeBadge = r.RateType == "Percentage" ? "bg-info text-dark" : (r.RateType == "Rate" ? "bg-success text-white" : "bg-primary text-white");
+
+                                <tr>
+                                    <td class="text-muted small">@(rIdx++)</td>
+                                    <td><span class="badge @rHeadBadge">@r.RateServiceType</span></td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">@r.ItemName</div>
+                                        <span class="badge bg-light text-dark border font-monospace small">@r.ItemCode</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted small">₹@r.StandardBaseRate.ToString("N2")</span>
+                                    </td>
+                                    <td><span class="badge @rTypeBadge">@r.RateType</span></td>
+                                    <td>
+                                        @if (r.RateType == "Percentage")
+                                        {
+                                            <span class="badge bg-info bg-opacity-10 text-info border border-info fw-bold">@r.DiscountPercent% OFF</span>
+                                        }
+                                        else if (r.RateType == "Rate")
+                                        {
+                                            <span class="fw-bold text-success">₹@(r.Rate?.ToString("N2") ?? "0.00")</span>
+                                        }
+                                        else
+                                        {
+                                            <div class="fw-bold text-success">₹@(r.Rate?.ToString("N2") ?? "0.00")</div>
+                                            <small class="text-info fw-semibold">(@r.DiscountPercent% Disc)</small>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="small">
+                                            <span>@r.Effective_From.ToString("dd MMM yyyy")</span>
+                                            <span class="text-muted"> to </span>
+                                            <span>@r.Effective_To.ToString("dd MMM yyyy")</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (r.Status)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            @if (!rates.Any())
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        <i class="bi bi-tag fs-3 d-block mb-1 opacity-50"></i>
+                                        No hospital rate rules configured for this corporate partner.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

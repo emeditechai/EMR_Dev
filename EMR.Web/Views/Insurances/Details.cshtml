@@ -1,0 +1,317 @@
+@model EMR.Web.Models.ViewModels.InsuranceTPAListItemViewModel
+@{
+    ViewData["Title"] = "Insurance / TPA Details";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">@Model.Name</h1>
+        <small class="text-muted">Entity Code: <span class="font-monospace fw-bold">@Model.Code</span> | Policy Prefix: <span class="font-monospace text-primary fw-bold">@Model.PolicyPrefix</span></small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.InsuranceTPA_ID" class="btn btn-primary btn-sm px-3 shadow-sm">
+            <i class="bi bi-pencil me-1"></i> Edit Entity
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Primary Details -->
+    <div class="col-lg-8">
+        <!-- Overview Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-shield-check me-2"></i>Entity Overview & Classification</h6>
+                <div>
+                    @if (Model.Status)
+                    {
+                        <span class="badge text-bg-success px-3 py-2">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge text-bg-secondary px-3 py-2">Inactive</span>
+                    }
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="text-muted small fw-semibold">Entity Type</label>
+                        <div>
+                            @if (Model.Type == "TPA")
+                            {
+                                <span class="badge bg-purple bg-opacity-10 text-purple border border-purple border-opacity-25 fs-6 px-3 py-1">
+                                    <i class="bi bi-people-fill me-1"></i>Third Party Administrator (TPA)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 px-3 py-1">
+                                    <i class="bi bi-shield-check me-1"></i>Insurance Company
+                                </span>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small fw-semibold">Entity Code</label>
+                        <div>
+                            <span class="badge bg-light text-dark border font-monospace fs-6">
+                                @Model.Code
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-sm-12">
+                        <label class="text-muted small fw-semibold">Full Organization Name</label>
+                        <div class="fs-5 fw-bold text-dark">@Model.Name</div>
+                    </div>
+                    <div class="col-sm-12">
+                        <label class="text-muted small fw-semibold">Scheme / Plan Name</label>
+                        <div class="fw-semibold text-dark">
+                            @(string.IsNullOrWhiteSpace(Model.SchemeName) ? "— (General Default Policy Network)" : Model.SchemeName)
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small fw-semibold">Scoped Branch</label>
+                        <div class="fw-semibold text-dark"><i class="bi bi-building me-1 text-muted"></i>@(Model.BranchName ?? $"Branch #{Model.Branch_ID}")</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small fw-semibold">Branch Code</label>
+                        <div class="fw-semibold text-muted font-monospace">@(Model.BranchCode ?? "—")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Policy & Claims Settings Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-gear-wide-connected me-2"></i>Policy Prefix & Claims Configuration</h6>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <label class="text-muted small fw-semibold d-block">Auto Policy Prefix</label>
+                            <div class="fs-4 fw-bold text-primary font-monospace">
+                                <i class="bi bi-tag-fill me-1"></i>@Model.PolicyPrefix
+                            </div>
+                            <small class="text-muted">Unique prefix for policy/claim numbering</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <label class="text-muted small fw-semibold d-block">Settlement Model</label>
+                            <div class="fs-4 fw-bold text-dark">
+                                @{
+                                    var netBadge = Model.NetworkCategory switch
+                                    {
+                                        "Cashless" => "text-success",
+                                        "Reimbursement" => "text-warning",
+                                        "Both" => "text-info",
+                                        _ => "text-secondary"
+                                    };
+                                }
+                                <span class="@netBadge"><i class="bi bi-credit-card-2-front me-1"></i>@Model.NetworkCategory</span>
+                            </div>
+                            <small class="text-muted">Accepted settlement mechanism</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-12">
+                        <div class="p-3 rounded-3 border @(Model.AuthorizationRequired ? "bg-danger bg-opacity-10 border-danger border-opacity-25" : "bg-light")">
+                            <div class="d-flex align-items-center">
+                                <i class="bi @(Model.AuthorizationRequired ? "bi-lock-fill text-danger" : "bi-unlock text-muted") fs-4 me-3"></i>
+                                <div>
+                                    <div class="fw-bold @(Model.AuthorizationRequired ? "text-danger" : "text-dark")">
+                                        @(Model.AuthorizationRequired ? "Pre-Authorization Mandatory" : "Pre-Authorization Not Required")
+                                    </div>
+                                    <div class="small text-muted">
+                                        @(Model.AuthorizationRequired 
+                                            ? "Admissions, treatments, and procedures require formal cashless approval letter from insurer/TPA desk prior to bill clearance."
+                                            : "Direct billing permitted without prior cashless authorization guarantee.")
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agreed Insurance Tariff & Deduction Schedule Table Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-card-checklist text-primary fs-5"></i>
+                    <h6 class="mb-0 fw-bold text-primary">Agreed Insurance Tariff & Deduction Schedule</h6>
+                    <span class="badge bg-primary text-white rounded-pill ms-2">@Model.Tariffs.Count Rules</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Entitlement Head</th>
+                                <th>Service Item Code & Name</th>
+                                <th>Hospital Base Rate</th>
+                                <th>Agreed Tariff Rate</th>
+                                <th>Deduction / Co-Pay Rule</th>
+                                <th>Validity Period</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{int tIndex = 1;}
+                            @foreach (var t in Model.Tariffs)
+                            {
+                                var headBadge = t.EntitlementType switch
+                                {
+                                    "Room" => "bg-secondary text-white",
+                                    "Procedure" => "bg-primary text-white",
+                                    "Package" => "bg-success text-white",
+                                    "HospitalService" => "bg-info text-dark",
+                                    "NonPayableItem" => "bg-danger text-white",
+                                    _ => "bg-dark text-white"
+                                };
+                                <tr>
+                                    <td class="text-muted small">@(tIndex++)</td>
+                                    <td>
+                                        <span class="badge @headBadge">@t.EntitlementType</span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">@t.ItemName</div>
+                                        <span class="badge bg-light text-dark border font-monospace extra-small">@t.ItemCode</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted small">₹@t.StandardBaseRate.ToString("N2")</span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-success">₹@t.Rate.ToString("N2")</span>
+                                    </td>
+                                    <td>
+                                        @if (t.DeductionRuleType.Contains("Percentage") || t.DeductionRuleType.Contains("Co-Pay"))
+                                        {
+                                            <span class="badge bg-warning bg-opacity-10 text-dark border border-warning font-monospace">@t.DeductionRuleType: @t.DeductionValue%</span>
+                                        }
+                                        else if (t.DeductionRuleType.Contains("Non-Payable"))
+                                        {
+                                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">100% Non-Payable</span>
+                                        }
+                                        else if (t.DeductionValue > 0)
+                                        {
+                                            <span class="badge bg-info bg-opacity-10 text-dark border font-monospace">@t.DeductionRuleType: ₹@t.DeductionValue.ToString("N2")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-dark border">@t.DeductionRuleType</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="small">
+                                            @t.Effective_From.ToString("dd MMM yyyy") to @t.Effective_To.ToString("dd MMM yyyy")
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (t.Status)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.Tariffs.Any())
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        <i class="bi bi-shield-slash fs-2 d-block mb-1 opacity-50"></i>
+                                        No tariff rules configured for this partner yet. Configure on the <a asp-action="Index" class="fw-bold">Insurance Master</a> page.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Contact & Audit Trail -->
+    <div class="col-lg-4">
+        <!-- Contact Person & Communication Card -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-person-lines-fill me-2"></i>Contact Points</h6>
+            </div>
+            <div class="card-body p-3">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item px-0 py-2 border-0">
+                        <div class="text-muted small">Designated Contact Person</div>
+                        <div class="fw-bold fs-6">
+                            <i class="bi bi-person-fill text-primary me-2"></i>@(string.IsNullOrWhiteSpace(Model.ContactPerson) ? "—" : Model.ContactPerson)
+                        </div>
+                    </li>
+                    <li class="list-group-item px-0 py-2 border-0">
+                        <div class="text-muted small">Mobile / Phone Number</div>
+                        <div class="fw-bold fs-6">
+                            @if (!string.IsNullOrWhiteSpace(Model.ContactNumber))
+                            {
+                                <i class="bi bi-telephone-fill text-success me-2"></i><a href="tel:@Model.ContactNumber" class="text-decoration-none text-dark">@Model.ContactNumber</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </div>
+                    </li>
+                    <li class="list-group-item px-0 py-2 border-0">
+                        <div class="text-muted small">Official Claims Email</div>
+                        <div class="fw-medium">
+                            @if (!string.IsNullOrWhiteSpace(Model.Email))
+                            {
+                                <a href="mailto:@Model.Email" class="text-decoration-none"><i class="bi bi-envelope-at me-2 text-info"></i>@Model.Email</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Audit Details Card -->
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-clock-history me-2"></i>Audit Information</h6>
+            </div>
+            <div class="card-body p-3">
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item px-0 py-2 border-0 d-flex justify-content-between">
+                        <span class="text-muted">Entity ID:</span>
+                        <span class="fw-bold font-monospace">#@Model.InsuranceTPA_ID</span>
+                    </li>
+                    <li class="list-group-item px-0 py-2 border-0 d-flex justify-content-between">
+                        <span class="text-muted">Created On:</span>
+                        <span class="fw-medium">@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                    </li>
+                    @if (Model.ModifiedDate.HasValue)
+                    {
+                        <li class="list-group-item px-0 py-2 border-0 d-flex justify-content-between">
+                            <span class="text-muted">Last Modified:</span>
+                            <span class="fw-medium">@Model.ModifiedDate.Value.ToString("dd MMM yyyy, hh:mm tt")</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

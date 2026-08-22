@@ -19,6 +19,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FloorMaster> FloorMasters => Set<FloorMaster>();
     public DbSet<DepartmentMaster> DepartmentMasters => Set<DepartmentMaster>();
     public DbSet<CorporateMaster> CorporateMasters => Set<CorporateMaster>();
+    public DbSet<CorporateHospitalRateMaster> CorporateHospitalRateMasters => Set<CorporateHospitalRateMaster>();
+    public DbSet<InsuranceTPAMaster> InsuranceTPAMasters => Set<InsuranceTPAMaster>();
+    public DbSet<InsuranceTariffMaster> InsuranceTariffMasters => Set<InsuranceTariffMaster>();
 
 
     // Patient Registration masters
@@ -536,6 +539,52 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.RoomNamePrefix).HasMaxLength(100);
             entity.Property(x => x.Status).HasMaxLength(20);
             entity.Property(x => x.CreatedBy).HasMaxLength(100);
+        });
+
+        // ── Insurance / TPA Master ──────────────────────────────────────────
+        modelBuilder.Entity<InsuranceTPAMaster>(entity =>
+        {
+            entity.ToTable("InsuranceTPAMaster");
+            entity.HasKey(x => x.InsuranceTPA_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.Branch_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Corporate Hospital Rate Master ───────────────────────────────────
+        modelBuilder.Entity<CorporateHospitalRateMaster>(entity =>
+        {
+            entity.ToTable("CorporateHospitalRateMaster");
+            entity.HasKey(x => x.CorpRate_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.Property(x => x.Corporate_ID).HasColumnName("Corporate_ID");
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.Branch_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Corporate)
+                .WithMany()
+                .HasForeignKey(x => x.Corporate_ID)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Insurance Tariff Configuration ──────────────────────────────────
+        modelBuilder.Entity<InsuranceTariffMaster>(entity =>
+        {
+            entity.ToTable("InsuranceTariffMaster");
+            entity.HasKey(x => x.InsTariff_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.Property(x => x.InsuranceTPA_ID).HasColumnName("InsuranceTPA_ID");
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.Branch_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.InsuranceTPA)
+                .WithMany()
+                .HasForeignKey(x => x.InsuranceTPA_ID)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

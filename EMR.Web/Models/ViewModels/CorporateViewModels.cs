@@ -27,6 +27,9 @@ public class CorporateListItemViewModel
     public DateTime CreatedDate { get; set; }
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
+
+    public int RatesCount { get; set; }
+    public List<CorporateHospitalRateListItemViewModel> Rates { get; set; } = [];
 }
 
 public class CorporateIndexViewModel

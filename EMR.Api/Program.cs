@@ -34,6 +34,9 @@ builder.Services.AddScoped<IPatientPortalService,    PatientPortalService>();
 builder.Services.AddScoped<IIpdMasterService,        IpdMasterService>();
 builder.Services.AddScoped<IHospitalPackageService,   HospitalPackageService>();
 builder.Services.AddScoped<ICorporateService,         CorporateService>();
+builder.Services.AddScoped<ICorporateHospitalRateService, CorporateHospitalRateService>();
+builder.Services.AddScoped<IInsuranceTPAService,      InsuranceTPAService>();
+builder.Services.AddScoped<IInsuranceTariffService,   InsuranceTariffService>();
 builder.Services.AddScoped<IGeneralMasterService,    GeneralMasterService>();
 builder.Services.AddScoped<IOpdMasterService,        OpdMasterService>();
 
