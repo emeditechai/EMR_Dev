@@ -805,20 +805,43 @@ body {
   flex-shrink: 0;
 }
 
-/* Flyout submenu panel */
+/* Flyout submenu panel with scroll for > 10 items */
 .dropdown-submenu-menu {
   display: none;
   position: absolute;
   top: 0;
   left: 100%;
-  min-width: 210px;
+  min-width: 230px;
+  max-height: 375px; /* displays ~10 items and enables smooth scrolling when count > 10 */
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 0.4rem 0;
   border: 1px solid #e0e6f0;
   border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(13, 27, 62, 0.13);
+  box-shadow: 0 10px 30px rgba(13, 27, 62, 0.15);
   background: #fff;
   z-index: 1055;
   margin-left: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.dropdown-submenu-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-submenu-menu::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.dropdown-submenu-menu::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+}
+
+.dropdown-submenu-menu::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .dropdown-submenu-menu.show {
