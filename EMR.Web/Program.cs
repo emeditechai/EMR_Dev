@@ -113,6 +113,7 @@ builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();
 builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>();
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
+builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<IGeneralMasterApiClient,     GeneralMasterApiClient>();
 builder.Services.AddScoped<IOpdMasterApiClient,        OpdMasterApiClient>();
 

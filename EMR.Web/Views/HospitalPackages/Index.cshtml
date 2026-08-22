@@ -1,0 +1,1043 @@
+@model EMR.Web.Models.ViewModels.HospitalPackageIndexViewModel
+@{
+    ViewData["Title"] = "Hospital Package Master";
+    var packages = Model.Packages ?? [];
+    var masterLookups = Model.MasterLookups ?? [];
+}
+
+<div class="container-fluid px-0">
+    <!-- Breadcrumb & Page Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Dashboard" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item">Master</li>
+                    <li class="breadcrumb-item">IPD Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">Hospital Package Master</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 fw-bold text-dark">
+                <i class="bi bi-box2-heart-fill me-2 text-primary"></i>Hospital Package Master
+            </h1>
+            <p class="text-muted small mb-0">Manage bundled IPD hospital packages with dynamic header and multi-category clinical detail heads</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary" onclick="openPresetSelector()">
+                <i class="bi bi-magic me-1"></i>Quick Package Templates
+            </button>
+            <button type="button" class="btn btn-primary" onclick="openCreatePackageModal()">
+                <i class="bi bi-plus-lg me-1"></i>Create Hospital Package
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white h-100">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-primary-subtle text-primary p-3 me-3">
+                        <i class="bi bi-box2-heart fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Total Packages</div>
+                        <div class="fs-4 fw-bold text-dark">@Model.TotalPackagesCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white h-100">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-success-subtle text-success p-3 me-3">
+                        <i class="bi bi-check2-circle fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Active Packages</div>
+                        <div class="fs-4 fw-bold text-success">@Model.ActivePackagesCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white h-100">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-info-subtle text-info-emphasis p-3 me-3">
+                        <i class="bi bi-currency-rupee fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Avg. Package Rate</div>
+                        <div class="fs-4 fw-bold text-info-emphasis">@Model.AveragePackagePrice.ToString("C0")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white h-100">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-warning-subtle text-warning-emphasis p-3 me-3">
+                        <i class="bi bi-tags fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small fw-semibold">Package Categories</div>
+                        <div class="fs-4 fw-bold text-warning-emphasis">@Model.DistinctCategoriesCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <!-- Filter Bar -->
+        <div class="card-header bg-white border-bottom p-3">
+            <form method="get" asp-action="Index" class="row g-2 align-items-center">
+                <div class="col-md-4">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" placeholder="Search by code, package name, or type..." value="@Model.SearchTerm" />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="packageType" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- All Package Types --</option>
+                        @foreach (var opt in Model.PackageTypeOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == Model.SelectedPackageType)">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- All Statuses --</option>
+                        @foreach (var opt in Model.StatusOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == Model.SelectedStatus?.ToString().ToLower())">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+                        <i class="bi bi-filter me-1"></i>Filter
+                    </button>
+                    @if (!string.IsNullOrWhiteSpace(Model.SearchTerm) || !string.IsNullOrWhiteSpace(Model.SelectedPackageType) || Model.SelectedStatus.HasValue)
+                    {
+                        <a asp-action="Index" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                            <i class="bi bi-x-circle"></i>
+                        </a>
+                    }
+                </div>
+            </form>
+        </div>
+
+        <!-- Table -->
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3" style="width: 15%;">Package Code</th>
+                        <th style="width: 25%;">Package Name & Details</th>
+                        <th style="width: 15%;">Package Type</th>
+                        <th style="width: 15%;">Validity Period</th>
+                        <th style="width: 10%;" class="text-center">Detail Heads</th>
+                        <th style="width: 10%;" class="text-end">Package Total</th>
+                        <th style="width: 5%;" class="text-center">Status</th>
+                        <th style="width: 15%;" class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (packages.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                <div class="fw-semibold">No hospital packages found</div>
+                                <small>Click <strong>"Create Hospital Package"</strong> or <strong>"Quick Package Templates"</strong> to get started.</small>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        foreach (var item in packages)
+                        {
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="badge bg-light text-dark border font-monospace px-2 py-1 fs-6">
+                                        <i class="bi bi-qr-code me-1 text-primary"></i>@item.Package_Code
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">@item.Package_Name</div>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                    {
+                                        <small class="text-muted text-truncate d-block" style="max-width: 320px;" title="@item.Description">@item.Description</small>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                        <i class="bi bi-tag-fill me-1"></i>@item.Package_Type
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="small">
+                                        <span class="text-muted">From:</span> <strong class="text-dark">@item.ValidFrom.ToString("dd MMM yyyy")</strong>
+                                    </div>
+                                    <div class="small">
+                                        <span class="text-muted">To:</span> <strong class="text-dark">@(item.ValidTo.HasValue ? item.ValidTo.Value.ToString("dd MMM yyyy") : "Ongoing")</strong>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary-subtle text-secondary border px-2 py-1" title="@item.TotalDetailsCount itemized detail lines across @item.DistinctHeadsCount categories">
+                                        <i class="bi bi-list-check me-1 text-secondary"></i>@item.TotalDetailsCount items (@item.DistinctHeadsCount heads)
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold fs-6 text-success font-monospace">@item.TotalPackageAmount.ToString("C2")</span>
+                                </td>
+                                <td class="text-center">
+                                    @if (item.Status)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                            <i class="bi bi-check-circle me-1"></i>Active
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                                            <i class="bi bi-dash-circle me-1"></i>Inactive
+                                        </span>
+                                    }
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-info" onclick="openViewPackageModal(@item.HospitalPackage_ID)" title="View Complete Breakdown">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" onclick="openEditPackageModal(@item.HospitalPackage_ID)" title="Edit Package">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form asp-action="Delete" asp-route-id="@item.HospitalPackage_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete package @item.Package_Code and its dynamic detail heads?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-outline-danger" title="Delete Package">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: CREATE / EDIT HOSPITAL PACKAGE MASTER (HEADER & DYNAMIC DETAILS)    -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="packageModal" tabindex="-1" aria-labelledby="packageModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-height: 92vh;">
+        <div class="modal-content border-0 shadow" style="max-height: 92vh; height: 92vh; display: flex; flex-direction: column;">
+            <div class="modal-header bg-light py-2 px-3 flex-shrink-0 border-bottom">
+                <h5 class="modal-title fw-bold" id="packageModalLabel">
+                    <i class="bi bi-box2-heart me-2 text-primary"></i><span id="modalActionTitle">Create Hospital Package Master</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="packageForm" method="post" asp-action="Create" class="d-flex flex-column flex-grow-1" style="min-height: 0; overflow: hidden;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="HospitalPackage_ID" id="formPackageId" value="0" />
+                <input type="hidden" name="Branch_ID" id="formBranchId" value="@Model.SelectedBranchId" />
+                <input type="hidden" name="TotalPackageAmount" id="formTotalPackageAmount" value="0" />
+
+                <!-- SCROLLABLE MODAL BODY -->
+                <div class="modal-body p-3 p-md-4" style="overflow-y: auto; overflow-x: hidden; flex: 1 1 auto; min-height: 0;">
+                    <!-- SECTION 1: HEADER CONCEPT -->
+                    <div class="card border border-primary-subtle rounded-3 p-3 mb-3 bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-primary mb-0">
+                                <i class="bi bi-card-heading me-2"></i>1. Package Header Information
+                            </h6>
+                            <span class="badge bg-primary">Master Header</span>
+                        </div>
+
+                        <div class="row g-2 g-md-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold mb-1">Package Code <span class="text-danger">*</span></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" name="Package_Code" id="formPackageCode" class="form-control font-monospace text-uppercase" placeholder="e.g. PKG-SURG-01" required />
+                                    <button type="button" class="btn btn-outline-secondary" onclick="generatePackageCode()" title="Auto-generate Code">
+                                        <i class="bi bi-magic"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted" style="font-size: 0.75rem;">Unique per branch</small>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small fw-semibold mb-1">Package Name <span class="text-danger">*</span></label>
+                                <input type="text" name="Package_Name" id="formPackageName" class="form-control form-control-sm" placeholder="e.g. Laparoscopic Cholecystectomy Package" required />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold mb-1">Package Type <span class="text-danger">*</span></label>
+                                <div class="input-group input-group-sm">
+                                    <select id="formPackageTypeSelect" class="form-select" onchange="handlePackageTypeChange(this)">
+                                        <option value="">-- Standard Types --</option>
+                                        <option value="Maternity">Maternity Package</option>
+                                        <option value="Cataract">Cataract Package</option>
+                                        <option value="Surgery">Surgery Package</option>
+                                        <option value="Cardiac">Cardiac Package</option>
+                                        <option value="ICU">ICU Package</option>
+                                        <option value="Wellness Hospitalization">Wellness Hospitalization</option>
+                                        <option value="Orthopedic">Orthopedic Package</option>
+                                        <option value="Laparoscopy">Laparoscopy Package</option>
+                                        <option value="Day Care">Day Care Package</option>
+                                        <option value="General Inpatient">General Inpatient</option>
+                                        <option value="__CUSTOM__">+ Custom Type...</option>
+                                    </select>
+                                    <input type="text" name="Package_Type" id="formPackageType" class="form-control" placeholder="Type" required />
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold mb-1">Validity: From Date <span class="text-danger">*</span></label>
+                                <input type="date" name="ValidFrom" id="formValidFrom" class="form-control form-control-sm" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold mb-1">Validity: To Date</label>
+                                <input type="date" name="ValidTo" id="formValidTo" class="form-control form-control-sm" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold mb-1">Scope / Description</label>
+                                <input type="text" name="Description" id="formDescription" class="form-control form-control-sm" placeholder="Brief summary notes..." />
+                            </div>
+                            <div class="col-md-2 d-flex align-items-center pt-2">
+                                <div class="form-check form-switch">
+                                    <input type="hidden" name="Status" value="false" />
+                                    <input class="form-check-input" type="checkbox" name="Status" id="formStatus" role="switch" value="true" checked onchange="updateStatusSwitchLabel()" />
+                                    <label class="form-check-label small fw-semibold text-success" for="formStatus" id="formStatusLabel">Active</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: DYNAMIC DETAILS CONCEPT -->
+                    <div class="card border rounded-3 p-3 bg-white shadow-sm">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <div>
+                                <h6 class="fw-bold text-dark mb-0">
+                                    <i class="bi bi-diagram-3-fill me-2 text-primary"></i>2. Package Detail Heads (Dynamic Details)
+                                </h6>
+                                <small class="text-muted">Master references for Bed, Room, Procedure, Doctor fee, Nursing, OT, Anaesthesia, Consumables, Equipment, Services</small>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="bi bi-lightning-charge-fill me-1 text-warning"></i>Quick Add Head
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Bed')"><i class="bi bi-hospital me-2 text-primary"></i>+ Bed</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Room')"><i class="bi bi-door-open me-2 text-primary"></i>+ Room</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Procedure')"><i class="bi bi-heart-pulse me-2 text-danger"></i>+ Procedure</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Doctor fee')"><i class="bi bi-person-badge me-2 text-success"></i>+ Doctor Fee</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Nursing')"><i class="bi bi-person-workspace me-2 text-info"></i>+ Nursing</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('OT')"><i class="bi bi-hospital me-2 text-primary"></i>+ Operation Theatre (OT)</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Anaesthesia')"><i class="bi bi-shield-plus me-2 text-warning"></i>+ Anaesthesia</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Consumables')"><i class="bi bi-capsule me-2 text-secondary"></i>+ Consumables</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Equipment')"><i class="bi bi-tools me-2 text-dark"></i>+ Equipment</a></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Hospital services')"><i class="bi bi-gear-wide-connected me-2 text-primary"></i>+ Hospital Services</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="addDetailRow('Other')"><i class="bi bi-plus-circle me-2"></i>+ Custom Other Head</a></li>
+                                    </ul>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="addDetailRow('Other')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Row
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Details Table with Dedicated Scroll Container & Sticky Header -->
+                        <div class="table-responsive border rounded-3 mb-2" style="max-height: 290px; min-height: 140px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0" id="detailsTable">
+                                <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 2; background-color: #f8f9fa;">
+                                    <tr>
+                                        <th style="width: 14%;">Head Type</th>
+                                        <th style="width: 22%;">Master Reference Picker</th>
+                                        <th style="width: 20%;">Item Name <span class="text-danger">*</span></th>
+                                        <th style="width: 10%;">Code</th>
+                                        <th style="width: 6%;" class="text-center">Qty</th>
+                                        <th style="width: 9%;" class="text-end">Unit Rate (₹)</th>
+                                        <th style="width: 9%;" class="text-end">Amount (₹)</th>
+                                        <th style="width: 10%;">Frequency</th>
+                                        <th style="width: 3%;" class="text-center" title="Mandatory in package">Req</th>
+                                        <th style="width: 3%;" class="text-center">Del</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="detailsTableBody">
+                                    <!-- Dynamic rows inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Live Calculations & Package Total Banner -->
+                        <div class="bg-light p-2 px-3 rounded-3 border d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <span class="fw-bold text-dark small">Summary:</span>
+                                <span class="badge bg-secondary-subtle text-secondary border ms-1" id="detailItemsCountLabel">0 detail lines</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="text-muted small">Total Package Amount:</span>
+                                <span class="fs-4 fw-bold text-success font-monospace" id="livePackageTotalDisplay">₹0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STICKY MODAL FOOTER -->
+                <div class="modal-footer bg-light py-2 px-3 flex-shrink-0 border-top d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="openPresetSelector()">
+                            <i class="bi bi-magic me-1"></i>Presets
+                        </button>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-check-lg me-1"></i><span id="modalSubmitBtnText">Save Hospital Package</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: QUICK PACKAGE PRESETS SELECTOR                                     -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="presetModal" tabindex="-1" aria-labelledby="presetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" style="max-height: 90vh;">
+        <div class="modal-content border-0 shadow" style="max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header bg-light py-2 px-3 flex-shrink-0 border-bottom">
+                <h5 class="modal-title fw-bold" id="presetModalLabel">
+                    <i class="bi bi-magic me-2 text-primary"></i>Standard Hospital Package Presets
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 p-md-4" style="overflow-y: auto; flex: 1 1 auto;">
+                <p class="text-muted small mb-3">Select a pre-configured hospital package template to automatically load standard header and dynamic clinical detail heads. You can modify any row afterwards.</p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="card h-100 border p-3 rounded-3 hover-shadow cursor-pointer" onclick="loadPackagePreset('maternity')">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="rounded-3 bg-danger-subtle text-danger p-2 me-3"><i class="bi bi-heart-pulse-fill fs-4"></i></div>
+                                <div>
+                                    <h6 class="fw-bold mb-0">Maternity Delivery Package</h6>
+                                    <small class="badge bg-danger-subtle text-danger">3 Days Normal Delivery</small>
+                                </div>
+                            </div>
+                            <small class="text-muted">Includes bed, labor OT, obstetrician rounds, midwifery nursing, newborn immunization & delivery kit.</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card h-100 border p-3 rounded-3 hover-shadow cursor-pointer" onclick="loadPackagePreset('cataract')">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="rounded-3 bg-primary-subtle text-primary p-2 me-3"><i class="bi bi-eye-fill fs-4"></i></div>
+                                <div>
+                                    <h6 class="fw-bold mb-0">Cataract Phaco Package</h6>
+                                    <small class="badge bg-primary-subtle text-primary">Day Care Eye Surgery</small>
+                                </div>
+                            </div>
+                            <small class="text-muted">Includes micro-incision phaco, foldable IOL, eye OT suite, surgeon fee, topical anaesthesia & recovery lounge.</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card h-100 border p-3 rounded-3 hover-shadow cursor-pointer" onclick="loadPackagePreset('laparoscopy')">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="rounded-3 bg-success-subtle text-success p-2 me-3"><i class="bi bi-bandaid-fill fs-4"></i></div>
+                                <div>
+                                    <h6 class="fw-bold mb-0">Laparoscopic Surgery Package</h6>
+                                    <small class="badge bg-success-subtle text-success">2 Days Inpatient</small>
+                                </div>
+                            </div>
+                            <small class="text-muted">Includes twin bed, laparoscopic procedure, surgeon & anaesthetist fees, general anaesthesia, 4K HD tower & consumables.</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card h-100 border p-3 rounded-3 hover-shadow cursor-pointer" onclick="loadPackagePreset('cardiac')">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="rounded-3 bg-danger-subtle text-danger p-2 me-3"><i class="bi bi-activity fs-4"></i></div>
+                                <div>
+                                    <h6 class="fw-bold mb-0">Cardiac Evaluation & Angio Package</h6>
+                                    <small class="badge bg-danger-subtle text-danger">Cath Lab Day Care</small>
+                                </div>
+                            </div>
+                            <small class="text-muted">Includes coronary angiography, cath lab charges, cardiologist fee, radial sheath kit & telemetry monitoring.</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card h-100 border p-3 rounded-3 hover-shadow cursor-pointer" onclick="loadPackagePreset('icu')">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="rounded-3 bg-info-subtle text-info-emphasis p-2 me-3"><i class="bi bi-hospital fs-4"></i></div>
+                                <div>
+                                    <h6 class="fw-bold mb-0">ICU 3-Day Recovery Package</h6>
+                                    <small class="badge bg-info-subtle text-info-emphasis">Critical Care</small>
+                                </div>
+                            </div>
+                            <small class="text-muted">Includes ICU bed, mechanical ventilator, 1:1 critical care nursing, multi-para monitoring & intensivist fee.</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card h-100 border p-3 rounded-3 hover-shadow cursor-pointer" onclick="loadPackagePreset('wellness')">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="rounded-3 bg-warning-subtle text-warning-emphasis p-2 me-3"><i class="bi bi-shield-check fs-4"></i></div>
+                                <div>
+                                    <h6 class="fw-bold mb-0">Executive Wellness Hospitalization</h6>
+                                    <small class="badge bg-warning-subtle text-warning-emphasis">1 Day Private Suite</small>
+                                </div>
+                            </div>
+                            <small class="text-muted">Includes private suite, full body pathology panel, 2D Echo/TMT, USG abdomen, chest X-ray & specialist consultations.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2 px-3 flex-shrink-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: VIEW COMPLETE PACKAGE BREAKDOWN & PRINT PREVIEW                    -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="viewPackageModal" tabindex="-1" aria-labelledby="viewPackageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-height: 92vh;">
+        <div class="modal-content border-0 shadow" style="max-height: 92vh; display: flex; flex-direction: column;">
+            <div class="modal-header bg-light py-2 px-3 flex-shrink-0 border-bottom">
+                <h5 class="modal-title fw-bold" id="viewPackageModalLabel">
+                    <i class="bi bi-file-earmark-medical me-2 text-primary"></i>Hospital Package Specification & Breakdown
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 p-md-4" id="viewPrintContent" style="overflow-y: auto; flex: 1 1 auto;">
+                <!-- Printable Package Sheet -->
+                <div class="border rounded-3 p-4 bg-white shadow-sm mb-3">
+                    <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3 flex-wrap gap-2">
+                        <div>
+                            <span class="badge bg-primary font-monospace px-2 py-1 mb-2 fs-6" id="viewPackageCode">PKG-001</span>
+                            <h3 class="fw-bold text-dark mb-1" id="viewPackageName">Package Name</h3>
+                            <div class="d-flex gap-2 align-items-center">
+                                <span class="badge bg-primary-subtle text-primary border" id="viewPackageType">Type</span>
+                                <span class="badge bg-success-subtle text-success border" id="viewPackageStatus">Active</span>
+                                <span class="text-muted small"><i class="bi bi-building me-1"></i><span id="viewBranchName">Main Branch</span></span>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-muted small">Package Total Rate:</div>
+                            <div class="fs-2 fw-bold text-success font-monospace" id="viewTotalAmount">₹0.00</div>
+                            <div class="text-muted small" id="viewValidity">Validity: From - To</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="viewDescriptionContainer">
+                        <h6 class="fw-bold text-dark mb-1">Clinical Scope & Description</h6>
+                        <p class="text-muted small mb-0" id="viewDescription">—</p>
+                    </div>
+
+                    <!-- Itemized Breakdown Table -->
+                    <h6 class="fw-bold text-dark mb-2">Itemized Dynamic Clinical & Service Heads</h6>
+                    <div class="table-responsive border rounded-3" style="max-height: 320px; overflow-y: auto;">
+                        <table class="table table-sm table-striped align-middle mb-0">
+                            <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 2;">
+                                <tr>
+                                    <th style="width: 15%;">Head Category</th>
+                                    <th style="width: 35%;">Item / Head Description</th>
+                                    <th style="width: 10%;">Code</th>
+                                    <th style="width: 8%;" class="text-center">Qty</th>
+                                    <th style="width: 12%;" class="text-end">Unit Rate (₹)</th>
+                                    <th style="width: 12%;" class="text-end">Amount (₹)</th>
+                                    <th style="width: 8%;">Frequency</th>
+                                </tr>
+                            </thead>
+                            <tbody id="viewDetailsTableBody">
+                                <!-- Details rendered dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2 px-3 flex-shrink-0 border-top d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i>Print Package Sheet
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hover-shadow:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border-color: var(--bs-primary) !important;
+        transform: translateY(-2px);
+        transition: all 0.2s ease-in-out;
+    }
+    .cursor-pointer { cursor: pointer; }
+</style>
+
+@section Scripts {
+<script>
+    // Master Lookup Data from Server
+    const MASTER_LOOKUPS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(masterLookups));
+    let detailRowIndex = 0;
+
+    // Open Create Modal
+    function openCreatePackageModal() {
+        document.getElementById('packageForm').action = '@Url.Action("Create", "HospitalPackages")';
+        document.getElementById('modalActionTitle').innerText = 'Create Hospital Package Master';
+        document.getElementById('modalSubmitBtnText').innerText = 'Save Hospital Package';
+        document.getElementById('formPackageId').value = '0';
+        document.getElementById('formPackageCode').value = '';
+        document.getElementById('formPackageName').value = '';
+        document.getElementById('formPackageType').value = '';
+        document.getElementById('formPackageTypeSelect').value = '';
+        document.getElementById('formValidFrom').value = new Date().toISOString().split('T')[0];
+        document.getElementById('formValidTo').value = '';
+        document.getElementById('formDescription').value = '';
+        document.getElementById('formStatus').checked = true;
+        updateStatusSwitchLabel();
+
+        document.getElementById('detailsTableBody').innerHTML = '';
+        detailRowIndex = 0;
+
+        // Add 2 default empty rows
+        addDetailRow('Bed');
+        addDetailRow('Procedure');
+
+        const modal = new bootstrap.Modal(document.getElementById('packageModal'));
+        modal.show();
+    }
+
+    // Update Status Switch Label & Color
+    function updateStatusSwitchLabel() {
+        const isChecked = document.getElementById('formStatus').checked;
+        const label = document.getElementById('formStatusLabel');
+        if (label) {
+            if (isChecked) {
+                label.innerText = 'Active';
+                label.className = 'form-check-label small fw-semibold text-success';
+            } else {
+                label.innerText = 'Inactive';
+                label.className = 'form-check-label small fw-semibold text-danger';
+            }
+        }
+    }
+
+    // Open Edit Modal
+    async function openEditPackageModal(id) {
+        try {
+            const res = await fetch(`/HospitalPackages/GetPackageJson/${id}`);
+            if (!res.ok) {
+                alert('Error loading package data');
+                return;
+            }
+            const pkg = await res.json();
+
+            document.getElementById('packageForm').action = '@Url.Action("Edit", "HospitalPackages")';
+            document.getElementById('modalActionTitle').innerText = 'Edit Hospital Package Master';
+            document.getElementById('modalSubmitBtnText').innerText = 'Save Changes';
+            document.getElementById('formPackageId').value = pkg.hospitalPackage_ID || pkg.hospitalPackage_Id || id;
+            document.getElementById('formPackageCode').value = pkg.package_Code || '';
+            document.getElementById('formPackageName').value = pkg.package_Name || '';
+            document.getElementById('formPackageType').value = pkg.package_Type || '';
+            document.getElementById('formPackageTypeSelect').value = pkg.package_Type || '__CUSTOM__';
+            
+            if (pkg.validFrom) {
+                document.getElementById('formValidFrom').value = pkg.validFrom.split('T')[0];
+            }
+            if (pkg.validTo) {
+                document.getElementById('formValidTo').value = pkg.validTo.split('T')[0];
+            } else {
+                document.getElementById('formValidTo').value = '';
+            }
+
+            document.getElementById('formDescription').value = pkg.description || '';
+            document.getElementById('formStatus').checked = (pkg.status === true);
+            updateStatusSwitchLabel();
+
+            // Populate details
+            document.getElementById('detailsTableBody').innerHTML = '';
+            detailRowIndex = 0;
+
+            const details = pkg.details || [];
+            if (details.length > 0) {
+                details.forEach(d => {
+                    addDetailRow(
+                        d.detailHeadType || 'Other',
+                        d.masterReferenceId,
+                        d.itemCode,
+                        d.itemName,
+                        d.quantity || 1,
+                        d.unitRate || 0,
+                        d.amount || 0,
+                        d.billingFrequency || 'Package Included',
+                        d.isMandatory !== false,
+                        d.remarks || ''
+                    );
+                });
+            } else {
+                addDetailRow('Other');
+            }
+
+            calculateLiveTotals();
+
+            const modal = new bootstrap.Modal(document.getElementById('packageModal'));
+            modal.show();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to fetch package details.');
+        }
+    }
+
+    // Open View Modal
+    async function openViewPackageModal(id) {
+        try {
+            const res = await fetch(`/HospitalPackages/GetPackageViewJson/${id}`);
+            if (!res.ok) {
+                alert('Error loading package view');
+                return;
+            }
+            const pkg = await res.json();
+
+            document.getElementById('viewPackageCode').innerText = pkg.package_Code;
+            document.getElementById('viewPackageName').innerText = pkg.package_Name;
+            document.getElementById('viewPackageType').innerText = pkg.package_Type;
+            document.getElementById('viewBranchName').innerText = pkg.branchName || 'Main Branch';
+            document.getElementById('viewValidity').innerText = `Validity: ${pkg.validFrom} to ${pkg.validTo}`;
+            document.getElementById('viewTotalAmount').innerText = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(pkg.totalPackageAmount);
+            document.getElementById('viewDescription').innerText = pkg.description || 'No additional description provided.';
+            
+            const statusEl = document.getElementById('viewPackageStatus');
+            if (pkg.status) {
+                statusEl.className = 'badge bg-success-subtle text-success border';
+                statusEl.innerText = 'Active';
+            } else {
+                statusEl.className = 'badge bg-danger-subtle text-danger border';
+                statusEl.innerText = 'Inactive';
+            }
+
+            const tbody = document.getElementById('viewDetailsTableBody');
+            tbody.innerHTML = '';
+
+            (pkg.details || []).forEach(d => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="badge bg-primary-subtle text-primary border">${d.detailHeadType}</span></td>
+                    <td><strong>${d.itemName}</strong>${d.remarks ? `<small class="text-muted d-block">${d.remarks}</small>` : ''}</td>
+                    <td><span class="font-monospace small text-muted">${d.itemCode || '—'}</span></td>
+                    <td class="text-center">${d.quantity}</td>
+                    <td class="text-end font-monospace">₹${parseFloat(d.unitRate).toFixed(2)}</td>
+                    <td class="text-end font-monospace fw-bold text-success">₹${parseFloat(d.amount).toFixed(2)}</td>
+                    <td><small class="text-muted">${d.billingFrequency}</small></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const modal = new bootstrap.Modal(document.getElementById('viewPackageModal'));
+            modal.show();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to load package breakdown.');
+        }
+    }
+
+    // Open Preset Selector Modal
+    function openPresetSelector() {
+        const modal = new bootstrap.Modal(document.getElementById('presetModal'));
+        modal.show();
+    }
+
+    // Add Dynamic Detail Row
+    function addDetailRow(headType = 'Bed', masterRefId = '', itemCode = '', itemName = '', qty = 1, rate = 0, amt = 0, freq = 'Package Included', isMandatory = true, remarks = '') {
+        const idx = detailRowIndex++;
+        const tbody = document.getElementById('detailsTableBody');
+
+        // Filter master lookups for this head type
+        const matchingLookups = MASTER_LOOKUPS.filter(l => l.DetailHeadType.toLowerCase() === headType.toLowerCase());
+
+        let lookupOptionsHtml = `<option value="">-- Pick ${headType} Master --</option>`;
+        matchingLookups.forEach(l => {
+            const sel = (masterRefId && l.MasterReferenceId == masterRefId) || (itemCode && l.ItemCode === itemCode) ? 'selected' : '';
+            lookupOptionsHtml += `<option value="${l.MasterReferenceId || ''}" data-code="${l.ItemCode || ''}" data-name="${l.ItemName}" data-rate="${l.DefaultRate}" data-freq="${l.DefaultBillingFrequency}" ${sel}>${l.ItemName} [₹${l.DefaultRate}]</option>`;
+        });
+
+        const tr = document.createElement('tr');
+        tr.id = `row_${idx}`;
+        tr.innerHTML = `
+            <td>
+                <select name="Details[${idx}].DetailHeadType" class="form-select form-select-sm head-type-select" onchange="onHeadTypeChanged(${idx}, this.value)" required>
+                    <option value="Bed" ${headType === 'Bed' ? 'selected' : ''}>Bed</option>
+                    <option value="Room" ${headType === 'Room' ? 'selected' : ''}>Room</option>
+                    <option value="Procedure" ${headType === 'Procedure' ? 'selected' : ''}>Procedure</option>
+                    <option value="Doctor fee" ${headType === 'Doctor fee' ? 'selected' : ''}>Doctor fee</option>
+                    <option value="Nursing" ${headType === 'Nursing' ? 'selected' : ''}>Nursing</option>
+                    <option value="OT" ${headType === 'OT' ? 'selected' : ''}>OT (Operation Theatre)</option>
+                    <option value="Anaesthesia" ${headType === 'Anaesthesia' ? 'selected' : ''}>Anaesthesia</option>
+                    <option value="Consumables" ${headType === 'Consumables' ? 'selected' : ''}>Consumables</option>
+                    <option value="Equipment" ${headType === 'Equipment' ? 'selected' : ''}>Equipment</option>
+                    <option value="Hospital services" ${headType === 'Hospital services' ? 'selected' : ''}>Hospital services</option>
+                    <option value="Other" ${headType === 'Other' ? 'selected' : ''}>Other / Custom</option>
+                </select>
+                <input type="hidden" name="Details[${idx}].MasterReferenceId" id="refId_${idx}" value="${masterRefId || ''}" />
+                <input type="hidden" name="Details[${idx}].DisplayOrder" value="${idx}" />
+            </td>
+            <td>
+                <select class="form-select form-select-sm master-picker" id="picker_${idx}" onchange="onMasterPicked(${idx}, this)">
+                    ${lookupOptionsHtml}
+                </select>
+            </td>
+            <td>
+                <input type="text" name="Details[${idx}].ItemName" id="name_${idx}" class="form-control form-control-sm" placeholder="Item / Head Name" value="${escapeHtml(itemName)}" required />
+            </td>
+            <td>
+                <input type="text" name="Details[${idx}].ItemCode" id="code_${idx}" class="form-control form-control-sm font-monospace" placeholder="Code" value="${escapeHtml(itemCode)}" />
+            </td>
+            <td class="text-center">
+                <input type="number" name="Details[${idx}].Quantity" id="qty_${idx}" class="form-control form-control-sm text-center px-1" min="1" step="0.5" value="${qty}" oninput="recalculateRow(${idx})" required />
+            </td>
+            <td>
+                <input type="number" name="Details[${idx}].UnitRate" id="rate_${idx}" class="form-control form-control-sm text-end font-monospace px-1" min="0" step="0.01" value="${rate}" oninput="recalculateRow(${idx})" required />
+            </td>
+            <td>
+                <input type="number" name="Details[${idx}].Amount" id="amt_${idx}" class="form-control form-control-sm text-end font-monospace fw-bold text-success bg-light px-1" value="${amt > 0 ? amt : (qty * rate)}" readonly />
+            </td>
+            <td>
+                <select name="Details[${idx}].BillingFrequency" id="freq_${idx}" class="form-select form-select-sm px-1">
+                    <option value="Package Included" ${freq === 'Package Included' ? 'selected' : ''}>Package Included</option>
+                    <option value="Per Day" ${freq === 'Per Day' ? 'selected' : ''}>Per Day</option>
+                    <option value="One Time" ${freq === 'One Time' ? 'selected' : ''}>One Time</option>
+                    <option value="Per Hour" ${freq === 'Per Hour' ? 'selected' : ''}>Per Hour</option>
+                    <option value="Per Usage" ${freq === 'Per Usage' ? 'selected' : ''}>Per Usage</option>
+                </select>
+            </td>
+            <td class="text-center">
+                <input type="checkbox" name="Details[${idx}].IsMandatory" class="form-check-input" value="true" ${isMandatory ? 'checked' : ''} />
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-xs btn-outline-danger" onclick="removeDetailRow(${idx})" title="Remove Row">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+        calculateLiveTotals();
+    }
+
+    // When detail head type dropdown changes
+    function onHeadTypeChanged(idx, newHeadType) {
+        const picker = document.getElementById(`picker_${idx}`);
+        const matchingLookups = MASTER_LOOKUPS.filter(l => l.DetailHeadType.toLowerCase() === newHeadType.toLowerCase());
+
+        let optionsHtml = `<option value="">-- Pick ${newHeadType} Master --</option>`;
+        matchingLookups.forEach(l => {
+            optionsHtml += `<option value="${l.MasterReferenceId || ''}" data-code="${l.ItemCode || ''}" data-name="${l.ItemName}" data-rate="${l.DefaultRate}" data-freq="${l.DefaultBillingFrequency}">${l.ItemName} [₹${l.DefaultRate}]</option>`;
+        });
+        picker.innerHTML = optionsHtml;
+    }
+
+    // When a master item is picked
+    function onMasterPicked(idx, selectEl) {
+        const opt = selectEl.options[selectEl.selectedIndex];
+        if (!opt || !opt.value && !opt.dataset.name) return;
+
+        document.getElementById(`refId_${idx}`).value = opt.value || '';
+        if (opt.dataset.name) {
+            document.getElementById(`name_${idx}`).value = opt.dataset.name;
+        }
+        if (opt.dataset.code) {
+            document.getElementById(`code_${idx}`).value = opt.dataset.code;
+        }
+        if (opt.dataset.rate) {
+            document.getElementById(`rate_${idx}`).value = opt.dataset.rate;
+        }
+        if (opt.dataset.freq) {
+            document.getElementById(`freq_${idx}`).value = opt.dataset.freq;
+        }
+        recalculateRow(idx);
+    }
+
+    // Recalculate row amount
+    function recalculateRow(idx) {
+        const qty = parseFloat(document.getElementById(`qty_${idx}`)?.value || '0');
+        const rate = parseFloat(document.getElementById(`rate_${idx}`)?.value || '0');
+        const amt = (qty * rate).toFixed(2);
+        const amtInput = document.getElementById(`amt_${idx}`);
+        if (amtInput) {
+            amtInput.value = amt;
+        }
+        calculateLiveTotals();
+    }
+
+    // Remove row
+    function removeDetailRow(idx) {
+        const row = document.getElementById(`row_${idx}`);
+        if (row) {
+            row.remove();
+            calculateLiveTotals();
+        }
+    }
+
+    // Calculate live total package price
+    function calculateLiveTotals() {
+        const amtInputs = document.querySelectorAll('input[id^="amt_"]');
+        let total = 0;
+        amtInputs.forEach(inp => {
+            total += parseFloat(inp.value || '0');
+        });
+
+        document.getElementById('formTotalPackageAmount').value = total.toFixed(2);
+        document.getElementById('livePackageTotalDisplay').innerText = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(total);
+        document.getElementById('detailItemsCountLabel').innerText = `${amtInputs.length} detail lines`;
+    }
+
+    // Handle package type dropdown / custom
+    function handlePackageTypeChange(sel) {
+        const val = sel.value;
+        const textInput = document.getElementById('formPackageType');
+        if (val === '__CUSTOM__') {
+            textInput.value = '';
+            textInput.focus();
+        } else if (val) {
+            textInput.value = val;
+        }
+    }
+
+    // Auto-generate Package Code
+    function generatePackageCode() {
+        const type = document.getElementById('formPackageType').value || 'PKG';
+        const prefix = type.substring(0, 3).toUpperCase();
+        const randomNum = Math.floor(100 + Math.random() * 900);
+        document.getElementById('formPackageCode').value = `PKG-${prefix}-${randomNum}`;
+    }
+
+    // Load Package Preset Template
+    function loadPackagePreset(presetKey) {
+        bootstrap.Modal.getInstance(document.getElementById('presetModal'))?.hide();
+
+        openCreatePackageModal();
+
+        const today = new Date().toISOString().split('T')[0];
+        const nextYear = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
+
+        document.getElementById('detailsTableBody').innerHTML = '';
+        detailRowIndex = 0;
+
+        if (presetKey === 'maternity') {
+            document.getElementById('formPackageCode').value = 'PKG-MAT-' + Math.floor(10 + Math.random() * 90);
+            document.getElementById('formPackageName').value = 'Normal Delivery Maternity Care Package (3 Days)';
+            document.getElementById('formPackageType').value = 'Maternity';
+            document.getElementById('formPackageTypeSelect').value = 'Maternity';
+            document.getElementById('formValidFrom').value = today;
+            document.getElementById('formValidTo').value = nextYear;
+            document.getElementById('formDescription').value = 'Comprehensive 3-day maternity package with vaginal delivery, room accommodation, neonatal screening, and nursing care.';
+
+            addDetailRow('Bed', '', 'BED-MAT-01', '3-Day Post-Natal Semi-Private Bed', 3, 2000, 6000, 'Per Day', true, 'Ward stay');
+            addDetailRow('Procedure', '', 'PROC-DEL-01', 'Normal Vaginal Delivery Procedure', 1, 12000, 12000, 'One Time', true, 'Fetal monitoring & delivery');
+            addDetailRow('Doctor fee', '', 'DOC-GYN-01', 'Obstetrician & Pediatrician Inpatient Rounds', 3, 1500, 4500, 'Per Day', true, 'Daily consultant visits');
+            addDetailRow('Nursing', '', 'NUR-MAT-01', '24/7 Specialized Midwifery & Nursing Care', 3, 800, 2400, 'Per Day', true, 'Maternal care');
+            addDetailRow('OT', '', 'OT-LAB-01', 'Labor & Birthing Suite Facility Charges', 1, 4000, 4000, 'One Time', true, 'Labor room usage');
+            addDetailRow('Consumables', '', 'CONS-MAT-01', 'Maternity Delivery Kit & Disposables', 1, 2500, 2500, 'Package Included', true, 'Sterile delivery kit');
+            addDetailRow('Hospital services', '', 'SRV-NEO-01', 'Newborn Immunization & Lab Profile', 1, 1100, 1100, 'Package Included', true, 'BCG/Polio/Hep-B');
+        } else if (presetKey === 'cataract') {
+            document.getElementById('formPackageCode').value = 'PKG-CAT-' + Math.floor(10 + Math.random() * 90);
+            document.getElementById('formPackageName').value = 'Phacoemulsification Cataract Surgery with Foldable IOL';
+            document.getElementById('formPackageType').value = 'Cataract';
+            document.getElementById('formPackageTypeSelect').value = 'Cataract';
+            document.getElementById('formValidFrom').value = today;
+            document.getElementById('formValidTo').value = nextYear;
+            document.getElementById('formDescription').value = 'Day care sutureless phaco surgery with premium foldable IOL implantation.';
+
+            addDetailRow('Procedure', '', 'PROC-EYE-01', 'Phacoemulsification with Foldable IOL Implantation', 1, 14000, 14000, 'One Time', true, 'Micro-incision phaco');
+            addDetailRow('Doctor fee', '', 'DOC-OPH-01', 'Senior Ophthalmic Surgeon Professional Fee', 1, 4000, 4000, 'One Time', true, 'Surgeon fee');
+            addDetailRow('Anaesthesia', '', 'ANA-TOP-01', 'Topical / Peribulbar Eye Anaesthesia', 1, 1500, 1500, 'One Time', true, 'Local block');
+            addDetailRow('OT', '', 'OT-EYE-01', 'Ophthalmic Micro-OT Charges & Operating Microscope', 1, 2500, 2500, 'One Time', true, 'Eye OT suite');
+            addDetailRow('Consumables', '', 'CONS-IOL-01', 'Foldable Hydrophobic Acrylic IOL & Viscoelastics', 1, 1500, 1500, 'Package Included', true, 'Intraocular lens');
+            addDetailRow('Bed', '', 'BED-DAY-01', 'Day Care Eye Recovery Lounge (4 Hours)', 1, 500, 500, 'One Time', true, 'Post-op rest');
+        } else if (presetKey === 'laparoscopy') {
+            document.getElementById('formPackageCode').value = 'PKG-SURG-' + Math.floor(10 + Math.random() * 90);
+            document.getElementById('formPackageName').value = 'Laparoscopic Cholecystectomy (Gallbladder) Package (2 Days)';
+            document.getElementById('formPackageType').value = 'Surgery';
+            document.getElementById('formPackageTypeSelect').value = 'Surgery';
+            document.getElementById('formValidFrom').value = today;
+            document.getElementById('formValidTo').value = nextYear;
+            document.getElementById('formDescription').value = 'Minimally invasive laparoscopic gallbladder surgery including 2-day twin-sharing stay.';
+
+            addDetailRow('Bed', '', 'BED-TWIN-01', 'Twin-Sharing Surgical Inpatient Bed (2 Days)', 2, 2500, 5000, 'Per Day', true, '2 days room');
+            addDetailRow('Procedure', '', 'PROC-LAP-01', 'Laparoscopic Cholecystectomy Procedure', 1, 18000, 18000, 'One Time', true, 'Laparoscopic surgery');
+            addDetailRow('Doctor fee', '', 'DOC-SURG-01', 'General / Laparoscopic Surgeon Professional Fee', 1, 8000, 8000, 'One Time', true, 'Surgeon charges');
+            addDetailRow('Anaesthesia', '', 'ANA-GA-01', 'General Anaesthesia with Intubation', 1, 4500, 4500, 'One Time', true, 'Anaesthesiologist fee');
+            addDetailRow('OT', '', 'OT-MAJ-01', 'Major Modular Operation Theatre Charges (2 Hours)', 1, 6000, 6000, 'One Time', true, 'Modular OT');
+            addDetailRow('Equipment', '', 'EQ-LAP-01', '4K HD Laparoscopy Tower & Harmonic Scalpel', 1, 3500, 3500, 'Per Usage', true, 'Video laparoscope');
+            addDetailRow('Nursing', '', 'NUR-SURG-01', 'Post-Surgical Nursing Care (2 Days)', 2, 1000, 2000, 'Per Day', true, 'Post-op nursing');
+            addDetailRow('Consumables', '', 'CONS-LAP-01', 'Titanium Clips, Trocars & Laparoscopic Kit', 1, 1500, 1500, 'Package Included', true, 'Disposables');
+        } else if (presetKey === 'cardiac') {
+            document.getElementById('formPackageCode').value = 'PKG-CARD-' + Math.floor(10 + Math.random() * 90);
+            document.getElementById('formPackageName').value = 'Coronary Angiography (CAG) Day Care Package';
+            document.getElementById('formPackageType').value = 'Cardiac';
+            document.getElementById('formPackageTypeSelect').value = 'Cardiac';
+            document.getElementById('formValidFrom').value = today;
+            document.getElementById('formValidTo').value = nextYear;
+            document.getElementById('formDescription').value = 'Comprehensive diagnostic coronary angiogram via radial approach including cath lab and post-procedure observation.';
+
+            addDetailRow('Procedure', '', 'PROC-CAG-01', 'Coronary Angiography (Radial Approach)', 1, 12000, 12000, 'One Time', true, 'Diagnostic CAG');
+            addDetailRow('Doctor fee', '', 'DOC-CARD-01', 'Interventional Cardiologist Professional Fee', 1, 5000, 5000, 'One Time', true, 'Cardiologist charges');
+            addDetailRow('OT', '', 'OT-CATH-01', 'Flat-Panel Cath Lab Facility Charges', 1, 6000, 6000, 'One Time', true, 'Cath lab usage');
+            addDetailRow('Consumables', '', 'CONS-CAG-01', 'Radial Sheath, Diagnostic Catheters & Contrast Media', 1, 3500, 3500, 'Package Included', true, 'Non-ionic contrast & kit');
+            addDetailRow('Bed', '', 'BED-CCU-01', 'Day-Care Cardiac Observation Bed (6 Hours)', 1, 1500, 1500, 'One Time', true, 'Cardiac recovery');
+        } else if (presetKey === 'icu') {
+            document.getElementById('formPackageCode').value = 'PKG-ICU-' + Math.floor(10 + Math.random() * 90);
+            document.getElementById('formPackageName').value = 'ICU Critical Care 3-Day Stabilization Package';
+            document.getElementById('formPackageType').value = 'ICU';
+            document.getElementById('formPackageTypeSelect').value = 'ICU';
+            document.getElementById('formValidFrom').value = today;
+            document.getElementById('formValidTo').value = nextYear;
+            document.getElementById('formDescription').value = 'Comprehensive ICU care package with ventilator support, intensivist rounds, and 1:1 nursing care.';
+
+            addDetailRow('Bed', '', 'BED-ICU-01', 'ICU Multi-Functional Electric Bed', 3, 6000, 18000, 'Per Day', true, 'Intensive care bed');
+            addDetailRow('Equipment', '', 'EQ-VENT-01', 'Mechanical Ventilator & High-Flow Oxygen', 3, 3500, 10500, 'Per Day', true, 'Invasive ventilation');
+            addDetailRow('Nursing', '', 'NUR-ICU-01', '1:1 Critical Care Specialized Nursing', 3, 2500, 7500, 'Per Day', true, 'Dedicated nurse');
+            addDetailRow('Doctor fee', '', 'DOC-ICU-01', 'Senior Critical Care Intensivist Daily Rounds', 3, 2000, 6000, 'Per Day', true, 'Intensivist consultations');
+            addDetailRow('Hospital services', '', 'SRV-MON-01', 'Multi-Para Central Monitoring & Arterial Line Care', 3, 1500, 4500, 'Per Day', true, 'Continuous monitoring');
+        } else if (presetKey === 'wellness') {
+            document.getElementById('formPackageCode').value = 'PKG-WELL-' + Math.floor(10 + Math.random() * 90);
+            document.getElementById('formPackageName').value = 'Executive Wellness & Health Check Inpatient Package';
+            document.getElementById('formPackageType').value = 'Wellness Hospitalization';
+            document.getElementById('formPackageTypeSelect').value = 'Wellness Hospitalization';
+            document.getElementById('formValidFrom').value = today;
+            document.getElementById('formValidTo').value = nextYear;
+            document.getElementById('formDescription').value = '1-day executive private suite stay with whole body diagnostic screening, cardiac tests, and specialist consultations.';
+
+            addDetailRow('Room', '', 'ROOM-PVT-01', 'Executive Private Suite (1 Day Stay)', 1, 4500, 4500, 'Per Day', true, 'AC suite with TV & diet');
+            addDetailRow('Hospital services', '', 'SRV-PATH-01', 'Master Health Pathology Panel (65 Parameters)', 1, 3500, 3500, 'One Time', true, 'CBC, Lipid, LFT, KFT, HbA1c');
+            addDetailRow('Hospital services', '', 'SRV-CARD-01', '2D Echocardiography & Treadmill Stress Test (TMT)', 1, 4000, 4000, 'One Time', true, 'Cardiac evaluation');
+            addDetailRow('Hospital services', '', 'SRV-RAD-01', 'USG Whole Abdomen & Digital Chest X-Ray', 1, 2500, 2500, 'One Time', true, 'Ultrasound & X-ray');
+            addDetailRow('Doctor fee', '', 'DOC-CONS-01', 'Physician, Cardiologist & Dietitian Consultations', 1, 3000, 3000, 'One Time', true, 'Specialist consultations');
+            addDetailRow('Nursing', '', 'NUR-GEN-01', 'Wellness Coordinator & Nursing Escort Support', 1, 1000, 1000, 'One Time', true, 'Dedicated escort');
+        }
+
+        calculateLiveTotals();
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+</script>
+}
