@@ -227,6 +227,8 @@ public class ProcedureTariffListItem
     public decimal TotalRate { get; set; }
     public DateTime EffectiveFrom { get; set; }
     public DateTime? EffectiveTo { get; set; }
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
     public DateTime CreatedDate { get; set; }
 }
 
