@@ -227,14 +227,6 @@
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-action="ToggleStatus" asp-route-id="@item.Scheme_ID" method="post" class="d-inline"
-                              onsubmit="return confirm('Toggle status for @item.SchemeName?');">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success") me-1" 
-                                    title="@(item.IsActive ? "Deactivate" : "Activate")">
-                                <i class="bi @(item.IsActive ? "bi-pause-circle" : "bi-play-circle")"></i>
-                            </button>
-                        </form>
                         <form asp-action="Delete" asp-route-id="@item.Scheme_ID" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.SchemeName?');">
                             @Html.AntiForgeryToken()

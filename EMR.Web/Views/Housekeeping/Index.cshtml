@@ -185,14 +185,6 @@
                                         <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editLocation(@item.Location_ID)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="ToggleLocationStatus" asp-route-id="@item.Location_ID" method="post" class="d-inline"
-                                              onsubmit="return confirm('Toggle status for @item.LocationName?');">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1"
-                                                    title="@(item.Status ? "Deactivate" : "Activate")">
-                                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
-                                            </button>
-                                        </form>
                                         <form asp-action="DeleteLocation" asp-route-id="@item.Location_ID" method="post" class="d-inline"
                                               onsubmit="return confirm('Delete housekeeping location @item.LocationName?');">
                                             @Html.AntiForgeryToken()
@@ -299,14 +291,6 @@
                                         <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editCleaning(@item.Cleaning_ID)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="ToggleCleaningStatus" asp-route-id="@item.Cleaning_ID" method="post" class="d-inline"
-                                              onsubmit="return confirm('Toggle status for @item.CleaningType?');">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1"
-                                                    title="@(item.Status ? "Deactivate" : "Activate")">
-                                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
-                                            </button>
-                                        </form>
                                         <form asp-action="DeleteCleaning" asp-route-id="@item.Cleaning_ID" method="post" class="d-inline"
                                               onsubmit="return confirm('Delete cleaning protocol @item.CleaningType?');">
                                             @Html.AntiForgeryToken()
@@ -413,14 +397,6 @@
                                         <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editStaff(@item.HKStaff_ID)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="ToggleStaffStatus" asp-route-id="@item.HKStaff_ID" method="post" class="d-inline"
-                                              onsubmit="return confirm('Toggle status for @item.StaffName?');">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1"
-                                                    title="@(item.Status ? "Deactivate" : "Activate")">
-                                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
-                                            </button>
-                                        </form>
                                         <form asp-action="DeleteStaff" asp-route-id="@item.HKStaff_ID" method="post" class="d-inline"
                                               onsubmit="return confirm('Delete staff allocation for @item.StaffName?');">
                                             @Html.AntiForgeryToken()

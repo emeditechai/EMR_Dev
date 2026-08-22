@@ -260,12 +260,6 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditIcuModal(@item.IcuId)" title="Edit ICU">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-action="ToggleIcuStatus" asp-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Toggle active status for this ICU?');">
-                                                    @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
-                                                        <i class="bi @(item.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
-                                                    </button>
-                                                </form>
                                                 <form asp-action="DeleteIcu" asp-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this ICU configuration?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
@@ -408,12 +402,6 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditTariffModal(@item.IcuTariffId)" title="Edit Tariff">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-action="ToggleTariffStatus" asp-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Toggle status for this tariff package?');">
-                                                    @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
-                                                        <i class="bi @(item.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
-                                                    </button>
-                                                </form>
                                                 <form asp-action="DeleteTariff" asp-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this dynamic tariff package?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">

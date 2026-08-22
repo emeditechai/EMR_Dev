@@ -166,12 +166,6 @@
                                             <a asp-action="Edit" asp-route-id="@item.EquipmentId" class="btn btn-outline-primary" title="Edit">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <form asp-action="ToggleStatus" asp-route-id="@item.EquipmentId" method="post" class="d-inline" onsubmit="return confirm('Toggle status for this equipment?');">
-                                                @Html.AntiForgeryToken()
-                                                <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
-                                                    <i class="bi @(item.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>
-                                                </button>
-                                            </form>
                                             <form asp-action="Delete" asp-route-id="@item.EquipmentId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this equipment?');">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-outline-danger" title="Delete">

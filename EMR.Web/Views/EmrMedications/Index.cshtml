@@ -76,19 +76,14 @@
                         <td class="text-muted small">@(item.Strength ?? "—")</td>
                         <td class="text-muted small">@(item.RouteOfAdministration ?? "—")</td>
                         <td class="text-center">
-                            <form asp-action="ToggleActive" asp-route-id="@item.MedicationId" method="post" class="d-inline">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="border-0 bg-transparent" title="Toggle active">
-                                    @if (item.IsActive)
-                                    {
-                                        <span class="badge text-bg-success" style="cursor: pointer;"><i class="bi bi-check-circle me-1"></i>Active</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge text-bg-secondary" style="cursor: pointer;"><i class="bi bi-x-circle me-1"></i>Inactive</span>
-                                    }
-                                </button>
-                            </form>
+                            @if (item.IsActive)
+                            {
+                                <span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary"><i class="bi bi-x-circle me-1"></i>Inactive</span>
+                            }
                         </td>
                         <td class="text-end">
                             <a asp-action="Edit" asp-route-id="@item.MedicationId" class="btn btn-sm btn-outline-primary" title="Edit">
