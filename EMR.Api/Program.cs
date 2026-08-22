@@ -38,6 +38,8 @@ builder.Services.AddScoped<ICorporateHospitalRateService, CorporateHospitalRateS
 builder.Services.AddScoped<IInsuranceTPAService,      InsuranceTPAService>();
 builder.Services.AddScoped<IInsuranceTariffService,   InsuranceTariffService>();
 builder.Services.AddScoped<IGovernmentSchemeService,  GovernmentSchemeService>();
+builder.Services.AddScoped<IShiftMasterService,        ShiftMasterService>();
+builder.Services.AddScoped<IHousekeepingService,       HousekeepingService>();
 builder.Services.AddScoped<IGeneralMasterService,    GeneralMasterService>();
 builder.Services.AddScoped<IOpdMasterService,        OpdMasterService>();
 

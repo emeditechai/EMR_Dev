@@ -23,6 +23,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<InsuranceTPAMaster> InsuranceTPAMasters => Set<InsuranceTPAMaster>();
     public DbSet<InsuranceTariffMaster> InsuranceTariffMasters => Set<InsuranceTariffMaster>();
     public DbSet<GovernmentSchemeMaster> GovernmentSchemeMasters => Set<GovernmentSchemeMaster>();
+    public DbSet<ShiftMaster> ShiftMasters => Set<ShiftMaster>();
+    public DbSet<HKLocationMaster> HKLocationMasters => Set<HKLocationMaster>();
+    public DbSet<HKChecklistTemplateMaster> HKChecklistTemplateMasters => Set<HKChecklistTemplateMaster>();
+    public DbSet<HKCleaningMaster> HKCleaningMasters => Set<HKCleaningMaster>();
+    public DbSet<HKStaffMaster> HKStaffMasters => Set<HKStaffMaster>();
 
 
     // Patient Registration masters
@@ -598,6 +603,66 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany()
                 .HasForeignKey(x => x.Branch_ID)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Shift Master ────────────────────────────────────────────────────
+        modelBuilder.Entity<ShiftMaster>(entity =>
+        {
+            entity.ToTable("ShiftMaster");
+            entity.HasKey(x => x.ShiftMaster_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.HasOne(x => x.Branch)
+                .WithMany()
+                .HasForeignKey(x => x.Branch_ID)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Housekeeping Masters ────────────────────────────────────────────
+        modelBuilder.Entity<HKLocationMaster>(entity =>
+        {
+            entity.ToTable("HKLocationMaster");
+            entity.HasKey(x => x.Location_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.Property(x => x.Reference_ID).HasColumnName("Reference_ID");
+            entity.Property(x => x.Floor_ID).HasColumnName("Floor_ID");
+            entity.Property(x => x.Building_ID).HasColumnName("Building_ID");
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.Branch_ID).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Floor).WithMany().HasForeignKey(x => x.Floor_ID).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Building).WithMany().HasForeignKey(x => x.Building_ID).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<HKChecklistTemplateMaster>(entity =>
+        {
+            entity.ToTable("HKChecklistTemplateMaster");
+            entity.HasKey(x => x.Template_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.Branch_ID).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<HKCleaningMaster>(entity =>
+        {
+            entity.ToTable("HKCleaningMaster");
+            entity.HasKey(x => x.Cleaning_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.Property(x => x.ChecklistTemplate_ID).HasColumnName("ChecklistTemplate_ID");
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.Branch_ID).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ChecklistTemplate).WithMany().HasForeignKey(x => x.ChecklistTemplate_ID).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<HKStaffMaster>(entity =>
+        {
+            entity.ToTable("HKStaffMaster");
+            entity.HasKey(x => x.HKStaff_ID);
+            entity.Property(x => x.Branch_ID).HasColumnName("Branch_ID");
+            entity.Property(x => x.Staff_ID).HasColumnName("Staff_ID");
+            entity.Property(x => x.ShiftMaster_ID).HasColumnName("ShiftMaster_ID");
+            entity.Property(x => x.Supervisor_ID).HasColumnName("Supervisor_ID");
+            entity.Property(x => x.AreaAllocation_ID).HasColumnName("AreaAllocation_ID");
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.Branch_ID).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.StaffUser).WithMany().HasForeignKey(x => x.Staff_ID).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Shift).WithMany().HasForeignKey(x => x.ShiftMaster_ID).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.SupervisorUser).WithMany().HasForeignKey(x => x.Supervisor_ID).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.AreaAllocation).WithMany().HasForeignKey(x => x.AreaAllocation_ID).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

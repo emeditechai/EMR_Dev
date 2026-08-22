@@ -1,0 +1,820 @@
+@model EMR.Web.Models.ViewModels.HKIntegratedWorkspaceViewModel
+@{
+    ViewData["Title"] = "Housekeeping Masters";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Housekeeping Masters</h1>
+        <small class="text-muted">Integrated facility sanitation management: Location Master, Cleaning Protocols & Housekeeping Staff Deployments</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="Shifts" asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-clock-history me-1 text-primary"></i>Shift Master
+        </a>
+    </div>
+</div>
+
+<!-- Integrated Summary KPI Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-blue">
+            <div class="stat-icon"><i class="bi bi-geo-alt-fill"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalLocations <span class="fs-6 fw-normal text-muted">(@Model.ActiveLocations active)</span></div>
+                <div class="stat-label">Sanitation Locations</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-purple">
+            <div class="stat-icon"><i class="bi bi-shield-fill-exclamation"></i></div>
+            <div>
+                <div class="stat-value">@Model.HighRiskZonesCount</div>
+                <div class="stat-label">High-Risk Infection Zones</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-cyan">
+            <div class="stat-icon"><i class="bi bi-brush-fill"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalCleanings</div>
+                <div class="stat-label">Active Cleaning Protocols</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="stat-card stat-green">
+            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+            <div>
+                <div class="stat-value">@Model.TotalStaffAllocations <span class="fs-6 fw-normal text-muted">(@Model.ActiveStaffAllocations active)</span></div>
+                <div class="stat-label">Deployed Housekeeping Staff</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Integrated Tab Navigation -->
+<div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-header bg-white border-bottom p-0">
+        <ul class="nav nav-tabs nav-tabs-bordered border-0 px-3 pt-2" id="hkTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(Model.ActiveTab == "locations" ? "active fw-bold text-primary" : "text-dark")"
+                        id="locations-tab" data-bs-toggle="tab" data-bs-target="#locations" type="button" role="tab">
+                    <i class="bi bi-geo-alt me-2 text-primary"></i>1. Location Master
+                    <span class="badge bg-primary bg-opacity-10 text-primary ms-1">@Model.TotalLocations</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(Model.ActiveTab == "cleanings" ? "active fw-bold text-primary" : "text-dark")"
+                        id="cleanings-tab" data-bs-toggle="tab" data-bs-target="#cleanings" type="button" role="tab">
+                    <i class="bi bi-brush me-2 text-info"></i>2. Cleaning Master
+                    <span class="badge bg-info bg-opacity-10 text-dark ms-1">@Model.TotalCleanings</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(Model.ActiveTab == "staff" ? "active fw-bold text-primary" : "text-dark")"
+                        id="staff-tab" data-bs-toggle="tab" data-bs-target="#staff" type="button" role="tab">
+                    <i class="bi bi-people me-2 text-success"></i>3. Housekeeping Staff Master
+                    <span class="badge bg-success bg-opacity-10 text-success ms-1">@Model.TotalStaffAllocations</span>
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <div class="card-body p-4">
+        <div class="tab-content" id="hkTabsContent">
+            
+            <!-- ================================================================= -->
+            <!-- TAB 1: LOCATION MASTER -->
+            <!-- ================================================================= -->
+            <div class="tab-pane fade @(Model.ActiveTab == "locations" ? "show active" : "")" id="locations" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0 fw-bold text-dark">Location Master</h5>
+                        <small class="text-muted">Map physical hospital zones (Ward, Room, Toilet, ICU, OT, OPD, Public Area) for housekeeping SLA & audit tracking</small>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary btn-sm shadow-sm" onclick="openLocationModal()">
+                            <i class="bi bi-plus-lg me-1"></i>Add Location
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded-3 bg-white">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Location Code</th>
+                                <th>Location Name</th>
+                                <th>Location Type</th>
+                                <th>Physical Reference</th>
+                                <th>Risk Level</th>
+                                <th>Building / Floor</th>
+                                <th>Allocated Staff</th>
+                                <th>Status</th>
+                                <th class="text-end" style="width: 120px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{int locIdx = 1;}
+                            @foreach (var item in Model.Locations)
+                            {
+                                var riskBadge = item.RiskLevel switch
+                                {
+                                    "High Risk" => "bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25",
+                                    "Moderate Risk" => "bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25",
+                                    _ => "bg-success bg-opacity-10 text-success border border-success border-opacity-25"
+                                };
+
+                                var typeBadge = item.LocationType switch
+                                {
+                                    "ICU" => "bg-danger text-white",
+                                    "OT" => "bg-dark text-white",
+                                    "Ward" => "bg-primary text-white",
+                                    "Room" => "bg-info text-dark",
+                                    "Toilet" => "bg-secondary text-white",
+                                    "OPD" => "bg-purple text-white",
+                                    _ => "bg-light text-dark border"
+                                };
+
+                                <tr>
+                                    <td class="text-muted small">@(locIdx++)</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border font-monospace fw-bold">@item.LocationCode</span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">@item.LocationName</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge @typeBadge">@item.LocationType</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted fw-semibold">
+                                            @(item.ReferenceEntityName ?? "—")
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <span class="badge @riskBadge">
+                                            <i class="bi bi-shield-shaded me-1"></i>@item.RiskLevel
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            @(item.FloorName ?? "—") @(item.BuildingName != null ? $"({item.BuildingName})" : "")
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">
+                                            <i class="bi bi-person-badge me-1"></i>@item.AssignedStaffCount Staff
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (item.Status)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editLocation(@item.Location_ID)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form asp-action="ToggleLocationStatus" asp-route-id="@item.Location_ID" method="post" class="d-inline"
+                                              onsubmit="return confirm('Toggle status for @item.LocationName?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1"
+                                                    title="@(item.Status ? "Deactivate" : "Activate")">
+                                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                            </button>
+                                        </form>
+                                        <form asp-action="DeleteLocation" asp-route-id="@item.Location_ID" method="post" class="d-inline"
+                                              onsubmit="return confirm('Delete housekeeping location @item.LocationName?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.Locations.Any())
+                            {
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted py-5">
+                                        <i class="bi bi-geo-alt fs-1 d-block mb-2 opacity-50"></i>
+                                        No Housekeeping Locations registered yet. Click <strong>Add Location</strong> above.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ================================================================= -->
+            <!-- TAB 2: CLEANING MASTER -->
+            <!-- ================================================================= -->
+            <div class="tab-pane fade @(Model.ActiveTab == "cleanings" ? "show active" : "")" id="cleanings" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0 fw-bold text-dark">Cleaning Master</h5>
+                        <small class="text-muted">Standard Operating Procedures (SOPs), frequencies, disinfectants, equipment and SLA turnaround times</small>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary btn-sm shadow-sm" onclick="openCleaningModal()">
+                            <i class="bi bi-plus-lg me-1"></i>Add Cleaning Protocol
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded-3 bg-white">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Cleaning Protocol</th>
+                                <th>Frequency</th>
+                                <th>SLA Turnaround</th>
+                                <th>Chemical / Disinfectant</th>
+                                <th>Equipment Used</th>
+                                <th>Checklist Template</th>
+                                <th>Status</th>
+                                <th class="text-end" style="width: 120px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{int cleanIdx = 1;}
+                            @foreach (var item in Model.Cleanings)
+                            {
+                                <tr>
+                                    <td class="text-muted small">@(cleanIdx++)</td>
+                                    <td>
+                                        <div class="fw-bold text-dark">@item.CleaningType</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 font-monospace">
+                                            <i class="bi bi-repeat me-1"></i>@item.Frequency
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info bg-opacity-10 text-dark border border-info border-opacity-25 fw-bold font-monospace">
+                                            <i class="bi bi-stopwatch me-1"></i>@item.SLA_Minutes mins
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="small fw-semibold text-dark"><i class="bi bi-droplet-fill text-primary me-1"></i>@item.ChemicalUsed</div>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted"><i class="bi bi-tools me-1"></i>@item.EquipmentUsed</small>
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrWhiteSpace(item.ChecklistTemplateName))
+                                        {
+                                            <span class="badge bg-light text-dark border">
+                                                <i class="bi bi-card-checklist me-1 text-success"></i>@item.ChecklistTemplateName
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (item.Status)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editCleaning(@item.Cleaning_ID)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form asp-action="ToggleCleaningStatus" asp-route-id="@item.Cleaning_ID" method="post" class="d-inline"
+                                              onsubmit="return confirm('Toggle status for @item.CleaningType?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1"
+                                                    title="@(item.Status ? "Deactivate" : "Activate")">
+                                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                            </button>
+                                        </form>
+                                        <form asp-action="DeleteCleaning" asp-route-id="@item.Cleaning_ID" method="post" class="d-inline"
+                                              onsubmit="return confirm('Delete cleaning protocol @item.CleaningType?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.Cleanings.Any())
+                            {
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-5">
+                                        <i class="bi bi-brush fs-1 d-block mb-2 opacity-50"></i>
+                                        No Cleaning Protocols registered yet. Click <strong>Add Cleaning Protocol</strong> above.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ================================================================= -->
+            <!-- TAB 3: HOUSEKEEPING STAFF MASTER -->
+            <!-- ================================================================= -->
+            <div class="tab-pane fade @(Model.ActiveTab == "staff" ? "show active" : "")" id="staff" role="tabpanel">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0 fw-bold text-dark">Housekeeping Staff Master</h5>
+                        <small class="text-muted">Staff allocation across shifts, physical zones, and reporting supervisor hierarchy</small>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary btn-sm shadow-sm" onclick="openStaffModal()">
+                            <i class="bi bi-plus-lg me-1"></i>Deploy Staff Member
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded-3 bg-white">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Staff Personnel</th>
+                                <th>Assigned Shift</th>
+                                <th>Shift Timing</th>
+                                <th>Allocated Zone / Location</th>
+                                <th>Reporting Supervisor</th>
+                                <th>Status</th>
+                                <th class="text-end" style="width: 120px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{int staffIdx = 1;}
+                            @foreach (var item in Model.StaffList)
+                            {
+                                <tr>
+                                    <td class="text-muted small">@(staffIdx++)</td>
+                                    <td>
+                                        <div class="fw-bold text-dark">
+                                            <i class="bi bi-person-circle text-primary me-1"></i>@item.StaffName
+                                        </div>
+                                        <small class="text-muted">Username: @item.StaffUsername @(item.StaffPhone != null ? $"| Ph: {item.StaffPhone}" : "")</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 font-monospace">
+                                            <i class="bi bi-clock me-1"></i>@item.ShiftName
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-primary font-monospace small">@item.ShiftFormattedTime</div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-dark">
+                                            <i class="bi bi-geo-alt text-danger me-1"></i>@item.LocationName
+                                        </div>
+                                        <small class="text-muted font-monospace">[@item.LocationType - @item.LocationCode]</small>
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrWhiteSpace(item.SupervisorName))
+                                        {
+                                            <span class="badge bg-light text-dark border">
+                                                <i class="bi bi-person-check-fill text-info me-1"></i>@item.SupervisorName
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">Direct / Self</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (item.Status)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editStaff(@item.HKStaff_ID)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form asp-action="ToggleStaffStatus" asp-route-id="@item.HKStaff_ID" method="post" class="d-inline"
+                                              onsubmit="return confirm('Toggle status for @item.StaffName?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm @(item.Status ? "btn-outline-warning" : "btn-outline-success") me-1"
+                                                    title="@(item.Status ? "Deactivate" : "Activate")">
+                                                <i class="bi @(item.Status ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                            </button>
+                                        </form>
+                                        <form asp-action="DeleteStaff" asp-route-id="@item.HKStaff_ID" method="post" class="d-inline"
+                                              onsubmit="return confirm('Delete staff allocation for @item.StaffName?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.StaffList.Any())
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-5">
+                                        <i class="bi bi-people fs-1 d-block mb-2 opacity-50"></i>
+                                        No Housekeeping Staff allocated yet. Click <strong>Deploy Staff Member</strong> above.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: LOCATION MASTER (Add / Edit) -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="modalLocation" tabindex="-1" aria-labelledby="modalLocationLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form asp-action="SaveLocation" method="post" id="formLocation">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Location_ID" id="loc_Location_ID" value="0" />
+
+                <div class="modal-header bg-primary text-white py-3">
+                    <h5 class="modal-title fw-bold" id="modalLocationLabel"><i class="bi bi-geo-alt me-2"></i>Housekeeping Location</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Location Type</label>
+                            <select name="LocationType" id="loc_LocationType" class="form-select" onchange="onLocationTypeChanged()" required>
+                                @foreach (var opt in Model.LocationTypeOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Physical Master Reference</label>
+                            <select name="Reference_ID" id="loc_Reference_ID" class="form-select" onchange="onPhysicalReferenceChanged()">
+                                <option value="0">-- Select Physical Entity --</option>
+                            </select>
+                            <small class="text-muted extra-small">Auto-maps to physical Ward, Room, ICU, OT or OPD</small>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Location Code</label>
+                            <input type="text" name="LocationCode" id="loc_LocationCode" class="form-control font-monospace" placeholder="e.g. LOC-WARD-01" required />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Risk Level</label>
+                            <select name="RiskLevel" id="loc_RiskLevel" class="form-select" required>
+                                @foreach (var opt in Model.RiskLevelOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Location Name / Title</label>
+                            <input type="text" name="LocationName" id="loc_LocationName" class="form-control" placeholder="e.g. General Medical Ward - East Wing" required />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Building</label>
+                            <select name="Building_ID" id="loc_Building_ID" class="form-select" asp-items="Model.BuildingOptions">
+                                <option value="">-- None / Default --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Floor</label>
+                            <select name="Floor_ID" id="loc_Floor_ID" class="form-select" asp-items="Model.FloorOptions">
+                                <option value="">-- None / Default --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 pt-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" name="Status" id="loc_Status" value="true" checked />
+                                <label class="form-check-label fw-semibold small" for="loc_Status">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold"><i class="bi bi-check2-circle me-1"></i>Save Location</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: CLEANING MASTER (Add / Edit) -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="modalCleaning" tabindex="-1" aria-labelledby="modalCleaningLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form asp-action="SaveCleaning" method="post" id="formCleaning">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Cleaning_ID" id="cln_Cleaning_ID" value="0" />
+
+                <div class="modal-header bg-info text-dark py-3">
+                    <h5 class="modal-title fw-bold" id="modalCleaningLabel"><i class="bi bi-brush me-2"></i>Cleaning Protocol & SLA</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold small">Cleaning Protocol Name / Type</label>
+                            <input type="text" name="CleaningType" id="cln_CleaningType" class="form-control" placeholder="e.g. Routine Mopping / Terminal Disinfection" required />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Sanitation Frequency</label>
+                            <select name="Frequency" id="cln_Frequency" class="form-select" required>
+                                @foreach (var opt in Model.FrequencyOptions)
+                                {
+                                    <option value="@opt.Value">@opt.Text</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Chemical / Disinfectant Used</label>
+                            <input type="text" name="ChemicalUsed" id="cln_ChemicalUsed" class="form-control" placeholder="e.g. Sodium Hypochlorite 1% / Bacillocid" required />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Equipment / Tools Used</label>
+                            <input type="text" name="EquipmentUsed" id="cln_EquipmentUsed" class="form-control" placeholder="e.g. Microfiber Mop Trolley, Fogger Machine" required />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">SLA Target Turnaround Time</label>
+                            <div class="input-group">
+                                <input type="number" name="SLA_Minutes" id="cln_SLA_Minutes" class="form-control" value="30" min="5" max="300" required />
+                                <span class="input-group-text">Minutes</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Checklist Template</label>
+                            <select name="ChecklistTemplate_ID" id="cln_ChecklistTemplate_ID" class="form-select" asp-items="Model.ChecklistTemplateOptions">
+                                <option value="">-- None / Standard --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 pt-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" name="Status" id="cln_Status" value="true" checked />
+                                <label class="form-check-label fw-semibold small" for="cln_Status">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold"><i class="bi bi-check2-circle me-1"></i>Save Protocol</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: STAFF ALLOCATION MASTER (Add / Edit) -->
+<!-- ========================================================================= -->
+<div class="modal fade" id="modalStaff" tabindex="-1" aria-labelledby="modalStaffLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form asp-action="SaveStaff" method="post" id="formStaff">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="HKStaff_ID" id="stf_HKStaff_ID" value="0" />
+
+                <div class="modal-header bg-success text-white py-3">
+                    <h5 class="modal-title fw-bold" id="modalStaffLabel"><i class="bi bi-people me-2"></i>Housekeeping Staff Allocation</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Staff Personnel (User Master)</label>
+                            <select name="Staff_ID" id="stf_Staff_ID" class="form-select" asp-items="Model.UserOptions" required>
+                                <option value="">-- Select Employee / User --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Assigned Operational Shift</label>
+                            <select name="ShiftMaster_ID" id="stf_ShiftMaster_ID" class="form-select" asp-items="Model.ShiftOptions" required>
+                                <option value="">-- Select Shift --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Allocated Zone / Location</label>
+                            <select name="AreaAllocation_ID" id="stf_AreaAllocation_ID" class="form-select" asp-items="Model.LocationOptions" required>
+                                <option value="">-- Select Location --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Reporting Supervisor (User Master)</label>
+                            <select name="Supervisor_ID" id="stf_Supervisor_ID" class="form-select" asp-items="Model.SupervisorOptions">
+                                <option value="">-- Direct / None --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 pt-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" name="Status" id="stf_Status" value="true" checked />
+                                <label class="form-check-label fw-semibold small" for="stf_Status">Active Status</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-semibold"><i class="bi bi-check2-circle me-1"></i>Save Staff Allocation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <style>
+        .extra-small { font-size: 0.75rem; }
+    </style>
+
+    <script>
+        let physicalItemsCache = [];
+
+        // ── Location Modal Helpers ───────────────────────────────────────────
+        function openLocationModal() {
+            document.getElementById('formLocation').reset();
+            document.getElementById('loc_Location_ID').value = '0';
+            document.getElementById('loc_Status').checked = true;
+            document.getElementById('modalLocationLabel').innerHTML = '<i class="bi bi-geo-alt me-2"></i>Add Housekeeping Location';
+            onLocationTypeChanged();
+            new bootstrap.Modal(document.getElementById('modalLocation')).show();
+        }
+
+        async function editLocation(id) {
+            try {
+                const res = await fetch(`/Housekeeping/GetLocation?id=${id}`);
+                if (!res.ok) throw new Error("Failed to load location.");
+                const data = await res.json();
+
+                document.getElementById('loc_Location_ID').value = data.location_ID;
+                document.getElementById('loc_LocationType').value = data.locationType;
+                document.getElementById('loc_LocationCode').value = data.locationCode;
+                document.getElementById('loc_LocationName').value = data.locationName;
+                document.getElementById('loc_RiskLevel').value = data.riskLevel;
+                document.getElementById('loc_Building_ID').value = data.building_ID || '';
+                document.getElementById('loc_Floor_ID').value = data.floor_ID || '';
+                document.getElementById('loc_Status').checked = data.status;
+
+                document.getElementById('modalLocationLabel').innerHTML = `<i class="bi bi-geo-alt me-2"></i>Edit Location: ${data.locationName}`;
+
+                await onLocationTypeChanged(data.reference_ID);
+
+                new bootstrap.Modal(document.getElementById('modalLocation')).show();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        async function onLocationTypeChanged(selectedRefId = 0) {
+            const locType = document.getElementById('loc_LocationType').value;
+            const refSelect = document.getElementById('loc_Reference_ID');
+            refSelect.innerHTML = '<option value="0">Loading...</option>';
+
+            try {
+                const res = await fetch(`/Housekeeping/GetPhysicalMasterItems?locationType=${encodeURIComponent(locType)}`);
+                const items = await res.json();
+                physicalItemsCache = items;
+
+                refSelect.innerHTML = '<option value="0">-- Select Physical Entity / General --</option>';
+                items.forEach(it => {
+                    const opt = document.createElement('option');
+                    opt.value = it.reference_ID;
+                    opt.textContent = it.itemName;
+                    if (selectedRefId && it.reference_ID === selectedRefId) {
+                        opt.selected = true;
+                    }
+                    refSelect.appendChild(opt);
+                });
+            } catch {
+                refSelect.innerHTML = '<option value="0">-- Select Physical Entity --</option>';
+            }
+        }
+
+        function onPhysicalReferenceChanged() {
+            const refId = parseInt(document.getElementById('loc_Reference_ID').value);
+            if (!refId) return;
+
+            const it = physicalItemsCache.find(x => x.reference_ID === refId);
+            if (it) {
+                if (it.floor_ID) document.getElementById('loc_Floor_ID').value = it.floor_ID;
+                if (it.building_ID) document.getElementById('loc_Building_ID').value = it.building_ID;
+                if (!document.getElementById('loc_LocationName').value) {
+                    document.getElementById('loc_LocationName').value = it.itemName;
+                }
+            }
+        }
+
+        // ── Cleaning Modal Helpers ───────────────────────────────────────────
+        function openCleaningModal() {
+            document.getElementById('formCleaning').reset();
+            document.getElementById('cln_Cleaning_ID').value = '0';
+            document.getElementById('cln_Status').checked = true;
+            document.getElementById('cln_SLA_Minutes').value = '30';
+            document.getElementById('modalCleaningLabel').innerHTML = '<i class="bi bi-brush me-2"></i>Add Cleaning Protocol';
+            new bootstrap.Modal(document.getElementById('modalCleaning')).show();
+        }
+
+        async function editCleaning(id) {
+            try {
+                const res = await fetch(`/Housekeeping/GetCleaning?id=${id}`);
+                if (!res.ok) throw new Error("Failed to load cleaning protocol.");
+                const data = await res.json();
+
+                document.getElementById('cln_Cleaning_ID').value = data.cleaning_ID;
+                document.getElementById('cln_CleaningType').value = data.cleaningType;
+                document.getElementById('cln_Frequency').value = data.frequency;
+                document.getElementById('cln_ChemicalUsed').value = data.chemicalUsed;
+                document.getElementById('cln_EquipmentUsed').value = data.equipmentUsed;
+                document.getElementById('cln_SLA_Minutes').value = data.slA_Minutes;
+                document.getElementById('cln_ChecklistTemplate_ID').value = data.checklistTemplate_ID || '';
+                document.getElementById('cln_Status').checked = data.status;
+
+                document.getElementById('modalCleaningLabel').innerHTML = `<i class="bi bi-brush me-2"></i>Edit Protocol: ${data.cleaningType}`;
+                new bootstrap.Modal(document.getElementById('modalCleaning')).show();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        // ── Staff Modal Helpers ──────────────────────────────────────────────
+        function openStaffModal() {
+            document.getElementById('formStaff').reset();
+            document.getElementById('stf_HKStaff_ID').value = '0';
+            document.getElementById('stf_Status').checked = true;
+            document.getElementById('modalStaffLabel').innerHTML = '<i class="bi bi-people me-2"></i>Deploy Staff Member';
+            new bootstrap.Modal(document.getElementById('modalStaff')).show();
+        }
+
+        async function editStaff(id) {
+            try {
+                const res = await fetch(`/Housekeeping/GetStaff?id=${id}`);
+                if (!res.ok) throw new Error("Failed to load staff allocation.");
+                const data = await res.json();
+
+                document.getElementById('stf_HKStaff_ID').value = data.hKStaff_ID;
+                document.getElementById('stf_Staff_ID').value = data.staff_ID;
+                document.getElementById('stf_ShiftMaster_ID').value = data.shiftMaster_ID;
+                document.getElementById('stf_AreaAllocation_ID').value = data.areaAllocation_ID;
+                document.getElementById('stf_Supervisor_ID').value = data.supervisor_ID || '';
+                document.getElementById('stf_Status').checked = data.status;
+
+                document.getElementById('modalStaffLabel').innerHTML = `<i class="bi bi-people me-2"></i>Edit Allocation: ${data.staffName}`;
+                new bootstrap.Modal(document.getElementById('modalStaff')).show();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+    </script>
+}

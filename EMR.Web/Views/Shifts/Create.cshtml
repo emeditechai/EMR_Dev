@@ -1,0 +1,114 @@
+@model EMR.Web.Models.ViewModels.ShiftMasterFormViewModel
+@{
+    ViewData["Title"] = "Add Shift";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Add Operational Shift</h1>
+        <small class="text-muted">Configure hospital shift parameters, working hours, grace period, and night shift flags</small>
+    </div>
+    <div>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <form asp-action="Create" method="post" class="card border-0 shadow-sm rounded-3">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="CompanyId" />
+            <input type="hidden" asp-for="Branch_ID" />
+
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-clock-history me-2"></i>Shift Details</h6>
+            </div>
+
+            <div class="card-body p-4">
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="alert alert-danger shadow-sm mb-4">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Please correct the errors below:</strong>
+                        <div asp-validation-summary="All" class="text-danger small mt-2"></div>
+                    </div>
+                }
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="ShiftCode" class="form-label fw-semibold small"></label>
+                        <input asp-for="ShiftCode" class="form-control font-monospace" placeholder="e.g. MORN-01" required />
+                        <span asp-validation-for="ShiftCode" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="ShiftName" class="form-label fw-semibold small"></label>
+                        <input asp-for="ShiftName" class="form-control" placeholder="e.g. Morning Shift (07:00 AM - 03:00 PM)" required />
+                        <span asp-validation-for="ShiftName" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="StartTime" class="form-label fw-semibold small"></label>
+                        <input asp-for="StartTime" class="form-control" type="time" required />
+                        <span asp-validation-for="StartTime" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="EndTime" class="form-label fw-semibold small"></label>
+                        <input asp-for="EndTime" class="form-control" type="time" required />
+                        <span asp-validation-for="EndTime" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="GraceTimeMinutes" class="form-label fw-semibold small"></label>
+                        <div class="input-group">
+                            <input asp-for="GraceTimeMinutes" class="form-control" placeholder="15" />
+                            <span class="input-group-text">Minutes</span>
+                        </div>
+                        <small class="text-muted extra-small">Allowed attendance late punch window</small>
+                        <span asp-validation-for="GraceTimeMinutes" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="BreakDurationMinutes" class="form-label fw-semibold small"></label>
+                        <div class="input-group">
+                            <input asp-for="BreakDurationMinutes" class="form-control" placeholder="30" />
+                            <span class="input-group-text">Minutes</span>
+                        </div>
+                        <small class="text-muted extra-small">Lunch / tea break entitlement</small>
+                        <span asp-validation-for="BreakDurationMinutes" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6 pt-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" asp-for="IsNightShift" />
+                            <label class="form-check-label fw-semibold small" asp-for="IsNightShift">Night / Cross-Midnight Shift</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 pt-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" asp-for="Status" />
+                            <label class="form-check-label fw-semibold small" asp-for="Status">Active Status</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer bg-light py-3 text-end border-top">
+                <a asp-action="Index" class="btn btn-outline-secondary px-4 me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary px-5 fw-semibold shadow-sm">
+                    <i class="bi bi-check2-circle me-1"></i> Save Shift
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <style>
+        .extra-small { font-size: 0.75rem; }
+    </style>
+}
