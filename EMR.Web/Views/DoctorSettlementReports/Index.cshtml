@@ -1,0 +1,172 @@
+@{
+    ViewData["Title"] = "Finance & Doctor Settlement Reports";
+}
+
+<div class="container-fluid px-0">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-1 small">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+            <li class="breadcrumb-item"><a href="#">Reports</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Finance / Doctor Settlement</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);">
+                <i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>Finance & Doctor Settlement Reports
+            </h1>
+            <p class="text-muted small mb-0 mt-1">Audit registers, doctor commission statements, payment transactions, aging analysis, and settlement ledgers.</p>
+        </div>
+    </div>
+
+    <!-- Report Directory Grid -->
+    <div class="row g-4">
+        <!-- RPT-01 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">RPT-01</span>
+                        <i class="bi bi-clipboard2-check fs-3 text-primary"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Visit Payment Status</h5>
+                    <p class="text-muted small flex-grow-1">Monitor visit-level billing, total collected amounts, remaining balance dues, and payment statuses.</p>
+                    <a asp-action="VisitPaymentStatus" class="btn btn-outline-primary btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RPT-02 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 px-2 py-1">RPT-02</span>
+                        <i class="bi bi-hourglass-split fs-3 text-warning"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Outstanding by Visit</h5>
+                    <p class="text-muted small flex-grow-1">Aging analysis of unpaid and partial bills categorized by Current, 1–7, 8–30, 31–60, 61–90, and 90+ days.</p>
+                    <a asp-action="OutstandingByVisit" class="btn btn-outline-warning text-dark btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RPT-03 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">RPT-03</span>
+                        <i class="bi bi-percent fs-3 text-success"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Doctor Commission</h5>
+                    <p class="text-muted small flex-grow-1">Doctor-wise breakdown of visits, net collections, commission percentages, adjustments, paid and yet-to-pay amounts.</p>
+                    <a asp-action="DoctorCommissionReport" class="btn btn-outline-success btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RPT-04 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-info bg-opacity-10 text-dark border border-info border-opacity-25 px-2 py-1">RPT-04</span>
+                        <i class="bi bi-journal-bookmark fs-3 text-info"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Doctor Disbursal Register</h5>
+                    <p class="text-muted small flex-grow-1">Official disbursal registry tracking vouchers, approved shares, bank reference IDs, and payout timestamps.</p>
+                    <a asp-action="DisbursalRegister" class="btn btn-outline-info text-dark btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RPT-05 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1">RPT-05</span>
+                        <i class="bi bi-credit-card-2-front fs-3 text-primary"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Payment Transactions</h5>
+                    <p class="text-muted small flex-grow-1">Audit log of all patient receipt payments, split by Cash, Card, UPI, Cheque, and Bank Transfer with transaction references.</p>
+                    <a asp-action="PaymentTransactions" class="btn btn-outline-primary btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RPT-06 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">RPT-06</span>
+                        <i class="bi bi-plus-slash-minus fs-3 text-secondary"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Billing Adjustments</h5>
+                    <p class="text-muted small flex-grow-1">Detailed ledger of doctor deductions, TDS, penalties, bonuses, and manual corrections with audit approval trails.</p>
+                    <a asp-action="BillingAdjustments" class="btn btn-outline-secondary btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RPT-07 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">RPT-07</span>
+                        <i class="bi bi-arrow-counterclockwise fs-3 text-danger"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Refund & Reversal</h5>
+                    <p class="text-muted small flex-grow-1">Track patient fee refunds, cancelled visits, and corresponding doctor commission clawbacks/reversals.</p>
+                    <a asp-action="RefundReversals" class="btn btn-outline-danger btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- RPT-08 -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-3 hover-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="badge bg-dark bg-opacity-10 text-dark border px-2 py-1">RPT-08</span>
+                        <i class="bi bi-pie-chart-fill fs-3 text-dark"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Doctor Settlement Summary</h5>
+                    <p class="text-muted small flex-grow-1">Executive summary of departmental & doctor-wise revenue generation, doctor shares, disbursed and pending balances.</p>
+                    <a asp-action="SettlementSummary" class="btn btn-outline-dark btn-sm mt-3 w-100">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Open Report
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hover-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hover-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+    }
+</style>

@@ -7,6 +7,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public DbSet<CompanyMaster> CompanyMasters => Set<CompanyMaster>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<DoctorMaster> DoctorMasters => Set<DoctorMaster>();
     public DbSet<ReferralDoctorMaster> ReferralDoctorMasters => Set<ReferralDoctorMaster>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<BranchMaster> BranchMasters => Set<BranchMaster>();
@@ -76,6 +77,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<IcuTariffMaster> IcuTariffMasters => Set<IcuTariffMaster>();
     public DbSet<IcuTariffDetail> IcuTariffDetails => Set<IcuTariffDetail>();
     public DbSet<ConsentMaster> ConsentMasters => Set<ConsentMaster>();
+    public DbSet<DoctorVisitProcessConfig> DoctorVisitProcessConfigs => Set<DoctorVisitProcessConfig>();
+    public DbSet<DoctorCommissionConfig> DoctorCommissionConfigs => Set<DoctorCommissionConfig>();
+    public DbSet<DoctorDisbursal> DoctorDisbursals => Set<DoctorDisbursal>();
+    public DbSet<DoctorBillingAdjustment> DoctorBillingAdjustments => Set<DoctorBillingAdjustment>();
 
 
 

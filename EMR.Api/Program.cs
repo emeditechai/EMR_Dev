@@ -41,6 +41,7 @@ builder.Services.AddScoped<IGovernmentSchemeService,  GovernmentSchemeService>()
 builder.Services.AddScoped<IShiftMasterService,        ShiftMasterService>();
 builder.Services.AddScoped<IHousekeepingService,       HousekeepingService>();
 builder.Services.AddScoped<IConsentMasterService,      ConsentMasterService>();
+builder.Services.AddScoped<IDoctorCommissionService,   DoctorCommissionService>();
 builder.Services.AddScoped<IGeneralMasterService,    GeneralMasterService>();
 builder.Services.AddScoped<IOpdMasterService,        OpdMasterService>();
 

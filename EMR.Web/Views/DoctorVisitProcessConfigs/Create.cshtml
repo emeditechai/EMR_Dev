@@ -1,0 +1,178 @@
+@model EMR.Web.Models.ViewModels.DoctorVisitProcessConfigFormViewModel
+@{
+    ViewData["Title"] = "Add Doctor Visit Process Configuration";
+}
+
+<div class="container-fluid px-0">
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-11">
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Master</a></li>
+                    <li class="breadcrumb-item"><a href="#">OPD Master</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Doctor Visit Process Configuration</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Add Configuration</li>
+                </ol>
+            </nav>
+
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-diagram-3-fill fs-4 text-primary"></i>
+                        <div>
+                            <h5 class="card-title mb-0 fw-bold">Doctor Visit Process Configuration</h5>
+                            <small class="text-muted">Define clinical stage prerequisites, validation gates, and payment workflows</small>
+                        </div>
+                    </div>
+                    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>Back to List
+                    </a>
+                </div>
+
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post" id="processConfigForm" novalidate>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="CompanyId" />
+
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <!-- 1. Scope Selection Grid -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3">
+                                <label asp-for="BranchId" class="form-label fw-semibold">Branch</label>
+                                <select asp-for="BranchId" asp-items="Model.BranchOptions" class="form-select"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="SpecialityId" class="form-label fw-semibold">Specialty</label>
+                                <select asp-for="SpecialityId" asp-items="Model.SpecialityOptions" class="form-select"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="DoctorId" class="form-label fw-semibold">Doctor</label>
+                                <select asp-for="DoctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="VisitType" class="form-label fw-semibold">Visit Type <span class="text-danger">*</span></label>
+                                <select asp-for="VisitType" asp-items="Model.VisitTypeOptions" class="form-select"></select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label asp-for="PaymentTiming" class="form-label fw-semibold">Payment Timing <span class="text-danger">*</span></label>
+                                <select asp-for="PaymentTiming" asp-items="Model.PaymentTimingOptions" class="form-select"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="VitalsRequired" class="form-label fw-semibold">Vitals Required</label>
+                                <select asp-for="VitalsRequired" class="form-select">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="DiagnosisRequired" class="form-label fw-semibold">Diagnosis Required</label>
+                                <select asp-for="DiagnosisRequired" class="form-select">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Icd10Required" class="form-label fw-semibold">ICD-10 Required</label>
+                                <select asp-for="Icd10Required" class="form-select">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label asp-for="ProcedureAllowed" class="form-label fw-semibold">Procedure Allowed</label>
+                                <select asp-for="ProcedureAllowed" class="form-select">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="BillingRequired" class="form-label fw-semibold">Billing Required</label>
+                                <select asp-for="BillingRequired" class="form-select">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="PaymentBeforeClosure" class="form-label fw-semibold">Payment Before Closure</label>
+                                <select asp-for="PaymentBeforeClosure" class="form-select">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="EffectiveFrom" class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                                <input asp-for="EffectiveFrom" type="date" class="form-control" />
+                            </div>
+                        </div>
+
+                        <!-- 2. Configured Process Pipeline -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-bezier2 me-2 text-primary"></i>Configured Process Pipeline
+                            </h6>
+                            <div class="d-flex flex-wrap align-items-center gap-2 pipeline-flow">
+                                <div class="step-pill active">Appointment</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill active">Check-in</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill" id="pillVitals">Vitals</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill active">Doctor Consultation</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill" id="pillDiagnosis">Diagnosis</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill" id="pillProcedure">Procedure / Investigation</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill active">Prescription</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill active">Billing</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill active">Payment</div>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <div class="step-pill active">Visit Closure</div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Status & Submit -->
+                        <div class="row g-3 align-items-center pt-3 border-top">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch fs-6 mb-0 d-flex align-items-center gap-2">
+                                    <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="activeSwitch" checked />
+                                    <label class="form-check-label fw-semibold" for="activeSwitch">Active Configuration</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 d-flex justify-content-end gap-2">
+                                <a asp-action="Index" class="btn btn-outline-secondary px-4">Cancel</a>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                    <i class="bi bi-check-lg me-1"></i>Save Configuration
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .pipeline-flow .step-pill {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #334155;
+        font-weight: 500;
+        font-size: 0.85rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .pipeline-flow .step-pill.active {
+        background: #f8fafc;
+        border-color: #94a3b8;
+    }
+</style>

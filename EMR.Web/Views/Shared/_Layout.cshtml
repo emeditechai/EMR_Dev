@@ -42,6 +42,8 @@
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="OPD" asp-action="TokenManagement"><i class="bi bi-display me-2"></i>Token Management</a></li>
                                 <li><a class="dropdown-item" asp-controller="Vitals" asp-action="Index"><i class="bi bi-activity me-2"></i>Patient Vitals</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" asp-controller="DoctorDisbursal" asp-action="Index"><i class="bi bi-wallet2 me-2 text-primary"></i>Doctor Commission & Disbursals</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
@@ -106,6 +108,9 @@
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="EmrInvestigations" asp-action="Index"><i class="bi bi-eyedropper me-2"></i>EMR Investigation Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="EmrMedications" asp-action="Index"><i class="bi bi-capsule me-2"></i>EMR Medication Master</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorVisitProcessConfigs" asp-action="Index"><i class="bi bi-diagram-3-fill me-2 text-primary"></i>Doctor Visit Process Config</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorCommissionConfigs" asp-action="Index"><i class="bi bi-percent me-2 text-success"></i>Doctor Commission Config</a></li>
                                     </ul>
                                 </li>
 
@@ -215,6 +220,21 @@
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="DailyCollection"><i class="bi bi-cash-stack me-2"></i>Daily Collection</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="PatientRegister"><i class="bi bi-people-fill me-2"></i>Patient Register</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="OPDReport">Other OPD Report</a></li>
+                                    </ul>
+                                </li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-submenu-toggle" href="#"><i class="bi bi-cash-coin me-2"></i>Finance / Doctor Settlement<i class="bi bi-chevron-right submenu-arrow"></i></a>
+                                    <ul class="dropdown-menu dropdown-submenu-menu">
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="Index"><i class="bi bi-grid me-2"></i>All Settlement Reports</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="VisitPaymentStatus"><i class="bi bi-clipboard2-check me-2"></i>RPT-01: Visit Payment Status</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="OutstandingByVisit"><i class="bi bi-hourglass-split me-2"></i>RPT-02: Outstanding by Visit</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="DoctorCommissionReport"><i class="bi bi-percent me-2"></i>RPT-03: Doctor Commission</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="DisbursalRegister"><i class="bi bi-journal-bookmark me-2"></i>RPT-04: Disbursal Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="PaymentTransactions"><i class="bi bi-credit-card-2-front me-2"></i>RPT-05: Payment Transactions</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="BillingAdjustments"><i class="bi bi-plus-slash-minus me-2"></i>RPT-06: Billing Adjustments</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="RefundReversals"><i class="bi bi-arrow-counterclockwise me-2"></i>RPT-07: Refund & Reversal</a></li>
+                                        <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="SettlementSummary"><i class="bi bi-pie-chart-fill me-2"></i>RPT-08: Settlement Summary</a></li>
                                     </ul>
                                 </li>
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="IPDReport"><i class="bi bi-hospital me-2"></i>IPD Report</a></li>

@@ -1,0 +1,168 @@
+@model EMR.Web.Models.ViewModels.DoctorCommissionConfigFormViewModel
+@{
+    ViewData["Title"] = "Edit Doctor Commission Configuration";
+}
+
+<div class="container-fluid px-0">
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Master</a></li>
+                    <li class="breadcrumb-item"><a href="#">OPD Master</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Doctor Commission Configuration</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit Rule #@Model.CommissionConfigId</li>
+                </ol>
+            </nav>
+
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-pencil-square fs-4 text-success"></i>
+                        <div>
+                            <h5 class="card-title mb-0 fw-bold">Edit Doctor Commission Configuration</h5>
+                            <small class="text-muted">Modify entitlement rules and calculation parameters for Rule #@Model.CommissionConfigId</small>
+                        </div>
+                    </div>
+                    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>Back to List
+                    </a>
+                </div>
+
+                <div class="card-body p-4">
+                    <form asp-action="Edit" asp-route-id="@Model.CommissionConfigId" method="post" id="commissionForm" novalidate>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="CommissionConfigId" />
+                        <input type="hidden" asp-for="CompanyId" />
+
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <!-- 1. Doctor & Scope Selection -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-person-badge-fill me-2 text-primary"></i>1. Doctor & Organizational Scope
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label asp-for="DoctorId" class="form-label fw-semibold">Doctor (Optional)</label>
+                                    <select asp-for="DoctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
+                                    <small class="text-muted">Leave empty to apply to all doctors in specialty</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label asp-for="SpecialityId" class="form-label fw-semibold">Specialty (Optional)</label>
+                                    <select asp-for="SpecialityId" asp-items="Model.SpecialityOptions" class="form-select"></select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label asp-for="BranchId" class="form-label fw-semibold">Branch (Optional)</label>
+                                    <select asp-for="BranchId" asp-items="Model.BranchOptions" class="form-select"></select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Rate & Calculation Engine -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-calculator me-2 text-primary"></i>2. Tariff & Commission Calculation Rules
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label asp-for="RevenueType" class="form-label fw-semibold">Revenue Type <span class="text-danger">*</span></label>
+                                    <select asp-for="RevenueType" asp-items="Model.RevenueTypeOptions" class="form-select"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="CalculationType" class="form-label fw-semibold">Calculation Type <span class="text-danger">*</span></label>
+                                    <select asp-for="CalculationType" asp-items="Model.CalculationTypeOptions" class="form-select" id="calcTypeSelect"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="CommissionBasis" class="form-label fw-semibold">Commission Basis <span class="text-danger">*</span></label>
+                                    <select asp-for="CommissionBasis" asp-items="Model.CommissionBasisOptions" class="form-select"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="DoctorShare" class="form-label fw-semibold">Doctor Share <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <input asp-for="DoctorShare" class="form-control fw-bold text-success" />
+                                        <span class="input-group-text bg-white" id="shareUnit">@(Model.CalculationType == "Fixed Amount" ? "₹" : "%")</span>
+                                    </div>
+                                    <span asp-validation-for="DoctorShare" class="text-danger small"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Overrides & Exceptions -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-funnel me-2 text-primary"></i>3. Service / Corporate / Insurance Overrides (Optional)
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label asp-for="ProcedureId" class="form-label fw-semibold">Specific Procedure</label>
+                                    <select asp-for="ProcedureId" asp-items="Model.ProcedureOptions" class="form-select"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="ServiceId" class="form-label fw-semibold">Specific Service</label>
+                                    <select asp-for="ServiceId" asp-items="Model.ServiceOptions" class="form-select"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="CorporateId" class="form-label fw-semibold">Corporate Override</label>
+                                    <select asp-for="CorporateId" asp-items="Model.CorporateOptions" class="form-select"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="InsuranceTPAId" class="form-label fw-semibold">Insurance / TPA Override</label>
+                                    <select asp-for="InsuranceTPAId" asp-items="Model.InsuranceOptions" class="form-select"></select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Schedule & Policy Enforcement -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label asp-for="EffectiveFrom" class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                                <input asp-for="EffectiveFrom" type="date" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="EffectiveTo" class="form-label fw-semibold">Effective To</label>
+                                <input asp-for="EffectiveTo" type="date" class="form-control" />
+                            </div>
+                            <div class="col-md-4 d-flex align-items-center pt-4">
+                                <div class="form-check form-switch fs-6 mb-0">
+                                    <input asp-for="ApprovalRequired" class="form-check-input" type="checkbox" role="switch" id="approvalSwitch" />
+                                    <label class="form-check-label fw-semibold" for="approvalSwitch">Finance Approval Required</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 5. Active & Submit -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <div class="form-check form-switch fs-6 mb-0">
+                                <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="statusSwitch" />
+                                <label class="form-check-label fw-semibold" for="statusSwitch">Active Status</label>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a asp-action="Index" class="btn btn-outline-secondary px-4">Cancel</a>
+                                <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                    <i class="bi bi-check-lg me-1"></i>Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('calcTypeSelect').addEventListener('change', function() {
+            var unit = document.getElementById('shareUnit');
+            if (this.value === 'Fixed Amount') {
+                unit.textContent = '₹';
+            } else {
+                unit.textContent = '%';
+            }
+        });
+    </script>
+}

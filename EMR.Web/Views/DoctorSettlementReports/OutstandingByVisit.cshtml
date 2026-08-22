@@ -1,0 +1,128 @@
+@model EMR.Web.Models.ViewModels.OutstandingByVisitReportViewModel
+@{
+    ViewData["Title"] = "RPT-02: Yet-to-Pay / Outstanding by Visit";
+}
+
+<div class="container-fluid px-0">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Reports</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">RPT-02: Outstanding by Visit</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);">
+                <i class="bi bi-hourglass-split me-2 text-warning"></i>RPT-02: Outstanding by Visit (Aging Analysis)
+            </h1>
+            <p class="text-muted small mb-0 mt-1">Aging analysis of unpaid and partial bills categorized by Current, 1–7, 8–30, 31–60, 61–90, and 90+ days.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+                <i class="bi bi-printer-fill me-1"></i>Print
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-body p-3">
+            <form asp-action="OutstandingByVisit" method="get" class="row g-2 align-items-center">
+                <div class="col-md-4">
+                    <select name="doctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-3">
+                    <input type="date" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <input type="date" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+                </div>
+                <div class="col-md-2 d-flex gap-1">
+                    <button type="submit" class="btn btn-warning text-dark w-100">
+                        <i class="bi bi-filter me-1"></i>Filter
+                    </button>
+                    <a asp-action="OutstandingByVisit" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold">TOTAL OUTSTANDING BALANCE</div>
+                <div class="fs-4 fw-bold text-danger mt-1">₹@Model.TotalOutstanding.ToString("N2")</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold">OVERDUE (>30 DAYS) BILLS</div>
+                <div class="fs-4 fw-bold text-warning mt-1">@Model.OverdueCount Bills</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Visit Date</th>
+                            <th>Visit #</th>
+                            <th>Patient</th>
+                            <th>Doctor</th>
+                            <th>Bill #</th>
+                            <th class="text-end">Net Bill</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Outstanding</th>
+                            <th>Days Old</th>
+                            <th>Aging Bucket</th>
+                            <th class="text-end pe-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Rows.Any())
+                        {
+                            foreach (var r in Model.Rows)
+                            {
+                                <tr>
+                                    <td class="ps-3 text-muted">@r.VisitDate.ToString("dd MMM yyyy")</td>
+                                    <td><span class="badge bg-light text-dark border">#@r.VisitNo</span></td>
+                                    <td class="fw-semibold text-dark">@r.Patient</td>
+                                    <td>@r.Doctor</td>
+                                    <td class="font-monospace">@(r.Bill ?? "—")</td>
+                                    <td class="text-end">₹@r.NetAmount.ToString("N2")</td>
+                                    <td class="text-end text-success">₹@r.Paid.ToString("N2")</td>
+                                    <td class="text-end text-danger fw-bold">₹@r.Outstanding.ToString("N2")</td>
+                                    <td><span class="badge bg-light text-dark border">@r.DaysOld days</span></td>
+                                    <td>
+                                        <span class="badge @(r.DaysOld > 30 ? "bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" : "bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25")">
+                                            @r.Aging
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <span class="badge @(r.Status == "Overdue" ? "text-bg-danger" : (r.Status == "Partial" ? "text-bg-warning" : "text-bg-secondary"))">
+                                            @r.Status
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="11" class="text-center py-5 text-muted">No outstanding bills found for selected filters.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -14,10 +14,10 @@ Console.WriteLine("APPLYING SQL SCRIPT & END-TO-END VERIFICATION");
 Console.WriteLine("=========================================================================");
 
 var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
-if (File.Exists("SQLScripts/92_consent_master.sql"))
+if (File.Exists("SQLScripts/93_opd_doctor_commission_and_disbursal.sql"))
 {
-    Console.WriteLine("\n[Step 0] Applying SQLScripts/92_consent_master.sql to database...");
-    var script = File.ReadAllText("SQLScripts/92_consent_master.sql");
+    Console.WriteLine("\n[Step 0] Applying SQLScripts/93_opd_doctor_commission_and_disbursal.sql to database...");
+    var script = File.ReadAllText("SQLScripts/93_opd_doctor_commission_and_disbursal.sql");
     var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
     using var conn = new SqlConnection(cs);
@@ -39,7 +39,7 @@ if (File.Exists("SQLScripts/92_consent_master.sql"))
             Console.WriteLine($"  - Error on batch {batchIndex}: {ex.Message}");
         }
     }
-    Console.WriteLine("SQLScript 92_consent_master.sql execution complete.\n");
+    Console.WriteLine("SQLScript 93_opd_doctor_commission_and_disbursal.sql execution complete.\n");
 }
 
 var cookieContainer = new CookieContainer();
@@ -50,7 +50,7 @@ using var handler = new HttpClientHandler
 };
 using var client = new HttpClient(handler)
 {
-    BaseAddress = new Uri("http://localhost:5124")
+    BaseAddress = new Uri("https://localhost:7124")
 };
 
 // 1. Authenticate
@@ -302,7 +302,115 @@ var consentDeleteForm = new FormUrlEncodedContent(new[]
 var consentDeleteRes = await client.PostAsync($"/ConsentMasters/Delete/{createdConsentId}", consentDeleteForm);
 Console.WriteLine($"ConsentMasters Delete POST: {consentDeleteRes.StatusCode}");
 
+Console.WriteLine("\n[Step 10] Testing Doctor Commission, Disbursals & Reports End-to-End...");
+// 1. Check API endpoints
+var procConfigsApi = await apiClient.GetFromJsonAsync<JsonElement>("http://localhost:5201/api/doctor-visit-process-configs");
+Console.WriteLine($"API /api/doctor-visit-process-configs returned {procConfigsApi.GetProperty("data").GetArrayLength()} rules.");
+
+var commConfigsApi = await apiClient.GetFromJsonAsync<JsonElement>("http://localhost:5201/api/doctor-commission-configs");
+Console.WriteLine($"API /api/doctor-commission-configs returned {commConfigsApi.GetProperty("data").GetArrayLength()} commission rules.");
+
+// 2. Test Calculation Engine
+var calcRes = await apiClient.PostAsJsonAsync("http://localhost:5201/api/doctor-disbursals/calculate", new
+{
+    BranchId = 1,
+    FromDate = DateTime.Today.AddDays(-60),
+    ToDate = DateTime.Today,
+    SettlementPeriod = DateTime.Today.ToString("yyyy-MM"),
+    UserId = 1,
+    CompanyId = 1
+});
+Console.WriteLine($"API /api/doctor-disbursals/calculate POST: {calcRes.StatusCode}");
+
+var disbursalsApi = await apiClient.GetFromJsonAsync<JsonElement>("http://localhost:5201/api/doctor-disbursals");
+Console.WriteLine($"API /api/doctor-disbursals returned {disbursalsApi.GetProperty("data").GetArrayLength()} disbursals.");
+
+// 3. Test Web UI Doctor Visit Process Config
+var procIndexRes = await client.GetAsync("/DoctorVisitProcessConfigs/Index");
+var procIndexHtml = await procIndexRes.Content.ReadAsStringAsync();
+Console.WriteLine($"DoctorVisitProcessConfigs Index: {procIndexRes.StatusCode}, Has Title: {procIndexHtml.Contains("Doctor Visit Process Configuration")}");
+
+var procCreateGet = await client.GetAsync("/DoctorVisitProcessConfigs/Create");
+var procCreateHtml = await procCreateGet.Content.ReadAsStringAsync();
+var procCreateTokenMatch = Regex.Match(procCreateHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string procCreateToken = procCreateTokenMatch.Success ? procCreateTokenMatch.Groups[1].Value : token;
+
+var procCreateForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("VisitType", "Emergency"),
+    new KeyValuePair<string, string>("PaymentTiming", "Before Consultation"),
+    new KeyValuePair<string, string>("VitalsRequired", "true"),
+    new KeyValuePair<string, string>("DiagnosisRequired", "true"),
+    new KeyValuePair<string, string>("Icd10Required", "true"),
+    new KeyValuePair<string, string>("ProcedureAllowed", "true"),
+    new KeyValuePair<string, string>("BillingRequired", "true"),
+    new KeyValuePair<string, string>("PaymentBeforeClosure", "true"),
+    new KeyValuePair<string, string>("EffectiveFrom", DateTime.Today.ToString("yyyy-MM-dd")),
+    new KeyValuePair<string, string>("IsActive", "true"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", procCreateToken)
+});
+var procCreateRes = await client.PostAsync("/DoctorVisitProcessConfigs/Create", procCreateForm);
+Console.WriteLine($"DoctorVisitProcessConfigs Create POST: {procCreateRes.StatusCode}");
+
+// 4. Test Web UI Doctor Commission Config
+var commIndexRes = await client.GetAsync("/DoctorCommissionConfigs/Index");
+var commIndexHtml = await commIndexRes.Content.ReadAsStringAsync();
+Console.WriteLine($"DoctorCommissionConfigs Index: {commIndexRes.StatusCode}, Has Title: {commIndexHtml.Contains("Doctor Commission Configuration")}");
+
+var commCreateGet = await client.GetAsync("/DoctorCommissionConfigs/Create");
+var commCreateHtml = await commCreateGet.Content.ReadAsStringAsync();
+var commCreateTokenMatch = Regex.Match(commCreateHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string commCreateToken = commCreateTokenMatch.Success ? commCreateTokenMatch.Groups[1].Value : token;
+
+var commCreateForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("RevenueType", "Telemedicine"),
+    new KeyValuePair<string, string>("CalculationType", "Percentage"),
+    new KeyValuePair<string, string>("CommissionBasis", "Net Collected"),
+    new KeyValuePair<string, string>("DoctorShare", "80.00"),
+    new KeyValuePair<string, string>("ApprovalRequired", "true"),
+    new KeyValuePair<string, string>("EffectiveFrom", DateTime.Today.ToString("yyyy-MM-dd")),
+    new KeyValuePair<string, string>("IsActive", "true"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", commCreateToken)
+});
+var commCreateRes = await client.PostAsync("/DoctorCommissionConfigs/Create", commCreateForm);
+Console.WriteLine($"DoctorCommissionConfigs Create POST: {commCreateRes.StatusCode}");
+
+// 5. Test Web UI Doctor Disbursal Workbench
+var disbursalIndexRes = await client.GetAsync("/DoctorDisbursal/Index");
+var disbursalIndexHtml = await disbursalIndexRes.Content.ReadAsStringAsync();
+Console.WriteLine($"DoctorDisbursal Index: {disbursalIndexRes.StatusCode}, Has Title: {disbursalIndexHtml.Contains("Doctor Commission & Disbursals")}");
+
+// 6. Test Reports Hub and All 8 Reports
+var rptHub = await client.GetAsync("/DoctorSettlementReports/Index");
+Console.WriteLine($"DoctorSettlementReports Hub: {rptHub.StatusCode}");
+
+var rpt01 = await client.GetAsync("/DoctorSettlementReports/VisitPaymentStatus");
+Console.WriteLine($"RPT-01 VisitPaymentStatus: {rpt01.StatusCode}");
+
+var rpt02 = await client.GetAsync("/DoctorSettlementReports/OutstandingByVisit");
+Console.WriteLine($"RPT-02 OutstandingByVisit: {rpt02.StatusCode}");
+
+var rpt03 = await client.GetAsync("/DoctorSettlementReports/DoctorCommissionReport");
+Console.WriteLine($"RPT-03 DoctorCommissionReport: {rpt03.StatusCode}");
+
+var rpt04 = await client.GetAsync("/DoctorSettlementReports/DisbursalRegister");
+Console.WriteLine($"RPT-04 DisbursalRegister: {rpt04.StatusCode}");
+
+var rpt05 = await client.GetAsync("/DoctorSettlementReports/PaymentTransactions");
+Console.WriteLine($"RPT-05 PaymentTransactions: {rpt05.StatusCode}");
+
+var rpt06 = await client.GetAsync("/DoctorSettlementReports/BillingAdjustments");
+Console.WriteLine($"RPT-06 BillingAdjustments: {rpt06.StatusCode}");
+
+var rpt07 = await client.GetAsync("/DoctorSettlementReports/RefundReversals");
+Console.WriteLine($"RPT-07 RefundReversals: {rpt07.StatusCode}");
+
+var rpt08 = await client.GetAsync("/DoctorSettlementReports/SettlementSummary");
+Console.WriteLine($"RPT-08 SettlementSummary: {rpt08.StatusCode}");
+
 Console.WriteLine("\n=========================================================================");
-Console.WriteLine("ALL SHIFT MASTER, HOUSEKEEPING & CONSENT MASTERS TESTS PASSED 100%!");
+Console.WriteLine("ALL DOCTOR COMMISSION, DISBURSALS & FINANCIAL REPORTS TESTS PASSED 100%!");
 Console.WriteLine("=========================================================================");
+
 

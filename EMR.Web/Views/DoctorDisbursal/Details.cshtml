@@ -1,0 +1,212 @@
+@model EMR.Web.Models.ViewModels.DoctorDisbursalDetailsViewModel
+@{
+    ViewData["Title"] = $"Doctor Disbursal Voucher #{Model.DisbursalId}";
+}
+
+<div class="container-fluid px-0">
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">OPD</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Doctor Disbursals</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Voucher #@Model.DisbursalId</li>
+                </ol>
+            </nav>
+
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+                <!-- Header Banner -->
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-receipt-cutoff fs-4 text-primary"></i>
+                        <div>
+                            <h5 class="card-title mb-0 fw-bold">Doctor Disbursal Statement #@Model.DisbursalId</h5>
+                            <small class="text-muted">Settlement Period: <strong class="text-dark">@Model.SettlementPeriod</strong> &bull; Generated @Model.CreatedDate.ToString("dd MMM yyyy HH:mm")</small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-left me-1"></i>Back to Workbench
+                        </a>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                            <i class="bi bi-printer-fill me-1"></i>Print Statement
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    <!-- Status & Key Badges -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center bg-light p-3 rounded-3 mb-4 gap-2">
+                        <div>
+                            <span class="text-muted small">Approval Status:</span>
+                            <span class="badge @(Model.ApprovalStatus == "APPROVED" ? "bg-success" : "bg-primary") ms-1 fs-6">@Model.ApprovalStatus</span>
+                        </div>
+                        <div>
+                            <span class="text-muted small">Payment Status:</span>
+                            <span class="badge @(Model.PaymentStatus == "Paid" ? "bg-success" : "bg-warning text-dark") ms-1 fs-6">@Model.PaymentStatus</span>
+                        </div>
+                        @if (Model.PaymentStatus == "Paid")
+                        {
+                            <div>
+                                <span class="text-muted small">Paid Date:</span>
+                                <strong class="text-dark ms-1">@Model.PaidDate?.ToString("dd MMM yyyy")</strong>
+                            </div>
+                            <div>
+                                <span class="text-muted small">Reference:</span>
+                                <span class="badge bg-secondary font-monospace ms-1">@Model.PaymentReference</span>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- 2-Column Info Grid -->
+                    <div class="row g-4 mb-4">
+                        <!-- Left: Doctor & Patient Info -->
+                        <div class="col-md-6">
+                            <div class="card h-100 border p-3 rounded-3">
+                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">
+                                    <i class="bi bi-person-badge text-primary me-2"></i>Doctor & Encounter Information
+                                </h6>
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-muted" style="width: 140px;">Doctor Name:</td>
+                                            <td class="fw-bold text-dark">@Model.DoctorName</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Doctor Code / Reg:</td>
+                                            <td class="text-dark">@(Model.DoctorCode ?? "—")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Specialty:</td>
+                                            <td class="text-dark">@(Model.SpecialityName ?? "General OPD")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Branch:</td>
+                                            <td class="text-dark">@(Model.BranchName ?? "Main Branch")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Patient / UHID:</td>
+                                            <td class="text-dark">@Model.PatientName (@Model.PatientCode)</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Visit ID & Date:</td>
+                                            <td class="text-dark">Visit #@Model.VisitId on @Model.VisitDate.ToString("dd MMM yyyy")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">OPD Bill No:</td>
+                                            <td class="text-dark font-monospace">@(Model.OPDBillNo ?? "—")</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Right: Commission Financial Computation -->
+                        <div class="col-md-6">
+                            <div class="card h-100 border p-3 rounded-3 bg-light">
+                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">
+                                    <i class="bi bi-calculator text-primary me-2"></i>Financial Entitlement Breakdown
+                                </h6>
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-muted">Gross Bill:</td>
+                                            <td class="text-end fw-semibold">₹@Model.GrossBillAmount.ToString("N2")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Discount Applied:</td>
+                                            <td class="text-end text-danger">- ₹@Model.DiscountAmount.ToString("N2")</td>
+                                        </tr>
+                                        <tr class="border-top">
+                                            <td class="fw-semibold">Net Bill:</td>
+                                            <td class="text-end fw-semibold">₹@Model.NetBillAmount.ToString("N2")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Total Collected:</td>
+                                            <td class="text-end fw-bold text-primary">₹@Model.CollectedAmount.ToString("N2")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Commission Rule:</td>
+                                            <td class="text-end"><span class="badge bg-white text-dark border">@Model.CommissionRule</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Calculated Commission:</td>
+                                            <td class="text-end fw-semibold">₹@Model.CalculatedAmount.ToString("N2")</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Adjustments (+/-):</td>
+                                            <td class="text-end @(Model.AdjustmentAmount >= 0 ? "text-success" : "text-danger")">
+                                                @(Model.AdjustmentAmount >= 0 ? "+" : "")₹@Model.AdjustmentAmount.ToString("N2")
+                                            </td>
+                                        </tr>
+                                        <tr class="border-top border-2 border-dark">
+                                            <td class="fw-bold fs-6 text-dark">Net Payable to Doctor:</td>
+                                            <td class="text-end fw-bold fs-5 text-success">₹@Model.NetPayable.ToString("N2")</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Adjustments Ledger Table -->
+                    <div class="card border mb-4">
+                        <div class="card-header bg-white py-2 fw-semibold text-dark">
+                            <i class="bi bi-journal-text me-2 text-info"></i>Audit & Adjustments Ledger
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="ps-3">Date</th>
+                                            <th>Type</th>
+                                            <th>Amount</th>
+                                            <th>Reason</th>
+                                            <th>Requested By</th>
+                                            <th class="pe-3">Approved By</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (Model.Adjustments.Any())
+                                        {
+                                            foreach (var adj in Model.Adjustments)
+                                            {
+                                                <tr>
+                                                    <td class="ps-3 text-muted">@adj.AdjustmentDate.ToString("dd MMM yyyy HH:mm")</td>
+                                                    <td><span class="badge bg-light text-dark border">@adj.AdjustmentType</span></td>
+                                                    <td class="fw-bold @(adj.Amount >= 0 ? "text-success" : "text-danger")">
+                                                        @(adj.Amount >= 0 ? "+" : "")₹@adj.Amount.ToString("N2")
+                                                    </td>
+                                                    <td>@adj.Reason</td>
+                                                    <td>@(adj.RequestedByName ?? "System")</td>
+                                                    <td class="pe-3">@(adj.ApprovedByName ?? "Admin")</td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr>
+                                                <td colspan="6" class="text-center py-3 text-muted small">No special billing adjustments recorded for this disbursal.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(Model.DisbursalNotes))
+                    {
+                        <div class="alert alert-light border mb-0">
+                            <strong class="text-dark small">Notes / Remarks:</strong>
+                            <p class="mb-0 text-muted small mt-1">@Model.DisbursalNotes</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

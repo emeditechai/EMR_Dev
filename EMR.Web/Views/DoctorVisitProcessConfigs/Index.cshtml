@@ -1,0 +1,215 @@
+@model EMR.Web.Models.ViewModels.DoctorVisitProcessConfigIndexViewModel
+@{
+    ViewData["Title"] = "Doctor Visit Process Configuration";
+    var itemCount = Model.Items.Count();
+}
+
+<div class="container-fluid px-0">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Master</a></li>
+                    <li class="breadcrumb-item"><a href="#">OPD Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Doctor Visit Process Configuration</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);">
+                    <i class="bi bi-diagram-3-fill me-2 text-primary"></i>Doctor Visit Process Configuration
+                </h1>
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-1 fs-6">
+                    @itemCount Rules
+                </span>
+            </div>
+            <p class="text-muted small mb-0 mt-1">Configure clinical workflow, prerequisites (vitals, diagnosis, ICD-10), and billing enforcement rules per doctor/specialty visit.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm d-flex align-items-center gap-2">
+                <i class="bi bi-plus-circle-fill"></i>
+                <span>Add Process Configuration</span>
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill fs-5"></i>
+            <div>@TempData["SuccessMessage"]</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <div>@TempData["ErrorMessage"]</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Search & Filter Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-body p-3">
+            <form asp-action="Index" method="get" class="row g-2 align-items-center">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control border-start-0" placeholder="Search doctor, specialty, type..." />
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select name="branchId" asp-items="Model.BranchOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-2">
+                    <select name="specialityId" asp-items="Model.SpecialityOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-2">
+                    <select name="doctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="bi bi-funnel-fill me-1"></i>Filter
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary" title="Reset Filters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Data Table Card -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3" style="width: 50px;">#</th>
+                            <th>Scope / Specialty / Doctor</th>
+                            <th>Visit Type</th>
+                            <th>Payment Timing</th>
+                            <th>Clinical Checklist</th>
+                            <th>Billing Rule</th>
+                            <th>Effective Period</th>
+                            <th>Status</th>
+                            <th class="text-end pe-3" style="width: 120px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Any())
+                        {
+                            var idx = 1;
+                            foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td class="ps-3 text-muted small">@idx</td>
+                                    <td>
+                                        <div class="fw-bold text-dark">
+                                            @(string.IsNullOrEmpty(item.DoctorName) ? (string.IsNullOrEmpty(item.SpecialityName) ? "All Doctors (Universal)" : item.SpecialityName) : item.DoctorName)
+                                        </div>
+                                        <small class="text-muted">
+                                            <i class="bi bi-building me-1"></i>@(string.IsNullOrEmpty(item.BranchName) ? "All Branches" : item.BranchName)
+                                            @if (!string.IsNullOrEmpty(item.SpecialityName) && !string.IsNullOrEmpty(item.DoctorName))
+                                            {
+                                                <span> &bull; @item.SpecialityName</span>
+                                            }
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border">
+                                            @item.VisitType
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info bg-opacity-10 text-dark border border-info border-opacity-25">
+                                            <i class="bi bi-clock me-1"></i>@item.PaymentTiming
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @if (item.VitalsRequired)
+                                            {
+                                                <span class="badge bg-primary bg-opacity-10 text-primary border" title="Vitals Mandatory">Vitals</span>
+                                            }
+                                            @if (item.DiagnosisRequired)
+                                            {
+                                                <span class="badge bg-success bg-opacity-10 text-success border" title="Diagnosis Mandatory">Diagnosis</span>
+                                            }
+                                            @if (item.Icd10Required)
+                                            {
+                                                <span class="badge bg-dark bg-opacity-10 text-dark border" title="ICD-10 Coding Required">ICD-10</span>
+                                            }
+                                            @if (item.ProcedureAllowed)
+                                            {
+                                                <span class="badge bg-warning bg-opacity-10 text-dark border" title="Procedures Allowed">Procedure</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (item.PaymentBeforeClosure)
+                                        {
+                                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">
+                                                <i class="bi bi-lock-fill me-1"></i>Pay Before Closure
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border">Flexible</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <small class="text-muted font-monospace">
+                                            @item.EffectiveFrom.ToString("dd MMM yyyy")
+                                            @(item.EffectiveTo.HasValue ? $" — {item.EffectiveTo.Value:dd MMM yyyy}" : " — Open")
+                                        </small>
+                                    </td>
+                                    <td>
+                                        @if (item.IsActive)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <div class="btn-group btn-group-sm">
+                                            <a asp-action="Edit" asp-route-id="@item.ProcessConfigId" class="btn btn-outline-primary" title="Edit Configuration">
+                                                <i class="bi bi-pencil-fill"></i>
+                                            </a>
+                                            <form asp-action="Delete" asp-route-id="@item.ProcessConfigId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this configuration?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-outline-danger" title="Delete Configuration">
+                                                    <i class="bi bi-trash-fill"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                idx++;
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-5 text-muted">
+                                    <i class="bi bi-diagram-3 fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                                    <h6>No Doctor Visit Process configurations found</h6>
+                                    <a asp-action="Create" class="btn btn-sm btn-primary mt-2">
+                                        <i class="bi bi-plus-circle me-1"></i>Add Configuration
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

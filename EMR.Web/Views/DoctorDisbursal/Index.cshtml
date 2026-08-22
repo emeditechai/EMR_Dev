@@ -1,0 +1,522 @@
+@model EMR.Web.Models.ViewModels.DoctorDisbursalIndexViewModel
+@{
+    ViewData["Title"] = "Doctor Commission & Disbursal Workbench";
+}
+
+<div class="container-fluid px-0">
+    <!-- Top Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">OPD</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Doctor Commission & Disbursals</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);">
+                    <i class="bi bi-wallet2 me-2 text-primary"></i>Doctor Commission & Disbursals
+                </h1>
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-1 fs-6">
+                    @Model.TotalVisitsCount Records
+                </span>
+            </div>
+            <p class="text-muted small mb-0 mt-1">End-to-end OPD doctor revenue entitlement, automated calculation, finance review & multi-mode disbursal payout management.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary px-3 shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#calcModal">
+                <i class="bi bi-cpu-fill text-primary"></i>
+                <span>Calculate Commissions</span>
+            </button>
+            <button type="button" class="btn btn-success px-3 shadow-sm d-flex align-items-center gap-2" id="bulkApproveBtn" onclick="submitBulkApprove()">
+                <i class="bi bi-check-all"></i>
+                <span>Bulk Approve</span>
+            </button>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill fs-5"></i>
+            <div>@TempData["SuccessMessage"]</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <div>@TempData["ErrorMessage"]</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- KPI Metric Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+                <div class="text-muted small fw-semibold text-uppercase">Eligible Visits</div>
+                <div class="fs-4 fw-bold text-dark mt-1">@Model.TotalVisitsCount</div>
+                <div class="text-muted small mt-1"><i class="bi bi-people me-1"></i>OPD Patient Encounters</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+                <div class="text-muted small fw-semibold text-uppercase">Collected Revenue</div>
+                <div class="fs-4 fw-bold text-primary mt-1">₹@Model.TotalEligibleCollection.ToString("N0")</div>
+                <div class="text-muted small mt-1"><i class="bi bi-cash-stack me-1"></i>Basis for Share</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+                <div class="text-muted small fw-semibold text-uppercase">Commission Calc.</div>
+                <div class="fs-4 fw-bold text-info mt-1">₹@Model.TotalCommissionCalculated.ToString("N0")</div>
+                <div class="text-muted small mt-1"><i class="bi bi-percent me-1"></i>Doctor Entitlement</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+                <div class="text-muted small fw-semibold text-uppercase">Net Payable</div>
+                <div class="fs-4 fw-bold text-dark mt-1">₹@Model.TotalNetPayable.ToString("N0")</div>
+                <div class="text-muted small mt-1"><i class="bi bi-calculator me-1"></i>After Adjustments</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-success">
+                <div class="text-muted small fw-semibold text-uppercase">Total Disbursed</div>
+                <div class="fs-4 fw-bold text-success mt-1">₹@Model.TotalPaid.ToString("N0")</div>
+                <div class="text-success small mt-1"><i class="bi bi-check-circle me-1"></i>Paid Out</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold text-uppercase">Yet to Pay</div>
+                <div class="fs-4 fw-bold text-warning mt-1">₹@Model.TotalYetToPay.ToString("N0")</div>
+                <div class="text-warning small mt-1"><i class="bi bi-hourglass-split me-1"></i>Pending Disbursal</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-body p-3">
+            <form asp-action="Index" method="get" class="row g-2 align-items-center">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control border-start-0" placeholder="Search doctor, bill #, patient..." />
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select name="doctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-2">
+                    <select name="period" asp-items="Model.PeriodOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-2">
+                    <select name="approvalStatus" asp-items="Model.ApprovalStatusOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-2">
+                    <select name="paymentStatus" asp-items="Model.PaymentStatusOptions" class="form-select"></select>
+                </div>
+                <div class="col-md-1 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary w-100" title="Filter Records">
+                        <i class="bi bi-funnel-fill"></i>
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary" title="Reset Filters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Disbursal Records Table Card -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="disbursalTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3" style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleSelectAll(this)" />
+                            </th>
+                            <th>Doctor & Speciality</th>
+                            <th>Visit / Bill Details</th>
+                            <th>Eligible Collection</th>
+                            <th>Commission Rule</th>
+                            <th>Calculated</th>
+                            <th>Adj.</th>
+                            <th>Net Payable</th>
+                            <th>Period</th>
+                            <th>Approval Status</th>
+                            <th>Payment</th>
+                            <th class="text-end pe-3" style="width: 140px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Any())
+                        {
+                            foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td class="ps-3">
+                                        <input type="checkbox" class="form-check-input row-chk" value="@item.DisbursalId" @(item.PaymentStatus == "Paid" ? "disabled" : "") />
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">@item.DoctorName</div>
+                                        <small class="text-muted">
+                                            @(item.SpecialityName ?? "General OPD") &bull; Code: @(item.DoctorCode ?? "—")
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <span class="badge bg-light text-dark border">Visit #@item.VisitId</span>
+                                            <span class="fw-semibold text-secondary small ms-1">@item.VisitDate.ToString("dd MMM yyyy")</span>
+                                        </div>
+                                        <small class="text-muted">
+                                            @(item.PatientName ?? "Patient") &bull; Bill: @(item.OPDBillNo ?? "—")
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">₹@item.CollectedAmount.ToString("N2")</div>
+                                        <small class="text-muted">Gross: ₹@item.GrossBillAmount.ToString("N0")</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info bg-opacity-10 text-dark border border-info border-opacity-25">
+                                            @item.CommissionRule
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-primary">₹@item.CalculatedAmount.ToString("N2")</div>
+                                    </td>
+                                    <td>
+                                        @if (item.AdjustmentAmount != 0)
+                                        {
+                                            <span class="badge @(item.AdjustmentAmount > 0 ? "bg-success" : "bg-danger")" title="@item.AdjustmentReason">
+                                                @(item.AdjustmentAmount > 0 ? "+" : "")₹@item.AdjustmentAmount.ToString("N2")
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-success fs-6">₹@item.NetPayable.ToString("N2")</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border">@item.SettlementPeriod</span>
+                                    </td>
+                                    <td>
+                                        @switch (item.ApprovalStatus)
+                                        {
+                                            case "APPROVED":
+                                                <span class="badge text-bg-success">APPROVED</span>
+                                                break;
+                                            case "CALCULATED":
+                                                <span class="badge text-bg-primary">CALCULATED</span>
+                                                break;
+                                            case "SUBMITTED":
+                                                <span class="badge text-bg-info">SUBMITTED</span>
+                                                break;
+                                            case "ON_HOLD":
+                                                <span class="badge text-bg-warning">ON HOLD</span>
+                                                break;
+                                            case "REJECTED":
+                                                <span class="badge text-bg-danger">REJECTED</span>
+                                                break;
+                                            case "ADJUSTED":
+                                                <span class="badge text-bg-secondary">ADJUSTED</span>
+                                                break;
+                                            default:
+                                                <span class="badge text-bg-light border">@item.ApprovalStatus</span>
+                                                break;
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (item.PaymentStatus == "Paid")
+                                        {
+                                            <span class="badge text-bg-success" title="Paid on @(item.PaidDate?.ToString("dd MMM yyyy") ?? "") (Ref: @item.PaymentReference)">
+                                                <i class="bi bi-check-circle-fill me-1"></i>PAID
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-warning">Pending</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <div class="btn-group btn-group-sm">
+                                            <a asp-action="Details" asp-route-id="@item.DisbursalId" class="btn btn-outline-secondary" title="View Disbursal Voucher">
+                                                <i class="bi bi-eye-fill"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-info" title="Add Adjustment" onclick="openAdjustmentModal(@item.DisbursalId, '@item.DoctorName', @item.NetPayable)">
+                                                <i class="bi bi-plus-slash-minus"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-primary" title="Update Approval Status" onclick="openStatusModal(@item.DisbursalId, '@item.ApprovalStatus')">
+                                                <i class="bi bi-check2-circle"></i>
+                                            </button>
+                                            @if (item.PaymentStatus != "Paid")
+                                            {
+                                                <button type="button" class="btn btn-success" title="Record Payout" onclick="openPayoutModal(@item.DisbursalId, '@item.DoctorName', @item.NetPayable)">
+                                                    <i class="bi bi-cash-stack"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="12" class="text-center py-5 text-muted">
+                                    <i class="bi bi-wallet2 fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                                    <h6>No Doctor Disbursal records found for selected filters</h6>
+                                    <p class="small mb-3">Click below to run the calculation engine on recent completed visits.</p>
+                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#calcModal">
+                                        <i class="bi bi-cpu-fill me-1"></i>Calculate Commissions
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 1: Trigger Commission Auto-Calculation -->
+<div class="modal fade" id="calcModal" tabindex="-1" aria-labelledby="calcModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="Calculate" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="calcModalLabel">
+                        <i class="bi bi-cpu-fill text-primary me-2"></i>Calculate Doctor Commissions
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Evaluate completed OPD visits, match commission rules, and compute eligible doctor shares.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Doctor (Optional)</label>
+                        <select name="doctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">From Date</label>
+                            <input type="date" name="fromDate" value="@(DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"))" class="form-control" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">To Date</label>
+                            <input type="date" name="toDate" value="@(DateTime.Today.ToString("yyyy-MM-dd"))" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Settlement Period</label>
+                        <input type="text" name="settlementPeriod" value="@DateTime.Today.ToString("yyyy-MM")" class="form-control" placeholder="e.g. 2026-08" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-play-fill me-1"></i>Run Calculation Engine
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 2: Add Adjustment -->
+<div class="modal fade" id="adjustmentModal" tabindex="-1" aria-labelledby="adjustmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="AddAdjustment" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="disbursalId" id="adjDisbursalId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="adjustmentModalLabel">
+                        <i class="bi bi-plus-slash-minus text-info me-2"></i>Add Disbursal Adjustment
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-light border mb-3">
+                        <div class="small text-muted">Doctor: <strong id="adjDoctorName" class="text-dark"></strong></div>
+                        <div class="small text-muted">Current Net Payable: <strong id="adjNetPayable" class="text-success"></strong></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Adjustment Type <span class="text-danger">*</span></label>
+                        <select name="adjustmentType" class="form-select" required>
+                            <option value="TDS Deduction">TDS Deduction (-)</option>
+                            <option value="Incentive">Incentive (+)</option>
+                            <option value="Manual Correction">Manual Correction (+/-)</option>
+                            <option value="Penalty">Penalty (-)</option>
+                            <option value="Recovery">Recovery (-)</option>
+                            <option value="Honorarium">Honorarium (+)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Adjustment Amount (₹) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" name="adjustmentAmount" class="form-control" placeholder="e.g. -500.00 or 1000.00" required />
+                        <small class="text-muted">Use negative (-) for deductions/TDS, positive (+) for incentives</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Reason / Audit Justification <span class="text-danger">*</span></label>
+                        <textarea name="reason" class="form-control" rows="3" placeholder="Explain the rationale for this billing adjustment..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info text-white">Apply Adjustment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 3: Update Status -->
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="UpdateStatus" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="disbursalId" id="statusDisbursalId" />
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="statusModalLabel">
+                        <i class="bi bi-check2-circle text-primary me-2"></i>Update Approval Status
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Approval Status</label>
+                        <select name="approvalStatus" id="statusSelect" class="form-select">
+                            <option value="APPROVED">APPROVED (Ready for Payout)</option>
+                            <option value="ON_HOLD">ON_HOLD (Under Review)</option>
+                            <option value="REJECTED">REJECTED (Disallowed)</option>
+                            <option value="SUBMITTED">SUBMITTED (For Higher Approval)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Finance Notes (Optional)</label>
+                        <textarea name="disbursalNotes" class="form-control" rows="3" placeholder="Remarks or audit trail notes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 4: Process Payout -->
+<div class="modal fade" id="payoutModal" tabindex="-1" aria-labelledby="payoutModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="ProcessPayout" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="disbursalId" id="payoutDisbursalId" />
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="payoutModalLabel">
+                        <i class="bi bi-cash-stack me-2"></i>Process Doctor Disbursal Payout
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-success bg-opacity-10 border-success mb-3">
+                        <div class="fw-bold fs-5 text-success" id="payoutAmount"></div>
+                        <div class="small text-muted">Payee: <strong id="payoutDoctor" class="text-dark"></strong></div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Payment Mode <span class="text-danger">*</span></label>
+                            <select name="paymentMethod" class="form-select" required>
+                                <option value="Bank Transfer">Bank Transfer (NEFT/RTGS)</option>
+                                <option value="UPI">UPI</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Cash">Cash</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Payment Date <span class="text-danger">*</span></label>
+                            <input type="date" name="paidDate" value="@(DateTime.Today.ToString("yyyy-MM-dd"))" class="form-control" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Transaction Ref / Cheque # / UTR <span class="text-danger">*</span></label>
+                        <input type="text" name="paymentReference" class="form-control" placeholder="e.g. UTR1284918239 or CHQ-9901" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Disbursal Notes</label>
+                        <textarea name="disbursalNotes" class="form-control" rows="2" placeholder="Optional payment remarks..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check2-circle me-1"></i>Confirm & Disburse Payout
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden Bulk Approve Form -->
+<form asp-action="BulkApprove" method="post" id="bulkApproveForm" style="display:none;">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="disbursalIds" id="bulkDisbursalIds" />
+</form>
+
+@section Scripts {
+    <script>
+        function toggleSelectAll(master) {
+            var chks = document.querySelectorAll('.row-chk:not(:disabled)');
+            chks.forEach(c => c.checked = master.checked);
+        }
+
+        function submitBulkApprove() {
+            var checked = document.querySelectorAll('.row-chk:checked');
+            if (checked.length === 0) {
+                alert('Please select at least one eligible disbursal record to approve.');
+                return;
+            }
+            var ids = Array.from(checked).map(c => c.value).join(',');
+            if (confirm(`Approve ${checked.length} selected doctor disbursals?`)) {
+                document.getElementById('bulkDisbursalIds').value = ids;
+                document.getElementById('bulkApproveForm').submit();
+            }
+        }
+
+        function openAdjustmentModal(id, docName, netPayable) {
+            document.getElementById('adjDisbursalId').value = id;
+            document.getElementById('adjDoctorName').textContent = docName;
+            document.getElementById('adjNetPayable').textContent = '₹' + netPayable.toFixed(2);
+            new bootstrap.Modal(document.getElementById('adjustmentModal')).show();
+        }
+
+        function openStatusModal(id, currentStatus) {
+            document.getElementById('statusDisbursalId').value = id;
+            document.getElementById('statusSelect').value = currentStatus;
+            new bootstrap.Modal(document.getElementById('statusModal')).show();
+        }
+
+        function openPayoutModal(id, docName, netPayable) {
+            document.getElementById('payoutDisbursalId').value = id;
+            document.getElementById('payoutDoctor').textContent = docName;
+            document.getElementById('payoutAmount').textContent = '₹' + netPayable.toFixed(2);
+            new bootstrap.Modal(document.getElementById('payoutModal')).show();
+        }
+    </script>
+}
