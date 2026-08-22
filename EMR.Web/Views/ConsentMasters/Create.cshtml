@@ -1,0 +1,255 @@
+@model EMR.Web.Models.ViewModels.ConsentMasterFormViewModel
+@{
+    ViewData["Title"] = "Add Consent Master";
+}
+
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
+
+<div class="container-fluid px-0">
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Master</a></li>
+                    <li class="breadcrumb-item"><a href="#">General</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Consent Masters</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Add Template</li>
+                </ol>
+            </nav>
+
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-file-earmark-plus-fill fs-4 text-primary"></i>
+                        <div>
+                            <h5 class="card-title mb-0 fw-bold">Add Consent Master Template</h5>
+                            <small class="text-muted">Create a standard legal/clinical informed consent template</small>
+                        </div>
+                    </div>
+                    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>Back to List
+                    </a>
+                </div>
+
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post" id="consentForm" novalidate>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="CompanyId" />
+                        <input type="hidden" asp-for="Branch_ID" />
+                        <input type="hidden" asp-for="ConsentTemplateContent" id="hiddenContent" />
+
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <!-- 1. Metadata Configuration -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-gear-fill me-2 text-primary"></i>1. Template Configuration & Scope
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label asp-for="ConsentType" class="form-label fw-semibold">Consent Type <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <select asp-for="ConsentType" asp-items="Model.ConsentTypeOptions" class="form-select" id="consentTypeSelect">
+                                            <option value="">-- Select Standard Consent Type --</option>
+                                        </select>
+                                    </div>
+                                    <span asp-validation-for="ConsentType" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label asp-for="Type" class="form-label fw-semibold">Department Type <span class="text-danger">*</span></label>
+                                    <select asp-for="Type" asp-items="Model.DepartmentTypeOptions" class="form-select" id="typeSelect" onchange="onTypeChange()">
+                                    </select>
+                                    <span asp-validation-for="Type" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label asp-for="Language" class="form-label fw-semibold">Language <span class="text-danger">*</span></label>
+                                    <select asp-for="Language" asp-items="Model.LanguageOptions" class="form-select">
+                                    </select>
+                                    <span asp-validation-for="Language" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-6" id="procedureWrapper">
+                                    <label asp-for="Procedure_ID" class="form-label fw-semibold">Linked Procedure <small class="text-muted fw-normal">(Optional for IPD)</small></label>
+                                    <select asp-for="Procedure_ID" asp-items="Model.ProcedureOptions" class="form-select" id="procedureSelect">
+                                        <option value="">-- General / No Specific Procedure --</option>
+                                    </select>
+                                    <small class="text-muted d-block mt-1">If specified, this consent will be auto-suggested for this surgical/clinical procedure.</small>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label asp-for="Version" class="form-label fw-semibold">Version <span class="text-danger">*</span></label>
+                                    <input asp-for="Version" class="form-control font-monospace" placeholder="1.0" />
+                                    <span asp-validation-for="Version" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label asp-for="ValidityPeriod" class="form-label fw-semibold">Validity Period <span class="text-danger">*</span></label>
+                                    <select asp-for="ValidityPeriod" asp-items="Model.ValidityPeriodOptions" class="form-select">
+                                    </select>
+                                    <span asp-validation-for="ValidityPeriod" class="text-danger small"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Rich Template Editor -->
+                        <div class="mb-4">
+                            <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold fs-6 mb-0 text-dark">
+                                    <i class="bi bi-file-earmark-richtext-fill me-1 text-primary"></i>2. Consent Template Body (HTML Rich Text) <span class="text-danger">*</span>
+                                </label>
+                                <span class="text-muted small">Insert dynamic variables by clicking the tags below:</span>
+                            </div>
+
+                            <!-- Variable Insertion Toolbar -->
+                            <div class="p-2 bg-light border rounded-3 mb-2 d-flex flex-wrap gap-1 align-items-center">
+                                <span class="badge bg-secondary me-1"><i class="bi bi-code-square me-1"></i>Insert Tags:</span>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{PatientName}}')">+ Patient Name</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{UHID}}')">+ UHID</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{IPDNo}}')">+ IPD No</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{OPDNo}}')">+ OPD No</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{Age}}')">+ Age</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{Gender}}')">+ Gender</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{DoctorName}}')">+ Doctor / Surgeon</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{DepartmentName}}')">+ Department</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{ProcedureName}}')">+ Procedure</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{Date}}')">+ Date</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{Time}}')">+ Time</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{HospitalName}}')">+ Hospital Name</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{WitnessName}}')">+ Witness Name</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="insertVariable('{{Relationship}}')">+ Relationship</button>
+                            </div>
+
+                            <!-- Quill Container -->
+                            <div id="quillEditor" style="min-height: 280px; font-size: 15px;" class="bg-white rounded-bottom">
+                                @Html.Raw(Model.ConsentTemplateContent)
+                            </div>
+                            <span asp-validation-for="ConsentTemplateContent" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <!-- 3. Policy & Status Controls -->
+                        <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-sliders me-2 text-primary"></i>3. Enforcement & Status
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="p-2 border rounded-3 bg-white d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <div class="fw-semibold">Witness Signature Mandatory</div>
+                                            <small class="text-muted">Require an official witness or relative signature upon consent submission</small>
+                                        </div>
+                                        <div class="form-check form-switch fs-5 mb-0">
+                                            <input asp-for="WitnessRequired" class="form-check-input" type="checkbox" role="switch" id="witnessSwitch" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="p-2 border rounded-3 bg-white d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <div class="fw-semibold">Active Status</div>
+                                            <small class="text-muted">Enable this template for clinical consent generation</small>
+                                        </div>
+                                        <div class="form-check form-switch fs-5 mb-0">
+                                            <input asp-for="Status" class="form-check-input" type="checkbox" role="switch" id="statusSwitch" checked />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-4 shadow-sm" id="btnSubmit">
+                                <i class="bi bi-check-lg me-1"></i>Save Consent Template
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-xs {
+        padding: 0.15rem 0.45rem;
+        font-size: 0.75rem;
+        border-radius: 0.25rem;
+    }
+    .ql-toolbar {
+        border-top-left-radius: 0.375rem;
+        border-top-right-radius: 0.375rem;
+        background: #f8fafc;
+    }
+    .ql-container {
+        border-bottom-left-radius: 0.375rem;
+        border-bottom-right-radius: 0.375rem;
+    }
+</style>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <script>
+        var quill;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            quill = new Quill('#quillEditor', {
+                theme: 'snow',
+                placeholder: 'Type or compose your informed consent template here. Use dynamic tags for patient details...',
+                modules: {
+                    toolbar: [
+                        [{ 'header': [1, 2, 3, 4, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'color': [] }, { 'background': [] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'align': [] }],
+                        ['blockquote', 'code-block'],
+                        ['clean']
+                    ]
+                }
+            });
+
+            onTypeChange();
+
+            // Sync on form submit
+            document.getElementById('consentForm').addEventListener('submit', function (e) {
+                var html = quill.root.innerHTML;
+                if (quill.getText().trim().length === 0 && html === '<p><br></p>') {
+                    document.getElementById('hiddenContent').value = '';
+                } else {
+                    document.getElementById('hiddenContent').value = html;
+                }
+            });
+        });
+
+        function insertVariable(tag) {
+            if (!quill) return;
+            var range = quill.getSelection(true);
+            var index = range ? range.index : quill.getLength();
+            quill.insertText(index, tag, 'bold', true);
+            quill.setSelection(index + tag.length, 0);
+        }
+
+        function onTypeChange() {
+            var typeVal = document.getElementById('typeSelect').value;
+            var procWrap = document.getElementById('procedureWrapper');
+            var procSelect = document.getElementById('procedureSelect');
+
+            if (typeVal === 'IPD') {
+                procWrap.style.display = 'block';
+                procSelect.disabled = false;
+            } else {
+                procWrap.style.display = 'none';
+                procSelect.disabled = true;
+                procSelect.value = '';
+            }
+        }
+    </script>
+}

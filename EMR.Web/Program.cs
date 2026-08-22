@@ -126,6 +126,7 @@ builder.Services.AddScoped<IInsuranceTariffApiClient,   InsuranceTariffApiClient
 builder.Services.AddScoped<IGovernmentSchemeApiClient,  GovernmentSchemeApiClient>();
 builder.Services.AddScoped<IShiftMasterApiClient,        ShiftMasterApiClient>();
 builder.Services.AddScoped<IHousekeepingApiClient,       HousekeepingApiClient>();
+builder.Services.AddScoped<IConsentMasterApiClient,      ConsentMasterApiClient>();
 builder.Services.AddScoped<IGeneralMasterApiClient,     GeneralMasterApiClient>();
 builder.Services.AddScoped<IOpdMasterApiClient,        OpdMasterApiClient>();
 

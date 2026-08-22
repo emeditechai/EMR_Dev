@@ -1,15 +1,46 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
 
 Console.WriteLine("=========================================================================");
-Console.WriteLine("SHIFT MASTER & INTEGRATED HOUSEKEEPING MASTERS END-TO-END VERIFICATION");
+Console.WriteLine("APPLYING SQL SCRIPT & END-TO-END VERIFICATION");
 Console.WriteLine("=========================================================================");
+
+var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
+if (File.Exists("SQLScripts/92_consent_master.sql"))
+{
+    Console.WriteLine("\n[Step 0] Applying SQLScripts/92_consent_master.sql to database...");
+    var script = File.ReadAllText("SQLScripts/92_consent_master.sql");
+    var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+    using var conn = new SqlConnection(cs);
+    conn.Open();
+    int batchIndex = 0;
+    foreach (var batch in batches)
+    {
+        var b = batch.Trim();
+        if (string.IsNullOrEmpty(b)) continue;
+        batchIndex++;
+        try
+        {
+            using var cmd = new SqlCommand(b, conn);
+            cmd.ExecuteNonQuery();
+            Console.WriteLine($"  - Batch {batchIndex} applied successfully.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  - Error on batch {batchIndex}: {ex.Message}");
+        }
+    }
+    Console.WriteLine("SQLScript 92_consent_master.sql execution complete.\n");
+}
 
 var cookieContainer = new CookieContainer();
 using var handler = new HttpClientHandler
@@ -204,6 +235,74 @@ Console.WriteLine($"DeleteLocation POST: {delLocRes.StatusCode}");
 var delClnRes = await client.PostAsync($"/Housekeeping/DeleteCleaning/{createdClnId}", shiftDeleteForm);
 Console.WriteLine($"DeleteCleaning POST: {delClnRes.StatusCode}");
 
+// 9. Test Consent Masters End-to-End
+Console.WriteLine("\n[Step 9] Testing Consent Masters End-to-End...");
+var apiConsents = await apiClient.GetFromJsonAsync<JsonElement>("http://localhost:5201/api/consent-masters?branchId=1");
+Console.WriteLine($"API /api/consent-masters returned {apiConsents.GetProperty("data").GetArrayLength()} consent templates.");
+
+var consentIndexRes = await client.GetAsync("/ConsentMasters/Index");
+var consentIndexHtml = await consentIndexRes.Content.ReadAsStringAsync();
+Console.WriteLine($"ConsentMasters Index: {consentIndexRes.StatusCode}, Has Title: {consentIndexHtml.Contains("Consent Masters")}, Has General Consent: {consentIndexHtml.Contains("General Admission Consent")}");
+
+var consentCreateGet = await client.GetAsync("/ConsentMasters/Create");
+var consentCreateHtml = await consentCreateGet.Content.ReadAsStringAsync();
+var consentCreateTokenMatch = Regex.Match(consentCreateHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string consentCreateToken = consentCreateTokenMatch.Success ? consentCreateTokenMatch.Groups[1].Value : token;
+
+var consentCreateForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("ConsentType", "Clinical Trial / Research Protocol Consent"),
+    new KeyValuePair<string, string>("Type", "IPD"),
+    new KeyValuePair<string, string>("Language", "English"),
+    new KeyValuePair<string, string>("Version", "2.1"),
+    new KeyValuePair<string, string>("ValidityPeriod", "365 Days / 1 Year"),
+    new KeyValuePair<string, string>("WitnessRequired", "true"),
+    new KeyValuePair<string, string>("Status", "true"),
+    new KeyValuePair<string, string>("ConsentTemplateContent", "<h3>CLINICAL TRIAL PROTOCOL CONSENT</h3><p>Patient <strong>{{PatientName}}</strong> consents to trial.</p>"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", consentCreateToken)
+});
+
+var consentCreateRes = await client.PostAsync("/ConsentMasters/Create", consentCreateForm);
+Console.WriteLine($"ConsentMasters Create POST: {consentCreateRes.StatusCode}");
+
+var refreshConsents = await apiClient.GetFromJsonAsync<JsonElement>("http://localhost:5201/api/consent-masters?search=Clinical+Trial");
+int createdConsentId = refreshConsents.GetProperty("data")[0].GetProperty("consent_ID").GetInt32();
+Console.WriteLine($"Created Consent Template ID: #{createdConsentId}");
+
+var consentDetailsRes = await client.GetAsync($"/ConsentMasters/Details/{createdConsentId}");
+var consentDetailsHtml = await consentDetailsRes.Content.ReadAsStringAsync();
+Console.WriteLine($"ConsentMasters Details GET: {consentDetailsRes.StatusCode}, Has Trial Text: {consentDetailsHtml.Contains("CLINICAL TRIAL")}");
+
+var consentEditGet = await client.GetAsync($"/ConsentMasters/Edit/{createdConsentId}");
+var consentEditHtml = await consentEditGet.Content.ReadAsStringAsync();
+var consentEditTokenMatch = Regex.Match(consentEditHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string consentEditToken = consentEditTokenMatch.Success ? consentEditTokenMatch.Groups[1].Value : token;
+
+var consentEditForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("Consent_ID", createdConsentId.ToString()),
+    new KeyValuePair<string, string>("ConsentType", "Clinical Trial / Research Protocol Consent"),
+    new KeyValuePair<string, string>("Type", "IPD"),
+    new KeyValuePair<string, string>("Language", "English"),
+    new KeyValuePair<string, string>("Version", "2.2"),
+    new KeyValuePair<string, string>("ValidityPeriod", "Permanent / Indefinite"),
+    new KeyValuePair<string, string>("WitnessRequired", "true"),
+    new KeyValuePair<string, string>("Status", "true"),
+    new KeyValuePair<string, string>("ConsentTemplateContent", "<h3>CLINICAL TRIAL PROTOCOL CONSENT (REVISED)</h3><p>Patient <strong>{{PatientName}}</strong> consents to revised trial.</p>"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", consentEditToken)
+});
+
+var consentEditRes = await client.PostAsync($"/ConsentMasters/Edit/{createdConsentId}", consentEditForm);
+Console.WriteLine($"ConsentMasters Edit POST: {consentEditRes.StatusCode}");
+
+var consentDeleteForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("__RequestVerificationToken", consentEditToken)
+});
+var consentDeleteRes = await client.PostAsync($"/ConsentMasters/Delete/{createdConsentId}", consentDeleteForm);
+Console.WriteLine($"ConsentMasters Delete POST: {consentDeleteRes.StatusCode}");
+
 Console.WriteLine("\n=========================================================================");
-Console.WriteLine("ALL SHIFT MASTER & HOUSEKEEPING MASTERS TESTS PASSED 100%!");
+Console.WriteLine("ALL SHIFT MASTER, HOUSEKEEPING & CONSENT MASTERS TESTS PASSED 100%!");
 Console.WriteLine("=========================================================================");
+

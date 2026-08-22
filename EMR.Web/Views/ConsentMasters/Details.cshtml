@@ -1,0 +1,182 @@
+@model EMR.Web.Models.ViewModels.ConsentMasterDetailsViewModel
+@{
+    ViewData["Title"] = $"{Model.ConsentType} - Details";
+    var typeBadgeClass = Model.Type switch
+    {
+        "IPD" => "bg-purple text-purple border border-purple border-opacity-25",
+        "OPD" => "bg-primary text-primary border border-primary border-opacity-25",
+        "LAB" => "bg-warning text-dark border border-warning border-opacity-25",
+        "MED" => "bg-info text-dark border border-info border-opacity-25",
+        _ => "bg-secondary text-secondary border"
+    };
+}
+
+<div class="container-fluid px-0">
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-3 d-print-none">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Master</a></li>
+                    <li class="breadcrumb-item"><a href="#">General</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Consent Masters</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@Model.ConsentType</li>
+                </ol>
+            </nav>
+
+            <!-- Action Bar -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2 d-print-none">
+                <div>
+                    <h3 class="fw-bold mb-1" style="color:var(--emr-primary, #1e3a8a);">
+                        <i class="bi bi-file-earmark-check-fill me-2 text-success"></i>@Model.ConsentType
+                    </h3>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-opacity-10 @typeBadgeClass px-2 py-1">@Model.Type Department</span>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-translate me-1 text-primary"></i>@Model.Language</span>
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border font-monospace">v@(Model.Version)</span>
+                        @if (Model.Status)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
+                        <i class="bi bi-printer-fill me-1"></i>Print Form
+                    </button>
+                    <a asp-action="Edit" asp-route-id="@Model.Consent_ID" class="btn btn-primary">
+                        <i class="bi bi-pencil-square me-1"></i>Edit Template
+                    </a>
+                    <a asp-action="Index" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to List
+                    </a>
+                </div>
+            </div>
+
+            <!-- Metadata Card (Screen only) -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4 d-print-none">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h6 class="card-title mb-0 fw-bold"><i class="bi bi-info-circle-fill me-2 text-primary"></i>Template Metadata & Enforcement Rules</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Consent ID</small>
+                            <span class="fw-bold font-monospace">#@Model.Consent_ID</span>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Department Scope</small>
+                            <span class="fw-bold">@Model.Type</span>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Linked Procedure</small>
+                            @if (Model.Procedure_ID.HasValue && !string.IsNullOrEmpty(Model.ProcedureName))
+                            {
+                                <span class="fw-bold text-dark">@Model.ProcedureName</span>
+                                <small class="text-muted d-block font-monospace">@Model.ProcedureCode</small>
+                            }
+                            else
+                            {
+                                <span class="text-muted">General / Any IPD Procedure</span>
+                            }
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Validity Period</small>
+                            <span class="fw-bold"><i class="bi bi-clock-history me-1 text-muted"></i>@Model.ValidityPeriod</span>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Witness Policy</small>
+                            @if (Model.WitnessRequired)
+                            {
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                    <i class="bi bi-people-fill me-1"></i>Witness Signature Mandatory
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Optional</span>
+                            }
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Creation Date</small>
+                            <span>@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Printable Consent Form Document -->
+            <div class="card border-0 shadow-sm rounded-3 consent-document-card">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4 border-bottom pb-3">
+                        <h4 class="fw-bold text-uppercase mb-1">eClinicPlus Hospital Management</h4>
+                        <div class="text-muted small">Department of Clinical Governance & Medical Records</div>
+                        <h5 class="fw-bold text-primary mt-3 text-uppercase">@Model.ConsentType</h5>
+                        <div class="small text-muted font-monospace">Template Version @Model.Version &bull; Language: @Model.Language</div>
+                    </div>
+
+                    <!-- Rendered HTML Content -->
+                    <div class="consent-rendered-content my-4 lh-lg">
+                        @Html.Raw(Model.ConsentTemplateContent)
+                    </div>
+
+                    @if (Model.WitnessRequired)
+                    {
+                        <div class="mt-5 pt-4 border-top">
+                            <div class="row g-4">
+                                <div class="col-6">
+                                    <div class="p-3 border rounded-3 bg-light">
+                                        <div class="fw-bold mb-2">Patient / Authorised Person</div>
+                                        <div class="small text-muted mb-4">I confirm that the contents have been explained to me and I consent willingly.</div>
+                                        <div class="border-bottom border-dark mt-4 mb-1"></div>
+                                        <div class="small text-muted">Signature / Thumb Impression & Date</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-3 border rounded-3 bg-light">
+                                        <div class="fw-bold mb-2">Official Witness / Next of Kin</div>
+                                        <div class="small text-muted mb-4">I witnessed the explanation and signing of this informed consent form.</div>
+                                        <div class="border-bottom border-dark mt-4 mb-1"></div>
+                                        <div class="small text-muted">Witness Name, Signature & Relationship</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-purple { background-color: #6f42c1 !important; }
+    .text-purple { color: #6f42c1 !important; }
+    .border-purple { border-color: #6f42c1 !important; }
+
+    .consent-rendered-content {
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        color: #1e293b;
+        font-size: 1.05rem;
+    }
+    .consent-rendered-content code {
+        background-color: #f1f5f9;
+        color: #0f172a;
+        padding: 0.15rem 0.35rem;
+        border-radius: 0.25rem;
+        font-size: 0.95em;
+    }
+
+    @@media print {
+        body { background: #fff !important; }
+        .d-print-none { display: none !important; }
+        .card { box-shadow: none !important; border: none !important; }
+        .consent-document-card { padding: 0 !important; }
+    }
+</style>

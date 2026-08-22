@@ -75,6 +75,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<IcuMaster> IcuMasters => Set<IcuMaster>();
     public DbSet<IcuTariffMaster> IcuTariffMasters => Set<IcuTariffMaster>();
     public DbSet<IcuTariffDetail> IcuTariffDetails => Set<IcuTariffDetail>();
+    public DbSet<ConsentMaster> ConsentMasters => Set<ConsentMaster>();
 
 
 

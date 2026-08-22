@@ -1,0 +1,240 @@
+@model EMR.Web.Models.ViewModels.ConsentMasterIndexViewModel
+@{
+    ViewData["Title"] = "Consent Masters";
+    var itemCount = Model.Items.Count();
+}
+
+<div class="container-fluid px-0">
+    <!-- Header Section -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a href="#">Master</a></li>
+                    <li class="breadcrumb-item"><a href="#">General</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Consent Masters</li>
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);">
+                    <i class="bi bi-file-earmark-check-fill me-2 text-success"></i>Consent Masters
+                </h1>
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-1 fs-6">
+                    @itemCount Templates
+                </span>
+            </div>
+            <p class="text-muted small mb-0 mt-1">Manage standard hospital informed consent forms, rich text templates, and multi-department protocols.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm d-flex align-items-center gap-2">
+                <i class="bi bi-plus-circle-fill"></i>
+                <span>Add Consent Template</span>
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill fs-5"></i>
+            <div>@TempData["SuccessMessage"]</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <div>@TempData["ErrorMessage"]</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Search & Filter Bar -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-body p-3">
+            <form asp-action="Index" method="get" class="row g-2 align-items-center">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control border-start-0" placeholder="Search consent, procedure, keyword..." />
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select name="type" class="form-select">
+                        <option value="">-- All Types --</option>
+                        @foreach (var opt in Model.DepartmentTypeOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == Model.SelectedType)">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="language" class="form-select">
+                        <option value="">-- All Languages --</option>
+                        @foreach (var opt in Model.LanguageOptions)
+                        {
+                            <option value="@opt.Value" selected="@(opt.Value == Model.SelectedLanguage)">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="status" class="form-select">
+                        <option value="">-- All Status --</option>
+                        <option value="true" selected="@(Model.SelectedStatus == true)">Active Only</option>
+                        <option value="false" selected="@(Model.SelectedStatus == false)">Inactive Only</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="bi bi-funnel-fill me-1"></i>Filter
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary" title="Reset Filters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Data Table Card -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3" style="width: 50px;">#</th>
+                            <th>Consent Type</th>
+                            <th>Department</th>
+                            <th>Linked Procedure</th>
+                            <th>Language</th>
+                            <th>Version</th>
+                            <th>Validity</th>
+                            <th>Witness</th>
+                            <th>Status</th>
+                            <th class="text-end pe-3" style="width: 140px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Any())
+                        {
+                            var index = 1;
+                            foreach (var item in Model.Items)
+                            {
+                                var typeBadgeClass = item.Type switch
+                                {
+                                    "IPD" => "bg-purple text-purple border border-purple border-opacity-25",
+                                    "OPD" => "bg-primary text-primary border border-primary border-opacity-25",
+                                    "LAB" => "bg-warning text-dark border border-warning border-opacity-25",
+                                    "MED" => "bg-info text-dark border border-info border-opacity-25",
+                                    _ => "bg-secondary text-secondary border"
+                                };
+
+                                <tr>
+                                    <td class="ps-3 text-muted small">@index</td>
+                                    <td>
+                                        <div class="fw-bold text-dark">@item.ConsentType</div>
+                                        <small class="text-muted font-monospace">ID: #@item.Consent_ID</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-opacity-10 @typeBadgeClass px-2 py-1">
+                                            @item.Type
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (item.Procedure_ID.HasValue && !string.IsNullOrEmpty(item.ProcedureName))
+                                        {
+                                            <div class="fw-semibold small text-dark">@item.ProcedureName</div>
+                                            <span class="badge bg-light text-dark border font-monospace extra-small">@item.ProcedureCode</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">— General / Standard —</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">
+                                            <i class="bi bi-translate me-1 text-primary"></i>@item.Language
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border font-monospace">
+                                            v@(item.Version)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            <i class="bi bi-clock-history me-1"></i>@item.ValidityPeriod
+                                        </small>
+                                    </td>
+                                    <td>
+                                        @if (item.WitnessRequired)
+                                        {
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                                <i class="bi bi-people-fill me-1"></i>Required
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">Optional</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (item.Status)
+                                        {
+                                            <span class="badge text-bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-secondary">Inactive</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <div class="btn-group btn-group-sm">
+                                            <a asp-action="Details" asp-route-id="@item.Consent_ID" class="btn btn-outline-secondary" title="View Template & Metadata">
+                                                <i class="bi bi-eye-fill"></i>
+                                            </a>
+                                            <a asp-action="Edit" asp-route-id="@item.Consent_ID" class="btn btn-outline-primary" title="Edit Template">
+                                                <i class="bi bi-pencil-fill"></i>
+                                            </a>
+                                            <form asp-action="Delete" asp-route-id="@item.Consent_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Consent Master template?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-outline-danger" title="Delete Template">
+                                                    <i class="bi bi-trash-fill"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                index++;
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="10" class="text-center py-5 text-muted">
+                                    <i class="bi bi-file-earmark-x fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                                    <h6>No Consent Master templates found</h6>
+                                    <p class="small mb-3">Try adjusting your filters or create a new consent master template.</p>
+                                    <a asp-action="Create" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-plus-circle me-1"></i>Add Consent Template
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-purple { background-color: #6f42c1 !important; }
+    .text-purple { color: #6f42c1 !important; }
+    .border-purple { border-color: #6f42c1 !important; }
+    .extra-small { font-size: 0.72rem; }
+</style>

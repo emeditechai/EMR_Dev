@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 using System.Text.RegularExpressions;
 
 var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
-var script = File.ReadAllText("SQLScripts/86_insurance_tpa_master.sql");
+var script = File.ReadAllText("SQLScripts/92_consent_master.sql");
 var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
 using var conn = new SqlConnection(cs);
