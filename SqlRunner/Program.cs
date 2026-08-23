@@ -14,10 +14,10 @@ Console.WriteLine("APPLYING SQL SCRIPT & END-TO-END VERIFICATION");
 Console.WriteLine("=========================================================================");
 
 var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
-if (File.Exists("SQLScripts/105_analyzer_master_tbl_mst_analyzer.sql"))
+if (File.Exists("SQLScripts/109_analyzer_master_tbl_mst_analyzer.sql"))
 {
-    Console.WriteLine("\n[Step 0] Applying SQLScripts/105_analyzer_master_tbl_mst_analyzer.sql to database...");
-    var script = File.ReadAllText("SQLScripts/105_analyzer_master_tbl_mst_analyzer.sql");
+    Console.WriteLine("\n[Step 0] Applying SQLScripts/109_analyzer_master_tbl_mst_analyzer.sql to database...");
+    var script = File.ReadAllText("SQLScripts/109_analyzer_master_tbl_mst_analyzer.sql");
     var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
     using var conn = new SqlConnection(cs);
