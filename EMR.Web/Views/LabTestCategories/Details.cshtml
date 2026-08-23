@@ -1,0 +1,96 @@
+@model EMR.Web.ApiClients.Models.LabTestCategoryModel
+
+@{
+    ViewData["Title"] = "Test Category Details";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Test Category Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Details #@Model.Category_ID</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-info-circle me-2"></i>Test Category Details
+            </h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.Category_ID" class="btn btn-primary px-3 shadow-sm">
+                <i class="bi bi-pencil me-1"></i> Edit Category
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Details Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="card-title fw-bold mb-0 text-dark">
+                        <i class="bi bi-tags me-2 text-primary"></i>Test Category #@Model.Category_ID Information
+                    </h6>
+                    @if (Model.Status)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill">
+                            <i class="bi bi-check-circle-fill me-1"></i>Active
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill">
+                            <i class="bi bi-x-circle-fill me-1"></i>Inactive
+                        </span>
+                    }
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Category Code</label>
+                            <span class="badge bg-light text-dark border font-monospace fs-6 px-3 py-2">
+                                @Model.Category_Code
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Category Name</label>
+                            <h5 class="fw-bold text-dark mb-0">@Model.Category_Name</h5>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Department</label>
+                            <p class="fs-6 fw-semibold text-secondary mb-0">
+                                <i class="bi bi-building me-2"></i>@Model.Department_Name
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Display Order</label>
+                            <span class="badge bg-secondary rounded-pill px-3 py-2 fs-6">
+                                @Model.Display_Order
+                            </span>
+                        </div>
+
+                        <div class="col-md-6 border-top pt-3">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Created Date</label>
+                            <p class="text-dark mb-0">@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</p>
+                        </div>
+
+                        <div class="col-md-6 border-top pt-3">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Last Modified Date</label>
+                            <p class="text-dark mb-0">@(Model.ModifiedDate?.ToString("dd MMM yyyy, hh:mm tt") ?? "N/A")</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

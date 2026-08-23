@@ -82,6 +82,7 @@
                                         <li><a class="dropdown-item" asp-controller="GovernmentSchemes" asp-action="Index"><i class="bi bi-bank2 me-2 text-warning"></i>Government Scheme Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Shifts" asp-action="Index"><i class="bi bi-clock-history me-2 text-primary"></i>Shift Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="ConsentMasters" asp-action="Index"><i class="bi bi-file-earmark-check-fill me-2 text-success"></i>Consent Masters</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabUnits" asp-action="Index"><i class="bi bi-rulers me-2 text-primary"></i>Unit Master</a></li>
 
                                         <li><a class="dropdown-item" asp-controller="Buildings" asp-action="Index"><i class="bi bi-buildings-fill me-2"></i>Building Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="Floors" asp-action="Index"><i class="bi bi-layers-fill me-2"></i>Floor Master</a></li>
@@ -163,6 +164,11 @@
                                         <i class="bi bi-chevron-right ms-auto submenu-arrow"></i>
                                     </a>
                                     <ul class="dropdown-menu dropdown-submenu-menu">
+                                        <li><a class="dropdown-item" asp-controller="LabTestCategories" asp-action="Index"><i class="bi bi-tags me-2"></i>Test Category Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabTestSubCategories" asp-action="Index"><i class="bi bi-tag-fill me-2"></i>Test Sub Category Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabSampleTypes" asp-action="Index"><i class="bi bi-droplet-half me-2"></i>Sample Type Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabTestMethods" asp-action="Index"><i class="bi bi-gear-wide-connected me-2"></i>Test Method Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabUnits" asp-action="Index"><i class="bi bi-rulers me-2"></i>Unit Master</a></li>
                                         <li><a class="dropdown-item disabled" href="#"><i class="bi bi-flask me-2"></i>Test Master</a></li>
                                         <li><a class="dropdown-item disabled" href="#"><i class="bi bi-collection me-2"></i>Test Group</a></li>
                                     </ul>

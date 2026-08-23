@@ -1,0 +1,124 @@
+@model EMR.Web.ApiClients.Models.LabSampleTypeModel
+
+@{
+    ViewData["Title"] = "Sample Type Details";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Sample Type Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Details #@Model.Sample_Type_ID</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-info-circle me-2"></i>Sample Type Details
+            </h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.Sample_Type_ID" class="btn btn-primary px-3 shadow-sm">
+                <i class="bi bi-pencil me-1"></i> Edit Sample Type
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Details Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="card-title fw-bold mb-0 text-dark">
+                        <i class="bi bi-eyedropper me-2 text-primary"></i>Sample Type #@Model.Sample_Type_ID Information
+                    </h6>
+                    @if (Model.Status)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill">
+                            <i class="bi bi-check-circle-fill me-1"></i>Active
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill">
+                            <i class="bi bi-x-circle-fill me-1"></i>Inactive
+                        </span>
+                    }
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Sample Code</label>
+                            <span class="badge bg-light text-dark border font-monospace fs-6 px-3 py-2">
+                                @Model.Sample_Code
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Sample Name</label>
+                            <h5 class="fw-bold text-dark mb-0">@Model.Sample_Name</h5>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Container Type</label>
+                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fs-6 px-3 py-2">
+                                <i class="bi bi-prescription2 me-1"></i>@Model.Container_Type
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Volume Required</label>
+                            <span class="badge bg-light text-dark border font-monospace fs-6 px-3 py-2">
+                                @Model.Volume_Required
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Storage Temperature</label>
+                            <p class="fs-6 fw-semibold text-secondary mb-0">
+                                @if (!string.IsNullOrWhiteSpace(Model.Storage_Temperature))
+                                {
+                                    <span><i class="bi bi-thermometer-half me-1"></i>@Model.Storage_Temperature °C</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted fw-normal">Not specified</span>
+                                }
+                            </p>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Display Order</label>
+                            <span class="badge bg-secondary rounded-pill px-3 py-2 fs-6">
+                                @Model.Display_Order
+                            </span>
+                        </div>
+
+                        <div class="col-md-12 border-top pt-3">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Rejection Criteria</label>
+                            <div class="p-3 bg-light rounded border text-secondary">
+                                @(string.IsNullOrWhiteSpace(Model.Rejection_Criteria) ? "No specific rejection criteria configured." : Model.Rejection_Criteria)
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 border-top pt-3">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Created Date</label>
+                            <p class="text-dark mb-0">@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</p>
+                        </div>
+
+                        <div class="col-md-6 border-top pt-3">
+                            <label class="text-muted small text-uppercase fw-semibold d-block mb-1">Last Modified Date</label>
+                            <p class="text-dark mb-0">@(Model.ModifiedDate?.ToString("dd MMM yyyy, hh:mm tt") ?? "N/A")</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

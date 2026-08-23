@@ -44,6 +44,11 @@ builder.Services.AddScoped<IConsentMasterService,      ConsentMasterService>();
 builder.Services.AddScoped<IDoctorCommissionService,   DoctorCommissionService>();
 builder.Services.AddScoped<IGeneralMasterService,    GeneralMasterService>();
 builder.Services.AddScoped<IOpdMasterService,        OpdMasterService>();
+builder.Services.AddScoped<ILabTestCategoryService,    LabTestCategoryService>();
+builder.Services.AddScoped<ILabTestSubCategoryService, LabTestSubCategoryService>();
+builder.Services.AddScoped<ILabSampleTypeService,      LabSampleTypeService>();
+builder.Services.AddScoped<ILabTestMethodService,      LabTestMethodService>();
+builder.Services.AddScoped<ILabUnitService,            LabUnitService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────
 builder.Services.AddCors(opt =>

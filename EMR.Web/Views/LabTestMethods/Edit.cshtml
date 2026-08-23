@@ -1,0 +1,114 @@
+@model EMR.Web.Models.ViewModels.LabTestMethodFormViewModel
+
+@{
+    ViewData["Title"] = "Edit Test Method";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Test Method Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit #@Model.Method_ID</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-pencil-square me-2"></i>Edit Test Method
+            </h4>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h6 class="card-title fw-bold mb-0 text-dark">
+                        <i class="bi bi-card-heading me-2 text-primary"></i>Method Details (Code: <code>@Model.Method_Code</code>)
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Edit" asp-route-id="@Model.Method_ID" method="post" id="editMethodForm">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Method_ID" />
+                        <input type="hidden" asp-for="CompanyId" />
+                        <input type="hidden" asp-for="BranchId" />
+                        <input type="hidden" asp-for="Method_Code" />
+
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <div class="row g-3">
+                            <!-- Method Code (Read Only - First Position) -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-muted">Method Code</label>
+                                <input type="text" class="form-control bg-light font-monospace fw-bold" value="@Model.Method_Code" readonly />
+                            </div>
+
+                            <!-- Department ID Dropdown -->
+                            <div class="col-md-6">
+                                <label asp-for="Department_ID" class="form-label fw-semibold">
+                                    Department <span class="text-danger">*</span>
+                                </label>
+                                <select asp-for="Department_ID" class="form-select" asp-items="Model.DepartmentOptions" required>
+                                    <option value="">-- Select Department --</option>
+                                </select>
+                                <span asp-validation-for="Department_ID" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Method Name -->
+                            <div class="col-md-12">
+                                <label asp-for="Method_Name" class="form-label fw-semibold">
+                                    Method Name <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="Method_Name" class="form-control" placeholder="Method Name" required maxlength="150" />
+                                <span asp-validation-for="Method_Name" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Status Toggle -->
+                            <div class="col-md-12 mt-3">
+                                <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <h6 class="fw-bold mb-1 text-dark">Method Status</h6>
+                                        <p class="text-muted small mb-0">Toggle whether this test method is active in laboratory operations.</p>
+                                    </div>
+                                    <div class="form-check form-switch form-switch-md">
+                                        <input asp-for="Status" class="form-check-input" type="checkbox" id="statusSwitch" role="switch" />
+                                        <label class="form-check-label fw-bold ms-2" for="statusSwitch" id="statusLabel">
+                                            @(Model.Status ? "Active" : "Inactive")
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                                <i class="bi bi-check-lg me-1"></i> Update Method
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('statusSwitch')?.addEventListener('change', function() {
+            document.getElementById('statusLabel').textContent = this.checked ? 'Active' : 'Inactive';
+        });
+    </script>
+}

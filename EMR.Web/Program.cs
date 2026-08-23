@@ -59,6 +59,7 @@ builder.Services.AddScoped<IInsuranceTPAService, InsuranceTPAService>();
 builder.Services.AddScoped<IInsuranceTariffService, InsuranceTariffService>();
 builder.Services.AddScoped<IGovernmentSchemeService, GovernmentSchemeService>();
 builder.Services.AddScoped<IDoctorRoomService, DoctorRoomService>();
+builder.Services.AddScoped<ILabMasterDashboardService, LabMasterDashboardService>();
 
 
 
@@ -130,6 +131,11 @@ builder.Services.AddScoped<IConsentMasterApiClient,      ConsentMasterApiClient>
 builder.Services.AddScoped<IDoctorCommissionApiClient,   DoctorCommissionApiClient>();
 builder.Services.AddScoped<IGeneralMasterApiClient,     GeneralMasterApiClient>();
 builder.Services.AddScoped<IOpdMasterApiClient,        OpdMasterApiClient>();
+builder.Services.AddScoped<ILabTestCategoryApiClient,   LabTestCategoryApiClient>();
+builder.Services.AddScoped<ILabTestSubCategoryApiClient,LabTestSubCategoryApiClient>();
+builder.Services.AddScoped<ILabSampleTypeApiClient,     LabSampleTypeApiClient>();
+builder.Services.AddScoped<ILabTestMethodApiClient,     LabTestMethodApiClient>();
+builder.Services.AddScoped<ILabUnitApiClient,           LabUnitApiClient>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>

@@ -1,0 +1,149 @@
+@model EMR.Web.Models.ViewModels.LabSampleTypeFormViewModel
+
+@{
+    ViewData["Title"] = "Edit Sample Type";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Sample Type Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit #@Model.Sample_Type_ID</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-pencil-square me-2"></i>Edit Sample Type
+            </h4>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h6 class="card-title fw-bold mb-0 text-dark">
+                        <i class="bi bi-card-heading me-2 text-primary"></i>Sample Type Details (Code: <code>@Model.Sample_Code</code>)
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Edit" asp-route-id="@Model.Sample_Type_ID" method="post" id="editSampleTypeForm">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Sample_Type_ID" />
+                        <input type="hidden" asp-for="CompanyId" />
+                        <input type="hidden" asp-for="BranchId" />
+                        <input type="hidden" asp-for="Sample_Code" />
+
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <div class="row g-3">
+                            <!-- Sample Code (Read Only - First Position) -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-muted">Sample Code</label>
+                                <input type="text" class="form-control bg-light font-monospace fw-bold" value="@Model.Sample_Code" readonly />
+                            </div>
+
+                            <!-- Sample Name -->
+                            <div class="col-md-6">
+                                <label asp-for="Sample_Name" class="form-label fw-semibold">
+                                    Sample Name <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="Sample_Name" class="form-control" placeholder="Sample Name" required maxlength="150" />
+                                <span asp-validation-for="Sample_Name" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Container Type (Enum) -->
+                            <div class="col-md-6">
+                                <label asp-for="Container_Type" class="form-label fw-semibold">
+                                    Container Type <span class="text-danger">*</span>
+                                </label>
+                                <select asp-for="Container_Type" class="form-select" asp-items="Model.ContainerTypeOptions" required>
+                                </select>
+                                <span asp-validation-for="Container_Type" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Volume Value & Unit Master Dropdown -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">
+                                    Volume Required <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input asp-for="Volume_Value" type="number" step="0.1" min="0.01" class="form-control" required />
+                                    <select asp-for="Unit_ID" class="form-select border-start-0" style="max-width: 170px;" asp-items="Model.UnitOptions">
+                                        <option value="">-- Unit --</option>
+                                    </select>
+                                </div>
+                                <span asp-validation-for="Volume_Value" class="text-danger small d-block"></span>
+                                <span asp-validation-for="Unit_ID" class="text-danger small d-block"></span>
+                            </div>
+
+                            <!-- Storage Temperature -->
+                            <div class="col-md-12">
+                                <label asp-for="Storage_Temperature" class="form-label fw-semibold">
+                                    Storage Temperature (°C) <span class="text-muted fw-normal">(Optional)</span>
+                                </label>
+                                <div class="input-group">
+                                    <input asp-for="Storage_Temperature" type="text" class="form-control" placeholder="e.g. 2 to 8" />
+                                    <span class="input-group-text bg-light">°C</span>
+                                </div>
+                                <span asp-validation-for="Storage_Temperature" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Rejection Criteria -->
+                            <div class="col-md-12">
+                                <label asp-for="Rejection_Criteria" class="form-label fw-semibold">
+                                    Rejection Criteria <span class="text-muted fw-normal">(Optional)</span>
+                                </label>
+                                <textarea asp-for="Rejection_Criteria" class="form-control" rows="3" placeholder="Rejection criteria notes..."></textarea>
+                                <span asp-validation-for="Rejection_Criteria" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Status Toggle -->
+                            <div class="col-md-12 mt-3">
+                                <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <h6 class="fw-bold mb-1 text-dark">Sample Type Status</h6>
+                                        <p class="text-muted small mb-0">Toggle whether this sample type is active in laboratory operations.</p>
+                                    </div>
+                                    <div class="form-check form-switch form-switch-md">
+                                        <input asp-for="Status" class="form-check-input" type="checkbox" id="statusSwitch" role="switch" />
+                                        <label class="form-check-label fw-bold ms-2" for="statusSwitch" id="statusLabel">
+                                            @(Model.Status ? "Active" : "Inactive")
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                                <i class="bi bi-check-lg me-1"></i> Update Sample Type
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('statusSwitch')?.addEventListener('change', function() {
+            document.getElementById('statusLabel').textContent = this.checked ? 'Active' : 'Inactive';
+        });
+    </script>
+}

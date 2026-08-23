@@ -1,0 +1,96 @@
+@model EMR.Web.Models.ViewModels.LabUnitFormViewModel
+
+@{
+    ViewData["Title"] = "Create Unit Master";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">General Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Unit Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Create</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-plus-circle me-2"></i>Create New Unit
+            </h4>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h6 class="card-title fw-bold mb-0 text-dark">
+                        <i class="bi bi-card-heading me-2 text-primary"></i>Unit Details
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post" id="createUnitForm">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <div class="row g-3">
+                            <!-- Unit Code (Auto-generated note - First Position) -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-muted">Unit Code</label>
+                                <input type="text" class="form-control bg-light" value="Auto-generated on save (e.g. UNT0001)" disabled />
+                                <small class="text-muted">Unique code automatically assigned sequentially.</small>
+                            </div>
+
+                            <!-- Unit Name -->
+                            <div class="col-md-6">
+                                <label asp-for="Unit_Name" class="form-label fw-semibold">
+                                    Unit Name <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="Unit_Name" class="form-control" placeholder="e.g., Milligrams per Deciliter" required maxlength="150" />
+                                <span asp-validation-for="Unit_Name" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Unit Symbol -->
+                            <div class="col-md-6">
+                                <label asp-for="Unit_Symbol" class="form-label fw-semibold">
+                                    Unit Symbol <span class="text-muted fw-normal">(Optional)</span>
+                                </label>
+                                <input asp-for="Unit_Symbol" class="form-control" placeholder="e.g., mg/dL, g/dL, U/L" maxlength="50" />
+                                <span asp-validation-for="Unit_Symbol" class="text-danger small"></span>
+                            </div>
+
+                            <!-- Conversion Factor -->
+                            <div class="col-md-6">
+                                <label asp-for="Conversion_Factor" class="form-label fw-semibold">
+                                    Conversion Factor
+                                </label>
+                                <input asp-for="Conversion_Factor" type="number" step="0.000001" min="0.000001" class="form-control" required placeholder="1.0" />
+                                <span asp-validation-for="Conversion_Factor" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                                <i class="bi bi-save me-1"></i> Save Unit
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
