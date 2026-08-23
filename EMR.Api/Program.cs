@@ -59,6 +59,8 @@ builder.Services.AddCors(opt =>
          .AllowAnyHeader()
          .AllowAnyMethod()));
 
+builder.Services.AddSingleton<IQueryStringEncryptionService, QueryStringEncryptionService>();
+
 var app = builder.Build();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
@@ -69,6 +71,7 @@ app.UseSwaggerUI(c =>
 });
 
 app.UseHttpsRedirection();
+app.UseMiddleware<EMR.Api.Middleware.QueryStringDecryptionMiddleware>();
 app.UseCors("EmrWebOrigin");
 app.UseAuthorization();
 app.MapControllers();

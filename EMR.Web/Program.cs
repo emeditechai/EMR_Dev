@@ -162,6 +162,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddSingleton<IQueryStringEncryptionService, QueryStringEncryptionService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -184,6 +186,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseMiddleware<EMR.Web.Middleware.QueryStringDecryptionMiddleware>();
 app.UseSession();
 
 app.UseAuthentication();

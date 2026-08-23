@@ -152,10 +152,10 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-route-id="@item.Method_ID" class="btn btn-outline-info" title="View Details">
+                                            <a asp-action="Details" asp-encrypted-id="@item.Method_ID" class="btn btn-outline-info" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-route-id="@item.Method_ID" class="btn btn-outline-primary" title="Edit Method">
+                                            <a asp-action="Edit" asp-encrypted-id="@item.Method_ID" class="btn btn-outline-primary" title="Edit Method">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
                                             <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Method_ID" title="Delete">
