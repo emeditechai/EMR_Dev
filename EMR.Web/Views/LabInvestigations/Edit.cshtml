@@ -1,0 +1,196 @@
+@model EMR.Web.Models.ViewModels.LabInvestigationFormViewModel
+
+@{
+    ViewData["Title"] = "Edit Investigation Master";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Lab</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Investigation Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-pencil-square me-2"></i>Edit Investigation Master
+            </h4>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-4">
+            <form asp-action="Edit" asp-encrypted-id="@Model.Test_ID" method="post" id="editInvestigationForm">
+                <input type="hidden" asp-for="Test_ID" />
+                <input type="hidden" asp-for="CompanyId" />
+                <input type="hidden" asp-for="BranchId" />
+                <input type="hidden" asp-for="Test_Code" />
+
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                <div class="row g-3">
+                    <!-- Rule: Code is 1st Field -->
+                    <div class="col-md-6">
+                        <label asp-for="Test_Code" class="form-label fw-semibold text-muted"></label>
+                        <div class="form-control bg-light font-monospace fw-bold text-primary">
+                            @Model.Test_Code
+                        </div>
+                    </div>
+
+                    <!-- Test Name -->
+                    <div class="col-md-6">
+                        <label asp-for="Test_Name" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <input asp-for="Test_Name" class="form-control" maxlength="200" required />
+                        <span asp-validation-for="Test_Name" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Department -->
+                    <div class="col-md-6">
+                        <label asp-for="Department_ID" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <select asp-for="Department_ID" class="form-select" asp-items="Model.DepartmentOptions" required>
+                            <option value="">-- Select Lab Department --</option>
+                        </select>
+                        <span asp-validation-for="Department_ID" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Category -->
+                    <div class="col-md-6">
+                        <label asp-for="Category_ID" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <select asp-for="Category_ID" class="form-select" asp-items="Model.CategoryOptions" required>
+                            <option value="">-- Select Test Category --</option>
+                        </select>
+                        <span asp-validation-for="Category_ID" class="text-danger small"></span>
+                    </div>
+
+                    <!-- SubCategory -->
+                    <div class="col-md-6">
+                        <label asp-for="SubCategory_ID" class="form-label fw-semibold"></label>
+                        <select asp-for="SubCategory_ID" class="form-select" asp-items="Model.SubCategoryOptions">
+                            <option value="">-- None / Select Sub-Category --</option>
+                        </select>
+                        <span asp-validation-for="SubCategory_ID" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Sample Type -->
+                    <div class="col-md-6">
+                        <label asp-for="Sample_Type_ID" class="form-label fw-semibold"></label>
+                        <select asp-for="Sample_Type_ID" class="form-select" asp-items="Model.SampleTypeOptions">
+                            <option value="">-- Select Sample Type --</option>
+                        </select>
+                        <span asp-validation-for="Sample_Type_ID" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Method -->
+                    <div class="col-md-6">
+                        <label asp-for="Method_ID" class="form-label fw-semibold"></label>
+                        <select asp-for="Method_ID" class="form-select" asp-items="Model.MethodOptions">
+                            <option value="">-- Select Test Method --</option>
+                        </select>
+                        <span asp-validation-for="Method_ID" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Unit -->
+                    <div class="col-md-6">
+                        <label asp-for="Unit_ID" class="form-label fw-semibold"></label>
+                        <select asp-for="Unit_ID" class="form-select" asp-items="Model.UnitOptions">
+                            <option value="">-- Select Measurement Unit --</option>
+                        </select>
+                        <span asp-validation-for="Unit_ID" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Reporting Type -->
+                    <div class="col-md-4">
+                        <label asp-for="Reporting_Type" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <select asp-for="Reporting_Type" class="form-select" asp-items="Model.ReportingTypeOptions" required>
+                        </select>
+                        <span asp-validation-for="Reporting_Type" class="text-danger small"></span>
+                    </div>
+
+                    <!-- TAT Hours -->
+                    <div class="col-md-4">
+                        <label asp-for="TAT_Hours" class="form-label fw-semibold"></label>
+                        <input asp-for="TAT_Hours" class="form-control" type="number" min="0" max="720" />
+                        <span asp-validation-for="TAT_Hours" class="text-danger small"></span>
+                    </div>
+
+                    <!-- MRP -->
+                    <div class="col-md-4">
+                        <label asp-for="MRP" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input asp-for="MRP" class="form-control" type="number" step="0.01" min="0" required />
+                        </div>
+                        <span asp-validation-for="MRP" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Toggles Column -->
+                    <div class="col-md-6">
+                        <div class="card bg-light border-0 p-3 h-100">
+                            <div class="form-check form-switch mb-3">
+                                <input asp-for="NABL_Accredited" class="form-check-input" type="checkbox" id="nablToggle" onchange="toggleNablScope()" />
+                                <label class="form-check-label fw-semibold" for="nablToggle">
+                                    NABL Accredited Test
+                                </label>
+                            </div>
+                            <div id="nablScopeContainer" class="mt-2" style="@(Model.NABL_Accredited ? "display: block;" : "display: none;")">
+                                <label asp-for="NABL_Scope_No" class="form-label small fw-semibold text-muted"></label>
+                                <input asp-for="NABL_Scope_No" class="form-control form-control-sm" placeholder="Enter NABL Scope Ref No. (e.g. NABL-LAB-2026)" />
+                                <span asp-validation-for="NABL_Scope_No" class="text-danger small"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card bg-light border-0 p-3 h-100">
+                            <div class="form-check form-switch mb-3">
+                                <input asp-for="Is_Outsourced" class="form-check-input" type="checkbox" id="outsourcedToggle" />
+                                <label class="form-check-label fw-semibold" for="outsourcedToggle">
+                                    Is Outsourced Test
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input asp-for="Status" class="form-check-input" type="checkbox" id="statusToggle" />
+                                <label class="form-check-label fw-semibold" for="statusToggle">
+                                    Active Status
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4" />
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a asp-action="Index" class="btn btn-light px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                        <i class="bi bi-save me-1"></i> Update Investigation Master
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function toggleNablScope() {
+            var nablToggle = document.getElementById('nablToggle');
+            var container = document.getElementById('nablScopeContainer');
+            if (nablToggle && container) {
+                container.style.display = nablToggle.checked ? 'block' : 'none';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', toggleNablScope);
+    </script>
+}

@@ -73,6 +73,7 @@ BEGIN
       AND (@DepartmentId IS NULL OR cat.Department_ID = @DepartmentId)
       AND (@Status IS NULL OR cat.Status = @Status)
       AND (@CompanyId IS NULL OR cat.CompanyId = @CompanyId)
+      AND (dept.DeptType IS NULL OR dept.DeptType = 'Lab' OR dept.DeptType LIKE '%Lab%')
       AND (@Search IS NULL OR LTRIM(RTRIM(@Search)) = '' OR 
            cat.Category_Name LIKE '%' + LTRIM(RTRIM(@Search)) + '%' OR 
            cat.Category_Code LIKE '%' + LTRIM(RTRIM(@Search)) + '%' OR
