@@ -37,6 +37,18 @@ public class CityService(IDbConnectionFactory db) : ICityService
             new { districtId });
     }
 
+    public async Task<IEnumerable<CityMaster>> GetByStateAsync(int stateId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<CityMaster>(@"
+            SELECT c.CityId, c.CityName, c.CityCode 
+            FROM CityMaster c
+            INNER JOIN DistrictMaster d ON c.DistrictId = d.DistrictId
+            WHERE d.StateId = @stateId AND c.IsActive = 1
+            ORDER BY c.CityName",
+            new { stateId });
+    }
+
     public async Task<bool> CodeExistsAsync(string code, int? excludeId = null)
     {
         using var con = db.CreateConnection();

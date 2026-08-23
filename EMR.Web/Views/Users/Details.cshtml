@@ -31,46 +31,58 @@
 
 
 <div class="uf-section mb-3">
-    <div class="uf-section-header"><i class="bi bi-shield-lock-fill me-2"></i>Account Information</div>
+    <div class="uf-section-header"><i class="bi bi-shield-lock-fill me-2"></i>Account & Personal Details</div>
     <div class="uf-section-body">
         <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-person me-1"></i>Username</div>
                     <div class="detail-value">@Model.Username</div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-upc-scan me-1"></i>Employee Code</div>
-                    <div class="detail-value">@Model.EmployeeCode</div>
+                    <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.EmployeeCode) ? "—" : Model.EmployeeCode)</div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-envelope me-1"></i>Email</div>
                     <div class="detail-value">@(Model.Email ?? "—")</div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-layout-text-sidebar me-1"></i>First Name</div>
                     <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.FirstName) ? "—" : Model.FirstName)</div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-layout-text-sidebar me-1"></i>Last Name</div>
                     <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.LastName) ? "—" : Model.LastName)</div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-telephone me-1"></i>Phone Number</div>
                     <div class="detail-value">@(Model.PhoneNumber ?? "—")</div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-calendar-heart me-1"></i>Date of Birth</div>
+                    <div class="detail-value">@(Model.DateOfBirth?.ToString("dd MMM yyyy") ?? "—")</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-calendar-check me-1"></i>Date of Joining</div>
+                    <div class="detail-value">@(Model.DateOfJoining?.ToString("dd MMM yyyy") ?? "—")</div>
+                </div>
+            </div>
+            <div class="col-md-4">
                 <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-toggles me-1"></i>Status & Designations</div>
                     <div class="detail-value d-flex flex-wrap gap-1 align-items-center">
@@ -89,11 +101,81 @@
                                 <i class="bi bi-droplet-fill me-1"></i>Phlebotomist
                             </span>
                         }
+                        @if (Model.IsPathologist)
+                        {
+                            <span class="badge border" style="background:#f3e8ff;color:#6b21a8;border-color:#d8b4fe !important;">
+                                <i class="bi bi-microscope me-1"></i>Pathologist
+                            </span>
+                        }
+                        @if (Model.IsLabTechnician)
+                        {
+                            <span class="badge border" style="background:#ccfbf1;color:#0f766e;border-color:#99f6e4 !important;">
+                                <i class="bi bi-eyedropper me-1"></i>Lab Technician
+                            </span>
+                        }
                         @if (Model.IsLockedOut)
                         {
                             <span class="badge text-bg-danger"><i class="bi bi-lock-fill me-1"></i>Locked</span>
                         }
                     </div>
+                </div>
+            </div>
+            <div class="col-md-12">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-diagram-2 me-1"></i>Assigned Department(s)</div>
+                    <div class="detail-value">
+                        @if (Model.DepartmentNames.Any())
+                        {
+                            <div class="d-flex flex-wrap gap-1">
+                                @foreach (var dept in Model.DepartmentNames)
+                                {
+                                    <span class="badge text-bg-light border text-dark"><i class="bi bi-building-gear text-primary me-1"></i>@dept</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header"><i class="bi bi-geo-alt-fill me-2"></i>Address & Geography</div>
+    <div class="uf-section-body">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-house-door me-1"></i>Address</div>
+                    <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.Address) ? "—" : Model.Address)</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-geo me-1"></i>Pincode</div>
+                    <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.Pincode) ? "—" : Model.Pincode)</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-globe me-1"></i>Country</div>
+                    <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.CountryName) ? "—" : Model.CountryName)</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-map me-1"></i>State</div>
+                    <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.StateName) ? "—" : Model.StateName)</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-buildings me-1"></i>City</div>
+                    <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.CityName) ? "—" : Model.CityName)</div>
                 </div>
             </div>
         </div>

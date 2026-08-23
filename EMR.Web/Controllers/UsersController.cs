@@ -3,6 +3,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using EMR.Web.Services.Geography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +17,10 @@ public class UsersController(
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasherService,
     IAuditLogService auditLogService,
-    IWebHostEnvironment webHostEnvironment) : Controller
+    IWebHostEnvironment webHostEnvironment,
+    ICountryService countryService,
+    IStateService stateService,
+    ICityService cityService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -45,23 +49,57 @@ public class UsersController(
             query = query.Where(x => x.UserBranches.Any(ub => ub.BranchId == branchId.Value && ub.IsActive));
         }
 
+        var deptDict = await dbContext.DepartmentMasters
+            .ToDictionaryAsync(d => d.DeptId, d => d.DeptName);
 
-        var users = await query
-            .Select(x => new UserListItemViewModel
+        var rawUsers = await query
+            .Select(x => new
             {
-                Id = x.Id,
-                Username = x.Username,
+                x.Id,
+                x.Username,
                 EmployeeCode = branchId.HasValue
                     ? (x.UserBranches.Where(ub => ub.IsActive && ub.BranchId == branchId.Value).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty)
                     : (x.UserBranches.Where(ub => ub.IsActive).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty),
                 FullName = x.FullName ?? string.Concat(x.FirstName, " ", x.LastName),
                 Email = x.Email ?? string.Empty,
-                IsActive = x.IsActive,
-                IsNursingStaff = x.IsNursingStaff,
-                IsPhlebotomist = x.IsPhlebotomist,
+                x.IsActive,
+                x.IsNursingStaff,
+                x.IsPhlebotomist,
+                x.IsPathologist,
+                x.IsLabTechnician,
+                x.DepartmentIds,
                 Branches = string.Join(", ", x.UserBranches.Where(b => b.IsActive).Select(b => b.Branch.BranchName))
             })
             .ToListAsync();
+
+        var users = rawUsers.Select(x =>
+        {
+            var deptNames = string.Empty;
+            if (!string.IsNullOrWhiteSpace(x.DepartmentIds))
+            {
+                var ids = x.DepartmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => int.TryParse(s.Trim(), out var did) ? did : 0)
+                    .Where(did => did > 0 && deptDict.ContainsKey(did))
+                    .Select(did => deptDict[did]);
+                deptNames = string.Join(", ", ids);
+            }
+
+            return new UserListItemViewModel
+            {
+                Id = x.Id,
+                Username = x.Username,
+                EmployeeCode = x.EmployeeCode,
+                FullName = x.FullName,
+                Email = x.Email,
+                IsActive = x.IsActive,
+                IsNursingStaff = x.IsNursingStaff,
+                IsPhlebotomist = x.IsPhlebotomist,
+                IsPathologist = x.IsPathologist,
+                IsLabTechnician = x.IsLabTechnician,
+                Branches = x.Branches,
+                DepartmentNames = deptNames
+            };
+        }).ToList();
 
         ViewBag.BranchName = branchId.HasValue
             ? (await dbContext.BranchMasters.FindAsync(branchId.Value))?.BranchName
@@ -78,6 +116,9 @@ public class UsersController(
                 .ThenInclude(x => x.Branch)
             .Include(x => x.UserRoles.Where(r => r.IsActive))
                 .ThenInclude(x => x.Role)
+            .Include(x => x.Country)
+            .Include(x => x.State)
+            .Include(x => x.City)
             .FirstOrDefaultAsync(x => x.Id == id);
 
         if (user is null) return NotFound();
@@ -98,6 +139,19 @@ public class UsersController(
                 Roles = allUserRoles
             }).ToList();
 
+        var deptDict = await dbContext.DepartmentMasters
+            .ToDictionaryAsync(d => d.DeptId, d => d.DeptName);
+
+        var departmentNames = new List<string>();
+        if (!string.IsNullOrWhiteSpace(user.DepartmentIds))
+        {
+            departmentNames = user.DepartmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s.Trim(), out var did) ? did : 0)
+                .Where(did => did > 0 && deptDict.ContainsKey(did))
+                .Select(did => deptDict[did])
+                .ToList();
+        }
+
         var model = new UserDetailsViewModel
         {
             Id = user.Id,
@@ -107,15 +161,25 @@ public class UsersController(
             FirstName = user.FirstName ?? string.Empty,
             LastName = user.LastName ?? string.Empty,
             PhoneNumber = user.PhoneNumber,
+            DateOfJoining = user.DateOfJoining,
+            DateOfBirth = user.DateOfBirth,
+            Address = user.Address,
+            Pincode = user.Pincode,
+            CountryName = user.Country?.CountryName,
+            StateName = user.State?.StateName,
+            CityName = user.City?.CityName,
             IsActive = user.IsActive,
             IsNursingStaff = user.IsNursingStaff,
             IsPhlebotomist = user.IsPhlebotomist,
+            IsPathologist = user.IsPathologist,
+            IsLabTechnician = user.IsLabTechnician,
             IsLockedOut = user.IsLockedOut,
             LastLoginDate = user.LastLoginDate,
             CreatedDate = user.CreatedDate,
             LastModifiedDate = user.LastModifiedDate,
             ProfilePicturePath = user.ProfilePicturePath,
             Branches = user.UserBranches.Select(b => b.Branch.BranchName).ToList(),
+            DepartmentNames = departmentNames,
             BranchRoleMappings = branchRoleMappings
         };
 
@@ -174,6 +238,10 @@ public class UsersController(
         var profilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, null);
 
         var (hash, salt) = passwordHasherService.HashPassword(model.Password!);
+        var deptIds = (model.SelectedDepartmentIds != null && model.SelectedDepartmentIds.Any())
+            ? string.Join(",", model.SelectedDepartmentIds.Distinct().OrderBy(id => id))
+            : null;
+
         var user = new User
         {
             CompanyId = User.GetCompanyId(),
@@ -186,10 +254,20 @@ public class UsersController(
             FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim()),
             PhoneNumber = model.PhoneNumber,
             Phone = model.PhoneNumber,
+            DateOfJoining = model.DateOfJoining,
+            DateOfBirth = model.DateOfBirth,
+            Address = model.Address?.Trim(),
+            Pincode = model.Pincode?.Trim(),
+            CountryId = model.CountryId > 0 ? model.CountryId : null,
+            StateId = model.StateId > 0 ? model.StateId : null,
+            CityId = model.CityId > 0 ? model.CityId : null,
             ProfilePicturePath = profilePicturePath,
+            DepartmentIds = deptIds,
             IsActive = model.IsActive,
             IsNursingStaff = model.IsNursingStaff,
             IsPhlebotomist = model.IsPhlebotomist,
+            IsPathologist = model.IsPathologist,
+            IsLabTechnician = model.IsLabTechnician,
             PasswordLastChanged = DateTime.Now,
             CreatedDate = DateTime.Now,
             LastModifiedDate = DateTime.Now,
@@ -223,6 +301,15 @@ public class UsersController(
             return NotFound();
         }
 
+        var selectedDeptIds = new List<int>();
+        if (!string.IsNullOrWhiteSpace(user.DepartmentIds))
+        {
+            selectedDeptIds = user.DepartmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s.Trim(), out var did) ? did : 0)
+                .Where(did => did > 0)
+                .ToList();
+        }
+
         var model = new UserFormViewModel
         {
             Id = user.Id,
@@ -233,11 +320,21 @@ public class UsersController(
             PhoneNumber = user.PhoneNumber,
             EmployeeCode = user.UserBranches.Where(x => x.IsActive).Select(x => x.EmployeeCode).FirstOrDefault() ?? string.Empty,
             ExistingProfilePicturePath = user.ProfilePicturePath,
+            DateOfJoining = user.DateOfJoining,
+            DateOfBirth = user.DateOfBirth,
+            Address = user.Address,
+            Pincode = user.Pincode,
+            CountryId = user.CountryId,
+            StateId = user.StateId,
+            CityId = user.CityId,
             IsActive = user.IsActive,
             IsNursingStaff = user.IsNursingStaff,
             IsPhlebotomist = user.IsPhlebotomist,
+            IsPathologist = user.IsPathologist,
+            IsLabTechnician = user.IsLabTechnician,
             SelectedBranchIds = user.UserBranches.Where(x => x.IsActive).Select(x => x.BranchId).ToList(),
-            SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList()
+            SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList(),
+            SelectedDepartmentIds = selectedDeptIds
         };
 
         await PopulateSelections(model);
@@ -289,9 +386,21 @@ public class UsersController(
         user.FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim());
         user.PhoneNumber = model.PhoneNumber;
         user.Phone = model.PhoneNumber;
+        user.DateOfJoining = model.DateOfJoining;
+        user.DateOfBirth = model.DateOfBirth;
+        user.Address = model.Address?.Trim();
+        user.Pincode = model.Pincode?.Trim();
+        user.CountryId = model.CountryId > 0 ? model.CountryId : null;
+        user.StateId = model.StateId > 0 ? model.StateId : null;
+        user.CityId = model.CityId > 0 ? model.CityId : null;
+        user.DepartmentIds = (model.SelectedDepartmentIds != null && model.SelectedDepartmentIds.Any())
+            ? string.Join(",", model.SelectedDepartmentIds.Distinct().OrderBy(id => id))
+            : null;
         user.IsActive = model.IsActive;
         user.IsNursingStaff = model.IsNursingStaff;
         user.IsPhlebotomist = model.IsPhlebotomist;
+        user.IsPathologist = model.IsPathologist;
+        user.IsLabTechnician = model.IsLabTechnician;
         user.LastModifiedDate = DateTime.Now;
 
         user.ProfilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, user.ProfilePicturePath);
@@ -336,6 +445,21 @@ public class UsersController(
         return RedirectToAction(nameof(Index));
     }
 
+    // ── AJAX Cascade Endpoints for Dependable Dropdowns ───────────
+    [HttpGet]
+    public async Task<IActionResult> GetStatesByCountry(int countryId)
+    {
+        var states = await stateService.GetByCountryAsync(countryId);
+        return Json(states.Where(s => s.IsActive).OrderBy(s => s.StateName).Select(s => new { s.StateId, s.StateName }));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCitiesByState(int stateId)
+    {
+        var cities = await cityService.GetByStateAsync(stateId);
+        return Json(cities.Where(c => c.IsActive).OrderBy(c => c.CityName).Select(c => new { c.CityId, c.CityName }));
+    }
+
     private async Task PopulateSelections(UserFormViewModel model)
     {
         var branches = await dbContext.BranchMasters
@@ -352,6 +476,20 @@ public class UsersController(
                 x.BranchId.ToString()))
             .ToList();
 
+        var departments = await dbContext.DepartmentMasters
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.DeptName)
+            .Select(x => new { x.DeptId, x.DeptCode, x.DeptName, x.DeptType })
+            .ToListAsync();
+
+        model.DepartmentOptions = departments
+            .Select(x => new SelectListItem(
+                string.IsNullOrWhiteSpace(x.DeptCode)
+                    ? x.DeptName
+                    : $"{x.DeptName} ({x.DeptCode})",
+                x.DeptId.ToString()))
+            .ToList();
+
         var allRoles = await dbContext.Roles
             .OrderBy(x => x.Name)
             .Select(x => new { x.Id, x.Name })
@@ -365,6 +503,32 @@ public class UsersController(
             BranchName = b.BranchName,
             Roles = roleItems
         }).ToList();
+
+        var countries = await countryService.GetActiveAsync();
+        model.CountryOptions = countries
+            .OrderBy(c => c.CountryName)
+            .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString(), model.CountryId.HasValue && c.CountryId == model.CountryId.Value))
+            .ToList();
+
+        if (model.CountryId.HasValue && model.CountryId.Value > 0)
+        {
+            var states = await stateService.GetByCountryAsync(model.CountryId.Value);
+            model.StateOptions = states
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.StateName)
+                .Select(s => new SelectListItem(s.StateName, s.StateId.ToString(), model.StateId.HasValue && s.StateId == model.StateId.Value))
+                .ToList();
+        }
+
+        if (model.StateId.HasValue && model.StateId.Value > 0)
+        {
+            var cities = await cityService.GetByStateAsync(model.StateId.Value);
+            model.CityOptions = cities
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.CityName)
+                .Select(c => new SelectListItem(c.CityName, c.CityId.ToString(), model.CityId.HasValue && c.CityId == model.CityId.Value))
+                .ToList();
+        }
     }
 
     private async Task SaveMappings(UserFormViewModel model, int userId, string? normalizedEmployeeCode)

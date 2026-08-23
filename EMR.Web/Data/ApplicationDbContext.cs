@@ -16,6 +16,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<HospitalSettings> HospitalSettings => Set<HospitalSettings>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+    public DbSet<CountryMaster> CountryMasters => Set<CountryMaster>();
+    public DbSet<StateMaster> StateMasters => Set<StateMaster>();
+    public DbSet<DistrictMaster> DistrictMasters => Set<DistrictMaster>();
+    public DbSet<CityMaster> CityMasters => Set<CityMaster>();
+    public DbSet<AreaMaster> AreaMasters => Set<AreaMaster>();
     public DbSet<BuildingMaster> BuildingMasters => Set<BuildingMaster>();
     public DbSet<FloorMaster> FloorMasters => Set<FloorMaster>();
     public DbSet<DepartmentMaster> DepartmentMasters => Set<DepartmentMaster>();
@@ -126,6 +131,64 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.Users)
                 .HasForeignKey(x => x.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Country)
+                .WithMany()
+                .HasForeignKey(x => x.CountryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.State)
+                .WithMany()
+                .HasForeignKey(x => x.StateId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.City)
+                .WithMany()
+                .HasForeignKey(x => x.CityId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CountryMaster>(entity =>
+        {
+            entity.ToTable("CountryMaster");
+            entity.HasKey(x => x.CountryId);
+        });
+
+        modelBuilder.Entity<StateMaster>(entity =>
+        {
+            entity.ToTable("StateMaster");
+            entity.HasKey(x => x.StateId);
+            entity.HasOne(x => x.Country)
+                .WithMany(x => x.States)
+                .HasForeignKey(x => x.CountryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DistrictMaster>(entity =>
+        {
+            entity.ToTable("DistrictMaster");
+            entity.HasKey(x => x.DistrictId);
+            entity.HasOne(x => x.State)
+                .WithMany(x => x.Districts)
+                .HasForeignKey(x => x.StateId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CityMaster>(entity =>
+        {
+            entity.ToTable("CityMaster");
+            entity.HasKey(x => x.CityId);
+            entity.HasOne(x => x.District)
+                .WithMany(x => x.Cities)
+                .HasForeignKey(x => x.DistrictId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AreaMaster>(entity =>
+        {
+            entity.ToTable("AreaMaster");
+            entity.HasKey(x => x.AreaId);
+            entity.HasOne(x => x.City)
+                .WithMany(x => x.Areas)
+                .HasForeignKey(x => x.CityId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

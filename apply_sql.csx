@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 using System.Text.RegularExpressions;
 
 var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
-var script = File.ReadAllText("SQLScripts/94_lab_category_master.sql");
+var script = File.ReadAllText("SQLScripts/100_users_department_and_lab_toggles.sql");
 var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
 using var conn = new SqlConnection(cs);

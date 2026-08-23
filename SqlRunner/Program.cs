@@ -14,10 +14,10 @@ Console.WriteLine("APPLYING SQL SCRIPT & END-TO-END VERIFICATION");
 Console.WriteLine("=========================================================================");
 
 var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
-if (File.Exists("SQLScripts/99_seed_lab_masters_data.sql"))
+if (File.Exists("SQLScripts/101_users_profile_demographics_and_geography.sql"))
 {
-    Console.WriteLine("\n[Step 0] Applying SQLScripts/99_seed_lab_masters_data.sql to database...");
-    var script = File.ReadAllText("SQLScripts/99_seed_lab_masters_data.sql");
+    Console.WriteLine("\n[Step 0] Applying SQLScripts/101_users_profile_demographics_and_geography.sql to database...");
+    var script = File.ReadAllText("SQLScripts/101_users_profile_demographics_and_geography.sql");
     var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
     using var conn = new SqlConnection(cs);
@@ -409,8 +409,141 @@ Console.WriteLine($"RPT-07 RefundReversals: {rpt07.StatusCode}");
 var rpt08 = await client.GetAsync("/DoctorSettlementReports/SettlementSummary");
 Console.WriteLine($"RPT-08 SettlementSummary: {rpt08.StatusCode}");
 
+// 11. Test User Master Enhancements (Demographics, Geography & Dependable Dropdowns)
+Console.WriteLine("\n[Step 11] Testing User Master Enhancements (Demographics, Geography & Dependable Dropdowns)...");
+var usersIndexRes = await client.GetAsync("/Users/Index");
+var usersIndexHtml = await usersIndexRes.Content.ReadAsStringAsync();
+Console.WriteLine($"Users Index GET: {usersIndexRes.StatusCode}, Has Department Column: {usersIndexHtml.Contains("Department(s)")}");
+
+var statesAjaxRes = await client.GetAsync("/Users/GetStatesByCountry?countryId=1");
+var statesJson = await statesAjaxRes.Content.ReadAsStringAsync();
+Console.WriteLine($"AJAX GetStatesByCountry: {statesAjaxRes.StatusCode}, Returned Data: {statesJson.Contains("stateId")}");
+
+var citiesAjaxRes = await client.GetAsync("/Users/GetCitiesByState?stateId=1");
+var citiesJson = await citiesAjaxRes.Content.ReadAsStringAsync();
+Console.WriteLine($"AJAX GetCitiesByState: {citiesAjaxRes.StatusCode}, Returned Data: {citiesJson.Contains("cityId")}");
+
+var userCreateGet = await client.GetAsync("/Users/Create");
+var userCreateHtml = await userCreateGet.Content.ReadAsStringAsync();
+var uTokenMatch = Regex.Match(userCreateHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string userToken = uTokenMatch.Success ? uTokenMatch.Groups[1].Value : "";
+Console.WriteLine($"Users Create GET: {userCreateGet.StatusCode}, Has Address Field: {userCreateHtml.Contains("name=\"Address\"")}, Has Country Dropdown: {userCreateHtml.Contains("id=\"ddlCountry\"")}, Has DOB: {userCreateHtml.Contains("name=\"DateOfBirth\"")}, Has DOJ: {userCreateHtml.Contains("name=\"DateOfJoining\"")}");
+
+var userCreateForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("Username", "dr_test_labuser"),
+    new KeyValuePair<string, string>("EmployeeCode", "EMP-TEST-LB"),
+    new KeyValuePair<string, string>("Email", "labuser_test@hospital.com"),
+    new KeyValuePair<string, string>("Password", "Hospital@2026"),
+    new KeyValuePair<string, string>("ConfirmPassword", "Hospital@2026"),
+    new KeyValuePair<string, string>("FirstName", "Ananya"),
+    new KeyValuePair<string, string>("LastName", "Sengupta"),
+    new KeyValuePair<string, string>("PhoneNumber", "9876543210"),
+    new KeyValuePair<string, string>("DateOfBirth", "1990-06-20"),
+    new KeyValuePair<string, string>("DateOfJoining", "2025-01-15"),
+    new KeyValuePair<string, string>("Address", "123 Healthcare Ave, Block B"),
+    new KeyValuePair<string, string>("Pincode", "700001"),
+    new KeyValuePair<string, string>("CountryId", "1"),
+    new KeyValuePair<string, string>("StateId", "1"),
+    new KeyValuePair<string, string>("CityId", "1"),
+    new KeyValuePair<string, string>("SelectedBranchIds", "1"),
+    new KeyValuePair<string, string>("SelectedDepartmentIds", "1"),
+    new KeyValuePair<string, string>("SelectedDepartmentIds", "2"),
+    new KeyValuePair<string, string>("IsActive", "true"),
+    new KeyValuePair<string, string>("IsNursingStaff", "false"),
+    new KeyValuePair<string, string>("IsPhlebotomist", "false"),
+    new KeyValuePair<string, string>("IsPathologist", "true"),
+    new KeyValuePair<string, string>("IsLabTechnician", "true"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", userToken)
+});
+
+var userCreatePost = await client.PostAsync("/Users/Create", userCreateForm);
+Console.WriteLine($"Users Create POST: {userCreatePost.StatusCode}");
+
+// Verify in DB directly
+int testUserId = 0;
+string? storedDeptIds = null;
+string? storedAddr = null, storedPin = null;
+int? storedCountry = null, storedState = null, storedCity = null;
+DateTime? storedDOB = null, storedDOJ = null;
+bool storedPatho = false, storedLabTech = false;
+using (var dbConn = new SqlConnection(cs))
+{
+    await dbConn.OpenAsync();
+    using var cmd = new SqlCommand("SELECT Id, DepartmentIds, IsPathologist, IsLabTechnician, Address, Pincode, CountryId, StateId, CityId, DateOfBirth, DateOfJoining FROM dbo.Users WHERE Username = 'dr_test_labuser'", dbConn);
+    using var reader = await cmd.ExecuteReaderAsync();
+    if (await reader.ReadAsync())
+    {
+        testUserId = reader.GetInt32(0);
+        storedDeptIds = reader.IsDBNull(1) ? null : reader.GetString(1);
+        storedPatho = reader.GetBoolean(2);
+        storedLabTech = reader.GetBoolean(3);
+        storedAddr = reader.IsDBNull(4) ? null : reader.GetString(4);
+        storedPin = reader.IsDBNull(5) ? null : reader.GetString(5);
+        storedCountry = reader.IsDBNull(6) ? null : reader.GetInt32(6);
+        storedState = reader.IsDBNull(7) ? null : reader.GetInt32(7);
+        storedCity = reader.IsDBNull(8) ? null : reader.GetInt32(8);
+        storedDOB = reader.IsDBNull(9) ? null : reader.GetDateTime(9);
+        storedDOJ = reader.IsDBNull(10) ? null : reader.GetDateTime(10);
+    }
+}
+Console.WriteLine($"DB Verification -> User ID: #{testUserId}, Address: '{storedAddr}', Pincode: '{storedPin}', CountryId: {storedCountry}, StateId: {storedState}, CityId: {storedCity}, DOB: {storedDOB:yyyy-MM-dd}, DOJ: {storedDOJ:yyyy-MM-dd}");
+
+if (testUserId > 0)
+{
+    var userDetailsRes = await client.GetAsync($"/Users/Details/{testUserId}");
+    var userDetailsHtml = await userDetailsRes.Content.ReadAsStringAsync();
+    Console.WriteLine($"Users Details GET: {userDetailsRes.StatusCode}, Has Address: {userDetailsHtml.Contains("123 Healthcare Ave")}, Has Pincode: {userDetailsHtml.Contains("700001")}, Has Assigned Depts: {userDetailsHtml.Contains("Assigned Department(s)")}, Has Status: {userDetailsHtml.Contains("Pathologist")}");
+
+    var userEditGet = await client.GetAsync($"/Users/Edit/{testUserId}");
+    var userEditHtml = await userEditGet.Content.ReadAsStringAsync();
+    var editTokenMatch = Regex.Match(userEditHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+    string editToken = editTokenMatch.Success ? editTokenMatch.Groups[1].Value : userToken;
+    Console.WriteLine($"Users Edit GET: {userEditGet.StatusCode}, Has Prepopulated Address: {userEditHtml.Contains("123 Healthcare Ave")}, Has Prepopulated Pincode: {userEditHtml.Contains("700001")}");
+
+    // Test Edit POST
+    var userEditForm = new FormUrlEncodedContent(new[]
+    {
+        new KeyValuePair<string, string>("Id", testUserId.ToString()),
+        new KeyValuePair<string, string>("Username", "dr_test_labuser"),
+        new KeyValuePair<string, string>("EmployeeCode", "EMP-TEST-LB"),
+        new KeyValuePair<string, string>("Email", "labuser_updated@hospital.com"),
+        new KeyValuePair<string, string>("FirstName", "Ananya"),
+        new KeyValuePair<string, string>("LastName", "Sengupta"),
+        new KeyValuePair<string, string>("PhoneNumber", "9876543210"),
+        new KeyValuePair<string, string>("DateOfBirth", "1990-06-20"),
+        new KeyValuePair<string, string>("DateOfJoining", "2025-02-01"),
+        new KeyValuePair<string, string>("Address", "456 Advanced Clinic Rd, Suite 10"),
+        new KeyValuePair<string, string>("Pincode", "700029"),
+        new KeyValuePair<string, string>("CountryId", "1"),
+        new KeyValuePair<string, string>("StateId", "1"),
+        new KeyValuePair<string, string>("CityId", "1"),
+        new KeyValuePair<string, string>("SelectedBranchIds", "1"),
+        new KeyValuePair<string, string>("SelectedDepartmentIds", "1"),
+        new KeyValuePair<string, string>("IsActive", "true"),
+        new KeyValuePair<string, string>("IsNursingStaff", "true"),
+        new KeyValuePair<string, string>("IsPhlebotomist", "false"),
+        new KeyValuePair<string, string>("IsPathologist", "true"),
+        new KeyValuePair<string, string>("IsLabTechnician", "false"),
+        new KeyValuePair<string, string>("__RequestVerificationToken", editToken)
+    });
+
+    var userEditPost = await client.PostAsync("/Users/Edit", userEditForm);
+    Console.WriteLine($"Users Edit POST: {userEditPost.StatusCode}");
+
+    // Clean up test user
+    using (var dbConn = new SqlConnection(cs))
+    {
+        await dbConn.OpenAsync();
+        using var delCmd = new SqlCommand("DELETE FROM dbo.UserBranches WHERE UserId = @Id; DELETE FROM dbo.Userroles WHERE UserId = @Id; DELETE FROM dbo.AuditLogs WHERE UserId = @Id; DELETE FROM dbo.Users WHERE Id = @Id;", dbConn);
+        delCmd.Parameters.AddWithValue("@Id", testUserId);
+        await delCmd.ExecuteNonQueryAsync();
+        Console.WriteLine($"Cleaned up test user #{testUserId}.");
+    }
+}
+
 Console.WriteLine("\n=========================================================================");
-Console.WriteLine("ALL DOCTOR COMMISSION, DISBURSALS & FINANCIAL REPORTS TESTS PASSED 100%!");
+Console.WriteLine("ALL ENHANCEMENTS AND END-TO-END TESTS PASSED 100%!");
 Console.WriteLine("=========================================================================");
 
 

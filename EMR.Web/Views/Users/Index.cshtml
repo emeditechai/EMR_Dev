@@ -59,6 +59,7 @@
                 <th>Employee Code</th>
                 <th>Full Name</th>
                 <th>Email</th>
+                <th>Department(s)</th>
                 <th>Branches</th>
                 <th>Status</th>
                 <th class="text-end">Actions</th>
@@ -72,7 +73,7 @@
                     <td><span class="badge text-bg-light border text-dark">@item.EmployeeCode</span></td>
                     <td>
                         <div class="fw-semibold">@item.FullName</div>
-                        <div class="d-flex gap-1 mt-1">
+                        <div class="d-flex flex-wrap gap-1 mt-1">
                             @if (item.IsNursingStaff)
                             {
                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size:0.72rem;">
@@ -85,9 +86,31 @@
                                     <i class="bi bi-droplet-fill me-1"></i>Phlebotomist
                                 </span>
                             }
+                            @if (item.IsPathologist)
+                            {
+                                <span class="badge border" style="font-size:0.72rem;background:#f3e8ff;color:#6b21a8;border-color:#d8b4fe !important;">
+                                    <i class="bi bi-microscope me-1"></i>Pathologist
+                                </span>
+                            }
+                            @if (item.IsLabTechnician)
+                            {
+                                <span class="badge border" style="font-size:0.72rem;background:#ccfbf1;color:#0f766e;border-color:#99f6e4 !important;">
+                                    <i class="bi bi-eyedropper me-1"></i>Lab Tech
+                                </span>
+                            }
                         </div>
                     </td>
                     <td>@item.Email</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(item.DepartmentNames))
+                        {
+                            <span class="text-dark small"><i class="bi bi-diagram-2 text-primary me-1"></i>@item.DepartmentNames</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">—</span>
+                        }
+                    </td>
                     <td>@item.Branches</td>
                     <td>
                         <span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">
@@ -102,7 +125,7 @@
             }
             @if (!Model.Any())
             {
-                <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-people fs-3 d-block mb-2"></i>No users found.</td></tr>
+                <tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-people fs-3 d-block mb-2"></i>No users found.</td></tr>
             }
         </tbody>
     </table>

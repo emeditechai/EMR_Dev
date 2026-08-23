@@ -38,7 +38,7 @@
 
 <div class="uf-section mb-3">
     <div class="uf-section-header">
-        <i class="bi bi-person-lines-fill me-2"></i>Personal Information
+        <i class="bi bi-person-lines-fill me-2"></i>Personal & Professional Details
     </div>
     <div class="uf-section-body">
         <div class="row g-3">
@@ -58,7 +58,7 @@
                 </div>
                 <span asp-validation-for="LastName" class="text-danger small"></span>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label fw-semibold">Phone Number</label>
                 <div class="input-icon-wrap">
                     <i class="bi bi-telephone input-icon"></i>
@@ -66,9 +66,25 @@
                 </div>
                 <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Date of Birth</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar-heart input-icon"></i>
+                    <input asp-for="DateOfBirth" type="date" class="form-control ps-icon" />
+                </div>
+                <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Date of Joining</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-calendar-check input-icon"></i>
+                    <input asp-for="DateOfJoining" type="date" class="form-control ps-icon" />
+                </div>
+                <span asp-validation-for="DateOfJoining" class="text-danger small"></span>
+            </div>
+            <div class="col-md-12">
                 <label class="form-label fw-semibold">Profile Picture</label>
-                <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center gap-3 p-2 border rounded-3 bg-light">
                     <div>
                         <img id="profilePreview"
                              src="@(string.IsNullOrWhiteSpace(Model.ExistingProfilePicturePath) ? "/Images/default-avatar.svg" : Model.ExistingProfilePicturePath)"
@@ -85,7 +101,7 @@
                 </div>
             </div>
             <div class="col-md-6">
-                <label class="form-label fw-semibold">Branch Access</label>
+                <label class="form-label fw-semibold">Branch Access <span class="text-danger">*</span></label>
                 <div class="cms-wrap" id="branchWrap">
                     <div class="cms-trigger" id="branchTrigger" onclick="toggleCms('branchWrap')">
                         <span id="branchLabel">Select branches...</span>
@@ -105,6 +121,89 @@
                 </div>
                 <small class="text-muted">Select one or more branches from the dropdown</small>
                 <div><span asp-validation-for="SelectedBranchIds" class="text-danger small"></span></div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Department Access</label>
+                <div class="cms-wrap" id="deptWrap">
+                    <div class="cms-trigger" id="deptTrigger" onclick="toggleCms('deptWrap')">
+                        <span id="deptLabel">Select departments...</span>
+                        <i class="bi bi-chevron-down cms-arrow"></i>
+                    </div>
+                    <div class="cms-dropdown" id="deptDropdown">
+                        @foreach (var dept in Model.DepartmentOptions)
+                        {
+                            <label class="cms-option">
+                                <input type="checkbox" name="SelectedDepartmentIds" value="@dept.Value"
+                                    @(Model.SelectedDepartmentIds.Contains(int.Parse(dept.Value)) ? "checked" : "")
+                                    onchange="updateDeptLabel()">
+                                <span>@dept.Text</span>
+                            </label>
+                        }
+                        @if (!Model.DepartmentOptions.Any())
+                        {
+                            <div class="text-muted small px-3 py-2">No active departments available.</div>
+                        }
+                    </div>
+                </div>
+                <small class="text-muted">Select one or more hospital departments</small>
+                <div><span asp-validation-for="SelectedDepartmentIds" class="text-danger small"></span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="uf-section mb-3">
+    <div class="uf-section-header">
+        <i class="bi bi-geo-alt-fill me-2"></i>Address & Geography Details
+    </div>
+    <div class="uf-section-body">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <label class="form-label fw-semibold">Address</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-house-door input-icon"></i>
+                    <input asp-for="Address" class="form-control ps-icon" placeholder="Enter residential / residential address" />
+                </div>
+                <span asp-validation-for="Address" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Pincode</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-geo input-icon"></i>
+                    <input asp-for="Pincode" class="form-control ps-icon" placeholder="e.g. 700001" maxlength="20" />
+                </div>
+                <span asp-validation-for="Pincode" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Country</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-globe input-icon"></i>
+                    <select asp-for="CountryId" id="ddlCountry" class="form-select ps-icon" asp-items="Model.CountryOptions">
+                        <option value="">-- Select Country --</option>
+                    </select>
+                </div>
+                <span asp-validation-for="CountryId" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">State</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-map input-icon"></i>
+                    <select asp-for="StateId" id="ddlState" class="form-select ps-icon" asp-items="Model.StateOptions">
+                        <option value="">-- Select State --</option>
+                    </select>
+                </div>
+                <span asp-validation-for="StateId" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">City</label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-buildings input-icon"></i>
+                    <select asp-for="CityId" id="ddlCity" class="form-select ps-icon" asp-items="Model.CityOptions">
+                        <option value="">-- Select City --</option>
+                    </select>
+                </div>
+                <span asp-validation-for="CityId" class="text-danger small"></span>
             </div>
         </div>
     </div>
@@ -200,8 +299,8 @@
     </div>
     <div class="uf-section-body">
         <div class="row g-3">
-            <div class="col-md-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light">
+            <div class="col-md-6 col-lg-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
                     <div class="form-check form-switch mb-0">
                         <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
                     </div>
@@ -211,8 +310,8 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light">
+            <div class="col-md-6 col-lg-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
                     <div class="form-check form-switch mb-0">
                         <input asp-for="IsNursingStaff" class="form-check-input uf-big-toggle" id="isNursingStaffToggle" role="switch">
                     </div>
@@ -222,14 +321,36 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light">
+            <div class="col-md-6 col-lg-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
                     <div class="form-check form-switch mb-0">
                         <input asp-for="IsPhlebotomist" class="form-check-input uf-big-toggle" id="isPhlebotomistToggle" role="switch">
                     </div>
                     <div>
                         <div class="fw-semibold text-danger"><i class="bi bi-droplet-fill me-1"></i>Is Phlebotomist</div>
                         <div class="text-muted small">Designate as lab sample collection staff</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
+                    <div class="form-check form-switch mb-0">
+                        <input asp-for="IsPathologist" class="form-check-input uf-big-toggle" id="isPathologistToggle" role="switch">
+                    </div>
+                    <div>
+                        <div class="fw-semibold" style="color:#6f42c1;"><i class="bi bi-microscope me-1"></i>Is Pathologist</div>
+                        <div class="text-muted small">Designate as diagnostic pathologist</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
+                    <div class="form-check form-switch mb-0">
+                        <input asp-for="IsLabTechnician" class="form-check-input uf-big-toggle" id="isLabTechnicianToggle" role="switch">
+                    </div>
+                    <div>
+                        <div class="fw-semibold" style="color:#0d9488;"><i class="bi bi-eyedropper me-1"></i>Is Lab Technician</div>
+                        <div class="text-muted small">Designate as clinical lab technician</div>
                     </div>
                 </div>
             </div>
@@ -282,6 +403,19 @@ function updateBranchLabel() {
     }
 }
 
+function updateDeptLabel() {
+    const checked = [...document.querySelectorAll('input[name="SelectedDepartmentIds"]:checked')];
+    const lbl = document.getElementById('deptLabel');
+    if (!lbl) return;
+    if (checked.length === 0) {
+        lbl.textContent = 'Select departments...';
+    } else if (checked.length <= 2) {
+        lbl.textContent = checked.map(cb => cb.nextElementSibling.textContent.trim()).join(', ');
+    } else {
+        lbl.textContent = checked.length + ' department(s) selected';
+    }
+}
+
 function updateRoleLabel() {
     const checked = [...document.querySelectorAll('input[name="SelectedRoleIds"]:checked')];
     const lbl = document.getElementById('roleLabel');
@@ -309,10 +443,91 @@ function previewProfilePicture(input) {
     reader.readAsDataURL(input.files[0]);
 }
 
+// ── Dependable Cascading Geography (Country -> State -> City) ──
+const ddlCountry = document.getElementById('ddlCountry');
+const ddlState = document.getElementById('ddlState');
+const ddlCity = document.getElementById('ddlCity');
+
+if (ddlCountry) {
+    ddlCountry.addEventListener('change', async function () {
+        const countryId = this.value;
+        if (ddlState) ddlState.innerHTML = '<option value="">-- Select State --</option>';
+        if (ddlCity) ddlCity.innerHTML = '<option value="">-- Select City --</option>';
+        
+        if (!countryId) return;
+
+        if (ddlState) {
+            ddlState.disabled = true;
+            ddlState.innerHTML = '<option value="">Loading states...</option>';
+        }
+
+        try {
+            const resp = await fetch(`/Users/GetStatesByCountry?countryId=${encodeURIComponent(countryId)}`);
+            if (resp.ok) {
+                const states = await resp.json();
+                if (ddlState) {
+                    ddlState.innerHTML = '<option value="">-- Select State --</option>';
+                    states.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.stateId;
+                        opt.textContent = s.stateName;
+                        ddlState.appendChild(opt);
+                    });
+                }
+            } else if (ddlState) {
+                ddlState.innerHTML = '<option value="">-- Select State --</option>';
+            }
+        } catch (e) {
+            console.error('Error fetching states:', e);
+            if (ddlState) ddlState.innerHTML = '<option value="">-- Select State --</option>';
+        } finally {
+            if (ddlState) ddlState.disabled = false;
+        }
+    });
+}
+
+if (ddlState) {
+    ddlState.addEventListener('change', async function () {
+        const stateId = this.value;
+        if (ddlCity) ddlCity.innerHTML = '<option value="">-- Select City --</option>';
+        
+        if (!stateId) return;
+
+        if (ddlCity) {
+            ddlCity.disabled = true;
+            ddlCity.innerHTML = '<option value="">Loading cities...</option>';
+        }
+
+        try {
+            const resp = await fetch(`/Users/GetCitiesByState?stateId=${encodeURIComponent(stateId)}`);
+            if (resp.ok) {
+                const cities = await resp.json();
+                if (ddlCity) {
+                    ddlCity.innerHTML = '<option value="">-- Select City --</option>';
+                    cities.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.cityId;
+                        opt.textContent = c.cityName;
+                        ddlCity.appendChild(opt);
+                    });
+                }
+            } else if (ddlCity) {
+                ddlCity.innerHTML = '<option value="">-- Select City --</option>';
+            }
+        } catch (e) {
+            console.error('Error fetching cities:', e);
+            if (ddlCity) ddlCity.innerHTML = '<option value="">-- Select City --</option>';
+        } finally {
+            if (ddlCity) ddlCity.disabled = false;
+        }
+    });
+}
+
 // ── Init on load ─────────────────────────────────────────────
 (function () {
     onBranchChange(); // set initial visibility of role groups
     updateBranchLabel();
+    updateDeptLabel();
     updateRoleLabel();
 })();
 </script>
