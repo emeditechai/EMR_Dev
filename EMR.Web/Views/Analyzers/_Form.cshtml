@@ -1,0 +1,79 @@
+@model EMR.Web.Models.ViewModels.AnalyzerFormViewModel
+
+<div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+    <div class="card-header bg-white py-3 px-4 border-bottom">
+        <div class="d-flex align-items-center gap-2">
+            <div class="rounded-circle p-2 d-flex align-items-center justify-content-center" style="background:#e0f2fe;color:#0284c7;width:38px;height:38px;">
+                <i class="bi bi-cpu-fill fs-5"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold mb-0 text-dark">Analyzer & Interface Configuration</h6>
+                <small class="text-muted">Set up clinical instrument, laboratory department & connectivity protocol</small>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="Branch_ID" class="form-label fw-semibold">Hospital Branch <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-hospital input-icon text-primary"></i>
+                    <select asp-for="Branch_ID" class="form-select ps-icon" asp-items="Model.BranchOptions">
+                        <option value="">-- Select Branch --</option>
+                    </select>
+                </div>
+                <span asp-validation-for="Branch_ID" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="Department_ID" class="form-label fw-semibold">Lab Department <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-building-gear input-icon text-primary"></i>
+                    <select asp-for="Department_ID" class="form-select ps-icon" asp-items="Model.DepartmentOptions">
+                        <option value="">-- Select Department (TYPE=LAB) --</option>
+                    </select>
+                </div>
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Filtered to Laboratory departments (DeptType = LAB)</small>
+                <div><span asp-validation-for="Department_ID" class="text-danger small"></span></div>
+            </div>
+
+            <div class="col-md-7">
+                <label asp-for="Analyzer_Name" class="form-label fw-semibold">Analyzer / Instrument Name <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-cpu input-icon text-primary"></i>
+                    <input asp-for="Analyzer_Name" class="form-control ps-icon" placeholder="e.g. Roche Cobas 6000 (c501/e601), Sysmex XN-1000" autocomplete="off" />
+                </div>
+                <small class="text-muted">Enter the manufacturer and model name of the instrument</small>
+                <div><span asp-validation-for="Analyzer_Name" class="text-danger small"></span></div>
+            </div>
+
+            <div class="col-md-5">
+                <label asp-for="Interface_Protocol" class="form-label fw-semibold">Interface Protocol <span class="text-danger">*</span></label>
+                <div class="input-icon-wrap">
+                    <i class="bi bi-diagram-2 input-icon text-primary"></i>
+                    <select asp-for="Interface_Protocol" class="form-select ps-icon" asp-items="Model.InterfaceProtocolOptions">
+                    </select>
+                </div>
+                <small class="text-muted">Communication standard (HL7 / ASTM / Manual Entry)</small>
+                <div><span asp-validation-for="Interface_Protocol" class="text-danger small"></span></div>
+            </div>
+
+            <div class="col-12 mt-4">
+                <div class="p-3 border rounded-3 bg-light d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle p-2 d-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success" style="width:40px;height:40px;">
+                            <i class="bi bi-check-circle-fill fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold text-dark">Active Status</div>
+                            <div class="text-muted small">Enable or disable analyzer for lab sample testing and bidirectional machine sync</div>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                        <input asp-for="Status" class="form-check-input uf-big-toggle" role="switch" id="analyzerStatusToggle" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

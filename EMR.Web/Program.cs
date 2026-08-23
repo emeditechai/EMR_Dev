@@ -136,6 +136,7 @@ builder.Services.AddScoped<ILabTestSubCategoryApiClient,LabTestSubCategoryApiCli
 builder.Services.AddScoped<ILabSampleTypeApiClient,     LabSampleTypeApiClient>();
 builder.Services.AddScoped<ILabTestMethodApiClient,     LabTestMethodApiClient>();
 builder.Services.AddScoped<ILabUnitApiClient,           LabUnitApiClient>();
+builder.Services.AddScoped<IAnalyzerApiClient,          AnalyzerApiClient>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>

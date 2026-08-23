@@ -108,15 +108,26 @@
                         <i class="bi bi-chevron-down cms-arrow"></i>
                     </div>
                     <div class="cms-dropdown" id="branchDropdown">
-                        @foreach (var branch in Model.BranchOptions)
-                        {
-                            <label class="cms-option">
-                                <input type="checkbox" name="SelectedBranchIds" value="@branch.Value"
-                                    @(Model.SelectedBranchIds.Contains(int.Parse(branch.Value)) ? "checked" : "")
-                                    onchange="onBranchChange()">
-                                <span>@branch.Text</span>
-                            </label>
-                        }
+                        <div class="cms-search-box p-2 border-bottom bg-white">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="branchSearchInput" class="form-control border-start-0 ps-0" placeholder="Search branches..." autocomplete="off" oninput="filterCmsOptions('branchDropdown', this.value, 'branchNoResults')" onclick="event.stopPropagation()">
+                            </div>
+                        </div>
+                        <div class="cms-options-container">
+                            @foreach (var branch in Model.BranchOptions)
+                            {
+                                <label class="cms-option" data-search-text="@branch.Text.ToLowerInvariant()">
+                                    <input type="checkbox" name="SelectedBranchIds" value="@branch.Value"
+                                        @(Model.SelectedBranchIds.Contains(int.Parse(branch.Value)) ? "checked" : "")
+                                        onchange="onBranchChange()">
+                                    <span>@branch.Text</span>
+                                </label>
+                            }
+                            <div id="branchNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
+                                <i class="bi bi-search me-1"></i>No matching branches found.
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <small class="text-muted">Select one or more branches from the dropdown</small>
@@ -130,19 +141,30 @@
                         <i class="bi bi-chevron-down cms-arrow"></i>
                     </div>
                     <div class="cms-dropdown" id="deptDropdown">
-                        @foreach (var dept in Model.DepartmentOptions)
-                        {
-                            <label class="cms-option">
-                                <input type="checkbox" name="SelectedDepartmentIds" value="@dept.Value"
-                                    @(Model.SelectedDepartmentIds.Contains(int.Parse(dept.Value)) ? "checked" : "")
-                                    onchange="updateDeptLabel()">
-                                <span>@dept.Text</span>
-                            </label>
-                        }
-                        @if (!Model.DepartmentOptions.Any())
-                        {
-                            <div class="text-muted small px-3 py-2">No active departments available.</div>
-                        }
+                        <div class="cms-search-box p-2 border-bottom bg-white">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="deptSearchInput" class="form-control border-start-0 ps-0" placeholder="Type to search department..." autocomplete="off" oninput="filterCmsOptions('deptDropdown', this.value, 'deptNoResults')" onclick="event.stopPropagation()">
+                            </div>
+                        </div>
+                        <div class="cms-options-container">
+                            @foreach (var dept in Model.DepartmentOptions)
+                            {
+                                <label class="cms-option" data-search-text="@dept.Text.ToLowerInvariant()">
+                                    <input type="checkbox" name="SelectedDepartmentIds" value="@dept.Value"
+                                        @(Model.SelectedDepartmentIds.Contains(int.Parse(dept.Value)) ? "checked" : "")
+                                        onchange="updateDeptLabel()">
+                                    <span>@dept.Text</span>
+                                </label>
+                            }
+                            <div id="deptNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
+                                <i class="bi bi-search me-1"></i>No matching departments found.
+                            </div>
+                            @if (!Model.DepartmentOptions.Any())
+                            {
+                                <div class="text-muted small px-3 py-2">No active departments available.</div>
+                            }
+                        </div>
                     </div>
                 </div>
                 <small class="text-muted">Select one or more hospital departments</small>
@@ -224,25 +246,36 @@
                         <i class="bi bi-chevron-down cms-arrow"></i>
                     </div>
                     <div class="cms-dropdown" id="roleDropdown">
-                        @foreach (var group in Model.BranchRoleGroups)
-                        {
-                            <div class="cms-group" data-branch-id="@group.BranchId">
-                                <div class="cms-group-header">@group.BranchName</div>
-                                @foreach (var role in group.Roles)
-                                {
-                                    <label class="cms-option ps-3">
-                                        <input type="checkbox" name="SelectedRoleIds" value="@role.Id"
-                                            @(Model.SelectedRoleIds.Contains(role.Id) ? "checked" : "")
-                                            onchange="updateRoleLabel()">
-                                        <span>@role.Name</span>
-                                    </label>
-                                }
+                        <div class="cms-search-box p-2 border-bottom bg-white">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="roleSearchInput" class="form-control border-start-0 ps-0" placeholder="Search roles..." autocomplete="off" oninput="filterRoleOptions(this.value)" onclick="event.stopPropagation()">
                             </div>
-                        }
-                        @if (!Model.BranchRoleGroups.Any())
-                        {
-                            <div class="text-muted small px-3 py-2">No roles available. Add roles in Branch Master first.</div>
-                        }
+                        </div>
+                        <div class="cms-options-container">
+                            @foreach (var group in Model.BranchRoleGroups)
+                            {
+                                <div class="cms-group" data-branch-id="@group.BranchId">
+                                    <div class="cms-group-header">@group.BranchName</div>
+                                    @foreach (var role in group.Roles)
+                                    {
+                                        <label class="cms-option ps-3" data-search-text="@role.Name.ToLowerInvariant()">
+                                            <input type="checkbox" name="SelectedRoleIds" value="@role.Id"
+                                                @(Model.SelectedRoleIds.Contains(role.Id) ? "checked" : "")
+                                                onchange="updateRoleLabel()">
+                                            <span>@role.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            <div id="roleNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
+                                <i class="bi bi-search me-1"></i>No matching roles found.
+                            </div>
+                            @if (!Model.BranchRoleGroups.Any())
+                            {
+                                <div class="text-muted small px-3 py-2">No roles available. Add roles in Branch Master first.</div>
+                            }
+                        </div>
                     </div>
                 </div>
                 <small class="text-muted">Select role(s) for each selected branch</small>
@@ -299,58 +332,138 @@
     </div>
     <div class="uf-section-body">
         <div class="row g-3">
-            <div class="col-md-6 col-lg-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
-                    <div class="form-check form-switch mb-0">
-                        <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
-                    </div>
-                    <div>
-                        <div class="fw-semibold">Account Active</div>
-                        <div class="text-muted small">Enable or disable user access</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
-                    <div class="form-check form-switch mb-0">
-                        <input asp-for="IsNursingStaff" class="form-check-input uf-big-toggle" id="isNursingStaffToggle" role="switch">
-                    </div>
-                    <div>
-                        <div class="fw-semibold text-primary"><i class="bi bi-heart-pulse-fill me-1"></i>Is Nursing Staff</div>
-                        <div class="text-muted small">Designate as clinical nursing personnel</div>
+            <!-- Row 1: Base & Nursing Status (2-col balanced) -->
+            <div class="col-md-6">
+                <div class="emr-role-card h-100">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="emr-role-icon bg-success bg-opacity-10 text-success">
+                                <i class="bi bi-check-circle-fill"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold text-dark">Account Active</div>
+                                <div class="text-muted small" style="font-size:0.78rem;">User system login status & access</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
-                    <div class="form-check form-switch mb-0">
-                        <input asp-for="IsPhlebotomist" class="form-check-input uf-big-toggle" id="isPhlebotomistToggle" role="switch">
-                    </div>
-                    <div>
-                        <div class="fw-semibold text-danger"><i class="bi bi-droplet-fill me-1"></i>Is Phlebotomist</div>
-                        <div class="text-muted small">Designate as lab sample collection staff</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
-                    <div class="form-check form-switch mb-0">
-                        <input asp-for="IsPathologist" class="form-check-input uf-big-toggle" id="isPathologistToggle" role="switch">
-                    </div>
-                    <div>
-                        <div class="fw-semibold" style="color:#6f42c1;"><i class="bi bi-microscope me-1"></i>Is Pathologist</div>
-                        <div class="text-muted small">Designate as diagnostic pathologist</div>
+
+            <div class="col-md-6">
+                <div class="emr-role-card h-100">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="emr-role-icon bg-primary bg-opacity-10 text-primary">
+                                <i class="bi bi-heart-pulse-fill"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold text-primary">Is Nursing Staff</div>
+                                <div class="text-muted small" style="font-size:0.78rem;">Clinical nursing & inpatient care personnel</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input asp-for="IsNursingStaff" class="form-check-input uf-big-toggle" id="isNursingStaffToggle" role="switch">
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-lg-4">
-                <div class="uf-toggle-row p-2 border rounded-3 bg-light h-100">
-                    <div class="form-check form-switch mb-0">
-                        <input asp-for="IsLabTechnician" class="form-check-input uf-big-toggle" id="isLabTechnicianToggle" role="switch">
+
+            <!-- Row 2: Specialized Diagnostic & Lab Roles (3-col balanced) -->
+            <!-- 1. Pathologist -->
+            <div class="col-md-4">
+                <div class="emr-role-card h-100" id="pathologistCard">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="emr-role-icon bg-purple bg-opacity-10" style="color:#6f42c1;background:#faf5ff;">
+                                <i class="bi bi-microscope"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold" style="color:#6f42c1;">Is Pathologist</div>
+                                <div class="text-muted small" style="font-size:0.78rem;">Diagnostic pathologist</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input asp-for="IsPathologist" class="form-check-input uf-big-toggle" id="isPathologistToggle" role="switch">
+                        </div>
                     </div>
-                    <div>
-                        <div class="fw-semibold" style="color:#0d9488;"><i class="bi bi-eyedropper me-1"></i>Is Lab Technician</div>
-                        <div class="text-muted small">Designate as clinical lab technician</div>
+
+                    <div id="pathologistBadgeContainer" class="role-config-drawer" style="@(Model.IsPathologist ? "" : "display:none;")">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge" style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;max-width:240px;" id="pathologistBadgeText">
+                                <i class="bi bi-patch-check-fill me-1"></i>Reg: @(string.IsNullOrWhiteSpace(Model.RegistrationNo) ? "Not Set" : Model.RegistrationNo)
+                            </span>
+                            <button type="button" class="btn btn-sm rounded-pill shadow-none" style="font-size:0.75rem;background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;" onclick="openPathologistModal()">
+                                <i class="bi bi-gear-fill me-1"></i>Configure
+                            </button>
+                        </div>
+                        <div id="pathologistSummaryDetails"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Phlebotomist -->
+            <div class="col-md-4">
+                <div class="emr-role-card h-100" id="phlebotomistCard">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="emr-role-icon bg-danger bg-opacity-10 text-danger">
+                                <i class="bi bi-droplet-fill"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold text-danger">Is Phlebotomist</div>
+                                <div class="text-muted small" style="font-size:0.78rem;">Sample collection specialist</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input asp-for="IsPhlebotomist" class="form-check-input uf-big-toggle" id="isPhlebotomistToggle" role="switch">
+                        </div>
+                    </div>
+
+                    <div id="phlebotomistBadgeContainer" class="role-config-drawer" style="@(Model.IsPhlebotomist ? "" : "display:none;")">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;max-width:240px;" id="phlebotomistBadgeText">
+                                <i class="bi bi-patch-check-fill me-1"></i>Cert: @(string.IsNullOrWhiteSpace(Model.CertificationNo) ? "Not Set" : Model.CertificationNo)
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill shadow-none" style="font-size:0.75rem;" onclick="openPhlebotomistModal()">
+                                <i class="bi bi-gear-fill me-1"></i>Configure
+                            </button>
+                        </div>
+                        <div id="phlebotomistSummaryDetails"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Lab Technician -->
+            <div class="col-md-4">
+                <div class="emr-role-card h-100" id="labTechnicianCard">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="emr-role-icon text-teal" style="background:#f0fdfa;color:#0d9488;">
+                                <i class="bi bi-eyedropper"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold" style="color:#0d9488;">Is Lab Technician</div>
+                                <div class="text-muted small" style="font-size:0.78rem;">Diagnostics technician</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input asp-for="IsLabTechnician" class="form-check-input uf-big-toggle" id="isLabTechnicianToggle" role="switch">
+                        </div>
+                    </div>
+
+                    <div id="labTechnicianBadgeContainer" class="role-config-drawer" style="@(Model.IsLabTechnician ? "" : "display:none;")">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge" style="background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4;max-width:240px;" id="labTechnicianBadgeText">
+                                <i class="bi bi-cpu-fill me-1"></i>@(string.IsNullOrWhiteSpace(Model.AnalyzerTrainedOn) ? "Analyzer Not Configured" : "Configured")
+                            </span>
+                            <button type="button" class="btn btn-sm py-0 px-2 rounded-pill shadow-none" style="font-size:0.75rem;background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4;" onclick="openLabTechnicianModal()">
+                                <i class="bi bi-gear-fill me-1"></i>Configure
+                            </button>
+                        </div>
+                        <div id="labTechnicianSummaryDetails"></div>
                     </div>
                 </div>
             </div>
@@ -358,14 +471,194 @@
     </div>
 </div>
 
+<!-- Modal: Pathologist Configuration -->
+<div class="modal fade" id="pathologistModal" tabindex="-1" aria-labelledby="pathologistModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-white bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width:36px;height:36px;">
+                        <i class="bi bi-microscope fs-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="pathologistModalLabel">Pathologist Configuration</h5>
+                        <small class="text-white-50">Specify medical registration credentials</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert d-flex align-items-center gap-2 mb-3 py-2 px-3 small border" style="background:#faf5ff;color:#6b21a8;border-color:#f3e8ff !important;">
+                    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>Registration No is mandatory for diagnostic pathologists for clinical sign-off authorization.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Registration No <span class="text-danger">*</span></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-patch-check input-icon" style="color:#7c3aed;"></i>
+                        <input asp-for="RegistrationNo" class="form-control ps-icon" id="txtRegistrationNo" placeholder="e.g. PATH-REG-2026-9812" autocomplete="off" />
+                    </div>
+                    <div id="pathoRegNoErrorMsg" class="text-danger small mt-1" style="display:none;">Registration No is mandatory for Pathologists.</div>
+                    <span asp-validation-for="RegistrationNo" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3">
+                <button type="button" class="btn btn-outline-secondary px-3" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn text-white px-4" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);" onclick="savePathologistModal()">
+                    <i class="bi bi-check-lg me-1"></i>Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Phlebotomist Configuration -->
+<div class="modal fade" id="phlebotomistModal" tabindex="-1" aria-labelledby="phlebotomistModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-white bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width:36px;height:36px;">
+                        <i class="bi bi-droplet-half fs-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="phlebotomistModalLabel">Phlebotomist Configuration</h5>
+                        <small class="text-white-50">Specify credentials, shift slot & target</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert d-flex align-items-center gap-2 mb-3 py-2 px-3 small border" style="background:#fef2f2;color:#991b1b;border-color:#fee2e2 !important;">
+                    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>Capture mandatory certification number, shift slot, assigned zone area, and daily collection target.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Certification No <span class="text-danger">*</span></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-patch-check input-icon text-danger"></i>
+                        <input asp-for="CertificationNo" class="form-control ps-icon" id="txtCertificationNo" placeholder="e.g. PHLEB-REG-2026-9812" autocomplete="off" />
+                    </div>
+                    <div id="certNoErrorMsg" class="text-danger small mt-1" style="display:none;">Certification No is mandatory for Phlebotomists.</div>
+                    <span asp-validation-for="CertificationNo" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Shift Slot</label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-clock-history input-icon text-danger"></i>
+                        <select asp-for="ShiftSlotId" id="ddlShiftSlot" class="form-select ps-icon" asp-items="Model.ShiftSlotOptions">
+                            <option value="">-- Select Shift Slot (Shift Master) --</option>
+                        </select>
+                    </div>
+                    <small class="text-muted">Select shift timing from Shift Master</small>
+                    <span asp-validation-for="ShiftSlotId" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Assigned Zone</label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-geo-alt input-icon text-danger"></i>
+                        <select asp-for="AssignedZoneId" id="ddlAssignedZone" class="form-select ps-icon" asp-items="Model.AssignedZoneOptions">
+                            <option value="">-- Select Assigned Zone (Area Master) --</option>
+                        </select>
+                    </div>
+                    <small class="text-muted" id="zoneCityHint"><i class="bi bi-info-circle me-1"></i>Populated from Area Master based on selected City in Address section</small>
+                    <span asp-validation-for="AssignedZoneId" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-semibold">Daily Collection Target</label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-currency-rupee input-icon text-danger"></i>
+                        <input asp-for="DailyCollectionTarget" class="form-control ps-icon" id="txtDailyTarget" type="number" step="0.01" min="0" placeholder="e.g. 50000.00" />
+                    </div>
+                    <small class="text-muted">Target collection amount expected per day</small>
+                    <span asp-validation-for="DailyCollectionTarget" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top-0 rounded-bottom-4 px-4 py-3">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn text-white" style="background:#dc2626;" onclick="savePhlebotomistModal()">
+                    <i class="bi bi-check2-circle me-1"></i>Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Lab Technician Configuration -->
+<div class="modal fade" id="labTechnicianModal" tabindex="-1" aria-labelledby="labTechnicianModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-white bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width:36px;height:36px;">
+                        <i class="bi bi-eyedropper fs-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="labTechnicianModalLabel">Lab Technician Configuration</h5>
+                        <small class="text-white-50">Specify shift slot & analyzer equipment expertise</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert d-flex align-items-center gap-2 mb-3 py-2 px-3 small border" style="background:#f0fdfa;color:#0f766e;border-color:#ccfbf1 !important;">
+                    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>Configure assigned lab shift schedule and trained analyzer equipment expertise for laboratory operations.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Shift Slot</label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-clock-history input-icon" style="color:#0d9488;"></i>
+                        <select asp-for="LabTechnicianShiftSlotId" id="ddlLabShiftSlot" class="form-select ps-icon" asp-items="Model.LabShiftSlotOptions">
+                            <option value="">-- Select Shift Slot (Shift Master) --</option>
+                        </select>
+                    </div>
+                    <small class="text-muted">Select shift timing from Shift Master</small>
+                    <span asp-validation-for="LabTechnicianShiftSlotId" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Analyzer Trained On</label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-cpu input-icon" style="color:#0d9488;"></i>
+                        <select asp-for="AnalyzerTrainedOn" id="ddlAnalyzerTrainedOn" class="form-select ps-icon" asp-items="Model.LabAnalyzerOptions">
+                            <option value="">-- Select Standard LAB Related Analyzer --</option>
+                        </select>
+                    </div>
+                    <small class="text-muted">Select standard clinical lab analyzer machine expertise</small>
+                    <span asp-validation-for="AnalyzerTrainedOn" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top-0 rounded-bottom-4 px-4 py-3">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn text-white" style="background:#0d9488;" onclick="saveLabTechnicianModal()">
+                    <i class="bi bi-check2-circle me-1"></i>Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-// ── Custom multi-select dropdown ─────────────────────────────
+// ── Custom multi-select dropdown with Auto-Suggest Search ────
 function toggleCms(wrapId) {
     const wrap = document.getElementById(wrapId);
     const isOpen = wrap.classList.contains('cms-open');
     // close all
     document.querySelectorAll('.cms-wrap.cms-open').forEach(w => w.classList.remove('cms-open'));
-    if (!isOpen) wrap.classList.add('cms-open');
+    if (!isOpen) {
+        wrap.classList.add('cms-open');
+        const input = wrap.querySelector('.cms-search-box input');
+        if (input) {
+            setTimeout(() => input.focus(), 60);
+        }
+    }
 }
 
 document.addEventListener('click', function (e) {
@@ -373,6 +666,62 @@ document.addEventListener('click', function (e) {
         if (!wrap.contains(e.target)) wrap.classList.remove('cms-open');
     });
 });
+
+function filterCmsOptions(dropdownId, query, noResultsId) {
+    const term = (query || '').toLowerCase().trim();
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
+
+    const options = dropdown.querySelectorAll('.cms-option');
+    let visibleCount = 0;
+    options.forEach(opt => {
+        const text = opt.dataset.searchText || opt.textContent.toLowerCase();
+        if (!term || text.includes(term)) {
+            opt.style.display = 'flex';
+            visibleCount++;
+        } else {
+            opt.style.display = 'none';
+        }
+    });
+
+    const noResults = document.getElementById(noResultsId);
+    if (noResults) {
+        noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+}
+
+function filterRoleOptions(query) {
+    const term = (query || '').toLowerCase().trim();
+    const dropdown = document.getElementById('roleDropdown');
+    if (!dropdown) return;
+
+    let totalVisible = 0;
+    dropdown.querySelectorAll('.cms-group').forEach(grp => {
+        // if group is hidden by branch selection, keep it hidden
+        if (grp.style.display === 'none') return;
+
+        let groupVisibleCount = 0;
+        grp.querySelectorAll('.cms-option').forEach(opt => {
+            const text = opt.textContent.toLowerCase();
+            if (!term || text.includes(term)) {
+                opt.style.display = 'flex';
+                groupVisibleCount++;
+                totalVisible++;
+            } else {
+                opt.style.display = 'none';
+            }
+        });
+        const header = grp.querySelector('.cms-group-header');
+        if (header) {
+            header.style.display = groupVisibleCount > 0 ? '' : 'none';
+        }
+    });
+
+    const noResults = document.getElementById('roleNoResults');
+    if (noResults) {
+        noResults.style.display = totalVisible === 0 ? 'block' : 'none';
+    }
+}
 
 // ── Branch change handler ────────────────────────────────────
 function onBranchChange() {
@@ -443,16 +792,18 @@ function previewProfilePicture(input) {
     reader.readAsDataURL(input.files[0]);
 }
 
-// ── Dependable Cascading Geography (Country -> State -> City) ──
+// ── Dependable Cascading Geography (Country -> State -> City -> Area) ──
 const ddlCountry = document.getElementById('ddlCountry');
 const ddlState = document.getElementById('ddlState');
 const ddlCity = document.getElementById('ddlCity');
+const ddlAssignedZone = document.getElementById('ddlAssignedZone');
 
 if (ddlCountry) {
     ddlCountry.addEventListener('change', async function () {
         const countryId = this.value;
         if (ddlState) ddlState.innerHTML = '<option value="">-- Select State --</option>';
         if (ddlCity) ddlCity.innerHTML = '<option value="">-- Select City --</option>';
+        if (ddlAssignedZone) ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
         
         if (!countryId) return;
 
@@ -490,6 +841,7 @@ if (ddlState) {
     ddlState.addEventListener('change', async function () {
         const stateId = this.value;
         if (ddlCity) ddlCity.innerHTML = '<option value="">-- Select City --</option>';
+        if (ddlAssignedZone) ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
         
         if (!stateId) return;
 
@@ -523,11 +875,331 @@ if (ddlState) {
     });
 }
 
+if (ddlCity) {
+    ddlCity.addEventListener('change', async function () {
+        const cityId = this.value;
+        loadAreasForCity(cityId);
+    });
+}
+
+async function loadAreasForCity(cityId, preserveSelectedId) {
+    if (!ddlAssignedZone) return;
+    const currentSelected = preserveSelectedId || ddlAssignedZone.value;
+    ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
+
+    if (!cityId) return;
+
+    ddlAssignedZone.disabled = true;
+    try {
+        const resp = await fetch(`/Users/GetAreasByCity?cityId=${encodeURIComponent(cityId)}`);
+        if (resp.ok) {
+            const areas = await resp.json();
+            ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
+            areas.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.areaId;
+                opt.textContent = a.areaCode ? `${a.areaName} (${a.areaCode})` : a.areaName;
+                if (currentSelected && a.areaId.toString() === currentSelected.toString()) {
+                    opt.selected = true;
+                }
+                ddlAssignedZone.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.error('Error fetching areas:', e);
+    } finally {
+        ddlAssignedZone.disabled = false;
+        updatePhlebotomistSummary();
+    }
+}
+
+// ── Phlebotomist Modal & Logic ───────────────────────────────
+let phlebotomistModalInstance = null;
+
+function getPhlebotomistModal() {
+    if (!phlebotomistModalInstance) {
+        const el = document.getElementById('phlebotomistModal');
+        if (el && window.bootstrap && window.bootstrap.Modal) {
+            phlebotomistModalInstance = new bootstrap.Modal(el);
+        }
+    }
+    return phlebotomistModalInstance;
+}
+
+function openPhlebotomistModal() {
+    const modal = getPhlebotomistModal();
+    if (modal) {
+        document.getElementById('certNoErrorMsg').style.display = 'none';
+        modal.show();
+        setTimeout(() => {
+            const txt = document.getElementById('txtCertificationNo');
+            if (txt) txt.focus();
+        }, 400);
+    }
+}
+
+function savePhlebotomistModal() {
+    const certInput = document.getElementById('txtCertificationNo');
+    const errDiv = document.getElementById('certNoErrorMsg');
+    if (!certInput || !certInput.value.trim()) {
+        if (errDiv) errDiv.style.display = 'block';
+        if (certInput) certInput.focus();
+        return;
+    }
+
+    if (errDiv) errDiv.style.display = 'none';
+    const modal = getPhlebotomistModal();
+    if (modal) {
+        modal.hide();
+    }
+    updatePhlebotomistSummary();
+}
+
+function updatePhlebotomistSummary() {
+    const isPhlebotomist = document.getElementById('isPhlebotomistToggle')?.checked;
+    const container = document.getElementById('phlebotomistBadgeContainer');
+    const badgeText = document.getElementById('phlebotomistBadgeText');
+    const detailsContainer = document.getElementById('phlebotomistSummaryDetails');
+    const card = document.getElementById('phlebotomistCard');
+
+    if (!container) return;
+
+    if (!isPhlebotomist) {
+        container.style.display = 'none';
+        if (card) {
+            card.style.borderColor = '#e2e8f0';
+            card.style.background = '#ffffff';
+        }
+        return;
+    }
+
+    container.style.display = '';
+    if (card) {
+        card.style.borderColor = '#fca5a5';
+        card.style.background = 'linear-gradient(180deg, #ffffff 0%, #fffbfb 100%)';
+    }
+
+    const cert = document.getElementById('txtCertificationNo')?.value.trim();
+    if (badgeText) {
+        badgeText.innerHTML = `<i class="bi bi-patch-check-fill me-1"></i>${cert ? 'Cert: ' + cert : '<span class="text-danger fw-bold">Cert Required</span>'}`;
+    }
+
+    const shiftSelect = document.getElementById('ddlShiftSlot');
+    const shiftText = shiftSelect && shiftSelect.selectedIndex > 0 ? shiftSelect.options[shiftSelect.selectedIndex].text : '';
+
+    const zoneSelect = document.getElementById('ddlAssignedZone');
+    const zoneText = zoneSelect && zoneSelect.selectedIndex > 0 ? zoneSelect.options[zoneSelect.selectedIndex].text : '';
+
+    const targetVal = document.getElementById('txtDailyTarget')?.value;
+
+    const chips = [];
+    if (shiftText) chips.push(`<span class="role-chip"><i class="bi bi-clock-history text-danger"></i>${shiftText}</span>`);
+    if (zoneText) chips.push(`<span class="role-chip"><i class="bi bi-geo-alt-fill text-danger"></i>${zoneText}</span>`);
+    if (targetVal && parseFloat(targetVal) > 0) chips.push(`<span class="role-chip text-success fw-bold"><i class="bi bi-cash-stack"></i>Target: ₹${parseFloat(targetVal).toLocaleString('en-IN')}/day</span>`);
+
+    if (detailsContainer) {
+        detailsContainer.innerHTML = chips.length > 0
+            ? `<div class="d-flex flex-wrap gap-1 mt-2">${chips.join('')}</div>`
+            : '<div class="text-muted small mt-1" style="font-size:0.75rem;">Click Configure to assign shift, zone area & target</div>';
+    }
+}
+
+const isPhlebotomistToggle = document.getElementById('isPhlebotomistToggle');
+if (isPhlebotomistToggle) {
+    isPhlebotomistToggle.addEventListener('change', function () {
+        if (this.checked) {
+            updatePhlebotomistSummary();
+            openPhlebotomistModal();
+        } else {
+            updatePhlebotomistSummary();
+        }
+    });
+}
+
+// ── Lab Technician Modal & Logic ─────────────────────────────
+let labTechnicianModalInstance = null;
+
+function getLabTechnicianModal() {
+    if (!labTechnicianModalInstance) {
+        const el = document.getElementById('labTechnicianModal');
+        if (el && window.bootstrap && window.bootstrap.Modal) {
+            labTechnicianModalInstance = new bootstrap.Modal(el);
+        }
+    }
+    return labTechnicianModalInstance;
+}
+
+function openLabTechnicianModal() {
+    const modal = getLabTechnicianModal();
+    if (modal) {
+        modal.show();
+    }
+}
+
+function saveLabTechnicianModal() {
+    const modal = getLabTechnicianModal();
+    if (modal) {
+        modal.hide();
+    }
+    updateLabTechnicianSummary();
+}
+
+function updateLabTechnicianSummary() {
+    const isLabTech = document.getElementById('isLabTechnicianToggle')?.checked;
+    const container = document.getElementById('labTechnicianBadgeContainer');
+    const badgeText = document.getElementById('labTechnicianBadgeText');
+    const detailsContainer = document.getElementById('labTechnicianSummaryDetails');
+    const card = document.getElementById('labTechnicianCard');
+
+    if (!container) return;
+
+    if (!isLabTech) {
+        container.style.display = 'none';
+        if (card) {
+            card.style.borderColor = '#e2e8f0';
+            card.style.background = '#ffffff';
+        }
+        return;
+    }
+
+    container.style.display = '';
+    if (card) {
+        card.style.borderColor = '#99f6e4';
+        card.style.background = 'linear-gradient(180deg, #ffffff 0%, #fbfdfd 100%)';
+    }
+
+    const analyzerSelect = document.getElementById('ddlAnalyzerTrainedOn');
+    const analyzer = analyzerSelect && analyzerSelect.selectedIndex > 0 ? analyzerSelect.options[analyzerSelect.selectedIndex].text : '';
+
+    if (badgeText) {
+        badgeText.innerHTML = `<i class="bi bi-cpu-fill me-1"></i>${analyzer ? 'Configured' : 'Analyzer Not Set'}`;
+    }
+
+    const shiftSelect = document.getElementById('ddlLabShiftSlot');
+    const shiftText = shiftSelect && shiftSelect.selectedIndex > 0 ? shiftSelect.options[shiftSelect.selectedIndex].text : '';
+
+    const chips = [];
+    if (shiftText) chips.push(`<span class="role-chip"><i class="bi bi-clock-history" style="color:#0d9488;"></i>${shiftText}</span>`);
+    if (analyzer) chips.push(`<span class="role-chip fw-semibold" style="color:#0f766e;"><i class="bi bi-cpu" style="color:#0d9488;"></i>${analyzer}</span>`);
+
+    if (detailsContainer) {
+        detailsContainer.innerHTML = chips.length > 0
+            ? `<div class="d-flex flex-wrap gap-1 mt-2">${chips.join('')}</div>`
+            : '<div class="text-muted small mt-1" style="font-size:0.75rem;">Click Configure to set lab shift & analyzer training</div>';
+    }
+}
+
+const isLabTechnicianToggle = document.getElementById('isLabTechnicianToggle');
+if (isLabTechnicianToggle) {
+    isLabTechnicianToggle.addEventListener('change', function () {
+        if (this.checked) {
+            updateLabTechnicianSummary();
+            openLabTechnicianModal();
+        } else {
+            updateLabTechnicianSummary();
+        }
+    });
+}
+
+// ── Pathologist Modal & Logic ─────────────────────────────────
+let pathologistModalInstance = null;
+
+function getPathologistModal() {
+    if (!pathologistModalInstance) {
+        const el = document.getElementById('pathologistModal');
+        if (el && window.bootstrap && window.bootstrap.Modal) {
+            pathologistModalInstance = new bootstrap.Modal(el);
+        }
+    }
+    return pathologistModalInstance;
+}
+
+function openPathologistModal() {
+    const modal = getPathologistModal();
+    if (modal) {
+        const errDiv = document.getElementById('pathoRegNoErrorMsg');
+        if (errDiv) errDiv.style.display = 'none';
+        modal.show();
+        setTimeout(() => {
+            const txt = document.getElementById('txtRegistrationNo');
+            if (txt) txt.focus();
+        }, 400);
+    }
+}
+
+function savePathologistModal() {
+    const regInput = document.getElementById('txtRegistrationNo');
+    const errDiv = document.getElementById('pathoRegNoErrorMsg');
+    if (!regInput || !regInput.value.trim()) {
+        if (errDiv) errDiv.style.display = 'block';
+        if (regInput) regInput.focus();
+        return;
+    }
+
+    if (errDiv) errDiv.style.display = 'none';
+    const modal = getPathologistModal();
+    if (modal) {
+        modal.hide();
+    }
+    updatePathologistSummary();
+}
+
+function updatePathologistSummary() {
+    const isPatho = document.getElementById('isPathologistToggle')?.checked;
+    const container = document.getElementById('pathologistBadgeContainer');
+    const badgeText = document.getElementById('pathologistBadgeText');
+    const detailsContainer = document.getElementById('pathologistSummaryDetails');
+    const card = document.getElementById('pathologistCard');
+
+    if (!container) return;
+
+    if (!isPatho) {
+        container.style.display = 'none';
+        if (card) {
+            card.style.borderColor = '#e2e8f0';
+            card.style.background = '#ffffff';
+        }
+        return;
+    }
+
+    container.style.display = '';
+    if (card) {
+        card.style.borderColor = '#d8b4fe';
+        card.style.background = 'linear-gradient(180deg, #ffffff 0%, #faf5ff 100%)';
+    }
+
+    const regNo = document.getElementById('txtRegistrationNo')?.value.trim();
+    if (badgeText) {
+        badgeText.innerHTML = `<i class="bi bi-patch-check-fill me-1"></i>${regNo ? 'Reg: ' + regNo : '<span class="text-danger fw-bold">Reg Required</span>'}`;
+    }
+
+    if (detailsContainer) {
+        detailsContainer.innerHTML = regNo
+            ? `<div class="d-flex flex-wrap gap-1 mt-2"><span class="role-chip" style="color:#6b21a8;"><i class="bi bi-person-badge-fill" style="color:#7c3aed;"></i>${regNo}</span></div>`
+            : '<div class="text-muted small mt-1" style="font-size:0.75rem;">Click Configure to enter Registration No</div>';
+    }
+}
+
+const isPathologistToggle = document.getElementById('isPathologistToggle');
+if (isPathologistToggle) {
+    isPathologistToggle.addEventListener('change', function () {
+        if (this.checked) {
+            updatePathologistSummary();
+            openPathologistModal();
+        } else {
+            updatePathologistSummary();
+        }
+    });
+}
+
 // ── Init on load ─────────────────────────────────────────────
 (function () {
     onBranchChange(); // set initial visibility of role groups
     updateBranchLabel();
     updateDeptLabel();
     updateRoleLabel();
+    updatePathologistSummary();
+    updatePhlebotomistSummary();
+    updateLabTechnicianSummary();
 })();
 </script>

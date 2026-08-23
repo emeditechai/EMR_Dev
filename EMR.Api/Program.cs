@@ -49,6 +49,7 @@ builder.Services.AddScoped<ILabTestSubCategoryService, LabTestSubCategoryService
 builder.Services.AddScoped<ILabSampleTypeService,      LabSampleTypeService>();
 builder.Services.AddScoped<ILabTestMethodService,      LabTestMethodService>();
 builder.Services.AddScoped<ILabUnitService,            LabUnitService>();
+builder.Services.AddScoped<IAnalyzerService,           AnalyzerService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────
 builder.Services.AddCors(opt =>

@@ -144,6 +144,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany()
                 .HasForeignKey(x => x.CityId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ShiftSlot)
+                .WithMany()
+                .HasForeignKey(x => x.ShiftSlotId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.AssignedZone)
+                .WithMany()
+                .HasForeignKey(x => x.AssignedZoneId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.LabTechnicianShiftSlot)
+                .WithMany()
+                .HasForeignKey(x => x.LabTechnicianShiftSlotId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<CountryMaster>(entity =>

@@ -66,6 +66,23 @@ public class User
     public bool IsPhlebotomist { get; set; }
     public bool IsPathologist { get; set; }
     public bool IsLabTechnician { get; set; }
+
+    [MaxLength(100)]
+    public string? CertificationNo { get; set; }
+
+    [MaxLength(100)]
+    public string? RegistrationNo { get; set; }
+    public int? ShiftSlotId { get; set; }
+    public ShiftMaster? ShiftSlot { get; set; }
+    public int? AssignedZoneId { get; set; }
+    public AreaMaster? AssignedZone { get; set; }
+    public decimal? DailyCollectionTarget { get; set; }
+
+    public int? LabTechnicianShiftSlotId { get; set; }
+    public ShiftMaster? LabTechnicianShiftSlot { get; set; }
+
+    [MaxLength(250)]
+    public string? AnalyzerTrainedOn { get; set; }
     public bool IsLockedOut { get; set; }
     public int FailedLoginAttempts { get; set; }
     public DateTime? LastLoginDate { get; set; }

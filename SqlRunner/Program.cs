@@ -14,10 +14,10 @@ Console.WriteLine("APPLYING SQL SCRIPT & END-TO-END VERIFICATION");
 Console.WriteLine("=========================================================================");
 
 var cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
-if (File.Exists("SQLScripts/101_users_profile_demographics_and_geography.sql"))
+if (File.Exists("SQLScripts/105_analyzer_master_tbl_mst_analyzer.sql"))
 {
-    Console.WriteLine("\n[Step 0] Applying SQLScripts/101_users_profile_demographics_and_geography.sql to database...");
-    var script = File.ReadAllText("SQLScripts/101_users_profile_demographics_and_geography.sql");
+    Console.WriteLine("\n[Step 0] Applying SQLScripts/105_analyzer_master_tbl_mst_analyzer.sql to database...");
+    var script = File.ReadAllText("SQLScripts/105_analyzer_master_tbl_mst_analyzer.sql");
     var batches = Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
     using var conn = new SqlConnection(cs);
@@ -39,13 +39,14 @@ if (File.Exists("SQLScripts/101_users_profile_demographics_and_geography.sql"))
             Console.WriteLine($"  - Error on batch {batchIndex}: {ex.Message}");
         }
     }
-    Console.WriteLine("SQLScript 93_opd_doctor_commission_and_disbursal.sql execution complete.\n");
+    Console.WriteLine("SQLScript 105_analyzer_master_tbl_mst_analyzer.sql execution complete.\n");
 }
 
 var cookieContainer = new CookieContainer();
 using var handler = new HttpClientHandler
 {
     CookieContainer = cookieContainer,
+    AllowAutoRedirect = false,
     ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
 };
 using var client = new HttpClient(handler)
@@ -423,17 +424,59 @@ var citiesAjaxRes = await client.GetAsync("/Users/GetCitiesByState?stateId=1");
 var citiesJson = await citiesAjaxRes.Content.ReadAsStringAsync();
 Console.WriteLine($"AJAX GetCitiesByState: {citiesAjaxRes.StatusCode}, Returned Data: {citiesJson.Contains("cityId")}");
 
+var areasAjaxRes = await client.GetAsync("/Users/GetAreasByCity?cityId=1");
+var areasJson = await areasAjaxRes.Content.ReadAsStringAsync();
+Console.WriteLine($"AJAX GetAreasByCity: {areasAjaxRes.StatusCode}, Returned Data: {areasJson.Contains("areaId")}");
+
 var userCreateGet = await client.GetAsync("/Users/Create");
 var userCreateHtml = await userCreateGet.Content.ReadAsStringAsync();
 var uTokenMatch = Regex.Match(userCreateHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
 string userToken = uTokenMatch.Success ? uTokenMatch.Groups[1].Value : "";
-Console.WriteLine($"Users Create GET: {userCreateGet.StatusCode}, Has Address Field: {userCreateHtml.Contains("name=\"Address\"")}, Has Country Dropdown: {userCreateHtml.Contains("id=\"ddlCountry\"")}, Has DOB: {userCreateHtml.Contains("name=\"DateOfBirth\"")}, Has DOJ: {userCreateHtml.Contains("name=\"DateOfJoining\"")}");
+Console.WriteLine($"Users Create GET: {userCreateGet.StatusCode}, Has Patho Modal: {userCreateHtml.Contains("id=\"pathologistModal\"")}, Has Phleb Modal: {userCreateHtml.Contains("id=\"phlebotomistModal\"")}, Has LabTech Modal: {userCreateHtml.Contains("id=\"labTechnicianModal\"")}");
 
+// 11E. Test Mandatory Certification Validation for Phlebotomist & Registration No for Pathologist
+var invalidPhlebForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("Username", "invalid_phleb_user"),
+    new KeyValuePair<string, string>("Email", "invalid_phleb@hospital.com"),
+    new KeyValuePair<string, string>("Password", "Hospital@2026"),
+    new KeyValuePair<string, string>("ConfirmPassword", "Hospital@2026"),
+    new KeyValuePair<string, string>("FirstName", "Test"),
+    new KeyValuePair<string, string>("LastName", "Phleb"),
+    new KeyValuePair<string, string>("IsActive", "true"),
+    new KeyValuePair<string, string>("IsPhlebotomist", "true"),
+    new KeyValuePair<string, string>("CertificationNo", ""),
+    new KeyValuePair<string, string>("SelectedBranchIds", "1"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", userToken)
+});
+var invalidPhlebRes = await client.PostAsync("/Users/Create", invalidPhlebForm);
+var invalidPhlebHtml = await invalidPhlebRes.Content.ReadAsStringAsync();
+Console.WriteLine($"Phlebotomist Mandatory Validation Test -> Returns Error Msg: {invalidPhlebHtml.Contains("Certification No is mandatory when designated as Phlebotomist.")}");
+
+var invalidPathoForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("Username", "invalid_patho_user"),
+    new KeyValuePair<string, string>("Email", "invalid_patho@hospital.com"),
+    new KeyValuePair<string, string>("Password", "Hospital@2026"),
+    new KeyValuePair<string, string>("ConfirmPassword", "Hospital@2026"),
+    new KeyValuePair<string, string>("FirstName", "Test"),
+    new KeyValuePair<string, string>("LastName", "Patho"),
+    new KeyValuePair<string, string>("IsActive", "true"),
+    new KeyValuePair<string, string>("IsPathologist", "true"),
+    new KeyValuePair<string, string>("RegistrationNo", ""),
+    new KeyValuePair<string, string>("SelectedBranchIds", "1"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", userToken)
+});
+var invalidPathoRes = await client.PostAsync("/Users/Create", invalidPathoForm);
+var invalidPathoHtml = await invalidPathoRes.Content.ReadAsStringAsync();
+Console.WriteLine($"Pathologist Mandatory Validation Test -> Returns Error Msg: {invalidPathoHtml.Contains("Registration No is mandatory when designated as Pathologist.")}");
+
+// 11F. Test Create User with Pathologist, Phlebotomist & Lab Technician configurations
 var userCreateForm = new FormUrlEncodedContent(new[]
 {
     new KeyValuePair<string, string>("Username", "dr_test_labuser"),
     new KeyValuePair<string, string>("EmployeeCode", "EMP-TEST-LB"),
-    new KeyValuePair<string, string>("Email", "labuser_test@hospital.com"),
+    new KeyValuePair<string, string>("Email", "labuser@hospital.com"),
     new KeyValuePair<string, string>("Password", "Hospital@2026"),
     new KeyValuePair<string, string>("ConfirmPassword", "Hospital@2026"),
     new KeyValuePair<string, string>("FirstName", "Ananya"),
@@ -451,55 +494,71 @@ var userCreateForm = new FormUrlEncodedContent(new[]
     new KeyValuePair<string, string>("SelectedDepartmentIds", "2"),
     new KeyValuePair<string, string>("IsActive", "true"),
     new KeyValuePair<string, string>("IsNursingStaff", "false"),
-    new KeyValuePair<string, string>("IsPhlebotomist", "false"),
+    new KeyValuePair<string, string>("IsPhlebotomist", "true"),
     new KeyValuePair<string, string>("IsPathologist", "true"),
     new KeyValuePair<string, string>("IsLabTechnician", "true"),
+    new KeyValuePair<string, string>("RegistrationNo", "PATH-REG-2026-9812"),
+    new KeyValuePair<string, string>("CertificationNo", "PHLEB-REG-2026-9812"),
+    new KeyValuePair<string, string>("ShiftSlotId", "1"),
+    new KeyValuePair<string, string>("AssignedZoneId", "1"),
+    new KeyValuePair<string, string>("DailyCollectionTarget", "50000.00"),
+    new KeyValuePair<string, string>("LabTechnicianShiftSlotId", "1"),
+    new KeyValuePair<string, string>("AnalyzerTrainedOn", "Fully Automated Biochemistry Analyzer (Roche Cobas / Beckman Coulter AU)"),
     new KeyValuePair<string, string>("__RequestVerificationToken", userToken)
 });
 
 var userCreatePost = await client.PostAsync("/Users/Create", userCreateForm);
-Console.WriteLine($"Users Create POST: {userCreatePost.StatusCode}");
+Console.WriteLine($"Users Create POST (with Pathologist, Phlebotomist & Lab Tech details): {userCreatePost.StatusCode}");
 
 // Verify in DB directly
 int testUserId = 0;
 string? storedDeptIds = null;
-string? storedAddr = null, storedPin = null;
-int? storedCountry = null, storedState = null, storedCity = null;
+string? storedAddr = null, storedPin = null, storedCertNo = null, storedRegNo = null, storedAnalyzer = null;
+int? storedCountry = null, storedState = null, storedCity = null, storedShift = null, storedZone = null, storedLabShift = null;
+decimal? storedTarget = null;
 DateTime? storedDOB = null, storedDOJ = null;
-bool storedPatho = false, storedLabTech = false;
+bool storedPatho = false, storedPhleb = false, storedLabTech = false;
 using (var dbConn = new SqlConnection(cs))
 {
     await dbConn.OpenAsync();
-    using var cmd = new SqlCommand("SELECT Id, DepartmentIds, IsPathologist, IsLabTechnician, Address, Pincode, CountryId, StateId, CityId, DateOfBirth, DateOfJoining FROM dbo.Users WHERE Username = 'dr_test_labuser'", dbConn);
+    using var cmd = new SqlCommand("SELECT Id, DepartmentIds, IsPathologist, IsPhlebotomist, IsLabTechnician, Address, Pincode, CountryId, StateId, CityId, DateOfBirth, DateOfJoining, CertificationNo, RegistrationNo, ShiftSlotId, AssignedZoneId, DailyCollectionTarget, LabTechnicianShiftSlotId, AnalyzerTrainedOn FROM dbo.Users WHERE Username = 'dr_test_labuser'", dbConn);
     using var reader = await cmd.ExecuteReaderAsync();
     if (await reader.ReadAsync())
     {
         testUserId = reader.GetInt32(0);
         storedDeptIds = reader.IsDBNull(1) ? null : reader.GetString(1);
         storedPatho = reader.GetBoolean(2);
-        storedLabTech = reader.GetBoolean(3);
-        storedAddr = reader.IsDBNull(4) ? null : reader.GetString(4);
-        storedPin = reader.IsDBNull(5) ? null : reader.GetString(5);
-        storedCountry = reader.IsDBNull(6) ? null : reader.GetInt32(6);
-        storedState = reader.IsDBNull(7) ? null : reader.GetInt32(7);
-        storedCity = reader.IsDBNull(8) ? null : reader.GetInt32(8);
-        storedDOB = reader.IsDBNull(9) ? null : reader.GetDateTime(9);
-        storedDOJ = reader.IsDBNull(10) ? null : reader.GetDateTime(10);
+        storedPhleb = reader.GetBoolean(3);
+        storedLabTech = reader.GetBoolean(4);
+        storedAddr = reader.IsDBNull(5) ? null : reader.GetString(5);
+        storedPin = reader.IsDBNull(6) ? null : reader.GetString(6);
+        storedCountry = reader.IsDBNull(7) ? null : reader.GetInt32(7);
+        storedState = reader.IsDBNull(8) ? null : reader.GetInt32(8);
+        storedCity = reader.IsDBNull(9) ? null : reader.GetInt32(9);
+        storedDOB = reader.IsDBNull(10) ? null : reader.GetDateTime(10);
+        storedDOJ = reader.IsDBNull(11) ? null : reader.GetDateTime(11);
+        storedCertNo = reader.IsDBNull(12) ? null : reader.GetString(12);
+        storedRegNo = reader.IsDBNull(13) ? null : reader.GetString(13);
+        storedShift = reader.IsDBNull(14) ? null : reader.GetInt32(14);
+        storedZone = reader.IsDBNull(15) ? null : reader.GetInt32(15);
+        storedTarget = reader.IsDBNull(16) ? null : reader.GetDecimal(16);
+        storedLabShift = reader.IsDBNull(17) ? null : reader.GetInt32(17);
+        storedAnalyzer = reader.IsDBNull(18) ? null : reader.GetString(18);
     }
 }
-Console.WriteLine($"DB Verification -> User ID: #{testUserId}, Address: '{storedAddr}', Pincode: '{storedPin}', CountryId: {storedCountry}, StateId: {storedState}, CityId: {storedCity}, DOB: {storedDOB:yyyy-MM-dd}, DOJ: {storedDOJ:yyyy-MM-dd}");
+Console.WriteLine($"DB Verification -> User ID: #{testUserId}, Patho: {storedPatho}, RegNo: '{storedRegNo}', Phleb: {storedPhleb}, CertNo: '{storedCertNo}', LabTech: {storedLabTech}");
 
 if (testUserId > 0)
 {
     var userDetailsRes = await client.GetAsync($"/Users/Details/{testUserId}");
     var userDetailsHtml = await userDetailsRes.Content.ReadAsStringAsync();
-    Console.WriteLine($"Users Details GET: {userDetailsRes.StatusCode}, Has Address: {userDetailsHtml.Contains("123 Healthcare Ave")}, Has Pincode: {userDetailsHtml.Contains("700001")}, Has Assigned Depts: {userDetailsHtml.Contains("Assigned Department(s)")}, Has Status: {userDetailsHtml.Contains("Pathologist")}");
+    Console.WriteLine($"Users Details GET: {userDetailsRes.StatusCode}, Has Patho Section: {userDetailsHtml.Contains("Pathologist Credentials & Sign-Off Authorization")}, Has Reg: {userDetailsHtml.Contains("PATH-REG-2026-9812")}, Has Phleb Section: {userDetailsHtml.Contains("Phlebotomist Credentials & Sample Collection Assignment")}, Has LabTech Section: {userDetailsHtml.Contains("Lab Technician Credentials & Training")}");
 
     var userEditGet = await client.GetAsync($"/Users/Edit/{testUserId}");
     var userEditHtml = await userEditGet.Content.ReadAsStringAsync();
     var editTokenMatch = Regex.Match(userEditHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
     string editToken = editTokenMatch.Success ? editTokenMatch.Groups[1].Value : userToken;
-    Console.WriteLine($"Users Edit GET: {userEditGet.StatusCode}, Has Prepopulated Address: {userEditHtml.Contains("123 Healthcare Ave")}, Has Prepopulated Pincode: {userEditHtml.Contains("700001")}");
+    Console.WriteLine($"Users Edit GET: {userEditGet.StatusCode}, Has Prepopulated Reg: {userEditHtml.Contains("PATH-REG-2026-9812")}, Has Prepopulated Cert: {userEditHtml.Contains("PHLEB-REG-2026-9812")}");
 
     // Test Edit POST
     var userEditForm = new FormUrlEncodedContent(new[]
@@ -522,9 +581,16 @@ if (testUserId > 0)
         new KeyValuePair<string, string>("SelectedDepartmentIds", "1"),
         new KeyValuePair<string, string>("IsActive", "true"),
         new KeyValuePair<string, string>("IsNursingStaff", "true"),
-        new KeyValuePair<string, string>("IsPhlebotomist", "false"),
+        new KeyValuePair<string, string>("IsPhlebotomist", "true"),
         new KeyValuePair<string, string>("IsPathologist", "true"),
-        new KeyValuePair<string, string>("IsLabTechnician", "false"),
+        new KeyValuePair<string, string>("IsLabTechnician", "true"),
+        new KeyValuePair<string, string>("RegistrationNo", "PATH-REG-2026-UPDATED"),
+        new KeyValuePair<string, string>("CertificationNo", "PHLEB-REG-2026-UPDATED"),
+        new KeyValuePair<string, string>("ShiftSlotId", "1"),
+        new KeyValuePair<string, string>("AssignedZoneId", "1"),
+        new KeyValuePair<string, string>("DailyCollectionTarget", "75000.00"),
+        new KeyValuePair<string, string>("LabTechnicianShiftSlotId", "1"),
+        new KeyValuePair<string, string>("AnalyzerTrainedOn", "5-Part Differential Hematology Analyzer (Sysmex XN / Mindray BC-6000)"),
         new KeyValuePair<string, string>("__RequestVerificationToken", editToken)
     });
 
@@ -540,6 +606,98 @@ if (testUserId > 0)
         await delCmd.ExecuteNonQueryAsync();
         Console.WriteLine($"Cleaned up test user #{testUserId}.");
     }
+}
+
+// ── Step 12: Testing Analyzer / Instrument Master (tbl_mst_analyzer) ────────────────────────
+Console.WriteLine("\n[Step 12] Testing Analyzer / Instrument Master (tbl_mst_analyzer) End-to-End...");
+var apiAnalyzersRes = await apiClient.GetAsync("http://localhost:5201/api/analyzers");
+Console.WriteLine($"API /api/analyzers: {apiAnalyzersRes.StatusCode}");
+
+var analyzersIndexRes = await client.GetAsync("/Analyzers/Index");
+var analyzersIndexHtml = await analyzersIndexRes.Content.ReadAsStringAsync();
+Console.WriteLine($"Analyzers Index GET: {analyzersIndexRes.StatusCode}, Has Title: {analyzersIndexHtml.Contains("Analyzer / Instrument Master")}");
+
+var analyzerCreateGet = await client.GetAsync("/Analyzers/Create");
+var analyzerCreateHtml = await analyzerCreateGet.Content.ReadAsStringAsync();
+var analyzerTokenMatch = Regex.Match(analyzerCreateHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+string analyzerToken = analyzerTokenMatch.Success ? analyzerTokenMatch.Groups[1].Value : "";
+Console.WriteLine($"Analyzers Create GET: {analyzerCreateGet.StatusCode}, Has Form: {analyzerCreateHtml.Contains("Analyzer / Instrument Name")}, Has LAB Depts: {analyzerCreateHtml.Contains("TYPE=LAB")}");
+
+// Create test analyzer
+int testLabDeptId = 1;
+using (var dbConn = new SqlConnection(cs))
+{
+    await dbConn.OpenAsync();
+    using var deptCmd = new SqlCommand("SELECT TOP 1 DeptId FROM dbo.DepartmentMaster WHERE (DeptType = 'Lab' OR DeptType = 'LAB' OR DeptName LIKE '%Pathology%' OR DeptName LIKE '%Lab%') AND IsActive = 1 ORDER BY DeptId;", dbConn);
+    var scalar = await deptCmd.ExecuteScalarAsync();
+    if (scalar != null && scalar != DBNull.Value) testLabDeptId = Convert.ToInt32(scalar);
+}
+
+var analyzerCreateForm = new FormUrlEncodedContent(new[]
+{
+    new KeyValuePair<string, string>("Branch_ID", "1"),
+    new KeyValuePair<string, string>("Department_ID", testLabDeptId.ToString()),
+    new KeyValuePair<string, string>("Analyzer_Name", "Sysmex XN-3100 Automated Hematology System"),
+    new KeyValuePair<string, string>("Interface_Protocol", "HL7"),
+    new KeyValuePair<string, string>("Status", "true"),
+    new KeyValuePair<string, string>("__RequestVerificationToken", analyzerToken)
+});
+
+var analyzerCreatePost = await client.PostAsync("/Analyzers/Create", analyzerCreateForm);
+Console.WriteLine($"Analyzers Create POST: {analyzerCreatePost.StatusCode}");
+
+int createdAnalyzerId = 0;
+using (var dbConn = new SqlConnection(cs))
+{
+    await dbConn.OpenAsync();
+    using var queryCmd = new SqlCommand("SELECT TOP 1 Analyzer_ID, Analyzer_Name, Interface_Protocol, Status FROM dbo.tbl_mst_analyzer WHERE Analyzer_Name LIKE '%Sysmex XN-3100%' ORDER BY Analyzer_ID DESC;", dbConn);
+    using var reader = await queryCmd.ExecuteReaderAsync();
+    if (await reader.ReadAsync())
+    {
+        createdAnalyzerId = reader.GetInt32(0);
+        Console.WriteLine($"DB Verification -> Analyzer ID: #{createdAnalyzerId}, Name: '{reader.GetString(1)}', Protocol: '{reader.GetString(2)}', Status: {reader.GetBoolean(3)}");
+    }
+}
+
+if (createdAnalyzerId > 0)
+{
+    var analyzerDetailsRes = await client.GetAsync($"/Analyzers/Details/{createdAnalyzerId}");
+    var analyzerDetailsHtml = await analyzerDetailsRes.Content.ReadAsStringAsync();
+    Console.WriteLine($"Analyzers Details GET: {analyzerDetailsRes.StatusCode}, Has Specs: {analyzerDetailsHtml.Contains("Sysmex XN-3100 Automated Hematology System")}");
+
+    var analyzerEditGet = await client.GetAsync($"/Analyzers/Edit/{createdAnalyzerId}");
+    var analyzerEditHtml = await analyzerEditGet.Content.ReadAsStringAsync();
+    var editAnTokenMatch = Regex.Match(analyzerEditHtml, @"name=""__RequestVerificationToken""\s+type=""hidden""\s+value=""([^""]+)""");
+    string editAnToken = editAnTokenMatch.Success ? editAnTokenMatch.Groups[1].Value : analyzerToken;
+    Console.WriteLine($"Analyzers Edit GET: {analyzerEditGet.StatusCode}, Has Prepopulated Name: {analyzerEditHtml.Contains("Sysmex XN-3100")}");
+
+    var analyzerEditForm = new FormUrlEncodedContent(new[]
+    {
+        new KeyValuePair<string, string>("Analyzer_ID", createdAnalyzerId.ToString()),
+        new KeyValuePair<string, string>("Branch_ID", "1"),
+        new KeyValuePair<string, string>("Department_ID", "1"),
+        new KeyValuePair<string, string>("Analyzer_Name", "Sysmex XN-3100 Updated High-Throughput System"),
+        new KeyValuePair<string, string>("Interface_Protocol", "ASTM"),
+        new KeyValuePair<string, string>("Status", "true"),
+        new KeyValuePair<string, string>("__RequestVerificationToken", editAnToken)
+    });
+
+    var analyzerEditPost = await client.PostAsync($"/Analyzers/Edit/{createdAnalyzerId}", analyzerEditForm);
+    Console.WriteLine($"Analyzers Edit POST: {analyzerEditPost.StatusCode}");
+
+    var toggleForm = new FormUrlEncodedContent(new[]
+    {
+        new KeyValuePair<string, string>("__RequestVerificationToken", editAnToken)
+    });
+    var toggleRes = await client.PostAsync($"/Analyzers/ToggleStatus/{createdAnalyzerId}", toggleForm);
+    Console.WriteLine($"Analyzers ToggleStatus POST: {toggleRes.StatusCode}");
+
+    var deleteForm = new FormUrlEncodedContent(new[]
+    {
+        new KeyValuePair<string, string>("__RequestVerificationToken", editAnToken)
+    });
+    var deleteRes = await client.PostAsync($"/Analyzers/Delete/{createdAnalyzerId}", deleteForm);
+    Console.WriteLine($"Analyzers Delete POST: {deleteRes.StatusCode}");
 }
 
 Console.WriteLine("\n=========================================================================");

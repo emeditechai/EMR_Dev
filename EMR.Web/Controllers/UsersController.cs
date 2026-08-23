@@ -20,7 +20,8 @@ public class UsersController(
     IWebHostEnvironment webHostEnvironment,
     ICountryService countryService,
     IStateService stateService,
-    ICityService cityService) : Controller
+    ICityService cityService,
+    IAreaService areaService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -119,6 +120,9 @@ public class UsersController(
             .Include(x => x.Country)
             .Include(x => x.State)
             .Include(x => x.City)
+            .Include(x => x.ShiftSlot)
+            .Include(x => x.AssignedZone)
+            .Include(x => x.LabTechnicianShiftSlot)
             .FirstOrDefaultAsync(x => x.Id == id);
 
         if (user is null) return NotFound();
@@ -152,6 +156,14 @@ public class UsersController(
                 .ToList();
         }
 
+        var shiftSlotName = user.ShiftSlot != null
+            ? $"{user.ShiftSlot.ShiftName} ({user.ShiftSlot.StartTime:hh\\:mm} - {user.ShiftSlot.EndTime:hh\\:mm})"
+            : null;
+
+        var labShiftSlotName = user.LabTechnicianShiftSlot != null
+            ? $"{user.LabTechnicianShiftSlot.ShiftName} ({user.LabTechnicianShiftSlot.StartTime:hh\\:mm} - {user.LabTechnicianShiftSlot.EndTime:hh\\:mm})"
+            : null;
+
         var model = new UserDetailsViewModel
         {
             Id = user.Id,
@@ -173,6 +185,16 @@ public class UsersController(
             IsPhlebotomist = user.IsPhlebotomist,
             IsPathologist = user.IsPathologist,
             IsLabTechnician = user.IsLabTechnician,
+            CertificationNo = user.CertificationNo,
+            RegistrationNo = user.RegistrationNo,
+            ShiftSlotId = user.ShiftSlotId,
+            ShiftSlotName = shiftSlotName,
+            AssignedZoneId = user.AssignedZoneId,
+            AssignedZoneName = user.AssignedZone?.AreaName,
+            DailyCollectionTarget = user.DailyCollectionTarget,
+            LabTechnicianShiftSlotId = user.LabTechnicianShiftSlotId,
+            LabTechnicianShiftSlotName = labShiftSlotName,
+            AnalyzerTrainedOn = user.AnalyzerTrainedOn,
             IsLockedOut = user.IsLockedOut,
             LastLoginDate = user.LastLoginDate,
             CreatedDate = user.CreatedDate,
@@ -223,6 +245,16 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.SelectedBranchIds), "Select at least one branch.");
         }
 
+        if (model.IsPhlebotomist && string.IsNullOrWhiteSpace(model.CertificationNo))
+        {
+            ModelState.AddModelError(nameof(model.CertificationNo), "Certification No is mandatory when designated as Phlebotomist.");
+        }
+
+        if (model.IsPathologist && string.IsNullOrWhiteSpace(model.RegistrationNo))
+        {
+            ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
+        }
+
         await ValidateEmployeeCodeUniquenessAsync(model);
         ValidateProfilePicture(model);
 
@@ -268,6 +300,13 @@ public class UsersController(
             IsPhlebotomist = model.IsPhlebotomist,
             IsPathologist = model.IsPathologist,
             IsLabTechnician = model.IsLabTechnician,
+            CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null,
+            RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null,
+            ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null,
+            AssignedZoneId = model.IsPhlebotomist && model.AssignedZoneId > 0 ? model.AssignedZoneId : null,
+            DailyCollectionTarget = model.IsPhlebotomist ? model.DailyCollectionTarget : null,
+            LabTechnicianShiftSlotId = model.IsLabTechnician && model.LabTechnicianShiftSlotId > 0 ? model.LabTechnicianShiftSlotId : null,
+            AnalyzerTrainedOn = model.IsLabTechnician ? model.AnalyzerTrainedOn?.Trim() : null,
             PasswordLastChanged = DateTime.Now,
             CreatedDate = DateTime.Now,
             LastModifiedDate = DateTime.Now,
@@ -332,6 +371,13 @@ public class UsersController(
             IsPhlebotomist = user.IsPhlebotomist,
             IsPathologist = user.IsPathologist,
             IsLabTechnician = user.IsLabTechnician,
+            CertificationNo = user.CertificationNo,
+            RegistrationNo = user.RegistrationNo,
+            ShiftSlotId = user.ShiftSlotId,
+            AssignedZoneId = user.AssignedZoneId,
+            DailyCollectionTarget = user.DailyCollectionTarget,
+            LabTechnicianShiftSlotId = user.LabTechnicianShiftSlotId,
+            AnalyzerTrainedOn = user.AnalyzerTrainedOn,
             SelectedBranchIds = user.UserBranches.Where(x => x.IsActive).Select(x => x.BranchId).ToList(),
             SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList(),
             SelectedDepartmentIds = selectedDeptIds
@@ -364,6 +410,16 @@ public class UsersController(
         if (!model.SelectedBranchIds.Any())
         {
             ModelState.AddModelError(nameof(model.SelectedBranchIds), "Select at least one branch.");
+        }
+
+        if (model.IsPhlebotomist && string.IsNullOrWhiteSpace(model.CertificationNo))
+        {
+            ModelState.AddModelError(nameof(model.CertificationNo), "Certification No is mandatory when designated as Phlebotomist.");
+        }
+
+        if (model.IsPathologist && string.IsNullOrWhiteSpace(model.RegistrationNo))
+        {
+            ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
         }
 
         await ValidateEmployeeCodeUniquenessAsync(model);
@@ -401,6 +457,13 @@ public class UsersController(
         user.IsPhlebotomist = model.IsPhlebotomist;
         user.IsPathologist = model.IsPathologist;
         user.IsLabTechnician = model.IsLabTechnician;
+        user.CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null;
+        user.RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null;
+        user.ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null;
+        user.AssignedZoneId = model.IsPhlebotomist && model.AssignedZoneId > 0 ? model.AssignedZoneId : null;
+        user.DailyCollectionTarget = model.IsPhlebotomist ? model.DailyCollectionTarget : null;
+        user.LabTechnicianShiftSlotId = model.IsLabTechnician && model.LabTechnicianShiftSlotId > 0 ? model.LabTechnicianShiftSlotId : null;
+        user.AnalyzerTrainedOn = model.IsLabTechnician ? model.AnalyzerTrainedOn?.Trim() : null;
         user.LastModifiedDate = DateTime.Now;
 
         user.ProfilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, user.ProfilePicturePath);
@@ -458,6 +521,13 @@ public class UsersController(
     {
         var cities = await cityService.GetByStateAsync(stateId);
         return Json(cities.Where(c => c.IsActive).OrderBy(c => c.CityName).Select(c => new { c.CityId, c.CityName }));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAreasByCity(int cityId)
+    {
+        var areas = await areaService.GetByCityAsync(cityId);
+        return Json(areas.Where(a => a.IsActive).OrderBy(a => a.AreaName).Select(a => new { a.AreaId, a.AreaName, a.AreaCode }));
     }
 
     private async Task PopulateSelections(UserFormViewModel model)
@@ -528,6 +598,76 @@ public class UsersController(
                 .OrderBy(c => c.CityName)
                 .Select(c => new SelectListItem(c.CityName, c.CityId.ToString(), model.CityId.HasValue && c.CityId == model.CityId.Value))
                 .ToList();
+        }
+
+        // Shift Slot options for Pathologist
+        var shifts = await dbContext.ShiftMasters
+            .Where(s => s.Status)
+            .OrderBy(s => s.ShiftName)
+            .ToListAsync();
+
+        model.ShiftSlotOptions = shifts
+            .Select(s => new SelectListItem(
+                $"{s.ShiftName} ({s.ShiftCode}) [{s.StartTime:hh\\:mm} - {s.EndTime:hh\\:mm}]",
+                s.ShiftMaster_ID.ToString(),
+                model.ShiftSlotId.HasValue && s.ShiftMaster_ID == model.ShiftSlotId.Value))
+            .ToList();
+
+        // Shift Slot options for Lab Technician
+        model.LabShiftSlotOptions = shifts
+            .Select(s => new SelectListItem(
+                $"{s.ShiftName} ({s.ShiftCode}) [{s.StartTime:hh\\:mm} - {s.EndTime:hh\\:mm}]",
+                s.ShiftMaster_ID.ToString(),
+                model.LabTechnicianShiftSlotId.HasValue && s.ShiftMaster_ID == model.LabTechnicianShiftSlotId.Value))
+            .ToList();
+
+        // Standard LAB related Analyzers
+        var standardAnalyzers = new[]
+        {
+            "Fully Automated Biochemistry Analyzer (Roche Cobas / Beckman Coulter AU)",
+            "Semi-Automated Biochemistry Analyzer (Erba / Mindray)",
+            "5-Part Differential Hematology Analyzer (Sysmex XN / Mindray BC-6000)",
+            "3-Part Hematology Cell Counter (Mindray BC-3000 / Nihon Kohden)",
+            "Automated Immunoassay & Chemiluminescence (CLIA) Analyzer (Abbott Architect / Roche Elecsys)",
+            "Arterial Blood Gas (ABG) & Electrolyte Analyzer (Radiometer ABL / Nova Biomedical)",
+            "Automated Coagulation Analyzer (Stago STA Compact / Sysmex CS)",
+            "Automated Urine Chemistry & Sediment Analyzer (Dirui / Sysmex UC)",
+            "Molecular Diagnostics & Real-Time PCR (Bio-Rad CFX / GeneXpert)",
+            "ELISA Microplate Reader & Automated Washer",
+            "Microbiology Automated Microbial Identification & AST (bioMérieux VITEK 2 / BD Phoenix)",
+            "High Performance Liquid Chromatography (HPLC) HbA1c Analyzer"
+        };
+
+        model.LabAnalyzerOptions = standardAnalyzers
+            .Select(a => new SelectListItem(a, a, !string.IsNullOrWhiteSpace(model.AnalyzerTrainedOn) && string.Equals(model.AnalyzerTrainedOn, a, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        // Area options for Phlebotomist Assigned Zone
+        if (model.CityId.HasValue && model.CityId.Value > 0)
+        {
+            var areas = await areaService.GetByCityAsync(model.CityId.Value);
+            model.AssignedZoneOptions = areas
+                .Where(a => a.IsActive)
+                .OrderBy(a => a.AreaName)
+                .Select(a => new SelectListItem(
+                    string.IsNullOrWhiteSpace(a.AreaCode) ? a.AreaName : $"{a.AreaName} ({a.AreaCode})",
+                    a.AreaId.ToString(),
+                    model.AssignedZoneId.HasValue && a.AreaId == model.AssignedZoneId.Value))
+                .ToList();
+        }
+        else if (model.AssignedZoneId.HasValue && model.AssignedZoneId.Value > 0)
+        {
+            var area = await areaService.GetByIdAsync(model.AssignedZoneId.Value);
+            if (area != null)
+            {
+                model.AssignedZoneOptions = new List<SelectListItem>
+                {
+                    new SelectListItem(
+                        string.IsNullOrWhiteSpace(area.AreaCode) ? area.AreaName : $"{area.AreaName} ({area.AreaCode})",
+                        area.AreaId.ToString(),
+                        true)
+                };
+            }
         }
     }
 

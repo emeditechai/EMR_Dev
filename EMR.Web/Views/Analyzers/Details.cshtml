@@ -1,0 +1,132 @@
+@model EMR.Web.Models.ViewModels.AnalyzerDetailViewModel
+@{
+    ViewData["Title"] = "Analyzer Details";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm me-3 rounded-3" title="Back to List">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="h3 mb-0 fw-bold text-dark">@Model.Item.Analyzer_Name</h1>
+            <small class="text-muted">Analyzer #@Model.Item.Analyzer_ID &bull; @Model.Item.BranchName</small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.Item.Analyzer_ID" class="btn btn-primary rounded-3">
+            <i class="bi bi-pencil-square me-1"></i>Edit Analyzer
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary rounded-3">
+            <i class="bi bi-list-ul me-1"></i>Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+            <div class="card-header bg-white py-3 px-4 border-bottom">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-info-circle-fill me-2 text-primary"></i>Analyzer & Instrument Specifications
+                </h6>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <small class="text-muted d-block mb-1">Analyzer / Instrument Name</small>
+                            <span class="fs-6 fw-bold text-dark">@Model.Item.Analyzer_Name</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <small class="text-muted d-block mb-1">Interface Protocol</small>
+                            @if (string.Equals(Model.Item.Interface_Protocol, "HL7", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <span class="badge" style="background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe;font-size:0.85rem;">
+                                    <i class="bi bi-diagram-3-fill me-1"></i>HL7 Protocol
+                                </span>
+                            }
+                            else if (string.Equals(Model.Item.Interface_Protocol, "ASTM", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <span class="badge" style="background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4;font-size:0.85rem;">
+                                    <i class="bi bi-hdd-network me-1"></i>ASTM Protocol
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;font-size:0.85rem;">
+                                    <i class="bi bi-keyboard me-1"></i>Manual Entry
+                                </span>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <small class="text-muted d-block mb-1">Hospital Branch</small>
+                            <span class="fw-semibold text-dark">
+                                <i class="bi bi-hospital me-1 text-primary"></i>@Model.Item.BranchName (@Model.Item.BranchCode)
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <small class="text-muted d-block mb-1">Department (TYPE=LAB)</small>
+                            <span class="fw-semibold text-dark">
+                                <i class="bi bi-building-gear me-1 text-info"></i>@Model.Item.DepartmentName (@Model.Item.DepartmentCode)
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <small class="text-muted d-block mb-1">Operation Status</small>
+                            @if (Model.Item.Status)
+                            {
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size:0.85rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Active & Operational
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size:0.85rem;">
+                                    <i class="bi bi-x-circle-fill me-1"></i>Inactive / Maintenance
+                                </span>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <small class="text-muted d-block mb-1">Created Date</small>
+                            <span class="text-dark">@Model.Item.CreatedDate.ToString("dd MMM yyyy, HH:mm")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+            <div class="card-header bg-white py-3 px-4 border-bottom">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-shield-check me-2 text-success"></i>LIMS Machine Connectivity
+                </h6>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted small mb-3">
+                    This analyzer instrument is registered in the Laboratory Information Management System (LIMS) for specimen test processing.
+                </p>
+                <div class="p-3 rounded-3 mb-3 border" style="background:#f8fafc;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-arrow-left-right text-primary"></i>
+                        <span class="fw-semibold small">Bidirectional Interface</span>
+                    </div>
+                    <small class="text-muted d-block">
+                        Supports automatic transmission of specimen worklists and bidirectional receipt of numerical test results via @Model.Item.Interface_Protocol.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -183,6 +183,87 @@
 </div>
 
 
+@if (Model.IsPathologist)
+{
+    <div class="uf-section mb-3" style="border-left: 4px solid #7c3aed;">
+        <div class="uf-section-header" style="color:#6b21a8;">
+            <i class="bi bi-microscope me-2"></i>Pathologist Credentials & Sign-Off Authorization
+        </div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="detail-field" style="background:#faf5ff;border-color:#f3e8ff;">
+                        <div class="detail-label" style="color:#6b21a8;"><i class="bi bi-patch-check-fill me-1"></i>Registration No</div>
+                        <div class="detail-value fw-bold" style="color:#6b21a8;">@(string.IsNullOrWhiteSpace(Model.RegistrationNo) ? "—" : Model.RegistrationNo)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (Model.IsPhlebotomist)
+{
+    <div class="uf-section mb-3" style="border-left: 4px solid #dc2626;">
+        <div class="uf-section-header text-danger">
+            <i class="bi bi-droplet-half me-2"></i>Phlebotomist Credentials & Sample Collection Assignment
+        </div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="detail-field" style="background:#fef2f2;border-color:#fee2e2;">
+                        <div class="detail-label text-danger"><i class="bi bi-patch-check-fill me-1"></i>Certification No</div>
+                        <div class="detail-value fw-bold text-danger">@(string.IsNullOrWhiteSpace(Model.CertificationNo) ? "—" : Model.CertificationNo)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="detail-field" style="background:#fef2f2;border-color:#fee2e2;">
+                        <div class="detail-label text-danger"><i class="bi bi-clock-history me-1"></i>Shift Slot</div>
+                        <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.ShiftSlotName) ? "—" : Model.ShiftSlotName)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="detail-field" style="background:#fef2f2;border-color:#fee2e2;">
+                        <div class="detail-label text-danger"><i class="bi bi-geo-alt-fill me-1"></i>Assigned Zone</div>
+                        <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.AssignedZoneName) ? "—" : Model.AssignedZoneName)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="detail-field" style="background:#fef2f2;border-color:#fee2e2;">
+                        <div class="detail-label text-danger"><i class="bi bi-cash-stack me-1"></i>Daily Collection Target</div>
+                        <div class="detail-value text-success fw-bold">@(Model.DailyCollectionTarget.HasValue ? $"₹{Model.DailyCollectionTarget.Value:N2}" : "—")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (Model.IsLabTechnician)
+{
+    <div class="uf-section mb-3" style="border-left: 4px solid #0d9488;">
+        <div class="uf-section-header" style="color:#0d9488;">
+            <i class="bi bi-eyedropper me-2"></i>Lab Technician Credentials & Training
+        </div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="detail-field" style="background:#f0fdfa;border-color:#ccfbf1;">
+                        <div class="detail-label" style="color:#0f766e;"><i class="bi bi-clock-history me-1"></i>Shift Slot</div>
+                        <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.LabTechnicianShiftSlotName) ? "—" : Model.LabTechnicianShiftSlotName)</div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="detail-field" style="background:#f0fdfa;border-color:#ccfbf1;">
+                        <div class="detail-label" style="color:#0f766e;"><i class="bi bi-cpu-fill me-1"></i>Analyzer Trained On</div>
+                        <div class="detail-value fw-bold" style="color:#0f766e;">@(string.IsNullOrWhiteSpace(Model.AnalyzerTrainedOn) ? "—" : Model.AnalyzerTrainedOn)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <div class="uf-section mb-3">
     <div class="uf-section-header"><i class="bi bi-clock-history me-2"></i>Activity</div>
     <div class="uf-section-body">

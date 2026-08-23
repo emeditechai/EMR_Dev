@@ -103,9 +103,38 @@ public class UserFormViewModel
     [Display(Name = "City")]
     public int? CityId { get; set; }
 
+    [MaxLength(100)]
+    [Display(Name = "Certification No")]
+    public string? CertificationNo { get; set; }
+
+    [MaxLength(100)]
+    [Display(Name = "Registration No")]
+    public string? RegistrationNo { get; set; }
+
+    [Display(Name = "Shift Slot")]
+    public int? ShiftSlotId { get; set; }
+
+    [Display(Name = "Assigned Zone")]
+    public int? AssignedZoneId { get; set; }
+
+    [Display(Name = "Daily Collection Target")]
+    [Range(0, 999999999.99, ErrorMessage = "Daily collection target must be a positive value.")]
+    public decimal? DailyCollectionTarget { get; set; }
+
+    [Display(Name = "Lab Shift")]
+    public int? LabTechnicianShiftSlotId { get; set; }
+
+    [MaxLength(250)]
+    [Display(Name = "Analyzer Trained On")]
+    public string? AnalyzerTrainedOn { get; set; }
+
     public List<SelectListItem> CountryOptions { get; set; } = new();
     public List<SelectListItem> StateOptions { get; set; } = new();
     public List<SelectListItem> CityOptions { get; set; } = new();
+    public List<SelectListItem> ShiftSlotOptions { get; set; } = new();
+    public List<SelectListItem> AssignedZoneOptions { get; set; } = new();
+    public List<SelectListItem> LabShiftSlotOptions { get; set; } = new();
+    public List<SelectListItem> LabAnalyzerOptions { get; set; } = new();
 
     public List<int> SelectedBranchIds { get; set; } = new();
     public List<int> SelectedRoleIds { get; set; } = new();
@@ -150,6 +179,19 @@ public class UserDetailsViewModel
     public bool IsPhlebotomist { get; set; }
     public bool IsPathologist { get; set; }
     public bool IsLabTechnician { get; set; }
+
+    public string? CertificationNo { get; set; }
+    public string? RegistrationNo { get; set; }
+    public int? ShiftSlotId { get; set; }
+    public string? ShiftSlotName { get; set; }
+    public int? AssignedZoneId { get; set; }
+    public string? AssignedZoneName { get; set; }
+    public decimal? DailyCollectionTarget { get; set; }
+
+    public int? LabTechnicianShiftSlotId { get; set; }
+    public string? LabTechnicianShiftSlotName { get; set; }
+    public string? AnalyzerTrainedOn { get; set; }
+
     public bool IsLockedOut { get; set; }
     public DateTime? LastLoginDate { get; set; }
     public DateTime CreatedDate { get; set; }
