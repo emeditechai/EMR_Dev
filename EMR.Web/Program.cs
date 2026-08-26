@@ -84,6 +84,9 @@ builder.Services.AddScoped<IPatientVitalService, PatientVitalService>();
 // Payment (Dapper)
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
+// Ledger (Dapper)
+builder.Services.AddScoped<ILedgerService, LedgerService>();
+
 // Email (SMTP)
 builder.Services.AddScoped<IEmailService, EmailService>();
 

@@ -36,7 +36,8 @@ public class OPDController(
     IDoctorApiClient doctorApiClient,
     IEmrConsultationApiClient emrConsultationApiClient,
     IVitalApiClient vitalApiClient,
-    IDbConnectionFactory db) : Controller
+    IDbConnectionFactory db,
+    ILedgerService ledgerService) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -315,9 +316,9 @@ public class OPDController(
             return RedirectToAction("SelectBranch", "Account");
         }
 
+        List<OPDServiceLineItem>? lineItems = null;
         if (!model.DemographicsOnly)
         {
-            List<OPDServiceLineItem>? lineItems = null;
             try
             {
                 var serializeOptions = new System.Text.Json.JsonSerializerOptions
@@ -447,6 +448,10 @@ public class OPDController(
             await auditLogService.LogAsync("OPD", "Patient.Create",
                 $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
 
+            // Ledger Entry
+            decimal totalAmount = lineItems?.Sum(x => x.ServiceCharges) ?? 0;
+            await ledgerService.PostOpdBillLedgerAsync(newSvcId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), billNo);
+
             TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
 
             // ── Trigger Patient Login Generation ──
@@ -499,6 +504,9 @@ public class OPDController(
 
             if (model.OPDServiceId == 0)   // new visit for returning patient
             {
+                // Ledger Entry
+                decimal totalAmount = lineItems?.Sum(x => x.ServiceCharges) ?? 0;
+                await ledgerService.PostOpdBillLedgerAsync(newSvcId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), billNo);
                 TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
 
                 // ── Trigger Patient Login Generation ──
