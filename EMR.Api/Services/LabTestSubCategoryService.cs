@@ -7,12 +7,12 @@ namespace EMR.Api.Services;
 
 public class LabTestSubCategoryService(IDbConnectionFactory db) : ILabTestSubCategoryService
 {
-    public async Task<IEnumerable<LabTestSubCategoryListItem>> GetListAsync(int? branchId, int? categoryId, bool? status, string? search, int? companyId)
+    public async Task<IEnumerable<LabTestSubCategoryListItem>> GetListAsync(int? categoryId, bool? status, string? search, int? companyId)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<LabTestSubCategoryListItem>(
             "usp_Api_LabTestSubCategoryMaster_GetList",
-            new { BranchId = branchId, CategoryId = categoryId, Status = status, Search = search, CompanyId = companyId },
+            new { CategoryId = categoryId, Status = status, Search = search, CompanyId = companyId },
             commandType: CommandType.StoredProcedure
         );
     }
@@ -35,7 +35,6 @@ public class LabTestSubCategoryService(IDbConnectionFactory db) : ILabTestSubCat
         p.Add("@SubCategory_Name", req.SubCategory_Name);
         p.Add("@Display_Order", req.Display_Order);
         p.Add("@CompanyId", req.CompanyId);
-        p.Add("@BranchId", req.BranchId);
         p.Add("@UserId", req.UserId);
         p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 

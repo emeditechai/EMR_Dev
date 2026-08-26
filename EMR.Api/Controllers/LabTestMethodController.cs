@@ -12,13 +12,12 @@ public class LabTestMethodController(ILabTestMethodService service) : Controller
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabTestMethodListItem>>), 200)]
     public async Task<IActionResult> GetList(
-        [FromQuery] int? branchId,
         [FromQuery] int? departmentId,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
     {
-        var data = await service.GetListAsync(branchId, departmentId, status, search, companyId);
+        var data = await service.GetListAsync(departmentId, status, search, companyId);
         return Ok(ApiResponse<IEnumerable<LabTestMethodListItem>>.Ok(data));
     }
 

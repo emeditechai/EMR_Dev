@@ -20,18 +20,16 @@ public class LabTestSubCategoriesController(
     public async Task<IActionResult> Index(int? categoryId = null, bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
-            var subCategories = (await subCategoryApiClient.GetListAsync(branchId, categoryId, status, search, companyId)).ToList();
-            var categoryOptions = await GetCategoryOptionsAsync(branchId, companyId);
-            var dashboard = await dashboardService.GetDashboardAsync(branchId, companyId, "LabTestSubCategories");
+            var subCategories = (await subCategoryApiClient.GetListAsync(categoryId, status, search, companyId)).ToList();
+            var categoryOptions = await GetCategoryOptionsAsync(companyId);
+            var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabTestSubCategories");
 
             var model = new LabTestSubCategoryIndexViewModel
             {
                 SubCategories = subCategories,
-                SelectedBranchId = branchId,
                 SelectedCategoryId = categoryId,
                 SelectedStatus = status,
                 SearchTerm = search,
@@ -57,15 +55,13 @@ public class LabTestSubCategoriesController(
     public async Task<IActionResult> Create()
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         var model = new LabTestSubCategoryFormViewModel
         {
             CompanyId = companyId,
-            BranchId = branchId,
             Display_Order = 1,
             Status = true,
-            CategoryOptions = await GetCategoryOptionsAsync(branchId, companyId)
+            CategoryOptions = await GetCategoryOptionsAsync(companyId)
         };
 
         return View(model);
@@ -76,11 +72,10 @@ public class LabTestSubCategoriesController(
     public async Task<IActionResult> Create(LabTestSubCategoryFormViewModel model)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         if (!ModelState.IsValid)
         {
-            model.CategoryOptions = await GetCategoryOptionsAsync(branchId, companyId);
+            model.CategoryOptions = await GetCategoryOptionsAsync(companyId);
             return View(model);
         }
 
@@ -92,7 +87,6 @@ public class LabTestSubCategoriesController(
                 SubCategory_Name = model.SubCategory_Name,
                 Display_Order = model.Display_Order,
                 CompanyId = companyId,
-                BranchId = branchId,
                 UserId = User.GetUserId()
             };
 
@@ -103,7 +97,7 @@ public class LabTestSubCategoriesController(
                 "Create",
                 $"Created Lab Test Sub Category '{model.SubCategory_Name}' with ID #{newId}",
                 User.GetUserId(),
-                branchId
+                User.GetCurrentBranchId() ?? 1
             );
 
             TempData["SuccessMessage"] = $"Test Sub Category '{model.SubCategory_Name}' created successfully.";
@@ -112,7 +106,7 @@ public class LabTestSubCategoriesController(
         catch (InvalidOperationException ex)
         {
             ModelState.AddModelError(string.Empty, ex.Message);
-            model.CategoryOptions = await GetCategoryOptionsAsync(branchId, companyId);
+            model.CategoryOptions = await GetCategoryOptionsAsync(companyId);
             return View(model);
         }
         catch (HttpRequestException)
@@ -126,7 +120,6 @@ public class LabTestSubCategoriesController(
     public async Task<IActionResult> Edit(int id)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
@@ -141,13 +134,12 @@ public class LabTestSubCategoriesController(
             {
                 SubCategory_ID = item.SubCategory_ID,
                 CompanyId = item.CompanyId,
-                BranchId = item.BranchId,
                 Category_ID = item.Category_ID,
                 SubCategory_Name = item.SubCategory_Name,
                 SubCategory_Code = item.SubCategory_Code,
                 Display_Order = item.Display_Order,
                 Status = item.Status,
-                CategoryOptions = await GetCategoryOptionsAsync(branchId, companyId)
+                CategoryOptions = await GetCategoryOptionsAsync(companyId)
             };
 
             return View(model);
@@ -164,14 +156,13 @@ public class LabTestSubCategoriesController(
     public async Task<IActionResult> Edit(int id, LabTestSubCategoryFormViewModel model)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         if (id != model.SubCategory_ID)
             return BadRequest();
 
         if (!ModelState.IsValid)
         {
-            model.CategoryOptions = await GetCategoryOptionsAsync(branchId, companyId);
+            model.CategoryOptions = await GetCategoryOptionsAsync(companyId);
             return View(model);
         }
 
@@ -194,7 +185,7 @@ public class LabTestSubCategoriesController(
                 "Edit",
                 $"Updated Lab Test Sub Category #{model.SubCategory_ID} ('{model.SubCategory_Name}')",
                 User.GetUserId(),
-                branchId
+                User.GetCurrentBranchId() ?? 1
             );
 
             TempData["SuccessMessage"] = $"Test Sub Category '{model.SubCategory_Name}' updated successfully.";
@@ -203,7 +194,7 @@ public class LabTestSubCategoriesController(
         catch (InvalidOperationException ex)
         {
             ModelState.AddModelError(string.Empty, ex.Message);
-            model.CategoryOptions = await GetCategoryOptionsAsync(branchId, companyId);
+            model.CategoryOptions = await GetCategoryOptionsAsync(companyId);
             return View(model);
         }
         catch (HttpRequestException)
@@ -238,7 +229,6 @@ public class LabTestSubCategoriesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleStatus(int id, bool status)
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
         try
         {
             var req = new LabTestSubCategoryToggleStatusRequestModel
@@ -255,7 +245,7 @@ public class LabTestSubCategoriesController(
                 "ToggleStatus",
                 $"Toggled status for Lab Test Sub Category #{id} to {(status ? "Active" : "Inactive")}",
                 User.GetUserId(),
-                branchId
+                User.GetCurrentBranchId() ?? 1
             );
 
             TempData["SuccessMessage"] = "Status updated successfully.";
@@ -272,7 +262,6 @@ public class LabTestSubCategoriesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
         try
         {
             await subCategoryApiClient.DeleteAsync(id);
@@ -282,7 +271,7 @@ public class LabTestSubCategoriesController(
                 "Delete",
                 $"Deleted Lab Test Sub Category #{id}",
                 User.GetUserId(),
-                branchId
+                User.GetCurrentBranchId() ?? 1
             );
 
             TempData["SuccessMessage"] = "Test Sub Category deleted successfully.";
@@ -295,11 +284,11 @@ public class LabTestSubCategoriesController(
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task<List<SelectListItem>> GetCategoryOptionsAsync(int branchId, int companyId)
+    private async Task<List<SelectListItem>> GetCategoryOptionsAsync(int companyId)
     {
         try
         {
-            var categories = await categoryApiClient.GetListAsync(branchId: branchId, status: true, companyId: companyId);
+            var categories = await categoryApiClient.GetListAsync(status: true, companyId: companyId);
             return categories.Select(c => new SelectListItem
             {
                 Value = c.Category_ID.ToString(),

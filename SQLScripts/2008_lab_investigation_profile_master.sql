@@ -1,5 +1,5 @@
 -- =================================================================================
--- Script Name: 102_lab_investigation_profile_master.sql
+-- Script Name: 2008_lab_investigation_profile_master.sql
 -- Description: Creates Header & Detail tables, UDT, and Stored Procedures for
 --              Lab Investigation Profile / Package Master (Header-Detail CRUD).
 -- Database:    Dev_EMR (SQL Server)
@@ -23,7 +23,6 @@ BEGIN
     (
         [Profile_ID]               INT IDENTITY(1,1) NOT NULL,
         [CompanyId]                INT NOT NULL DEFAULT(1),
-        [BranchId]                 INT NOT NULL DEFAULT(1),
         [Profile_Code]             VARCHAR(50) NOT NULL,
         [Profile_Name]             NVARCHAR(200) NOT NULL,
         [Profile_Type]             VARCHAR(50) NOT NULL DEFAULT('Profile'), -- 'Profile' (fixed group) / 'Package' (health checkup bundle)
@@ -44,12 +43,12 @@ BEGIN
         CONSTRAINT [PK_LabInvestigationProfileHeader] PRIMARY KEY CLUSTERED ([Profile_ID] ASC)
     );
 
-    CREATE UNIQUE NONCLUSTERED INDEX [UX_LabInvestigationProfileHeader_ProfileCode] 
-        ON [dbo].[LabInvestigationProfileHeader]([BranchId], [Profile_Code]) 
+    CREATE UNIQUE NONCLUSTERED INDEX [UX_LabInvestigationProfileHeader_ProfileCode]
+        ON [dbo].[LabInvestigationProfileHeader]([Profile_Code]) 
         WHERE [IsDeleted] = 0;
 
-    CREATE UNIQUE NONCLUSTERED INDEX [UX_LabInvestigationProfileHeader_ProfileName] 
-        ON [dbo].[LabInvestigationProfileHeader]([BranchId], [Profile_Name]) 
+    CREATE UNIQUE NONCLUSTERED INDEX [UX_LabInvestigationProfileHeader_ProfileName]
+        ON [dbo].[LabInvestigationProfileHeader]([Profile_Name]) 
         WHERE [IsDeleted] = 0;
 
     PRINT 'Table dbo.LabInvestigationProfileHeader created successfully.';
@@ -111,7 +110,6 @@ IF OBJECT_ID(N'[dbo].[usp_Api_LabInvestigationProfile_GetList]', N'P') IS NOT NU
 GO
 
 CREATE PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_GetList]
-    @BranchId     INT = NULL,
     @ProfileType  VARCHAR(50) = NULL,
     @Status       BIT = NULL,
     @SearchTerm   NVARCHAR(200) = NULL,
@@ -123,7 +121,6 @@ BEGIN
     SELECT 
         h.[Profile_ID],
         h.[CompanyId],
-        h.[BranchId],
         h.[Profile_Code],
         h.[Profile_Name],
         h.[Profile_Type],
@@ -143,7 +140,6 @@ BEGIN
         (SELECT COUNT(1) FROM [dbo].[LabInvestigationProfileDetail] d WHERE d.[Profile_ID] = h.[Profile_ID] AND d.[IsDeleted] = 0) AS [TestCount]
     FROM [dbo].[LabInvestigationProfileHeader] h
     WHERE h.[IsDeleted] = 0
-      AND (@BranchId IS NULL OR h.[BranchId] = @BranchId)
       AND (@CompanyId IS NULL OR h.[CompanyId] = @CompanyId)
       AND (@ProfileType IS NULL OR h.[Profile_Type] = @ProfileType)
       AND (@Status IS NULL OR h.[Status] = @Status)
@@ -167,7 +163,6 @@ BEGIN
     SELECT 
         h.[Profile_ID],
         h.[CompanyId],
-        h.[BranchId],
         h.[Profile_Code],
         h.[Profile_Name],
         h.[Profile_Type],
@@ -216,7 +211,6 @@ GO
 CREATE PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_Save]
     @Profile_ID              INT = NULL OUTPUT,
     @CompanyId               INT = 1,
-    @BranchId                INT = 1,
     @Profile_Name            NVARCHAR(200),
     @Profile_Type            VARCHAR(50) = 'Profile',
     @MRP                     DECIMAL(18,2) = 0.00,
@@ -238,9 +232,7 @@ BEGIN
     BEGIN TRY
         -- Check Duplicate Profile Name
         IF EXISTS (
-            SELECT 1 FROM [dbo].[LabInvestigationProfileHeader] 
-            WHERE [BranchId] = @BranchId 
-              AND [Profile_Name] = @Profile_Name 
+            SELECT 1 FROM [dbo].[LabInvestigationProfileHeader]            WHERE [Profile_Name] = @Profile_Name 
               AND (@Profile_ID IS NULL OR [Profile_ID] <> @Profile_ID)
               AND [IsDeleted] = 0
         )
@@ -264,14 +256,14 @@ BEGIN
 
             INSERT INTO [dbo].[LabInvestigationProfileHeader]
             (
-                [CompanyId], [BranchId], [Profile_Code], [Profile_Name], [Profile_Type],
+                [CompanyId], [Profile_Code], [Profile_Name], [Profile_Type],
                 [MRP], [Discount_Pct], [Age_Operator], [Applicable_Age], [Applicable_Gender],
                 [Profile_TAT_Hours], [Profile_NABL_Accredited], [Report_Print_Sequence],
                 [Status], [IsDeleted], [CreatedBy], [CreatedDate]
             )
             VALUES
             (
-                @CompanyId, @BranchId, @Profile_Code, @Profile_Name, @Profile_Type,
+                @CompanyId, @Profile_Code, @Profile_Name, @Profile_Type,
                 @MRP, @Discount_Pct, @Age_Operator, @Applicable_Age, @Applicable_Gender,
                 @Profile_TAT_Hours, @Profile_NABL_Accredited, @Report_Print_Sequence,
                 @Status, 0, @UserId, GETDATE()

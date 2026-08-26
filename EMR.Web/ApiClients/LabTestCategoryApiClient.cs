@@ -7,10 +7,9 @@ public class LabTestCategoryApiClient(IHttpClientFactory factory) : ILabTestCate
 {
     private HttpClient Client => factory.CreateClient("EmrApi");
 
-    public async Task<IEnumerable<LabTestCategoryModel>> GetListAsync(int? branchId = null, int? departmentId = null, bool? status = null, string? search = null, int? companyId = null)
+    public async Task<IEnumerable<LabTestCategoryModel>> GetListAsync(int? departmentId = null, bool? status = null, string? search = null, int? companyId = null)
     {
         var query = new List<string>();
-        if (branchId.HasValue) query.Add($"branchId={branchId.Value}");
         if (departmentId.HasValue) query.Add($"departmentId={departmentId.Value}");
         if (status.HasValue) query.Add($"status={status.Value.ToString().ToLower()}");
         if (!string.IsNullOrWhiteSpace(search)) query.Add($"search={Uri.EscapeDataString(search)}");

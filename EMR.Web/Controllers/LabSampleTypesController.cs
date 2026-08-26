@@ -22,17 +22,15 @@ public class LabSampleTypesController(
     public async Task<IActionResult> Index(string? containerType = null, bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
-            var sampleTypes = (await sampleTypeApiClient.GetListAsync(branchId, containerType, status, search, companyId)).ToList();
-            var dashboard = await dashboardService.GetDashboardAsync(branchId, companyId, "LabSampleTypes");
+            var sampleTypes = (await sampleTypeApiClient.GetListAsync(containerType, status, search, companyId)).ToList();
+            var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabSampleTypes");
 
             var model = new LabSampleTypeIndexViewModel
             {
                 SampleTypes = sampleTypes,
-                SelectedBranchId = branchId,
                 SelectedContainerType = containerType,
                 SelectedStatus = status,
                 SearchTerm = search,
@@ -58,17 +56,15 @@ public class LabSampleTypesController(
     public async Task<IActionResult> Create()
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         var model = new LabSampleTypeFormViewModel
         {
             CompanyId = companyId,
-            BranchId = branchId,
             Display_Order = 1,
             Status = true,
             Volume_Value = 2.00m,
             ContainerTypeOptions = GetContainerTypeSelectList(null),
-            UnitOptions = await GetUnitOptionsAsync(branchId, companyId)
+            UnitOptions = await GetUnitOptionsAsync(companyId)
         };
 
         return View(model);
@@ -79,12 +75,11 @@ public class LabSampleTypesController(
     public async Task<IActionResult> Create(LabSampleTypeFormViewModel model)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         if (!ModelState.IsValid)
         {
             model.ContainerTypeOptions = GetContainerTypeSelectList(model.Container_Type.ToString());
-            model.UnitOptions = await GetUnitOptionsAsync(branchId, companyId);
+            model.UnitOptions = await GetUnitOptionsAsync(companyId);
             return View(model);
         }
 
@@ -101,7 +96,6 @@ public class LabSampleTypesController(
                 Rejection_Criteria = model.Rejection_Criteria,
                 Display_Order = model.Display_Order,
                 CompanyId = companyId,
-                BranchId = branchId,
                 UserId = User.GetUserId()
             };
 
@@ -112,7 +106,7 @@ public class LabSampleTypesController(
                 "Create",
                 $"Created Lab Sample Type '{model.Sample_Name}' with ID #{newId}",
                 User.GetUserId(),
-                branchId
+                User.GetCurrentBranchId() ?? 1
             );
 
             TempData["SuccessMessage"] = $"Sample Type '{model.Sample_Name}' created successfully.";
@@ -122,7 +116,7 @@ public class LabSampleTypesController(
         {
             ModelState.AddModelError(string.Empty, ex.Message);
             model.ContainerTypeOptions = GetContainerTypeSelectList(model.Container_Type.ToString());
-            model.UnitOptions = await GetUnitOptionsAsync(branchId, companyId);
+            model.UnitOptions = await GetUnitOptionsAsync(companyId);
             return View(model);
         }
         catch (HttpRequestException)
@@ -136,7 +130,6 @@ public class LabSampleTypesController(
     public async Task<IActionResult> Edit(int id)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
@@ -153,7 +146,6 @@ public class LabSampleTypesController(
             {
                 Sample_Type_ID = item.Sample_Type_ID,
                 CompanyId = item.CompanyId,
-                BranchId = item.BranchId,
                 Sample_Name = item.Sample_Name,
                 Sample_Code = item.Sample_Code,
                 Container_Type = containerEnum,
@@ -165,7 +157,7 @@ public class LabSampleTypesController(
                 Display_Order = item.Display_Order,
                 Status = item.Status,
                 ContainerTypeOptions = GetContainerTypeSelectList(containerEnum.ToString()),
-                UnitOptions = await GetUnitOptionsAsync(branchId, companyId)
+                UnitOptions = await GetUnitOptionsAsync(companyId)
             };
 
             return View(model);
@@ -182,7 +174,6 @@ public class LabSampleTypesController(
     public async Task<IActionResult> Edit(int id, LabSampleTypeFormViewModel model)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         if (id != model.Sample_Type_ID)
             return BadRequest();
@@ -190,7 +181,7 @@ public class LabSampleTypesController(
         if (!ModelState.IsValid)
         {
             model.ContainerTypeOptions = GetContainerTypeSelectList(model.Container_Type.ToString());
-            model.UnitOptions = await GetUnitOptionsAsync(branchId, companyId);
+            model.UnitOptions = await GetUnitOptionsAsync(companyId);
             return View(model);
         }
 
@@ -218,7 +209,7 @@ public class LabSampleTypesController(
                 "Edit",
                 $"Updated Lab Sample Type #{model.Sample_Type_ID} ('{model.Sample_Name}')",
                 User.GetUserId(),
-                branchId
+                User.GetCurrentBranchId() ?? 1
             );
 
             TempData["SuccessMessage"] = $"Sample Type '{model.Sample_Name}' updated successfully.";
@@ -228,7 +219,7 @@ public class LabSampleTypesController(
         {
             ModelState.AddModelError(string.Empty, ex.Message);
             model.ContainerTypeOptions = GetContainerTypeSelectList(model.Container_Type.ToString());
-            model.UnitOptions = await GetUnitOptionsAsync(branchId, companyId);
+            model.UnitOptions = await GetUnitOptionsAsync(companyId);
             return View(model);
         }
         catch (HttpRequestException)
@@ -335,11 +326,11 @@ public class LabSampleTypesController(
             }).ToList();
     }
 
-    private async Task<List<SelectListItem>> GetUnitOptionsAsync(int branchId, int companyId)
+    private async Task<List<SelectListItem>> GetUnitOptionsAsync(int companyId)
     {
         try
         {
-            var units = await unitApiClient.GetListAsync(branchId: branchId, status: true, companyId: companyId);
+            var units = await unitApiClient.GetListAsync(status: true, companyId: companyId);
             return units.Select(u => new SelectListItem
             {
                 Value = u.Unit_ID.ToString(),

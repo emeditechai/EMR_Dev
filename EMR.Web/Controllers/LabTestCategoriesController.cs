@@ -20,18 +20,16 @@ public class LabTestCategoriesController(
     public async Task<IActionResult> Index(int? departmentId = null, bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
-            var categories = (await categoryApiClient.GetListAsync(branchId, departmentId, status, search, companyId)).ToList();
+            var categories = (await categoryApiClient.GetListAsync(departmentId, status, search, companyId)).ToList();
             var deptOptions = await GetDepartmentOptionsAsync();
-            var dashboard = await dashboardService.GetDashboardAsync(branchId, companyId, "LabTestCategories");
+            var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabTestCategories");
 
             var model = new LabTestCategoryIndexViewModel
             {
                 Categories = categories,
-                SelectedBranchId = branchId,
                 SelectedDepartmentId = departmentId,
                 SelectedStatus = status,
                 SearchTerm = search,
@@ -59,7 +57,6 @@ public class LabTestCategoriesController(
         var model = new LabTestCategoryFormViewModel
         {
             CompanyId = User.GetCompanyId(),
-            BranchId = User.GetCurrentBranchId() ?? 1,
             Display_Order = 1,
             Status = true,
             DepartmentOptions = await GetDepartmentOptionsAsync()
@@ -86,7 +83,6 @@ public class LabTestCategoriesController(
                 Category_Name = model.Category_Name,
                 Display_Order = model.Display_Order,
                 CompanyId = User.GetCompanyId(),
-                BranchId = User.GetCurrentBranchId() ?? 1,
                 UserId = User.GetUserId()
             };
 
@@ -132,7 +128,6 @@ public class LabTestCategoriesController(
             {
                 Category_ID = item.Category_ID,
                 CompanyId = item.CompanyId,
-                BranchId = item.BranchId,
                 Department_ID = item.Department_ID,
                 Category_Name = item.Category_Name,
                 Category_Code = item.Category_Code,
@@ -285,12 +280,14 @@ public class LabTestCategoriesController(
     {
         try
         {
-            var departments = await masterApiClient.GetDepartmentsAsync();
-            return departments.Select(d => new SelectListItem
-            {
-                Value = d.DeptId.ToString(),
-                Text = $"{d.DeptName} ({d.DeptCode})"
-            }).ToList();
+            var departments = await masterApiClient.GetDepartmentsAsync("Lab");
+            return departments
+                .Where(d => d.IsActive && (string.Equals(d.DeptType, "Lab", StringComparison.OrdinalIgnoreCase) || d.DeptType.Contains("Lab", StringComparison.OrdinalIgnoreCase)))
+                .Select(d => new SelectListItem
+                {
+                    Value = d.DeptId.ToString(),
+                    Text = $"{d.DeptName} ({d.DeptCode})"
+                }).ToList();
         }
         catch
         {

@@ -7,7 +7,6 @@ namespace EMR.Web.Models.ViewModels;
 public class LabInvestigationIndexViewModel
 {
     public List<LabInvestigationModel> Investigations { get; set; } = [];
-    public int SelectedBranchId { get; set; }
     public int? SelectedDepartmentId { get; set; }
     public int? SelectedCategoryId { get; set; }
     public bool? SelectedStatus { get; set; }
@@ -24,7 +23,6 @@ public class LabInvestigationFormViewModel
 {
     public int Test_ID { get; set; }
     public int CompanyId { get; set; } = 1;
-    public int BranchId { get; set; } = 1;
 
     [Display(Name = "Test Code")]
     public string Test_Code { get; set; } = string.Empty;

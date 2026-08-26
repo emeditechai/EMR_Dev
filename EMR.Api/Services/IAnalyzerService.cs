@@ -4,9 +4,7 @@ namespace EMR.Api.Services;
 
 public interface IAnalyzerService
 {
-    Task<IEnumerable<AnalyzerListItemDto>> GetListAsync(
-        int? branchId = null,
-        int? departmentId = null,
+    Task<IEnumerable<AnalyzerListItemDto>> GetListAsync(int? departmentId = null,
         string? interfaceProtocol = null,
         bool? status = null,
         string? search = null,

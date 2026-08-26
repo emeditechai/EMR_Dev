@@ -4,7 +4,7 @@ namespace EMR.Web.ApiClients;
 
 public interface ILabTestMethodApiClient
 {
-    Task<IEnumerable<LabTestMethodModel>> GetListAsync(int? branchId = null, int? departmentId = null, bool? status = null, string? search = null, int? companyId = null);
+    Task<IEnumerable<LabTestMethodModel>> GetListAsync(int? departmentId = null, bool? status = null, string? search = null, int? companyId = null);
     Task<LabTestMethodModel?> GetByIdAsync(int id);
     Task<int> CreateAsync(LabTestMethodCreateRequestModel req);
     Task<bool> UpdateAsync(LabTestMethodUpdateRequestModel req);

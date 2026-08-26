@@ -1,5 +1,5 @@
 -- ====================================================================================================
--- Script: 98_lab_unit_master.sql
+-- Script: 2004_lab_unit_master.sql
 -- Description: Creates dbo.LabUnitMaster table and Stored Procedures for Unit Master
 --              under Master -> General Master & Master -> Lab Master -> Unit Master.
 -- ====================================================================================================
@@ -11,31 +11,51 @@ BEGIN
     (
         Unit_ID             INT IDENTITY(1,1) PRIMARY KEY,
         CompanyId           INT NOT NULL DEFAULT 1,
-        BranchId            INT NOT NULL DEFAULT 1,
         Unit_Name           NVARCHAR(150) NOT NULL,
         Unit_Code           NVARCHAR(50) NOT NULL,
         Unit_Symbol         NVARCHAR(50) NULL,
         Conversion_Factor   DECIMAL(18, 6) NULL DEFAULT 1.0,
         Display_Order       INT NOT NULL DEFAULT 1,
         Status              BIT NOT NULL DEFAULT 1,
+        IsDeleted           BIT NOT NULL DEFAULT 0,
         CreatedBy           INT NULL,
         CreatedDate         DATETIME2 NOT NULL DEFAULT GETDATE(),
         ModifiedBy          INT NULL,
         ModifiedDate        DATETIME2 NULL
     );
-    CREATE INDEX IX_LabUnitMaster_Branch_Status ON dbo.LabUnitMaster(BranchId, Status);
+    CREATE INDEX IX_LabUnitMaster_Status ON dbo.LabUnitMaster(Status);
     CREATE INDEX IX_LabUnitMaster_Code ON dbo.LabUnitMaster(Unit_Code);
     PRINT 'Created table dbo.LabUnitMaster';
 END
 ELSE
 BEGIN
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabUnitMaster') AND name = 'BranchId')
+    BEGIN
+        DROP INDEX IF EXISTS IX_LabUnitMaster_Branch_Status ON dbo.LabUnitMaster;
+        DECLARE @ConstraintName NVARCHAR(200);
+        SELECT @ConstraintName = d.name
+        FROM sys.default_constraints d
+        INNER JOIN sys.columns c ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+        WHERE d.parent_object_id = OBJECT_ID('dbo.LabUnitMaster') AND c.name = 'BranchId';
+        IF @ConstraintName IS NOT NULL
+            EXEC('ALTER TABLE dbo.LabUnitMaster DROP CONSTRAINT ' + @ConstraintName);
+
+        ALTER TABLE dbo.LabUnitMaster DROP COLUMN BranchId;
+        PRINT 'Dropped BranchId column from dbo.LabUnitMaster';
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabUnitMaster') AND name = 'IsDeleted')
+    BEGIN
+        ALTER TABLE dbo.LabUnitMaster ADD IsDeleted BIT NOT NULL DEFAULT 0;
+        PRINT 'Added IsDeleted column to dbo.LabUnitMaster';
+    END
+
     PRINT 'Table dbo.LabUnitMaster already exists';
 END
 GO
 
 -- 2. Stored Procedure: usp_Api_LabUnitMaster_GetList
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabUnitMaster_GetList
-    @BranchId        INT = NULL,
     @Status          BIT = NULL,
     @Search          NVARCHAR(100) = NULL,
     @CompanyId       INT = NULL
@@ -46,7 +66,6 @@ BEGIN
     SELECT 
         u.Unit_ID,
         u.CompanyId,
-        u.BranchId,
         u.Unit_Name,
         u.Unit_Code,
         u.Unit_Symbol,
@@ -58,7 +77,7 @@ BEGIN
         u.ModifiedBy,
         u.ModifiedDate
     FROM dbo.LabUnitMaster u
-    WHERE (@BranchId IS NULL OR u.BranchId = @BranchId)
+    WHERE u.IsDeleted = 0
       AND (@Status IS NULL OR u.Status = @Status)
       AND (@CompanyId IS NULL OR u.CompanyId = @CompanyId)
       AND (@Search IS NULL OR LTRIM(RTRIM(@Search)) = '' OR 
@@ -79,7 +98,6 @@ BEGIN
     SELECT 
         u.Unit_ID,
         u.CompanyId,
-        u.BranchId,
         u.Unit_Name,
         u.Unit_Code,
         u.Unit_Symbol,
@@ -91,7 +109,7 @@ BEGIN
         u.ModifiedBy,
         u.ModifiedDate
     FROM dbo.LabUnitMaster u
-    WHERE u.Unit_ID = @Unit_ID;
+    WHERE u.Unit_ID = @Unit_ID AND u.IsDeleted = 0;
 END
 GO
 
@@ -102,14 +120,12 @@ CREATE OR ALTER PROCEDURE dbo.usp_Api_LabUnitMaster_Create
     @Conversion_Factor  DECIMAL(18, 6) = 1.0,
     @Display_Order      INT = 1,
     @CompanyId          INT = 1,
-    @BranchId           INT = 1,
     @UserId             INT = NULL,
     @NewId              INT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Mandatory Validations
     IF @Unit_Name IS NULL OR LTRIM(RTRIM(@Unit_Name)) = ''
     BEGIN
         RAISERROR('Unit Name is required.', 16, 1);
@@ -119,18 +135,16 @@ BEGIN
     SET @Unit_Name = LTRIM(RTRIM(@Unit_Name));
     SET @Unit_Symbol = LTRIM(RTRIM(@Unit_Symbol));
 
-    -- Duplication check: Unit Name must be unique within branch
     IF EXISTS (
         SELECT 1 FROM dbo.LabUnitMaster 
-        WHERE BranchId = @BranchId 
-          AND LOWER(Unit_Name) = LOWER(@Unit_Name)
+        WHERE LOWER(Unit_Name) = LOWER(@Unit_Name)
+          AND IsDeleted = 0
     )
     BEGIN
         RAISERROR('A Unit with the same name already exists.', 16, 1);
         RETURN;
     END
 
-    -- Auto Generation Code (e.g. UNT0001)
     DECLARE @NextNum INT;
     DECLARE @GeneratedCode NVARCHAR(50);
 
@@ -146,7 +160,6 @@ BEGIN
     INSERT INTO dbo.LabUnitMaster
     (
         CompanyId,
-        BranchId,
         Unit_Name,
         Unit_Code,
         Unit_Symbol,
@@ -159,13 +172,12 @@ BEGIN
     VALUES
     (
         @CompanyId,
-        @BranchId,
         @Unit_Name,
         @GeneratedCode,
         @Unit_Symbol,
         ISNULL(@Conversion_Factor, 1.0),
         ISNULL(@Display_Order, 1),
-        1, -- Starts as Active
+        1,
         @UserId,
         GETDATE()
     );
@@ -187,13 +199,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabUnitMaster WHERE Unit_ID = @Unit_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabUnitMaster WHERE Unit_ID = @Unit_ID AND IsDeleted = 0)
     BEGIN
         RAISERROR('Unit record not found.', 16, 1);
         RETURN;
     END
 
-    -- Mandatory Validations
     IF @Unit_Name IS NULL OR LTRIM(RTRIM(@Unit_Name)) = ''
     BEGIN
         RAISERROR('Unit Name is required.', 16, 1);
@@ -203,15 +214,11 @@ BEGIN
     SET @Unit_Name = LTRIM(RTRIM(@Unit_Name));
     SET @Unit_Symbol = LTRIM(RTRIM(@Unit_Symbol));
 
-    DECLARE @CurrentBranchId INT;
-    SELECT @CurrentBranchId = BranchId FROM dbo.LabUnitMaster WHERE Unit_ID = @Unit_ID;
-
-    -- Duplication check: Unit Name must be unique within branch (ignoring self)
     IF EXISTS (
         SELECT 1 FROM dbo.LabUnitMaster 
-        WHERE BranchId = @CurrentBranchId 
-          AND LOWER(Unit_Name) = LOWER(@Unit_Name)
+        WHERE LOWER(Unit_Name) = LOWER(@Unit_Name)
           AND Unit_ID <> @Unit_ID
+          AND IsDeleted = 0
     )
     BEGIN
         RAISERROR('A Unit with the same name already exists.', 16, 1);
@@ -239,7 +246,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabUnitMaster WHERE Unit_ID = @Unit_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabUnitMaster WHERE Unit_ID = @Unit_ID AND IsDeleted = 0)
     BEGIN
         RAISERROR('Unit record not found.', 16, 1);
         RETURN;
@@ -255,18 +262,36 @@ GO
 
 -- 7. Stored Procedure: usp_Api_LabUnitMaster_Delete
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabUnitMaster_Delete
-    @Unit_ID INT
+    @Unit_ID INT,
+    @UserId  INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabUnitMaster WHERE Unit_ID = @Unit_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabUnitMaster WHERE Unit_ID = @Unit_ID AND IsDeleted = 0)
     BEGIN
-        RAISERROR('Unit record not found.', 16, 1);
+        RAISERROR('Unit record not found or already deleted.', 16, 1);
         RETURN;
     END
 
-    DELETE FROM dbo.LabUnitMaster
+    -- Check if used in Investigation Master
+    IF EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Unit_ID = @Unit_ID AND IsDeleted = 0)
+    BEGIN
+        RAISERROR('Cannot delete Unit because it is used in one or more Test Investigations.', 16, 1);
+        RETURN;
+    END
+
+    -- Check if used in Sample Type Master
+    IF EXISTS (SELECT 1 FROM dbo.LabSampleTypeMaster WHERE Unit_ID = @Unit_ID AND IsDeleted = 0)
+    BEGIN
+        RAISERROR('Cannot delete Unit because it is used in one or more Sample Types.', 16, 1);
+        RETURN;
+    END
+
+    UPDATE dbo.LabUnitMaster
+    SET IsDeleted = 1,
+        ModifiedBy = @UserId,
+        ModifiedDate = GETDATE()
     WHERE Unit_ID = @Unit_ID;
 END
 GO

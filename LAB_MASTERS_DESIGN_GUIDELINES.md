@@ -50,3 +50,22 @@ This document serves as the project-wide architectural reference for all **Lab M
    - Always place the Code input in `col-md-6` or `col-md-12` at line 1 of the form inside `<div class="row g-3">`.
    - Never add `<input asp-for="Display_Order" />` unless developing for `LabTestCategories`.
    - Always include `@await Html.PartialAsync("_LabMasterDashboard", dashboardModel)` above the search/filter card in `Index.cshtml`.
+
+---
+
+## 5. Department Filtering Rule for All Lab Modules
+
+- **Rule**: All Lab menus (Investigation Master, Test Categories, Test Methods, Analyzers, etc.) MUST strictly restrict department dropdowns and database operations to departments where **`DeptType = 'Lab'`** (or `UPPER(DeptType) = 'LAB'`).
+- **Enforcement**:
+  - **Database Stored Procedures**: SPs must include `WHERE (@Type IS NULL OR DeptType = @Type OR UPPER(DeptType) = UPPER(@Type))` and validate `IF NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @Department_ID AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%'))`.
+  - **API Layer**: `api/general-masters/departments?type=Lab` must only return Lab departments.
+  - **Web Client Layer**: Controllers must request `masterApiClient.GetDepartmentsAsync("Lab")` and filter `.Where(d => d.IsActive && string.Equals(d.DeptType, "Lab", StringComparison.OrdinalIgnoreCase))`.
+
+
+- **Under NO circumstances should this logic be changed or overwritten.**
+Ensure to include the following in all lab modules and the pages developed 
+
+
+Ensure that all lab sqlmscripts shouls start from 2000
+
+

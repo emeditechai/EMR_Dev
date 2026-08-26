@@ -5,9 +5,7 @@ namespace EMR.Web.ApiClients;
 
 public class AnalyzerApiClient(HttpClient http, ILogger<AnalyzerApiClient> logger) : IAnalyzerApiClient
 {
-    public async Task<List<AnalyzerListItem>> GetListAsync(
-        int? branchId = null,
-        int? departmentId = null,
+    public async Task<List<AnalyzerListItem>> GetListAsync(int? departmentId = null,
         string? interfaceProtocol = null,
         bool? status = null,
         string? search = null)
@@ -15,7 +13,6 @@ public class AnalyzerApiClient(HttpClient http, ILogger<AnalyzerApiClient> logge
         try
         {
             var query = new List<string>();
-            if (branchId.HasValue) query.Add($"branchId={branchId.Value}");
             if (departmentId.HasValue) query.Add($"departmentId={departmentId.Value}");
             if (!string.IsNullOrWhiteSpace(interfaceProtocol)) query.Add($"interfaceProtocol={Uri.EscapeDataString(interfaceProtocol)}");
             if (status.HasValue) query.Add($"status={status.Value}");

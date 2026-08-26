@@ -20,18 +20,16 @@ public class LabTestMethodsController(
     public async Task<IActionResult> Index(int? departmentId = null, bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
-            var methods = (await methodApiClient.GetListAsync(branchId, departmentId, status, search, companyId)).ToList();
+            var methods = (await methodApiClient.GetListAsync(departmentId, status, search, companyId)).ToList();
             var deptOptions = await GetDepartmentOptionsAsync();
-            var dashboard = await dashboardService.GetDashboardAsync(branchId, companyId, "LabTestMethods");
+            var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabTestMethods");
 
             var model = new LabTestMethodIndexViewModel
             {
                 Methods = methods,
-                SelectedBranchId = branchId,
                 SelectedDepartmentId = departmentId,
                 SelectedStatus = status,
                 SearchTerm = search,
@@ -59,7 +57,6 @@ public class LabTestMethodsController(
         var model = new LabTestMethodFormViewModel
         {
             CompanyId = User.GetCompanyId(),
-            BranchId = User.GetCurrentBranchId() ?? 1,
             Display_Order = 1,
             Status = true,
             DepartmentOptions = await GetDepartmentOptionsAsync()
@@ -88,8 +85,7 @@ public class LabTestMethodsController(
                 Department_ID = model.Department_ID,
                 Method_Name = model.Method_Name,
                 Display_Order = model.Display_Order,
-                CompanyId = companyId,
-                BranchId = branchId,
+                CompanyId = User.GetCompanyId(),
                 UserId = User.GetUserId()
             };
 
@@ -135,7 +131,6 @@ public class LabTestMethodsController(
             {
                 Method_ID = item.Method_ID,
                 CompanyId = item.CompanyId,
-                BranchId = item.BranchId,
                 Department_ID = item.Department_ID,
                 Method_Name = item.Method_Name,
                 Method_Code = item.Method_Code,
@@ -293,12 +288,14 @@ public class LabTestMethodsController(
     {
         try
         {
-            var departments = await masterApiClient.GetDepartmentsAsync();
-            return departments.Select(d => new SelectListItem
-            {
-                Value = d.DeptId.ToString(),
-                Text = $"{d.DeptName} ({d.DeptCode})"
-            }).ToList();
+            var departments = await masterApiClient.GetDepartmentsAsync("Lab");
+            return departments
+                .Where(d => d.IsActive && (string.Equals(d.DeptType, "Lab", StringComparison.OrdinalIgnoreCase) || d.DeptType.Contains("Lab", StringComparison.OrdinalIgnoreCase)))
+                .Select(d => new SelectListItem
+                {
+                    Value = d.DeptId.ToString(),
+                    Text = $"{d.DeptName} ({d.DeptCode})"
+                }).ToList();
         }
         catch
         {

@@ -36,9 +36,9 @@ public class GeneralMastersController(IGeneralMasterService masterService) : Con
 
     [HttpGet("departments")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<DepartmentListItem>>), 200)]
-    public async Task<IActionResult> GetDepartments()
+    public async Task<IActionResult> GetDepartments([FromQuery] string? type)
     {
-        var result = await masterService.GetDepartmentsAsync();
+        var result = await masterService.GetDepartmentsAsync(type);
         return Ok(ApiResponse<IEnumerable<DepartmentListItem>>.Ok(result));
     }
 

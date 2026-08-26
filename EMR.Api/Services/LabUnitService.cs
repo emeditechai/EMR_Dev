@@ -7,12 +7,12 @@ namespace EMR.Api.Services;
 
 public class LabUnitService(IDbConnectionFactory db) : ILabUnitService
 {
-    public async Task<IEnumerable<LabUnitListItem>> GetListAsync(int? branchId, bool? status, string? search, int? companyId)
+    public async Task<IEnumerable<LabUnitListItem>> GetListAsync(bool? status, string? search, int? companyId)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<LabUnitListItem>(
             "usp_Api_LabUnitMaster_GetList",
-            new { BranchId = branchId, Status = status, Search = search, CompanyId = companyId },
+            new { Status = status, Search = search, CompanyId = companyId },
             commandType: CommandType.StoredProcedure
         );
     }
@@ -36,7 +36,6 @@ public class LabUnitService(IDbConnectionFactory db) : ILabUnitService
         p.Add("@Conversion_Factor", req.Conversion_Factor);
         p.Add("@Display_Order", req.Display_Order);
         p.Add("@CompanyId", req.CompanyId);
-        p.Add("@BranchId", req.BranchId);
         p.Add("@UserId", req.UserId);
         p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 

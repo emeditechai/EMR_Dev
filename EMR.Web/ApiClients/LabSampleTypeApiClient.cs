@@ -7,10 +7,9 @@ public class LabSampleTypeApiClient(IHttpClientFactory factory) : ILabSampleType
 {
     private HttpClient Client => factory.CreateClient("EmrApi");
 
-    public async Task<IEnumerable<LabSampleTypeModel>> GetListAsync(int? branchId = null, string? containerType = null, bool? status = null, string? search = null, int? companyId = null)
+    public async Task<IEnumerable<LabSampleTypeModel>> GetListAsync(string? containerType = null, bool? status = null, string? search = null, int? companyId = null)
     {
         var query = new List<string>();
-        if (branchId.HasValue) query.Add($"branchId={branchId.Value}");
         if (!string.IsNullOrWhiteSpace(containerType)) query.Add($"containerType={Uri.EscapeDataString(containerType)}");
         if (status.HasValue) query.Add($"status={status.Value.ToString().ToLower()}");
         if (!string.IsNullOrWhiteSpace(search)) query.Add($"search={Uri.EscapeDataString(search)}");

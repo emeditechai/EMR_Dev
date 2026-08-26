@@ -25,19 +25,17 @@ public class LabInvestigationsController(
     public async Task<IActionResult> Index(int? departmentId = null, int? categoryId = null, bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
-            var investigations = (await investigationApiClient.GetListAsync(branchId, departmentId, categoryId, status, search, companyId)).ToList();
+            var investigations = (await investigationApiClient.GetListAsync(departmentId, categoryId, status, search, companyId)).ToList();
             var deptOptions = await GetDepartmentOptionsAsync();
             var catOptions = await GetCategoryOptionsAsync(departmentId);
-            var dashboard = await dashboardService.GetDashboardAsync(branchId, companyId, "LabInvestigations");
+            var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabInvestigations");
 
             var model = new LabInvestigationIndexViewModel
             {
                 Investigations = investigations,
-                SelectedBranchId = branchId,
                 SelectedDepartmentId = departmentId,
                 SelectedCategoryId = categoryId,
                 SelectedStatus = status,
@@ -67,7 +65,6 @@ public class LabInvestigationsController(
         var model = new LabInvestigationFormViewModel
         {
             CompanyId = User.GetCompanyId(),
-            BranchId = User.GetCurrentBranchId() ?? 1,
             TAT_Hours = 24,
             Status = true,
             DepartmentOptions = await GetDepartmentOptionsAsync(),
@@ -111,7 +108,6 @@ public class LabInvestigationsController(
                 MRP = model.MRP,
                 Status = model.Status,
                 CompanyId = User.GetCompanyId(),
-                BranchId = User.GetCurrentBranchId() ?? 1,
                 UserId = User.GetUserId()
             };
 
@@ -157,7 +153,6 @@ public class LabInvestigationsController(
             {
                 Test_ID = item.Test_ID,
                 CompanyId = item.CompanyId,
-                BranchId = item.BranchId,
                 Test_Code = item.Test_Code,
                 Test_Name = item.Test_Name,
                 Department_ID = item.Department_ID,
@@ -341,7 +336,7 @@ public class LabInvestigationsController(
     {
         try
         {
-            var departments = await masterApiClient.GetDepartmentsAsync();
+            var departments = await masterApiClient.GetDepartmentsAsync("Lab");
             return departments
                 .Where(d => d.IsActive && (string.Equals(d.DeptType, "Lab", StringComparison.OrdinalIgnoreCase) || d.DeptType.Contains("Lab", StringComparison.OrdinalIgnoreCase)))
                 .Select(d => new SelectListItem { Value = d.DeptId.ToString(), Text = $"{d.DeptName} ({d.DeptCode})" })
@@ -354,8 +349,7 @@ public class LabInvestigationsController(
     {
         try
         {
-            var branchId = User.GetCurrentBranchId() ?? 1;
-            var categories = await categoryApiClient.GetListAsync(branchId, departmentId, status: true);
+            var categories = await categoryApiClient.GetListAsync(departmentId, status: true);
             return categories.Select(c => new SelectListItem { Value = c.Category_ID.ToString(), Text = $"{c.Category_Name} ({c.Category_Code})" }).ToList();
         }
         catch { return []; }
@@ -365,8 +359,7 @@ public class LabInvestigationsController(
     {
         try
         {
-            var branchId = User.GetCurrentBranchId() ?? 1;
-            var subCategories = await subCategoryApiClient.GetListAsync(branchId, categoryId, status: true);
+            var subCategories = await subCategoryApiClient.GetListAsync(categoryId, status: true);
             return subCategories.Select(s => new SelectListItem { Value = s.SubCategory_ID.ToString(), Text = $"{s.SubCategory_Name} ({s.SubCategory_Code})" }).ToList();
         }
         catch { return []; }
@@ -376,8 +369,7 @@ public class LabInvestigationsController(
     {
         try
         {
-            var branchId = User.GetCurrentBranchId() ?? 1;
-            var sampleTypes = await sampleTypeApiClient.GetListAsync(branchId, status: true);
+            var sampleTypes = await sampleTypeApiClient.GetListAsync(status: true);
             return sampleTypes.Select(s => new SelectListItem { Value = s.Sample_Type_ID.ToString(), Text = $"{s.Sample_Name} ({s.Sample_Code})" }).ToList();
         }
         catch { return []; }
@@ -387,8 +379,7 @@ public class LabInvestigationsController(
     {
         try
         {
-            var branchId = User.GetCurrentBranchId() ?? 1;
-            var methods = await methodApiClient.GetListAsync(branchId, departmentId, status: true);
+            var methods = await methodApiClient.GetListAsync(departmentId, status: true);
             return methods.Select(m => new SelectListItem { Value = m.Method_ID.ToString(), Text = $"{m.Method_Name} ({m.Method_Code})" }).ToList();
         }
         catch { return []; }
@@ -398,8 +389,7 @@ public class LabInvestigationsController(
     {
         try
         {
-            var branchId = User.GetCurrentBranchId() ?? 1;
-            var units = await unitApiClient.GetListAsync(branchId, status: true);
+            var units = await unitApiClient.GetListAsync(status: true);
             return units.Select(u => new SelectListItem { Value = u.Unit_ID.ToString(), Text = $"{u.Unit_Name} ({u.Unit_Symbol})" }).ToList();
         }
         catch { return []; }

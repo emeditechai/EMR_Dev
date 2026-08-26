@@ -21,17 +21,15 @@ public class LabInvestigationProfilesController(
     public async Task<IActionResult> Index(string? profileType = null, bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
-            var profiles = (await profileApiClient.GetListAsync(branchId, profileType, status, search, companyId)).ToList();
-            var dashboard = await dashboardService.GetDashboardAsync(branchId, companyId, "LabInvestigationProfiles");
+            var profiles = (await profileApiClient.GetListAsync(profileType, status, search, companyId)).ToList();
+            var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabInvestigationProfiles");
 
             var model = new LabInvestigationProfileIndexViewModel
             {
                 Profiles = profiles,
-                SelectedBranchId = branchId,
                 SelectedProfileType = profileType,
                 SelectedStatus = status,
                 SearchTerm = search,
@@ -59,7 +57,6 @@ public class LabInvestigationProfilesController(
         var model = new LabInvestigationProfileFormViewModel
         {
             CompanyId = User.GetCompanyId(),
-            BranchId = User.GetCurrentBranchId() ?? 1,
             Profile_Type = "Profile",
             Profile_TAT_Hours = 24,
             Report_Print_Sequence = 1,
@@ -98,7 +95,6 @@ public class LabInvestigationProfilesController(
             {
                 Profile_ID = null,
                 CompanyId = User.GetCompanyId(),
-                BranchId = User.GetCurrentBranchId() ?? 1,
                 Profile_Name = model.Profile_Name,
                 Profile_Type = model.Profile_Type,
                 MRP = model.MRP,
@@ -169,7 +165,6 @@ public class LabInvestigationProfilesController(
             {
                 Profile_ID = item.Header.Profile_ID,
                 CompanyId = item.Header.CompanyId,
-                BranchId = item.Header.BranchId,
                 Profile_Code = item.Header.Profile_Code,
                 Profile_Name = item.Header.Profile_Name,
                 Profile_Type = item.Header.Profile_Type,
@@ -222,7 +217,6 @@ public class LabInvestigationProfilesController(
             {
                 Profile_ID = model.Profile_ID,
                 CompanyId = model.CompanyId,
-                BranchId = model.BranchId,
                 Profile_Name = model.Profile_Name,
                 Profile_Type = model.Profile_Type,
                 MRP = model.MRP,
@@ -356,8 +350,7 @@ public class LabInvestigationProfilesController(
     {
         try
         {
-            var branchId = User.GetCurrentBranchId() ?? 1;
-            var tests = await investigationApiClient.GetListAsync(branchId, status: true);
+            var tests = await investigationApiClient.GetListAsync(status: true);
             return tests.Select(t => new SelectListItem
             {
                 Value = t.Test_ID.ToString(),

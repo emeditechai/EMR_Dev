@@ -6,7 +6,6 @@ namespace EMR.Web.Models.ViewModels;
 public class LabUnitIndexViewModel
 {
     public List<ApiClients.Models.LabUnitModel> Units { get; set; } = [];
-    public int SelectedBranchId { get; set; }
     public bool? SelectedStatus { get; set; }
     public string? SearchTerm { get; set; }
 
@@ -19,8 +18,6 @@ public class LabUnitFormViewModel
     public int Unit_ID { get; set; }
 
     public int CompanyId { get; set; } = 1;
-
-    public int BranchId { get; set; } = 1;
 
     [Required(ErrorMessage = "Unit Name is required.")]
     [StringLength(150, ErrorMessage = "Unit Name cannot exceed 150 characters.")]

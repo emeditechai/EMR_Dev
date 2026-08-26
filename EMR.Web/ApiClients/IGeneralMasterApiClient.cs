@@ -8,7 +8,7 @@ public interface IGeneralMasterApiClient
     Task<IEnumerable<ReferralDoctorMaster>> GetReferralDoctorsAsync();
     Task<IEnumerable<DoctorSpecialityMaster>> GetDoctorSpecialitiesAsync();
     Task<IEnumerable<DoctorSubSpecialityListItemViewModel>> GetDoctorSubSpecialitiesAsync(int? specialityId = null, int? companyId = null, int? branchId = null);
-    Task<IEnumerable<DepartmentMaster>> GetDepartmentsAsync();
+    Task<IEnumerable<DepartmentMaster>> GetDepartmentsAsync(string? type = null);
     Task<IEnumerable<ClinicalUnitListItemViewModel>> GetClinicalUnitsAsync(int? departmentId = null, int? specialityId = null, int? companyId = null, int? branchId = null);
     Task<IEnumerable<BuildingListItemViewModel>> GetBuildingsAsync(int? companyId = null, int? branchId = null);
     Task<IEnumerable<FloorMaster>> GetFloorsAsync(int? buildingId = null);

@@ -34,9 +34,10 @@ public class GeneralMasterApiClient(IHttpClientFactory factory) : IGeneralMaster
         return response?.Data ?? [];
     }
 
-    public async Task<IEnumerable<DepartmentMaster>> GetDepartmentsAsync()
+    public async Task<IEnumerable<DepartmentMaster>> GetDepartmentsAsync(string? type = null)
     {
-        var response = await _http.GetFromJsonAsync<ApiResponse<List<DepartmentMaster>>>("api/general-masters/departments");
+        var url = string.IsNullOrWhiteSpace(type) ? "api/general-masters/departments" : $"api/general-masters/departments?type={Uri.EscapeDataString(type)}";
+        var response = await _http.GetFromJsonAsync<ApiResponse<List<DepartmentMaster>>>(url);
         return response?.Data ?? [];
     }
 

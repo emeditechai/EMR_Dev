@@ -7,12 +7,12 @@ namespace EMR.Api.Services;
 
 public class LabSampleTypeService(IDbConnectionFactory db) : ILabSampleTypeService
 {
-    public async Task<IEnumerable<LabSampleTypeListItem>> GetListAsync(int? branchId, string? containerType, bool? status, string? search, int? companyId)
+    public async Task<IEnumerable<LabSampleTypeListItem>> GetListAsync(string? containerType, bool? status, string? search, int? companyId)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<LabSampleTypeListItem>(
             "usp_Api_LabSampleTypeMaster_GetList",
-            new { BranchId = branchId, ContainerType = containerType, Status = status, Search = search, CompanyId = companyId },
+            new { ContainerType = containerType, Status = status, Search = search, CompanyId = companyId },
             commandType: CommandType.StoredProcedure
         );
     }
@@ -40,7 +40,6 @@ public class LabSampleTypeService(IDbConnectionFactory db) : ILabSampleTypeServi
         p.Add("@Rejection_Criteria", req.Rejection_Criteria);
         p.Add("@Display_Order", req.Display_Order);
         p.Add("@CompanyId", req.CompanyId);
-        p.Add("@BranchId", req.BranchId);
         p.Add("@UserId", req.UserId);
         p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 

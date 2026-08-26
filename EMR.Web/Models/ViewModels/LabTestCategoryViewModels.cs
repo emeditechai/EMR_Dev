@@ -6,7 +6,6 @@ namespace EMR.Web.Models.ViewModels;
 public class LabTestCategoryIndexViewModel
 {
     public List<ApiClients.Models.LabTestCategoryModel> Categories { get; set; } = [];
-    public int SelectedBranchId { get; set; }
     public int? SelectedDepartmentId { get; set; }
     public bool? SelectedStatus { get; set; }
     public string? SearchTerm { get; set; }
@@ -21,8 +20,6 @@ public class LabTestCategoryFormViewModel
     public int Category_ID { get; set; }
 
     public int CompanyId { get; set; } = 1;
-
-    public int BranchId { get; set; } = 1;
 
     [Required(ErrorMessage = "Department is required.")]
     [Display(Name = "Department")]

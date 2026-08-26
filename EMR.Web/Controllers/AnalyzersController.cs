@@ -20,24 +20,19 @@ public class AnalyzersController(
     private static readonly List<string> InterfaceProtocols = new() { "HL7", "ASTM", "Manual Entry" };
 
     [HttpGet]
-    public async Task<IActionResult> Index(
-        int? branchId,
-        int? departmentId,
+    public async Task<IActionResult> Index(int? departmentId,
         string? interfaceProtocol,
         bool? status,
         string? search)
-    {
-        var items = await analyzerApiClient.GetListAsync(branchId, departmentId, interfaceProtocol, status, search);
+    {        var items = await analyzerApiClient.GetListAsync(departmentId, interfaceProtocol, status, search);
 
         var viewModel = new AnalyzerListViewModel
         {
             Items = items,
-            FilterBranchId = branchId,
             FilterDepartmentId = departmentId,
             FilterInterfaceProtocol = interfaceProtocol,
             FilterStatus = status,
             SearchTerm = search,
-            BranchOptions = await GetBranchOptionsAsync(branchId),
             DepartmentOptions = await GetLabDepartmentOptionsAsync(departmentId),
             InterfaceProtocolOptions = GetInterfaceProtocolOptions(interfaceProtocol),
             StatusOptions = new List<SelectListItem>
@@ -67,13 +62,10 @@ public class AnalyzersController(
     [HttpGet]
     public async Task<IActionResult> Create()
     {
-        var currentBranchId = User.GetCurrentBranchId();
         var model = new AnalyzerFormViewModel
         {
-            Branch_ID = currentBranchId.HasValue && currentBranchId.Value > 0 ? currentBranchId.Value : 0,
             Status = true,
             Interface_Protocol = "HL7",
-            BranchOptions = await GetBranchOptionsAsync(currentBranchId),
             DepartmentOptions = await GetLabDepartmentOptionsAsync(),
             InterfaceProtocolOptions = GetInterfaceProtocolOptions("HL7")
         };
@@ -87,7 +79,6 @@ public class AnalyzersController(
     {
         if (!ModelState.IsValid)
         {
-            model.BranchOptions = await GetBranchOptionsAsync(model.Branch_ID);
             model.DepartmentOptions = await GetLabDepartmentOptionsAsync(model.Department_ID);
             model.InterfaceProtocolOptions = GetInterfaceProtocolOptions(model.Interface_Protocol);
             return View(model);
@@ -96,7 +87,6 @@ public class AnalyzersController(
         var request = new AnalyzerSaveRequest
         {
             CompanyId = User.GetCompanyId() > 0 ? User.GetCompanyId() : 1,
-            Branch_ID = model.Branch_ID,
             Department_ID = model.Department_ID,
             Analyzer_Name = model.Analyzer_Name.Trim(),
             Interface_Protocol = model.Interface_Protocol.Trim(),
@@ -113,7 +103,6 @@ public class AnalyzersController(
         }
 
         ModelState.AddModelError(string.Empty, "Failed to create analyzer. Please ensure branch and lab department are valid.");
-        model.BranchOptions = await GetBranchOptionsAsync(model.Branch_ID);
         model.DepartmentOptions = await GetLabDepartmentOptionsAsync(model.Department_ID);
         model.InterfaceProtocolOptions = GetInterfaceProtocolOptions(model.Interface_Protocol);
         return View(model);
@@ -132,12 +121,10 @@ public class AnalyzersController(
         var model = new AnalyzerFormViewModel
         {
             Analyzer_ID = item.Analyzer_ID,
-            Branch_ID = item.Branch_ID,
             Department_ID = item.Department_ID,
             Analyzer_Name = item.Analyzer_Name,
             Interface_Protocol = item.Interface_Protocol,
             Status = item.Status,
-            BranchOptions = await GetBranchOptionsAsync(item.Branch_ID),
             DepartmentOptions = await GetLabDepartmentOptionsAsync(item.Department_ID),
             InterfaceProtocolOptions = GetInterfaceProtocolOptions(item.Interface_Protocol)
         };
@@ -156,7 +143,6 @@ public class AnalyzersController(
 
         if (!ModelState.IsValid)
         {
-            model.BranchOptions = await GetBranchOptionsAsync(model.Branch_ID);
             model.DepartmentOptions = await GetLabDepartmentOptionsAsync(model.Department_ID);
             model.InterfaceProtocolOptions = GetInterfaceProtocolOptions(model.Interface_Protocol);
             return View(model);
@@ -166,7 +152,6 @@ public class AnalyzersController(
         {
             Analyzer_ID = id,
             CompanyId = User.GetCompanyId() > 0 ? User.GetCompanyId() : 1,
-            Branch_ID = model.Branch_ID,
             Department_ID = model.Department_ID,
             Analyzer_Name = model.Analyzer_Name.Trim(),
             Interface_Protocol = model.Interface_Protocol.Trim(),
@@ -183,7 +168,6 @@ public class AnalyzersController(
         }
 
         ModelState.AddModelError(string.Empty, "Failed to update analyzer.");
-        model.BranchOptions = await GetBranchOptionsAsync(model.Branch_ID);
         model.DepartmentOptions = await GetLabDepartmentOptionsAsync(model.Department_ID);
         model.InterfaceProtocolOptions = GetInterfaceProtocolOptions(model.Interface_Protocol);
         return View(model);

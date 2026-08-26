@@ -30,7 +30,6 @@ public class LabSampleTypeModel
 {
     public int Sample_Type_ID { get; set; }
     public int CompanyId { get; set; }
-    public int BranchId { get; set; }
     public string Sample_Name { get; set; } = string.Empty;
     public string Sample_Code { get; set; } = string.Empty;
     public string Container_Type { get; set; } = string.Empty;
@@ -61,7 +60,6 @@ public class LabSampleTypeCreateRequestModel
     public string? Rejection_Criteria { get; set; }
     public int Display_Order { get; set; } = 1;
     public int CompanyId { get; set; } = 1;
-    public int BranchId { get; set; } = 1;
     public int? UserId { get; set; }
 }
 

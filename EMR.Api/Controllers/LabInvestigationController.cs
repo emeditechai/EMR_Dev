@@ -12,14 +12,13 @@ public class LabInvestigationController(ILabInvestigationService service) : Cont
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabInvestigationListItem>>), 200)]
     public async Task<IActionResult> GetList(
-        [FromQuery] int? branchId,
         [FromQuery] int? departmentId,
         [FromQuery] int? categoryId,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
     {
-        var data = await service.GetListAsync(branchId, departmentId, categoryId, status, search, companyId);
+        var data = await service.GetListAsync(departmentId, categoryId, status, search, companyId);
         return Ok(ApiResponse<IEnumerable<LabInvestigationListItem>>.Ok(data));
     }
 

@@ -12,13 +12,12 @@ public class LabInvestigationProfileController(ILabInvestigationProfileService s
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabInvestigationProfileHeaderListItem>>), 200)]
     public async Task<IActionResult> GetList(
-        [FromQuery] int? branchId,
         [FromQuery] string? profileType,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
     {
-        var data = await service.GetListAsync(branchId, profileType, status, search, companyId);
+        var data = await service.GetListAsync(profileType, status, search, companyId);
         return Ok(ApiResponse<IEnumerable<LabInvestigationProfileHeaderListItem>>.Ok(data));
     }
 

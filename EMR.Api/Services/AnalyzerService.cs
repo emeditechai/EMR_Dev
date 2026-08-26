@@ -7,9 +7,7 @@ namespace EMR.Api.Services;
 
 public class AnalyzerService(IDbConnectionFactory db) : IAnalyzerService
 {
-    public async Task<IEnumerable<AnalyzerListItemDto>> GetListAsync(
-        int? branchId = null,
-        int? departmentId = null,
+    public async Task<IEnumerable<AnalyzerListItemDto>> GetListAsync(int? departmentId = null,
         string? interfaceProtocol = null,
         bool? status = null,
         string? search = null,
@@ -20,7 +18,6 @@ public class AnalyzerService(IDbConnectionFactory db) : IAnalyzerService
             "dbo.usp_Api_Analyzer_GetList",
             new
             {
-                BranchId = branchId,
                 DepartmentId = departmentId,
                 InterfaceProtocol = string.IsNullOrWhiteSpace(interfaceProtocol) ? null : interfaceProtocol,
                 Status = status,
@@ -47,7 +44,6 @@ public class AnalyzerService(IDbConnectionFactory db) : IAnalyzerService
             new
             {
                 request.CompanyId,
-                request.Branch_ID,
                 request.Department_ID,
                 request.Analyzer_Name,
                 request.Interface_Protocol,
@@ -68,7 +64,6 @@ public class AnalyzerService(IDbConnectionFactory db) : IAnalyzerService
             {
                 request.Analyzer_ID,
                 request.CompanyId,
-                request.Branch_ID,
                 request.Department_ID,
                 request.Analyzer_Name,
                 request.Interface_Protocol,

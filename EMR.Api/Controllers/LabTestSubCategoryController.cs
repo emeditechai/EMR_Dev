@@ -12,13 +12,12 @@ public class LabTestSubCategoryController(ILabTestSubCategoryService service) : 
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabTestSubCategoryListItem>>), 200)]
     public async Task<IActionResult> GetList(
-        [FromQuery] int? branchId,
         [FromQuery] int? categoryId,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
     {
-        var data = await service.GetListAsync(branchId, categoryId, status, search, companyId);
+        var data = await service.GetListAsync(categoryId, status, search, companyId);
         return Ok(ApiResponse<IEnumerable<LabTestSubCategoryListItem>>.Ok(data));
     }
 

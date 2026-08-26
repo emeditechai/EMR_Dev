@@ -7,12 +7,12 @@ namespace EMR.Api.Services;
 
 public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigationService
 {
-    public async Task<IEnumerable<LabInvestigationListItem>> GetListAsync(int? branchId, int? departmentId, int? categoryId, bool? status, string? search, int? companyId)
+    public async Task<IEnumerable<LabInvestigationListItem>> GetListAsync(int? departmentId, int? categoryId, bool? status, string? search, int? companyId)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<LabInvestigationListItem>(
             "usp_Api_LabInvestigationMaster_GetList",
-            new { BranchId = branchId, DepartmentId = departmentId, CategoryId = categoryId, Status = status, Search = search, CompanyId = companyId },
+            new { DepartmentId = departmentId, CategoryId = categoryId, Status = status, Search = search, CompanyId = companyId },
             commandType: CommandType.StoredProcedure
         );
     }
@@ -32,7 +32,6 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         using var con = db.CreateConnection();
         var p = new DynamicParameters();
         p.Add("@CompanyId", req.CompanyId);
-        p.Add("@BranchId", req.BranchId);
         p.Add("@Department_ID", req.Department_ID);
         p.Add("@Category_ID", req.Category_ID);
         p.Add("@SubCategory_ID", req.SubCategory_ID);

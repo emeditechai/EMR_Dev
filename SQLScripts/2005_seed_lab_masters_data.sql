@@ -1,5 +1,5 @@
 -- ====================================================================================================
--- Script: 99_seed_lab_masters_data.sql
+-- Script: 2005_seed_lab_masters_data.sql
 -- Description: Seeds standard Indian clinical laboratory data into:
 --              1. dbo.LabUnitMaster
 --              2. dbo.LabTestCategoryMaster
@@ -54,8 +54,8 @@ BEGIN
         SELECT @NextUnitId = ISNULL(MAX(Unit_ID), 0) + 1 FROM dbo.LabUnitMaster;
         SET @GenUnitCode = 'UNT' + RIGHT('0000' + CAST(@NextUnitId AS NVARCHAR(10)), 4);
 
-        INSERT INTO dbo.LabUnitMaster (CompanyId, BranchId, Unit_Name, Unit_Code, Unit_Symbol, Conversion_Factor, Display_Order, Status, CreatedDate)
-        VALUES (1, 1, @UName, @GenUnitCode, @USymbol, @CFactor, @UOrder, 1, GETDATE());
+        INSERT INTO dbo.LabUnitMaster (CompanyId, Unit_Name, Unit_Code, Unit_Symbol, Conversion_Factor, Display_Order, Status, CreatedDate)
+        VALUES (1, @UName, @GenUnitCode, @USymbol, @CFactor, @UOrder, 1, GETDATE());
     END
     FETCH NEXT FROM curUnits INTO @UName, @USymbol, @CFactor, @UOrder;
 END
@@ -100,8 +100,8 @@ BEGIN
         SELECT @NextCatId = ISNULL(MAX(Category_ID), 0) + 1 FROM dbo.LabTestCategoryMaster;
         SET @GenCatCode = 'LCAT' + RIGHT('0000' + CAST(@NextCatId AS NVARCHAR(10)), 4);
 
-        INSERT INTO dbo.LabTestCategoryMaster (CompanyId, BranchId, Department_ID, Category_Name, Category_Code, Display_Order, Status, CreatedDate)
-        VALUES (1, 1, @PathDeptId, @CatName, @GenCatCode, @CatOrder, 1, GETDATE());
+        INSERT INTO dbo.LabTestCategoryMaster (CompanyId, Department_ID, Category_Name, Category_Code, Display_Order, Status, CreatedDate)
+        VALUES (1, @PathDeptId, @CatName, @GenCatCode, @CatOrder, 1, GETDATE());
     END
     FETCH NEXT FROM curCat INTO @CatName, @CatOrder;
 END
@@ -159,8 +159,8 @@ BEGIN
         SELECT @NextSubId = ISNULL(MAX(SubCategory_ID), 0) + 1 FROM dbo.LabTestSubCategoryMaster;
         SET @GenSubCode = 'LSUBCAT' + RIGHT('0000' + CAST(@NextSubId AS NVARCHAR(10)), 4);
 
-        INSERT INTO dbo.LabTestSubCategoryMaster (CompanyId, BranchId, Category_ID, SubCategory_Name, SubCategory_Code, Display_Order, Status, CreatedDate)
-        VALUES (1, 1, @ResolvedCatId, @SubCatName, @GenSubCode, @SubCatOrder, 1, GETDATE());
+        INSERT INTO dbo.LabTestSubCategoryMaster (CompanyId, Category_ID, SubCategory_Name, SubCategory_Code, Display_Order, Status, CreatedDate)
+        VALUES (1, @ResolvedCatId, @SubCatName, @GenSubCode, @SubCatOrder, 1, GETDATE());
     END
     FETCH NEXT FROM curSubCat INTO @TCatName, @SubCatName, @SubCatOrder;
 END
@@ -205,8 +205,7 @@ BEGIN
 
     IF NOT EXISTS (
         SELECT 1 FROM dbo.LabSampleTypeMaster 
-        WHERE BranchId = 1 
-          AND LOWER(Sample_Name) = LOWER(@SName)
+        WHERE LOWER(Sample_Name) = LOWER(@SName)
           AND LOWER(Container_Type) = LOWER(@CType)
     )
     BEGIN
@@ -218,9 +217,9 @@ BEGIN
         DECLARE @VReq NVARCHAR(50) = CAST(CAST(@VVal AS FLOAT) AS NVARCHAR(20)) + ' ' + @USym;
 
         INSERT INTO dbo.LabSampleTypeMaster 
-        (CompanyId, BranchId, Sample_Name, Sample_Code, Container_Type, Volume_Value, Unit_ID, Volume_Unit, Volume_Required, Storage_Temperature, Rejection_Criteria, Display_Order, Status, CreatedDate)
+        (CompanyId, Sample_Name, Sample_Code, Container_Type, Volume_Value, Unit_ID, Volume_Unit, Volume_Required, Storage_Temperature, Rejection_Criteria, Display_Order, Status, CreatedDate)
         VALUES 
-        (1, 1, @SName, @GenSmpCode, @CType, @VVal, @ResolvedUnitId, @USym, @VReq, @STemp, @Rej, @SOrder, 1, GETDATE());
+        (1, @SName, @GenSmpCode, @CType, @VVal, @ResolvedUnitId, @USym, @VReq, @STemp, @Rej, @SOrder, 1, GETDATE());
     END
     FETCH NEXT FROM curSmp INTO @SName, @CType, @VVal, @USym, @STemp, @Rej, @SOrder;
 END
@@ -270,8 +269,8 @@ BEGIN
         SELECT @NextMthId = ISNULL(MAX(Method_ID), 0) + 1 FROM dbo.LabTestMethodMaster;
         SET @GenMthCode = 'MTH' + RIGHT('0000' + CAST(@NextMthId AS NVARCHAR(10)), 4);
 
-        INSERT INTO dbo.LabTestMethodMaster (CompanyId, BranchId, Department_ID, Method_Name, Method_Code, Display_Order, Status, CreatedDate)
-        VALUES (1, 1, @PathDeptId2, @MName, @GenMthCode, @MOrder, 1, GETDATE());
+        INSERT INTO dbo.LabTestMethodMaster (CompanyId, Department_ID, Method_Name, Method_Code, Display_Order, Status, CreatedDate)
+        VALUES (1, @PathDeptId2, @MName, @GenMthCode, @MOrder, 1, GETDATE());
     END
     FETCH NEXT FROM curMth INTO @MName, @MOrder;
 END

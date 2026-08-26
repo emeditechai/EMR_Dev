@@ -10,14 +10,12 @@ public class AnalyzersController(IAnalyzerService analyzerService) : ControllerB
 {
     [HttpGet]
     public async Task<IActionResult> GetList(
-        [FromQuery] int? branchId,
         [FromQuery] int? departmentId,
         [FromQuery] string? interfaceProtocol,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
-    {
-        var items = await analyzerService.GetListAsync(branchId, departmentId, interfaceProtocol, status, search, companyId);
+    {        var items = await analyzerService.GetListAsync(departmentId, interfaceProtocol, status, search, companyId);
         return Ok(items);
     }
 
@@ -35,8 +33,7 @@ public class AnalyzersController(IAnalyzerService analyzerService) : ControllerB
         if (string.IsNullOrWhiteSpace(request.Analyzer_Name))
             return BadRequest(new { message = "Analyzer name is required." });
 
-        if (request.Branch_ID <= 0)
-            return BadRequest(new { message = "Valid branch is required." });
+
 
         if (request.Department_ID <= 0)
             return BadRequest(new { message = "Valid department is required." });
@@ -55,8 +52,7 @@ public class AnalyzersController(IAnalyzerService analyzerService) : ControllerB
         if (string.IsNullOrWhiteSpace(request.Analyzer_Name))
             return BadRequest(new { message = "Analyzer name is required." });
 
-        if (request.Branch_ID <= 0)
-            return BadRequest(new { message = "Valid branch is required." });
+
 
         if (request.Department_ID <= 0)
             return BadRequest(new { message = "Valid department is required." });

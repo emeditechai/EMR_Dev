@@ -10,7 +10,6 @@ public class LabInvestigationProfileHeaderListItem
 {
     public int Profile_ID { get; set; }
     public int CompanyId { get; set; }
-    public int BranchId { get; set; }
     public string Profile_Code { get; set; } = string.Empty;
     public string Profile_Name { get; set; } = string.Empty;
     public string Profile_Type { get; set; } = "Profile";
@@ -61,7 +60,6 @@ public class LabInvestigationProfileSaveRequest
 {
     public int? Profile_ID { get; set; }
     public int CompanyId { get; set; } = 1;
-    public int BranchId { get; set; } = 1;
     public string Profile_Name { get; set; } = string.Empty;
     public string Profile_Type { get; set; } = "Profile";
     public decimal MRP { get; set; }

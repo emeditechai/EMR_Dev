@@ -12,12 +12,11 @@ public class LabUnitController(ILabUnitService service) : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabUnitListItem>>), 200)]
     public async Task<IActionResult> GetList(
-        [FromQuery] int? branchId,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
     {
-        var data = await service.GetListAsync(branchId, status, search, companyId);
+        var data = await service.GetListAsync(status, search, companyId);
         return Ok(ApiResponse<IEnumerable<LabUnitListItem>>.Ok(data));
     }
 

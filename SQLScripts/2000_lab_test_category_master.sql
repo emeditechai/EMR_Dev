@@ -1,5 +1,5 @@
 -- ====================================================================================================
--- Script: 94_lab_test_category_master.sql
+-- Script: 2000_lab_test_category_master.sql
 -- Description: Creates dbo.LabTestCategoryMaster table and Stored Procedures for Lab Test Category Master
 --              under Lab -> Test Category Master.
 -- ====================================================================================================
@@ -18,12 +18,12 @@ BEGIN
     (
         Category_ID     INT IDENTITY(1,1) PRIMARY KEY,
         CompanyId       INT NOT NULL DEFAULT 1,
-        BranchId        INT NOT NULL DEFAULT 1,
         Department_ID   INT NOT NULL,
         Category_Name   NVARCHAR(150) NOT NULL,
         Category_Code   NVARCHAR(50) NOT NULL,
         Display_Order   INT NOT NULL DEFAULT 1,
         Status          BIT NOT NULL DEFAULT 1,
+        IsDeleted       BIT NOT NULL DEFAULT 0,
         CreatedBy       INT NULL,
         CreatedDate     DATETIME2 NOT NULL DEFAULT GETDATE(),
         ModifiedBy      INT NULL,
@@ -31,19 +31,40 @@ BEGIN
         CONSTRAINT FK_LabTestCategoryMaster_Department FOREIGN KEY (Department_ID) REFERENCES dbo.DepartmentMaster(DeptId)
     );
     CREATE INDEX IX_LabTestCategoryMaster_Department ON dbo.LabTestCategoryMaster(Department_ID);
-    CREATE INDEX IX_LabTestCategoryMaster_Branch_Status ON dbo.LabTestCategoryMaster(BranchId, Status);
+    CREATE INDEX IX_LabTestCategoryMaster_Status ON dbo.LabTestCategoryMaster(Status);
     CREATE INDEX IX_LabTestCategoryMaster_Code ON dbo.LabTestCategoryMaster(Category_Code);
     PRINT 'Created table dbo.LabTestCategoryMaster';
 END
 ELSE
 BEGIN
+    -- Drop BranchId column if it exists (migration)
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabTestCategoryMaster') AND name = 'BranchId')
+    BEGIN
+        DROP INDEX IF EXISTS IX_LabTestCategoryMaster_Branch_Status ON dbo.LabTestCategoryMaster;
+        DECLARE @ConstraintName NVARCHAR(200);
+        SELECT @ConstraintName = d.name
+        FROM sys.default_constraints d
+        INNER JOIN sys.columns c ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+        WHERE d.parent_object_id = OBJECT_ID('dbo.LabTestCategoryMaster') AND c.name = 'BranchId';
+        IF @ConstraintName IS NOT NULL
+            EXEC('ALTER TABLE dbo.LabTestCategoryMaster DROP CONSTRAINT ' + @ConstraintName);
+
+        ALTER TABLE dbo.LabTestCategoryMaster DROP COLUMN BranchId;
+        PRINT 'Dropped BranchId column from dbo.LabTestCategoryMaster';
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabTestCategoryMaster') AND name = 'IsDeleted')
+    BEGIN
+        ALTER TABLE dbo.LabTestCategoryMaster ADD IsDeleted BIT NOT NULL DEFAULT 0;
+        PRINT 'Added IsDeleted column to dbo.LabTestCategoryMaster';
+    END
+
     PRINT 'Table dbo.LabTestCategoryMaster already exists';
 END
 GO
 
 -- 2. Stored Procedure: usp_Api_LabTestCategoryMaster_GetList
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabTestCategoryMaster_GetList
-    @BranchId        INT = NULL,
     @DepartmentId    INT = NULL,
     @Status          BIT = NULL,
     @Search          NVARCHAR(100) = NULL,
@@ -55,7 +76,6 @@ BEGIN
     SELECT 
         cat.Category_ID,
         cat.CompanyId,
-        cat.BranchId,
         cat.Department_ID,
         dept.DeptName AS Department_Name,
         dept.DeptCode AS Department_Code,
@@ -69,7 +89,7 @@ BEGIN
         cat.ModifiedDate
     FROM dbo.LabTestCategoryMaster cat
     LEFT JOIN dbo.DepartmentMaster dept ON cat.Department_ID = dept.DeptId
-    WHERE (@BranchId IS NULL OR cat.BranchId = @BranchId)
+    WHERE cat.IsDeleted = 0
       AND (@DepartmentId IS NULL OR cat.Department_ID = @DepartmentId)
       AND (@Status IS NULL OR cat.Status = @Status)
       AND (@CompanyId IS NULL OR cat.CompanyId = @CompanyId)
@@ -92,7 +112,6 @@ BEGIN
     SELECT 
         cat.Category_ID,
         cat.CompanyId,
-        cat.BranchId,
         cat.Department_ID,
         dept.DeptName AS Department_Name,
         dept.DeptCode AS Department_Code,
@@ -106,7 +125,7 @@ BEGIN
         cat.ModifiedDate
     FROM dbo.LabTestCategoryMaster cat
     LEFT JOIN dbo.DepartmentMaster dept ON cat.Department_ID = dept.DeptId
-    WHERE cat.Category_ID = @Category_ID;
+    WHERE cat.Category_ID = @Category_ID AND cat.IsDeleted = 0;
 END
 GO
 
@@ -116,7 +135,6 @@ CREATE OR ALTER PROCEDURE dbo.usp_Api_LabTestCategoryMaster_Create
     @Category_Name NVARCHAR(150),
     @Display_Order INT = 1,
     @CompanyId     INT = 1,
-    @BranchId      INT = 1,
     @UserId        INT = NULL,
     @NewId         INT OUTPUT
 AS
@@ -130,6 +148,13 @@ BEGIN
         RETURN;
     END
 
+    -- Ensure selected Department is of Type LAB
+    IF NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @Department_ID AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%'))
+    BEGIN
+        RAISERROR('Selected department must be a Lab department (Type=LAB).', 16, 1);
+        RETURN;
+    END
+
     IF @Category_Name IS NULL OR LTRIM(RTRIM(@Category_Name)) = ''
     BEGIN
         RAISERROR('Category Name is required.', 16, 1);
@@ -138,36 +163,28 @@ BEGIN
 
     SET @Category_Name = LTRIM(RTRIM(@Category_Name));
 
-    -- Check duplicate category name within same branch & department
+    -- Check duplicate category name within same department
     IF EXISTS (
         SELECT 1 FROM dbo.LabTestCategoryMaster 
-        WHERE BranchId = @BranchId 
-          AND Department_ID = @Department_ID 
+        WHERE Department_ID = @Department_ID 
           AND LOWER(Category_Name) = LOWER(@Category_Name)
+          AND IsDeleted = 0
     )
     BEGIN
         RAISERROR('A category with the same name already exists in this department.', 16, 1);
         RETURN;
     END
 
-    -- Generate Category Code (e.g. LCAT0001)
-    DECLARE @NextNum INT;
+    -- Auto-generate Category_Code
+    DECLARE @NextId INT;
     DECLARE @GeneratedCode NVARCHAR(50);
 
-    SELECT @NextNum = ISNULL(MAX(Category_ID), 0) + 1 FROM dbo.LabTestCategoryMaster;
-    SET @GeneratedCode = 'LCAT' + RIGHT('0000' + CAST(@NextNum AS NVARCHAR(10)), 4);
-
-    -- Ensure unique generated code
-    WHILE EXISTS (SELECT 1 FROM dbo.LabTestCategoryMaster WHERE Category_Code = @GeneratedCode)
-    BEGIN
-        SET @NextNum = @NextNum + 1;
-        SET @GeneratedCode = 'LCAT' + RIGHT('0000' + CAST(@NextNum AS NVARCHAR(10)), 4);
-    END
+    SELECT @NextId = ISNULL(MAX(Category_ID), 0) + 1 FROM dbo.LabTestCategoryMaster;
+    SET @GeneratedCode = 'LCAT' + RIGHT('0000' + CAST(@NextId AS NVARCHAR(10)), 4);
 
     INSERT INTO dbo.LabTestCategoryMaster
     (
         CompanyId,
-        BranchId,
         Department_ID,
         Category_Name,
         Category_Code,
@@ -179,12 +196,11 @@ BEGIN
     VALUES
     (
         @CompanyId,
-        @BranchId,
         @Department_ID,
         @Category_Name,
         @GeneratedCode,
         ISNULL(@Display_Order, 1),
-        1, -- New categories start as Active (Status = 1)
+        1,
         @UserId,
         GETDATE()
     );
@@ -205,7 +221,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestCategoryMaster WHERE Category_ID = @Category_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestCategoryMaster WHERE Category_ID = @Category_ID AND IsDeleted = 0)
     BEGIN
         RAISERROR('Lab Test Category record not found.', 16, 1);
         RETURN;
@@ -218,6 +234,13 @@ BEGIN
         RETURN;
     END
 
+    -- Ensure selected Department is of Type LAB
+    IF NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @Department_ID AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%'))
+    BEGIN
+        RAISERROR('Selected department must be a Lab department (Type=LAB).', 16, 1);
+        RETURN;
+    END
+
     IF @Category_Name IS NULL OR LTRIM(RTRIM(@Category_Name)) = ''
     BEGIN
         RAISERROR('Category Name is required.', 16, 1);
@@ -226,16 +249,13 @@ BEGIN
 
     SET @Category_Name = LTRIM(RTRIM(@Category_Name));
 
-    DECLARE @CurrentBranchId INT;
-    SELECT @CurrentBranchId = BranchId FROM dbo.LabTestCategoryMaster WHERE Category_ID = @Category_ID;
-
     -- Duplicate check ignoring self
     IF EXISTS (
         SELECT 1 FROM dbo.LabTestCategoryMaster 
-        WHERE BranchId = @CurrentBranchId 
-          AND Department_ID = @Department_ID 
+        WHERE Department_ID = @Department_ID 
           AND LOWER(Category_Name) = LOWER(@Category_Name) 
           AND Category_ID <> @Category_ID
+          AND IsDeleted = 0
     )
     BEGIN
         RAISERROR('A category with the same name already exists in this department.', 16, 1);
@@ -262,7 +282,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestCategoryMaster WHERE Category_ID = @Category_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestCategoryMaster WHERE Category_ID = @Category_ID AND IsDeleted = 0)
     BEGIN
         RAISERROR('Lab Test Category record not found.', 16, 1);
         RETURN;
@@ -278,18 +298,36 @@ GO
 
 -- 7. Stored Procedure: usp_Api_LabTestCategoryMaster_Delete
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabTestCategoryMaster_Delete
-    @Category_ID INT
+    @Category_ID INT,
+    @UserId      INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestCategoryMaster WHERE Category_ID = @Category_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestCategoryMaster WHERE Category_ID = @Category_ID AND IsDeleted = 0)
     BEGIN
-        RAISERROR('Lab Test Category record not found.', 16, 1);
+        RAISERROR('Lab Test Category record not found or already deleted.', 16, 1);
         RETURN;
     END
 
-    DELETE FROM dbo.LabTestCategoryMaster
+    -- Check if used in Sub Category
+    IF EXISTS (SELECT 1 FROM dbo.LabTestSubCategoryMaster WHERE Category_ID = @Category_ID AND IsDeleted = 0)
+    BEGIN
+        RAISERROR('Cannot delete Category because it is used in one or more Sub Categories.', 16, 1);
+        RETURN;
+    END
+
+    -- Check if used in Investigation Master
+    IF EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Category_ID = @Category_ID AND IsDeleted = 0)
+    BEGIN
+        RAISERROR('Cannot delete Category because it is used in one or more Test Investigations.', 16, 1);
+        RETURN;
+    END
+
+    UPDATE dbo.LabTestCategoryMaster
+    SET IsDeleted = 1,
+        ModifiedBy = @UserId,
+        ModifiedDate = GETDATE()
     WHERE Category_ID = @Category_ID;
 END
 GO

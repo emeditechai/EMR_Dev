@@ -1,5 +1,5 @@
 -- ====================================================================================================
--- Script: 100_lab_investigation_master.sql
+-- Script: 2006_lab_investigation_master.sql
 -- Description: Creates dbo.LabInvestigationMaster table and Stored Procedures for Investigation Master
 --              under Lab -> Investigation Master.
 -- ====================================================================================================
@@ -10,7 +10,6 @@ BEGIN
     (
         Test_ID          INT IDENTITY(1,1) PRIMARY KEY,
         CompanyId        INT NOT NULL DEFAULT 1,
-        BranchId         INT NOT NULL DEFAULT 1,
         Test_Code        NVARCHAR(50) NOT NULL,
         Test_Name        NVARCHAR(200) NOT NULL,
         Department_ID    INT NOT NULL,
@@ -26,6 +25,7 @@ BEGIN
         Is_Outsourced    BIT NOT NULL DEFAULT 0,
         MRP              DECIMAL(18,2) NOT NULL DEFAULT 0.00,
         Status           BIT NOT NULL DEFAULT 1,
+        IsDeleted        BIT NOT NULL DEFAULT 0,
         CreatedBy        INT NULL,
         CreatedDate      DATETIME2 NOT NULL DEFAULT GETDATE(),
         ModifiedBy       INT NULL,
@@ -40,19 +40,39 @@ BEGIN
 
     CREATE INDEX IX_LabInvestigationMaster_Department ON dbo.LabInvestigationMaster(Department_ID);
     CREATE INDEX IX_LabInvestigationMaster_Category ON dbo.LabInvestigationMaster(Category_ID);
-    CREATE INDEX IX_LabInvestigationMaster_Branch_Status ON dbo.LabInvestigationMaster(BranchId, Status);
-    CREATE INDEX IX_LabInvestigationMaster_Code ON dbo.LabInvestigationMaster(Test_Code);
+        CREATE INDEX IX_LabInvestigationMaster_Code ON dbo.LabInvestigationMaster(Test_Code);
     PRINT 'Created table dbo.LabInvestigationMaster';
 END
 ELSE
 BEGIN
+    -- Drop BranchId column if it exists (migration)
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabInvestigationMaster') AND name = 'BranchId')
+    BEGIN
+        DROP INDEX IF EXISTS IX_LabInvestigationMaster_Branch_Status ON dbo.LabInvestigationMaster;
+        DECLARE @ConstraintName NVARCHAR(200);
+        SELECT @ConstraintName = d.name
+        FROM sys.default_constraints d
+        INNER JOIN sys.columns c ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+        WHERE d.parent_object_id = OBJECT_ID('dbo.LabInvestigationMaster') AND c.name = 'BranchId';
+        IF @ConstraintName IS NOT NULL
+            EXEC('ALTER TABLE dbo.LabInvestigationMaster DROP CONSTRAINT ' + @ConstraintName);
+
+        ALTER TABLE dbo.LabInvestigationMaster DROP COLUMN BranchId;
+        PRINT 'Dropped BranchId column from dbo.LabInvestigationMaster';
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabInvestigationMaster') AND name = 'IsDeleted')
+    BEGIN
+        ALTER TABLE dbo.LabInvestigationMaster ADD IsDeleted BIT NOT NULL DEFAULT 0;
+        PRINT 'Added IsDeleted column to dbo.LabInvestigationMaster';
+    END
+
     PRINT 'Table dbo.LabInvestigationMaster already exists';
 END
 GO
 
 -- 2. Stored Procedure: usp_Api_LabInvestigationMaster_GetList
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabInvestigationMaster_GetList
-    @BranchId        INT = NULL,
     @DepartmentId    INT = NULL,
     @CategoryId      INT = NULL,
     @Status          BIT = NULL,
@@ -62,10 +82,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
+    SELECT
         inv.Test_ID,
         inv.CompanyId,
-        inv.BranchId,
         inv.Test_Code,
         inv.Test_Name,
         inv.Department_ID,
@@ -102,15 +121,16 @@ BEGIN
     LEFT JOIN dbo.LabSampleTypeMaster st ON inv.Sample_Type_ID = st.Sample_Type_ID
     LEFT JOIN dbo.LabTestMethodMaster tm ON inv.Method_ID = tm.Method_ID
     LEFT JOIN dbo.LabUnitMaster u ON inv.Unit_ID = u.Unit_ID
-    WHERE (@BranchId IS NULL OR inv.BranchId = @BranchId)
+    WHERE inv.IsDeleted = 0
       AND (@DepartmentId IS NULL OR inv.Department_ID = @DepartmentId)
-      AND (@CategoryId IS NULL OR inv.Category_ID = @CategoryId)
-      AND (@Status IS NULL OR inv.Status = @Status)
-      AND (@CompanyId IS NULL OR inv.CompanyId = @CompanyId)
-      AND (@Search IS NULL OR LTRIM(RTRIM(@Search)) = '' OR 
-           inv.Test_Name LIKE '%' + LTRIM(RTRIM(@Search)) + '%' OR 
-           inv.Test_Code LIKE '%' + LTRIM(RTRIM(@Search)) + '%' OR
-           cat.Category_Name LIKE '%' + LTRIM(RTRIM(@Search)) + '%')
+      AND (@CategoryId   IS NULL OR inv.Category_ID   = @CategoryId)
+      AND (@Status       IS NULL OR inv.Status         = @Status)
+      AND (@CompanyId    IS NULL OR inv.CompanyId      = @CompanyId)
+      AND (dept.DeptType IS NULL OR UPPER(dept.DeptType) = 'LAB' OR dept.DeptType LIKE '%Lab%')
+      AND (@Search IS NULL OR LTRIM(RTRIM(@Search)) = ''
+           OR inv.Test_Name  LIKE '%' + LTRIM(RTRIM(@Search)) + '%'
+           OR inv.Test_Code  LIKE '%' + LTRIM(RTRIM(@Search)) + '%'
+           OR cat.Category_Name LIKE '%' + LTRIM(RTRIM(@Search)) + '%')
     ORDER BY inv.Test_Name ASC;
 END
 GO
@@ -122,10 +142,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
+    SELECT
         inv.Test_ID,
         inv.CompanyId,
-        inv.BranchId,
         inv.Test_Code,
         inv.Test_Name,
         inv.Department_ID,
@@ -162,14 +181,13 @@ BEGIN
     LEFT JOIN dbo.LabSampleTypeMaster st ON inv.Sample_Type_ID = st.Sample_Type_ID
     LEFT JOIN dbo.LabTestMethodMaster tm ON inv.Method_ID = tm.Method_ID
     LEFT JOIN dbo.LabUnitMaster u ON inv.Unit_ID = u.Unit_ID
-    WHERE inv.Test_ID = @Test_ID;
+    WHERE inv.Test_ID = @Test_ID AND inv.IsDeleted = 0;
 END
 GO
 
 -- 4. Stored Procedure: usp_Api_LabInvestigationMaster_Create
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabInvestigationMaster_Create
     @CompanyId       INT = 1,
-    @BranchId        INT = 1,
     @Department_ID   INT,
     @Category_ID     INT,
     @SubCategory_ID  INT = NULL,
@@ -189,55 +207,41 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Validations
     IF @Department_ID IS NULL OR @Department_ID <= 0
-    BEGIN
-        RAISERROR('Department is required.', 16, 1);
-        RETURN;
-    END
+    BEGIN RAISERROR('Department is required.', 16, 1); RETURN; END
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @Department_ID AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%'))
+    BEGIN RAISERROR('Selected department must be a Lab department (Type=LAB).', 16, 1); RETURN; END
 
     IF @Category_ID IS NULL OR @Category_ID <= 0
-    BEGIN
-        RAISERROR('Category is required.', 16, 1);
-        RETURN;
-    END
+    BEGIN RAISERROR('Category is required.', 16, 1); RETURN; END
 
     IF @Test_Name IS NULL OR LTRIM(RTRIM(@Test_Name)) = ''
-    BEGIN
-        RAISERROR('Test Name is required.', 16, 1);
-        RETURN;
-    END
+    BEGIN RAISERROR('Test Name is required.', 16, 1); RETURN; END
 
     SET @Test_Name = LTRIM(RTRIM(@Test_Name));
 
-    -- Duplicate check per Branch & Department
-    IF EXISTS (
-        SELECT 1 FROM dbo.LabInvestigationMaster 
-        WHERE BranchId = @BranchId AND LOWER(Test_Name) = LOWER(@Test_Name)
-    )
-    BEGIN
-        RAISERROR('A Test with the same name already exists.', 16, 1);
-        RETURN;
-    END
+    -- Duplicate check (system-wide, no BranchId)
+    IF EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE LOWER(Test_Name) = LOWER(@Test_Name) AND IsDeleted = 0)
+    BEGIN RAISERROR('A Test with the same name already exists.', 16, 1); RETURN; END
 
-    -- Auto-generate Test_Code
     DECLARE @NextId INT;
     DECLARE @GeneratedCode NVARCHAR(50);
-
     SELECT @NextId = ISNULL(MAX(Test_ID), 0) + 1 FROM dbo.LabInvestigationMaster;
     SET @GeneratedCode = 'TST' + RIGHT('0000' + CAST(@NextId AS NVARCHAR(10)), 4);
 
     INSERT INTO dbo.LabInvestigationMaster
     (
-        CompanyId, BranchId, Test_Code, Test_Name, Department_ID, Category_ID, SubCategory_ID,
+        CompanyId, Test_Code, Test_Name, Department_ID, Category_ID, SubCategory_ID,
         Sample_Type_ID, Method_ID, Unit_ID, Reporting_Type, TAT_Hours, NABL_Accredited,
         NABL_Scope_No, Is_Outsourced, MRP, Status, CreatedBy, CreatedDate
     )
     VALUES
     (
-        @CompanyId, @BranchId, @GeneratedCode, @Test_Name, @Department_ID, @Category_ID, @SubCategory_ID,
-        @Sample_Type_ID, @Method_ID, @Unit_ID, ISNULL(@Reporting_Type, 'Numeric'), ISNULL(@TAT_Hours, 24), ISNULL(@NABL_Accredited, 0),
-        @NABL_Scope_No, ISNULL(@Is_Outsourced, 0), ISNULL(@MRP, 0.00), ISNULL(@Status, 1), @UserId, GETDATE()
+        @CompanyId, @GeneratedCode, @Test_Name, @Department_ID, @Category_ID, @SubCategory_ID,
+        @Sample_Type_ID, @Method_ID, @Unit_ID, ISNULL(@Reporting_Type,'Numeric'), ISNULL(@TAT_Hours,24),
+        ISNULL(@NABL_Accredited,0), @NABL_Scope_No, ISNULL(@Is_Outsourced,0),
+        ISNULL(@MRP,0.00), ISNULL(@Status,1), @UserId, GETDATE()
     );
 
     SELECT SCOPE_IDENTITY() AS NewId;
@@ -266,45 +270,26 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Test_ID = @Test_ID)
-    BEGIN
-        RAISERROR('Investigation Master record not found.', 16, 1);
-        RETURN;
-    END
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Test_ID = @Test_ID AND IsDeleted = 0)
+    BEGIN RAISERROR('Investigation Master record not found.', 16, 1); RETURN; END
 
     IF @Department_ID IS NULL OR @Department_ID <= 0
-    BEGIN
-        RAISERROR('Department is required.', 16, 1);
-        RETURN;
-    END
+    BEGIN RAISERROR('Department is required.', 16, 1); RETURN; END
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @Department_ID AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%'))
+    BEGIN RAISERROR('Selected department must be a Lab department (Type=LAB).', 16, 1); RETURN; END
 
     IF @Category_ID IS NULL OR @Category_ID <= 0
-    BEGIN
-        RAISERROR('Category is required.', 16, 1);
-        RETURN;
-    END
+    BEGIN RAISERROR('Category is required.', 16, 1); RETURN; END
 
     IF @Test_Name IS NULL OR LTRIM(RTRIM(@Test_Name)) = ''
-    BEGIN
-        RAISERROR('Test Name is required.', 16, 1);
-        RETURN;
-    END
+    BEGIN RAISERROR('Test Name is required.', 16, 1); RETURN; END
 
     SET @Test_Name = LTRIM(RTRIM(@Test_Name));
 
-    DECLARE @CurrentBranchId INT;
-    SELECT @CurrentBranchId = BranchId FROM dbo.LabInvestigationMaster WHERE Test_ID = @Test_ID;
-
-    IF EXISTS (
-        SELECT 1 FROM dbo.LabInvestigationMaster 
-        WHERE BranchId = @CurrentBranchId 
-          AND LOWER(Test_Name) = LOWER(@Test_Name) 
-          AND Test_ID <> @Test_ID
-    )
-    BEGIN
-        RAISERROR('A Test with the same name already exists.', 16, 1);
-        RETURN;
-    END
+    -- Duplicate check (system-wide, no BranchId)
+    IF EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE LOWER(Test_Name) = LOWER(@Test_Name) AND Test_ID <> @Test_ID AND IsDeleted = 0)
+    BEGIN RAISERROR('A Test with the same name already exists.', 16, 1); RETURN; END
 
     UPDATE dbo.LabInvestigationMaster
     SET Department_ID   = @Department_ID,
@@ -336,7 +321,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Test_ID = @Test_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Test_ID = @Test_ID AND IsDeleted = 0)
     BEGIN
         RAISERROR('Investigation Master record not found.', 16, 1);
         RETURN;
@@ -352,18 +337,29 @@ GO
 
 -- 7. Stored Procedure: usp_Api_LabInvestigationMaster_Delete
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabInvestigationMaster_Delete
-    @Test_ID INT
+    @Test_ID INT,
+    @UserId  INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Test_ID = @Test_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Test_ID = @Test_ID AND IsDeleted = 0)
     BEGIN
-        RAISERROR('Investigation Master record not found.', 16, 1);
+        RAISERROR('Investigation Master record not found or already deleted.', 16, 1);
         RETURN;
     END
 
-    DELETE FROM dbo.LabInvestigationMaster
+    -- Check if used in LabInvestigationProfileDetail
+    IF EXISTS (SELECT 1 FROM dbo.LabInvestigationProfileDetail WHERE Test_ID = @Test_ID AND IsDeleted = 0)
+    BEGIN
+        RAISERROR('Cannot delete Investigation because it is used in one or more Profiles.', 16, 1);
+        RETURN;
+    END
+
+    UPDATE dbo.LabInvestigationMaster
+    SET IsDeleted = 1,
+        ModifiedBy = @UserId,
+        ModifiedDate = GETDATE()
     WHERE Test_ID = @Test_ID;
 END
 GO

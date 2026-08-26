@@ -1,7 +1,7 @@
 -- ====================================================================================================
--- Script: 97_lab_test_method_master.sql
+-- Script: 2003_lab_test_method_master.sql
 -- Description: Creates dbo.LabTestMethodMaster table and Stored Procedures for Test Method Master
---              under Master -> Lab Master -> Test Method.
+--              under Lab -> Test Method Master.
 -- ====================================================================================================
 
 -- 1. Create dbo.LabTestMethodMaster Table
@@ -11,12 +11,12 @@ BEGIN
     (
         Method_ID          INT IDENTITY(1,1) PRIMARY KEY,
         CompanyId          INT NOT NULL DEFAULT 1,
-        BranchId           INT NOT NULL DEFAULT 1,
         Department_ID      INT NOT NULL,
         Method_Name        NVARCHAR(150) NOT NULL,
         Method_Code        NVARCHAR(50) NOT NULL,
         Display_Order      INT NOT NULL DEFAULT 1,
         Status             BIT NOT NULL DEFAULT 1,
+        IsDeleted          BIT NOT NULL DEFAULT 0,
         CreatedBy          INT NULL,
         CreatedDate        DATETIME2 NOT NULL DEFAULT GETDATE(),
         ModifiedBy         INT NULL,
@@ -24,19 +24,39 @@ BEGIN
         CONSTRAINT FK_LabTestMethodMaster_Department FOREIGN KEY (Department_ID) REFERENCES dbo.DepartmentMaster(DeptId)
     );
     CREATE INDEX IX_LabTestMethodMaster_Dept ON dbo.LabTestMethodMaster(Department_ID);
-    CREATE INDEX IX_LabTestMethodMaster_Branch_Status ON dbo.LabTestMethodMaster(BranchId, Status);
+    CREATE INDEX IX_LabTestMethodMaster_Status ON dbo.LabTestMethodMaster(Status);
     CREATE INDEX IX_LabTestMethodMaster_Code ON dbo.LabTestMethodMaster(Method_Code);
     PRINT 'Created table dbo.LabTestMethodMaster';
 END
 ELSE
 BEGIN
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabTestMethodMaster') AND name = 'BranchId')
+    BEGIN
+        DROP INDEX IF EXISTS IX_LabTestMethodMaster_Branch_Status ON dbo.LabTestMethodMaster;
+        DECLARE @ConstraintName NVARCHAR(200);
+        SELECT @ConstraintName = d.name
+        FROM sys.default_constraints d
+        INNER JOIN sys.columns c ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+        WHERE d.parent_object_id = OBJECT_ID('dbo.LabTestMethodMaster') AND c.name = 'BranchId';
+        IF @ConstraintName IS NOT NULL
+            EXEC('ALTER TABLE dbo.LabTestMethodMaster DROP CONSTRAINT ' + @ConstraintName);
+
+        ALTER TABLE dbo.LabTestMethodMaster DROP COLUMN BranchId;
+        PRINT 'Dropped BranchId column from dbo.LabTestMethodMaster';
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabTestMethodMaster') AND name = 'IsDeleted')
+    BEGIN
+        ALTER TABLE dbo.LabTestMethodMaster ADD IsDeleted BIT NOT NULL DEFAULT 0;
+        PRINT 'Added IsDeleted column to dbo.LabTestMethodMaster';
+    END
+
     PRINT 'Table dbo.LabTestMethodMaster already exists';
 END
 GO
 
 -- 2. Stored Procedure: usp_Api_LabTestMethodMaster_GetList
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabTestMethodMaster_GetList
-    @BranchId        INT = NULL,
     @DepartmentId    INT = NULL,
     @Status          BIT = NULL,
     @Search          NVARCHAR(100) = NULL,
@@ -48,7 +68,6 @@ BEGIN
     SELECT 
         tm.Method_ID,
         tm.CompanyId,
-        tm.BranchId,
         tm.Department_ID,
         dept.DeptName AS Department_Name,
         dept.DeptCode AS Department_Code,
@@ -62,7 +81,7 @@ BEGIN
         tm.ModifiedDate
     FROM dbo.LabTestMethodMaster tm
     LEFT JOIN dbo.DepartmentMaster dept ON tm.Department_ID = dept.DeptId
-    WHERE (@BranchId IS NULL OR tm.BranchId = @BranchId)
+    WHERE tm.IsDeleted = 0
       AND (@DepartmentId IS NULL OR tm.Department_ID = @DepartmentId)
       AND (@Status IS NULL OR tm.Status = @Status)
       AND (@CompanyId IS NULL OR tm.CompanyId = @CompanyId)
@@ -84,7 +103,6 @@ BEGIN
     SELECT 
         tm.Method_ID,
         tm.CompanyId,
-        tm.BranchId,
         tm.Department_ID,
         dept.DeptName AS Department_Name,
         dept.DeptCode AS Department_Code,
@@ -98,7 +116,7 @@ BEGIN
         tm.ModifiedDate
     FROM dbo.LabTestMethodMaster tm
     LEFT JOIN dbo.DepartmentMaster dept ON tm.Department_ID = dept.DeptId
-    WHERE tm.Method_ID = @Method_ID;
+    WHERE tm.Method_ID = @Method_ID AND tm.IsDeleted = 0;
 END
 GO
 
@@ -108,17 +126,21 @@ CREATE OR ALTER PROCEDURE dbo.usp_Api_LabTestMethodMaster_Create
     @Method_Name        NVARCHAR(150),
     @Display_Order      INT = 1,
     @CompanyId          INT = 1,
-    @BranchId           INT = 1,
     @UserId             INT = NULL,
     @NewId              INT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Mandatory Validations
     IF @Department_ID IS NULL OR @Department_ID <= 0
     BEGIN
         RAISERROR('Department is required.', 16, 1);
+        RETURN;
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @Department_ID AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%'))
+    BEGIN
+        RAISERROR('Selected department must be a Lab department (Type=LAB).', 16, 1);
         RETURN;
     END
 
@@ -130,18 +152,17 @@ BEGIN
 
     SET @Method_Name = LTRIM(RTRIM(@Method_Name));
 
-    -- Duplication check: Method Name within same Department
     IF EXISTS (
         SELECT 1 FROM dbo.LabTestMethodMaster 
         WHERE Department_ID = @Department_ID 
           AND LOWER(Method_Name) = LOWER(@Method_Name)
+          AND IsDeleted = 0
     )
     BEGIN
         RAISERROR('A Test Method with the same name already exists in this Department.', 16, 1);
         RETURN;
     END
 
-    -- Auto Generation Code (e.g. MTH0001)
     DECLARE @NextNum INT;
     DECLARE @GeneratedCode NVARCHAR(50);
 
@@ -157,7 +178,6 @@ BEGIN
     INSERT INTO dbo.LabTestMethodMaster
     (
         CompanyId,
-        BranchId,
         Department_ID,
         Method_Name,
         Method_Code,
@@ -169,12 +189,11 @@ BEGIN
     VALUES
     (
         @CompanyId,
-        @BranchId,
         @Department_ID,
         @Method_Name,
         @GeneratedCode,
         ISNULL(@Display_Order, 1),
-        1, -- Starts as Active (Status = 1)
+        1,
         @UserId,
         GETDATE()
     );
@@ -195,16 +214,21 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestMethodMaster WHERE Method_ID = @Method_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestMethodMaster WHERE Method_ID = @Method_ID AND IsDeleted = 0)
     BEGIN
         RAISERROR('Lab Test Method record not found.', 16, 1);
         RETURN;
     END
 
-    -- Mandatory Validations
     IF @Department_ID IS NULL OR @Department_ID <= 0
     BEGIN
         RAISERROR('Department is required.', 16, 1);
+        RETURN;
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @Department_ID AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%'))
+    BEGIN
+        RAISERROR('Selected department must be a Lab department (Type=LAB).', 16, 1);
         RETURN;
     END
 
@@ -216,12 +240,12 @@ BEGIN
 
     SET @Method_Name = LTRIM(RTRIM(@Method_Name));
 
-    -- Duplication check: Method Name within same Department (ignoring self)
     IF EXISTS (
         SELECT 1 FROM dbo.LabTestMethodMaster 
         WHERE Department_ID = @Department_ID 
           AND LOWER(Method_Name) = LOWER(@Method_Name)
           AND Method_ID <> @Method_ID
+          AND IsDeleted = 0
     )
     BEGIN
         RAISERROR('A Test Method with the same name already exists in this Department.', 16, 1);
@@ -248,7 +272,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestMethodMaster WHERE Method_ID = @Method_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestMethodMaster WHERE Method_ID = @Method_ID AND IsDeleted = 0)
     BEGIN
         RAISERROR('Lab Test Method record not found.', 16, 1);
         RETURN;
@@ -264,18 +288,29 @@ GO
 
 -- 7. Stored Procedure: usp_Api_LabTestMethodMaster_Delete
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabTestMethodMaster_Delete
-    @Method_ID INT
+    @Method_ID INT,
+    @UserId    INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestMethodMaster WHERE Method_ID = @Method_ID)
+    IF NOT EXISTS (SELECT 1 FROM dbo.LabTestMethodMaster WHERE Method_ID = @Method_ID AND IsDeleted = 0)
     BEGIN
-        RAISERROR('Lab Test Method record not found.', 16, 1);
+        RAISERROR('Lab Test Method record not found or already deleted.', 16, 1);
         RETURN;
     END
 
-    DELETE FROM dbo.LabTestMethodMaster
+    -- Check if used in Investigation Master
+    IF EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster WHERE Method_ID = @Method_ID AND IsDeleted = 0)
+    BEGIN
+        RAISERROR('Cannot delete Test Method because it is used in one or more Test Investigations.', 16, 1);
+        RETURN;
+    END
+
+    UPDATE dbo.LabTestMethodMaster
+    SET IsDeleted = 1,
+        ModifiedBy = @UserId,
+        ModifiedDate = GETDATE()
     WHERE Method_ID = @Method_ID;
 END
 GO

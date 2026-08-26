@@ -7,7 +7,6 @@ namespace EMR.Web.Models.ViewModels;
 public class LabInvestigationProfileIndexViewModel
 {
     public List<LabInvestigationProfileHeaderModel> Profiles { get; set; } = [];
-    public int SelectedBranchId { get; set; }
     public string? SelectedProfileType { get; set; }
     public bool? SelectedStatus { get; set; }
     public string? SearchTerm { get; set; }
@@ -22,7 +21,6 @@ public class LabInvestigationProfileFormViewModel
 {
     public int? Profile_ID { get; set; }
     public int CompanyId { get; set; } = 1;
-    public int BranchId { get; set; } = 1;
 
     [Display(Name = "Profile Code")]
     public string Profile_Code { get; set; } = string.Empty;

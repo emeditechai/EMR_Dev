@@ -7,12 +7,12 @@ namespace EMR.Api.Services;
 
 public class LabTestMethodService(IDbConnectionFactory db) : ILabTestMethodService
 {
-    public async Task<IEnumerable<LabTestMethodListItem>> GetListAsync(int? branchId, int? departmentId, bool? status, string? search, int? companyId)
+    public async Task<IEnumerable<LabTestMethodListItem>> GetListAsync(int? departmentId, bool? status, string? search, int? companyId)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<LabTestMethodListItem>(
             "usp_Api_LabTestMethodMaster_GetList",
-            new { BranchId = branchId, DepartmentId = departmentId, Status = status, Search = search, CompanyId = companyId },
+            new { DepartmentId = departmentId, Status = status, Search = search, CompanyId = companyId },
             commandType: CommandType.StoredProcedure
         );
     }
@@ -35,7 +35,6 @@ public class LabTestMethodService(IDbConnectionFactory db) : ILabTestMethodServi
         p.Add("@Method_Name", req.Method_Name);
         p.Add("@Display_Order", req.Display_Order);
         p.Add("@CompanyId", req.CompanyId);
-        p.Add("@BranchId", req.BranchId);
         p.Add("@UserId", req.UserId);
         p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 

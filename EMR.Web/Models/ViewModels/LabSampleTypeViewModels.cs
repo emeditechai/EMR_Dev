@@ -6,7 +6,6 @@ namespace EMR.Web.Models.ViewModels;
 public class LabSampleTypeIndexViewModel
 {
     public List<ApiClients.Models.LabSampleTypeModel> SampleTypes { get; set; } = [];
-    public int SelectedBranchId { get; set; }
     public string? SelectedContainerType { get; set; }
     public bool? SelectedStatus { get; set; }
     public string? SearchTerm { get; set; }
@@ -21,8 +20,6 @@ public class LabSampleTypeFormViewModel
     public int Sample_Type_ID { get; set; }
 
     public int CompanyId { get; set; } = 1;
-
-    public int BranchId { get; set; } = 1;
 
     [Required(ErrorMessage = "Sample Name is required.")]
     [StringLength(150, ErrorMessage = "Sample Name cannot exceed 150 characters.")]

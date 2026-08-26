@@ -19,17 +19,15 @@ public class LabUnitsController(
     public async Task<IActionResult> Index(bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
 
         try
         {
-            var units = (await unitApiClient.GetListAsync(branchId, status, search, companyId)).ToList();
-            var dashboard = await dashboardService.GetDashboardAsync(branchId, companyId, "LabUnits");
+            var units = (await unitApiClient.GetListAsync(status, search, companyId)).ToList();
+            var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabUnits");
 
             var model = new LabUnitIndexViewModel
             {
                 Units = units,
-                SelectedBranchId = branchId,
                 SelectedStatus = status,
                 SearchTerm = search,
                 Dashboard = dashboard,
@@ -55,7 +53,6 @@ public class LabUnitsController(
         var model = new LabUnitFormViewModel
         {
             CompanyId = User.GetCompanyId(),
-            BranchId = User.GetCurrentBranchId() ?? 1,
             Display_Order = 1,
             Conversion_Factor = 1.0m,
             Status = true
@@ -68,9 +65,6 @@ public class LabUnitsController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(LabUnitFormViewModel model)
     {
-        var companyId = User.GetCompanyId();
-        var branchId = User.GetCurrentBranchId() ?? 1;
-
         if (!ModelState.IsValid)
             return View(model);
 
@@ -82,8 +76,7 @@ public class LabUnitsController(
                 Unit_Symbol = model.Unit_Symbol,
                 Conversion_Factor = model.Conversion_Factor,
                 Display_Order = model.Display_Order,
-                CompanyId = companyId,
-                BranchId = branchId,
+                CompanyId = User.GetCompanyId(),
                 UserId = User.GetUserId()
             };
 
@@ -94,7 +87,7 @@ public class LabUnitsController(
                 "Create",
                 $"Created Unit '{model.Unit_Name}' with ID #{newId}",
                 User.GetUserId(),
-                branchId
+                User.GetCurrentBranchId() ?? 1
             );
 
             TempData["SuccessMessage"] = $"Unit '{model.Unit_Name}' created successfully.";
@@ -128,7 +121,6 @@ public class LabUnitsController(
             {
                 Unit_ID = item.Unit_ID,
                 CompanyId = item.CompanyId,
-                BranchId = item.BranchId,
                 Unit_Name = item.Unit_Name,
                 Unit_Code = item.Unit_Code,
                 Unit_Symbol = item.Unit_Symbol,

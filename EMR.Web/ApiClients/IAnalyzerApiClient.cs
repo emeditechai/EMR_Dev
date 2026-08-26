@@ -4,9 +4,7 @@ namespace EMR.Web.ApiClients;
 
 public interface IAnalyzerApiClient
 {
-    Task<List<AnalyzerListItem>> GetListAsync(
-        int? branchId = null,
-        int? departmentId = null,
+    Task<List<AnalyzerListItem>> GetListAsync(int? departmentId = null,
         string? interfaceProtocol = null,
         bool? status = null,
         string? search = null);

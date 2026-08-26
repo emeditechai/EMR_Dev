@@ -33,11 +33,12 @@ public class GeneralMasterService(IDbConnectionFactory db) : IGeneralMasterServi
             commandType: CommandType.StoredProcedure);
     }
 
-    public async Task<IEnumerable<DepartmentListItem>> GetDepartmentsAsync()
+    public async Task<IEnumerable<DepartmentListItem>> GetDepartmentsAsync(string? type = null)
     {
         using var con = db.CreateConnection();
         return await con.QueryAsync<DepartmentListItem>(
             "usp_Api_Department_GetList",
+            new { Type = type },
             commandType: CommandType.StoredProcedure);
     }
 

@@ -1,4 +1,4 @@
--- Migration Script: 105_analyzer_master_tbl_mst_analyzer.sql
+-- Migration Script: 2010_analyzer_master_tbl_mst_analyzer.sql
 -- Purpose: Create Analyzer / Instrument Master (tbl_mst_analyzer) and Stored Procedures for API CRUD
 
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tbl_mst_analyzer' AND schema_id = SCHEMA_ID('dbo'))
@@ -6,22 +6,16 @@ BEGIN
     CREATE TABLE dbo.tbl_mst_analyzer (
         Analyzer_ID         INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_tbl_mst_analyzer PRIMARY KEY,
         CompanyId           INT NOT NULL CONSTRAINT DF_tbl_mst_analyzer_CompanyId DEFAULT 1,
-        Branch_ID           INT NOT NULL,
         Department_ID       INT NOT NULL,
         Analyzer_Name       NVARCHAR(150) NOT NULL,
         Interface_Protocol  NVARCHAR(50) NOT NULL, -- HL7 / ASTM / Manual Entry
         Status              BIT NOT NULL CONSTRAINT DF_tbl_mst_analyzer_Status DEFAULT 1,
+        IsDeleted           BIT NOT NULL CONSTRAINT DF_tbl_mst_analyzer_IsDeleted DEFAULT 0,
         CreatedDate         DATETIME2 NOT NULL CONSTRAINT DF_tbl_mst_analyzer_CreatedDate DEFAULT GETDATE(),
         CreatedBy           INT NULL,
         ModifiedDate        DATETIME2 NULL,
         ModifiedBy          INT NULL
     );
-
-    IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Branchmaster')
-    BEGIN
-        ALTER TABLE dbo.tbl_mst_analyzer
-        ADD CONSTRAINT FK_tbl_mst_analyzer_Branch FOREIGN KEY (Branch_ID) REFERENCES dbo.Branchmaster(BranchID);
-    END
 
     IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'DepartmentMaster')
     BEGIN
@@ -29,11 +23,38 @@ BEGIN
         ADD CONSTRAINT FK_tbl_mst_analyzer_Department FOREIGN KEY (Department_ID) REFERENCES dbo.DepartmentMaster(DeptId);
     END
 END
+ELSE
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_tbl_mst_analyzer_Branch' AND parent_object_id = OBJECT_ID('dbo.tbl_mst_analyzer'))
+    BEGIN
+        ALTER TABLE dbo.tbl_mst_analyzer DROP CONSTRAINT FK_tbl_mst_analyzer_Branch;
+    END
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.tbl_mst_analyzer') AND name = 'Branch_ID')
+    BEGIN
+        DECLARE @ConstraintName NVARCHAR(200);
+        SELECT @ConstraintName = d.name
+        FROM sys.default_constraints d
+        INNER JOIN sys.columns c ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+        WHERE d.parent_object_id = OBJECT_ID('dbo.tbl_mst_analyzer') AND c.name = 'Branch_ID';
+        IF @ConstraintName IS NOT NULL
+            EXEC('ALTER TABLE dbo.tbl_mst_analyzer DROP CONSTRAINT ' + @ConstraintName);
+
+        ALTER TABLE dbo.tbl_mst_analyzer DROP COLUMN Branch_ID;
+        PRINT 'Dropped Branch_ID column from dbo.tbl_mst_analyzer';
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.tbl_mst_analyzer') AND name = 'IsDeleted')
+    BEGIN
+        ALTER TABLE dbo.tbl_mst_analyzer ADD IsDeleted BIT NOT NULL CONSTRAINT DF_tbl_mst_analyzer_IsDeleted DEFAULT 0;
+        PRINT 'Added IsDeleted column to dbo.tbl_mst_analyzer';
+    END
+
+    PRINT 'Table dbo.tbl_mst_analyzer already exists';
+END
 GO
 
 -- 1. usp_Api_Analyzer_GetList
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Analyzer_GetList
-    @BranchId INT = NULL,
     @DepartmentId INT = NULL,
     @InterfaceProtocol NVARCHAR(50) = NULL,
     @Status BIT = NULL,
@@ -46,9 +67,6 @@ BEGIN
     SELECT 
         a.Analyzer_ID,
         a.CompanyId,
-        a.Branch_ID,
-        ISNULL(b.BranchName, 'Main Branch') AS BranchName,
-        ISNULL(b.BranchCode, 'MB') AS BranchCode,
         a.Department_ID,
         ISNULL(d.DeptName, 'Laboratory') AS DepartmentName,
         ISNULL(d.DeptCode, 'LAB') AS DepartmentCode,
@@ -61,17 +79,15 @@ BEGIN
         a.ModifiedDate,
         a.ModifiedBy
     FROM dbo.tbl_mst_analyzer a
-    LEFT JOIN dbo.Branchmaster b ON a.Branch_ID = b.BranchID
     LEFT JOIN dbo.DepartmentMaster d ON a.Department_ID = d.DeptId
-    WHERE (@CompanyId IS NULL OR a.CompanyId = @CompanyId)
-      AND (@BranchId IS NULL OR a.Branch_ID = @BranchId)
+    WHERE a.IsDeleted = 0
+      AND (@CompanyId IS NULL OR a.CompanyId = @CompanyId)
       AND (@DepartmentId IS NULL OR a.Department_ID = @DepartmentId)
       AND (@InterfaceProtocol IS NULL OR a.Interface_Protocol = @InterfaceProtocol)
       AND (@Status IS NULL OR a.Status = @Status)
       AND (@Search IS NULL OR (
           a.Analyzer_Name LIKE '%' + @Search + '%' OR
           a.Interface_Protocol LIKE '%' + @Search + '%' OR
-          b.BranchName LIKE '%' + @Search + '%' OR
           d.DeptName LIKE '%' + @Search + '%'
       ))
     ORDER BY a.Analyzer_Name ASC;
@@ -88,9 +104,6 @@ BEGIN
     SELECT 
         a.Analyzer_ID,
         a.CompanyId,
-        a.Branch_ID,
-        ISNULL(b.BranchName, 'Main Branch') AS BranchName,
-        ISNULL(b.BranchCode, 'MB') AS BranchCode,
         a.Department_ID,
         ISNULL(d.DeptName, 'Laboratory') AS DepartmentName,
         ISNULL(d.DeptCode, 'LAB') AS DepartmentCode,
@@ -103,16 +116,14 @@ BEGIN
         a.ModifiedDate,
         a.ModifiedBy
     FROM dbo.tbl_mst_analyzer a
-    LEFT JOIN dbo.Branchmaster b ON a.Branch_ID = b.BranchID
     LEFT JOIN dbo.DepartmentMaster d ON a.Department_ID = d.DeptId
-    WHERE a.Analyzer_ID = @Analyzer_ID;
+    WHERE a.Analyzer_ID = @Analyzer_ID AND a.IsDeleted = 0;
 END
 GO
 
 -- 3. usp_Api_Analyzer_Create
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Analyzer_Create
     @CompanyId INT = 1,
-    @Branch_ID INT,
     @Department_ID INT,
     @Analyzer_Name NVARCHAR(150),
     @Interface_Protocol NVARCHAR(50),
@@ -124,7 +135,6 @@ BEGIN
 
     INSERT INTO dbo.tbl_mst_analyzer (
         CompanyId,
-        Branch_ID,
         Department_ID,
         Analyzer_Name,
         Interface_Protocol,
@@ -136,7 +146,6 @@ BEGIN
     )
     VALUES (
         ISNULL(@CompanyId, 1),
-        @Branch_ID,
         @Department_ID,
         @Analyzer_Name,
         @Interface_Protocol,
@@ -155,7 +164,6 @@ GO
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Analyzer_Update
     @Analyzer_ID INT,
     @CompanyId INT = 1,
-    @Branch_ID INT,
     @Department_ID INT,
     @Analyzer_Name NVARCHAR(150),
     @Interface_Protocol NVARCHAR(50),
@@ -166,8 +174,7 @@ BEGIN
     SET NOCOUNT ON;
 
     UPDATE dbo.tbl_mst_analyzer
-    SET Branch_ID = @Branch_ID,
-        Department_ID = @Department_ID,
+    SET Department_ID = @Department_ID,
         Analyzer_Name = @Analyzer_Name,
         Interface_Protocol = @Interface_Protocol,
         Status = @Status,
@@ -199,12 +206,22 @@ GO
 
 -- 6. usp_Api_Analyzer_Delete
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Analyzer_Delete
-    @Analyzer_ID INT
+    @Analyzer_ID INT,
+    @UserId      INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    DELETE FROM dbo.tbl_mst_analyzer
+    IF NOT EXISTS (SELECT 1 FROM dbo.tbl_mst_analyzer WHERE Analyzer_ID = @Analyzer_ID AND IsDeleted = 0)
+    BEGIN
+        RAISERROR('Analyzer record not found or already deleted.', 16, 1);
+        RETURN;
+    END
+
+    UPDATE dbo.tbl_mst_analyzer
+    SET IsDeleted = 1,
+        ModifiedDate = GETDATE(),
+        ModifiedBy = @UserId
     WHERE Analyzer_ID = @Analyzer_ID;
 
     SELECT @@ROWCOUNT;
@@ -214,19 +231,17 @@ GO
 -- 7. Seed Initial Lab Analyzers if empty
 IF NOT EXISTS (SELECT 1 FROM dbo.tbl_mst_analyzer)
 BEGIN
-    DECLARE @DefaultBranch INT = (SELECT TOP 1 BranchID FROM dbo.Branchmaster WHERE IsActive = 1 ORDER BY BranchID);
     DECLARE @LabDept INT = (SELECT TOP 1 DeptId FROM dbo.DepartmentMaster WHERE (DeptType = 'Lab' OR DeptType = 'LAB' OR DeptName LIKE '%Pathology%' OR DeptName LIKE '%Lab%') AND IsActive = 1 ORDER BY DeptId);
 
-    IF @DefaultBranch IS NULL SET @DefaultBranch = 1;
     IF @LabDept IS NULL SET @LabDept = (SELECT TOP 1 DeptId FROM dbo.DepartmentMaster WHERE IsActive = 1 ORDER BY DeptId);
     IF @LabDept IS NULL SET @LabDept = 1;
 
-    INSERT INTO dbo.tbl_mst_analyzer (CompanyId, Branch_ID, Department_ID, Analyzer_Name, Interface_Protocol, Status, CreatedDate, CreatedBy)
+    INSERT INTO dbo.tbl_mst_analyzer (CompanyId, Department_ID, Analyzer_Name, Interface_Protocol, Status, CreatedDate, CreatedBy)
     VALUES 
-    (1, @DefaultBranch, @LabDept, 'Roche Cobas 6000 (c501/e601)', 'HL7', 1, GETDATE(), 1),
-    (1, @DefaultBranch, @LabDept, 'Sysmex XN-1000 Hematology Analyzer', 'ASTM', 1, GETDATE(), 1),
-    (1, @DefaultBranch, @LabDept, 'Beckman Coulter AU480 Clinical Chemistry', 'ASTM', 1, GETDATE(), 1),
-    (1, @DefaultBranch, @LabDept, 'Bio-Rad D-10 Hemoglobin Testing System', 'Manual Entry', 1, GETDATE(), 1),
-    (1, @DefaultBranch, @LabDept, 'Mindray BC-6800 Plus Auto Hematology', 'HL7', 1, GETDATE(), 1);
+    (1, @LabDept, 'Roche Cobas 6000 (c501/e601)', 'HL7', 1, GETDATE(), 1),
+    (1, @LabDept, 'Sysmex XN-1000 Hematology Analyzer', 'ASTM', 1, GETDATE(), 1),
+    (1, @LabDept, 'Beckman Coulter AU480 Clinical Chemistry', 'ASTM', 1, GETDATE(), 1),
+    (1, @LabDept, 'Bio-Rad D-10 Hemoglobin Testing System', 'Manual Entry', 1, GETDATE(), 1),
+    (1, @LabDept, 'Mindray BC-6800 Plus Auto Hematology', 'HL7', 1, GETDATE(), 1);
 END
 GO

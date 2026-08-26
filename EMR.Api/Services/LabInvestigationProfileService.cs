@@ -7,11 +7,10 @@ namespace EMR.Api.Services;
 
 public class LabInvestigationProfileService(IDbConnectionFactory db) : ILabInvestigationProfileService
 {
-    public async Task<IEnumerable<LabInvestigationProfileHeaderListItem>> GetListAsync(int? branchId = null, string? profileType = null, bool? status = null, string? search = null, int? companyId = null)
+    public async Task<IEnumerable<LabInvestigationProfileHeaderListItem>> GetListAsync(string? profileType = null, bool? status = null, string? search = null, int? companyId = null)
     {
         using var con = db.CreateConnection();
         var param = new DynamicParameters();
-        param.Add("@BranchId", branchId);
         param.Add("@ProfileType", profileType);
         param.Add("@Status", status);
         param.Add("@SearchTerm", search);
@@ -66,7 +65,6 @@ public class LabInvestigationProfileService(IDbConnectionFactory db) : ILabInves
         var param = new DynamicParameters();
         param.Add("@Profile_ID", req.Profile_ID, DbType.Int32, ParameterDirection.InputOutput);
         param.Add("@CompanyId", req.CompanyId);
-        param.Add("@BranchId", req.BranchId);
         param.Add("@Profile_Name", req.Profile_Name);
         param.Add("@Profile_Type", req.Profile_Type);
         param.Add("@MRP", req.MRP);

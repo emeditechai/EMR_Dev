@@ -4,7 +4,6 @@ public class LabTestCategoryModel
 {
     public int Category_ID { get; set; }
     public int CompanyId { get; set; }
-    public int BranchId { get; set; }
     public int Department_ID { get; set; }
     public string Department_Name { get; set; } = string.Empty;
     public string Department_Code { get; set; } = string.Empty;
@@ -24,7 +23,6 @@ public class LabTestCategoryCreateRequestModel
     public string Category_Name { get; set; } = string.Empty;
     public int Display_Order { get; set; } = 1;
     public int CompanyId { get; set; } = 1;
-    public int BranchId { get; set; } = 1;
     public int? UserId { get; set; }
 }
 

@@ -54,10 +54,13 @@ GO
 
 -- 1.4 Department Master List
 CREATE OR ALTER PROCEDURE usp_Api_Department_GetList
+    @Type VARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT * FROM DepartmentMaster ORDER BY DeptType, DeptCode;
+    SELECT * FROM DepartmentMaster 
+    WHERE (@Type IS NULL OR DeptType = @Type OR UPPER(DeptType) = UPPER(@Type) OR DeptType LIKE '%' + @Type + '%')
+    ORDER BY DeptType, DeptCode;
 END;
 GO
 

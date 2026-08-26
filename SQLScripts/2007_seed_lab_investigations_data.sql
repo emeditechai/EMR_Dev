@@ -1,5 +1,5 @@
 -- ====================================================================================================
--- Script: 101_seed_lab_investigations_data.sql
+-- Script: 2007_seed_lab_investigations_data.sql
 -- Description: Seeds standard Indian clinical data for Investigation Master (Lab Tests)
 -- ====================================================================================================
 
@@ -53,7 +53,7 @@ BEGIN
     WHILE @@FETCH_STATUS = 0
     BEGIN
         IF NOT EXISTS (
-            SELECT 1 FROM dbo.LabInvestigationMaster WHERE BranchId = 1 AND LOWER(Test_Name) = LOWER(@TName)
+            SELECT 1 FROM dbo.LabInvestigationMaster WHERE  LOWER(Test_Name) = LOWER(@TName)
         )
         BEGIN
             DECLARE @NextId INT;
@@ -63,13 +63,13 @@ BEGIN
 
             INSERT INTO dbo.LabInvestigationMaster
             (
-                CompanyId, BranchId, Test_Code, Test_Name, Department_ID, Category_ID, SubCategory_ID,
+                CompanyId, Test_Code, Test_Name, Department_ID, Category_ID, SubCategory_ID,
                 Sample_Type_ID, Method_ID, Unit_ID, Reporting_Type, TAT_Hours, NABL_Accredited, NABL_Scope_No,
                 Is_Outsourced, MRP, Status, CreatedDate
             )
             VALUES
             (
-                1, 1, @GenCode, @TName, @DeptId, @CatId, @SubId,
+                1, @GenCode, @TName, @DeptId, @CatId, @SubId,
                 @SampleId, @MethodId, @UnitId, @RType, @TAT, @NABL, @Scope,
                 @Outsourced, @Price, 1, GETDATE()
             );

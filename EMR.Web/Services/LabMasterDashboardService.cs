@@ -5,7 +5,7 @@ namespace EMR.Web.Services;
 
 public interface ILabMasterDashboardService
 {
-    Task<LabMasterDashboardViewModel> GetDashboardAsync(int branchId, int companyId, string activeModule);
+    Task<LabMasterDashboardViewModel> GetDashboardAsync(int companyId, string activeModule);
 }
 
 public class LabMasterDashboardService(
@@ -15,13 +15,13 @@ public class LabMasterDashboardService(
     ILabTestMethodApiClient methodApiClient,
     ILabUnitApiClient unitApiClient) : ILabMasterDashboardService
 {
-    public async Task<LabMasterDashboardViewModel> GetDashboardAsync(int branchId, int companyId, string activeModule)
+    public async Task<LabMasterDashboardViewModel> GetDashboardAsync(int companyId, string activeModule)
     {
-        var categoriesTask = categoryApiClient.GetListAsync(branchId: branchId, companyId: companyId);
-        var subCategoriesTask = subCategoryApiClient.GetListAsync(branchId: branchId, companyId: companyId);
-        var sampleTypesTask = sampleTypeApiClient.GetListAsync(branchId: branchId, companyId: companyId);
-        var methodsTask = methodApiClient.GetListAsync(branchId: branchId, companyId: companyId);
-        var unitsTask = unitApiClient.GetListAsync(branchId: branchId, companyId: companyId);
+        var categoriesTask = categoryApiClient.GetListAsync(companyId: companyId);
+        var subCategoriesTask = subCategoryApiClient.GetListAsync(companyId: companyId);
+        var sampleTypesTask = sampleTypeApiClient.GetListAsync(companyId: companyId);
+        var methodsTask = methodApiClient.GetListAsync(companyId: companyId);
+        var unitsTask = unitApiClient.GetListAsync(companyId: companyId);
 
         await Task.WhenAll(categoriesTask, subCategoriesTask, sampleTypesTask, methodsTask, unitsTask);
 

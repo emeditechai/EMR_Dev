@@ -4,8 +4,7 @@ public class AnalyzerListItemDto
 {
     public int Analyzer_ID { get; set; }
     public int CompanyId { get; set; }
-    public int Branch_ID { get; set; }
-    public string BranchName { get; set; } = string.Empty;
+public string BranchName { get; set; } = string.Empty;
     public string BranchCode { get; set; } = string.Empty;
     public int Department_ID { get; set; }
     public string DepartmentName { get; set; } = string.Empty;
@@ -24,8 +23,7 @@ public class AnalyzerDetailDto
 {
     public int Analyzer_ID { get; set; }
     public int CompanyId { get; set; }
-    public int Branch_ID { get; set; }
-    public string BranchName { get; set; } = string.Empty;
+public string BranchName { get; set; } = string.Empty;
     public string BranchCode { get; set; } = string.Empty;
     public int Department_ID { get; set; }
     public string DepartmentName { get; set; } = string.Empty;
@@ -44,8 +42,7 @@ public class AnalyzerSaveRequest
 {
     public int? Analyzer_ID { get; set; }
     public int CompanyId { get; set; } = 1;
-    public int Branch_ID { get; set; }
-    public int Department_ID { get; set; }
+public int Department_ID { get; set; }
     public string Analyzer_Name { get; set; } = string.Empty;
     public string Interface_Protocol { get; set; } = string.Empty; // HL7 / ASTM / Manual Entry
     public bool Status { get; set; } = true;

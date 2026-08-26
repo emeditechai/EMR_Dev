@@ -4,7 +4,7 @@ namespace EMR.Api.Services;
 
 public interface ILabSampleTypeService
 {
-    Task<IEnumerable<LabSampleTypeListItem>> GetListAsync(int? branchId, string? containerType, bool? status, string? search, int? companyId);
+    Task<IEnumerable<LabSampleTypeListItem>> GetListAsync(string? containerType, bool? status, string? search, int? companyId);
     Task<LabSampleTypeListItem?> GetByIdAsync(int id);
     Task<int> CreateAsync(LabSampleTypeCreateRequest req);
     Task UpdateAsync(LabSampleTypeUpdateRequest req);

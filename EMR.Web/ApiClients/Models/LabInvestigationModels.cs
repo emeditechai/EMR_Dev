@@ -4,7 +4,6 @@ public class LabInvestigationModel
 {
     public int Test_ID { get; set; }
     public int CompanyId { get; set; }
-    public int BranchId { get; set; }
     public string Test_Code { get; set; } = string.Empty;
     public string Test_Name { get; set; } = string.Empty;
     public int Department_ID { get; set; }
@@ -39,7 +38,6 @@ public class LabInvestigationModel
 public class LabInvestigationCreateRequestModel
 {
     public int CompanyId { get; set; } = 1;
-    public int BranchId { get; set; } = 1;
     public int Department_ID { get; set; }
     public int Category_ID { get; set; }
     public int? SubCategory_ID { get; set; }

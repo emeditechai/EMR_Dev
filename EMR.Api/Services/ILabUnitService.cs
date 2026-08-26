@@ -4,7 +4,7 @@ namespace EMR.Api.Services;
 
 public interface ILabUnitService
 {
-    Task<IEnumerable<LabUnitListItem>> GetListAsync(int? branchId, bool? status, string? search, int? companyId);
+    Task<IEnumerable<LabUnitListItem>> GetListAsync(bool? status, string? search, int? companyId);
     Task<LabUnitListItem?> GetByIdAsync(int id);
     Task<int> CreateAsync(LabUnitCreateRequest req);
     Task UpdateAsync(LabUnitUpdateRequest req);

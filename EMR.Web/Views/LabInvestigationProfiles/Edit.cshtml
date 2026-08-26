@@ -30,7 +30,7 @@
     <form asp-action="Edit" asp-encrypted-id="@Model.Profile_ID" method="post" id="profileForm">
         <input type="hidden" asp-for="Profile_ID" />
         <input type="hidden" asp-for="CompanyId" />
-        <input type="hidden" asp-for="BranchId" />
+
         <input type="hidden" asp-for="Profile_Code" />
         <input type="hidden" asp-for="DetailsJson" id="DetailsJson" />
 
@@ -207,92 +207,46 @@
     <partial name="_ValidationScriptsPartial" />
     <script>
         var detailRows = [];
-        var dataTableInstance = null;
 
         $(document).ready(function () {
             var existingJson = $('#DetailsJson').val();
             if (existingJson && existingJson !== '[]') {
-                try {
-                    detailRows = JSON.parse(existingJson);
-                } catch (e) {
-                    detailRows = [];
-                }
+                try { detailRows = JSON.parse(existingJson); } catch (e) { detailRows = []; }
             }
-
-            dataTableInstance = $('#detailsDataTable').DataTable({
-                paging: false,
-                searching: false,
-                info: false,
-                ordering: false,
-                columns: [
-                    { data: 'Sequence', className: 'text-center font-monospace fw-semibold' },
-                    { 
-                        data: 'Test_Name',
-                        render: function(data, type, row) {
-                            return '<div><span class="fw-semibold text-dark">' + row.Test_Name + '</span></div>';
-                        }
-                    },
-                    { 
-                        data: 'TestMRP', 
-                        className: 'text-end fw-bold',
-                        render: function(data) { return '₹' + parseFloat(data || 0).toFixed(2); }
-                    },
-                    {
-                        data: null,
-                        className: 'text-center',
-                        render: function(data, type, row, meta) {
-                            return '<button type="button" class="btn btn-sm btn-outline-danger btn-delete-row" data-index="' + meta.row + '" title="Remove Row"><i class="bi bi-trash"></i></button>';
-                        }
-                    }
-                ]
-            });
-
             renderGrid();
 
-            $('#btnAddDetailRow').click(function () {
-                var testId = $('#selectTestId').val();
-                var testText = $('#selectTestId option:selected').text();
+            $('#btnAddDetailRow').on('click', function () {
+                var $sel = $('#selectTestId');
+                var testId = $sel.val();
+                var testText = $sel.find('option:selected').text().trim();
                 var seq = parseInt($('#inputSeq').val()) || (detailRows.length + 1);
 
-                if (!testId) {
-                    alert('Please select an investigation test.');
-                    return;
-                }
+                if (!testId) { alert('Please select an investigation test.'); return; }
+                var alreadyAdded = false;
+                $.each(detailRows, function(i, r) { if (r.Test_ID == testId) alreadyAdded = true; });
+                if (alreadyAdded) { alert('This test is already added to the profile.'); return; }
 
-                if (detailRows.some(r => r.Test_ID == testId)) {
-                    alert('This test is already added to the profile detail list.');
-                    return;
-                }
+                // Parse MRP from option text e.g. "Test Name (TST001) - ₹250.00"
+                var mrpMatch = testText.match(/[₹]([0-9,]+\.?[0-9]*)/);
+                var mrpVal = mrpMatch ? parseFloat(mrpMatch[1].replace(/,/g, '')) : 0;
 
-                var mrpMatch = testText.match(/₹([0-9.,]+)/);
-                var mrpVal = mrpMatch ? parseFloat(mrpMatch[1].replace(',', '')) : 0;
-
-                detailRows.push({
-                    Detail_ID: 0,
-                    Test_ID: parseInt(testId),
-                    Test_Name: testText,
-                    Sequence: seq,
-                    TestMRP: mrpVal
-                });
-
-                detailRows.sort((a, b) => a.Sequence - b.Sequence);
+                detailRows.push({ Detail_ID: 0, Test_ID: parseInt(testId), Test_Name: testText, Sequence: seq, TestMRP: mrpVal });
+                detailRows.sort(function(a, b) { return a.Sequence - b.Sequence; });
                 renderGrid();
-
-                $('#selectTestId').val('');
+                $sel.val('');
                 $('#inputSeq').val(detailRows.length + 1);
             });
 
-            $('#detailsDataTable').on('click', '.btn-delete-row', function () {
-                var index = $(this).data('index');
-                detailRows.splice(index, 1);
+            $(document).on('click', '.btn-delete-row', function () {
+                var idx = parseInt($(this).data('index'));
+                detailRows.splice(idx, 1);
                 renderGrid();
             });
 
-            $('#profileForm').submit(function (e) {
+            $('#profileForm').on('submit', function (e) {
                 if (detailRows.length === 0) {
                     alert('Please add at least one test detail row before saving.');
-                    e.preventDefault();
-                    return false;
+                    e.preventDefault(); return false;
                 }
                 $('#DetailsJson').val(JSON.stringify(detailRows));
                 return true;
@@ -300,10 +254,22 @@
         });
 
         function renderGrid() {
-            if (dataTableInstance) {
-                dataTableInstance.clear();
-                dataTableInstance.rows.add(detailRows);
-                dataTableInstance.draw();
+            var tbody = document.querySelector('#detailsDataTable tbody');
+            tbody.innerHTML = '';
+            if (detailRows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3"><i class="bi bi-info-circle me-1"></i>No tests added yet. Use the controls above to add tests.</td></tr>';
+            } else {
+                detailRows.forEach(function(r, i) {
+                    var mrp = parseFloat(r.TestMRP || 0).toFixed(2);
+                    var safeName = r.Test_Name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    var tr = '<tr>' +
+                        '<td class="text-center font-monospace fw-semibold">' + r.Sequence + '</td>' +
+                        '<td class="fw-semibold text-dark">' + safeName + '</td>' +
+                        '<td class="text-end fw-bold">₹' + mrp + '</td>' +
+                        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger btn-delete-row" data-index="' + i + '" title="Remove"><i class="bi bi-trash"></i></button></td>' +
+                        '</tr>';
+                    tbody.innerHTML += tr;
+                });
             }
             $('#DetailsJson').val(JSON.stringify(detailRows));
         }

@@ -12,13 +12,12 @@ public class LabSampleTypeController(ILabSampleTypeService service) : Controller
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabSampleTypeListItem>>), 200)]
     public async Task<IActionResult> GetList(
-        [FromQuery] int? branchId,
         [FromQuery] string? containerType,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
     {
-        var data = await service.GetListAsync(branchId, containerType, status, search, companyId);
+        var data = await service.GetListAsync(containerType, status, search, companyId);
         return Ok(ApiResponse<IEnumerable<LabSampleTypeListItem>>.Ok(data));
     }
 

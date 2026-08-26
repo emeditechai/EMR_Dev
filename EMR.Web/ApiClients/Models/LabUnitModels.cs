@@ -4,7 +4,6 @@ public class LabUnitModel
 {
     public int Unit_ID { get; set; }
     public int CompanyId { get; set; }
-    public int BranchId { get; set; }
     public string Unit_Name { get; set; } = string.Empty;
     public string Unit_Code { get; set; } = string.Empty;
     public string? Unit_Symbol { get; set; }
@@ -24,7 +23,6 @@ public class LabUnitCreateRequestModel
     public decimal Conversion_Factor { get; set; } = 1.0m;
     public int Display_Order { get; set; } = 1;
     public int CompanyId { get; set; } = 1;
-    public int BranchId { get; set; } = 1;
     public int? UserId { get; set; }
 }
 

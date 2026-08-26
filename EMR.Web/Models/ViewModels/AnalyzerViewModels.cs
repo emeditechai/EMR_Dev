@@ -7,8 +7,7 @@ namespace EMR.Web.Models.ViewModels;
 public class AnalyzerListViewModel
 {
     public List<AnalyzerListItem> Items { get; set; } = new();
-    public int? FilterBranchId { get; set; }
-    public int? FilterDepartmentId { get; set; }
+public int? FilterDepartmentId { get; set; }
     public string? FilterInterfaceProtocol { get; set; }
     public bool? FilterStatus { get; set; }
     public string? SearchTerm { get; set; }
@@ -29,10 +28,6 @@ public class AnalyzerListViewModel
 public class AnalyzerFormViewModel
 {
     public int? Analyzer_ID { get; set; }
-
-    [Required(ErrorMessage = "Branch is required.")]
-    [Display(Name = "Branch")]
-    public int Branch_ID { get; set; }
 
     [Required(ErrorMessage = "Department is required.")]
     [Display(Name = "Department (Laboratory)")]
