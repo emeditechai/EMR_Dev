@@ -71,6 +71,7 @@ builder.Services.AddScoped<ILabMasterDashboardService, LabMasterDashboardService
 builder.Services.AddScoped<IRoomDoctorAssignmentService, RoomDoctorAssignmentService>();
 builder.Services.AddScoped<IServiceService, ServiceService>();
 builder.Services.AddScoped<IDoctorConsultingFeeService, DoctorConsultingFeeService>();
+builder.Services.AddScoped<IDiscountTypeService, DiscountTypeService>();
 
 // Patient Registration (Dapper)
 builder.Services.AddScoped<IPatientService, PatientService>();
@@ -142,6 +143,7 @@ builder.Services.AddScoped<ILabUnitApiClient,           LabUnitApiClient>();
 builder.Services.AddScoped<IAnalyzerApiClient,          AnalyzerApiClient>();
 builder.Services.AddScoped<ILabInvestigationApiClient,        LabInvestigationApiClient>();
 builder.Services.AddScoped<ILabInvestigationProfileApiClient, LabInvestigationProfileApiClient>();
+builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>

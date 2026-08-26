@@ -1,0 +1,146 @@
+@model EMR.Web.Models.ViewModels.DiscountTypeIndexViewModel
+
+@{
+    ViewData["Title"] = "Discount Type Master";
+    ViewData["PageIcon"] = "bi-tags-fill";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Discount Type" };
+}
+
+<div class="card emr-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Discount Types List</h5>
+        <a asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Add New</a>
+    </div>
+    
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-4 align-items-end" id="filterForm">
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select asp-for="SelectedStatus" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                    <input asp-for="SearchTerm" class="form-control" placeholder="Search by name..." autocomplete="off" />
+                </div>
+            </div>
+            <div class="col-md-5">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filter</button>
+                <a asp-action="Index" class="btn btn-light btn-sm"><i class="bi bi-arrow-clockwise me-1"></i>Reset</a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle emr-table" id="discountTypeTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Slab / Amount</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.DiscountTypes.Any())
+                    {
+                        foreach (var item in Model.DiscountTypes)
+                        {
+                            <tr>
+                                <td>@item.DiscountTypeName</td>
+                                <td>
+                                    @if (item.DiscountFlag == 'P')
+                                    {
+                                        <span class="badge bg-info text-dark">Percentage</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Amount</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.DiscountFlag == 'P')
+                                    {
+                                        @($"{item.PercentageFrom}% - {item.PercentageTo}%")
+                                    }
+                                    else
+                                    {
+                                        @($"₹{item.DiscountAmount:N2}")
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <a asp-action="Edit" asp-route-id="@item.DiscountTypeId" class="btn btn-light text-primary" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                        <a asp-action="Details" asp-route-id="@item.DiscountTypeId" class="btn btn-light text-info" title="Details"><i class="bi bi-eye"></i></a>
+                                        <button type="button" class="btn btn-light text-danger" title="Delete" onclick="confirmDelete(@item.DiscountTypeId, '@item.DiscountTypeName')"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <form id="deleteForm-@item.DiscountTypeId" asp-action="Delete" asp-route-id="@item.DiscountTypeId" method="post" style="display:none;"></form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
+                                No discount types found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#discountTypeTable').DataTable({
+                "pageLength": 10,
+                "ordering": true,
+                "info": true,
+                "searching": false, // Handled by custom search box
+                "lengthChange": true,
+                "language": {
+                    "paginate": {
+                        "previous": "<i class='bi bi-chevron-left'></i>",
+                        "next": "<i class='bi bi-chevron-right'></i>"
+                    }
+                }
+            });
+        });
+
+        function confirmDelete(id, name) {
+            Swal.fire({
+                title: 'Delete Discount Type?',
+                text: `Are you sure you want to delete "${name}"? This action cannot be undone.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#deleteForm-' + id).submit();
+                }
+            });
+        }
+    </script>
+}

@@ -23,6 +23,8 @@ builder.Services.AddSwaggerGen(c =>
 // ── Data & Application services ───────────────────────────────────────────────
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IDoctorService,           DoctorService>();
+
+builder.Services.AddScoped<IDiscountTypeService,     DiscountTypeService>();
 builder.Services.AddScoped<IPatientService,          PatientService>();
 builder.Services.AddScoped<IReportService,           ReportService>();
 builder.Services.AddScoped<IServiceBookingService,   ServiceBookingService>();

@@ -1,0 +1,67 @@
+@model EMR.Web.Models.ViewModels.DiscountTypeFormViewModel
+
+@{
+    ViewData["Title"] = "Discount Type Details";
+    ViewData["PageIcon"] = "bi-info-circle";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Discount Type", "Details" };
+}
+
+<div class="card emr-card">
+    <div class="card-body">
+        <h5 class="card-title mb-4">Discount Type Details</h5>
+        
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label text-muted small mb-1">ID</label>
+                <div class="fw-medium">@Model.DiscountTypeId</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label text-muted small mb-1">Discount Type Name</label>
+                <div class="fw-medium">@Model.DiscountTypeName</div>
+            </div>
+            
+            <div class="col-md-6">
+                <label class="form-label text-muted small mb-1">Discount Type</label>
+                <div class="fw-medium">@(Model.DiscountFlag == 'P' ? "Percentage" : "Fixed Amount")</div>
+            </div>
+
+            @if (Model.DiscountFlag == 'P')
+            {
+                <div class="col-md-6">
+                    <label class="form-label text-muted small mb-1">From Percentage</label>
+                    <div class="fw-medium">@(Model.PercentageFrom.HasValue ? $"{Model.PercentageFrom:N2}%" : "-")</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label text-muted small mb-1">To Percentage</label>
+                    <div class="fw-medium">@(Model.PercentageTo.HasValue ? $"{Model.PercentageTo:N2}%" : "-")</div>
+                </div>
+            }
+            else
+            {
+                <div class="col-md-6">
+                    <label class="form-label text-muted small mb-1">Discount Amount</label>
+                    <div class="fw-medium">@(Model.DiscountAmount.HasValue ? $"₹{Model.DiscountAmount:N2}" : "-")</div>
+                </div>
+            }
+
+            <div class="col-md-6">
+                <label class="form-label text-muted small mb-1">Status</label>
+                <div>
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-top d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.DiscountTypeId" class="btn btn-primary"><i class="bi bi-pencil-square me-1"></i>Edit</a>
+            <a asp-action="Index" class="btn btn-light">Back to List</a>
+        </div>
+    </div>
+</div>

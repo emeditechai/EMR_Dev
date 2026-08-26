@@ -1,0 +1,95 @@
+@model EMR.Web.Models.ViewModels.DiscountTypeFormViewModel
+
+<input type="hidden" asp-for="DiscountTypeId" />
+
+<div class="row g-3">
+    <div class="col-md-12">
+        <label asp-for="DiscountTypeName" class="form-label required"></label>
+        <input asp-for="DiscountTypeName" class="form-control" autocomplete="off" />
+        <span asp-validation-for="DiscountTypeName" class="text-danger"></span>
+    </div>
+    
+    <div class="col-md-12">
+        <label class="form-label required">Discount Type</label>
+        <div class="d-flex gap-4 mt-2">
+            <div class="form-check">
+                <input class="form-check-input discount-flag" type="radio" asp-for="DiscountFlag" value="P" id="flagPercentage" checked="@(Model.DiscountFlag == 'P')">
+                <label class="form-check-label" for="flagPercentage">
+                    Percentage (%)
+                </label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input discount-flag" type="radio" asp-for="DiscountFlag" value="A" id="flagAmount" checked="@(Model.DiscountFlag == 'A')">
+                <label class="form-check-label" for="flagAmount">
+                    Fixed Amount (₹)
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Percentage Fields -->
+    <div class="col-md-6 percentage-field" style="@(Model.DiscountFlag == 'P' ? "" : "display:none;")">
+        <label asp-for="PercentageFrom" class="form-label"></label>
+        <div class="input-group">
+            <input asp-for="PercentageFrom" class="form-control" type="number" step="0.01" min="0" max="100" />
+            <span class="input-group-text">%</span>
+        </div>
+        <span asp-validation-for="PercentageFrom" class="text-danger"></span>
+        <div class="form-text">Minimum allowed percentage (optional).</div>
+    </div>
+    <div class="col-md-6 percentage-field" style="@(Model.DiscountFlag == 'P' ? "" : "display:none;")">
+        <label asp-for="PercentageTo" class="form-label"></label>
+        <div class="input-group">
+            <input asp-for="PercentageTo" class="form-control" type="number" step="0.01" min="0" max="100" />
+            <span class="input-group-text">%</span>
+        </div>
+        <span asp-validation-for="PercentageTo" class="text-danger"></span>
+        <div class="form-text">Maximum allowed percentage (optional).</div>
+    </div>
+
+    <!-- Amount Field -->
+    <div class="col-md-6 amount-field" style="@(Model.DiscountFlag == 'A' ? "" : "display:none;")">
+        <label asp-for="DiscountAmount" class="form-label"></label>
+        <div class="input-group">
+            <span class="input-group-text">₹</span>
+            <input asp-for="DiscountAmount" class="form-control" type="number" step="0.01" min="0" />
+        </div>
+        <span asp-validation-for="DiscountAmount" class="text-danger"></span>
+        <div class="form-text">Default fixed amount (optional).</div>
+    </div>
+    
+    <div class="col-12 mt-4">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" asp-for="IsActive" role="switch">
+            <label class="form-check-label" asp-for="IsActive"></label>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const radios = document.querySelectorAll('.discount-flag');
+        const percentageFields = document.querySelectorAll('.percentage-field');
+        const amountFields = document.querySelectorAll('.amount-field');
+        
+        function toggleFields() {
+            const selected = document.querySelector('.discount-flag:checked').value;
+            if (selected === 'P') {
+                percentageFields.forEach(el => el.style.display = '');
+                amountFields.forEach(el => el.style.display = 'none');
+                
+                // Clear amount when switching to percentage
+                document.getElementById('DiscountAmount').value = '';
+            } else {
+                percentageFields.forEach(el => el.style.display = 'none');
+                amountFields.forEach(el => el.style.display = '');
+                
+                // Clear percentages when switching to amount
+                document.getElementById('PercentageFrom').value = '';
+                document.getElementById('PercentageTo').value = '';
+            }
+        }
+        
+        radios.forEach(r => r.addEventListener('change', toggleFields));
+    });
+</script>
