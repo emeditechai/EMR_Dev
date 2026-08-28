@@ -83,6 +83,17 @@ public class DepartmentsController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(DepartmentFormViewModel model)
     {
+        if (!model.IsActive)
+        {
+            var usage = await departmentService.CheckUsageAsync(model.DeptId);
+            if (usage != null)
+            {
+                TempData["Error"] = $"Deactivation can not done used in another Page ({usage})";
+                ViewBag.DeptTypes = DeptTypes;
+                return View(model);
+            }
+        }
+
         if (await departmentService.CodeExistsAsync(model.DeptCode.Trim().ToUpper(), model.DeptId))
             ModelState.AddModelError(nameof(model.DeptCode), "This Department Code already exists.");
 

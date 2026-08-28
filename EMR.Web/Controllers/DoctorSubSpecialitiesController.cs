@@ -110,6 +110,17 @@ public class DoctorSubSpecialitiesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(DoctorSubSpecialityFormViewModel model)
     {
+        if (!model.IsActive)
+        {
+            var usage = await subSpecialityService.CheckUsageAsync(model.SubSpecialityId);
+            if (usage != null)
+            {
+                TempData["Error"] = $"Deactivation can not done used in another Page ({usage})";
+                model.SpecialityOptions = await subSpecialityService.GetSpecialityOptionsAsync(model.SpecialityId);
+                return View(model);
+            }
+        }
+
         var companyId = User.GetCompanyId();
         model.SubSpecialityCode = model.SubSpecialityCode.Trim().ToUpper();
         model.SubSpecialityName = model.SubSpecialityName.Trim();
@@ -155,6 +166,13 @@ public class DoctorSubSpecialitiesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
+        var usage = await subSpecialityService.CheckUsageAsync(id);
+        if (usage != null)
+        {
+            TempData["Error"] = $"Deletion can not done used in another Page ({usage})";
+            return RedirectToAction(nameof(Index));
+        }
+
         var deleted = await subSpecialityService.DeleteAsync(id);
         TempData[deleted ? "Success" : "Error"] = deleted
             ? "Doctor Sub-Speciality deleted successfully."

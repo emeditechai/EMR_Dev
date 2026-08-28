@@ -16,4 +16,5 @@ public interface IDoctorSubSpecialityService
     Task UpdateAsync(DoctorSubSpecialityMaster model, int? userId);
     Task<bool> DeleteAsync(int id);
     Task<IEnumerable<SelectListItem>> GetSpecialityOptionsAsync(int? selectedId = null);
+    Task<string?> CheckUsageAsync(int id);
 }

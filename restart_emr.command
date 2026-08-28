@@ -1,5 +1,5 @@
 #!/bin/bash
-BASE="/Users/purojitbhar/My work/EMR_Dev"
+BASE="/Users/abhikporel/dev/EMR_Web"
 
 echo "=========================================="
 echo "  Stopping any running EMR instances..."

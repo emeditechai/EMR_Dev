@@ -74,6 +74,16 @@ public class DoctorSpecialitiesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(DoctorSpecialityFormViewModel model)
     {
+        if (!model.IsActive)
+        {
+            var usage = await specialityService.CheckUsageAsync(model.SpecialityId);
+            if (usage != null)
+            {
+                TempData["Error"] = $"Deactivation can not done used in another Page ({usage})";
+                return View(model);
+            }
+        }
+
         if (await specialityService.CodeExistsAsync(model.SpecialityCode.Trim(), model.SpecialityId))
             ModelState.AddModelError(nameof(model.SpecialityCode), "This Speciality Code already exists.");
 
@@ -108,10 +118,17 @@ public class DoctorSpecialitiesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
+        var usage = await specialityService.CheckUsageAsync(id);
+        if (usage != null)
+        {
+            TempData["Error"] = $"Deletion can not done used in another Page ({usage})";
+            return RedirectToAction(nameof(Index));
+        }
+
         var deleted = await specialityService.DeleteAsync(id);
         TempData[deleted ? "Success" : "Error"] = deleted
             ? "Doctor Speciality deleted successfully."
-            : "Cannot delete: Doctors are linked to this Speciality.";
+            : "Cannot delete this Speciality.";
         return RedirectToAction(nameof(Index));
     }
 }

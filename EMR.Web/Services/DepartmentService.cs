@@ -62,4 +62,29 @@ public class DepartmentService(IDbConnectionFactory db) : IDepartmentService
             WHERE DeptId = @DeptId",
             new { m.DeptCode, m.DeptName, m.DeptType, m.IsActive, userId, m.DeptId });
     }
+
+    public async Task<string?> CheckUsageAsync(int id)
+    {
+        using var con = db.CreateConnection();
+        // Different tables use different column names for the department ID
+        var tables = new List<(string TableName, string ColumnName, string FriendlyName)>
+        {
+            ("DoctorDepartmentMap", "DeptId", "Doctor Master"),
+            ("WardMaster", "DepartmentId", "Ward Master"),
+            ("ClinicalUnitMaster", "DepartmentId", "Clinical Unit Master"),
+            ("LabTestCategoryMaster", "Department_ID", "Lab Test Category Master"),
+            ("tbl_mst_analyzer", "Department_ID", "Analyzer Master")
+        };
+
+        foreach (var t in tables)
+        {
+            var exists = await con.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{t.TableName}'");
+            if (exists > 0)
+            {
+                var count = await con.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM {t.TableName} WHERE {t.ColumnName} = @id", new { id });
+                if (count > 0) return t.FriendlyName;
+            }
+        }
+        return null;
+    }
 }

@@ -10,4 +10,5 @@ public interface IDepartmentService
     Task<bool> CodeExistsAsync(string code, int? excludeId = null);
     Task<int> CreateAsync(DepartmentMaster m, int? userId);
     Task UpdateAsync(DepartmentMaster m, int? userId);
+    Task<string?> CheckUsageAsync(int id);
 }

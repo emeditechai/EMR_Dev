@@ -90,4 +90,25 @@ public class DoctorSpecialityService(IDbConnectionFactory db) : IDoctorSpecialit
             "DELETE FROM DoctorSpecialityMaster WHERE SpecialityId = @id", new { id });
         return true;
     }
+
+    public async Task<string?> CheckUsageAsync(int id)
+    {
+        using var con = db.CreateConnection();
+        var tables = new Dictionary<string, string>
+        {
+            { "DoctorMaster", "Doctor Master" },
+            { "DoctorSubSpecialityMaster", "Doctor Sub Speciality Master" }
+        };
+
+        foreach (var t in tables)
+        {
+            var exists = await con.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{t.Key}'");
+            if (exists > 0)
+            {
+                var count = await con.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM {t.Key} WHERE SpecialityId = @id", new { id });
+                if (count > 0) return t.Value;
+            }
+        }
+        return null;
+    }
 }

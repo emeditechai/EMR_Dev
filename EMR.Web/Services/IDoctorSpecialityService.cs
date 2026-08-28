@@ -12,4 +12,5 @@ public interface IDoctorSpecialityService
     Task<int> CreateAsync(DoctorSpecialityMaster model, int? userId);
     Task UpdateAsync(DoctorSpecialityMaster model, int? userId);
     Task<bool> DeleteAsync(int id);
+    Task<string?> CheckUsageAsync(int id);
 }
