@@ -17,7 +17,11 @@ class Program
             "2003_lab_test_method_master.sql",
             "2004_lab_unit_master.sql",
             "2006_lab_investigation_master.sql",
-            "2010_analyzer_master_tbl_mst_analyzer.sql"
+            "2007_seed_lab_investigations_data.sql",
+            "2008_lab_investigation_profile_master.sql",
+            "2009_seed_lab_investigation_profile_data.sql",
+            "2010_analyzer_master_tbl_mst_analyzer.sql",
+            "2011_lab_rate_card_master.sql"
         };
 
         using (SqlConnection conn = new SqlConnection(connectionString))

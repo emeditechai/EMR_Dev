@@ -34,6 +34,7 @@ builder.Services.AddScoped<IDoctorScheduleService,   DoctorScheduleService>();
 builder.Services.AddScoped<IEmrConsultationService,  EmrConsultationService>();
 builder.Services.AddScoped<IPatientPortalService,    PatientPortalService>();
 builder.Services.AddScoped<IIpdMasterService,        IpdMasterService>();
+builder.Services.AddScoped<ILabRateCardService,      LabRateCardService>();
 builder.Services.AddScoped<IHospitalPackageService,   HospitalPackageService>();
 builder.Services.AddScoped<ICorporateService,         CorporateService>();
 builder.Services.AddScoped<ICorporateHospitalRateService, CorporateHospitalRateService>();

@@ -143,6 +143,7 @@ builder.Services.AddScoped<ILabUnitApiClient,           LabUnitApiClient>();
 builder.Services.AddScoped<IAnalyzerApiClient,          AnalyzerApiClient>();
 builder.Services.AddScoped<ILabInvestigationApiClient,        LabInvestigationApiClient>();
 builder.Services.AddScoped<ILabInvestigationProfileApiClient, LabInvestigationProfileApiClient>();
+builder.Services.AddScoped<ILabRateCardApiClient, LabRateCardApiClient>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();
