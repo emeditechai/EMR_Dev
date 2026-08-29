@@ -141,6 +141,10 @@
                                     </td>
                                     <td>
                                         <span class="fw-semibold text-dark">@item.Test_Name</span>
+                                        @if (item.IsProfileTest)
+                                        {
+                                            <span class="badge bg-info bg-opacity-10 text-info border border-info ms-1 fs-8">Profile Test</span>
+                                        }
                                         @if (item.Is_Outsourced)
                                         {
                                             <span class="badge bg-warning bg-opacity-10 text-dark border border-warning ms-1 fs-8">Outsourced</span>

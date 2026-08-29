@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using EMR.Web.Extensions;
 
 using EMR.Web.Data;
+using EMR.Web.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
@@ -33,9 +34,64 @@ public class LabRateListB2CController(
         catch { return []; }
     }
 
+    private async Task<List<SelectListItem>> GetCategoryListAsync()
+    {
+        try
+        {
+            var categories = await categoryApiClient.GetListAsync(status: true);
+            return categories.Select(c => new SelectListItem { Value = c.Category_ID.ToString(), Text = $"{c.Category_Name} ({c.Category_Code})" }).ToList();
+        }
+        catch { return []; }
+    }
+
+    private async Task<List<SelectListItem>> GetSubCategoryListAsync()
+    {
+        try
+        {
+            var subCategories = await subCategoryApiClient.GetListAsync(status: true);
+            return subCategories.Select(s => new SelectListItem { Value = s.SubCategory_ID.ToString(), Text = $"{s.SubCategory_Name} ({s.SubCategory_Code})" }).ToList();
+        }
+        catch { return []; }
+    }
+
+    private bool CheckIsHOBranch()
+    {
+        // 1. Check Session
+        var sessionVal = HttpContext.Session.GetString("IsHOBranch");
+        if (!string.IsNullOrEmpty(sessionVal) && bool.TryParse(sessionVal, out var isHOSession))
+        {
+            return isHOSession;
+        }
+
+        // 2. Check User Claims
+        if (User.IsHOBranch())
+        {
+            return true;
+        }
+
+        // 3. Fallback check DB for the branch
+        var currentBranchId = User.GetCurrentBranchId();
+        if (currentBranchId.HasValue)
+        {
+            var branch = dbContext.BranchMasters.Find(currentBranchId.Value);
+            return branch?.IsHOBranch == true;
+        }
+
+        return false;
+    }
+
     private async Task<List<SelectListItem>> GetBranchListAsync(int? selectedId = null)
     {
-        var branches = await dbContext.BranchMasters.Where(b => b.IsActive).ToListAsync();
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+
+        IQueryable<BranchMaster> query = dbContext.BranchMasters.Where(b => b.IsActive);
+        if (!isHO && currentBranchId.HasValue)
+        {
+            query = query.Where(b => b.BranchId == currentBranchId.Value);
+        }
+
+        var branches = await query.OrderBy(b => b.BranchName).ToListAsync();
         return branches.Select(b => new SelectListItem
         {
             Value = b.BranchId.ToString(),
@@ -46,9 +102,15 @@ public class LabRateListB2CController(
 
     public async Task<IActionResult> Index()
     {
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+        var branchList = await GetBranchListAsync(isHO ? null : currentBranchId);
+
         var vm = new LabRateCardIndexViewModel
         {
-            BranchList = new SelectList(await GetBranchListAsync(), "Value", "Text")
+            IsHOBranch = isHO,
+            Branch_ID = isHO ? null : currentBranchId,
+            BranchList = new SelectList(branchList, "Value", "Text", isHO ? null : currentBranchId?.ToString())
         };
         return View(vm);
     }
@@ -56,21 +118,34 @@ public class LabRateListB2CController(
     [HttpGet]
     public async Task<IActionResult> LoadData(int? branchId, bool? status)
     {
+        var isHO = CheckIsHOBranch();
+        if (!isHO)
+        {
+            branchId = User.GetCurrentBranchId();
+        }
         var list = await rateCardApi.GetListAsync(B2CRateType, branchId, status);
         return Json(new { data = list }, new JsonSerializerOptions { PropertyNamingPolicy = null });
     }
 
     public async Task<IActionResult> Create()
     {
+        var isHO = CheckIsHOBranch();
         var currentBranchId = User.GetCurrentBranchId();
         var branches = await GetBranchListAsync(currentBranchId);
+        var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
         var depts = await GetDepartmentListAsync();
+        var cats = await GetCategoryListAsync();
+        var subCats = await GetSubCategoryListAsync();
+
         var vm = new LabRateCardFormViewModel
         {
+            IsHOBranch = isHO,
             Branch_ID = currentBranchId ?? 0,
             BranchList = new SelectList(branches, "Value", "Text", currentBranchId),
-            SourceBranchList = new SelectList(branches, "Value", "Text"),
-            DepartmentList = new SelectList(depts, "Value", "Text")
+            SourceBranchList = new SelectList(allBranches, "Value", "Text"),
+            DepartmentList = new SelectList(depts, "Value", "Text"),
+            CategoryList = new SelectList(cats, "Value", "Text"),
+            SubCategoryList = new SelectList(subCats, "Value", "Text")
         };
         return View("Form", vm);
     }
@@ -80,11 +155,25 @@ public class LabRateListB2CController(
         var item = await rateCardApi.GetByIdAsync(id);
         if (item == null) return NotFound();
 
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+
+        // Non-HO users can only view/edit their own branch rate card
+        if (!isHO && currentBranchId.HasValue && item.Header.Branch_ID != currentBranchId.Value)
+        {
+            TempData["ErrorMessage"] = "You do not have access to manage rate cards for other branches.";
+            return RedirectToAction(nameof(Index));
+        }
+
         var branches = await GetBranchListAsync(item.Header.Branch_ID);
+        var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
         var depts = await GetDepartmentListAsync();
+        var cats = await GetCategoryListAsync();
+        var subCats = await GetSubCategoryListAsync();
 
         var vm = new LabRateCardFormViewModel
         {
+            IsHOBranch = isHO,
             RateCard_ID = item.Header.RateCard_ID,
             CompanyId = item.Header.CompanyId,
             Branch_ID = item.Header.Branch_ID,
@@ -93,8 +182,10 @@ public class LabRateListB2CController(
             Effective_To = item.Header.Effective_To,
             Status = item.Header.Status,
             BranchList = new SelectList(branches, "Value", "Text", item.Header.Branch_ID),
-            SourceBranchList = new SelectList(branches, "Value", "Text"),
+            SourceBranchList = new SelectList(allBranches, "Value", "Text"),
             DepartmentList = new SelectList(depts, "Value", "Text"),
+            CategoryList = new SelectList(cats, "Value", "Text"),
+            SubCategoryList = new SelectList(subCats, "Value", "Text"),
             DetailsJson = JsonSerializer.Serialize(item.Details, new JsonSerializerOptions { PropertyNamingPolicy = null })
         };
         return View("Form", vm);
@@ -104,11 +195,28 @@ public class LabRateListB2CController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(LabRateCardFormViewModel vm)
     {
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+        if (!isHO && currentBranchId.HasValue)
+        {
+            vm.Branch_ID = currentBranchId.Value;
+        }
+
+        vm.IsHOBranch = isHO;
+
         if (!ModelState.IsValid)
         {
             var branches = await GetBranchListAsync(vm.Branch_ID);
+            var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
+            var depts = await GetDepartmentListAsync();
+            var cats = await GetCategoryListAsync();
+            var subCats = await GetSubCategoryListAsync();
+
             vm.BranchList = new SelectList(branches, "Value", "Text", vm.Branch_ID);
-            vm.SourceBranchList = new SelectList(branches, "Value", "Text");
+            vm.SourceBranchList = new SelectList(allBranches, "Value", "Text");
+            vm.DepartmentList = new SelectList(depts, "Value", "Text");
+            vm.CategoryList = new SelectList(cats, "Value", "Text");
+            vm.SubCategoryList = new SelectList(subCats, "Value", "Text");
             return View("Form", vm);
         }
 
@@ -128,7 +236,7 @@ public class LabRateListB2CController(
                 Effective_From = vm.Effective_From,
                 Effective_To = vm.Effective_To,
                 Status = vm.Status,
-                UserId = 1, // Default user
+                UserId = User.GetUserId() > 0 ? User.GetUserId() : 1,
                 Details = details
             };
 
@@ -140,10 +248,16 @@ public class LabRateListB2CController(
         {
             ModelState.AddModelError("", ex.Message);
             var branches = await GetBranchListAsync(vm.Branch_ID);
+            var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
             var depts = await GetDepartmentListAsync();
+            var cats = await GetCategoryListAsync();
+            var subCats = await GetSubCategoryListAsync();
+
             vm.BranchList = new SelectList(branches, "Value", "Text", vm.Branch_ID);
-            vm.SourceBranchList = new SelectList(branches, "Value", "Text");
+            vm.SourceBranchList = new SelectList(allBranches, "Value", "Text");
             vm.DepartmentList = new SelectList(depts, "Value", "Text");
+            vm.CategoryList = new SelectList(cats, "Value", "Text");
+            vm.SubCategoryList = new SelectList(subCats, "Value", "Text");
             return View("Form", vm);
         }
     }
@@ -202,7 +316,7 @@ public class LabRateListB2CController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetCategories(int departmentId)
+    public async Task<IActionResult> GetCategories(int? departmentId = null)
     {
         try
         {
@@ -217,7 +331,7 @@ public class LabRateListB2CController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetSubCategories(int categoryId)
+    public async Task<IActionResult> GetSubCategories(int? categoryId = null)
     {
         try
         {

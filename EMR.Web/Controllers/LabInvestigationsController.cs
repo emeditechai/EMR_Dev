@@ -73,7 +73,8 @@ public class LabInvestigationsController(
             SampleTypeOptions = await GetSampleTypeOptionsAsync(),
             MethodOptions = await GetMethodOptionsAsync(),
             UnitOptions = await GetUnitOptionsAsync(),
-            ReportingTypeOptions = GetReportingTypeOptions()
+            ReportingTypeOptions = GetReportingTypeOptions(),
+            ProfileTestOptions = GetProfileTestOptions(false)
         };
 
         return View(model);
@@ -105,6 +106,7 @@ public class LabInvestigationsController(
                 NABL_Accredited = model.NABL_Accredited,
                 NABL_Scope_No = model.NABL_Accredited ? model.NABL_Scope_No : null,
                 Is_Outsourced = model.Is_Outsourced,
+                Is_Profile_Test = model.IsProfileTest,
                 MRP = model.MRP,
                 Status = model.Status,
                 CompanyId = User.GetCompanyId(),
@@ -166,6 +168,7 @@ public class LabInvestigationsController(
                 NABL_Accredited = item.NABL_Accredited,
                 NABL_Scope_No = item.NABL_Scope_No,
                 Is_Outsourced = item.Is_Outsourced,
+                IsProfileTest = item.IsProfileTest,
                 MRP = item.MRP,
                 Status = item.Status,
             };
@@ -210,6 +213,7 @@ public class LabInvestigationsController(
                 NABL_Accredited = model.NABL_Accredited,
                 NABL_Scope_No = model.NABL_Accredited ? model.NABL_Scope_No : null,
                 Is_Outsourced = model.Is_Outsourced,
+                Is_Profile_Test = model.IsProfileTest,
                 MRP = model.MRP,
                 Status = model.Status,
                 UserId = User.GetUserId()
@@ -330,6 +334,7 @@ public class LabInvestigationsController(
         model.MethodOptions = await GetMethodOptionsAsync(model.Department_ID);
         model.UnitOptions = await GetUnitOptionsAsync();
         model.ReportingTypeOptions = GetReportingTypeOptions();
+        model.ProfileTestOptions = GetProfileTestOptions(model.IsProfileTest);
     }
 
     private async Task<List<SelectListItem>> GetDepartmentOptionsAsync()
@@ -404,6 +409,15 @@ public class LabInvestigationsController(
             new SelectListItem { Value = "Descriptive", Text = "Descriptive" },
             new SelectListItem { Value = "Image", Text = "Image" },
             new SelectListItem { Value = "Template", Text = "Template" }
+        ];
+    }
+
+    private static List<SelectListItem> GetProfileTestOptions(bool isSelected = false)
+    {
+        return
+        [
+            new SelectListItem { Value = "false", Text = "No", Selected = !isSelected },
+            new SelectListItem { Value = "true", Text = "Yes", Selected = isSelected }
         ];
     }
 }

@@ -11,7 +11,7 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1">
                     <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
-                    <li class="breadcrumb-item"><a asp-action="Index">Lab</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
                     <li class="breadcrumb-item"><a asp-action="Index">Investigation Profile Master</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Create</li>
                 </ol>
@@ -28,6 +28,7 @@
     </div>
 
     <form asp-action="Create" method="post" id="profileForm">
+        @Html.AntiForgeryToken()
         <input type="hidden" asp-for="DetailsJson" id="DetailsJson" />
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
@@ -42,45 +43,65 @@
             <div class="card-body p-4">
                 <div class="row g-3">
                     <!-- Rule: Code is 1st Field -->
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label asp-for="Profile_Code" class="form-label fw-semibold text-muted"></label>
                         <input asp-for="Profile_Code" class="form-control bg-light" disabled placeholder="Auto-generated on save (e.g. PRF0001)" />
-                        <span class="form-text text-muted small">Auto-generated unique profile code upon saving.</span>
-                    </div>
-
-                    <!-- Profile Name -->
-                    <div class="col-md-6">
-                        <label asp-for="Profile_Name" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
-                        <input asp-for="Profile_Name" class="form-control" placeholder="Enter profile or package name" maxlength="200" required />
-                        <span asp-validation-for="Profile_Name" class="text-danger small"></span>
+                        <span class="form-text text-muted small">Auto-generated code upon saving.</span>
                     </div>
 
                     <!-- Profile Type -->
                     <div class="col-md-4">
-                        <label asp-for="Profile_Type" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
-                        <select asp-for="Profile_Type" class="form-select" asp-items="Model.ProfileTypeOptions" required>
+                        <label asp-for="Profile_Type" class="form-label fw-semibold">
+                            Type <span class="text-danger">*</span>
+                        </label>
+                        <select asp-for="Profile_Type" class="form-select" id="profileTypeSelect" asp-items="Model.ProfileTypeOptions" required>
                         </select>
                         <span asp-validation-for="Profile_Type" class="text-danger small"></span>
                     </div>
+
+                    <!-- Profile Test Dropdown (when Profile is selected) -->
+                    <div class="col-md-4" id="profileTestContainer">
+                        <label asp-for="Test_ID" class="form-label fw-semibold">
+                            Profile Test <span class="text-danger">*</span>
+                        </label>
+                        <select asp-for="Test_ID" class="form-select" id="profileTestSelect" asp-items="Model.ProfileTestOptions">
+                            <option value="">-- Select Profile Test --</option>
+                        </select>
+                        <span asp-validation-for="Test_ID" class="text-danger small"></span>
+                        <small class="text-muted d-block">Shows tests with 'Is Profile Test = Yes'.</small>
+                    </div>
+
+                    <!-- Package Name Textbox (when Package is selected) -->
+                    <div class="col-md-4" id="packageNameContainer" style="display: none;">
+                        <label asp-for="Profile_Name" class="form-label fw-semibold">
+                            Package Name <span class="text-danger">*</span>
+                        </label>
+                        <input asp-for="Profile_Name" class="form-control" id="packageNameInput" placeholder="e.g. Full Body Health Checkup Package" maxlength="200" />
+                        <span asp-validation-for="Profile_Name" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Hidden input to store synced Profile_Name -->
+                    <input type="hidden" asp-for="Profile_Name" id="hiddenProfileName" />
 
                     <!-- MRP -->
                     <div class="col-md-4">
                         <label asp-for="MRP" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
-                            <input asp-for="MRP" class="form-control" type="number" step="0.01" min="0" placeholder="0.00" required />
+                            <input asp-for="MRP" class="form-control" id="MRP" type="number" step="0.01" min="0" placeholder="0.00" required />
                         </div>
                         <span asp-validation-for="MRP" class="text-danger small"></span>
                     </div>
 
-                    <!-- Discount % -->
-                    <div class="col-md-4">
-                        <label asp-for="Discount_Pct" class="form-label fw-semibold"></label>
+                    <!-- Discount % (Visible only when Package is selected) -->
+                    <div class="col-md-4" id="discountContainer" style="display: none;">
+                        <label asp-for="Discount_Pct" class="form-label fw-semibold">Discount (%)</label>
                         <div class="input-group">
-                            <input asp-for="Discount_Pct" class="form-control" type="number" step="0.1" min="0" max="100" placeholder="0.0" />
+                            <input asp-for="Discount_Pct" class="form-control" id="Discount_Pct" type="number" step="0.1" min="0" max="100" placeholder="0.0" />
                             <span class="input-group-text">%</span>
                         </div>
                         <span asp-validation-for="Discount_Pct" class="text-danger small"></span>
+                        <small class="text-muted d-block">Package promotional discount percentage.</small>
                     </div>
 
                     <!-- Age Operator & Age -->
@@ -120,68 +141,60 @@
                     <!-- Toggles -->
                     <div class="col-md-4 d-flex align-items-center">
                         <div class="card bg-light border-0 p-3 w-100">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-0">
                                 <span class="fw-semibold small">NABL Accredited:</span>
                                 <div class="form-check form-switch mb-0">
                                     <input asp-for="Profile_NABL_Accredited" class="form-check-input" type="checkbox" id="nablToggle" />
                                 </div>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="fw-semibold small">Active Status:</span>
-                                <div class="form-check form-switch mb-0">
-                                    <input asp-for="Status" class="form-check-input" type="checkbox" id="statusToggle" />
-                                </div>
-                            </div>
+                            <input type="hidden" asp-for="Status" value="true" />
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- DETAIL SECTION CARD (jQuery DataTables Grid) -->
+        <!-- DETAIL SECTION CARD (Component Tests) -->
         <div class="card border-0 shadow-sm rounded-3 mb-4">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h6 class="card-title fw-bold mb-0 text-dark">
-                    <i class="bi bi-list-nested me-2 text-primary"></i>Profile Test Details (Add / Edit / Delete Rows)
+                    <i class="bi bi-list-nested me-2 text-primary"></i>Profile / Package Test Details (Components)
                 </h6>
+                <span class="badge bg-primary-subtle text-primary fw-normal">Add individual tests that make up this profile/package</span>
             </div>
             <div class="card-body p-4">
-                <!-- Row Add Controls -->
-                <div class="row g-3 align-items-end mb-4 bg-light p-3 rounded-3 border">
+                <!-- Detail Row Add Controls -->
+                <div class="row g-2 mb-3 align-items-end p-3 bg-light rounded border">
                     <div class="col-md-6">
-                        <label class="form-label fw-semibold text-dark mb-1">Select Investigation Test</label>
-                        <select id="selectTestId" class="form-select">
-                            <option value="">-- Select Active Test to Add --</option>
-                            @foreach (var t in Model.AvailableTestOptions)
-                            {
-                                <option value="@t.Value">@t.Text</option>
-                            }
+                        <label class="form-label fw-semibold small text-muted">Select Component Investigation Test</label>
+                        <select id="selectTestId" class="form-select select2-basic" asp-items="Model.AvailableTestOptions">
+                            <option value="">-- Choose Component Test --</option>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label fw-semibold text-dark mb-1">Display Sequence</label>
-                        <input type="number" id="inputSeq" class="form-control" value="1" min="1" max="999" />
+                        <label class="form-label fw-semibold small text-muted">Display Sequence</label>
+                        <input id="inputSeq" type="number" class="form-control" value="1" min="1" max="999" placeholder="1" />
                     </div>
                     <div class="col-md-3">
-                        <button type="button" id="btnAddDetailRow" class="btn btn-success w-100 shadow-sm">
-                            <i class="bi bi-plus-circle me-1"></i> Add Test Row
+                        <button type="button" class="btn btn-primary w-100 fw-semibold" id="btnAddDetailRow">
+                            <i class="bi bi-plus-lg me-1"></i> Add Component Test
                         </button>
                     </div>
                 </div>
 
-                <!-- jQuery DataTable -->
+                <!-- Grid Table -->
                 <div class="table-responsive">
-                    <table id="detailsDataTable" class="table table-hover align-middle mb-0 w-100">
-                        <thead class="table-light fs-7 text-uppercase text-muted">
+                    <table class="table table-bordered table-hover align-middle mb-0" id="detailsDataTable">
+                        <thead class="table-light">
                             <tr>
                                 <th style="width: 80px;" class="text-center">Seq</th>
-                                <th>Test Name</th>
-                                <th class="text-end">MRP (₹)</th>
-                                <th class="text-center">Action</th>
+                                <th>Investigation Test Name</th>
+                                <th style="width: 140px;" class="text-end">Standard MRP</th>
+                                <th style="width: 80px;" class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Dynamic Rows render via JS -->
+                            <!-- Populated via JS -->
                         </tbody>
                     </table>
                 </div>
@@ -189,10 +202,10 @@
         </div>
 
         <!-- Form Actions -->
-        <div class="d-flex justify-content-end gap-2 mb-4">
-            <a asp-action="Index" class="btn btn-light px-4">Cancel</a>
-            <button type="submit" class="btn btn-primary px-4 shadow-sm" id="btnSubmitForm">
-                <i class="bi bi-save me-1"></i> Save Profile & Details in One Go
+        <div class="d-flex justify-content-end gap-2 mb-5">
+            <a asp-action="Index" class="btn btn-light px-4 border">Cancel</a>
+            <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                <i class="bi bi-save me-1"></i> Save Profile & Details
             </button>
         </div>
     </form>
@@ -203,7 +216,51 @@
     <script>
         var detailRows = [];
 
+        function toggleProfileType() {
+            var type = $('#profileTypeSelect').val();
+            if (type === 'Profile') {
+                $('#profileTestContainer').show();
+                $('#packageNameContainer').hide();
+                $('#discountContainer').hide();
+                $('#Discount_Pct').val(0);
+                var selectedText = $('#profileTestSelect option:selected').text();
+                if (selectedText && $('#profileTestSelect').val()) {
+                    var testName = selectedText.split(' (')[0].trim();
+                    $('#hiddenProfileName').val(testName);
+                }
+            } else { // Package
+                $('#profileTestContainer').hide();
+                $('#packageNameContainer').show();
+                $('#discountContainer').show();
+                $('#hiddenProfileName').val($('#packageNameInput').val());
+            }
+        }
+
         $(document).ready(function () {
+            toggleProfileType();
+            $('#profileTypeSelect').on('change', toggleProfileType);
+
+            $('#profileTestSelect').on('change', function () {
+                var $opt = $(this).find('option:selected');
+                if ($(this).val()) {
+                    var text = $opt.text();
+                    var testName = text.split(' (')[0].trim();
+                    $('#hiddenProfileName').val(testName);
+                    $('#packageNameInput').val(testName);
+
+                    // If MRP is 0 or empty, auto-fill MRP from test text
+                    var mrpMatch = text.match(/[₹]([0-9,]+\.?[0-9]*)/);
+                    if (mrpMatch && (parseFloat($('#MRP').val()) || 0) === 0) {
+                        var mrpVal = parseFloat(mrpMatch[1].replace(/,/g, ''));
+                        $('#MRP').val(mrpVal);
+                    }
+                }
+            });
+
+            $('#packageNameInput').on('input', function () {
+                $('#hiddenProfileName').val($(this).val());
+            });
+
             var existingJson = $('#DetailsJson').val();
             if (existingJson && existingJson !== '[]') {
                 try { detailRows = JSON.parse(existingJson); } catch (e) { detailRows = []; }
@@ -221,7 +278,6 @@
                 $.each(detailRows, function(i, r) { if (r.Test_ID == testId) alreadyAdded = true; });
                 if (alreadyAdded) { alert('This test is already added to the profile.'); return; }
 
-                // Parse MRP from option text e.g. "Test Name (TST001) - ₹250.00"
                 var mrpMatch = testText.match(/[₹]([0-9,]+\.?[0-9]*)/);
                 var mrpVal = mrpMatch ? parseFloat(mrpMatch[1].replace(/,/g, '')) : 0;
 
@@ -239,9 +295,32 @@
             });
 
             $('#profileForm').on('submit', function (e) {
+                var type = $('#profileTypeSelect').val();
+                if (type === 'Profile') {
+                    var testId = $('#profileTestSelect').val();
+                    if (!testId) {
+                        alert('Please select a Profile Test.');
+                        e.preventDefault();
+                        return false;
+                    }
+                    var selectedText = $('#profileTestSelect option:selected').text();
+                    var testName = selectedText.split(' (')[0].trim();
+                    $('#hiddenProfileName').val(testName);
+                    $('#packageNameInput').val(testName);
+                } else {
+                    var pkgName = $('#packageNameInput').val().trim();
+                    if (!pkgName) {
+                        alert('Please enter a Package Name.');
+                        e.preventDefault();
+                        return false;
+                    }
+                    $('#hiddenProfileName').val(pkgName);
+                }
+
                 if (detailRows.length === 0) {
-                    alert('Please add at least one test detail row before saving.');
-                    e.preventDefault(); return false;
+                    alert('Please add at least one component test detail row before saving.');
+                    e.preventDefault();
+                    return false;
                 }
                 $('#DetailsJson').val(JSON.stringify(detailRows));
                 return true;

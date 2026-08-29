@@ -412,6 +412,11 @@ public class AccountController(
             claims.Add(new Claim("BranchId", branch.BranchId.ToString()));
             claims.Add(new Claim("BranchName", branch.BranchName));
             claims.Add(new Claim("BranchCode", branch.BranchCode));
+            claims.Add(new Claim("IsHOBranch", branch.IsHOBranch.ToString().ToLower()));
+
+            HttpContext.Session.SetString("IsHOBranch", branch.IsHOBranch.ToString().ToLower());
+            HttpContext.Session.SetInt32("BranchId", branch.BranchId);
+            HttpContext.Session.SetString("BranchName", branch.BranchName);
         }
 
 

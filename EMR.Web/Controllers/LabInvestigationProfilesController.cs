@@ -61,13 +61,10 @@ public class LabInvestigationProfilesController(
             Profile_TAT_Hours = 24,
             Report_Print_Sequence = 1,
             Status = true,
-            Applicable_Gender = "All",
-            ProfileTypeOptions = GetProfileTypeOptions(),
-            AgeOperatorOptions = GetAgeOperatorOptions(),
-            GenderOptions = GetGenderOptions(),
-            AvailableTestOptions = await GetActiveTestOptionsAsync()
+            Applicable_Gender = "All"
         };
 
+        await PopulateFormOptionsAsync(model);
         return View(model);
     }
 
@@ -75,6 +72,30 @@ public class LabInvestigationProfilesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(LabInvestigationProfileFormViewModel model)
     {
+        if (model.Profile_Type == "Profile")
+        {
+            if (!model.Test_ID.HasValue || model.Test_ID.Value <= 0)
+            {
+                ModelState.AddModelError(nameof(model.Test_ID), "Please select a Profile Test.");
+            }
+            else if (string.IsNullOrWhiteSpace(model.Profile_Name))
+            {
+                var test = await investigationApiClient.GetByIdAsync(model.Test_ID.Value);
+                if (test != null)
+                {
+                    model.Profile_Name = test.Test_Name;
+                }
+            }
+        }
+        else // Package
+        {
+            model.Test_ID = null;
+            if (string.IsNullOrWhiteSpace(model.Profile_Name))
+            {
+                ModelState.AddModelError(nameof(model.Profile_Name), "Package Name is required.");
+            }
+        }
+
         if (!ModelState.IsValid)
         {
             await PopulateFormOptionsAsync(model);
@@ -97,8 +118,9 @@ public class LabInvestigationProfilesController(
                 CompanyId = User.GetCompanyId(),
                 Profile_Name = model.Profile_Name,
                 Profile_Type = model.Profile_Type,
+                Test_ID = model.Test_ID,
                 MRP = model.MRP,
-                Discount_Pct = model.Discount_Pct,
+                Discount_Pct = model.Profile_Type == "Package" ? model.Discount_Pct : 0,
                 Age_Operator = model.Age_Operator,
                 Applicable_Age = model.Applicable_Age,
                 Applicable_Gender = model.Applicable_Gender,
@@ -115,12 +137,12 @@ public class LabInvestigationProfilesController(
             await auditLogService.LogAsync(
                 "Create Lab Investigation Profile",
                 "Create",
-                $"Created Profile '{model.Profile_Name}' with ID #{newId}",
+                $"Created {model.Profile_Type} '{model.Profile_Name}' with ID #{newId}",
                 User.GetUserId(),
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = $"Investigation Profile '{model.Profile_Name}' saved successfully.";
+            TempData["SuccessMessage"] = $"{model.Profile_Type} '{model.Profile_Name}' saved successfully.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -168,6 +190,7 @@ public class LabInvestigationProfilesController(
                 Profile_Code = item.Header.Profile_Code,
                 Profile_Name = item.Header.Profile_Name,
                 Profile_Type = item.Header.Profile_Type,
+                Test_ID = item.Header.Test_ID,
                 MRP = item.Header.MRP,
                 Discount_Pct = item.Header.Discount_Pct,
                 Age_Operator = item.Header.Age_Operator,
@@ -197,6 +220,30 @@ public class LabInvestigationProfilesController(
         if (id != model.Profile_ID)
             return BadRequest();
 
+        if (model.Profile_Type == "Profile")
+        {
+            if (!model.Test_ID.HasValue || model.Test_ID.Value <= 0)
+            {
+                ModelState.AddModelError(nameof(model.Test_ID), "Please select a Profile Test.");
+            }
+            else if (string.IsNullOrWhiteSpace(model.Profile_Name))
+            {
+                var test = await investigationApiClient.GetByIdAsync(model.Test_ID.Value);
+                if (test != null)
+                {
+                    model.Profile_Name = test.Test_Name;
+                }
+            }
+        }
+        else // Package
+        {
+            model.Test_ID = null;
+            if (string.IsNullOrWhiteSpace(model.Profile_Name))
+            {
+                ModelState.AddModelError(nameof(model.Profile_Name), "Package Name is required.");
+            }
+        }
+
         if (!ModelState.IsValid)
         {
             await PopulateFormOptionsAsync(model);
@@ -219,8 +266,9 @@ public class LabInvestigationProfilesController(
                 CompanyId = model.CompanyId,
                 Profile_Name = model.Profile_Name,
                 Profile_Type = model.Profile_Type,
+                Test_ID = model.Test_ID,
                 MRP = model.MRP,
-                Discount_Pct = model.Discount_Pct,
+                Discount_Pct = model.Profile_Type == "Package" ? model.Discount_Pct : 0,
                 Age_Operator = model.Age_Operator,
                 Applicable_Age = model.Applicable_Age,
                 Applicable_Gender = model.Applicable_Gender,
@@ -237,12 +285,12 @@ public class LabInvestigationProfilesController(
             await auditLogService.LogAsync(
                 "Update Lab Investigation Profile",
                 "Edit",
-                $"Updated Investigation Profile #{id} - '{model.Profile_Name}'",
+                $"Updated Investigation {model.Profile_Type} #{id} - '{model.Profile_Name}'",
                 User.GetUserId(),
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = $"Investigation Profile '{model.Profile_Name}' updated successfully.";
+            TempData["SuccessMessage"] = $"{model.Profile_Type} '{model.Profile_Name}' updated successfully.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -341,9 +389,26 @@ public class LabInvestigationProfilesController(
     private async Task PopulateFormOptionsAsync(LabInvestigationProfileFormViewModel model)
     {
         model.ProfileTypeOptions = GetProfileTypeOptions();
+        model.ProfileTestOptions = await GetProfileTestOptionsAsync();
         model.AgeOperatorOptions = GetAgeOperatorOptions();
         model.GenderOptions = GetGenderOptions();
         model.AvailableTestOptions = await GetActiveTestOptionsAsync();
+    }
+
+    private async Task<List<SelectListItem>> GetProfileTestOptionsAsync()
+    {
+        try
+        {
+            var tests = await investigationApiClient.GetListAsync(status: true);
+            return tests
+                .Where(t => t.IsProfileTest)
+                .Select(t => new SelectListItem
+                {
+                    Value = t.Test_ID.ToString(),
+                    Text = $"{t.Test_Name} ({t.Test_Code}) - ₹{t.MRP:N2}"
+                }).ToList();
+        }
+        catch { return []; }
     }
 
     private async Task<List<SelectListItem>> GetActiveTestOptionsAsync()

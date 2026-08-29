@@ -4,6 +4,7 @@ namespace EMR.Web.Models.ViewModels;
 
 public class LabRateCardIndexViewModel
 {
+    public bool IsHOBranch { get; set; }
     public int? Branch_ID { get; set; }
     public SelectList? BranchList { get; set; }
 }
@@ -12,6 +13,7 @@ public class LabRateCardFormViewModel
 {
     public int? RateCard_ID { get; set; }
     public int CompanyId { get; set; } = 1;
+    public bool IsHOBranch { get; set; }
     
     // Header
     public int Branch_ID { get; set; }
@@ -26,6 +28,8 @@ public class LabRateCardFormViewModel
 
     // Dropdowns for Category filtering
     public SelectList? DepartmentList { get; set; }
+    public SelectList? CategoryList { get; set; }
+    public SelectList? SubCategoryList { get; set; }
 
     // JSON payload of Details for binding to frontend grid
     public string DetailsJson { get; set; } = "[]";

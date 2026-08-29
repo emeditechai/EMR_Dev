@@ -44,6 +44,7 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@NABL_Accredited", req.NABL_Accredited);
         p.Add("@NABL_Scope_No", req.NABL_Scope_No);
         p.Add("@Is_Outsourced", req.Is_Outsourced);
+        p.Add("@Is_Profile_Test", req.Is_Profile_Test);
         p.Add("@MRP", req.MRP);
         p.Add("@Status", req.Status);
         p.Add("@UserId", req.UserId);
@@ -69,6 +70,7 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@NABL_Accredited", req.NABL_Accredited);
         p.Add("@NABL_Scope_No", req.NABL_Scope_No);
         p.Add("@Is_Outsourced", req.Is_Outsourced);
+        p.Add("@Is_Profile_Test", req.Is_Profile_Test);
         p.Add("@MRP", req.MRP);
         p.Add("@Status", req.Status);
         p.Add("@UserId", req.UserId);

@@ -67,6 +67,7 @@ public class LabInvestigationProfileService(IDbConnectionFactory db) : ILabInves
         param.Add("@CompanyId", req.CompanyId);
         param.Add("@Profile_Name", req.Profile_Name);
         param.Add("@Profile_Type", req.Profile_Type);
+        param.Add("@Test_ID", req.Test_ID);
         param.Add("@MRP", req.MRP);
         param.Add("@Discount_Pct", req.Discount_Pct);
         param.Add("@Age_Operator", req.Age_Operator);

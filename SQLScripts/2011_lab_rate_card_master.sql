@@ -154,42 +154,25 @@ BEGIN
     LEFT JOIN [dbo].[BranchMaster] b ON h.[Branch_ID] = b.[BranchId]
     WHERE h.[RateCard_ID] = @RateCard_ID AND h.[IsDeleted] = 0;
 
-    -- Resultset 2: Details with Item Names resolved
+    -- Resultset 2: Details with Item Names resolved from LabInvestigationMaster
     SELECT 
         d.[Detail_ID],
         d.[RateCard_ID],
         d.[Item_Type],
         d.[Item_ID],
-        CASE 
-            WHEN d.[Item_Type] = 'Test' THEN t.[Test_Name]
-            WHEN d.[Item_Type] = 'Profile' THEN p.[Profile_Name]
-            ELSE 'Unknown'
-        END AS [Item_Name],
-        CASE 
-            WHEN d.[Item_Type] = 'Test' THEN t.[Test_Code]
-            WHEN d.[Item_Type] = 'Profile' THEN p.[Profile_Code]
-            ELSE ''
-        END AS [Item_Code],
-        CASE 
-            WHEN d.[Item_Type] = 'Test' THEN t.[MRP]
-            WHEN d.[Item_Type] = 'Profile' THEN p.[MRP]
-            ELSE 0
-        END AS [Default_Rate],
-        CASE 
-            WHEN d.[Item_Type] = 'Test' THEN t.[Category_ID]
-            ELSE NULL
-        END AS [Category_ID],
-        CASE 
-            WHEN d.[Item_Type] = 'Test' THEN t.[SubCategory_ID]
-            ELSE NULL
-        END AS [SubCategory_ID],
+        t.[Test_Name] AS [Item_Name],
+        t.[Test_Code] AS [Item_Code],
+        t.[MRP] AS [Default_Rate],
+        t.[Category_ID],
+        t.[SubCategory_ID],
+        t.[Department_ID],
+        t.[Is_Profile_Test],
         d.[Rate],
         d.[Status]
     FROM [dbo].[LabRateCardDetail] d
-    LEFT JOIN [dbo].[LabInvestigationMaster] t ON d.[Item_Type] = 'Test' AND d.[Item_ID] = t.[Test_ID]
-    LEFT JOIN [dbo].[LabInvestigationProfileHeader] p ON d.[Item_Type] = 'Profile' AND d.[Item_ID] = p.[Profile_ID]
+    INNER JOIN [dbo].[LabInvestigationMaster] t ON d.[Item_ID] = t.[Test_ID]
     WHERE d.[RateCard_ID] = @RateCard_ID AND d.[IsDeleted] = 0
-    ORDER BY [Item_Name] ASC;
+    ORDER BY t.[Is_Profile_Test] DESC, t.[Test_Name] ASC;
 END
 GO
 
@@ -351,30 +334,19 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT 
-        'Test' AS [Item_Type],
-        [Test_ID] AS [Item_ID],
-        [Test_Code] AS [Item_Code],
-        [Test_Name] AS [Item_Name],
-        [Category_ID],
-        [SubCategory_ID],
-        [MRP] AS [Default_Rate]
-    FROM [dbo].[LabInvestigationMaster]
-    WHERE [IsDeleted] = 0 AND [Status] = 1 AND [CompanyId] = @CompanyId
-
-    UNION ALL
-
-    SELECT 
-        'Profile' AS [Item_Type],
-        [Profile_ID] AS [Item_ID],
-        [Profile_Code] AS [Item_Code],
-        [Profile_Name] AS [Item_Name],
-        NULL AS [Category_ID],
-        NULL AS [SubCategory_ID],
-        [MRP] AS [Default_Rate]
-    FROM [dbo].[LabInvestigationProfileHeader]
-    WHERE [IsDeleted] = 0 AND [Status] = 1 AND [CompanyId] = @CompanyId
-
-    ORDER BY [Item_Name] ASC;
+        CASE WHEN m.[Is_Profile_Test] = 1 THEN 'Profile' ELSE 'Test' END AS [Item_Type],
+        m.[Test_ID] AS [Item_ID],
+        m.[Test_Code] AS [Item_Code],
+        m.[Test_Name] AS [Item_Name],
+        ISNULL(m.[Department_ID], c.[Department_ID]) AS [Department_ID],
+        m.[Category_ID],
+        m.[SubCategory_ID],
+        m.[MRP] AS [Default_Rate],
+        m.[Is_Profile_Test]
+    FROM [dbo].[LabInvestigationMaster] m
+    LEFT JOIN [dbo].[LabTestCategoryMaster] c ON m.[Category_ID] = c.[Category_ID]
+    WHERE m.[IsDeleted] = 0 AND m.[Status] = 1
+    ORDER BY m.[Is_Profile_Test] DESC, m.[Test_Name] ASC;
 END
 GO
 

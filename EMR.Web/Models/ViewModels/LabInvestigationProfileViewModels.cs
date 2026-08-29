@@ -25,14 +25,16 @@ public class LabInvestigationProfileFormViewModel
     [Display(Name = "Profile Code")]
     public string Profile_Code { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Profile Name is required.")]
-    [StringLength(200, ErrorMessage = "Profile Name cannot exceed 200 characters.")]
     [Display(Name = "Profile / Package Name")]
+    [StringLength(200, ErrorMessage = "Name cannot exceed 200 characters.")]
     public string Profile_Name { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Profile Type is required.")]
     [Display(Name = "Profile Type")]
     public string Profile_Type { get; set; } = "Profile"; // Profile / Package
+
+    [Display(Name = "Profile Test")]
+    public int? Test_ID { get; set; }
 
     [Required(ErrorMessage = "MRP is required.")]
     [Range(0, 1000000, ErrorMessage = "MRP must be a non-negative amount.")]
@@ -73,6 +75,7 @@ public class LabInvestigationProfileFormViewModel
 
     // Options
     public List<SelectListItem> ProfileTypeOptions { get; set; } = [];
+    public List<SelectListItem> ProfileTestOptions { get; set; } = [];
     public List<SelectListItem> AgeOperatorOptions { get; set; } = [];
     public List<SelectListItem> GenderOptions { get; set; } = [];
     public List<SelectListItem> AvailableTestOptions { get; set; } = [];

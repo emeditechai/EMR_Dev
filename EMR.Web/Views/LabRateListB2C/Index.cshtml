@@ -18,7 +18,10 @@
             <div class="col-md-3">
                 <label class="form-label">Branch</label>
                 <select id="filterBranch" class="form-select select2" asp-items="Model.BranchList">
-                    <option value="">All Branches</option>
+                    @if (Model.IsHOBranch)
+                    {
+                        <option value="">All Branches</option>
+                    }
                 </select>
             </div>
             <div class="col-md-3">

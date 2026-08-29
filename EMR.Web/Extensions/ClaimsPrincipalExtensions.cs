@@ -16,6 +16,12 @@ public static class ClaimsPrincipalExtensions
         return int.TryParse(claim, out var branchId) ? branchId : null;
     }
 
+    public static bool IsHOBranch(this ClaimsPrincipal user)
+    {
+        var claim = user.FindFirstValue("IsHOBranch");
+        return bool.TryParse(claim, out var isHO) && isHO;
+    }
+
     public static int GetCompanyId(this ClaimsPrincipal user)
     {
         var claim = user.FindFirstValue("CompanyId");

@@ -13,6 +13,9 @@ public class LabInvestigationProfileHeaderListItem
     public string Profile_Code { get; set; } = string.Empty;
     public string Profile_Name { get; set; } = string.Empty;
     public string Profile_Type { get; set; } = "Profile";
+    public int? Test_ID { get; set; }
+    public string? ProfileTestCode { get; set; }
+    public string? ProfileTestName { get; set; }
     public decimal MRP { get; set; }
     public decimal Discount_Pct { get; set; }
     public string? Age_Operator { get; set; }
@@ -62,6 +65,7 @@ public class LabInvestigationProfileSaveRequest
     public int CompanyId { get; set; } = 1;
     public string Profile_Name { get; set; } = string.Empty;
     public string Profile_Type { get; set; } = "Profile";
+    public int? Test_ID { get; set; }
     public decimal MRP { get; set; }
     public decimal Discount_Pct { get; set; }
     public string? Age_Operator { get; set; }

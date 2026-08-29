@@ -109,7 +109,7 @@
                     </div>
 
                     <!-- Reporting Type -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label asp-for="Reporting_Type" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
                         <select asp-for="Reporting_Type" class="form-select" asp-items="Model.ReportingTypeOptions" required>
                         </select>
@@ -117,20 +117,28 @@
                     </div>
 
                     <!-- TAT Hours -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label asp-for="TAT_Hours" class="form-label fw-semibold"></label>
                         <input asp-for="TAT_Hours" class="form-control" type="number" min="0" max="720" />
                         <span asp-validation-for="TAT_Hours" class="text-danger small"></span>
                     </div>
 
                     <!-- MRP -->
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label asp-for="MRP" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
                         <div class="input-group">
                             <span class="input-group-text">₹</span>
                             <input asp-for="MRP" class="form-control" type="number" step="0.01" min="0" required />
                         </div>
                         <span asp-validation-for="MRP" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Is Profile Test -->
+                    <div class="col-md-3">
+                        <label asp-for="IsProfileTest" class="form-label fw-semibold">Is Profile Test</label>
+                        <select asp-for="IsProfileTest" class="form-select" asp-items="Model.ProfileTestOptions">
+                        </select>
+                        <span asp-validation-for="IsProfileTest" class="text-danger small"></span>
                     </div>
 
                     <!-- Toggles Column -->

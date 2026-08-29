@@ -27,6 +27,8 @@ public class LabInvestigationModel
     public bool NABL_Accredited { get; set; }
     public string? NABL_Scope_No { get; set; }
     public bool Is_Outsourced { get; set; }
+    public bool Is_Profile_Test { get; set; }
+    public bool IsProfileTest { get => Is_Profile_Test; set => Is_Profile_Test = value; }
     public decimal MRP { get; set; }
     public bool Status { get; set; }
     public int? CreatedBy { get; set; }
@@ -50,6 +52,8 @@ public class LabInvestigationCreateRequestModel
     public bool NABL_Accredited { get; set; }
     public string? NABL_Scope_No { get; set; }
     public bool Is_Outsourced { get; set; }
+    public bool Is_Profile_Test { get; set; }
+    public bool IsProfileTest { get => Is_Profile_Test; set => Is_Profile_Test = value; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }
@@ -70,6 +74,8 @@ public class LabInvestigationUpdateRequestModel
     public bool NABL_Accredited { get; set; }
     public string? NABL_Scope_No { get; set; }
     public bool Is_Outsourced { get; set; }
+    public bool Is_Profile_Test { get; set; }
+    public bool IsProfileTest { get => Is_Profile_Test; set => Is_Profile_Test = value; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }

@@ -23,7 +23,10 @@
                 <div class="col-md-3">
                     <label asp-for="Branch_ID" class="form-label">Branch <span class="text-danger">*</span></label>
                     <select asp-for="Branch_ID" asp-items="Model.BranchList" class="form-select select2" required>
-                        <option value="">Select Branch</option>
+                        @if (Model.IsHOBranch)
+                        {
+                            <option value="">Select Branch</option>
+                        }
                     </select>
                     <span asp-validation-for="Branch_ID" class="text-danger"></span>
                 </div>
@@ -37,12 +40,19 @@
                     <input asp-for="Effective_To" class="form-control" type="date" required />
                     <span asp-validation-for="Effective_To" class="text-danger"></span>
                 </div>
-                <div class="col-md-3 mt-4">
-                    <div class="form-check form-switch mt-2">
-                        <input asp-for="Status" class="form-check-input" type="checkbox">
-                        <label asp-for="Status" class="form-check-label">Is Active</label>
+                @if (Model.RateCard_ID.HasValue && Model.RateCard_ID.Value > 0)
+                {
+                    <div class="col-md-3 mt-4">
+                        <div class="form-check form-switch mt-2">
+                            <input asp-for="Status" class="form-check-input" type="checkbox">
+                            <label asp-for="Status" class="form-check-label">Is Active</label>
+                        </div>
                     </div>
-                </div>
+                }
+                else
+                {
+                    <input type="hidden" asp-for="Status" value="true" />
+                }
             </div>
 
             <hr />
@@ -85,18 +95,18 @@
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">Department</label>
                         <select id="cboFilterDept" asp-items="Model.DepartmentList" class="form-select select2">
-                            <option value="">Select Department</option>
+                            <option value="">All Departments</option>
                         </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">Category</label>
-                        <select id="cboFilterCategory" class="form-select select2">
-                            <option value="">Select Category</option>
+                        <select id="cboFilterCategory" asp-items="Model.CategoryList" class="form-select select2">
+                            <option value="">All Categories</option>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label small fw-semibold">Sub Category (Optional)</label>
-                        <select id="cboFilterSubCategory" class="form-select select2">
+                        <label class="form-label small fw-semibold">Sub Category</label>
+                        <select id="cboFilterSubCategory" asp-items="Model.SubCategoryList" class="form-select select2">
                             <option value="">All SubCategories</option>
                         </select>
                     </div>
@@ -125,10 +135,22 @@
             </div>
 
             <!-- Details Grid -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold m-0"><i class="bi bi-list-check me-1"></i> Rate Card Items Detail</h6>
+                <div class="small">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle me-2 px-2 py-1">
+                        <i class="bi bi-check-circle-fill me-1"></i>Saved Items
+                    </span>
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                        <i class="bi bi-clock-history me-1"></i>New / Unsaved Items
+                    </span>
+                </div>
+            </div>
             <div class="table-responsive mb-3">
-                <table id="tblDetails" class="table table-bordered table-sm">
+                <table id="tblDetails" class="table table-bordered table-sm align-middle">
                     <thead class="table-dark">
                         <tr>
+                            <th style="width:110px;">State</th>
                             <th>Type</th>
                             <th>Code</th>
                             <th>Name</th>
@@ -197,17 +219,15 @@
         // Cascading Department -> Category
         $('#cboFilterDept').change(function() {
             var deptId = $(this).val();
-            $('#cboFilterCategory').html('<option value="">Select Category</option>').trigger('change');
-            $('#cboFilterSubCategory').html('<option value="">All SubCategories</option>').trigger('change');
-            if (!deptId) return;
+            var catUrl = '@Url.Action("GetCategories")' + (deptId ? '?departmentId=' + deptId : '');
 
-            $.get('@Url.Action("GetCategories")?departmentId=' + deptId, function(res) {
+            $.get(catUrl, function(res) {
                 if (res.success && res.data) {
-                    var options = '<option value="">Select Category</option>';
+                    var options = '<option value="">All Categories</option>';
                     res.data.forEach(function(c) {
                         options += `<option value="${c.id}">${c.name}</option>`;
                     });
-                    $('#cboFilterCategory').html(options).trigger('change');
+                    $('#cboFilterCategory').html(options).val('').trigger('change');
                 }
             });
         });
@@ -215,52 +235,48 @@
         // Cascading Category -> SubCategory
         $('#cboFilterCategory').change(function() {
             var catId = $(this).val();
-            $('#cboFilterSubCategory').html('<option value="">All SubCategories</option>').trigger('change');
-            if (!catId) return;
+            var subCatUrl = '@Url.Action("GetSubCategories")' + (catId ? '?categoryId=' + catId : '');
 
-            $.get('@Url.Action("GetSubCategories")?categoryId=' + catId, function(res) {
+            $.get(subCatUrl, function(res) {
                 if (res.success && res.data) {
                     var options = '<option value="">All SubCategories</option>';
                     res.data.forEach(function(s) {
                         options += `<option value="${s.id}">${s.name}</option>`;
                     });
-                    $('#cboFilterSubCategory').html(options).trigger('change');
+                    $('#cboFilterSubCategory').html(options).val('').trigger('change');
                 }
             });
         });
 
         // Apply Category/SubCategory Filter to Bulk Add Tests
         $('#btnApplyCategoryFilter').click(function() {
+            var deptId = $('#cboFilterDept').val();
             var catId = $('#cboFilterCategory').val();
             var subCatId = $('#cboFilterSubCategory').val();
-
-            if (!catId) {
-                toastr.warning("Please select a Category first.");
-                return;
-            }
 
             var matchingCount = 0;
             allLabItems.forEach(function(item) {
                 var type = item.Item_Type || item.item_Type;
-                if (type !== 'Test') return;
-
+                var itemDeptId = item.Department_ID || item.department_ID;
                 var itemCatId = item.Category_ID || item.category_ID;
                 var itemSubCatId = item.SubCategory_ID || item.subCategory_ID;
 
-                var catMatch = (itemCatId == catId);
+                var deptMatch = !deptId || (itemDeptId == deptId);
+                var catMatch = !catId || (itemCatId == catId);
                 var subCatMatch = !subCatId || (itemSubCatId == subCatId);
 
-                if (catMatch && subCatMatch) {
+                if (deptMatch && catMatch && subCatMatch) {
                     var id = item.Item_ID || item.item_ID;
-                    var exists = currentDetails.find(x => (x.Item_Type || x.item_Type) === 'Test' && (x.Item_ID || x.item_ID) === id);
+                    var exists = currentDetails.find(x => (x.Item_Type || x.item_Type) === type && (x.Item_ID || x.item_ID) === id);
                     if (!exists) {
                         currentDetails.push({
                             Detail_ID: 0,
                             RateCard_ID: 0,
-                            Item_Type: 'Test',
+                            Item_Type: type,
                             Item_ID: id,
                             Item_Code: item.Item_Code || item.item_Code,
                             Item_Name: item.Item_Name || item.item_Name,
+                            Department_ID: itemDeptId,
                             Category_ID: itemCatId,
                             SubCategory_ID: itemSubCatId,
                             Default_Rate: item.Default_Rate || item.default_Rate,
@@ -276,7 +292,7 @@
                 renderGrid();
                 toastr.success(`Added ${matchingCount} test(s) to grid.`);
             } else {
-                toastr.info("No new tests were found for the selected category/subcategory filter.");
+                toastr.info("No new tests were found matching the selected filter criteria.");
             }
         });
 
@@ -462,18 +478,25 @@
         tbody.empty();
         
         if (currentDetails.length === 0) {
-            tbody.append('<tr><td colspan="7" class="text-center text-muted">No items added.</td></tr>');
+            tbody.append('<tr><td colspan="8" class="text-center text-muted">No items added.</td></tr>');
             return;
         }
 
         var html = '';
         currentDetails.forEach(function(item, idx) {
             var checked = item.Status ? 'checked' : '';
-            var typeBadge = item.Item_Type === 'Profile' ? 'bg-primary' : 'bg-success';
+            var typeBadge = item.Item_Type === 'Profile' ? 'bg-primary' : 'bg-info text-dark';
             
-            html += `<tr data-idx="${idx}">
+            var isSaved = (item.Detail_ID || item.detail_ID || 0) > 0;
+            var rowClass = isSaved ? '' : 'table-warning bg-warning-subtle';
+            var statusBadge = isSaved 
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Saved</span>'
+                : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-clock-history me-1"></i>New</span>';
+
+            html += `<tr data-idx="${idx}" class="${rowClass}">
+                        <td>${statusBadge}</td>
                         <td><span class="badge ${typeBadge}">${item.Item_Type}</span></td>
-                        <td>${item.Item_Code}</td>
+                        <td class="fw-semibold">${item.Item_Code}</td>
                         <td>${item.Item_Name}</td>
                         <td>${item.Default_Rate.toFixed(2)}</td>
                         <td><input type="number" step="0.01" class="form-control form-control-sm inp-rate" value="${item.Rate.toFixed(2)}" /></td>
@@ -483,7 +506,7 @@
                             </div>
                         </td>
                         <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-danger btn-remove-row"><i class="bi bi-trash"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-row" title="Remove"><i class="bi bi-trash"></i></button>
                         </td>
                      </tr>`;
         });

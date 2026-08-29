@@ -8,15 +8,7 @@
 USE [Dev_EMR];
 GO
 
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LabInvestigationProfileDetail]') AND type in (N'U'))
-    DROP TABLE [dbo].[LabInvestigationProfileDetail];
-GO
-
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LabInvestigationProfileHeader]') AND type in (N'U'))
-    DROP TABLE [dbo].[LabInvestigationProfileHeader];
-GO
-
--- 1. Create Header Table: dbo.LabInvestigationProfileHeader
+-- 1. Create Header Table: dbo.LabInvestigationProfileHeader if not exists
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LabInvestigationProfileHeader]') AND type in (N'U'))
 BEGIN
     CREATE TABLE [dbo].[LabInvestigationProfileHeader]
@@ -26,6 +18,7 @@ BEGIN
         [Profile_Code]             VARCHAR(50) NOT NULL,
         [Profile_Name]             NVARCHAR(200) NOT NULL,
         [Profile_Type]             VARCHAR(50) NOT NULL DEFAULT('Profile'), -- 'Profile' (fixed group) / 'Package' (health checkup bundle)
+        [Test_ID]                  INT NULL,                               -- Linked Investigation Test ID when Profile_Type = 'Profile'
         [MRP]                      DECIMAL(18,2) NOT NULL DEFAULT(0.00),
         [Discount_Pct]             DECIMAL(5,2) NOT NULL DEFAULT(0.00),
         [Age_Operator]             VARCHAR(20) NULL, -- 'Exact', 'GreaterEqual', 'LessEqual', 'Between'
@@ -53,9 +46,20 @@ BEGIN
 
     PRINT 'Table dbo.LabInvestigationProfileHeader created successfully.';
 END
+ELSE
+BEGIN
+    -- Migration: Add Test_ID if missing
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[LabInvestigationProfileHeader]') AND name = 'Test_ID')
+    BEGIN
+        ALTER TABLE [dbo].[LabInvestigationProfileHeader] 
+        ADD [Test_ID] INT NULL;
+
+        PRINT 'Added Test_ID column to dbo.LabInvestigationProfileHeader.';
+    END
+END
 GO
 
--- 2. Create Detail Table: dbo.LabInvestigationProfileDetail
+-- 2. Create Detail Table: dbo.LabInvestigationProfileDetail if not exists
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LabInvestigationProfileDetail]') AND type in (N'U'))
 BEGIN
     CREATE TABLE [dbo].[LabInvestigationProfileDetail]
@@ -88,23 +92,19 @@ IF OBJECT_ID(N'[dbo].[usp_Api_LabInvestigationProfile_Save]', N'P') IS NOT NULL
 GO
 
 -- 4. Create User-Defined Table Type (UDT) for saving Details in 1 Go
-IF EXISTS (SELECT * FROM sys.types WHERE is_user_defined = 1 AND name = N'udt_LabInvestigationProfileDetail')
+IF NOT EXISTS (SELECT * FROM sys.types WHERE is_user_defined = 1 AND name = N'udt_LabInvestigationProfileDetail')
 BEGIN
-    DROP TYPE [dbo].[udt_LabInvestigationProfileDetail];
+    CREATE TYPE [dbo].[udt_LabInvestigationProfileDetail] AS TABLE
+    (
+        [Detail_ID] INT NULL,
+        [Test_ID]   INT NOT NULL,
+        [Sequence]  INT NOT NULL DEFAULT(1)
+    );
+    PRINT 'User-Defined Table Type dbo.udt_LabInvestigationProfileDetail created successfully.';
 END
 GO
 
-CREATE TYPE [dbo].[udt_LabInvestigationProfileDetail] AS TABLE
-(
-    [Detail_ID] INT NULL,
-    [Test_ID]   INT NOT NULL,
-    [Sequence]  INT NOT NULL DEFAULT(1)
-);
-GO
-PRINT 'User-Defined Table Type dbo.udt_LabInvestigationProfileDetail created successfully.';
-GO
-
--- 4. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_GetList
+-- 5. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_GetList
 IF OBJECT_ID(N'[dbo].[usp_Api_LabInvestigationProfile_GetList]', N'P') IS NOT NULL
     DROP PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_GetList];
 GO
@@ -124,6 +124,9 @@ BEGIN
         h.[Profile_Code],
         h.[Profile_Name],
         h.[Profile_Type],
+        h.[Test_ID],
+        pt.[Test_Code] AS [ProfileTestCode],
+        pt.[Test_Name] AS [ProfileTestName],
         h.[MRP],
         h.[Discount_Pct],
         h.[Age_Operator],
@@ -139,16 +142,17 @@ BEGIN
         h.[ModifiedDate],
         (SELECT COUNT(1) FROM [dbo].[LabInvestigationProfileDetail] d WHERE d.[Profile_ID] = h.[Profile_ID] AND d.[IsDeleted] = 0) AS [TestCount]
     FROM [dbo].[LabInvestigationProfileHeader] h
+    LEFT JOIN [dbo].[LabInvestigationMaster] pt ON h.[Test_ID] = pt.[Test_ID]
     WHERE h.[IsDeleted] = 0
       AND (@CompanyId IS NULL OR h.[CompanyId] = @CompanyId)
       AND (@ProfileType IS NULL OR h.[Profile_Type] = @ProfileType)
       AND (@Status IS NULL OR h.[Status] = @Status)
-      AND (@SearchTerm IS NULL OR @SearchTerm = '' OR h.[Profile_Name] LIKE '%' + @SearchTerm + '%' OR h.[Profile_Code] LIKE '%' + @SearchTerm + '%')
+      AND (@SearchTerm IS NULL OR @SearchTerm = '' OR h.[Profile_Name] LIKE '%' + @SearchTerm + '%' OR h.[Profile_Code] LIKE '%' + @SearchTerm + '%' OR pt.[Test_Name] LIKE '%' + @SearchTerm + '%')
     ORDER BY h.[Report_Print_Sequence] ASC, h.[Profile_Name] ASC;
 END
 GO
 
--- 5. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_GetById
+-- 6. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_GetById
 IF OBJECT_ID(N'[dbo].[usp_Api_LabInvestigationProfile_GetById]', N'P') IS NOT NULL
     DROP PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_GetById];
 GO
@@ -166,6 +170,9 @@ BEGIN
         h.[Profile_Code],
         h.[Profile_Name],
         h.[Profile_Type],
+        h.[Test_ID],
+        pt.[Test_Code] AS [ProfileTestCode],
+        pt.[Test_Name] AS [ProfileTestName],
         h.[MRP],
         h.[Discount_Pct],
         h.[Age_Operator],
@@ -180,6 +187,7 @@ BEGIN
         h.[ModifiedBy],
         h.[ModifiedDate]
     FROM [dbo].[LabInvestigationProfileHeader] h
+    LEFT JOIN [dbo].[LabInvestigationMaster] pt ON h.[Test_ID] = pt.[Test_ID]
     WHERE h.[Profile_ID] = @Profile_ID AND h.[IsDeleted] = 0;
 
     -- Resultset 2: Details
@@ -203,7 +211,7 @@ BEGIN
 END
 GO
 
--- 6. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_Save (Header + Detail UDT Save in One Go)
+-- 7. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_Save (Header + Detail UDT Save in One Go)
 IF OBJECT_ID(N'[dbo].[usp_Api_LabInvestigationProfile_Save]', N'P') IS NOT NULL
     DROP PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_Save];
 GO
@@ -213,6 +221,7 @@ CREATE PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_Save]
     @CompanyId               INT = 1,
     @Profile_Name            NVARCHAR(200),
     @Profile_Type            VARCHAR(50) = 'Profile',
+    @Test_ID                 INT = NULL,
     @MRP                     DECIMAL(18,2) = 0.00,
     @Discount_Pct            DECIMAL(5,2) = 0.00,
     @Age_Operator            VARCHAR(10) = NULL,
@@ -230,16 +239,42 @@ BEGIN
     BEGIN TRANSACTION;
 
     BEGIN TRY
-        -- Check Duplicate Profile Name
-        IF EXISTS (
-            SELECT 1 FROM [dbo].[LabInvestigationProfileHeader]            WHERE [Profile_Name] = @Profile_Name 
-              AND (@Profile_ID IS NULL OR [Profile_ID] <> @Profile_ID)
-              AND [IsDeleted] = 0
-        )
+        -- Sync Profile_Name from LabInvestigationMaster if Profile_Type = 'Profile' and Test_ID is provided
+        IF @Profile_Type = 'Profile' AND @Test_ID IS NOT NULL AND (ISNULL(@Profile_Name, '') = '')
         BEGIN
-            RAISERROR('Investigation Profile Name already exists. Duplicate profile names are not allowed.', 16, 1);
-            ROLLBACK TRANSACTION;
-            RETURN;
+            SELECT @Profile_Name = [Test_Name] 
+            FROM [dbo].[LabInvestigationMaster] 
+            WHERE [Test_ID] = @Test_ID;
+        END
+
+        -- Check Duplicate Profile Name or Test_ID for Profile
+        IF @Profile_Type = 'Profile' AND @Test_ID IS NOT NULL
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM [dbo].[LabInvestigationProfileHeader]
+                WHERE [Test_ID] = @Test_ID 
+                  AND (@Profile_ID IS NULL OR [Profile_ID] <> @Profile_ID)
+                  AND [IsDeleted] = 0
+            )
+            BEGIN
+                RAISERROR('A profile with this selected Investigation Test already exists.', 16, 1);
+                ROLLBACK TRANSACTION;
+                RETURN;
+            END
+        END
+        ELSE
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM [dbo].[LabInvestigationProfileHeader]
+                WHERE [Profile_Name] = @Profile_Name 
+                  AND (@Profile_ID IS NULL OR [Profile_ID] <> @Profile_ID)
+                  AND [IsDeleted] = 0
+            )
+            BEGIN
+                RAISERROR('Investigation Profile/Package Name already exists. Duplicate names are not allowed.', 16, 1);
+                ROLLBACK TRANSACTION;
+                RETURN;
+            END
         END
 
         IF @Profile_ID IS NULL OR @Profile_ID = 0
@@ -256,14 +291,14 @@ BEGIN
 
             INSERT INTO [dbo].[LabInvestigationProfileHeader]
             (
-                [CompanyId], [Profile_Code], [Profile_Name], [Profile_Type],
+                [CompanyId], [Profile_Code], [Profile_Name], [Profile_Type], [Test_ID],
                 [MRP], [Discount_Pct], [Age_Operator], [Applicable_Age], [Applicable_Gender],
                 [Profile_TAT_Hours], [Profile_NABL_Accredited], [Report_Print_Sequence],
                 [Status], [IsDeleted], [CreatedBy], [CreatedDate]
             )
             VALUES
             (
-                @CompanyId, @Profile_Code, @Profile_Name, @Profile_Type,
+                @CompanyId, @Profile_Code, @Profile_Name, @Profile_Type, @Test_ID,
                 @MRP, @Discount_Pct, @Age_Operator, @Applicable_Age, @Applicable_Gender,
                 @Profile_TAT_Hours, @Profile_NABL_Accredited, @Report_Print_Sequence,
                 @Status, 0, @UserId, GETDATE()
@@ -277,6 +312,7 @@ BEGIN
             UPDATE [dbo].[LabInvestigationProfileHeader]
             SET [Profile_Name]           = @Profile_Name,
                 [Profile_Type]           = @Profile_Type,
+                [Test_ID]                = @Test_ID,
                 [MRP]                    = @MRP,
                 [Discount_Pct]           = @Discount_Pct,
                 [Age_Operator]           = @Age_Operator,
@@ -291,8 +327,7 @@ BEGIN
             WHERE [Profile_ID] = @Profile_ID AND [IsDeleted] = 0;
         END
 
-        -- Synchronize Details using UDT (Delete non-matching, Update existing, Insert new)
-        -- Mark details deleted that are not present in UDT
+        -- Synchronize Details using UDT
         UPDATE [dbo].[LabInvestigationProfileDetail]
         SET [IsDeleted] = 1,
             [ModifiedBy] = @UserId,
@@ -326,7 +361,7 @@ BEGIN
 END
 GO
 
--- 7. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_ToggleStatus
+-- 8. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_ToggleStatus
 IF OBJECT_ID(N'[dbo].[usp_Api_LabInvestigationProfile_ToggleStatus]', N'P') IS NOT NULL
     DROP PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_ToggleStatus];
 GO
@@ -347,7 +382,7 @@ BEGIN
 END
 GO
 
--- 8. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_Delete
+-- 9. Stored Procedure: dbo.usp_Api_LabInvestigationProfile_Delete
 IF OBJECT_ID(N'[dbo].[usp_Api_LabInvestigationProfile_Delete]', N'P') IS NOT NULL
     DROP PROCEDURE [dbo].[usp_Api_LabInvestigationProfile_Delete];
 GO

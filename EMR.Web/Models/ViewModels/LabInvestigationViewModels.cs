@@ -70,6 +70,9 @@ public class LabInvestigationFormViewModel
     [Display(Name = "Is Outsourced Test")]
     public bool Is_Outsourced { get; set; }
 
+    [Display(Name = "Is Profile Test")]
+    public bool IsProfileTest { get; set; } = false;
+
     [Required(ErrorMessage = "MRP is required.")]
     [Range(0, 1000000, ErrorMessage = "MRP must be a valid non-negative amount.")]
     [Display(Name = "MRP (₹)")]
@@ -86,4 +89,5 @@ public class LabInvestigationFormViewModel
     public List<SelectListItem> MethodOptions { get; set; } = [];
     public List<SelectListItem> UnitOptions { get; set; } = [];
     public List<SelectListItem> ReportingTypeOptions { get; set; } = [];
+    public List<SelectListItem> ProfileTestOptions { get; set; } = [];
 }

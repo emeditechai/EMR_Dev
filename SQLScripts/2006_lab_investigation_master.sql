@@ -23,6 +23,7 @@ BEGIN
         NABL_Accredited  BIT NOT NULL DEFAULT 0,
         NABL_Scope_No    NVARCHAR(100) NULL,
         Is_Outsourced    BIT NOT NULL DEFAULT 0,
+        Is_Profile_Test  BIT NOT NULL DEFAULT 0,
         MRP              DECIMAL(18,2) NOT NULL DEFAULT 0.00,
         Status           BIT NOT NULL DEFAULT 1,
         IsDeleted        BIT NOT NULL DEFAULT 0,
@@ -67,6 +68,12 @@ BEGIN
         PRINT 'Added IsDeleted column to dbo.LabInvestigationMaster';
     END
 
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabInvestigationMaster') AND name = 'Is_Profile_Test')
+    BEGIN
+        ALTER TABLE dbo.LabInvestigationMaster ADD Is_Profile_Test BIT NOT NULL DEFAULT 0;
+        PRINT 'Added Is_Profile_Test column to dbo.LabInvestigationMaster';
+    END
+
     PRINT 'Table dbo.LabInvestigationMaster already exists';
 END
 GO
@@ -108,6 +115,7 @@ BEGIN
         inv.NABL_Accredited,
         inv.NABL_Scope_No,
         inv.Is_Outsourced,
+        inv.Is_Profile_Test,
         inv.MRP,
         inv.Status,
         inv.CreatedBy,
@@ -168,6 +176,7 @@ BEGIN
         inv.NABL_Accredited,
         inv.NABL_Scope_No,
         inv.Is_Outsourced,
+        inv.Is_Profile_Test,
         inv.MRP,
         inv.Status,
         inv.CreatedBy,
@@ -200,6 +209,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Api_LabInvestigationMaster_Create
     @NABL_Accredited BIT = 0,
     @NABL_Scope_No   NVARCHAR(100) = NULL,
     @Is_Outsourced   BIT = 0,
+    @Is_Profile_Test BIT = 0,
     @MRP             DECIMAL(18,2) = 0.00,
     @Status          BIT = 1,
     @UserId          INT = NULL
@@ -234,13 +244,13 @@ BEGIN
     (
         CompanyId, Test_Code, Test_Name, Department_ID, Category_ID, SubCategory_ID,
         Sample_Type_ID, Method_ID, Unit_ID, Reporting_Type, TAT_Hours, NABL_Accredited,
-        NABL_Scope_No, Is_Outsourced, MRP, Status, CreatedBy, CreatedDate
+        NABL_Scope_No, Is_Outsourced, Is_Profile_Test, MRP, Status, CreatedBy, CreatedDate
     )
     VALUES
     (
         @CompanyId, @GeneratedCode, @Test_Name, @Department_ID, @Category_ID, @SubCategory_ID,
         @Sample_Type_ID, @Method_ID, @Unit_ID, ISNULL(@Reporting_Type,'Numeric'), ISNULL(@TAT_Hours,24),
-        ISNULL(@NABL_Accredited,0), @NABL_Scope_No, ISNULL(@Is_Outsourced,0),
+        ISNULL(@NABL_Accredited,0), @NABL_Scope_No, ISNULL(@Is_Outsourced,0), ISNULL(@Is_Profile_Test,0),
         ISNULL(@MRP,0.00), ISNULL(@Status,1), @UserId, GETDATE()
     );
 
@@ -263,6 +273,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Api_LabInvestigationMaster_Update
     @NABL_Accredited BIT = 0,
     @NABL_Scope_No   NVARCHAR(100) = NULL,
     @Is_Outsourced   BIT = 0,
+    @Is_Profile_Test BIT = 0,
     @MRP             DECIMAL(18,2) = 0.00,
     @Status          BIT = 1,
     @UserId          INT = NULL
@@ -304,6 +315,7 @@ BEGIN
         NABL_Accredited = ISNULL(@NABL_Accredited, 0),
         NABL_Scope_No   = @NABL_Scope_No,
         Is_Outsourced   = ISNULL(@Is_Outsourced, 0),
+        Is_Profile_Test = ISNULL(@Is_Profile_Test, 0),
         MRP             = ISNULL(@MRP, 0.00),
         Status          = @Status,
         ModifiedBy      = @UserId,
