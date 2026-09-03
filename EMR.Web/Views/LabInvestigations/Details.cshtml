@@ -132,6 +132,86 @@
                     </div>
                 </div>
 
+                <div class="col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Applicable Gender</small>
+                        <span class="fw-semibold text-dark fs-6">@Model.Applicable_Gender</span>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Is Billable</small>
+                        <span class="fw-semibold text-dark fs-6">@(Model.Is_Billable ? "Yes" : "No")</span>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Applicable Age</small>
+                        <span class="fw-semibold text-dark fs-6">
+                            @if (!string.IsNullOrEmpty(Model.Age_Operator) && Model.Applicable_Age.HasValue)
+                            {
+                                @($"{Model.Age_Operator} {Model.Applicable_Age} Yrs")
+                            }
+                            else if (Model.Applicable_Age.HasValue)
+                            {
+                                @($"{Model.Applicable_Age} Yrs")
+                            }
+                            else
+                            {
+                                @("All Ages")
+                            }
+                        </span>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Fasting Required</small>
+                        <span class="fw-semibold text-dark fs-6">@(Model.Is_Fasting_Required ? "Yes (Fasting Mandatory)" : "No")</span>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Consent Required</small>
+                        <span class="fw-semibold text-dark fs-6">@(Model.Is_Consent_Required ? "Yes (Consent Required)" : "No")</span>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Sample Quantity</small>
+                        <span class="fw-semibold text-dark fs-6">
+                            @if (Model.Sample_Quantity.HasValue)
+                            {
+                                @($"{Model.Sample_Quantity:G29} {(Model.Sample_Quantity_Unit_Symbol ?? Model.Sample_Quantity_Unit_Name ?? "")}")
+                            }
+                            else
+                            {
+                                @("-")
+                            }
+                        </span>
+                    </div>
+                </div>
+
+                <div class="col-md-5">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Reported On / Duration</small>
+                        <span class="fw-semibold text-dark fs-6">
+                            @if (Model.Reported_Duration_Value.HasValue)
+                            {
+                                @($"{Model.Reported_Duration_Value} {(Model.Reported_Duration_Unit ?? "Days")}")
+                            }
+                            else
+                            {
+                                @("-")
+                            }
+                        </span>
+                    </div>
+                </div>
+
                 <div class="col-md-12">
                     <div class="p-3 bg-light rounded-3">
                         <small class="text-muted text-uppercase fw-bold d-block mb-1">NABL Accreditation Details</small>

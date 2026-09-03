@@ -67,6 +67,8 @@ public class LabInvestigationsController(
             CompanyId = User.GetCompanyId(),
             TAT_Hours = 24,
             Status = true,
+            Applicable_Gender = "All",
+            Is_Billable = true,
             DepartmentOptions = await GetDepartmentOptionsAsync(),
             CategoryOptions = await GetCategoryOptionsAsync(),
             SubCategoryOptions = await GetSubCategoryOptionsAsync(),
@@ -74,7 +76,12 @@ public class LabInvestigationsController(
             MethodOptions = await GetMethodOptionsAsync(),
             UnitOptions = await GetUnitOptionsAsync(),
             ReportingTypeOptions = GetReportingTypeOptions(),
-            ProfileTestOptions = GetProfileTestOptions(false)
+            ProfileTestOptions = GetProfileTestOptions(false),
+            GenderOptions = GetGenderOptions(),
+            IsBillableOptions = GetIsBillableOptions(),
+            AgeOperatorOptions = GetAgeOperatorOptions(),
+            FastingOptions = GetFastingOptions(),
+            DurationUnitOptions = GetDurationUnitOptions()
         };
 
         return View(model);
@@ -107,6 +114,16 @@ public class LabInvestigationsController(
                 NABL_Scope_No = model.NABL_Accredited ? model.NABL_Scope_No : null,
                 Is_Outsourced = model.Is_Outsourced,
                 Is_Profile_Test = model.IsProfileTest,
+                Applicable_Gender = model.Applicable_Gender,
+                Is_Billable = model.Is_Billable,
+                Age_Operator = model.Age_Operator,
+                Applicable_Age = model.Applicable_Age,
+                Is_Fasting_Required = model.Is_Fasting_Required,
+                Sample_Quantity = model.Sample_Quantity,
+                Sample_Quantity_Unit_ID = model.Sample_Quantity_Unit_ID,
+                Reported_Duration_Value = model.Reported_Duration_Value,
+                Reported_Duration_Unit = model.Reported_Duration_Unit,
+                Is_Consent_Required = model.Is_Consent_Required,
                 MRP = model.MRP,
                 Status = model.Status,
                 CompanyId = User.GetCompanyId(),
@@ -169,9 +186,29 @@ public class LabInvestigationsController(
                 NABL_Scope_No = item.NABL_Scope_No,
                 Is_Outsourced = item.Is_Outsourced,
                 IsProfileTest = item.IsProfileTest,
+                Applicable_Gender = item.Applicable_Gender ?? "All",
+                Is_Billable = item.Is_Billable,
+                Age_Operator = item.Age_Operator,
+                Applicable_Age = item.Applicable_Age,
+                Is_Fasting_Required = item.Is_Fasting_Required,
+                Sample_Quantity = item.Sample_Quantity,
+                Sample_Quantity_Unit_ID = item.Sample_Quantity_Unit_ID,
+                Reported_Duration_Value = item.Reported_Duration_Value,
+                Reported_Duration_Unit = item.Reported_Duration_Unit ?? "Days",
+                Is_Consent_Required = item.Is_Consent_Required,
                 MRP = item.MRP,
                 Status = item.Status,
             };
+
+            if (model.Sample_Type_ID.HasValue && model.Sample_Type_ID.Value > 0)
+            {
+                try
+                {
+                    var st = await sampleTypeApiClient.GetByIdAsync(model.Sample_Type_ID.Value);
+                    model.Container_Type = st?.Container_Type;
+                }
+                catch { }
+            }
 
             await PopulateFormOptionsAsync(model);
             return View(model);
@@ -214,6 +251,16 @@ public class LabInvestigationsController(
                 NABL_Scope_No = model.NABL_Accredited ? model.NABL_Scope_No : null,
                 Is_Outsourced = model.Is_Outsourced,
                 Is_Profile_Test = model.IsProfileTest,
+                Applicable_Gender = model.Applicable_Gender,
+                Is_Billable = model.Is_Billable,
+                Age_Operator = model.Age_Operator,
+                Applicable_Age = model.Applicable_Age,
+                Is_Fasting_Required = model.Is_Fasting_Required,
+                Sample_Quantity = model.Sample_Quantity,
+                Sample_Quantity_Unit_ID = model.Sample_Quantity_Unit_ID,
+                Reported_Duration_Value = model.Reported_Duration_Value,
+                Reported_Duration_Unit = model.Reported_Duration_Unit,
+                Is_Consent_Required = model.Is_Consent_Required,
                 MRP = model.MRP,
                 Status = model.Status,
                 UserId = User.GetUserId()
@@ -325,6 +372,21 @@ public class LabInvestigationsController(
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetSampleTypeDetails(int id)
+    {
+        if (id <= 0) return Json(new { success = true, containerType = "" });
+        try
+        {
+            var item = await sampleTypeApiClient.GetByIdAsync(id);
+            return Json(new { success = true, containerType = item?.Container_Type ?? "" });
+        }
+        catch
+        {
+            return Json(new { success = false, containerType = "" });
+        }
+    }
+
     private async Task PopulateFormOptionsAsync(LabInvestigationFormViewModel model)
     {
         model.DepartmentOptions = await GetDepartmentOptionsAsync();
@@ -335,6 +397,12 @@ public class LabInvestigationsController(
         model.UnitOptions = await GetUnitOptionsAsync();
         model.ReportingTypeOptions = GetReportingTypeOptions();
         model.ProfileTestOptions = GetProfileTestOptions(model.IsProfileTest);
+        model.GenderOptions = GetGenderOptions();
+        model.IsBillableOptions = GetIsBillableOptions();
+        model.AgeOperatorOptions = GetAgeOperatorOptions();
+        model.FastingOptions = GetFastingOptions();
+        model.ConsentOptions = GetConsentOptions();
+        model.DurationUnitOptions = GetDurationUnitOptions();
     }
 
     private async Task<List<SelectListItem>> GetDepartmentOptionsAsync()
@@ -418,6 +486,65 @@ public class LabInvestigationsController(
         [
             new SelectListItem { Value = "false", Text = "No", Selected = !isSelected },
             new SelectListItem { Value = "true", Text = "Yes", Selected = isSelected }
+        ];
+    }
+
+    private static List<SelectListItem> GetGenderOptions()
+    {
+        return
+        [
+            new SelectListItem { Value = "Male", Text = "Male" },
+            new SelectListItem { Value = "Female", Text = "Female" },
+            new SelectListItem { Value = "Transgender", Text = "Transgender" },
+            new SelectListItem { Value = "All", Text = "All" }
+        ];
+    }
+
+    private static List<SelectListItem> GetIsBillableOptions()
+    {
+        return
+        [
+            new SelectListItem { Value = "true", Text = "Yes" },
+            new SelectListItem { Value = "false", Text = "No" }
+        ];
+    }
+
+    private static List<SelectListItem> GetAgeOperatorOptions()
+    {
+        return
+        [
+            new SelectListItem { Value = "", Text = "-- No Age Limit --" },
+            new SelectListItem { Value = "Exact", Text = "= (Exact Age)" },
+            new SelectListItem { Value = "GreaterEqual", Text = ">= (Greater than or Equal)" },
+            new SelectListItem { Value = "LessEqual", Text = "<= (Less than or Equal)" }
+        ];
+    }
+
+    private static List<SelectListItem> GetFastingOptions()
+    {
+        return
+        [
+            new SelectListItem { Value = "false", Text = "No" },
+            new SelectListItem { Value = "true", Text = "Yes" }
+        ];
+    }
+
+    private static List<SelectListItem> GetConsentOptions()
+    {
+        return
+        [
+            new SelectListItem { Value = "false", Text = "No" },
+            new SelectListItem { Value = "true", Text = "Yes" }
+        ];
+    }
+
+    private static List<SelectListItem> GetDurationUnitOptions()
+    {
+        return
+        [
+            new SelectListItem { Value = "Days", Text = "Days" },
+            new SelectListItem { Value = "Hours", Text = "Hours" },
+            new SelectListItem { Value = "Months", Text = "Months" }
         ];
     }
 }

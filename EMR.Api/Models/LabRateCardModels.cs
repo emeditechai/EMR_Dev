@@ -33,6 +33,7 @@ public class LabRateCardDetailModel
     public int? SubCategory_ID { get; set; }
     public bool Is_Profile_Test { get; set; }
     public decimal Rate { get; set; }
+    public bool Is_Discount_Allowed { get; set; } = false;
     public bool Status { get; set; }
 }
 

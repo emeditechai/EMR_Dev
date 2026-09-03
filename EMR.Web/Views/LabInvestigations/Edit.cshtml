@@ -81,13 +81,21 @@
                         <span asp-validation-for="SubCategory_ID" class="text-danger small"></span>
                     </div>
 
-                    <!-- Sample Type -->
-                    <div class="col-md-6">
+                    <!-- Sample Type & Container Type -->
+                    <div class="col-md-3">
                         <label asp-for="Sample_Type_ID" class="form-label fw-semibold"></label>
-                        <select asp-for="Sample_Type_ID" class="form-select" asp-items="Model.SampleTypeOptions">
+                        <select asp-for="Sample_Type_ID" id="cboSampleType" class="form-select" asp-items="Model.SampleTypeOptions" onchange="onSampleTypeChanged()">
                             <option value="">-- Select Sample Type --</option>
                         </select>
                         <span asp-validation-for="Sample_Type_ID" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Container Type</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-box-seam"></i></span>
+                            <input type="text" id="txtContainerType" asp-for="Container_Type" class="form-control bg-light" readonly placeholder="-- Container Type --" />
+                        </div>
                     </div>
 
                     <!-- Method -->
@@ -139,6 +147,76 @@
                         <select asp-for="IsProfileTest" class="form-select" asp-items="Model.ProfileTestOptions">
                         </select>
                         <span asp-validation-for="IsProfileTest" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Applicable Gender -->
+                    <div class="col-md-3">
+                        <label asp-for="Applicable_Gender" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <select asp-for="Applicable_Gender" class="form-select" asp-items="Model.GenderOptions" required>
+                        </select>
+                        <span asp-validation-for="Applicable_Gender" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Is Billable -->
+                    <div class="col-md-3">
+                        <label asp-for="Is_Billable" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
+                        <select asp-for="Is_Billable" class="form-select" asp-items="Model.IsBillableOptions" required>
+                        </select>
+                        <span asp-validation-for="Is_Billable" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Age Comparison Operator -->
+                    <div class="col-md-3">
+                        <label asp-for="Age_Operator" class="form-label fw-semibold"></label>
+                        <select asp-for="Age_Operator" class="form-select" asp-items="Model.AgeOperatorOptions">
+                        </select>
+                        <span asp-validation-for="Age_Operator" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Applicable Age Years -->
+                    <div class="col-md-3">
+                        <label asp-for="Applicable_Age" class="form-label fw-semibold"></label>
+                        <input asp-for="Applicable_Age" class="form-control" type="number" min="0" max="150" placeholder="e.g. 18" />
+                        <span asp-validation-for="Applicable_Age" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Is Fasting Required -->
+                    <div class="col-md-3">
+                        <label asp-for="Is_Fasting_Required" class="form-label fw-semibold">Is Fasting Required?</label>
+                        <select asp-for="Is_Fasting_Required" class="form-select" asp-items="Model.FastingOptions">
+                        </select>
+                        <span asp-validation-for="Is_Fasting_Required" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Consent Required -->
+                    <div class="col-md-3">
+                        <label asp-for="Is_Consent_Required" class="form-label fw-semibold">Consent Required?</label>
+                        <select asp-for="Is_Consent_Required" class="form-select" asp-items="Model.ConsentOptions">
+                        </select>
+                        <span asp-validation-for="Is_Consent_Required" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Sample Quantity & Quantity Unit -->
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">Sample Quantity & Unit</label>
+                        <div class="input-group">
+                            <input asp-for="Sample_Quantity" class="form-control" type="number" step="0.01" min="0" placeholder="e.g. 2.5" />
+                            <select asp-for="Sample_Quantity_Unit_ID" class="form-select" asp-items="Model.UnitOptions" style="max-width: 160px;">
+                                <option value="">-- Select Unit --</option>
+                            </select>
+                        </div>
+                        <span asp-validation-for="Sample_Quantity" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Reported On (Value + Unit Dropdown) -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Reported On / Duration</label>
+                        <div class="input-group">
+                            <input asp-for="Reported_Duration_Value" class="form-control" type="number" min="1" max="365" placeholder="e.g. 1" />
+                            <select asp-for="Reported_Duration_Unit" class="form-select" asp-items="Model.DurationUnitOptions" style="max-width: 120px;">
+                            </select>
+                        </div>
+                        <span asp-validation-for="Reported_Duration_Value" class="text-danger small"></span>
                     </div>
 
                     <!-- Toggles Column -->
@@ -199,6 +277,27 @@
                 container.style.display = nablToggle.checked ? 'block' : 'none';
             }
         }
-        document.addEventListener('DOMContentLoaded', toggleNablScope);
+
+        function onSampleTypeChanged() {
+            var id = $('#cboSampleType').val();
+            if (!id) {
+                $('#txtContainerType').val('');
+                return;
+            }
+            $.get('@Url.Action("GetSampleTypeDetails", "LabInvestigations")', { id: id }, function(res) {
+                if (res && res.success) {
+                    $('#txtContainerType').val(res.containerType || '');
+                } else {
+                    $('#txtContainerType').val('');
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleNablScope();
+            if ($('#cboSampleType').val()) {
+                onSampleTypeChanged();
+            }
+        });
     </script>
 }

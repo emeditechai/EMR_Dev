@@ -48,6 +48,7 @@ public class LabRateCardService(IDbConnectionFactory db) : ILabRateCardService
         dt.Columns.Add("Item_Type", typeof(string));
         dt.Columns.Add("Item_ID", typeof(int));
         dt.Columns.Add("Rate", typeof(decimal));
+        dt.Columns.Add("Is_Discount_Allowed", typeof(bool));
         dt.Columns.Add("Status", typeof(bool));
 
         foreach (var item in req.Details)
@@ -57,6 +58,7 @@ public class LabRateCardService(IDbConnectionFactory db) : ILabRateCardService
                 item.Item_Type,
                 item.Item_ID,
                 item.Rate,
+                item.Is_Discount_Allowed,
                 item.Status
             );
         }

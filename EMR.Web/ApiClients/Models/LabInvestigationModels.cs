@@ -29,6 +29,18 @@ public class LabInvestigationModel
     public bool Is_Outsourced { get; set; }
     public bool Is_Profile_Test { get; set; }
     public bool IsProfileTest { get => Is_Profile_Test; set => Is_Profile_Test = value; }
+    public string Applicable_Gender { get; set; } = "All";
+    public bool Is_Billable { get; set; } = true;
+    public string? Age_Operator { get; set; }
+    public int? Applicable_Age { get; set; }
+    public bool Is_Fasting_Required { get; set; }
+    public decimal? Sample_Quantity { get; set; }
+    public int? Sample_Quantity_Unit_ID { get; set; }
+    public string? Sample_Quantity_Unit_Name { get; set; }
+    public string? Sample_Quantity_Unit_Symbol { get; set; }
+    public int? Reported_Duration_Value { get; set; }
+    public string? Reported_Duration_Unit { get; set; } = "Days";
+    public bool Is_Consent_Required { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; }
     public int? CreatedBy { get; set; }
@@ -54,6 +66,16 @@ public class LabInvestigationCreateRequestModel
     public bool Is_Outsourced { get; set; }
     public bool Is_Profile_Test { get; set; }
     public bool IsProfileTest { get => Is_Profile_Test; set => Is_Profile_Test = value; }
+    public string Applicable_Gender { get; set; } = "All";
+    public bool Is_Billable { get; set; } = true;
+    public string? Age_Operator { get; set; }
+    public int? Applicable_Age { get; set; }
+    public bool Is_Fasting_Required { get; set; }
+    public decimal? Sample_Quantity { get; set; }
+    public int? Sample_Quantity_Unit_ID { get; set; }
+    public int? Reported_Duration_Value { get; set; }
+    public string? Reported_Duration_Unit { get; set; } = "Days";
+    public bool Is_Consent_Required { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }
@@ -76,6 +98,16 @@ public class LabInvestigationUpdateRequestModel
     public bool Is_Outsourced { get; set; }
     public bool Is_Profile_Test { get; set; }
     public bool IsProfileTest { get => Is_Profile_Test; set => Is_Profile_Test = value; }
+    public string Applicable_Gender { get; set; } = "All";
+    public bool Is_Billable { get; set; } = true;
+    public string? Age_Operator { get; set; }
+    public int? Applicable_Age { get; set; }
+    public bool Is_Fasting_Required { get; set; }
+    public decimal? Sample_Quantity { get; set; }
+    public int? Sample_Quantity_Unit_ID { get; set; }
+    public int? Reported_Duration_Value { get; set; }
+    public string? Reported_Duration_Unit { get; set; } = "Days";
+    public bool Is_Consent_Required { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }

@@ -149,7 +149,21 @@
                                         {
                                             <span class="badge bg-warning bg-opacity-10 text-dark border border-warning ms-1 fs-8">Outsourced</span>
                                         }
-                                        <div class="small text-muted">TAT: @(item.TAT_Hours ?? 24) hrs</div>
+                                        @if (!item.Is_Billable)
+                                        {
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary ms-1 fs-8">Non-Billable</span>
+                                        }
+                                        @if (item.Is_Fasting_Required)
+                                        {
+                                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger ms-1 fs-8">Fasting Req.</span>
+                                        }
+                                        @if (item.Is_Consent_Required)
+                                        {
+                                            <span class="badge bg-warning bg-opacity-10 text-dark border border-warning ms-1 fs-8">Consent Req.</span>
+                                        }
+                                        <div class="small text-muted">
+                                            TAT: @(item.TAT_Hours ?? 24) hrs | Gender: @item.Applicable_Gender
+                                        </div>
                                     </td>
                                     <td>
                                         <div class="fw-semibold">@item.Category_Name</div>

@@ -5,6 +5,38 @@
 
 @section HeadStyles {
     <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .rate-grid-container {
+            max-height: 520px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .rate-grid-container table {
+            margin-bottom: 0;
+        }
+        .rate-grid-container thead th {
+            position: sticky;
+            top: 0;
+            background-color: #212529 !important;
+            color: #fff;
+            z-index: 5;
+            box-shadow: inset 0 -1px 0 #495057;
+            white-space: nowrap;
+        }
+        .rate-grid-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .rate-grid-container::-webkit-scrollbar-thumb {
+            background-color: #adb5bd;
+            border-radius: 4px;
+        }
+        .rate-grid-container::-webkit-scrollbar-thumb:hover {
+            background-color: #6c757d;
+        }
+    </style>
 }
 
 <div class="card mb-4">
@@ -134,30 +166,59 @@
                 </div>
             </div>
 
-            <!-- Details Grid -->
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="fw-bold m-0"><i class="bi bi-list-check me-1"></i> Rate Card Items Detail</h6>
-                <div class="small">
-                    <span class="badge bg-success-subtle text-success border border-success-subtle me-2 px-2 py-1">
-                        <i class="bi bi-check-circle-fill me-1"></i>Saved Items
-                    </span>
-                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
-                        <i class="bi bi-clock-history me-1"></i>New / Unsaved Items
-                    </span>
+            <!-- Details Grid Toolbar -->
+            <div class="card bg-light border p-3 mb-3">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <h6 class="fw-bold m-0 text-dark"><i class="bi bi-list-check me-1"></i> Rate Card Items Detail</h6>
+                        <span class="badge bg-secondary px-2 py-1" id="badgeTotalItems">Total: 0</span>
+                        <span class="badge bg-primary px-2 py-1" id="badgeProfileItems">Profiles: 0</span>
+                        <span class="badge bg-info text-dark px-2 py-1" id="badgeTestItems">Tests: 0</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                            <i class="bi bi-check-circle-fill me-1"></i>Saved Items
+                        </span>
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                            <i class="bi bi-clock-history me-1"></i>New / Unsaved Items
+                        </span>
+                    </div>
+                </div>
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-7 col-lg-8">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><i class="bi bi-search text-primary"></i></span>
+                            <input type="text" id="txtDetailSearch" class="form-control" placeholder="Search added items in grid by code or test name..." />
+                            <button type="button" id="btnClearDetailSearch" class="btn btn-outline-secondary" title="Clear Search" style="display:none;">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-5 col-lg-4 d-flex justify-content-end align-items-center gap-2">
+                        <label class="form-label small mb-0 text-muted text-nowrap">Filter Type:</label>
+                        <select id="cboDetailTypeFilter" class="form-select form-select-sm" style="max-width: 140px;">
+                            <option value="">All Types</option>
+                            <option value="Profile">Profiles Only</option>
+                            <option value="Test">Tests Only</option>
+                        </select>
+                    </div>
                 </div>
             </div>
-            <div class="table-responsive mb-3">
-                <table id="tblDetails" class="table table-bordered table-sm align-middle">
+
+            <!-- Scrollable Table Container with Sticky Headers -->
+            <div class="rate-grid-container mb-3 shadow-sm">
+                <table id="tblDetails" class="table table-bordered table-hover table-sm align-middle mb-0">
                     <thead class="table-dark">
                         <tr>
-                            <th style="width:110px;">State</th>
-                            <th>Type</th>
-                            <th>Code</th>
-                            <th>Name</th>
-                            <th>Default Rate</th>
-                            <th>Branch Rate</th>
-                            <th class="text-center">Active</th>
-                            <th class="text-center">Actions</th>
+                            <th style="width: 90px;">State</th>
+                            <th style="width: 90px;">Type</th>
+                            <th style="width: 110px;">Code</th>
+                            <th>Item Name</th>
+                            <th style="width: 120px;" class="text-end">Default MRP (₹)</th>
+                            <th style="width: 150px;" class="text-end">Branch Rate (₹)</th>
+                            <th style="width: 100px;" class="text-center">Disc. Allowed</th>
+                            <th style="width: 70px;" class="text-center">Active</th>
+                            <th style="width: 60px;" class="text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -281,6 +342,7 @@
                             SubCategory_ID: itemSubCatId,
                             Default_Rate: item.Default_Rate || item.default_Rate,
                             Rate: item.Default_Rate || item.default_Rate,
+                            Is_Discount_Allowed: false,
                             Status: true
                         });
                         matchingCount++;
@@ -351,6 +413,7 @@
                             SubCategory_ID: item.SubCategory_ID,
                             Default_Rate: item.Default_Rate,
                             Rate: Math.round(newRate * 100) / 100, // Round to 2 decimals
+                            Is_Discount_Allowed: item.Is_Discount_Allowed || item.is_Discount_Allowed || false,
                             Status: item.Status
                         };
                     });
@@ -392,6 +455,7 @@
                     SubCategory_ID: itemData.SubCategory_ID || itemData.subCategory_ID,
                     Default_Rate: itemData.Default_Rate || itemData.default_Rate,
                     Rate: itemData.Default_Rate || itemData.default_Rate, // default to MRP
+                    Is_Discount_Allowed: false,
                     Status: true
                 });
                 renderGrid();
@@ -417,6 +481,7 @@
                         SubCategory_ID: item.SubCategory_ID || item.subCategory_ID,
                         Default_Rate: item.Default_Rate || item.default_Rate,
                         Rate: item.Default_Rate || item.default_Rate,
+                        Is_Discount_Allowed: false,
                         Status: true
                     });
                     addedCount++;
@@ -430,11 +495,44 @@
             }
         });
 
+        // Search and Type Filter handlers for Details Grid
+        $('#txtDetailSearch').on('input keyup', function() {
+            var val = $(this).val().trim();
+            if (val.length > 0) {
+                $('#btnClearDetailSearch').show();
+            } else {
+                $('#btnClearDetailSearch').hide();
+            }
+            renderGrid();
+        });
+
+        $('#btnClearDetailSearch').click(function() {
+            $('#txtDetailSearch').val('');
+            $(this).hide();
+            renderGrid();
+        });
+
+        $('#cboDetailTypeFilter').change(function() {
+            renderGrid();
+        });
+
+        $(document).on('click', '#lnkClearSearch', function() {
+            $('#txtDetailSearch').val('');
+            $('#btnClearDetailSearch').hide();
+            $('#cboDetailTypeFilter').val('');
+            renderGrid();
+        });
+
         // Delegate events for dynamically rendered rows
         $('#tblDetails').on('change', '.inp-rate', function() {
             var idx = $(this).closest('tr').data('idx');
             var newRate = parseFloat($(this).val()) || 0;
             currentDetails[idx].Rate = newRate;
+        });
+
+        $('#tblDetails').on('change', '.chk-disc-allowed', function() {
+            var idx = $(this).closest('tr').data('idx');
+            currentDetails[idx].Is_Discount_Allowed = $(this).is(':checked');
         });
 
         $('#tblDetails').on('change', '.chk-status', function() {
@@ -477,15 +575,49 @@
         var tbody = $('#tblDetails tbody');
         tbody.empty();
         
-        if (currentDetails.length === 0) {
-            tbody.append('<tr><td colspan="8" class="text-center text-muted">No items added.</td></tr>');
+        var totalCount = currentDetails.length;
+        var profileCount = currentDetails.filter(x => (x.Item_Type || x.item_Type) === 'Profile').length;
+        var testCount = currentDetails.filter(x => (x.Item_Type || x.item_Type) === 'Test').length;
+
+        $('#badgeTotalItems').text(`Total: ${totalCount}`);
+        $('#badgeProfileItems').text(`Profiles: ${profileCount}`);
+        $('#badgeTestItems').text(`Tests: ${testCount}`);
+
+        if (totalCount === 0) {
+            tbody.append('<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use bulk category add or search dropdown above to add items.</td></tr>');
             return;
         }
 
+        var searchTerm = ($('#txtDetailSearch').val() || '').toLowerCase().trim();
+        var typeFilter = $('#cboDetailTypeFilter').val() || '';
+
         var html = '';
+        var visibleCount = 0;
+
         currentDetails.forEach(function(item, idx) {
+            var type = item.Item_Type || item.item_Type || '';
+            var code = item.Item_Code || item.item_Code || '';
+            var name = item.Item_Name || item.item_Name || '';
+
+            // Apply type filter
+            if (typeFilter && type !== typeFilter) {
+                return;
+            }
+
+            // Apply search term filter
+            if (searchTerm) {
+                var matchName = name.toLowerCase().includes(searchTerm);
+                var matchCode = code.toLowerCase().includes(searchTerm);
+                var matchType = type.toLowerCase().includes(searchTerm);
+                if (!matchName && !matchCode && !matchType) {
+                    return;
+                }
+            }
+
+            visibleCount++;
             var checked = item.Status ? 'checked' : '';
-            var typeBadge = item.Item_Type === 'Profile' ? 'bg-primary' : 'bg-info text-dark';
+            var discChecked = (item.Is_Discount_Allowed || item.is_Discount_Allowed) ? 'checked' : '';
+            var typeBadge = type === 'Profile' ? 'bg-primary' : 'bg-info text-dark';
             
             var isSaved = (item.Detail_ID || item.detail_ID || 0) > 0;
             var rowClass = isSaved ? '' : 'table-warning bg-warning-subtle';
@@ -493,15 +625,28 @@
                 ? '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Saved</span>'
                 : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-clock-history me-1"></i>New</span>';
 
+            var defaultRate = parseFloat(item.Default_Rate || item.default_Rate || 0);
+            var rate = parseFloat(item.Rate || item.rate || 0);
+
             html += `<tr data-idx="${idx}" class="${rowClass}">
                         <td>${statusBadge}</td>
-                        <td><span class="badge ${typeBadge}">${item.Item_Type}</span></td>
-                        <td class="fw-semibold">${item.Item_Code}</td>
-                        <td>${item.Item_Name}</td>
-                        <td>${item.Default_Rate.toFixed(2)}</td>
-                        <td><input type="number" step="0.01" class="form-control form-control-sm inp-rate" value="${item.Rate.toFixed(2)}" /></td>
+                        <td><span class="badge ${typeBadge}">${type}</span></td>
+                        <td class="fw-semibold text-dark">${code}</td>
+                        <td class="fw-medium">${name}</td>
+                        <td class="text-end text-muted">₹${defaultRate.toFixed(2)}</td>
+                        <td class="text-end">
+                            <div class="input-group input-group-sm justify-content-end" style="max-width: 130px; margin-left: auto;">
+                                <span class="input-group-text bg-light">₹</span>
+                                <input type="number" step="0.01" class="form-control form-control-sm text-end inp-rate fw-bold text-primary" value="${rate.toFixed(2)}" />
+                            </div>
+                        </td>
                         <td class="text-center">
-                            <div class="form-check form-switch d-flex justify-content-center">
+                            <div class="form-check form-switch d-flex justify-content-center mb-0">
+                                <input class="form-check-input chk-disc-allowed" type="checkbox" ${discChecked} title="Toggle Discount Allowed (Default: No)">
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <div class="form-check form-switch d-flex justify-content-center mb-0">
                                 <input class="form-check-input chk-status" type="checkbox" ${checked}>
                             </div>
                         </td>
@@ -510,7 +655,12 @@
                         </td>
                      </tr>`;
         });
-        tbody.html(html);
+
+        if (visibleCount === 0) {
+            tbody.append(`<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-search me-1"></i>No items matching "<b>${searchTerm}</b>". <a href="javascript:void(0)" id="lnkClearSearch" class="text-primary fw-semibold ms-2">Clear Filter</a></td></tr>`);
+        } else {
+            tbody.html(html);
+        }
     }
 </script>
 }
