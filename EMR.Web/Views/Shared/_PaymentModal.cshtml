@@ -16,6 +16,22 @@
     string pmSuccess = ViewData["PaymentSuccessModalId"] as string ?? "bookingSuccessModal";
 }
 
+<style>
+.btn-close-red {
+    background-color: #fee2e2 !important;
+    border-radius: 50% !important;
+    opacity: 0.9 !important;
+    padding: 0.5rem !important;
+    filter: invert(27%) sepia(85%) saturate(7024%) hue-rotate(352deg) brightness(97%) contrast(92%) !important;
+    transition: all 0.2s ease-in-out;
+}
+.btn-close-red:hover {
+    background-color: #fecaca !important;
+    opacity: 1 !important;
+    transform: scale(1.1);
+}
+</style>
+
 <div class="modal fade" id="paymentModal" tabindex="-1"
      data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width:680px">
@@ -30,7 +46,7 @@
                     </h5>
                     <div id="pmPatientLine" class="text-muted small mt-1"></div>
                 </div>
-                <button type="button" id="btnPaymentSkip" class="btn-close ms-auto" aria-label="Skip"></button>
+                <button type="button" id="btnPaymentSkip" class="btn-close btn-close-red ms-auto" aria-label="Close" title="Cancel & Close"></button>
             </div>
 
             <div class="modal-body px-4 py-3">
@@ -97,9 +113,17 @@
                                 <span class="fw-semibold text-danger" id="pmDiscAmt">₹0.00</span>
                             </div>
                         </div>
+                        <div class="mt-2 pt-1 d-flex justify-content-between align-items-center" id="pmDiscEligibilityRow" style="font-size:0.75rem;display:none;">
+                            <span class="text-muted">Eligible for Discount: <strong class="text-dark" id="pmDiscEligibleAmt">₹0.00</strong> <span class="text-secondary" id="pmDiscNonEligibleAmt">(Non-discountable: ₹0.00)</span></span>
+                            <span id="pmDiscWarning" class="text-danger small fw-semibold" style="display:none;"></span>
+                        </div>
                         <div class="mt-2 pt-2 d-flex justify-content-between align-items-center">
                             <span class="text-muted small">Total Tax (GST)</span>
                             <span class="fw-semibold text-danger" id="pmTotalTax">₹0.00</span>
+                        </div>
+                        <div class="mt-1 d-flex justify-content-between align-items-center" id="pmRoundOffRow" style="display:none;">
+                            <span class="text-muted small">Round Off</span>
+                            <span class="fw-semibold text-secondary" id="pmRoundOffAmt">₹0.00</span>
                         </div>
                         <div class="mt-2 border-top pt-2 d-flex justify-content-between align-items-center">
                             <span class="fw-bold">Net Payable</span>
@@ -162,7 +186,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var _successModal  = '@Html.Raw(pmSuccess)';
 
     /* ── state ── */
-    var _summary = null, _methods = [], _rowIdx = 0, _onSuccess = null;
+    var _summary = null, _methods = [], _rowIdx = 0, _onSuccess = null, _onCancel = null, _onSkip = null, _onSave = null, _isPreSave = false;
+    var _isSubmitting = false;
+    var _roundOffAmount = 0, _roundedNetAmount = 0;
 
     var pmModal   = new bootstrap.Modal(document.getElementById('paymentModal'), {backdrop:'static'});
     var pmLoader  = document.getElementById('pmLoader');
@@ -176,13 +202,110 @@ document.addEventListener('DOMContentLoaded', function () {
         fetchData();
     }
 
-    // Skip / close → open success modal
-    document.getElementById('btnPaymentSkip')?.addEventListener('click', skipPayment);
+    // Top Red cross icon → Cancel without saving anything
+    document.getElementById('btnPaymentSkip')?.addEventListener('click', cancelPayment);
+    // Skip Payment button in footer
     document.getElementById('btnPaymentSkip2')?.addEventListener('click', skipPayment);
+    // Save Payment button in footer
     document.getElementById('btnSavePayment')?.addEventListener('click', savePayment);
     document.getElementById('btnAddPayMethod')?.addEventListener('click', addMethodRow);
 
-    function skipPayment() {
+    function cancelPayment() {
+        pmModal.hide();
+        if (typeof _onCancel === 'function') {
+            _onCancel();
+        }
+    }
+
+    async function skipPayment() {
+        if (typeof Swal !== 'undefined') {
+            const result = await Swal.fire({
+                title: 'Skip Payment Confirmation',
+                html: `
+                    <div class="text-start">
+                        <p class="mb-2 text-dark">Are you sure you want to <strong>Skip Payment</strong>?</p>
+                        <div class="alert alert-warning py-2 px-3 mb-0 small border-warning-subtle text-dark">
+                            <i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
+                            This will create the bill with <strong>Full Due Amount</strong> (Payment Status: <strong>Unpaid</strong>).
+                        </div>
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#0d6efd',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: '<i class="bi bi-check2-circle me-1"></i> Yes, Skip & Save Due',
+                cancelButtonText: '<i class="bi bi-x-lg me-1"></i> No, Return',
+                reverseButtons: true,
+                focusCancel: true
+            });
+
+            if (!result.isConfirmed) {
+                return;
+            }
+        } else {
+            if (!confirm('Are you sure you want to skip payment? This will save the bill with full due amount (Unpaid).')) {
+                return;
+            }
+        }
+
+        await executeSkipPayment();
+    }
+
+    async function executeSkipPayment() {
+        if (_isPreSave) {
+            const discType  = document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null;
+            const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
+            const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace('₹','')) || 0;
+            const net       = getNetAmount();
+            const lineItems = (_summary.items || []).map(li => ({
+                moduleLineRefId: li.lineRefId,
+                itemDescription: li.itemName,
+                serviceType: li.serviceType,
+                originalAmount: li.originalAmount,
+                lineDiscountType: discType,
+                lineDiscountValue: 0,
+                lineDiscountAmount: li.lineDiscountAmount || 0,
+                netLineAmount: li.netLineAmount || li.originalAmount,
+                isDiscountAllowed: li.isDiscountAllowed !== false,
+                isGstRequired: li.isGstRequired || false,
+                gstPercentage: li.gstPercentage || 0,
+                cgstAmount: li.cgstAmount || 0,
+                sgstAmount: li.sgstAmount || 0,
+                igstAmount: li.igstAmount || 0
+            }));
+
+            const payload = {
+                headerDiscountType:   discType,
+                headerDiscountValue:  discVal,
+                headerDiscountAmount: discAmt,
+                netAmount:            net,
+                payments:             [],
+                lineItems:            lineItems,
+                isSkipped:            true
+            };
+
+            const btn = document.getElementById('btnPaymentSkip2');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+            }
+
+            try {
+                if (typeof _onSkip === 'function') {
+                    await _onSkip(payload);
+                }
+            } catch (err) {
+                showError(err.message || 'Failed to save booking.');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-skip-forward me-1"></i>Skip Payment';
+                }
+            }
+            return;
+        }
+
         pmModal.hide();
         var sm = document.getElementById(_successModal);
         if (sm) new bootstrap.Modal(sm).show();
@@ -240,7 +363,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // Trigger calculation to include GST initially
         recalcDiscount();
 
-        // Add first payment method row
+        // Clear and add exactly one payment method row by default
+        document.getElementById('pmMethodRows').innerHTML = '';
+        _rowIdx = 0;
         addMethodRow();
 
         pmForm.classList.remove('d-none');
@@ -262,9 +387,66 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const raw   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
         const base  = _summary.hasExistingPayment ? _summary.balanceDue : _summary.subTotal;
+
+        // Calculate discountable vs non-discountable base
+        let discountableBase = 0;
+        let nonDiscountableBase = 0;
+        let hasRestrictions = false;
+
+        if (_summary.items && _summary.items.length > 0) {
+            _summary.items.forEach(it => {
+                let amt = parseFloat(it.originalAmount) || 0;
+                let isAllowed = it.isDiscountAllowed !== false;
+                if (!isAllowed) hasRestrictions = true;
+                if (isAllowed) discountableBase += amt;
+                else nonDiscountableBase += amt;
+            });
+        } else {
+            discountableBase = base;
+        }
+
+        let effectiveBase = hasRestrictions ? discountableBase : base;
+
+        // Update eligibility row
+        const rowEligible = document.getElementById('pmDiscEligibilityRow');
+        const elEligible = document.getElementById('pmDiscEligibleAmt');
+        const elNonEligible = document.getElementById('pmDiscNonEligibleAmt');
+        const elWarning = document.getElementById('pmDiscWarning');
+
+        if (rowEligible) {
+            if (hasRestrictions) {
+                rowEligible.style.display = 'flex';
+                if (elEligible) elEligible.textContent = '₹' + fmt(discountableBase);
+                if (elNonEligible) elNonEligible.textContent = `(Non-discountable: ₹${fmt(nonDiscountableBase)})`;
+            } else {
+                rowEligible.style.display = 'none';
+            }
+        }
+
         let discAmt = 0;
-        if (type === 'P') discAmt = Math.min(base, base * raw / 100);
-        else if (type === 'F') discAmt = Math.min(base, raw);
+        if (effectiveBase <= 0) {
+            discAmt = 0;
+            if (raw > 0 && elWarning) {
+                elWarning.textContent = 'No discount allowed on selected items.';
+                elWarning.style.display = '';
+            } else if (elWarning) {
+                elWarning.style.display = 'none';
+            }
+        } else {
+            if (type === 'P') {
+                discAmt = Math.min(effectiveBase, effectiveBase * raw / 100);
+                if (elWarning) elWarning.style.display = 'none';
+            } else if (type === 'F') {
+                if (raw > effectiveBase && elWarning) {
+                    elWarning.textContent = `Max discountable is ₹${fmt(effectiveBase)}.`;
+                    elWarning.style.display = '';
+                } else if (elWarning) {
+                    elWarning.style.display = 'none';
+                }
+                discAmt = Math.min(effectiveBase, raw);
+            }
+        }
+        discAmt = parseFloat(discAmt.toFixed(2));
         document.getElementById('pmDiscAmt').textContent = '₹' + fmt(discAmt);
         
         let totalCgst = 0;
@@ -274,11 +456,26 @@ document.addEventListener('DOMContentLoaded', function () {
         tbody.innerHTML = '';
 
         if (!_summary.hasExistingPayment && _summary.items) {
-            _summary.items.forEach((item, i) => {
-                let proportion = base > 0 ? (item.originalAmount / base) : 0;
-                item.lineDiscountAmount = discAmt * proportion;
+            // Allocate discount among eligible items
+            let eligibleItems = _summary.items.filter(it => it.isDiscountAllowed !== false);
+            let runningAlloc = 0;
+            eligibleItems.forEach((item, idx) => {
+                if (idx === eligibleItems.length - 1) {
+                    item.lineDiscountAmount = parseFloat(Math.max(0, discAmt - runningAlloc).toFixed(2));
+                } else {
+                    let prop = effectiveBase > 0 ? (item.originalAmount / effectiveBase) : 0;
+                    item.lineDiscountAmount = parseFloat((discAmt * prop).toFixed(2));
+                    runningAlloc += item.lineDiscountAmount;
+                }
                 item.netLineAmount = Math.max(0, item.originalAmount - item.lineDiscountAmount);
-                
+            });
+
+            _summary.items.filter(it => it.isDiscountAllowed === false).forEach(item => {
+                item.lineDiscountAmount = 0;
+                item.netLineAmount = item.originalAmount;
+            });
+
+            _summary.items.forEach((item, i) => {
                 item.cgstAmount = 0;
                 item.sgstAmount = 0;
                 item.igstAmount = 0;
@@ -291,9 +488,25 @@ document.addEventListener('DOMContentLoaded', function () {
                     totalSgst += item.sgstAmount;
                 }
 
+                let isEligible = item.isDiscountAllowed !== false;
+                let discBadge = isEligible
+                    ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-tag-fill me-1"></i>Discountable</span>`
+                    : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-slash-circle me-1"></i>Non-discountable</span>`;
+
+                let discDetailsHtml = '';
+                if (item.lineDiscountAmount > 0) {
+                    discDetailsHtml = `<div class="text-success small fw-semibold" style="font-size:0.73rem;margin-top:2px;"><i class="bi bi-arrow-down-short"></i>Disc: -₹${fmt(item.lineDiscountAmount)} (Net: ₹${fmt(item.netLineAmount)})</div>`;
+                }
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `<td>${i+1}</td>
-                                <td>${esc(item.itemName)}</td>
+                                <td>
+                                    <div class="d-flex align-items-center flex-wrap gap-1">
+                                        <span class="fw-semibold text-dark">${esc(item.itemName)}</span>
+                                        ${discBadge}
+                                    </div>
+                                    ${discDetailsHtml}
+                                </td>
                                 <td class="text-muted">${esc(item.serviceType??'')}</td>
                                 <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${item.cgstAmount > 0 ? '₹'+fmt(item.cgstAmount) : '—'}</td>
                                 <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${item.sgstAmount > 0 ? '₹'+fmt(item.sgstAmount) : '—'}</td>
@@ -302,9 +515,19 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         } else if (_summary.hasExistingPayment && _summary.items) {
             _summary.items.forEach((item, i) => {
+                let isEligible = item.isDiscountAllowed !== false;
+                let discBadge = isEligible
+                    ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-tag-fill me-1"></i>Discountable</span>`
+                    : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-slash-circle me-1"></i>Non-discountable</span>`;
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `<td>${i+1}</td>
-                                <td>${esc(item.itemName)}</td>
+                                <td>
+                                    <div class="d-flex align-items-center flex-wrap gap-1">
+                                        <span class="fw-semibold text-dark">${esc(item.itemName)}</span>
+                                        ${discBadge}
+                                    </div>
+                                </td>
                                 <td class="text-muted">${esc(item.serviceType??'')}</td>
                                 <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${(item.cgstAmount && item.cgstAmount > 0) ? '₹'+fmt(item.cgstAmount) : '—'}</td>
                                 <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${(item.sgstAmount && item.sgstAmount > 0) ? '₹'+fmt(item.sgstAmount) : '—'}</td>
@@ -319,8 +542,27 @@ document.addEventListener('DOMContentLoaded', function () {
         let elTax = document.getElementById('pmTotalTax');
         if (elTax) elTax.textContent = '₹' + fmt(totalTax);
 
-        const net = Math.max(0, base - discAmt + totalTax);
-        updateNetAmount(net);
+        let unroundedNet = Math.max(0, base - discAmt + totalTax);
+        let roundedNet = Math.round(unroundedNet);
+        let roundOff = parseFloat((roundedNet - unroundedNet).toFixed(2));
+
+        _roundOffAmount = roundOff;
+        _roundedNetAmount = roundedNet;
+
+        let roundOffRow = document.getElementById('pmRoundOffRow');
+        let roundOffEl = document.getElementById('pmRoundOffAmt');
+        if (roundOffRow && roundOffEl) {
+            if (roundOff !== 0) {
+                roundOffRow.style.display = 'flex';
+                roundOffEl.textContent = (roundOff > 0 ? '+₹' : '-₹') + fmt(Math.abs(roundOff));
+                roundOffEl.className = 'fw-semibold ' + (roundOff > 0 ? 'text-primary' : 'text-danger');
+            } else {
+                roundOffRow.style.display = 'none';
+                roundOffEl.textContent = '₹0.00';
+            }
+        }
+
+        updateNetAmount(roundedNet);
     }
 
     function updateNetAmount(net) {
@@ -341,7 +583,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function getNetAmount() {
-        return parseFloat(document.getElementById('pmNetAmount').textContent.replace('₹','')) || 0;
+        if (_roundedNetAmount > 0) return _roundedNetAmount;
+        const text = document.getElementById('pmNetAmount')?.textContent || '0';
+        return parseFloat(text.replace(/[^\d.-]/g, '')) || 0;
     }
 
     // ─── Payment method rows ──────────────────────────────────────────────────
@@ -400,6 +644,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var othersFilled = [...document.querySelectorAll('.pm-paid-amount')]
             .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
         div.querySelector('.pm-paid-amount').value = fmt(Math.max(0, net - othersFilled));
+        recalcTotal();
     }
 
     function renderConditionalFields(select, idx) {
@@ -436,19 +681,41 @@ document.addEventListener('DOMContentLoaded', function () {
     function recalcTotal() {
         const total = [...document.querySelectorAll('.pm-paid-amount')]
             .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
-        document.getElementById('pmEnteringTotal').textContent = '₹' + fmt(total);
+        const net = getNetAmount();
+        const totalEl = document.getElementById('pmEnteringTotal');
+        if (totalEl) {
+            totalEl.textContent = '₹' + fmt(total);
+            if (total > net + 0.001) {
+                totalEl.classList.remove('text-primary');
+                totalEl.classList.add('text-danger', 'fw-bold');
+            } else {
+                totalEl.classList.remove('text-danger', 'fw-bold');
+                totalEl.classList.add('text-primary');
+            }
+        }
+        const saveBtn = document.getElementById('btnSavePayment');
+        if (saveBtn && !_isSubmitting) {
+            if (total > net + 0.001) {
+                saveBtn.disabled = true;
+                saveBtn.title = 'Paid amount cannot exceed payable amount of ₹' + fmt(net);
+            } else {
+                saveBtn.disabled = false;
+                saveBtn.removeAttribute('title');
+            }
+        }
     }
 
     // ─── Save ─────────────────────────────────────────────────────────────────
     async function savePayment() {
+        if (_isSubmitting) return;
+
         const btn = document.getElementById('btnSavePayment');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+        const originalBtnHtml = '<i class="bi bi-check2-circle me-2"></i>Save Payment';
 
         try {
             const discType  = document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null;
             const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
-            const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace('₹','')) || 0;
+            const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace(/[^\d.-]/g, '')) || 0;
             const net       = getNetAmount();
 
             const payments = [];
@@ -471,7 +738,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     showError('Please enter at least one payment method and amount.');
                     return;
                 }
+
+                const totalEntering = payments.reduce((sum, p) => sum + (parseFloat(p.paidAmount) || 0), 0);
+                if (totalEntering > net + 0.001) {
+                    showError(`Total paid amount (₹${fmt(totalEntering)}) cannot exceed the payable amount of ₹${fmt(net)}.`);
+                    return;
+                }
             }
+
+            _isSubmitting = true;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
 
             const lineItems = (_summary.items || []).map(li => ({
                 moduleLineRefId: li.lineRefId,
@@ -482,6 +759,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 lineDiscountValue: 0,
                 lineDiscountAmount: li.lineDiscountAmount || 0,
                 netLineAmount: li.netLineAmount || li.originalAmount,
+                isDiscountAllowed: li.isDiscountAllowed !== false,
                 isGstRequired: li.isGstRequired || false,
                 gstPercentage: li.gstPercentage || 0,
                 cgstAmount: li.cgstAmount || 0,
@@ -489,20 +767,38 @@ document.addEventListener('DOMContentLoaded', function () {
                 igstAmount: li.igstAmount || 0
             }));
 
+            let roundedNet = _roundedNetAmount > 0 ? _roundedNetAmount : net;
+            let roundOff = _roundOffAmount;
+
             const payload = {
                 moduleCode:           _moduleCode,
-                moduleRefId:          _summary.moduleRefId,
-                opdServiceId:         _summary.opdServiceId,
-                patientId:            _summary.patientId,
-                branchId:             _summary.branchId,
-                subTotal:             _summary.subTotal,
+                moduleRefId:          _summary?.moduleRefId ?? _moduleRefId,
+                opdServiceId:         _summary?.opdServiceId ?? _moduleRefId,
+                patientId:            _summary?.patientId ?? 0,
+                branchId:             _summary?.branchId ?? 0,
+                subTotal:             _summary?.subTotal ?? 0,
                 headerDiscountType:   discType,
                 headerDiscountValue:  discVal,
                 headerDiscountAmount: discAmt,
-                netAmount:            net,
+                roundOffAmount:       roundOff,
+                netAmount:            roundedNet,
                 payments,
                 lineItems
             };
+
+            if (_isPreSave) {
+                if (typeof _onSave === 'function') {
+                    try {
+                        await _onSave(payload);
+                    } catch (err) {
+                        btn.disabled = false;
+                        btn.innerHTML = originalBtnHtml;
+                        _isSubmitting = false;
+                        showError(err.message || 'Failed to save booking');
+                    }
+                }
+                return;
+            }
 
             const res  = await fetch('/OPD/SavePayment', {
                 method: 'POST',
@@ -513,6 +809,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!data.success) {
                 showError(data.error || 'Failed to save payment.');
+                btn.disabled = false;
+                btn.innerHTML = originalBtnHtml;
+                _isSubmitting = false;
                 return;
             }
 
@@ -541,16 +840,28 @@ document.addEventListener('DOMContentLoaded', function () {
                 var sm = document.getElementById(_successModal);
                 if (sm) new bootstrap.Modal(sm).show();
             }
-        } finally {
+        } catch (err) {
+            showError(err.message || 'Failed to process payment.');
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Save Payment';
+            btn.innerHTML = originalBtnHtml;
+            _isSubmitting = false;
         }
     }
 
     function showError(msg) {
-        pmError.textContent = msg;
-        pmError.classList.remove('d-none');
-        setTimeout(() => pmError.classList.add('d-none'), 4000);
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Payment Error',
+                text: msg
+            });
+        }
+        if (pmError) {
+            pmError.textContent = msg;
+            pmError.classList.remove('d-none');
+            pmError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => pmError?.classList.add('d-none'), 8000);
+        }
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -558,21 +869,72 @@ document.addEventListener('DOMContentLoaded', function () {
     function esc(s)  { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     // ─── Public API ─────────────────────────────────────────────────────────────
-    // Trigger this payment modal for any OPD service from other JS contexts
-    window.pmOpenFor = function (svcId, onSuccessCb) {
+    // Trigger this payment modal for any service from other JS contexts
+    window.pmOpenFor = function (svcId, onSuccessCb, moduleCode) {
+        _isPreSave = false;
         _summary = null; _methods = []; _rowIdx = 0;
         _moduleRefId = svcId;
+        if (moduleCode) {
+            _moduleCode = moduleCode;
+        }
         _onSuccess   = onSuccessCb || null;
+        _onCancel    = null;
+        _onSkip      = null;
+        _onSave      = null;
         pmLoader.classList.remove('d-none');
         pmError.classList.add('d-none');
         pmForm.classList.add('d-none');
         pmFooter.style.display = 'none';
         document.getElementById('pmMethodRows').innerHTML = '';
         document.getElementById('pmDiscValue').value = '';
-        document.getElementById('pmDiscAmt').textContent = '\u20b90.00';
+        document.getElementById('pmDiscAmt').textContent = '₹0.00';
         document.querySelectorAll('input[name="pmDiscType"]').forEach(function (r) { r.checked = r.value === 'P'; });
         fetchData();
         pmModal.show();
+    };
+
+    window.pmOpenPreSave = function (config) {
+        _isPreSave = true;
+        _summary = {
+            patientName: config.patientName,
+            patientCode: config.patientCode,
+            patientPhone: config.patientPhone,
+            opdBillNo: '—',
+            tokenNo: '—',
+            subTotal: config.subTotal,
+            totalPaid: 0,
+            balanceDue: config.subTotal,
+            hasExistingPayment: false,
+            items: config.items || []
+        };
+        _moduleCode = config.moduleCode || 'LAB';
+        _onSave     = config.onSave;
+        _onSkip     = config.onSkip || config.onSave;
+        _onCancel   = config.onCancel;
+        _onSuccess  = config.onSuccess;
+
+        pmLoader.classList.remove('d-none');
+        pmError.classList.add('d-none');
+        pmForm.classList.add('d-none');
+        pmFooter.style.display = 'none';
+        document.getElementById('pmMethodRows').innerHTML = '';
+        document.getElementById('pmDiscValue').value = '';
+        document.getElementById('pmDiscAmt').textContent = '₹0.00';
+        document.querySelectorAll('input[name="pmDiscType"]').forEach(function (r) { r.checked = r.value === 'P'; });
+
+        fetch('/OPD/GetPaymentMethods')
+            .then(res => res.json())
+            .then(methods => {
+                _methods = methods;
+                renderForm();
+                pmModal.show();
+            })
+            .catch(err => {
+                pmLoader.classList.add('d-none');
+                pmError.textContent = err.message || 'Failed to load payment methods';
+                pmError.classList.remove('d-none');
+                pmModal.show();
+            });
     };
 })();
 }); // DOMContentLoaded

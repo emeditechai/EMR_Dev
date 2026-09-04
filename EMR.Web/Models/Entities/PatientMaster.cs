@@ -50,6 +50,12 @@ public class PatientMaster
     [MaxLength(500)]
     public string? Address { get; set; }
 
+    [MaxLength(500)]
+    public string? HomeCollectionAddress { get; set; }
+
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+
     public int? RelationId { get; set; }
 
     public int? ReferralDoctorId { get; set; }

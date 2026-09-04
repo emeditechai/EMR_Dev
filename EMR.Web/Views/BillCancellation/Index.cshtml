@@ -1,0 +1,949 @@
+@{
+    ViewData["Title"] = "Bill Cancellation & Refund";
+    string moduleCode = ViewBag.ModuleCode ?? "LAB";
+}
+
+
+@section HeadStyles {
+<style>
+    /* ── Layout ── */
+    .cr-layout { display: grid; grid-template-columns: 360px 1fr; gap: 0; min-height: calc(100vh - 260px); }
+    @@media (max-width: 991px) { .cr-layout { grid-template-columns: 1fr; } }
+
+    /* ── Search ── */
+    .cr-search-input { border-radius: 0 8px 8px 0; }
+
+    /* ── Results Panel ── */
+    .cr-results-panel {
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        background: #fff;
+        overflow-y: auto;
+        max-height: calc(100vh - 280px);
+        min-height: 400px;
+    }
+    .cr-results-header {
+        padding: 10px 14px;
+        border-bottom: 1px solid #e9ecef;
+        font-size: .75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        color: #6c757d;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8f9fa;
+        border-radius: 12px 12px 0 0;
+    }
+    .cr-result-card {
+        padding: 12px 14px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background .12s;
+    }
+    .cr-result-card:hover { background: #f8f9fa; }
+    .cr-result-card.selected { background: #fff3cd; border-left: 3px solid #dc3545; }
+    .cr-result-bill { font-size: .85rem; font-weight: 700; color: #212529; }
+    .cr-result-patient { font-size: .8rem; color: #495057; margin-top: 2px; }
+    .cr-result-meta { display: flex; gap: 6px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
+    .cr-result-amount { font-size: .82rem; font-weight: 700; color: #dc3545; }
+
+    /* ── Detail Pane ── */
+    .cr-detail-pane {
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        background: #fff;
+        overflow-y: auto;
+        max-height: calc(100vh - 280px);
+        min-height: 400px;
+    }
+    .cr-detail-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        min-height: 360px;
+        color: #adb5bd;
+        text-align: center;
+    }
+    .cr-detail-placeholder .icon { font-size: 56px; margin-bottom: 12px; opacity: .25; }
+
+    /* ── Bill Info Strip ── */
+    .cr-bill-info {
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        padding: 12px 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        border-radius: 12px 12px 0 0;
+    }
+    .cr-info-field label { font-size: .7rem; color: #6c757d; text-transform: uppercase; letter-spacing: .4px; display: block; margin: 0; }
+    .cr-info-field span  { font-size: .88rem; font-weight: 600; color: #212529; }
+    .cr-info-field span.text-danger  { color: #dc3545 !important; }
+    .cr-info-field span.text-success { color: #198754 !important; }
+    .cr-info-field span.text-warning { color: #856404 !important; }
+
+    /* ── Tab Navigation ── */
+    .cr-tabs {
+        display: flex;
+        border-bottom: 2px solid #dee2e6;
+        background: #fff;
+        padding: 0 16px;
+    }
+    .cr-tab {
+        padding: 10px 18px;
+        font-size: .82rem;
+        font-weight: 600;
+        color: #6c757d;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: color .15s;
+    }
+    .cr-tab.active { color: #dc3545; border-color: #dc3545; }
+    .cr-tab:not(.active):hover { color: #343a40; }
+    .cr-tab-pane { display: none; padding: 20px 16px; }
+    .cr-tab-pane.active { display: block; }
+
+    /* ── Items Table ── */
+    .cr-items-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .cr-items-table th {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        color: #6c757d;
+        padding: 8px 10px;
+        border-bottom: 2px solid #dee2e6;
+        background: #f8f9fa;
+        text-align: left;
+        white-space: nowrap;
+    }
+    .cr-items-table td { padding: 10px; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
+    .cr-items-table tr:hover td { background: #fafafa; }
+    .cr-items-table tr.item-cancelled td { opacity: .5; }
+    .cr-items-table tr.item-cancelled .item-name { text-decoration: line-through; }
+    .item-check { width: 16px; height: 16px; accent-color: #dc3545; cursor: pointer; }
+    .item-name  { font-weight: 600; color: #212529; }
+    .item-sub   { font-size: .75rem; color: #6c757d; }
+    .item-amount { font-weight: 700; color: #212529; text-align: right; white-space: nowrap; }
+
+    /* ── Cancel Actions Box ── */
+    .cr-actions-box {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        padding: 16px;
+        margin-top: 16px;
+    }
+    .cr-total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #e9ecef;
+        font-size: .85rem;
+    }
+    .cr-total-row:last-child { border: none; }
+    .cr-total-label { color: #6c757d; }
+    .cr-total-value { font-weight: 700; color: #212529; }
+
+    /* ── History Timeline ── */
+    .cr-timeline { position: relative; padding-left: 24px; }
+    .cr-timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: #dee2e6; }
+    .cr-timeline-item { position: relative; margin-bottom: 16px; }
+    .cr-timeline-dot { position: absolute; left: -20px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid #dc3545; }
+    .cr-timeline-dot.refund { border-color: #198754; }
+    .cr-timeline-card { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 14px; }
+    .cr-tl-title  { font-size: .85rem; font-weight: 700; color: #212529; }
+    .cr-tl-sub    { font-size: .75rem; color: #6c757d; margin-top: 2px; }
+    .cr-tl-amount { font-weight: 700; color: #dc3545; white-space: nowrap; }
+    .cr-tl-amount.refund { color: #198754; }
+
+    /* ── Spinner ── */
+    .cr-spinner { display: flex; align-items: center; justify-content: center; padding: 40px; color: #6c757d; gap: 10px; font-size: .85rem; }
+    .spinner-ring { width: 18px; height: 18px; border: 2px solid #dee2e6; border-top-color: #dc3545; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    .cr-toast-wrap { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .cr-toast {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px 16px;
+        max-width: 360px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        box-shadow: 0 4px 16px rgba(0,0,0,.12);
+        animation: slideIn .25s ease;
+        font-size: .85rem;
+    }
+    .cr-toast.success { border-color: #a3cfbb; background: #d1e7dd; }
+    .cr-toast.error   { border-color: #f1aeb5; background: #f8d7da; }
+    .cr-toast.success .cr-toast-icon { color: #198754; font-size: 1.1rem; }
+    .cr-toast.error   .cr-toast-icon { color: #842029; font-size: 1.1rem; }
+    .cr-toast-msg { color: #212529; line-height: 1.4; }
+    @@keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    .cr-empty-state { text-align: center; padding: 40px 20px; color: #adb5bd; }
+    .cr-empty-icon  { font-size: 40px; margin-bottom: 10px; opacity: .3; }
+</style>
+}
+
+@* ── Page Header ── *@
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="bi bi-x-octagon-fill me-2 text-danger"></i>Bill Cancellation &amp; Refund
+        </h1>
+        <small class="text-muted">Search bills, cancel items (full or partial), and process refunds</small>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        @if (moduleCode == "OPD")
+        {
+            <span class="badge text-bg-primary fs-6 px-3 py-2"><i class="bi bi-person-vcard me-1"></i>OPD</span>
+            <a asp-controller="OPD" asp-action="Dashboard" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        }
+        else
+        {
+            <span class="badge text-bg-danger fs-6 px-3 py-2"><i class="bi bi-droplet-half me-1"></i>LAB</span>
+            <a asp-controller="LabOrderBooking" asp-action="B2COrderList" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Order List
+            </a>
+        }
+    </div>
+</div>
+
+@* ── Module Selector + Search ── *@
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3">
+        <div class="row g-2 align-items-center">
+            @* Module is fixed based on URL parameter *@
+            <div class="col-auto">
+                <span class="fw-semibold small me-1">From:</span>
+                <input type="date" id="crFromDate" class="form-control form-control-sm d-inline-block w-auto" />
+            </div>
+            <div class="col-auto">
+                <span class="fw-semibold small me-1">To:</span>
+                <input type="date" id="crToDate" class="form-control form-control-sm d-inline-block w-auto" />
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-danger btn-sm px-3 fw-semibold" onclick="loadDefaultList()">
+                    <i class="bi bi-funnel me-1"></i>Load
+                </button>
+            </div>
+            <div class="col">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-danger"></i></span>
+                    <input type="text" id="crSearchInput" class="form-control"
+                           placeholder="Search by Bill No, Patient ID, Mobile Number or Name..."
+                           autocomplete="off" maxlength="100" />
+                    <button class="btn btn-danger px-3 fw-semibold" id="crSearchBtn" onclick="doSearch()">
+                        Search
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-1">
+            <div class="col-12 text-end">
+                <div class="form-text mt-0"><i class="bi bi-info-circle me-1"></i>Enter at least 2 characters for search</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Two-Panel Layout ── *@
+<div class="cr-layout gap-3">
+
+    @* Results Panel *@
+    <div class="cr-results-panel">
+        <div class="cr-results-header">
+            <span>Search Results</span>
+            <span id="crResultCount" class="badge text-bg-secondary" style="display:none;"></span>
+        </div>
+        <div id="crResultsList">
+            <div class="cr-empty-state">
+                <div class="cr-empty-icon"><i class="bi bi-search"></i></div>
+                <div class="small">Search for a bill to get started</div>
+            </div>
+        </div>
+    </div>
+
+    @* Detail Pane *@
+    <div class="cr-detail-pane">
+        <div class="cr-detail-placeholder" id="crDetailPlaceholder">
+            <div class="icon"><i class="bi bi-file-earmark-medical"></i></div>
+            <div class="fw-semibold">No Bill Selected</div>
+            <div class="small mt-1">Search and select a bill from the left panel</div>
+        </div>
+        <div id="crDetailContent" style="display:none;">
+            @* Bill Info Strip *@
+            <div class="cr-bill-info" id="crBillInfo"></div>
+
+            @* Tabs *@
+            <div class="cr-tabs">
+                <div class="cr-tab active" id="tabCancel" onclick="switchTab('cancel')">
+                    <i class="bi bi-x-circle"></i> Cancellation
+                </div>
+                <div class="cr-tab" id="tabRefund" onclick="switchTab('refund')">
+                    <i class="bi bi-cash-coin"></i> Refund
+                </div>
+                <div class="cr-tab" id="tabHistory" onclick="switchTab('history')">
+                    <i class="bi bi-clock-history"></i> History
+                </div>
+            </div>
+
+            @* ── Cancel Tab ── *@
+            <div class="cr-tab-pane active" id="paneCancel">
+                <div class="d-flex align-items-center gap-2 mb-2 p-2 bg-light rounded border">
+                    <input type="checkbox" id="selectAllItems" class="item-check" onchange="toggleSelectAll(this)">
+                    <label for="selectAllItems" class="mb-0 fw-semibold small" style="cursor:pointer;">Select All Active Items</label>
+                    <span id="selectedCountBadge" class="ms-auto badge text-bg-secondary" style="display:none;"></span>
+                </div>
+                <div class="table-responsive">
+                    <table class="cr-items-table">
+                        <thead>
+                            <tr>
+                                <th style="width:36px;"></th>
+                                <th>Test / Service</th>
+                                <th>Dept / Category</th>
+                                <th style="text-align:right;">Amount (₹)</th>
+                                <th style="text-align:center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="crItemsBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="cr-actions-box" id="crCancelActions">
+                    <div class="cr-total-row">
+                        <span class="cr-total-label">Selected Items Subtotal</span>
+                        <span class="cr-total-value text-danger" id="crSelectedSubtotal">₹0.00</span>
+                    </div>
+                    <div class="cr-total-row">
+                        <div>
+                            <span class="cr-total-label">Discount Reversal <span class="text-muted">(proportional)</span></span>
+                        </div>
+                        <span class="cr-total-value text-success" id="crDiscountAdjusted">₹0.00</span>
+                    </div>
+                    <div class="cr-total-row" style="border-top: 2px solid #dee2e6; padding-top: 10px; margin-top: 4px;">
+                        <span class="cr-total-label fw-bold">Net Cancellation Amount</span>
+                        <span class="cr-total-value text-danger fs-5" id="crNetCancel">₹0.00</span>
+                    </div>
+
+                    <div class="mb-3 mt-3">
+                        <label for="crCancelReason" class="form-label fw-semibold small">
+                            Reason for Cancellation <span class="text-danger">*</span>
+                        </label>
+                        <textarea id="crCancelReason" class="form-control form-control-sm" rows="2"
+                                  placeholder="Enter reason for cancellation (required)..."></textarea>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <button class="btn btn-danger fw-semibold px-4" id="btnSubmitCancel"
+                                onclick="submitCancellation()" disabled>
+                            <i class="bi bi-x-circle-fill me-1"></i>Confirm Cancellation
+                        </button>
+                        <small class="text-muted" id="crCancelHint">Select at least one item above</small>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Refund Tab ── *@
+            <div class="cr-tab-pane" id="paneRefund">
+                <div class="alert alert-warning d-flex gap-2 align-items-start" id="crNoCancelNotice">
+                    <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+                    <div>No cancellations found for this bill.<br>
+                    <strong>Please cancel the bill (or line items) first before processing a refund.</strong></div>
+                </div>
+                <div id="crRefundForm" style="display:none;">
+                    <div class="alert alert-success alert-sm py-2" id="crRefundSummaryNotice"></div>
+                    <div style="max-width:480px;">
+                        <div class="mb-3">
+                            <label for="crCancellationSelect" class="form-label fw-semibold small">Cancellation Reference</label>
+                            <select id="crCancellationSelect" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="crRefundAmount" class="form-label fw-semibold small">
+                                Refund Amount (₹) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" id="crRefundAmount" class="form-control"
+                                       min="0.01" step="0.01" placeholder="Enter refund amount">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="crRefundMode" class="form-label fw-semibold small">
+                                Refund Mode <span class="text-danger">*</span>
+                            </label>
+                            <select id="crRefundMode" class="form-select form-select-sm">
+                                <option value="">-- Select Mode --</option>
+                                <option value="Cash">Cash</option>
+                                <option value="UPI">UPI</option>
+                                <option value="BankTransfer">Bank Transfer / NEFT</option>
+                                <option value="Card">Card Reversal</option>
+                                <option value="Cheque">Cheque</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="crRefundRef" class="form-label fw-semibold small">Transaction Reference (optional)</label>
+                            <input type="text" id="crRefundRef" class="form-control form-control-sm"
+                                   placeholder="UPI Ref / NEFT Ref / Cheque No...">
+                        </div>
+                        <div class="mb-3">
+                            <label for="crRefundNotes" class="form-label fw-semibold small">Notes (optional)</label>
+                            <textarea id="crRefundNotes" class="form-control form-control-sm" rows="2"
+                                      placeholder="Additional notes..."></textarea>
+                        </div>
+                        <button class="btn btn-success fw-semibold px-4" id="btnSubmitRefund" onclick="submitRefund()">
+                            <i class="bi bi-cash-coin me-1"></i>Process Refund
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            @* ── History Tab ── *@
+            <div class="cr-tab-pane" id="paneHistory">
+                <div class="fw-semibold small text-uppercase text-muted mb-3" style="letter-spacing:.5px;">
+                    <i class="bi bi-clock-history me-1"></i>Cancellation &amp; Refund History
+                </div>
+                <div id="crHistoryContent">
+                    <div class="cr-spinner"><div class="spinner-ring"></div>Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Toast *@
+<div class="cr-toast-wrap" id="crToastWrap"></div>
+
+@section Scripts {
+<script>
+    const antiForgeryToken = '@Html.AntiForgeryToken()'.match(/value="([^"]+)"/)?.[1] ?? '';
+    let currentModule = '@moduleCode';
+    let currentBill   = null;
+
+    // ─── Module Switch ──────────────────────────────────────────
+    function switchModule(mod) {
+        currentModule = mod;
+        document.querySelectorAll('.module-btn').forEach(b => {
+            const active = b.dataset.mod === mod;
+            b.className = 'btn btn-sm ' + (active ? 'btn-danger' : 'btn-outline-secondary') + ' module-btn';
+        });
+        clearDetail();
+        document.getElementById('crSearchInput').value = '';
+        loadDefaultList();
+    }
+
+    // ─── Default List & Search ──────────────────────────────────
+    async function loadDefaultList() {
+        const fromDate = document.getElementById('crFromDate').value;
+        const toDate   = document.getElementById('crToDate').value;
+        
+        document.getElementById('crResultsList').innerHTML =
+            '<div class="cr-spinner"><div class="spinner-ring"></div>Loading...</div>';
+        document.getElementById('crResultCount').style.display = 'none';
+
+        try {
+            const res  = await fetch(`/BillCancellation/GetCancelledList?moduleCode=${currentModule}&fromDate=${fromDate}&toDate=${toDate}`);
+            const json = await res.json();
+            if (!json.success) { showToast(json.error, 'error'); return; }
+            renderResults(json.data);
+        } catch(e) { showToast('Load failed: ' + e.message, 'error'); }
+    }
+
+    async function doSearch() {
+        const q = document.getElementById('crSearchInput').value.trim();
+        if (q.length < 2) { showToast('Enter at least 2 characters to search.', 'error'); return; }
+        const btn = document.getElementById('crSearchBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Searching...';
+        try {
+            const res  = await fetch(`/BillCancellation/Search?moduleCode=${currentModule}&q=${encodeURIComponent(q)}`);
+            const json = await res.json();
+            if (!json.success) { showToast(json.error, 'error'); return; }
+            renderResults(json.data);
+        } catch(e) { showToast('Search failed: ' + e.message, 'error'); }
+        finally { btn.disabled = false; btn.innerHTML = 'Search'; }
+    }
+
+    function clearResults() {
+        loadDefaultList();
+    }
+
+    function renderResults(data) {
+        const list = document.getElementById('crResultsList');
+        const countEl = document.getElementById('crResultCount');
+        if (!data || !data.length) {
+            list.innerHTML = '<div class="cr-empty-state"><div class="cr-empty-icon"><i class="bi bi-file-x"></i></div><div class="small">No bills found</div></div>';
+            countEl.style.display = 'none';
+            return;
+        }
+        countEl.textContent = data.length + ' found';
+        countEl.style.display = '';
+        list.innerHTML = data.map(b => {
+            const ps = b.paymentStatus;
+            const badge = ps === 'P' ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Paid</span>'
+                        : ps === 'R' ? '<span class="badge bg-info-subtle text-info border border-info-subtle">Partial</span>'
+                        :              '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Unpaid</span>';
+            const cancelBadge = b.hasCancellation
+                ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Cancelled</span>' : '';
+            return `<div class="cr-result-card" onclick="loadDetail(${b.moduleRefId})" data-id="${b.moduleRefId}">
+                <div class="cr-result-bill"><i class="bi bi-receipt me-1 text-danger"></i>${b.billNo || 'N/A'}</div>
+                <div class="cr-result-patient"><i class="bi bi-person-fill me-1 text-muted"></i>${b.patientName} &nbsp;&middot;&nbsp; ${b.patientCode}</div>
+                <div class="cr-result-meta">
+                    <span class="cr-result-amount">₹${fmt(b.totalAmount)}</span>
+                    ${badge}${cancelBadge}
+                    <span class="text-muted" style="font-size:.75rem;">${fmtDate(b.billDate)}</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // ─── Load Detail ─────────────────────────────────────────────
+    async function loadDetail(id) {
+        document.querySelectorAll('.cr-result-card').forEach(c => c.classList.toggle('selected', parseInt(c.dataset.id) === id));
+        document.getElementById('crDetailPlaceholder').innerHTML =
+            '<div class="cr-spinner"><div class="spinner-ring"></div>Loading bill details...</div>';
+
+        try {
+            const res  = await fetch(`/BillCancellation/GetBillDetail?moduleCode=${currentModule}&id=${id}`);
+            const json = await res.json();
+            if (!json.success) { showToast(json.error, 'error'); showDetailEmpty(); return; }
+            currentBill = json.data;
+            renderDetail(json.data);
+            loadHistory(id);
+        } catch(e) { showToast('Failed to load bill: ' + e.message, 'error'); showDetailEmpty(); }
+    }
+
+    function showDetailEmpty() {
+        document.getElementById('crDetailPlaceholder').innerHTML =
+            '<div class="icon" style="font-size:40px;opacity:.2;margin-bottom:8px"><i class="bi bi-file-earmark-medical"></i></div>' +
+            '<div class="fw-semibold">No Bill Selected</div>' +
+            '<div class="small mt-1 text-muted">Search and select a bill from the left panel</div>';
+        document.getElementById('crDetailPlaceholder').style.display = '';
+        document.getElementById('crDetailContent').style.display = 'none';
+    }
+    function clearDetail() { currentBill = null; showDetailEmpty(); }
+
+    function renderDetail(bill) {
+        document.getElementById('crDetailPlaceholder').style.display = 'none';
+        document.getElementById('crDetailContent').style.display = '';
+
+        const psLabel = bill.paymentStatus === 'P'
+            ? '<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Fully Paid</span>'
+            : bill.paymentStatus === 'R'
+            ? '<span class="text-info fw-bold"><i class="bi bi-half me-1"></i>Partial</span>'
+            : '<span class="text-warning fw-bold"><i class="bi bi-clock me-1"></i>Unpaid</span>';
+
+        document.getElementById('crBillInfo').innerHTML = `
+            <div class="cr-info-field"><label>Bill No</label><span>${bill.billNo || '—'}</span></div>
+            <div class="cr-info-field"><label>Patient</label><span>${bill.patientName}</span></div>
+            <div class="cr-info-field"><label>Code</label><span>${bill.patientCode}</span></div>
+            <div class="cr-info-field"><label>Mobile</label><span>${bill.phoneNumber || '—'}</span></div>
+            <div class="cr-info-field"><label>Date</label><span>${fmtDate(bill.billDate)}</span></div>
+            <div class="cr-info-field"><label>Gross</label><span class="text-danger">₹${fmt(bill.totalAmount)}</span></div>
+            <div class="cr-info-field"><label>Discount</label><span class="text-success">₹${fmt(bill.totalDiscountAmount)}</span></div>
+            <div class="cr-info-field"><label>Net Amt</label><span>₹${fmt(bill.netAmount)}</span></div>
+            <div class="cr-info-field"><label>Paid</label><span class="text-success">₹${fmt(bill.totalPaid)}</span></div>
+            <div class="cr-info-field"><label>Balance</label><span class="text-danger">₹${fmt(bill.balanceDue)}</span></div>
+            <div class="cr-info-field"><label>Status</label><span>${psLabel}</span></div>`;
+
+        const tbody = document.getElementById('crItemsBody');
+        tbody.innerHTML = bill.items.map(item => {
+            const cancelled = item.isCancelled;
+            const dept = [item.departmentName, item.categoryName].filter(Boolean).join(' › ');
+            const disc = parseFloat(item.discountAmount) || 0;
+            const net = parseFloat(item.netAmount) || (item.originalAmount - disc);
+            return `<tr class="${cancelled ? 'item-cancelled' : ''}" data-line-ref="${item.lineRefId}">
+                <td><input type="checkbox" class="item-check cr-item-chk"
+                           data-line="${item.lineRefId}" 
+                           data-amount="${item.originalAmount}"
+                           data-discount="${disc}"
+                           data-net="${net}"
+                           ${cancelled ? 'disabled' : ''} onchange="onItemCheck()"></td>
+                <td>
+                    <div class="item-name">${item.itemName || item.itemCode || 'Unknown'}</div>
+                    ${item.itemCode ? `<div class="item-sub">${item.itemCode}</div>` : ''}
+                    ${item.sampleTypeName ? `<div class="item-sub"><i class="bi bi-droplet me-1"></i>${item.sampleTypeName}</div>` : ''}
+                </td>
+                <td><div class="item-sub">${dept || '—'}</div></td>
+                <td class="item-amount">
+                    <div>₹${fmt(item.originalAmount)}</div>
+                    ${disc > 0 
+                        ? `<div class="text-success small fw-semibold" style="font-size:.72rem;">Disc: -₹${fmt(disc)}</div><div class="text-muted small" style="font-size:.72rem;">Net: ₹${fmt(net)}</div>` 
+                        : (item.originalAmount > 0 && bill.totalDiscountAmount > 0 
+                            ? `<span class="badge bg-light text-secondary border" style="font-size:.65rem;">No Disc</span>` 
+                            : '')}
+                </td>
+                <td style="text-align:center;">
+                    ${cancelled
+                        ? '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Cancelled</span>'
+                        : '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>'}
+                </td>
+            </tr>`;
+        }).join('');
+
+        onItemCheck();
+        switchTab('cancel');
+        loadRefundSection();
+    }
+
+    // ─── Select All ──────────────────────────────────────────────
+    function toggleSelectAll(cb) {
+        document.querySelectorAll('.cr-item-chk:not(:disabled)').forEach(c => c.checked = cb.checked);
+        onItemCheck();
+    }
+
+    function onItemCheck() {
+        const all   = document.querySelectorAll('.cr-item-chk:not(:disabled)');
+        const checks = document.querySelectorAll('.cr-item-chk:checked:not(:disabled)');
+        const allSel = checks.length === all.length && all.length > 0;
+
+        const selAll = document.getElementById('selectAllItems');
+        selAll.checked       = allSel;
+        selAll.indeterminate = checks.length > 0 && !allSel;
+
+        const countBadge = document.getElementById('selectedCountBadge');
+        if (checks.length > 0) {
+            countBadge.textContent = `${checks.length} item${checks.length > 1 ? 's' : ''} selected`;
+            countBadge.style.display = '';
+        } else { countBadge.style.display = 'none'; }
+
+        let subTotal = 0;
+        let lineDiscSum = 0;
+        let hasLineDiscounts = false;
+        checks.forEach(c => { 
+            subTotal += parseFloat(c.dataset.amount) || 0; 
+            const d = parseFloat(c.dataset.discount) || 0;
+            lineDiscSum += d;
+            if (d > 0) hasLineDiscounts = true;
+        });
+
+        const totalDiscount = currentBill?.totalDiscountAmount || 0;
+        const totalAmount   = currentBill?.totalAmount || 0;
+        
+        let discAdj = 0;
+        if (allSel) {
+            discAdj = totalDiscount;
+        } else if (hasLineDiscounts || (currentBill?.items && currentBill.items.some(x => (x.discountAmount || 0) > 0))) {
+            discAdj = lineDiscSum;
+        } else if (totalAmount > 0) {
+            discAdj = (subTotal / totalAmount) * totalDiscount;
+        }
+        discAdj = Math.min(discAdj, totalDiscount);
+        const netCancel = Math.max(0, subTotal - discAdj);
+
+        document.getElementById('crSelectedSubtotal').textContent = '₹' + fmt(subTotal);
+        document.getElementById('crDiscountAdjusted').textContent = '₹' + fmt(discAdj);
+        document.getElementById('crNetCancel').textContent        = '₹' + fmt(netCancel);
+
+        const btn  = document.getElementById('btnSubmitCancel');
+        const hint = document.getElementById('crCancelHint');
+        btn.disabled        = checks.length === 0;
+        hint.style.display  = checks.length === 0 ? '' : 'none';
+    }
+
+    // ─── Submit Cancellation ─────────────────────────────────────
+    async function submitCancellation() {
+        if (!currentBill) return;
+        const reason = document.getElementById('crCancelReason').value.trim();
+        if (!reason) { showToast('Reason for cancellation is required.', 'error'); return; }
+
+        const checks = document.querySelectorAll('.cr-item-chk:checked:not(:disabled)');
+        if (!checks.length) { showToast('Select at least one item.', 'error'); return; }
+
+        const totalAmount   = currentBill.totalAmount || 0;
+        const totalDiscount = currentBill.totalDiscountAmount || 0;
+        const allActiveChecks = document.querySelectorAll('.cr-item-chk:not(:disabled)');
+        const isAllSelected = checks.length === allActiveChecks.length;
+
+        const items = Array.from(checks).map(c => ({ 
+            lineRefId: parseInt(c.dataset.line), 
+            amount: parseFloat(c.dataset.amount),
+            discount: parseFloat(c.dataset.discount) || 0 
+        }));
+        const subTotal = items.reduce((s, i) => s + i.amount, 0);
+        const lineDiscSum = items.reduce((s, i) => s + i.discount, 0);
+        const hasLineDiscounts = items.some(i => i.discount > 0) || (currentBill?.items && currentBill.items.some(x => (x.discountAmount || 0) > 0));
+
+        let discAdj = 0;
+        if (isAllSelected) {
+            discAdj = totalDiscount;
+        } else if (hasLineDiscounts) {
+            discAdj = lineDiscSum;
+        } else if (totalAmount > 0) {
+            discAdj = (subTotal / totalAmount) * totalDiscount;
+        }
+        discAdj = Math.min(discAdj, totalDiscount);
+
+        const confirmCancel = await Swal.fire({
+            title: 'Confirm Cancellation',
+            html: `<div class='text-start'>
+                    <p class='mb-2'>You are about to cancel <strong>${items.length} item(s)</strong>.</p>
+                    <table class='table table-sm table-bordered mb-0'>
+                        <tr><td class='text-muted'>Items Subtotal</td><td class='fw-bold text-end'>₹${fmt(subTotal)}</td></tr>
+                        <tr><td class='text-muted'>Discount Reversed</td><td class='fw-bold text-success text-end'>₹${fmt(discAdj)}</td></tr>
+                        <tr class='table-danger'><td class='fw-bold'>Net Cancellation</td><td class='fw-bold text-end'>₹${fmt(subTotal - discAdj)}</td></tr>
+                    </table>
+                   </div>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="bi bi-x-circle-fill me-1"></i>Yes, Cancel Bill',
+            cancelButtonText: 'Go Back',
+            reverseButtons: true
+        });
+        if (!confirmCancel.isConfirmed) return;
+
+        const btn = document.getElementById('btnSubmitCancel');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+        try {
+            const res = await fetch('/BillCancellation/CancelBill', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgeryToken },
+                body: JSON.stringify({
+                    moduleCode: currentModule,
+                    moduleRefId: currentBill.moduleRefId,
+                    branchId: 0,
+                    items, reason,
+                    discountAdjusted: discAdj
+                })
+            });
+            const json = await res.json();
+            if (!json.success) { showToast(json.error, 'error'); return; }
+            showToast(`Cancellation successful! Ref: ${json.cancellationNo} — ₹${fmt(json.cancelledAmount)}`, 'success');
+            document.getElementById('crCancelReason').value = '';
+            await loadDetail(currentBill.moduleRefId);
+            switchTab('refund');
+        } catch(e) { showToast('Cancellation failed: ' + e.message, 'error'); }
+        finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>Confirm Cancellation';
+        }
+    }
+
+    // ─── Refund Section ──────────────────────────────────────────
+    async function loadRefundSection() {
+        if (!currentBill) return;
+        try {
+            const res  = await fetch(`/BillCancellation/GetHistory?moduleCode=${currentModule}&id=${currentBill.moduleRefId}`);
+            const json = await res.json();
+            const cancels = json.success ? (json.data?.cancellations || []) : [];
+            const refunds  = json.success ? (json.data?.refunds || []) : [];
+
+            const noNotice = document.getElementById('crNoCancelNotice');
+            const refForm  = document.getElementById('crRefundForm');
+
+            if (!cancels.length) { noNotice.style.display = ''; refForm.style.display = 'none'; return; }
+            noNotice.style.display = 'none'; refForm.style.display = '';
+
+            const sel = document.getElementById('crCancellationSelect');
+            sel.innerHTML = cancels.map(c => {
+                const netCanc = Math.max(0, (c.cancelledAmount || 0) - (c.discountAdjusted || 0));
+                return `<option value="${c.cancellationId}" data-amount="${netCanc}">${c.cancellationNo} — ₹${fmt(netCanc)} (${fmtDate(c.cancellationDate)})</option>`;
+            }).join('');
+
+            const totalPaid      = currentBill.totalPaid;
+            const alreadyRefunded = refunds.reduce((s, r) => s + r.refundAmount, 0);
+            
+            // netAmount is already reduced by the DB during cancellation
+            const refundable = Math.max(0, (totalPaid - currentBill.netAmount) - alreadyRefunded);
+
+            document.getElementById('crRefundAmount').max = refundable;
+            document.getElementById('crRefundSummaryNotice').innerHTML =
+                `<strong>Refund Summary:</strong> Total Paid: ₹${fmt(totalPaid)} &nbsp;|&nbsp; ` +
+                `Already Refunded: ₹${fmt(alreadyRefunded)} &nbsp;|&nbsp; ` +
+                `<strong class="text-success">Refundable: ₹${fmt(refundable)}</strong>`;
+            document.getElementById('btnSubmitRefund').disabled = refundable <= 0;
+        } catch(e) { console.warn(e); }
+    }
+
+    // ─── Submit Refund ───────────────────────────────────────────
+    async function submitRefund() {
+        if (!currentBill) return;
+        const cancId  = parseInt(document.getElementById('crCancellationSelect').value);
+        const amount  = parseFloat(document.getElementById('crRefundAmount').value);
+        const mode    = document.getElementById('crRefundMode').value;
+        const ref     = document.getElementById('crRefundRef').value.trim();
+        const notes   = document.getElementById('crRefundNotes').value.trim();
+
+        if (!cancId)              { showToast('Select a cancellation reference.', 'error'); return; }
+        if (!amount || amount <= 0) { showToast('Enter a valid refund amount.', 'error'); return; }
+
+        const maxRefundable = parseFloat(document.getElementById('crRefundAmount').max) || 0;
+        if (amount > maxRefundable) { showToast(`Refund amount cannot exceed total refundable amount (₹${fmt(maxRefundable)}).`, 'error'); return; }
+
+        const selOption = document.getElementById('crCancellationSelect').selectedOptions[0];
+        const cancAmount = selOption ? parseFloat(selOption.dataset.amount) : 0;
+        if (amount > cancAmount) { showToast(`Refund amount cannot exceed the selected cancellation amount (₹${fmt(cancAmount)}).`, 'error'); return; }
+
+        if (!mode)                { showToast('Select a refund mode.', 'error'); return; }
+        const confirmRefund = await Swal.fire({
+            title: 'Confirm Refund',
+            html: `<div class='text-start'>
+                    <p class='mb-2'>Process the following refund?</p>
+                    <table class='table table-sm table-bordered mb-0'>
+                        <tr><td class='text-muted'>Refund Amount</td><td class='fw-bold text-success text-end'>₹${fmt(amount)}</td></tr>
+                        <tr><td class='text-muted'>Refund Mode</td><td class='fw-bold text-end'>${mode}</td></tr>
+                        ${ref ? `<tr><td class='text-muted'>Ref No</td><td class='text-end'>${ref}</td></tr>` : ''}
+                    </table>
+                   </div>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="bi bi-cash-coin me-1"></i>Yes, Process Refund',
+            cancelButtonText: 'Go Back',
+            reverseButtons: true
+        });
+        if (!confirmRefund.isConfirmed) return;
+
+        const btn = document.getElementById('btnSubmitRefund');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+        try {
+            const res = await fetch('/BillCancellation/ProcessRefund', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': antiForgeryToken },
+                body: JSON.stringify({ moduleCode: currentModule, moduleRefId: currentBill.moduleRefId, cancellationId: cancId, refundAmount: amount, refundMode: mode, transactionRef: ref, notes })
+            });
+            const json = await res.json();
+            if (!json.success) { showToast(json.error, 'error'); return; }
+            showToast(`Refund of ₹${fmt(json.refundAmount)} processed via ${json.refundMode}!`, 'success');
+            document.getElementById('crRefundAmount').value = '';
+            document.getElementById('crRefundRef').value    = '';
+            document.getElementById('crRefundNotes').value  = '';
+            await loadDetail(currentBill.moduleRefId);
+            switchTab('history');
+        } catch(e) { showToast('Refund failed: ' + e.message, 'error'); }
+        finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cash-coin me-1"></i>Process Refund';
+        }
+    }
+
+    // ─── History ─────────────────────────────────────────────────
+    async function loadHistory(id) {
+        const el = document.getElementById('crHistoryContent');
+        el.innerHTML = '<div class="cr-spinner"><div class="spinner-ring"></div>Loading history...</div>';
+        try {
+            const res  = await fetch(`/BillCancellation/GetHistory?moduleCode=${currentModule}&id=${id}`);
+            const json = await res.json();
+            if (!json.success || !json.data) { el.innerHTML = '<p class="text-muted small">No history found.</p>'; return; }
+            renderHistory(json.data);
+        } catch(e) { el.innerHTML = '<p class="text-muted small">Failed to load history.</p>'; }
+    }
+
+    function renderHistory(data) {
+        const el = document.getElementById('crHistoryContent');
+        const cancels = data.cancellations || [];
+        const refunds  = data.refunds  || [];
+        if (!cancels.length && !refunds.length) {
+            el.innerHTML = '<div class="text-center text-muted py-4 small"><i class="bi bi-clock-history d-block mb-2" style="font-size:28px;opacity:.25"></i>No cancellation or refund history for this bill.</div>';
+            return;
+        }
+        const events = [
+            ...cancels.map(c => ({ type: 'cancel', date: new Date(c.cancellationDate), data: c })),
+            ...refunds.map(r  => ({ type: 'refund',  date: new Date(r.refundDate),        data: r }))
+        ].sort((a, b) => b.date - a.date);
+
+        el.innerHTML = '<div class="cr-timeline">' + events.map(ev => {
+            if (ev.type === 'cancel') {
+                const c = ev.data;
+                const typeLabel = c.cancellationType === 'F' ? 'Full Cancellation' : 'Partial Cancellation';
+                return `<div class="cr-timeline-item">
+                    <div class="cr-timeline-dot"></div>
+                    <div class="cr-timeline-card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="cr-tl-title"><i class="bi bi-x-circle-fill text-danger me-1"></i>${typeLabel}</div>
+                                <div class="cr-tl-sub">${c.cancellationNo} &middot; ${fmtDate(c.cancellationDate)}</div>
+                                ${c.reason ? `<div class="cr-tl-sub"><i class="bi bi-chat-left me-1"></i>${c.reason}</div>` : ''}
+                                ${c.cancelledBy ? `<div class="cr-tl-sub">By: ${c.cancelledBy}</div>` : ''}
+                            </div>
+                            <span class="cr-tl-amount">-₹${fmt(c.cancelledAmount - (c.discountAdjusted || 0))}</span>
+                        </div>
+                        <div class="cr-tl-sub mt-1">
+                            Gross: ₹${fmt(c.cancelledAmount)}${c.discountAdjusted > 0 ? ` &middot; <span class="text-success"><i class="bi bi-tag me-1"></i>Disc reversed: ₹${fmt(c.discountAdjusted)}</span>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            } else {
+                const r = ev.data;
+                return `<div class="cr-timeline-item">
+                    <div class="cr-timeline-dot refund"></div>
+                    <div class="cr-timeline-card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="cr-tl-title"><i class="bi bi-cash-coin text-success me-1"></i>Refund Processed</div>
+                                <div class="cr-tl-sub">${r.refundMode} &middot; ${fmtDate(r.refundDate)}</div>
+                                ${r.transactionRef ? `<div class="cr-tl-sub">Ref: ${r.transactionRef}</div>` : ''}
+                                ${r.notes ? `<div class="cr-tl-sub">${r.notes}</div>` : ''}
+                                ${r.refundedBy ? `<div class="cr-tl-sub">By: ${r.refundedBy}</div>` : ''}
+                            </div>
+                            <span class="cr-tl-amount refund">+₹${fmt(r.refundAmount)}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }
+        }).join('') + '</div>';
+    }
+
+    // ─── Tabs ────────────────────────────────────────────────────
+    function switchTab(tab) {
+        ['cancel','refund','history'].forEach(t => {
+            document.getElementById('tab' + cap(t)).classList.toggle('active', t === tab);
+            document.getElementById('pane' + cap(t)).classList.toggle('active', t === tab);
+        });
+        if (tab === 'refund'  && currentBill) loadRefundSection();
+    }
+    function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+    // ─── Utilities ───────────────────────────────────────────────
+    function fmt(n) { return parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function fmtDate(d) {
+        if (!d) return '—';
+        return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    function showToast(msg, type = 'success') {
+        const wrap = document.getElementById('crToastWrap');
+        const t = document.createElement('div');
+        t.className = `cr-toast ${type}`;
+        t.innerHTML = `<span class="cr-toast-icon">${type === 'success' ? '<i class="bi bi-check-circle-fill"></i>' : '<i class="bi bi-exclamation-circle-fill"></i>'}</span><div class="cr-toast-msg">${msg}</div>`;
+        wrap.appendChild(t);
+        setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 4500);
+    }
+
+    document.getElementById('crSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+    // ─── Initialization ──────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        
+        document.getElementById('crToDate').value = today.toISOString().split('T')[0];
+        document.getElementById('crFromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+        
+        loadDefaultList();
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+}

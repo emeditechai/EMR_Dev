@@ -255,7 +255,7 @@
                                 <td><span class="badge text-bg-info text-dark font-monospace">@b.PatientCode</span></td>
                                 <td class="fw-semibold">@b.PatientName</td>
                                 <td>@(b.Gender ?? "—")</td>
-                                <td>@(b.Age.HasValue ? b.Age.Value + " yrs" : "—")</td>
+                                <td>@(string.IsNullOrEmpty(b.FormattedAge) ? (b.Age.HasValue ? b.Age.Value + " yrs" : "—") : b.FormattedAge)</td>
                                 <td>
                                     @if (!string.IsNullOrEmpty(b.ServiceTypesSummary))
                                     {
@@ -554,7 +554,7 @@
                         <div class="p-2 border rounded bg-light">
                             <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">PATIENT NAME</div>
                             <div class="fw-semibold">${d.patientName}</div>
-                            <div class="text-muted small">${d.gender || ''}${d.age != null ? ' · ' + d.age + ' yrs' : ''}</div>
+                            <div class="text-muted small">${d.gender || ''}${d.formattedAge ? ' · ' + d.formattedAge : (d.age != null ? ' · ' + d.age + ' yrs' : '')}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-4">

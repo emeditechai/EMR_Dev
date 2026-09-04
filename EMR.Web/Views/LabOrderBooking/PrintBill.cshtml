@@ -1,0 +1,656 @@
+@model EMR.Web.Models.ViewModels.PrintBillViewModel
+@{
+    Layout = null;
+    var billDate    = Model.OrderDate.ToString("dd-MMM-yyyy hh:mm tt");
+    var bookingDate = Model.BookingDate.HasValue
+                        ? Model.BookingDate.Value.ToString("dd-MMM-yyyy hh:mm tt")
+                        : "—";
+    var printDate   = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt");
+    var ageStr      = !string.IsNullOrEmpty(Model.FormattedAge) ? Model.FormattedAge : (Model.Age.HasValue ? $"{Model.Age.Value} Yrs" : "");
+    var genderAge   = !string.IsNullOrEmpty(ageStr)
+                        ? (!string.IsNullOrEmpty(Model.Gender) ? $"{ageStr} / {Model.Gender}" : ageStr)
+                        : (Model.Gender ?? "—");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Lab Bill — @Model.BillNo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            color: #111;
+            background: #fff;
+        }
+
+        .page-wrap {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 10mm 12mm 10mm 12mm;
+            position: relative;
+        }
+
+        /* ── Print Button (hidden on print) ── */
+        .print-actions {
+            position: fixed;
+            top: 10px;
+            right: 16px;
+            z-index: 999;
+            display: flex;
+            gap: 8px;
+        }
+        .btn-print {
+            background: #1a56db;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .btn-close-tab {
+            background: #374151;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        /* ── Header ── */
+        .bill-header {
+            margin-bottom: 4mm;
+            padding-bottom: 3mm;
+            border-bottom: 1.5px solid #222;
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        .hosp-logo {
+            height: 52px;
+            max-width: 120px;
+            object-fit: contain;
+        }
+        .hosp-info-main .hosp-name {
+            font-size: 18px;
+            font-weight: 900;
+            color: #1a3a6b;
+            letter-spacing: 0.5px;
+            margin-bottom: 3px;
+        }
+        .hosp-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            align-items: center;
+        }
+        .badge-pill {
+            display: inline-block;
+            padding: 1.5px 6px;
+            font-size: 9px;
+            font-weight: bold;
+            border-radius: 3px;
+        }
+        .badge-type {
+            background: #e0edff;
+            color: #0b57d0;
+            border: 1px solid #c2dbff;
+        }
+        .badge-reg {
+            background: #f1f3f4;
+            color: #3c4043;
+            border: 1px solid #dadce0;
+        }
+        .badge-nabh {
+            background: #e6f4ea;
+            color: #137333;
+            border: 1px solid #ceead6;
+        }
+        .header-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+        .emergency-box {
+            background: #fce8e6;
+            color: #c5221f;
+            border: 1px solid #fad2cf;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 9.5px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .barcode-area {
+            font-size: 26px;
+            letter-spacing: -2px;
+            font-family: 'Libre Barcode 128', cursive;
+            color: #000;
+            line-height: 1;
+            margin-top: 2px;
+        }
+
+        /* ── Header details strip ── */
+        .header-details-strip {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-top: 6px;
+            padding-top: 5px;
+            border-top: 1px dashed #ccc;
+            font-size: 9.5px;
+            color: #333;
+            gap: 8px;
+        }
+        .header-details-strip .item {
+            display: flex;
+            gap: 4px;
+        }
+        .header-details-strip .item-title {
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #555;
+            font-size: 8.5px;
+        }
+
+        /* ── Section title ── */
+        .section-title {
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            border-top: 1.5px solid #111;
+            border-bottom: 1.5px solid #111;
+            padding: 2.5px 0;
+            margin-bottom: 0;
+            position: relative;
+        }
+        .section-title .original-label {
+            position: absolute;
+            right: 0;
+            top: 2.5px;
+            font-size: 10.5px;
+            font-weight: bold;
+        }
+        .cancelled-watermark {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 80px;
+            color: rgba(220, 53, 69, 0.15);
+            font-weight: 900;
+            z-index: -1;
+            pointer-events: none;
+            letter-spacing: 10px;
+        }
+        .text-strike {
+            text-decoration: line-through;
+            color: #777;
+        }
+
+        /* ── Patient/Doctor info table ── */
+        .info-grid {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #111;
+        }
+        .info-grid th, .info-grid td {
+            border: 1px solid #111;
+            padding: 2px 5px;
+            vertical-align: top;
+            font-size: 10.5px;
+        }
+        .info-grid .col-header {
+            background: #f0f0f0;
+            font-weight: bold;
+            font-size: 10.5px;
+            text-align: left;
+        }
+        .info-grid .lbl {
+            font-weight: bold;
+            width: 28%;
+            white-space: nowrap;
+        }
+
+        /* ── Investigations table ── */
+        .inv-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5mm;
+        }
+        .inv-table thead tr {
+            background: #f0f0f0;
+        }
+        .inv-table th, .inv-table td {
+            border: 1px solid #333;
+            padding: 3px 6px;
+            font-size: 10.5px;
+        }
+        .inv-table th {
+            font-weight: bold;
+            text-align: left;
+        }
+        .inv-table td.num { text-align: right; }
+        .inv-table tfoot td {
+            border: none;
+            padding: 2px 6px;
+            font-size: 10.5px;
+        }
+        .inv-table tfoot tr.total-row td {
+            border-top: 1.5px solid #111;
+        }
+
+        /* ── Summary block ── */
+        .summary-block {
+            width: 55%;
+            margin-left: auto;
+            margin-top: 3mm;
+        }
+        .summary-block table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .summary-block td {
+            padding: 2px 6px;
+            font-size: 11px;
+        }
+        .summary-block .s-lbl { text-align: right; font-weight: bold; }
+        .summary-block .s-val { text-align: right; }
+        .summary-block .s-total { font-size: 12px; font-weight: 900; border-top: 1.5px solid #111; }
+
+        /* ── Amount in words ── */
+        .amount-words {
+            text-align: right;
+            font-size: 10.5px;
+            font-style: italic;
+            margin-top: 2px;
+        }
+        .amount-words strong { font-style: normal; }
+
+        /* ── Footer note ── */
+        .footer-notes {
+            margin-top: 6mm;
+            font-size: 9.5px;
+            color: #222;
+            line-height: 1.5;
+        }
+        .footer-notes p { margin-bottom: 3px; }
+        .footer-notes a { color: #1a3a6b; }
+
+        .footer-meta {
+            margin-top: 5mm;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .footer-meta p { margin-bottom: 2px; }
+
+        .page-footer {
+            position: fixed;
+            bottom: 8mm;
+            left: 12mm;
+            right: 12mm;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #555;
+            border-top: 1px solid #ccc;
+            padding-top: 3px;
+        }
+
+        /* ── Payment methods ── */
+        .payment-methods {
+            margin-top: 4mm;
+            font-size: 10.5px;
+        }
+        .payment-methods strong { display: inline-block; min-width: 120px; }
+
+        @@media print {
+            .print-actions { display: none !important; }
+            body { background: #fff; }
+            .page-wrap { margin: 0; padding: 8mm 10mm; }
+            .page-footer { position: fixed; bottom: 5mm; }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
+</head>
+<body onload="window.print()">
+
+<div class="print-actions">
+    <button class="btn-print" onclick="window.print()">🖨 Print</button>
+    <button class="btn-close-tab" onclick="window.close()">✕ Close</button>
+</div>
+
+<div class="page-wrap">
+
+    <!-- ══ HEADER ══ -->
+    <div class="bill-header">
+        <div class="header-top">
+            <div class="header-left">
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalLogoPath))
+                {
+                    <img src="@Model.HospitalLogoPath" class="hosp-logo" alt="Hospital Logo" />
+                }
+                <div class="hosp-info-main">
+                    <div class="hosp-name">@(Model.HospitalName ?? "eMeditech Hospital")</div>
+                    <div class="hosp-badges">
+                        @if (!string.IsNullOrWhiteSpace(Model.HospitalType))
+                        {
+                            <span class="badge-pill badge-type">🏷 @Model.HospitalType</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.RegistrationNumber))
+                        {
+                            <span class="badge-pill badge-reg">📋 Reg: @Model.RegistrationNumber</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.NabhStatus))
+                        {
+                            <span class="badge-pill badge-nabh">✔ NABH: @Model.NabhStatus</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalEmergencyPhone))
+                {
+                    <div class="emergency-box">
+                        <span>📞 Emergency Helpline: @Model.HospitalEmergencyPhone</span>
+                    </div>
+                }
+                <div class="barcode-area" title="@Model.BillNo">
+                    |||||||||||||||||||||||||||||||||||||||
+                </div>
+            </div>
+        </div>
+
+        <div class="header-details-strip">
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalAddress))
+            {
+                <div class="item">
+                    <span class="item-title">📍 Address:</span>
+                    <span>@Model.HospitalAddress</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalPhone))
+            {
+                <div class="item">
+                    <span class="item-title">📞 Contacts:</span>
+                    <span>@Model.HospitalPhone</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalEmail))
+            {
+                <div class="item">
+                    <span class="item-title">✉ Email:</span>
+                    <span>@Model.HospitalEmail</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalWebsite))
+            {
+                <div class="item">
+                    <span class="item-title">🌐 Web:</span>
+                    <span>@Model.HospitalWebsite</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalGSTIN))
+            {
+                <div class="item">
+                    <span class="item-title">Taxation:</span>
+                    <span>GST: @Model.HospitalGSTIN</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.NabhCertificateNo))
+            {
+                <div class="item">
+                    <span class="item-title">NABH Cert:</span>
+                    <span>@Model.NabhCertificateNo</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- ══ BILL TITLE ══ -->
+    <div class="section-title">
+        Bill of Supply cum Receipt
+        @if (!Model.IsActive)
+        {
+            <span class="original-label text-danger" style="color: #c5221f;">CANCELLED</span>
+        }
+        else
+        {
+            <span class="original-label">Original</span>
+        }
+    </div>
+    
+    @if (!Model.IsActive)
+    {
+        <div class="cancelled-watermark">CANCELLED</div>
+    }
+
+    <!-- ══ PATIENT / DOCTOR INFO ══ -->
+    <table class="info-grid" style="margin-top:0;">
+        <colgroup>
+            <col style="width:18%"><col style="width:30%">
+            <col style="width:18%"><col style="width:34%">
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="col-header" colspan="2">Patient Information</th>
+                <th class="col-header" colspan="2">Contact &amp; Address</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="lbl">Name</td>
+                <td><strong>@Model.PatientName</strong></td>
+                <td class="lbl">Mobile No</td>
+                <td>@(Model.PhoneNumber ?? "—")</td>
+            </tr>
+            <tr>
+                <td class="lbl">Bill No</td>
+                <td class="font-monospace"><strong>@Model.BillNo</strong></td>
+                <td class="lbl">Email ID</td>
+                <td>@(Model.EmailId ?? "—")</td>
+            </tr>
+            <tr>
+                <td class="lbl">Receipt No</td>
+                @{
+                    var receiptNos = Model.Payments
+                        .Where(p => !string.IsNullOrWhiteSpace(p.ReceiptNo))
+                        .Select(p => p.ReceiptNo!)
+                        .Distinct();
+                    var receiptDisplay = receiptNos.Any() ? string.Join(", ", receiptNos) : "—";
+                }
+                <td class="font-monospace">@receiptDisplay</td>
+                <td class="lbl">Address</td>
+                <td>@(Model.Address ?? "—")</td>
+            </tr>
+            <tr>
+                <td class="lbl">Age / Gender</td>
+                <td>@(string.IsNullOrWhiteSpace(genderAge) ? "—" : genderAge)</td>
+                <td class="lbl">Billed By</td>
+                <td>@(Model.BranchName ?? "—")</td>
+            </tr>
+            <tr>
+                <td class="lbl">Patient ID</td>
+                <td>@(Model.PatientCode ?? "—")</td>
+                <td class="lbl">Token No</td>
+                <td>@(Model.TokenNo ?? "—")</td>
+            </tr>
+            <tr>
+                <td class="lbl">Bill Date</td>
+                <td>@billDate</td>
+                <td class="lbl">Created By</td>
+                <td>@(Model.CreatedByName ?? "—")</td>
+            </tr>
+            <tr>
+                <td class="lbl">Booking Date &amp; Time</td>
+                <td style="font-weight:600;color:#c00;">@bookingDate</td>
+                <td class="lbl">Collection Type</td>
+                <td>@(Model.CollectionType ?? "Lab")</td>
+            </tr>
+            @if (!string.IsNullOrEmpty(Model.PhlebotomistName))
+            {
+                <tr>
+                    <td class="lbl">Phlebotomist</td>
+                    <td colspan="3">@Model.PhlebotomistName</td>
+                </tr>
+            }
+            <tr>
+                <td class="lbl">Booking Centre</td>
+                <td>@(Model.BranchName ?? "—")</td>
+                <td class="lbl"></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ══ INVESTIGATIONS TABLE ══ -->
+    <table class="inv-table">
+        <thead>
+            <tr>
+                <th style="width:30px;">#</th>
+                <th style="width:90px;">Test Code</th>
+                <th>Test Name</th>
+                <th style="width:90px;">Sample Type</th>
+                <th style="width:65px;" class="num">MRP (₹)</th>
+                <th style="width:70px;" class="num">Discount (₹)</th>
+                <th style="width:65px;" class="num">Total (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < Model.LineItems.Count; i++)
+            {
+                var item = Model.LineItems[i];
+                var strikeCls = !item.IsActive ? "text-strike" : "";
+                <tr class="@strikeCls">
+                    <td>@(i + 1)</td>
+                    <td>@item.TestCode</td>
+                    <td>@item.TestName</td>
+                    <td>@(item.SampleType ?? "—")</td>
+                    <td class="num">@item.MRP.ToString("N2")</td>
+                    <td class="num">@item.DiscountAmount.ToString("N2")</td>
+                    <td class="num">
+                        @if (!item.IsActive)
+                        {
+                            <strong style="color: #c5221f;">Cancel</strong>
+                        }
+                        else
+                        {
+                            <strong>@item.Total.ToString("N2")</strong>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- ══ PAYMENT SUMMARY ══ -->
+    <div class="summary-block">
+        <table>
+            <tr>
+                <td class="s-lbl" style="width:55%;">Gross Amount :</td>
+                <td class="s-val">@Model.GrossAmount.ToString("N2")</td>
+            </tr>
+            <tr>
+                <td class="s-lbl">Discount :</td>
+                <td class="s-val">@Model.DiscountAmount.ToString("N2")</td>
+            </tr>
+            @if (Model.RoundOffAmount != 0)
+            {
+                <tr>
+                    <td class="s-lbl">Round Off :</td>
+                    <td class="s-val">@(Model.RoundOffAmount > 0 ? "+" : "")@Model.RoundOffAmount.ToString("N2")</td>
+                </tr>
+            }
+            <tr class="s-total">
+                <td class="s-lbl">Grand Total :</td>
+                <td class="s-val">@Model.GrandTotal.ToString("N2")</td>
+            </tr>
+            <tr>
+                <td class="s-lbl">Received Amount :</td>
+                <td class="s-val">@Model.ReceivedAmount.ToString("N2")</td>
+            </tr>
+            <tr>
+                <td class="s-lbl">Balance :</td>
+                <td class="s-val">@Model.Balance.ToString("N2")</td>
+            </tr>
+        </table>
+        <div class="amount-words">
+            <strong>Amount Paid in words :</strong> @Model.AmountInWords
+        </div>
+    </div>
+
+    @if (Model.Payments.Any())
+    {
+        <div class="payment-methods">
+            <strong>Payment Details:</strong>
+            @foreach (var p in Model.Payments)
+            {
+                <span>@p.MethodName: ₹@p.PaidAmount.ToString("N2")</span>
+                @if (!string.IsNullOrWhiteSpace(p.TransactionRef))
+                {
+                    <span> (Ref: @p.TransactionRef)</span>
+                }
+                <span>&nbsp;&nbsp;</span>
+            }
+        </div>
+    }
+
+    <hr style="margin:5mm 0 3mm 0; border:none; border-top:1px solid #bbb;" />
+
+    <!-- ══ FOOTER NOTES ══ -->
+    <div class="footer-notes">
+        <p>Category of Service : <strong>Health Service by Clinical establishment</strong></p>
+        @if (!string.IsNullOrWhiteSpace(Model.HospitalGSTIN))
+        {
+            <p>GSTIN : <strong>@Model.HospitalGSTIN</strong></p>
+        }
+        <br/>
+        <p>This is a computer generated document, does not require any signature. Terms and Conditions Applicable.
+        In case of any loss to the sample or technical issue, a re-sample may be required. In case of such sample loss
+        or delay of results or any other technical / operational issue, the total liability is limited to the total
+        amount of invoice price for the services requested / rendered.</p>
+    </div>
+
+    <div class="footer-meta" style="margin-top:4mm;">
+        <p>Created By : <strong>@(Model.CreatedByName ?? "System")</strong>&nbsp;&nbsp;&nbsp;Printed By : <strong>Auto</strong></p>
+        @if (!string.IsNullOrWhiteSpace(Model.HospitalGSTIN))
+        {
+            <p>GSTIN : @Model.HospitalGSTIN</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.HospitalAddress))
+        {
+            <p>Address : @Model.HospitalAddress</p>
+        }
+    </div>
+
+</div>
+
+<!-- ══ PAGE FOOTER ══ -->
+<div class="page-footer">
+    <span>@printDate</span>
+    <span>Page 1 of 1</span>
+</div>
+
+</body>
+</html>

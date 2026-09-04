@@ -79,7 +79,8 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
             {
                 BranchId = branchId,
                 DoctorId = doctorId,
-                Date = date.HasValue ? (DateTime?)date.Value.Date : null
+                QueueDate = date.HasValue ? (DateTime?)date.Value.Date : null,
+                CompanyId = (int?)null // Or however company ID is supposed to be passed if added
             },
             commandType: System.Data.CommandType.StoredProcedure);
 

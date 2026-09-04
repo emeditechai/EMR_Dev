@@ -40,6 +40,7 @@ public class PaymentSummaryViewModel
     public char? ExistingHeaderDiscountType { get; set; }
     public decimal? ExistingHeaderDiscountValue { get; set; }
     public decimal ExistingHeaderDiscountAmount { get; set; }
+    public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TotalPaid { get; set; }
     public decimal BalanceDue { get; set; }
@@ -62,6 +63,7 @@ public class PaymentLineItemSummary
 
     public bool IsGstRequired { get; set; }
     public decimal? GstPercentage { get; set; }
+    public bool IsDiscountAllowed { get; set; } = true;
 }
 
 // ── Save Payment Request ──────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ public class SavePaymentRequest
     public decimal HeaderDiscountValue { get; set; }
     public decimal HeaderDiscountAmount { get; set; }
 
+    public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public string? Notes { get; set; }
 
@@ -121,6 +124,7 @@ public class PaymentLineItemRow
     public decimal CgstAmount { get; set; }
     public decimal SgstAmount { get; set; }
     public decimal IgstAmount { get; set; }
+    public bool IsDiscountAllowed { get; set; } = true;
 }
 
 // ── Bill Payment Summary (for PrintBill view) ───────────────────────────────
@@ -143,6 +147,7 @@ public class BillPaymentSummary
     public string? DiscountType { get; set; }        // "P" = percent, "F" = flat, null = none
     public decimal DiscountValue { get; set; }
     public decimal DiscountAmount { get; set; }
+    public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TotalPaid { get; set; }
     public decimal BalanceDue { get; set; }
@@ -173,6 +178,7 @@ public class SavePaymentResult
     public bool Success { get; set; }
     public string? Error { get; set; }
     public int? PaymentHeaderId { get; set; }
+    public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TotalPaid { get; set; }
     public decimal BalanceDue { get; set; }

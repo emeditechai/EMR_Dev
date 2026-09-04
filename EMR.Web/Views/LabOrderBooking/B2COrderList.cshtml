@@ -1,0 +1,671 @@
+@model EMR.Web.Models.ViewModels.LabOrderPagedListViewModel
+@{
+    ViewData["Title"] = "B2C Order List";
+    var fromDate = Model.FromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
+    var toDate   = Model.ToDate   ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var from     = Model.TotalCount > 0 ? (Model.Page - 1) * Model.PageSize + 1 : 0;
+    var to       = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
+}
+
+@section HeadStyles {
+    <style>
+        .stat-card { border-radius:12px; border:1px solid #e9ecef; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:1rem 1.4rem; }
+        .stat-card .stat-icon { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem; }
+        .stat-card .stat-val  { font-size:1.6rem;font-weight:700;line-height:1; }
+        .table>thead>tr>th { font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; border-bottom:2px solid #dee2e6; white-space:nowrap; }
+        .table>tbody>tr>td { font-size:.88rem; vertical-align:middle; }
+        .badge-status-P { background:#d1e7dd; color:#0f5132; }
+        .badge-status-R { background:#fff3cd; color:#664d03; }
+        .badge-status-U { background:#f8d7da; color:#842029; }
+    </style>
+}
+
+@* ── Payment Modal (Standby mode for on-demand collection) ── *@
+@{
+    ViewData["PaymentModuleCode"]     = "LAB";
+    ViewData["PaymentModuleRefId"]    = 0;
+    ViewData["PaymentSuccessModalId"] = "";
+}
+<partial name="_PaymentModal" />
+
+@* ── Page header ── *@
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="bi bi-journal-text me-2 text-danger"></i>B2C Order List
+        </h1>
+        <small class="text-muted">Laboratory B2C orders, test investigations &amp; payment status</small>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="badge text-bg-danger fs-6 px-3 py-2"><i class="bi bi-droplet-half me-1"></i>LAB</span>
+        <a asp-action="B2CBooking" class="btn btn-danger px-3 fw-semibold">
+            <i class="bi bi-plus-circle-fill me-2"></i>New B2C Booking
+        </a>
+    </div>
+</div>
+
+@* ── Stat cards ── *@
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#f8d7da;color:#842029"><i class="bi bi-receipt-cutoff"></i></div>
+            <div>
+                <div class="stat-val text-danger">@Model.Stats.TotalOrders</div>
+                <div class="text-muted small">Total Orders</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#d1e7dd;color:#0a3622"><i class="bi bi-check2-circle"></i></div>
+            <div>
+                <div class="stat-val text-success">@Model.Stats.PaidCount</div>
+                <div class="text-muted small">Fully Paid</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#fff3cd;color:#664d03"><i class="bi bi-clock-history"></i></div>
+            <div>
+                <div class="stat-val text-warning-emphasis">@Model.Stats.UnpaidCount</div>
+                <div class="text-muted small">Unpaid / Partial</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card d-flex gap-3 align-items-center">
+            <div class="stat-icon" style="background:#e6f4ea;color:#137333"><i class="bi bi-currency-rupee"></i></div>
+            <div>
+                <div class="stat-val text-success">₹@Model.Stats.TotalAmount.ToString("N2")</div>
+                <div class="text-muted small">Total Amount</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Filter bar ── *@
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3">
+        <form method="get" asp-action="B2COrderList" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">From Date</label>
+                <input type="date" name="fromDate" value="@fromDate" class="form-control form-control-sm" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">To Date</label>
+                <input type="date" name="toDate" value="@toDate" class="form-control form-control-sm" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">Search</label>
+                <div class="input-group input-group-sm" style="min-width:240px">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" id="orderSearchInput" value="@Model.Search"
+                           class="form-control" placeholder="Bill No, Token, Patient name, Phone…"
+                           autocomplete="off" />
+                    <button type="button" id="btnClearSearch" class="btn btn-outline-secondary"
+                            title="Clear search" style="display:@(string.IsNullOrEmpty(Model.Search) ? "none" : "")">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">Per page</label>
+                <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var ps in new[] { 10, 25, 50, 100 })
+                    {
+                        <option value="@ps" selected="@(Model.PageSize == ps ? "selected" : null)">@ps</option>
+                    }
+                </select>
+            </div>
+            <input type="hidden" name="page" value="1" />
+            <div class="col-auto d-flex gap-2 align-items-end">
+                <button type="submit" class="btn btn-sm btn-danger px-3">
+                    <i class="bi bi-funnel-fill me-1"></i>Filter
+                </button>
+                <a asp-action="B2COrderList"
+                   asp-route-fromDate="@DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd")"
+                   asp-route-toDate="@DateTime.Today.ToString("yyyy-MM-dd")"
+                   asp-route-pageSize="@Model.PageSize"
+                   class="btn btn-sm btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@* ── Orders Table ── *@
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        @if (!Model.Items.Any())
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-journal-x fs-1 opacity-50 d-block mb-2 text-danger"></i>
+                @if (!string.IsNullOrEmpty(Model.Search))
+                {
+                    <span>No lab orders matched "@Model.Search" for the selected date range.</span>
+                }
+                else
+                {
+                    <span>No lab orders found for the selected date range.</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Bill Date</th>
+                            <th>Booking Date &amp; Time</th>
+                            <th>Bill No</th>
+                            <th>Token No</th>
+                            <th>Patient ID</th>
+                            <th>Patient Name</th>
+                            <th>Phone</th>
+                            <th>Investigations</th>
+                            <th class="text-center">Tests</th>
+                            <th class="text-end">Total Amount</th>
+                            <th>Payment</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orderTbody">
+                        @foreach (var o in Model.Items)
+                        {
+                            var badgeCls = o.PaymentStatus switch { "P" => "badge-status-P", "R" => "badge-status-R", _ => "badge-status-U" };
+                            var payText  = o.PaymentStatus switch { "P" => "Paid", "R" => "Partial", _ => "Unpaid" };
+                            var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
+                            <tr data-search="@searchText">
+                                <td class="text-nowrap">@o.OrderDate.ToString("dd MMM yyyy HH:mm")</td>
+                                <td class="text-nowrap">@(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")</td>
+                                <td><span class="badge text-bg-light font-monospace border">@(o.BillNo ?? "—")</span></td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(o.TokenNo))
+                                    {
+                                        <span class="badge text-bg-warning-subtle text-warning-emphasis font-monospace border border-warning-subtle">@o.TokenNo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-light text-muted font-monospace border">Pending</span>
+                                    }
+                                </td>
+                                <td><span class="badge text-bg-info text-dark font-monospace">@o.PatientCode</span></td>
+                                <td class="fw-semibold">
+                                    @o.PatientName
+                                    @if (o.Age.HasValue || !string.IsNullOrEmpty(o.Gender) || !string.IsNullOrEmpty(o.FormattedAge))
+                                    {
+                                        <small class="text-muted d-block" style="font-size:0.75rem">
+                                            @(o.Gender ?? "")@(!string.IsNullOrEmpty(o.FormattedAge) ? $", {o.FormattedAge}" : (o.Age.HasValue ? $", {o.Age.Value} yrs" : ""))
+                                        </small>
+                                    }
+                                </td>
+                                <td>@(o.PhoneNumber ?? "—")</td>
+                                <td style="max-width: 250px;">
+                                    @if (!string.IsNullOrEmpty(o.TestNamesSummary))
+                                    {
+                                        <span class="d-inline-block text-truncate w-100" title="@o.TestNamesSummary">
+                                            @o.TestNamesSummary
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
+                                <td class="text-center"><span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span></td>
+                                <td class="text-end fw-semibold @(o.PaymentStatus == "P" ? "text-success" : (o.PaymentStatus == "R" ? "text-warning-emphasis" : "text-danger"))">
+                                    ₹@o.TotalAmount.ToString("N2")
+                                </td>
+                                <td>
+                                    @if (!o.IsActive)
+                                    {
+                                        <span class="badge rounded-pill bg-danger">Cancelled</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge rounded-pill @badgeCls">@payText</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
+                                                data-bs-toggle="dropdown"
+                                                aria-expanded="false">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                        onclick="openDetailsModal(@o.LabOrderId)">
+                                                    <i class="bi bi-eye-fill me-2 text-primary"></i>View Details
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item" href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = o.LabOrderId })" target="_blank">
+                                                    <i class="bi bi-printer-fill me-2 text-dark"></i>Print Bill
+                                                </a>
+                                            </li>
+                                            @if (o.PaymentStatus != "P")
+                                            {
+                                                <li>
+                                                    <button type="button" class="dropdown-item"
+                                                            onclick="collectOrderPayment(@o.LabOrderId)">
+                                                        <i class="bi bi-cash-coin me-2 text-success"></i>Collect Payment
+                                                    </button>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        <tr id="noFilterMatch" style="display:none">
+                            <td colspan="12" class="text-center text-muted py-4">
+                                <i class="bi bi-search me-2"></i>No rows matched your search filter.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            @* ── Pagination ── *@
+            @if (Model.TotalPages > 1 || Model.TotalCount > 0)
+            {
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-2 border-top">
+                    <small class="text-muted">
+                        @if (Model.TotalCount > 0)
+                        {
+                            <span id="showingCount">Showing @from–@to of @Model.TotalCount records</span>
+                        }
+                    </small>
+                    @if (Model.TotalPages > 1)
+                    {
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item @(!Model.HasPrevious ? "disabled" : "")">
+                                    <a class="page-link"
+                                       asp-action="B2COrderList"
+                                       asp-route-page="@(Model.Page - 1)"
+                                       asp-route-pageSize="@Model.PageSize"
+                                       asp-route-fromDate="@fromDate"
+                                       asp-route-toDate="@toDate"
+                                       asp-route-search="@Model.Search">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                                @{
+                                    int startPage = Math.Max(1, Model.Page - 2);
+                                    int endPage   = Math.Min(Model.TotalPages, Model.Page + 2);
+                                }
+                                @if (startPage > 1)
+                                {
+                                    <li class="page-item">
+                                        <a class="page-link" asp-action="B2COrderList" asp-route-page="1"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
+                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
+                                    </li>
+                                    @if (startPage > 2)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                }
+                                @for (int pg = startPage; pg <= endPage; pg++)
+                                {
+                                    <li class="page-item @(pg == Model.Page ? "active" : "")">
+                                        <a class="page-link" asp-action="B2COrderList" asp-route-page="@pg"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
+                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
+                                    </li>
+                                }
+                                @if (endPage < Model.TotalPages)
+                                {
+                                    @if (endPage < Model.TotalPages - 1)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                    }
+                                    <li class="page-item">
+                                        <a class="page-link" asp-action="B2COrderList" asp-route-page="@Model.TotalPages"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
+                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                    </li>
+                                }
+                                <li class="page-item @(!Model.HasNext ? "disabled" : "")">
+                                    <a class="page-link"
+                                       asp-action="B2COrderList"
+                                       asp-route-page="@(Model.Page + 1)"
+                                       asp-route-pageSize="@Model.PageSize"
+                                       asp-route-fromDate="@fromDate"
+                                       asp-route-toDate="@toDate"
+                                       asp-route-search="@Model.Search">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@* ── View Order Detail Modal ── *@
+<div class="modal fade" id="viewOrderModal" tabindex="-1" aria-labelledby="viewOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="viewOrderModalLabel">
+                    <i class="bi bi-journal-check me-2"></i>Lab Order Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewOrderBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-danger" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="btnModalPrintBill" target="_blank" class="btn btn-outline-primary">
+                    <i class="bi bi-printer me-1"></i>Print Bill
+                </a>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="btnModalCollectPay" style="display:none" onclick="collectFromModal()">
+                    <i class="bi bi-cash-coin me-1"></i>Collect Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+    let _currentViewOrderId = 0;
+
+    // ── Instant row search filter ─────────────────────────────────────────────
+    (function () {
+        const input    = document.getElementById('orderSearchInput');
+        const btnClear = document.getElementById('btnClearSearch');
+        const tbody    = document.getElementById('orderTbody');
+        const noMatch  = document.getElementById('noFilterMatch');
+        const countEl  = document.getElementById('showingCount');
+        if (!input || !tbody) return;
+
+        const totalText = countEl?.textContent ?? '';
+
+        function filterRows(q) {
+            const term = q.trim().toLowerCase();
+            const rows = tbody.querySelectorAll('tr[data-search]');
+            let visible = 0;
+
+            rows.forEach(tr => {
+                const match = !term || tr.dataset.search.includes(term);
+                tr.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+
+            if (noMatch) noMatch.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
+            if (countEl) {
+                countEl.textContent = term
+                    ? `Showing ${visible} of ${rows.length} records (filtered)`
+                    : totalText;
+            }
+            if (btnClear) btnClear.style.display = q ? '' : 'none';
+        }
+
+        input.addEventListener('input', function () { filterRows(this.value); });
+        btnClear?.addEventListener('click', function () {
+            input.value = '';
+            filterRows('');
+            input.focus();
+        });
+        if (input.value) filterRows(input.value);
+    })();
+
+    // ── View Order Details ───────────────────────────────────────────────────
+        function formatAgePattern(dobValue, fallbackAge) {
+            if (!dobValue && (fallbackAge === null || fallbackAge === undefined || fallbackAge === '')) return '';
+            if (dobValue) {
+                const birthDate = new Date(dobValue);
+                if (!isNaN(birthDate.getTime())) {
+                    const today = new Date();
+                    let years = today.getFullYear() - birthDate.getFullYear();
+                    let months = today.getMonth() - birthDate.getMonth();
+                    let days = today.getDate() - birthDate.getDate();
+                    if (days < 0) {
+                        months--;
+                        const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                        days += prevMonth.getDate();
+                    }
+                    if (months < 0) {
+                        years--;
+                        months += 12;
+                    }
+                    years = Math.max(0, years);
+                    months = Math.max(0, months);
+                    days = Math.max(0, days);
+                    const yy = String(years).padStart(2, '0');
+                    const mm = String(months).padStart(2, '0');
+                    const dd = String(days).padStart(2, '0');
+                    return `${yy} Year ${mm} Month ${dd} Days`;
+                }
+            }
+            const y = parseInt(fallbackAge, 10) || 0;
+            return `${String(y).padStart(2, '0')} Year 00 Month 00 Days`;
+        }
+
+        async function openDetailsModal(id) {
+        _currentViewOrderId = id;
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('viewOrderModal'));
+        const body  = document.getElementById('viewOrderBody');
+        const btnPay = document.getElementById('btnModalCollectPay');
+        const btnPrint = document.getElementById('btnModalPrintBill');
+        if (btnPay) btnPay.style.display = 'none';
+        if (btnPrint) btnPrint.href = `@Url.Action("PrintBill", "LabOrderBooking")?labOrderId=${id}`;
+
+        body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div></div>';
+        modal.show();
+
+        try {
+            const res = await fetch(`@Url.Action("GetOrderDetail", "LabOrderBooking")?id=${id}`);
+            if (!res.ok) throw new Error('Order not found');
+            const d = await res.json();
+
+            if (btnPay && d.paymentStatus !== 'P') {
+                btnPay.style.display = '';
+            }
+
+            const payBadge = d.isActive === false
+                ? '<span class="badge bg-danger">Cancelled</span>'
+                : (d.paymentStatus === 'P'
+                    ? '<span class="badge bg-success">Fully Paid</span>'
+                    : (d.paymentStatus === 'R'
+                        ? '<span class="badge bg-warning text-dark">Partially Paid</span>'
+                        : '<span class="badge bg-danger">Unpaid</span>'));
+
+            let itemsHtml = '';
+            if (d.items && d.items.length > 0) {
+                itemsHtml = d.items.map((it, idx) => `
+                    <tr class="${it.isActive === false ? 'text-decoration-line-through text-muted' : ''}">
+                        <td>${idx + 1}</td>
+                        <td><span class="badge ${it.isActive === false ? 'bg-secondary' : 'bg-light text-dark border'} font-monospace">${it.testCode ?? '—'}</span></td>
+                        <td class="fw-semibold">${it.testName ?? '—'}</td>
+                        <td>${it.departmentName ?? '—'}</td>
+                        <td>${it.categoryName ?? '—'}</td>
+                        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">${it.sampleType ?? '—'}</span></td>
+                        <td>${it.tatHours ? it.tatHours + ' hrs' : '—'}</td>
+                        <td class="text-end font-monospace">
+                            ${it.isActive === false 
+                                ? '<span class="badge bg-danger">Cancelled</span>' 
+                                : `<div>₹${(it.price || 0).toFixed(2)}</div>
+                                   ${(it.discountAmount || 0) > 0 ? `<div class="text-success small" style="font-size:0.75rem;">Disc: -₹${(it.discountAmount).toFixed(2)}</div><div class="text-muted small" style="font-size:0.75rem;">Net: ₹${(it.netAmount || (it.price - it.discountAmount)).toFixed(2)}</div>` : ''}`
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                itemsHtml = '<tr><td colspan="8" class="text-center text-muted py-3">No investigation items found.</td></tr>';
+            }
+
+            let payHtml = '';
+            if (d.payments && d.payments.length > 0) {
+                payHtml = `
+                    <div class="mt-4">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-credit-card-2-front me-2 text-success"></i>Payment History</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Method</th>
+                                        <th>Receipt No</th>
+                                        <th>Ref / Cheque / UPI</th>
+                                        <th class="text-end">Amount Paid</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${d.payments.map(p => `
+                                        <tr>
+                                            <td>${p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
+                                            <td><span class="badge bg-light text-dark border">${p.methodName ?? '—'}</span></td>
+                                            <td><span class="font-monospace">${p.receiptNo ?? '—'}</span></td>
+                                            <td class="small text-muted">${p.transactionRef || p.chequeNo || p.upiRefNo || p.cardLast4 || '—'}</td>
+                                            <td class="text-end font-monospace fw-bold text-success">₹${(p.paidAmount || 0).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const cancelledBanner = d.isActive === false
+                ? `<div class="alert alert-danger py-2 mb-3 fw-bold text-center"><i class="bi bi-x-circle-fill me-2"></i>This order has been cancelled.</div>`
+                : '';
+
+            body.innerHTML = `
+                ${cancelledBanner}
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded border h-100">
+                            <h6 class="fw-bold text-danger mb-2"><i class="bi bi-person-fill me-2"></i>Patient Details</h6>
+                            <div class="row g-1 small">
+                                <div class="col-4 text-muted">Patient ID:</div>
+                                <div class="col-8 fw-bold font-monospace text-primary">${d.patientCode ?? '—'}</div>
+                                <div class="col-4 text-muted">Name:</div>
+                                <div class="col-8 fw-bold">${d.patientName ?? '—'}</div>
+                                <div class="col-4 text-muted">Gender / Age:</div>
+                                <div class="col-8">${d.gender ?? '—'}${d.formattedAge ? ', ' + d.formattedAge : (d.dateOfBirth ? ', ' + formatAgePattern(d.dateOfBirth, d.age) : (d.age ? ', ' + d.age + ' yrs' : ''))}</div>
+                                <div class="col-4 text-muted">Phone:</div>
+                                <div class="col-8">${d.phoneNumber ?? '—'}</div>
+                                <div class="col-4 text-muted">Email:</div>
+                                <div class="col-8">${d.emailId ?? '—'}</div>
+                                <div class="col-4 text-muted">Address:</div>
+                                <div class="col-8">${d.address ?? '—'}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded border h-100">
+                            <h6 class="fw-bold text-danger mb-2"><i class="bi bi-receipt me-2"></i>Order &amp; Token Info</h6>
+                            <div class="row g-1 small">
+                                <div class="col-4 text-muted">Bill No:</div>
+                                <div class="col-8 fw-bold font-monospace text-success">${d.billNo ?? '—'}</div>
+                                <div class="col-4 text-muted">Token No:</div>
+                                <div class="col-8 fw-bold font-monospace text-warning-emphasis">${d.tokenNo ?? 'Pending Payment'}</div>
+                                <div class="col-4 text-muted">Bill Date:</div>
+                                <div class="col-8">${d.orderDate ? new Date(d.orderDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
+                                <div class="col-4 text-muted">Booking Date:</div>
+                                <div class="col-8 fw-semibold text-danger">${d.bookingDate ? new Date(d.bookingDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
+                                <div class="col-4 text-muted">Collection:</div>
+                                <div class="col-8">${d.collectionType === 'Home Collection' ? '<span class="badge bg-danger"><i class="bi bi-house-door-fill me-1"></i>Home</span>' : '<span class="badge bg-primary"><i class="bi bi-building me-1"></i>Lab</span>'}</div>
+                                <div class="col-4 text-muted">Branch:</div>
+                                <div class="col-8">${d.branchName ?? '—'}</div>
+                                <div class="col-4 text-muted">Booked By:</div>
+                                <div class="col-8">${d.createdByName ?? '—'}</div>
+                                <div class="col-4 text-muted">Status:</div>
+                                <div class="col-8">${payBadge}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-checklist me-2 text-primary"></i>Investigation Tests (${d.items?.length || 0})</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover table-bordered align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Test Code</th>
+                                    <th>Test Name</th>
+                                    <th>Department</th>
+                                    <th>Category</th>
+                                    <th>Sample</th>
+                                    <th>TAT</th>
+                                    <th class="text-end">Price (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                    <div class="border rounded p-3 bg-light" style="min-width: 260px;">
+                        <div class="d-flex justify-content-between mb-1 small">
+                            <span class="text-muted">Sub Total:</span>
+                            <span class="fw-bold font-monospace">₹${(d.totalAmount || 0).toFixed(2)}</span>
+                        </div>
+                        ${d.discountAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small text-danger">
+                                <span>Discount:</span>
+                                <span class="font-monospace">-₹${(d.discountAmount || 0).toFixed(2)}</span>
+                            </div>
+                        ` : ''}
+                        <div class="d-flex justify-content-between mb-1 small">
+                            <span class="text-muted">Net Amount:</span>
+                            <span class="fw-bold font-monospace text-primary">₹${(d.netAmount || d.totalAmount || 0).toFixed(2)}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1 small text-success">
+                            <span>Paid Amount:</span>
+                            <span class="fw-bold font-monospace">₹${(d.totalPaid || 0).toFixed(2)}</span>
+                        </div>
+                        <div class="d-flex justify-content-between border-top pt-1 mt-1 fw-bold ${d.balanceDue > 0 ? 'text-danger' : 'text-success'}">
+                            <span>Balance Due:</span>
+                            <span class="font-monospace">₹${(d.balanceDue || 0).toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                ${payHtml}
+            `;
+        } catch (e) {
+            body.innerHTML = `<div class="alert alert-danger my-3">Error loading order details: ${e.message}</div>`;
+        }
+    }
+
+    // ── Payment Collection ───────────────────────────────────────────────────
+    function collectOrderPayment(orderId) {
+        if (typeof pmOpenFor === 'function') {
+            pmOpenFor(orderId, function() {
+                location.reload();
+            }, 'LAB');
+        }
+    }
+
+    function collectFromModal() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('viewOrderModal'));
+        if (modal) modal.hide();
+        collectOrderPayment(_currentViewOrderId);
+    }
+
+    // Alias for compatibility
+    window.openDetailsModal = openDetailsModal;
+    window.viewOrderDetail = openDetailsModal;
+    </script>
+}

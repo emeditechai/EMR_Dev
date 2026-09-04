@@ -88,6 +88,10 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 // Ledger (Dapper)
 builder.Services.AddScoped<ILedgerService, LedgerService>();
 
+// Cancellation & Refund (Dapper)
+builder.Services.AddScoped<ICancellationService, CancellationService>();
+
+
 // Email (SMTP)
 builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -118,6 +122,7 @@ builder.Services.AddScoped<IEmrConsultationApiClient,   EmrConsultationApiClient
 builder.Services.AddScoped<IPatientApiClient,           PatientApiClient>();
 builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>();
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
+builder.Services.AddScoped<ILabOrderApiClient,          LabOrderApiClient>();
 builder.Services.AddScoped<IReportApiClient, ReportApiClient>();
 builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();

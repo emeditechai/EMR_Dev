@@ -15,6 +15,7 @@ public interface IPatientService
     Task<PatientMaster?> GetByIdAsync(int patientId);
 
     /// <summary>Quick search by phone number – returns matching patients for popup.</summary>
+    Task<IEnumerable<PatientQuickSearchResult>> SearchAnyAsync(string term, int? branchId = null);
     Task<IEnumerable<PatientQuickSearchResult>> SearchByPhoneAsync(string phone, int? branchId = null);
 
     /// <summary>Quick search by patient code.</summary>
@@ -41,6 +42,9 @@ public interface IPatientService
 
     /// <summary>Updates ONLY patient demographics (Sections 1 &amp; 2). No OPD bill row is touched.</summary>
     Task UpdateDemographicsAsync(PatientMaster patient, int? userId);
+
+    /// <summary>Creates ONLY patient demographics and returns the new PatientId.</summary>
+    Task<int> CreateDemographicsOnlyAsync(PatientMaster patient, int? userId);
 
     /// <summary>Soft-deletes a patient.</summary>
     Task DeleteAsync(int patientId, int? userId);

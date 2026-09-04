@@ -527,7 +527,7 @@
                         <div class="p-2 border rounded bg-light">
                             <div class="text-muted small mb-1 fw-semibold" style="font-size:.7rem">PATIENT NAME</div>
                             <div class="fw-semibold">${d.patientName}</div>
-                            <div class="text-muted small">${d.gender || ''}${d.age != null ? ' · ' + d.age + ' yrs' : ''}</div>
+                            <div class="text-muted small">${d.gender || ''}${d.formattedAge ? ' · ' + d.formattedAge : (d.age != null ? ' · ' + d.age + ' yrs' : '')}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-4">

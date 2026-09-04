@@ -1788,7 +1788,7 @@
                 $('#emrPatientCode').val(data.booking.patientCode || 'N/A');
                 $('#emrPatientName').val(data.booking.patientName || 'N/A');
                 $('#emrGender').val(data.booking.gender || 'N/A');
-                $('#emrAge').val(data.booking.age ? `${data.booking.age} Yrs` : 'N/A');
+                $('#emrAge').val(data.booking.age ? (data.booking.age.includes('Year') ? data.booking.age : `${data.booking.age} Yrs`) : 'N/A');
                 $('#emrMobileNumber').val(data.booking.mobileNumber || 'N/A');
                 $('#emrVisitDate').val(data.booking.visitDate || 'N/A');
                 

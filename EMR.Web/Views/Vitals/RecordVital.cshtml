@@ -927,11 +927,8 @@
         document.getElementById('ptCode').textContent   = p.patientCode??'';
         document.getElementById('ptGender').textContent = p.gender??'—';
         document.getElementById('ptPhone').textContent  = p.phoneNumber??'—';
-        if (p.dateOfBirth) {
-            const dob=new Date(p.dateOfBirth),today=new Date();
-            let age=today.getFullYear()-dob.getFullYear();
-            if(today<new Date(today.getFullYear(),dob.getMonth(),dob.getDate())) age--;
-            document.getElementById('ptAge').textContent = age+' yrs';
+        if (p.formattedAge) {
+            document.getElementById('ptAge').textContent = p.formattedAge;
         }
         document.getElementById('formGuard').classList.add('unlocked');
         document.getElementById('patientInfoCard').style.display = '';

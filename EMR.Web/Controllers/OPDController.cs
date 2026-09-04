@@ -436,11 +436,64 @@ public class OPDController(
             }
         }
 
+        // Validate & Reconcile Age / Date of Birth
+        if (model.AgeMonths is > 12)
+            ModelState.AddModelError(nameof(model.AgeMonths), "Month cannot exceed 12.");
+        if (model.AgeDays is > 30)
+            ModelState.AddModelError(nameof(model.AgeDays), "Days cannot exceed 30.");
+        if (model.AgeYears is < 0 or > 150)
+            ModelState.AddModelError(nameof(model.AgeYears), "Years must be between 0 and 150.");
+
+        bool hasAgeInput = model.AgeYears.HasValue || model.AgeMonths.HasValue || model.AgeDays.HasValue;
+        if (hasAgeInput)
+        {
+            int y = model.AgeYears ?? 0;
+            int m = model.AgeMonths ?? 0;
+            int d = model.AgeDays ?? 0;
+            if (y == 0 && m == 0 && d == 0 && !model.DateOfBirth.HasValue)
+            {
+                ModelState.AddModelError(nameof(model.AgeYears), "Age is required.");
+            }
+            else
+            {
+                model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+            }
+        }
+        else if (model.DateOfBirth.HasValue)
+        {
+            if (model.DateOfBirth.Value > DateTime.Today)
+            {
+                ModelState.AddModelError(nameof(model.DateOfBirth), "Date of Birth cannot be in the future.");
+            }
+            else
+            {
+                var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                model.AgeYears = y;
+                model.AgeMonths = m;
+                model.AgeDays = d;
+            }
+        }
+        else
+        {
+            ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await PopulateSelectLists(model);
+            return View(model);
+        }
+
         var patient = MapViewModelToPatient(model);
         patient.BranchId = branchId;
 
         if (model.PatientId == 0)   // CREATE — new patient + first OPD visit
         {
+            if (string.IsNullOrWhiteSpace(patient.Address) && !string.IsNullOrWhiteSpace(patient.HomeCollectionAddress))
+            {
+                patient.Address = patient.HomeCollectionAddress;
+            }
+
             var opdBill = MapViewModelToOPDBill(model);
             opdBill.BranchId = branchId;
             var (patientCode, billNo, tokenNo, newPatientId, newSvcId) = await patientService.CreateAsync(
@@ -475,6 +528,22 @@ public class OPDController(
             if (string.IsNullOrWhiteSpace(model.PhotoPath))
             {
                 patient.PhotoPath = existing?.PhotoPath;
+            }
+            if (string.IsNullOrWhiteSpace(patient.HomeCollectionAddress))
+            {
+                patient.HomeCollectionAddress = existing?.HomeCollectionAddress;
+            }
+            if (!patient.Latitude.HasValue)
+            {
+                patient.Latitude = existing?.Latitude;
+            }
+            if (!patient.Longitude.HasValue)
+            {
+                patient.Longitude = existing?.Longitude;
+            }
+            if (string.IsNullOrWhiteSpace(patient.Address) && !string.IsNullOrWhiteSpace(patient.HomeCollectionAddress))
+            {
+                patient.Address = patient.HomeCollectionAddress;
             }
 
             if (model.DemographicsOnly)
@@ -524,6 +593,235 @@ public class OPDController(
 
             TempData["Success"] = "Patient record updated successfully.";
             return RedirectToAction(nameof(Index));
+        }
+    }
+
+    // ─── Save Registration With Payment (Atomic Pre-Save Flow) ────────────────
+    [HttpPost]
+    public async Task<IActionResult> SaveRegistrationWithPayment(
+        [FromForm] PatientRegistrationViewModel model,
+        [FromForm] IFormFile? profilePictureFile,
+        [FromForm] IFormFile? identificationFile,
+        [FromForm] string? paymentDataJson)
+    {
+        try
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (branchId is null)
+            {
+                return Json(new { success = false, error = "Please select a branch first." });
+            }
+
+            List<OPDServiceLineItem>? lineItems = null;
+            if (!string.IsNullOrWhiteSpace(model.LineItemsJson))
+            {
+                try
+                {
+                    var serializeOptions = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    };
+                    lineItems = System.Text.Json.JsonSerializer.Deserialize<List<OPDServiceLineItem>>(model.LineItemsJson, serializeOptions);
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { success = false, error = $"Invalid line items: {ex.Message}" });
+                }
+            }
+
+            if (lineItems == null || !lineItems.Any())
+            {
+                return Json(new { success = false, error = "At least one service or consultation fee item is required." });
+            }
+            if (lineItems.Any(item => string.IsNullOrEmpty(item.ServiceType) || !item.ServiceId.HasValue || item.ServiceId <= 0))
+            {
+                return Json(new { success = false, error = "Please select a Type and Item/Service Name for all rows." });
+            }
+
+            // Save uploaded files
+            if (identificationFile is { Length: > 0 })
+            {
+                var allowed = new[] { ".pdf", ".jpg", ".jpeg", ".png" };
+                var ext = Path.GetExtension(identificationFile.FileName).ToLowerInvariant();
+                if (!allowed.Contains(ext))
+                {
+                    return Json(new { success = false, error = "Only PDF, JPG, JPEG and PNG files are allowed for Identification." });
+                }
+                var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "patients");
+                Directory.CreateDirectory(uploadsDir);
+                var fileName = $"{Guid.NewGuid()}{ext}";
+                var fullPath = Path.Combine(uploadsDir, fileName);
+                await using (var stream = new FileStream(fullPath, FileMode.Create))
+                {
+                    await identificationFile.CopyToAsync(stream);
+                }
+                model.IdentificationFilePath = $"/uploads/patients/{fileName}";
+            }
+
+            if (profilePictureFile is { Length: > 0 })
+            {
+                var allowed = new[] { ".jpg", ".jpeg", ".png", ".gif" };
+                var ext = Path.GetExtension(profilePictureFile.FileName).ToLowerInvariant();
+                if (!allowed.Contains(ext))
+                {
+                    return Json(new { success = false, error = "Only JPG, JPEG, PNG and GIF files are allowed for Profile Picture." });
+                }
+                var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "patients");
+                Directory.CreateDirectory(uploadsDir);
+                var fileName = $"{Guid.NewGuid()}{ext}";
+                var fullPath = Path.Combine(uploadsDir, fileName);
+                await using (var stream = new FileStream(fullPath, FileMode.Create))
+                {
+                    await profilePictureFile.CopyToAsync(stream);
+                }
+                model.PhotoPath = $"/uploads/patients/{fileName}";
+            }
+
+            // Reconcile Age / Date of Birth
+            if (model.AgeMonths is > 12)
+                return Json(new { success = false, error = "Month cannot exceed 12." });
+            if (model.AgeDays is > 30)
+                return Json(new { success = false, error = "Days cannot exceed 30." });
+            if (model.AgeYears is < 0 or > 150)
+                return Json(new { success = false, error = "Years must be between 0 and 150." });
+
+            bool hasSaveAge = model.AgeYears.HasValue || model.AgeMonths.HasValue || model.AgeDays.HasValue;
+            if (hasSaveAge)
+            {
+                int y = model.AgeYears ?? 0;
+                int m = model.AgeMonths ?? 0;
+                int d = model.AgeDays ?? 0;
+                if (y > 0 || m > 0 || d > 0)
+                {
+                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                }
+            }
+            else if (model.DateOfBirth.HasValue)
+            {
+                var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                model.AgeYears = y;
+                model.AgeMonths = m;
+                model.AgeDays = d;
+            }
+
+            // Uniqueness check: Phone + Relation per active patient
+            if (model.RelationId.HasValue)
+            {
+                var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
+                    p.PhoneNumber == model.PhoneNumber.Trim() &&
+                    p.RelationId == model.RelationId &&
+                    p.IsActive &&
+                    p.PatientId != model.PatientId);
+                if (dupExists)
+                {
+                    return Json(new { success = false, error = "A patient with this Phone Number and Relation already exists." });
+                }
+            }
+
+            var patient = MapViewModelToPatient(model);
+            patient.BranchId = branchId;
+
+            string patientCode = "";
+            string billNo = "";
+            string? tokenNo = null;
+            int actualPatientId = model.PatientId;
+            int newSvcId = 0;
+
+            if (model.PatientId == 0)   // CREATE — new patient + first OPD visit
+            {
+                if (string.IsNullOrWhiteSpace(patient.Address) && !string.IsNullOrWhiteSpace(patient.HomeCollectionAddress))
+                {
+                    patient.Address = patient.HomeCollectionAddress;
+                }
+
+                var opdBill = MapViewModelToOPDBill(model);
+                opdBill.BranchId = branchId;
+                var res = await patientService.CreateAsync(
+                    patient, opdBill, model.LineItemsJson, User.GetUserId());
+                patientCode = res.PatientCode;
+                billNo = res.OPDBillNo;
+                tokenNo = res.TokenNo;
+                actualPatientId = res.NewPatientId;
+                newSvcId = res.NewOPDServiceId;
+
+                await auditLogService.LogAsync("OPD", "Patient.Create",
+                    $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
+
+                await TryGeneratePatientLoginAsync(actualPatientId, patientCode, patient.PhoneNumber, patient.EmailId, patient.FirstName + " " + patient.LastName, branchId.Value);
+            }
+            else   // UPDATE — existing patient + new visit
+            {
+                var existing = await patientService.GetByIdAsync(model.PatientId);
+                if (string.IsNullOrWhiteSpace(model.IdentificationFilePath)) patient.IdentificationFilePath = existing?.IdentificationFilePath;
+                if (string.IsNullOrWhiteSpace(model.PhotoPath)) patient.PhotoPath = existing?.PhotoPath;
+                if (string.IsNullOrWhiteSpace(patient.HomeCollectionAddress)) patient.HomeCollectionAddress = existing?.HomeCollectionAddress;
+                if (!patient.Latitude.HasValue) patient.Latitude = existing?.Latitude;
+                if (!patient.Longitude.HasValue) patient.Longitude = existing?.Longitude;
+                if (string.IsNullOrWhiteSpace(patient.Address) && !string.IsNullOrWhiteSpace(patient.HomeCollectionAddress)) patient.Address = patient.HomeCollectionAddress;
+
+                var opdBill = MapViewModelToOPDBill(model);
+                opdBill.BranchId  = branchId;
+                opdBill.PatientId = model.PatientId;
+                var res = await patientService.UpdateAsync(
+                    patient, opdBill, model.LineItemsJson, User.GetUserId());
+                billNo = res.OPDBillNo;
+                tokenNo = res.TokenNo;
+                newSvcId = res.NewOPDServiceId;
+                patientCode = existing?.PatientCode ?? "";
+
+                await auditLogService.LogAsync("OPD", "Patient.NewVisit",
+                    $"New visit patient: {patient.PatientId} Bill:{billNo}");
+
+                await TryGeneratePatientLoginAsync(patient.PatientId, patientCode, patient.PhoneNumber, patient.EmailId, patient.FirstName + " " + patient.LastName, branchId.Value);
+            }
+
+            // Ledger Entry
+            decimal totalAmount = lineItems.Sum(x => x.ServiceCharges);
+            await ledgerService.PostOpdBillLedgerAsync(newSvcId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), billNo);
+            TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
+
+            // Process Payment
+            SavePaymentResult? paymentResult = null;
+            if (!string.IsNullOrWhiteSpace(paymentDataJson))
+            {
+                var paymentReq = System.Text.Json.JsonSerializer.Deserialize<SavePaymentRequest>(paymentDataJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (paymentReq != null)
+                {
+                    paymentReq.ModuleCode = "OPD";
+                    paymentReq.ModuleRefId = newSvcId;
+                    paymentReq.OPDServiceId = newSvcId;
+                    paymentReq.PatientId = actualPatientId;
+                    paymentReq.BranchId = branchId.Value;
+                    paymentReq.SubTotal = totalAmount;
+
+                    paymentResult = await paymentService.SavePaymentAsync(paymentReq, User.GetUserId());
+                    if (paymentResult != null && !paymentResult.Success)
+                    {
+                        return Json(new { success = false, error = paymentResult.Error ?? "Failed to save payment." });
+                    }
+                }
+            }
+
+            string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+
+            return Json(new
+            {
+                success = true,
+                opdServiceId = newSvcId,
+                billNo = billNo,
+                tokenNo = paymentResult?.TokenNo ?? tokenNo,
+                patientCode = patientCode,
+                patientName = patientFullName,
+                totalAmount = totalAmount,
+                netAmount = paymentResult?.NetAmount ?? totalAmount,
+                totalPaid = paymentResult?.TotalPaid ?? 0,
+                balanceDue = paymentResult?.BalanceDue ?? totalAmount,
+                paymentStatus = paymentResult?.PaymentStatus ?? (totalAmount == 0 ? "P" : "U")
+            });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = $"An error occurred while saving registration: {ex.Message}" });
         }
     }
 
@@ -861,6 +1159,7 @@ public class OPDController(
                 detail.Gender,
                 detail.DateOfBirth,
                 detail.Age,
+                detail.FormattedAge,
                 detail.ConsultingDoctorName,
                 detail.VisitDate,
                 detail.TotalAmount,
@@ -951,6 +1250,20 @@ public class OPDController(
     }
 
     // ─── AJAX APIs ────────────────────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> SearchAnyPatient(string term)
+    {
+        if (string.IsNullOrWhiteSpace(term) || term.Length < 2)
+            return Json(Array.Empty<object>());
+        
+        var branchId = User.GetCurrentBranchId();
+        var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId);
+        int? searchBranchId = settings?.GlobalPatientSearchRequired == true ? null : branchId;
+
+        var results = await patientService.SearchAnyAsync(term.Trim(), searchBranchId);
+        return Json(results);
+    }
 
     [HttpGet]
     public async Task<IActionResult> SearchPatientByPhone(string phone)
@@ -1090,6 +1403,30 @@ public class OPDController(
             // Silently fallback
         }
 
+        List<PatientLabOrderHistoryItem> labOrders = [];
+        try
+        {
+            using var con = db.CreateConnection();
+            labOrders = (await con.QueryAsync<PatientLabOrderHistoryItem>(@"
+                SELECT 
+                    l.LabOrderId,
+                    l.OrderDate,
+                    l.BillNo,
+                    l.TotalAmount,
+                    ISNULL(ph.SubTotal - ph.NetAmount, 0) AS DiscountAmount,
+                    ISNULL(ph.TotalPaid, 0) AS PaidAmount,
+                    ISNULL(ph.PaymentStatus, 'U') AS PaymentStatus
+                FROM LabOrder l
+                LEFT JOIN PaymentHeader ph ON ph.ModuleCode = 'LAB' AND ph.ModuleRefId = l.LabOrderId AND ph.IsActive = 1
+                WHERE l.PatientId = @PatientId AND l.IsActive = 1
+                ORDER BY l.LabOrderId DESC",
+                new { PatientId = id })).ToList();
+        }
+        catch (Exception)
+        {
+            // Silently fallback
+        }
+
         var model = new PatientDetailsViewModel
         {
             Patient = patient,
@@ -1103,7 +1440,8 @@ public class OPDController(
             CountryName = names.CountryName,
             IdentificationTypeName = idTypeName,
             VisitHistory = visits,
-            VitalHistory = vitals
+            VitalHistory = vitals,
+            LabOrderHistory = labOrders
         };
 
         return View(model);
@@ -1201,6 +1539,10 @@ public class OPDController(
 
         var names = await patientService.GetDemographicNamesAsync(id);
 
+        var (ageY, ageM, ageD) = patient.DateOfBirth.HasValue
+            ? EMR.Web.Utils.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value)
+            : (0, 0, 0);
+
         return Json(new
         {
             // Patient demographics
@@ -1211,6 +1553,10 @@ public class OPDController(
             patient.PhotoPath,
             IdentificationTypeName = idTypeName,
             patient.BloodGroup, patient.KnownAllergies, patient.Remarks, patient.DateOfBirth,
+            AgeYears  = patient.DateOfBirth.HasValue ? ageY : (int?)null,
+            AgeMonths = patient.DateOfBirth.HasValue ? ageM : (int?)null,
+            AgeDays   = patient.DateOfBirth.HasValue ? ageD : (int?)null,
+            FormattedAge = EMR.Web.Utils.AgeCalculator.FormatAgePattern(patient.DateOfBirth),
             // Resolved display names (replace raw IDs)
             ReligionName      = names.ReligionName,
             MaritalStatusName = names.MaritalStatusName,
@@ -1224,6 +1570,9 @@ public class OPDController(
             patient.ReligionId, patient.MaritalStatusId, patient.OccupationId,
             patient.CountryId, patient.StateId, patient.DistrictId, patient.CityId, patient.AreaId,
             patient.Address,
+            patient.HomeCollectionAddress,
+            patient.Latitude,
+            patient.Longitude,
             patient.RelationId,
             // Latest OPD bill header (null-safe) — only doctor needed for pre-fill
             OPDServiceId       = svc?.OPDServiceId ?? 0,
@@ -1598,6 +1947,9 @@ public class OPDController(
         CityId                = m.CityId,
         AreaId                = m.AreaId,
         Address               = m.Address?.Trim(),
+        HomeCollectionAddress = m.HomeCollectionAddress?.Trim(),
+        Latitude              = m.Latitude,
+        Longitude             = m.Longitude,
         RelationId            = m.RelationId,
         IdentificationTypeId  = m.IdentificationTypeId,
         IdentificationNumber  = m.IdentificationNumber?.Trim(),
@@ -1621,39 +1973,53 @@ public class OPDController(
         AppointmentTime    = m.AppointmentTime
     };
 
-    private static PatientRegistrationViewModel MapPatientToViewModel(PatientMaster p) => new()
+    private static PatientRegistrationViewModel MapPatientToViewModel(PatientMaster p)
     {
-        PatientId             = p.PatientId,
-        PatientCode           = p.PatientCode,
-        PhoneNumber           = p.PhoneNumber,
-        SecondaryPhoneNumber  = p.SecondaryPhoneNumber,
-        Salutation            = p.Salutation,
-        FirstName             = p.FirstName,
-        MiddleName            = p.MiddleName,
-        LastName              = p.LastName,
-        Gender                = p.Gender,
-        DateOfBirth           = p.DateOfBirth,
-        ReligionId            = p.ReligionId,
-        EmailId               = p.EmailId,
-        GuardianName          = p.GuardianName,
-        CountryId             = p.CountryId,
-        StateId               = p.StateId,
-        DistrictId            = p.DistrictId,
-        CityId                = p.CityId,
-        AreaId                = p.AreaId,
-        Address               = p.Address,
-        RelationId            = p.RelationId,
-        IdentificationTypeId  = p.IdentificationTypeId,
-        IdentificationNumber  = p.IdentificationNumber,
-        IdentificationFilePath= p.IdentificationFilePath,
-        PhotoPath             = p.PhotoPath,
-        OccupationId          = p.OccupationId,
-        MaritalStatusId       = p.MaritalStatusId,
-        BloodGroup            = p.BloodGroup,
-        KnownAllergies        = p.KnownAllergies,
-        Remarks               = p.Remarks,
-        ReferralDoctorId      = p.ReferralDoctorId,
-    };
+        var vm = new PatientRegistrationViewModel
+        {
+            PatientId             = p.PatientId,
+            PatientCode           = p.PatientCode,
+            PhoneNumber           = p.PhoneNumber,
+            SecondaryPhoneNumber  = p.SecondaryPhoneNumber,
+            Salutation            = p.Salutation,
+            FirstName             = p.FirstName,
+            MiddleName            = p.MiddleName,
+            LastName              = p.LastName,
+            Gender                = p.Gender,
+            DateOfBirth           = p.DateOfBirth,
+            ReligionId            = p.ReligionId,
+            EmailId               = p.EmailId,
+            GuardianName          = p.GuardianName,
+            CountryId             = p.CountryId,
+            StateId               = p.StateId,
+            DistrictId            = p.DistrictId,
+            CityId                = p.CityId,
+            AreaId                = p.AreaId,
+            Address               = p.Address,
+            HomeCollectionAddress = p.HomeCollectionAddress,
+            Latitude              = p.Latitude,
+            Longitude             = p.Longitude,
+            RelationId            = p.RelationId,
+            IdentificationTypeId  = p.IdentificationTypeId,
+            IdentificationNumber  = p.IdentificationNumber,
+            IdentificationFilePath= p.IdentificationFilePath,
+            PhotoPath             = p.PhotoPath,
+            OccupationId          = p.OccupationId,
+            MaritalStatusId       = p.MaritalStatusId,
+            BloodGroup            = p.BloodGroup,
+            KnownAllergies        = p.KnownAllergies,
+            Remarks               = p.Remarks,
+            ReferralDoctorId      = p.ReferralDoctorId,
+        };
+        if (p.DateOfBirth.HasValue)
+        {
+            var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(p.DateOfBirth.Value);
+            vm.AgeYears = y;
+            vm.AgeMonths = m;
+            vm.AgeDays = d;
+        }
+        return vm;
+    }
 
     private static void MapOPDBillToViewModel(PatientOPDService svc, PatientRegistrationViewModel m)
     {
@@ -1695,8 +2061,8 @@ public class OPDController(
         var userId = User.GetUserId();
         var result = await paymentService.SavePaymentAsync(request, userId);
 
-        // ── Video Consultation: trigger ONLY when payment becomes fully paid ──
-        if (result.Success && result.PaymentStatus == "P" && (request.OPDServiceId ?? 0) > 0)
+        // ── Video Consultation: trigger ONLY when payment becomes fully paid (OPD only) ──
+        if (request.ModuleCode == "OPD" && result.Success && result.PaymentStatus == "P" && (request.OPDServiceId ?? 0) > 0)
         {
             TriggerVideoOnFullPayment(User.GetCurrentBranchId(), request.OPDServiceId!.Value);
         }
@@ -1720,6 +2086,11 @@ public class OPDController(
         if (data == null)
         {
             return Json(new { success = false, message = "Consultation setup data not found. Ensure doctor has a template mapped to their primary speciality." });
+        }
+
+        if (data.Booking != null && !string.IsNullOrEmpty(booking.FormattedAge))
+        {
+            data.Booking.Age = booking.FormattedAge;
         }
 
         return Json(new {

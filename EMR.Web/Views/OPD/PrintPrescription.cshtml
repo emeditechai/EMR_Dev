@@ -257,7 +257,7 @@
         </div>
         <div class="p-item">
             <span>Age / Sex</span>
-            <strong>@(b.Age != null ? b.Age.ToString() : "--") Yrs / @(b.Gender ?? "--")</strong>
+            <strong>@(string.IsNullOrEmpty(b.FormattedAge) ? (b.Age != null ? b.Age.ToString() + " Yrs" : "--") : b.FormattedAge) / @(b.Gender ?? "--")</strong>
         </div>
         <div class="p-item">
             <span>Patient ID (UHID)</span>

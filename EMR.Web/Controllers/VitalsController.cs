@@ -470,9 +470,6 @@ public class VitalsController(
     private static string CalcAge(DateTime? dob)
     {
         if (dob is null) return "";
-        var today = DateTime.Today;
-        var age   = today.Year - dob.Value.Year;
-        if (dob.Value.Date > today.AddYears(-age)) age--;
-        return $"{age} yrs";
+        return EMR.Web.Utils.AgeCalculator.FormatAgePattern(dob);
     }
 }

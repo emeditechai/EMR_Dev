@@ -48,7 +48,7 @@ public class VitalService(IDbConnectionFactory db) : IVitalService
         p.Add("@GlucoseType",      r.GlucoseType);
         p.Add("@PainScore",        r.PainScore);
         p.Add("@Notes",            r.Notes);
-        p.Add("@RecordedByUserId", r.RecordedByUserId);
+        p.Add("@UserId",           r.RecordedByUserId);
 
         using var con = db.CreateConnection();
         return await con.QuerySingleAsync<int>(

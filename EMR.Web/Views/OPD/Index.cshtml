@@ -64,10 +64,11 @@
     @* ── Search / Filter bar ──────────────────────────────────────────────── *@
     <form method="get" asp-action="Index" class="row g-2 align-items-center mb-3">
         <div class="col-auto">
-            <div class="input-group input-group-sm">
+            <div class="input-group input-group-sm position-relative" id="patientSearchWrapper">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text" name="search" value="@Model.Search"
-                       class="form-control" placeholder="Patient ID, name or phone…" style="min-width:220px;" />
+                <input type="text" name="search" value="@Model.Search" id="txtPatientSearch" autocomplete="off"
+                       class="form-control" placeholder="Patient ID, name or phone…" style="min-width:260px;" />
+                <div id="patientSearchDropdown" class="dropdown-menu shadow-lg border-0 w-100 p-0 mt-1" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1060; max-height:280px; overflow-y:auto; border-radius:8px; border:1px solid #dee2e6;"></div>
             </div>
         </div>
         <div class="col-auto">
@@ -150,7 +151,7 @@
                                     <span class="badge text-bg-secondary">@(p.Gender ?? "--")</span>
                                 }
                             </td>
-                            <td>@(p.Age.HasValue ? p.Age.Value + " yrs" : "--")</td>
+                            <td>@(string.IsNullOrEmpty(p.FormattedAge) ? (p.Age.HasValue ? p.Age.Value + " yrs" : "--") : p.FormattedAge)</td>
                             <td>
                                 @if (!string.IsNullOrEmpty(p.BloodGroup))
                                 {
@@ -312,5 +313,65 @@
         document.getElementById('deletePatientId').value = btn.dataset.id;
         document.getElementById('deletePatientName').textContent = btn.dataset.name;
     });
+
+    // ── Patient Auto Suggest ──────────────────────────────────────────────────
+    const searchInput = document.getElementById('txtPatientSearch');
+    const searchDropdown = document.getElementById('patientSearchDropdown');
+    const searchWrapper = document.getElementById('patientSearchWrapper');
+    let searchDebounce;
+
+    if(searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchDebounce);
+            const term = this.value.trim();
+            if(term.length < 2) {
+                searchDropdown.style.display = 'none';
+                return;
+            }
+            searchDebounce = setTimeout(async () => {
+                try {
+                    const res = await fetch(`@Url.Action("SearchAnyPatient", "OPD")?term=${encodeURIComponent(term)}`);
+                    if(!res.ok) return;
+                    const data = await res.json();
+                    
+                    if(data && data.length > 0) {
+                        searchDropdown.innerHTML = data.map(p => `
+                            <a href="#" class="dropdown-item py-2 px-3 border-bottom patient-sug text-wrap" data-val="${p.patientCode}">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold text-primary font-monospace">${p.patientCode || ''}</span>
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis"><i class="bi bi-telephone me-1"></i>${p.phoneNumber || '—'}</span>
+                                </div>
+                                <div class="text-dark fw-bold mb-1">${p.fullName || '—'}</div>
+                                <div class="text-muted d-flex gap-2" style="font-size:0.75rem;">
+                                    <span><i class="bi bi-gender-ambiguous me-1"></i>${p.gender || '—'}</span>
+                                    <span><i class="bi bi-calendar3 me-1"></i>${p.dateOfBirth ? new Date(p.dateOfBirth).toLocaleDateString('en-IN') : '—'}</span>
+                                </div>
+                            </a>
+                        `).join('');
+                        searchDropdown.style.display = 'block';
+
+                        searchDropdown.querySelectorAll('.patient-sug').forEach(a => {
+                            a.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                searchInput.value = this.dataset.val;
+                                searchDropdown.style.display = 'none';
+                                searchInput.closest('form').submit();
+                            });
+                        });
+                    } else {
+                        searchDropdown.innerHTML = '<div class="p-3 text-muted small text-center">No matches found.</div>';
+                        searchDropdown.style.display = 'block';
+                    }
+                } catch(e) { console.error(e); }
+            }, 300);
+        });
+
+        // Hide when clicking outside
+        document.addEventListener('click', function(e) {
+            if(!searchWrapper.contains(e.target)) {
+                searchDropdown.style.display = 'none';
+            }
+        });
+    }
 </script>
 }

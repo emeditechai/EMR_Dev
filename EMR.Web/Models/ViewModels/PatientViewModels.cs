@@ -34,6 +34,7 @@ public class PatientListItemViewModel
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
+    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public DateTime CreatedDate { get; set; }
     public bool IsActive { get; set; }
     public string? ConsultingDoctorName { get; set; }
@@ -102,6 +103,18 @@ public class PatientRegistrationViewModel
     [Display(Name = "Date of Birth")]
     public DateTime? DateOfBirth { get; set; }
 
+    [Display(Name = "Age (Years)")]
+    [Range(0, 150, ErrorMessage = "Years must be between 0 and 150.")]
+    public int? AgeYears { get; set; }
+
+    [Display(Name = "Age (Months)")]
+    [Range(0, 12, ErrorMessage = "Months cannot exceed 12.")]
+    public int? AgeMonths { get; set; }
+
+    [Display(Name = "Age (Days)")]
+    [Range(0, 30, ErrorMessage = "Days cannot exceed 30.")]
+    public int? AgeDays { get; set; }
+
     [Display(Name = "Religion")]
     public int? ReligionId { get; set; }
 
@@ -132,6 +145,13 @@ public class PatientRegistrationViewModel
     [MaxLength(500)]
     [Display(Name = "Address")]
     public string? Address { get; set; }
+
+    [MaxLength(500)]
+    [Display(Name = "Home Collection Address")]
+    public string? HomeCollectionAddress { get; set; }
+
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
 
     [Display(Name = "Identification Type")]
     public int? IdentificationTypeId { get; set; }
@@ -235,12 +255,16 @@ public class PatientQuickSearchResult
     public string? BloodGroup { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public string? Address { get; set; }
+    public string? HomeCollectionAddress { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
     public string? RelationName { get; set; }
     public string? LastOpdBillNo { get; set; }
     /// <summary>Computed from DateOfBirth.</summary>
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
+    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
 }
 
 // ─── OPD Service Line Item DTO (used for JSON serialization) ─────────────────
@@ -263,7 +287,9 @@ public class ServiceBookingListItem
     public int PatientId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public string? Gender { get; set; }
+    public DateTime? DateOfBirth { get; set; }
     public int? Age { get; set; }
+    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public string? ConsultingDoctorName { get; set; }
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -317,6 +343,7 @@ public class ServiceBookingDetailViewModel
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
+    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public string? ConsultingDoctorName { get; set; }
     public DateTime VisitDate { get; set; }
     public TimeSpan? AppointmentTime { get; set; }
@@ -360,5 +387,17 @@ public class PatientDetailsViewModel
     // History logs
     public List<PatientVisitHistoryItem> VisitHistory { get; set; } = [];
     public List<EMR.Web.ApiClients.Models.VitalRow> VitalHistory { get; set; } = [];
+    public List<PatientLabOrderHistoryItem> LabOrderHistory { get; set; } = [];
+}
+
+public class PatientLabOrderHistoryItem
+{
+    public int LabOrderId { get; set; }
+    public DateTime OrderDate { get; set; }
+    public string BillNo { get; set; } = null!;
+    public decimal TotalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal PaidAmount { get; set; }
+    public string PaymentStatus { get; set; } = null!;
 }
 

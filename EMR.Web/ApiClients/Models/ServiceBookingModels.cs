@@ -73,6 +73,7 @@ public class ServiceBookingDetail
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
+    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
 }
 
 // ── Doctor Dashboard Queue Result ─────────────────────────────────────────────

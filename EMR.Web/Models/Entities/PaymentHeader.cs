@@ -32,6 +32,7 @@ public class PaymentHeader
     public decimal HeaderDiscountAmount { get; set; }       // computed Rs amount
 
     // Final
+    public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TotalPaid { get; set; }
     public decimal BalanceDue { get; set; }

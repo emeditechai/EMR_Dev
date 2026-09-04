@@ -6,15 +6,7 @@
     var initials = ((p.FirstName?.Length > 0 ? p.FirstName[0].ToString() : "") + (p.LastName?.Length > 0 ? p.LastName[0].ToString() : "")).ToUpper();
     if (string.IsNullOrEmpty(initials)) initials = "?";
 
-    var age = "";
-    if (p.DateOfBirth.HasValue)
-    {
-        var dob = p.DateOfBirth.Value;
-        var today = DateTime.Today;
-        var diff = today.Year - dob.Year;
-        if (today.Month < dob.Month || (today.Month == dob.Month && today.Day < dob.Day)) diff--;
-        age = diff + " yrs";
-    }
+    var age = EMR.Web.Utils.AgeCalculator.FormatAgePattern(p.DateOfBirth);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -113,9 +105,30 @@
                 <h6 class="fw-bold text-dark text-uppercase mb-3" style="letter-spacing:.05em">
                     <i class="bi bi-geo-alt-fill text-primary me-2"></i>Address Details
                 </h6>
-                <div class="text-dark mb-3">
-                    @p.Address
-                </div>
+                @if (!string.IsNullOrWhiteSpace(p.Address))
+                {
+                    <div class="text-dark mb-2" style="line-height:1.4;">
+                        <strong><i class="bi bi-house-door text-secondary me-1"></i>Address:</strong> <br/>
+                        @p.Address
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(p.HomeCollectionAddress))
+                {
+                    <div class="text-dark mb-2" style="line-height:1.4;">
+                        <strong><i class="bi bi-geo-alt-fill text-danger me-1"></i>Home Collection:</strong> <br/>
+                        @p.HomeCollectionAddress
+                        @if (p.Latitude.HasValue && p.Longitude.HasValue)
+                        {
+                            <div class="mt-1">
+                                <span class="badge bg-success-subtle text-success border border-success"><i class="bi bi-crosshair me-1"></i>Lat: @p.Latitude.Value.ToString("0.0000"), Lon: @p.Longitude.Value.ToString("0.0000")</span>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (string.IsNullOrWhiteSpace(p.Address) && string.IsNullOrWhiteSpace(p.HomeCollectionAddress))
+                {
+                    <div class="text-muted fst-italic mb-2">No address provided</div>
+                }
                 <hr class="my-3" />
                 <div class="row g-2 small text-muted">
                     <div class="col-6"><strong>Area:</strong> @(Model.AreaName ?? "--")</div>
@@ -239,6 +252,11 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link fw-bold text-dark border-bottom border-3" id="visit-graph-tab" data-bs-toggle="tab" data-bs-target="#visit-graph-pane" type="button" role="tab" aria-controls="visit-graph-pane" aria-selected="false">
                             <i class="bi bi-graph-up me-2 text-warning"></i>Visit Graph
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold text-dark border-bottom border-3" id="laborders-tab" data-bs-toggle="tab" data-bs-target="#laborders-pane" type="button" role="tab" aria-controls="laborders-pane" aria-selected="false">
+                            <i class="bi bi-droplet-half me-2 text-info"></i>LAB TESTs (@(Model.LabOrderHistory?.Count ?? 0))
                         </button>
                     </li>
                 </ul>
@@ -482,6 +500,66 @@
                             <span>No visit bookings logged to plot graph.</span>
                         </div>
                     </div>
+                </div>
+
+                <!-- Lab Orders Tab Pane -->
+                <div class="tab-pane fade" id="laborders-pane" role="tabpanel" aria-labelledby="laborders-tab" tabindex="0">
+                    @if (Model.LabOrderHistory != null && Model.LabOrderHistory.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle small mb-0 border-top">
+                                <thead class="table-light text-muted uppercase font-monospace" style="font-size: 0.75rem;">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Bill No.</th>
+                                        <th>Bill Amount</th>
+                                        <th>Discount</th>
+                                        <th>Paid Amount</th>
+                                        <th>Payment Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var l in Model.LabOrderHistory)
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold text-dark">@l.OrderDate.ToString("dd MMM yyyy, HH:mm")</td>
+                                            <td class="font-monospace text-secondary">@l.BillNo</td>
+                                            <td class="fw-bold text-dark">₹ @l.TotalAmount.ToString("N2")</td>
+                                            <td class="text-danger">₹ @l.DiscountAmount.ToString("N2")</td>
+                                            <td class="text-success fw-semibold">₹ @l.PaidAmount.ToString("N2")</td>
+                                            <td>
+                                                @if (l.PaymentStatus == "P" || l.PaymentStatus == "Fully Paid")
+                                                {
+                                                    <span class="badge text-bg-success px-2.5 py-1.5">Fully Paid</span>
+                                                }
+                                                else if (l.PaymentStatus == "D" || l.PaymentStatus == "Partially Paid")
+                                                {
+                                                    <span class="badge text-bg-warning text-dark px-2.5 py-1.5">Partially Paid</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge text-bg-danger px-2.5 py-1.5">Unpaid</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <a href="/LabOrderBooking/PrintBill?labOrderId=@l.LabOrderId" target="_blank" class="btn btn-sm btn-outline-primary py-1 px-2" title="Print Bill">
+                                                    <i class="bi bi-printer me-1"></i>Print
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-droplet-half text-muted display-6 mb-3 d-block opacity-50"></i>
+                            <p class="text-muted mb-0">No lab test history found for this patient.</p>
+                        </div>
+                    }
                 </div>
 
             </div>

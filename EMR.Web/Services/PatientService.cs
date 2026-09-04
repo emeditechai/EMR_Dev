@@ -73,6 +73,46 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Quick Search ─────────────────────────────────────────────────────────
 
+    public async Task<IEnumerable<PatientQuickSearchResult>> SearchAnyAsync(string term, int? branchId = null)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<PatientQuickSearchResult>(@"
+            SELECT TOP 10
+                p.PatientId,
+                p.PatientCode,
+                LTRIM(RTRIM(
+                    ISNULL(p.Salutation + ' ', '') +
+                    p.FirstName + ' ' +
+                    ISNULL(p.MiddleName + ' ', '') +
+                    p.LastName
+                )) AS FullName,
+                p.PhoneNumber,
+                p.SecondaryPhoneNumber,
+                p.Gender,
+                p.BloodGroup,
+                p.DateOfBirth,
+                p.Address,
+                p.HomeCollectionAddress,
+                p.Latitude,
+                p.Longitude,
+                r.RelationName,
+                (SELECT TOP 1 OPDBillNo FROM PatientOPDService
+                 WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
+            FROM PatientMaster p
+            LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
+            WHERE p.IsActive = 1
+              AND (@BranchId IS NULL OR p.BranchId = @BranchId)
+              AND (
+                   p.PhoneNumber LIKE @Term OR 
+                   p.SecondaryPhoneNumber LIKE @Term OR
+                   p.PatientCode LIKE @Term OR
+                   p.FirstName LIKE @Term OR
+                   p.LastName LIKE @Term
+              )
+            ORDER BY p.CreatedDate DESC",
+            new { Term = "%" + term + "%", BranchId = branchId });
+    }
+
     public async Task<IEnumerable<PatientQuickSearchResult>> SearchByPhoneAsync(string phone, int? branchId = null)
     {
         using var con = db.CreateConnection();
@@ -92,6 +132,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.BloodGroup,
                 p.DateOfBirth,
                 p.Address,
+                p.HomeCollectionAddress,
+                p.Latitude,
+                p.Longitude,
                 r.RelationName,
                 (SELECT TOP 1 OPDBillNo FROM PatientOPDService
                  WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
@@ -123,6 +166,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.BloodGroup,
                 p.DateOfBirth,
                 p.Address,
+                p.HomeCollectionAddress,
+                p.Latitude,
+                p.Longitude,
                 r.RelationName,
                 (SELECT TOP 1 OPDBillNo FROM PatientOPDService
                  WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
@@ -191,7 +237,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@PatientCode",     dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
         p.Add("@NewPatientId",    dbType: DbType.Int32,            direction: ParameterDirection.Output);
         p.Add("@NewOPDServiceId", dbType: DbType.Int32,            direction: ParameterDirection.Output);
-        p.Add("@OPDBillNo",       dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+        p.Add("@OPDBillNo",       dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
         // @TokenNo output kept for SP compatibility; will be NULL for non-zero bills (token assigned after payment)
         p.Add("@TokenNo",         dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
 
@@ -226,7 +272,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
         // OUTPUT parameters
         p.Add("@NewOPDServiceId", dbType: DbType.Int32,            direction: ParameterDirection.Output);
-        p.Add("@OPDBillNo",       dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
+        p.Add("@OPDBillNo",       dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
         // @TokenNo output kept for SP compatibility; will be NULL for non-zero bills (token assigned after payment)
         p.Add("@TokenNo",         dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
 
@@ -262,6 +308,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@CityId",                 patient.CityId);
         p.Add("@AreaId",                 patient.AreaId);
         p.Add("@Address",                patient.Address);
+        p.Add("@HomeCollectionAddress",  patient.HomeCollectionAddress);
+        p.Add("@Latitude",               patient.Latitude);
+        p.Add("@Longitude",              patient.Longitude);
         p.Add("@RelationId",             patient.RelationId);
         p.Add("@IdentificationTypeId",   patient.IdentificationTypeId);
         p.Add("@IdentificationNumber",   patient.IdentificationNumber);
@@ -300,6 +349,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 CityId                 = @CityId,
                 AreaId                 = @AreaId,
                 Address                = @Address,
+                HomeCollectionAddress  = @HomeCollectionAddress,
+                Latitude               = @Latitude,
+                Longitude              = @Longitude,
                 RelationId             = @RelationId,
                 IdentificationTypeId   = @IdentificationTypeId,
                 IdentificationNumber   = @IdentificationNumber,
@@ -313,6 +365,26 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 ModifiedBy             = @ModifiedBy,
                 ModifiedDate           = @ModifiedDate
             WHERE PatientId = @PatientId", patient);
+    }
+
+    public async Task<int> CreateDemographicsOnlyAsync(PatientMaster patient, int? userId)
+    {
+        using var con = db.CreateConnection();
+        var p = new DynamicParameters();
+        
+        p.Add("@PatientCode",            dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
+        p.Add("@BranchId",               patient.BranchId);
+        p.Add("@CompanyId",              patient.CompanyId);
+        p.Add("@CreatedBy",              userId);
+        
+        AddPatientParams(p, patient);
+
+        // We can just call usp_PatientMaster_Insert
+        p.Add("@NewPatientId", dbType: DbType.Int32, direction: ParameterDirection.Output);
+
+        await con.ExecuteAsync("dbo.usp_PatientMaster_Insert", p, commandType: CommandType.StoredProcedure);
+        
+        return p.Get<int>("@NewPatientId");
     }
 
     // ─── Delete ───────────────────────────────────────────────────────────────
@@ -600,7 +672,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         // 1. Get next bill number
         var bp = new DynamicParameters();
         bp.Add("@BranchId", bill.BranchId);
-        bp.Add("@BillNo",   dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+        bp.Add("@BillNo",   dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
         await con.ExecuteAsync("dbo.usp_OPD_GetNextBillNo", bp, commandType: CommandType.StoredProcedure);
         var billNo = bp.Get<string>("@BillNo");
 

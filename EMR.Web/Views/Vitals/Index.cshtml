@@ -303,9 +303,22 @@
 
         if (p.dateOfBirth) {
             const dob = new Date(p.dateOfBirth), today = new Date();
-            let age = today.getFullYear() - dob.getFullYear();
-            if (today < new Date(today.getFullYear(), dob.getMonth(), dob.getDate())) age--;
-            document.getElementById('ptAge').textContent = age + ' yrs';
+            let years = today.getFullYear() - dob.getFullYear();
+            let months = today.getMonth() - dob.getMonth();
+            let days = today.getDate() - dob.getDate();
+            if (days < 0) {
+                months--;
+                const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                days += prevMonth.getDate();
+            }
+            if (months < 0) {
+                years--;
+                months += 12;
+            }
+            years = Math.max(0, years);
+            months = Math.max(0, months);
+            days = Math.max(0, days);
+            document.getElementById('ptAge').textContent = `${String(years).padStart(2, '0')} Year ${String(months).padStart(2, '0')} Month ${String(days).padStart(2, '0')} Days`;
         }
 
         // Buttons

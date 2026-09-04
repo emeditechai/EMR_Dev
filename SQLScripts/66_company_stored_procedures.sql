@@ -648,6 +648,11 @@ BEGIN
         ISNULL(p.FirstName + ' ', '') + ISNULL(p.MiddleName + ' ', '') + ISNULL(p.LastName, '') AS PatientName,
         p.PhoneNumber,
         p.Gender,
+        CASE
+            WHEN p.DateOfBirth IS NULL THEN NULL
+            ELSE DATEDIFF(YEAR, p.DateOfBirth, GETDATE())
+               - CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, p.DateOfBirth, GETDATE()), p.DateOfBirth) > GETDATE() THEN 1 ELSE 0 END
+        END AS Age,
         p.DateOfBirth,
         pos.TokenNo,
         pos.OPDBillNo,
@@ -655,6 +660,23 @@ BEGIN
         pos.Status,
         pos.ServiceType,
         pos.AppointmentTime,
+        (SELECT TOP 1 PaymentStatus FROM PaymentHeader 
+         WHERE ModuleCode = 'OPD' AND ModuleRefId = pos.OPDServiceId AND IsActive = 1) AS PaymentStatus,
+        ISNULL(pos.TotalAmount, 0) AS TotalAmount,
+        p.PhotoPath,
+        ISNULL(
+            (SELECT TOP 1 sm.ConsultingType
+             FROM PatientOPDServiceItem i
+             JOIN ServiceMaster sm ON sm.ServiceId = i.ServiceId
+             WHERE i.OPDServiceId = pos.OPDServiceId AND sm.ConsultingType = 'Video' AND i.IsActive = 1),
+            'Walk-In'
+        ) AS ConsultingType,
+        (SELECT TOP 1 vc.PatientRoomUrl
+         FROM tbl_VideoConsultation vc
+         WHERE vc.OPDServiceId = pos.OPDServiceId AND vc.Status = 'Scheduled') AS VideoPatientUrl,
+        (SELECT TOP 1 vc.DoctorHostUrl
+         FROM tbl_VideoConsultation vc
+         WHERE vc.OPDServiceId = pos.OPDServiceId AND vc.Status = 'Scheduled') AS VideoHostUrl,
         v.PatientVitalId,
         v.BPSystolic,
         v.BPDiastolic,
@@ -685,6 +707,26 @@ BEGIN
             ELSE 5
         END,
         pos.TokenNo ASC;
+
+    -- ResultSet 2: Summary Stats
+    SELECT 
+        (SELECT COUNT(*) 
+         FROM PatientOPDService 
+         WHERE BranchId = @BranchId 
+           AND CAST(VisitDate AS DATE) = @QueueDate 
+           AND IsActive = 1 
+           AND Status IN ('Registered', 'Waiting', 'Consulting', 'Skipped')
+           AND (@DoctorId IS NULL OR @DoctorId = 0 OR ConsultingDoctorId = @DoctorId)
+           AND (@CompanyId IS NULL OR CompanyId = @CompanyId)) AS TotalWaiting,
+
+        (SELECT COUNT(*) 
+         FROM PatientOPDService 
+         WHERE BranchId = @BranchId 
+           AND CAST(VisitDate AS DATE) = @QueueDate 
+           AND IsActive = 1 
+           AND Status = 'Completed'
+           AND (@DoctorId IS NULL OR @DoctorId = 0 OR ConsultingDoctorId = @DoctorId)
+           AND (@CompanyId IS NULL OR CompanyId = @CompanyId)) AS TotalCompleted;
 END
 GO
 
@@ -737,39 +779,47 @@ GO
 -- 14. usp_PatientVital_GetByPatient
 CREATE OR ALTER PROCEDURE dbo.usp_PatientVital_GetByPatient
     @PatientId INT,
-    @CompanyId INT = NULL
+    @CompanyId INT = NULL,
+    @PageNumber INT = 1,
+    @PageSize INT = 10
 AS
 BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        pv.PatientVitalId,
-        pv.CompanyId,
-        pv.PatientId,
-        pv.Height,
-        pv.Weight,
-        pv.BMI,
-        pv.BMICategory,
-        pv.BPSystolic,
-        pv.BPDiastolic,
-        pv.PulseRate,
-        pv.SpO2,
-        pv.Temperature,
-        pv.RespiratoryRate,
-        pv.BloodGlucose,
-        pv.GlucoseType,
-        pv.PainScore,
-        pv.Notes,
-        pv.RecordedOn,
-        pv.RecordedByUserId,
-        u.Username AS RecordedByUsername,
-        pv.IsActive,
-        pv.CreatedOn
-    FROM PatientVitals pv
-    LEFT JOIN Users u ON u.Id = pv.RecordedByUserId
-    WHERE pv.PatientId = @PatientId
-      AND (@CompanyId IS NULL OR pv.CompanyId = @CompanyId)
-      AND pv.IsActive = 1
-    ORDER BY pv.RecordedOn DESC;
+        v.PatientVitalId,
+        v.CompanyId,
+        v.PatientId,
+        v.Height,
+        v.Weight,
+        v.BMI,
+        v.BMICategory,
+        v.BPSystolic,
+        v.BPDiastolic,
+        v.PulseRate,
+        v.SpO2,
+        v.Temperature,
+        v.RespiratoryRate,
+        v.BloodGlucose,
+        v.GlucoseType,
+        v.PainScore,
+        v.Notes,
+        v.RecordedOn,
+        v.RecordedByUserId,
+        u.FullName AS RecordedByUsername,
+        v.IsActive,
+        v.CreatedOn,
+        COUNT(*) OVER() AS TotalCount,
+        -- Edit/Delete allowed for 2 minutes after recording (DB-server clock)
+        CAST(CASE WHEN DATEDIFF(MINUTE, v.RecordedOn, GETDATE()) <= 2
+                  THEN 1 ELSE 0 END AS BIT) AS CanModify
+    FROM PatientVitals v
+    LEFT JOIN Users u ON u.Id = v.RecordedByUserId
+    WHERE v.PatientId = @PatientId
+      AND (@CompanyId IS NULL OR v.CompanyId = @CompanyId)
+      AND v.IsActive = 1
+    ORDER BY v.RecordedOn DESC
+    OFFSET (@PageNumber - 1) * @PageSize ROWS
+    FETCH NEXT @PageSize ROWS ONLY;
 END
 GO

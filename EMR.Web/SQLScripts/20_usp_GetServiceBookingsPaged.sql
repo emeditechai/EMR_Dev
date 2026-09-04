@@ -39,6 +39,7 @@ BEGIN
             p.LastName
         ))                          AS PatientName,
         p.Gender,
+        p.DateOfBirth,
         CASE
             WHEN p.DateOfBirth IS NULL THEN NULL
             ELSE DATEDIFF(YEAR, p.DateOfBirth, GETDATE())
