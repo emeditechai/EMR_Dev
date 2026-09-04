@@ -60,7 +60,7 @@
                 <div class="col-md-3">
                     <div class="p-3 bg-light rounded-3">
                         <small class="text-muted text-uppercase fw-bold d-block mb-1">Profile Type</small>
-                        <span class="badge bg-primary fs-7 px-3 py-1">@Model.Header.Profile_Type</span>
+                        <span class="badge bg-primary fs-7 px-3 py-1">@(Model.Header.Profile_Type == 2 ? "Package" : "Profile")</span>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -81,6 +81,20 @@
                         <span class="fw-semibold text-dark fs-6">@Model.Header.Profile_TAT_Hours Hours</span>
                     </div>
                 </div>
+
+                @if (Model.Header.Profile_Type == 2)
+                {
+                    <div class="col-md-4">
+                        <div class="p-3 bg-light rounded-3">
+                            <small class="text-muted text-uppercase fw-bold d-block mb-1">Package Effective Period</small>
+                            <span class="fw-semibold text-dark fs-6">
+                                @(Model.Header.Effective_Start_Date.HasValue ? Model.Header.Effective_Start_Date.Value.ToString("dd-MMM-yyyy") : "N/A")
+                                to
+                                @(Model.Header.Effective_End_Date.HasValue ? Model.Header.Effective_End_Date.Value.ToString("dd-MMM-yyyy") : "N/A")
+                            </span>
+                        </div>
+                    </div>
+                }
 
                 <div class="col-md-4">
                     <div class="p-3 bg-light rounded-3">

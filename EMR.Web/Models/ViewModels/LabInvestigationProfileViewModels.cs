@@ -7,7 +7,7 @@ namespace EMR.Web.Models.ViewModels;
 public class LabInvestigationProfileIndexViewModel
 {
     public List<LabInvestigationProfileHeaderModel> Profiles { get; set; } = [];
-    public string? SelectedProfileType { get; set; }
+    public int? SelectedProfileType { get; set; }
     public bool? SelectedStatus { get; set; }
     public string? SearchTerm { get; set; }
 
@@ -31,7 +31,7 @@ public class LabInvestigationProfileFormViewModel
 
     [Required(ErrorMessage = "Profile Type is required.")]
     [Display(Name = "Profile Type")]
-    public string Profile_Type { get; set; } = "Profile"; // Profile / Package
+    public int Profile_Type { get; set; } = 1; // 1 = Profile, 2 = Package
 
     [Display(Name = "Profile Test")]
     public int? Test_ID { get; set; }
@@ -44,6 +44,14 @@ public class LabInvestigationProfileFormViewModel
     [Range(0, 100, ErrorMessage = "Discount % must be between 0 and 100.")]
     [Display(Name = "Discount (%)")]
     public decimal Discount_Pct { get; set; }
+
+    [Display(Name = "Effective Start Date")]
+    [DataType(DataType.Date)]
+    public DateTime? Effective_Start_Date { get; set; }
+
+    [Display(Name = "Effective End Date")]
+    [DataType(DataType.Date)]
+    public DateTime? Effective_End_Date { get; set; }
 
     [Display(Name = "Age Comparison Operator")]
     public string? Age_Operator { get; set; } // Exact, GreaterEqual, LessEqual, Between

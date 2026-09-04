@@ -104,6 +104,21 @@
                         <small class="text-muted d-block">Package promotional discount percentage.</small>
                     </div>
 
+                    <!-- Effective Start Date & End Date (Visible only when Package is selected) -->
+                    <div class="col-md-4" id="startDateContainer" style="display: none;">
+                        <label asp-for="Effective_Start_Date" class="form-label fw-semibold">Effective Start Date</label>
+                        <input asp-for="Effective_Start_Date" class="form-control" type="date" id="Effective_Start_Date" />
+                        <span asp-validation-for="Effective_Start_Date" class="text-danger small"></span>
+                        <small class="text-muted d-block">Package validity start date.</small>
+                    </div>
+
+                    <div class="col-md-4" id="endDateContainer" style="display: none;">
+                        <label asp-for="Effective_End_Date" class="form-label fw-semibold">Effective End Date</label>
+                        <input asp-for="Effective_End_Date" class="form-control" type="date" id="Effective_End_Date" />
+                        <span asp-validation-for="Effective_End_Date" class="text-danger small"></span>
+                        <small class="text-muted d-block">Package validity end date.</small>
+                    </div>
+
                     <!-- Age Operator & Age -->
                     <div class="col-md-4">
                         <label asp-for="Age_Operator" class="form-label fw-semibold"></label>
@@ -217,21 +232,27 @@
         var detailRows = [];
 
         function toggleProfileType() {
-            var type = $('#profileTypeSelect').val();
-            if (type === 'Profile') {
+            var type = parseInt($('#profileTypeSelect').val()) || 1;
+            if (type === 1) {
                 $('#profileTestContainer').show();
                 $('#packageNameContainer').hide();
                 $('#discountContainer').hide();
+                $('#startDateContainer').hide();
+                $('#endDateContainer').hide();
                 $('#Discount_Pct').val(0);
+                $('#Effective_Start_Date').val('');
+                $('#Effective_End_Date').val('');
                 var selectedText = $('#profileTestSelect option:selected').text();
                 if (selectedText && $('#profileTestSelect').val()) {
                     var testName = selectedText.split(' (')[0].trim();
                     $('#hiddenProfileName').val(testName);
                 }
-            } else { // Package
+            } else { // Package (2)
                 $('#profileTestContainer').hide();
                 $('#packageNameContainer').show();
                 $('#discountContainer').show();
+                $('#startDateContainer').show();
+                $('#endDateContainer').show();
                 $('#hiddenProfileName').val($('#packageNameInput').val());
             }
         }
@@ -295,8 +316,8 @@
             });
 
             $('#profileForm').on('submit', function (e) {
-                var type = $('#profileTypeSelect').val();
-                if (type === 'Profile') {
+                var type = parseInt($('#profileTypeSelect').val()) || 1;
+                if (type === 1) {
                     var testId = $('#profileTestSelect').val();
                     if (!testId) {
                         alert('Please select a Profile Test.');

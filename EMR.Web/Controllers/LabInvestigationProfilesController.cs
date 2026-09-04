@@ -18,7 +18,7 @@ public class LabInvestigationProfilesController(
     IAuditLogService auditLogService) : Controller
 {
     [HttpGet]
-    public async Task<IActionResult> Index(string? profileType = null, bool? status = null, string? search = null)
+    public async Task<IActionResult> Index(int? profileType = null, bool? status = null, string? search = null)
     {
         var companyId = User.GetCompanyId();
 
@@ -57,7 +57,7 @@ public class LabInvestigationProfilesController(
         var model = new LabInvestigationProfileFormViewModel
         {
             CompanyId = User.GetCompanyId(),
-            Profile_Type = "Profile",
+            Profile_Type = 1,
             Profile_TAT_Hours = 24,
             Report_Print_Sequence = 1,
             Status = true,
@@ -72,7 +72,7 @@ public class LabInvestigationProfilesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(LabInvestigationProfileFormViewModel model)
     {
-        if (model.Profile_Type == "Profile")
+        if (model.Profile_Type == 1)
         {
             if (!model.Test_ID.HasValue || model.Test_ID.Value <= 0)
             {
@@ -87,7 +87,7 @@ public class LabInvestigationProfilesController(
                 }
             }
         }
-        else // Package
+        else // Package (2)
         {
             model.Test_ID = null;
             if (string.IsNullOrWhiteSpace(model.Profile_Name))
@@ -120,7 +120,9 @@ public class LabInvestigationProfilesController(
                 Profile_Type = model.Profile_Type,
                 Test_ID = model.Test_ID,
                 MRP = model.MRP,
-                Discount_Pct = model.Profile_Type == "Package" ? model.Discount_Pct : 0,
+                Discount_Pct = model.Profile_Type == 2 ? model.Discount_Pct : 0,
+                Effective_Start_Date = model.Profile_Type == 2 ? model.Effective_Start_Date : null,
+                Effective_End_Date = model.Profile_Type == 2 ? model.Effective_End_Date : null,
                 Age_Operator = model.Age_Operator,
                 Applicable_Age = model.Applicable_Age,
                 Applicable_Gender = model.Applicable_Gender,
@@ -134,15 +136,16 @@ public class LabInvestigationProfilesController(
 
             var newId = await profileApiClient.SaveAsync(req);
 
+            var typeName = model.Profile_Type == 2 ? "Package" : "Profile";
             await auditLogService.LogAsync(
                 "Create Lab Investigation Profile",
                 "Create",
-                $"Created {model.Profile_Type} '{model.Profile_Name}' with ID #{newId}",
+                $"Created {typeName} '{model.Profile_Name}' with ID #{newId}",
                 User.GetUserId(),
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = $"{model.Profile_Type} '{model.Profile_Name}' saved successfully.";
+            TempData["SuccessMessage"] = $"{typeName} '{model.Profile_Name}' saved successfully.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -193,6 +196,8 @@ public class LabInvestigationProfilesController(
                 Test_ID = item.Header.Test_ID,
                 MRP = item.Header.MRP,
                 Discount_Pct = item.Header.Discount_Pct,
+                Effective_Start_Date = item.Header.Effective_Start_Date,
+                Effective_End_Date = item.Header.Effective_End_Date,
                 Age_Operator = item.Header.Age_Operator,
                 Applicable_Age = item.Header.Applicable_Age,
                 Applicable_Gender = item.Header.Applicable_Gender,
@@ -220,7 +225,7 @@ public class LabInvestigationProfilesController(
         if (id != model.Profile_ID)
             return BadRequest();
 
-        if (model.Profile_Type == "Profile")
+        if (model.Profile_Type == 1)
         {
             if (!model.Test_ID.HasValue || model.Test_ID.Value <= 0)
             {
@@ -235,7 +240,7 @@ public class LabInvestigationProfilesController(
                 }
             }
         }
-        else // Package
+        else // Package (2)
         {
             model.Test_ID = null;
             if (string.IsNullOrWhiteSpace(model.Profile_Name))
@@ -268,7 +273,9 @@ public class LabInvestigationProfilesController(
                 Profile_Type = model.Profile_Type,
                 Test_ID = model.Test_ID,
                 MRP = model.MRP,
-                Discount_Pct = model.Profile_Type == "Package" ? model.Discount_Pct : 0,
+                Discount_Pct = model.Profile_Type == 2 ? model.Discount_Pct : 0,
+                Effective_Start_Date = model.Profile_Type == 2 ? model.Effective_Start_Date : null,
+                Effective_End_Date = model.Profile_Type == 2 ? model.Effective_End_Date : null,
                 Age_Operator = model.Age_Operator,
                 Applicable_Age = model.Applicable_Age,
                 Applicable_Gender = model.Applicable_Gender,
@@ -282,15 +289,16 @@ public class LabInvestigationProfilesController(
 
             await profileApiClient.SaveAsync(req);
 
+            var typeName = model.Profile_Type == 2 ? "Package" : "Profile";
             await auditLogService.LogAsync(
                 "Update Lab Investigation Profile",
                 "Edit",
-                $"Updated Investigation {model.Profile_Type} #{id} - '{model.Profile_Name}'",
+                $"Updated Investigation {typeName} #{id} - '{model.Profile_Name}'",
                 User.GetUserId(),
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = $"{model.Profile_Type} '{model.Profile_Name}' updated successfully.";
+            TempData["SuccessMessage"] = $"{typeName} '{model.Profile_Name}' updated successfully.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -429,8 +437,8 @@ public class LabInvestigationProfilesController(
     {
         return
         [
-            new SelectListItem { Value = "Profile", Text = "Profile (Fixed Group)" },
-            new SelectListItem { Value = "Package", Text = "Package (Health Checkup Bundle)" }
+            new SelectListItem { Value = "1", Text = "Profile (Fixed Group)" },
+            new SelectListItem { Value = "2", Text = "Package (Health Checkup Bundle)" }
         ];
     }
 

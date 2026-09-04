@@ -12,12 +12,14 @@ public class LabInvestigationProfileHeaderListItem
     public int CompanyId { get; set; }
     public string Profile_Code { get; set; } = string.Empty;
     public string Profile_Name { get; set; } = string.Empty;
-    public string Profile_Type { get; set; } = "Profile";
+    public int Profile_Type { get; set; } = 1;
     public int? Test_ID { get; set; }
     public string? ProfileTestCode { get; set; }
     public string? ProfileTestName { get; set; }
     public decimal MRP { get; set; }
     public decimal Discount_Pct { get; set; }
+    public DateTime? Effective_Start_Date { get; set; }
+    public DateTime? Effective_End_Date { get; set; }
     public string? Age_Operator { get; set; }
     public int? Applicable_Age { get; set; }
     public string Applicable_Gender { get; set; } = "All";
@@ -64,10 +66,12 @@ public class LabInvestigationProfileSaveRequest
     public int? Profile_ID { get; set; }
     public int CompanyId { get; set; } = 1;
     public string Profile_Name { get; set; } = string.Empty;
-    public string Profile_Type { get; set; } = "Profile";
+    public int Profile_Type { get; set; } = 1;
     public int? Test_ID { get; set; }
     public decimal MRP { get; set; }
     public decimal Discount_Pct { get; set; }
+    public DateTime? Effective_Start_Date { get; set; }
+    public DateTime? Effective_End_Date { get; set; }
     public string? Age_Operator { get; set; }
     public int? Applicable_Age { get; set; }
     public string Applicable_Gender { get; set; } = "All";

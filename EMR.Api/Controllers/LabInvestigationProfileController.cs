@@ -12,7 +12,7 @@ public class LabInvestigationProfileController(ILabInvestigationProfileService s
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabInvestigationProfileHeaderListItem>>), 200)]
     public async Task<IActionResult> GetList(
-        [FromQuery] string? profileType,
+        [FromQuery] int? profileType,
         [FromQuery] bool? status,
         [FromQuery] string? search,
         [FromQuery] int? companyId)
