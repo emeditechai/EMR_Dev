@@ -370,9 +370,27 @@ else
                     </div>
                 </div>
                 <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Auto Report Delivery</div>
-                        <div class="param-value text-muted">—</div>
+                    <div class="param-card">
+                        <div class="param-label"><i class="bi bi-envelope text-primary me-1"></i>Email Notification (Bill)</div>
+                        <div class="param-value @(Model.LabEmailNotificationRequired ? "text-success fw-bold" : "text-danger fw-bold")">
+                            @(Model.LabEmailNotificationRequired ? "YES" : "NO")
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card">
+                        <div class="param-label"><i class="bi bi-eyedropper text-warning me-1"></i>Is Sample Collection Mandatory</div>
+                        <div class="param-value @(Model.IsSampleCollectionMandatory ? "text-success fw-bold" : "text-danger fw-bold")">
+                            @(Model.IsSampleCollectionMandatory ? "YES" : "NO")
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="param-card">
+                        <div class="param-label"><i class="bi bi-upc-scan text-info me-1"></i>Barcode Gen at Billing</div>
+                        <div class="param-value @(Model.BarcodeGenerateAtBilling ? "text-success fw-bold" : "text-danger fw-bold")">
+                            @(Model.BarcodeGenerateAtBilling ? "YES" : "NO")
+                        </div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3">

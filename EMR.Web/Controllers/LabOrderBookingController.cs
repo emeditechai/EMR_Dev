@@ -37,7 +37,8 @@ namespace EMR.Web.Controllers
         ICityService cityService,
         IAreaService areaService,
         IQueryStringEncryptionService encryptionService,
-        IWebHostEnvironment env) : Controller
+        IWebHostEnvironment env,
+        ISampleCollectionApiClient sampleCollectionApiClient) : Controller
     {
         [HttpGet]
         public async Task<IActionResult> B2CBooking(int? patientId)
@@ -103,6 +104,16 @@ namespace EMR.Web.Controllers
                     lineItems = string.IsNullOrWhiteSpace(model.LineItemsJson)
                         ? null
                         : System.Text.Json.JsonSerializer.Deserialize<List<LabOrderItemRequestDto>>(model.LineItemsJson, serializeOptions);
+                    if (lineItems != null)
+                    {
+                        foreach (var itm in lineItems)
+                        {
+                            if (string.IsNullOrWhiteSpace(itm.Type))
+                            {
+                                itm.Type = itm.IsPackage ? "P" : "I";
+                            }
+                        }
+                    }
                 }
                 catch { }
 
@@ -313,6 +324,16 @@ namespace EMR.Web.Controllers
                 lineItems = string.IsNullOrWhiteSpace(model.LineItemsJson)
                     ? null
                     : System.Text.Json.JsonSerializer.Deserialize<List<LabOrderItemRequestDto>>(model.LineItemsJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (lineItems != null)
+                {
+                    foreach (var itm in lineItems)
+                    {
+                        if (string.IsNullOrWhiteSpace(itm.Type))
+                        {
+                            itm.Type = itm.IsPackage ? "P" : "I";
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -473,7 +494,7 @@ namespace EMR.Web.Controllers
                     paymentReq.SubTotal = totalAmount;
 
                     // Map created LabOrderItemIds to PaymentLineItem rows so ModuleLineRefId accurately points to LabOrderItemId
-                    using var con = dbContext.Database.GetDbConnection();
+                    var con = dbContext.Database.GetDbConnection();
                     if (con.State != System.Data.ConnectionState.Open)
                         await con.OpenAsync();
 
@@ -503,7 +524,136 @@ namespace EMR.Web.Controllers
                 }
             }
 
+            // ── Auto-collect samples if HospitalSettings.IsSampleCollectionMandatory == NO ──
+            try
+            {
+                await sampleCollectionApiClient.AutoCollectIfNotMandatoryAsync(labOrderRes.LabOrderId);
+            }
+            catch
+            {
+                // Non-blocking catch to ensure billing and payment completion is not hindered
+            }
+
             string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+
+            // ── TRIGGER BACKGROUND EMAIL NOTIFICATION IF CONFIGURED ─────────────────
+            var savedLabOrderId = labOrderRes.LabOrderId;
+            var savedBillNo = labOrderRes.BillNo;
+            var safeBillNo = savedBillNo?.Replace("/", "_").Replace("\\", "_");
+            var patientEmail = patient.EmailId;
+            var patientNameStr = patientFullName;
+            
+            if (!string.IsNullOrWhiteSpace(patientEmail) && savedLabOrderId > 0)
+            {
+                var bId = branchId.Value;
+                var hostUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+                var serviceScopeFactory = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
+
+                _ = Task.Run(async () =>
+                {
+                    using var scope = serviceScopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                    var logger = scope.ServiceProvider.GetRequiredService<ILogger<LabOrderBookingController>>();
+
+                    try
+                    {
+                        var hs = await db.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == bId && s.IsActive);
+                        if (hs != null && hs.LabEmailNotificationRequired)
+                        {
+                            var secret = "lab_print_" + savedLabOrderId.ToString();
+                            var billUrl = $"{hostUrl}/LabOrderBooking/PrintBillAnonymous?labOrderId={savedLabOrderId}&secret={Uri.EscapeDataString(secret)}";
+                            
+                            string? tempPdfPath = null;
+                            if (!string.IsNullOrWhiteSpace(safeBillNo))
+                            {
+                                tempPdfPath = Path.Combine(Path.GetTempPath(), $"Lab_Bill_{safeBillNo}.pdf");
+                                logger.LogInformation($"[DEBUG-LAB-EMAIL] Generating PDF for lab bill. URL: {billUrl}, Output: {tempPdfPath}");
+                                var chromeArgs = $"--headless --disable-gpu --ignore-certificate-errors --print-to-pdf=\"{tempPdfPath}\" \"{billUrl}\"";
+                                
+                                using var process = new System.Diagnostics.Process();
+                                process.StartInfo.FileName = OperatingSystem.IsWindows() ? "chrome" : "google-chrome"; 
+                                if (OperatingSystem.IsMacOS()) process.StartInfo.FileName = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+                                process.StartInfo.Arguments = chromeArgs;
+                                process.StartInfo.UseShellExecute = true;
+                                process.Start();
+                                await process.WaitForExitAsync();
+                            }
+
+                            string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
+                            string body = $@"
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=""utf-8"">
+<title>Your Lab Bill</title>
+<style>
+  body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }}
+  .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }}
+  .header {{ background-color: #4a6ee0; color: #ffffff; padding: 20px; text-align: center; }}
+  .header h1 {{ margin: 0; font-size: 24px; }}
+  .content {{ padding: 30px; color: #333333; line-height: 1.6; }}
+  .greeting {{ font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }}
+  .info-box {{ background-color: #f8f9fa; border-left: 4px solid #4a6ee0; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+  .info-box p {{ margin: 5px 0; }}
+  .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; color: #777777; font-size: 14px; border-top: 1px solid #eeeeee; }}
+</style>
+</head>
+<body>
+<div class=""container"">
+  <div class=""header"">
+    <h1>{hs.HospitalName}</h1>
+  </div>
+  <div class=""content"">
+    <div class=""greeting"">Dear {patientNameStr},</div>
+    <p>Thank you for choosing <strong>{hs.HospitalName}</strong> for your healthcare needs.</p>
+    <div class=""info-box"">
+      <p><strong>Bill No:</strong> {savedBillNo}</p>
+      <p><strong>Date:</strong> {DateTime.Now:dd MMM yyyy}</p>
+    </div>
+    <p>Please find your detailed lab order bill attached to this email as a PDF document.</p>
+    <p>If you have any questions or require further assistance, please do not hesitate to contact us.</p>
+    <p>Wishing you the best of health,<br/><br/><strong>The {hs.HospitalName} Team</strong></p>
+  </div>
+  <div class=""footer"">
+    &copy; {DateTime.Now.Year} {hs.HospitalName}. All rights reserved.<br>
+    {hs.Address}
+  </div>
+</div>
+</body>
+</html>";
+
+                            if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                            {
+                                var attachment = new System.Net.Mail.Attachment(tempPdfPath, "application/pdf");
+                                await emailSvc.SendEmailAsync(bId, patientEmail, subj, body, new[] { attachment });
+                                
+                                try { System.IO.File.Delete(tempPdfPath); } catch { }
+                            }
+                            else
+                            {
+                                await emailSvc.SendEmailAsync(bId, patientEmail, subj, body);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "[DEBUG-LAB-EMAIL] Error sending lab email notification.");
+                    }
+                });
+            }
+            // ────────────────────────────────────────────────────────────────────────
+            // ── CHECK IF BARCODE SHOULD BE PRINTED AT BILLING ──────────────────────
+            bool showPrintBarcode = false;
+            if (branchId.HasValue)
+            {
+                var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == branchId.Value && s.IsActive);
+                if (settings != null)
+                {
+                    showPrintBarcode = settings.BarcodeGenerateAtBilling;
+                }
+            }
+            // ────────────────────────────────────────────────────────────────────────
 
             return Json(new
             {
@@ -517,7 +667,8 @@ namespace EMR.Web.Controllers
                 netAmount = paymentResult?.NetAmount ?? totalAmount,
                 totalPaid = paymentResult?.TotalPaid ?? 0,
                 balanceDue = paymentResult?.BalanceDue ?? totalAmount,
-                paymentStatus = paymentResult?.PaymentStatus ?? "U"
+                paymentStatus = paymentResult?.PaymentStatus ?? "U",
+                showPrintBarcode = showPrintBarcode
             });
             }
             catch (Exception ex)
@@ -654,7 +805,7 @@ namespace EMR.Web.Controllers
         {
             try
             {
-                using var con = dbContext.Database.GetDbConnection();
+                var con = dbContext.Database.GetDbConnection();
                 if (con.State != System.Data.ConnectionState.Open)
                     await con.OpenAsync();
 
@@ -695,13 +846,14 @@ namespace EMR.Web.Controllers
                     profileId = resolvedProfileId,
                     profileCode = (string)profile.Profile_Code,
                     profileName = (string)profile.Profile_Name,
-                    profileType = (string)(profile.Profile_Type ?? "Profile"),
+                    profileType = profile.Profile_Type?.ToString() == "2" ? "Package" : "Profile",
                     tatHours = profile.Profile_TAT_Hours,
                     mrp = profile.MRP,
                     profileUrl = fullUrl,
                     testCount = tests.Count(),
                     tests = tests.Select(x => new
                     {
+                        testId = (int)x.Test_ID,
                         sequence = x.Sequence,
                         testCode = (string)x.Test_Code,
                         testName = (string)x.Test_Name,
@@ -1480,6 +1632,105 @@ namespace EMR.Web.Controllers
                 latitude = lat,
                 longitude = lon
             });
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> PrintBillAnonymous(int labOrderId, string secret)
+        {
+            if (string.IsNullOrEmpty(secret) || secret != $"lab_print_{labOrderId}")
+            {
+                return Unauthorized("Invalid or missing secret key for anonymous bill generation.");
+            }
+
+            if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
+
+            var detail = await labOrderApiClient.GetOrderDetailAsync(labOrderId);
+            if (detail == null) return NotFound("Lab order not found.");
+
+            var branchId = detail.BranchId;
+
+            var settings = await dbContext.HospitalSettings
+                .Where(s => s.BranchId == branchId && s.IsActive)
+                .FirstOrDefaultAsync();
+
+            decimal grossAmount = detail.Items.Sum(i => i.Price);
+            decimal headerDiscount = detail.DiscountAmount;
+            bool hasRecordedLineDiscounts = detail.Items.Any(i => i.DiscountAmount > 0);
+
+            var lineItems = detail.Items.Select(i =>
+            {
+                decimal lineDiscount = hasRecordedLineDiscounts
+                    ? i.DiscountAmount
+                    : (grossAmount > 0 && headerDiscount > 0 ? Math.Round(headerDiscount * i.Price / grossAmount, 2) : 0);
+
+                return new PrintBillLineItem
+                {
+                    TestCode     = i.TestCode,
+                    TestName     = i.TestName,
+                    SampleType   = i.SampleType,
+                    MRP          = i.Price,
+                    DiscountAmount = lineDiscount,
+                    IsActive     = i.IsActive
+                };
+            }).ToList();
+
+            var vm = new PrintBillViewModel
+            {
+                IsActive              = detail.IsActive,
+                HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
+                HospitalType          = settings?.HospitalType,
+                RegistrationNumber    = settings?.RegistrationNumber,
+                HospitalAddress       = settings?.Address,
+                HospitalPhone         = settings?.ContactNumber1,
+                HospitalEmergencyPhone = settings?.EmergencyNumber,
+                HospitalEmail         = settings?.EmailAddress,
+                HospitalWebsite       = settings?.Website,
+                HospitalGSTIN         = settings?.GSTCode,
+                HospitalLogoPath      = settings?.LogoPath,
+                BranchName            = detail.BranchName,
+                NabhStatus            = settings?.NabhStatus,
+                NabhCertificateNo     = settings?.NabhCertificateNo,
+                NabhValidFrom         = settings?.NabhValidFrom,
+                NabhValidTo           = settings?.NabhValidTo,
+
+                PatientName  = detail.PatientName,
+                PatientCode  = detail.PatientCode,
+                PhoneNumber  = detail.PhoneNumber,
+                EmailId      = detail.EmailId,
+                Gender       = detail.Gender,
+                Age          = detail.Age,
+                DateOfBirth  = detail.DateOfBirth,
+                Address      = detail.Address,
+
+                LabOrderId        = detail.LabOrderId,
+                BillNo            = detail.BillNo,
+                TokenNo           = detail.TokenNo,
+                OrderDate         = detail.OrderDate,
+                CreatedDate       = detail.CreatedDate,
+                BookingDate       = detail.BookingDate,
+                CollectionType    = detail.CollectionType,
+                PhlebotomistName  = detail.PhlebotomistName,
+                CreatedByName     = detail.CreatedByName,
+
+                GrossAmount     = grossAmount,
+                DiscountAmount  = headerDiscount,
+                RoundOffAmount  = detail.RoundOffAmount,
+                GrandTotal      = detail.NetAmount,
+                ReceivedAmount  = detail.TotalPaid,
+                Balance         = detail.BalanceDue,
+                PaymentStatus   = detail.PaymentStatus,
+
+                LineItems = lineItems,
+                Payments  = detail.Payments.Select(p => new PrintBillPaymentRow
+                {
+                    MethodName     = p.MethodName,
+                    PaidAmount     = p.PaidAmount,
+                    TransactionRef = p.TransactionRef
+                }).ToList()
+            };
+
+            return View("PrintBill", vm);
         }
     }
 

@@ -19,11 +19,13 @@ namespace EMR.Api.Services
 
             var itemsTable = new DataTable();
             itemsTable.Columns.Add("InvestigationId", typeof(int));
+            itemsTable.Columns.Add("Type", typeof(string));
             itemsTable.Columns.Add("Price", typeof(decimal));
 
             foreach (var item in request.Items)
             {
-                itemsTable.Rows.Add(item.InvestigationId, item.Price);
+                var itemType = string.IsNullOrWhiteSpace(item.Type) ? "I" : item.Type.Trim().ToUpperInvariant();
+                itemsTable.Rows.Add(item.InvestigationId, itemType, item.Price);
             }
 
             var p = new DynamicParameters();

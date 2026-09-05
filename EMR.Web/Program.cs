@@ -12,7 +12,10 @@ using Microsoft.AspNetCore.DataProtection;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add<EMR.Web.Filters.GlobalAuditLogFilter>();
+});
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -123,6 +126,7 @@ builder.Services.AddScoped<IPatientApiClient,           PatientApiClient>();
 builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>();
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
 builder.Services.AddScoped<ILabOrderApiClient,          LabOrderApiClient>();
+builder.Services.AddScoped<ISampleCollectionApiClient,   SampleCollectionApiClient>();
 builder.Services.AddScoped<IReportApiClient, ReportApiClient>();
 builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();

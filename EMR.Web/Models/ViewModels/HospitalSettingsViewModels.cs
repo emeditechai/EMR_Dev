@@ -93,6 +93,15 @@ public class HospitalSettingsViewModel
     [Display(Name = "Email Notification (Bill/Prescription) Required")]
     public bool EmailNotificationRequired { get; set; } = true;
 
+    [Display(Name = "LAB Email Notification (Billing) Required")]
+    public bool LabEmailNotificationRequired { get; set; } = true;
+
+    [Display(Name = "Is Sample Collection Mandatory")]
+    public bool IsSampleCollectionMandatory { get; set; } = true;
+
+    [Display(Name = "Barcode Generate at Billing")]
+    public bool BarcodeGenerateAtBilling { get; set; } = false;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

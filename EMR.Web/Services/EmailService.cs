@@ -144,30 +144,46 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
         string toEmail, string subject, string body,
         bool isHtml = false, IEnumerable<Attachment>? attachments = null)
     {
-        using var message = new MailMessage
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress(fromName ?? fromEmail, fromEmail));
+        message.To.Add(new MimeKit.MailboxAddress("", toEmail));
+        message.Subject = subject;
+
+        var builder = new MimeKit.BodyBuilder();
+        if (isHtml)
         {
-            From = new MailAddress(fromEmail, fromName),
-            Subject = subject,
-            Body = body,
-            IsBodyHtml = isHtml
-        };
-        message.To.Add(new MailAddress(toEmail));
+            builder.HtmlBody = body;
+        }
+        else
+        {
+            builder.TextBody = body;
+        }
 
         if (attachments != null)
         {
             foreach (var attachment in attachments)
             {
-                message.Attachments.Add(attachment);
+                using var memoryStream = new MemoryStream();
+                attachment.ContentStream.CopyTo(memoryStream);
+                var contentType = attachment.ContentType.MediaType;
+                builder.Attachments.Add(attachment.Name ?? "attachment", memoryStream.ToArray(), MimeKit.ContentType.Parse(contentType));
             }
         }
 
-        using var client = new SmtpClient(host, port);
-        client.EnableSsl = useSsl;
-        client.UseDefaultCredentials = false;
-        client.Credentials = new NetworkCredential(username, password);
-        client.DeliveryMethod = SmtpDeliveryMethod.Network;
-        client.Timeout = 30000; // 30 seconds
+        message.Body = builder.ToMessageBody();
 
-        await client.SendMailAsync(message);
+        using var client = new MailKit.Net.Smtp.SmtpClient();
+        client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+        var secureOption = useSsl ? MailKit.Security.SecureSocketOptions.SslOnConnect : MailKit.Security.SecureSocketOptions.Auto;
+        await client.ConnectAsync(host, port, secureOption);
+
+        if (!string.IsNullOrEmpty(username))
+        {
+            await client.AuthenticateAsync(username, password);
+        }
+
+        await client.SendAsync(message);
+        await client.DisconnectAsync(true);
     }
 }

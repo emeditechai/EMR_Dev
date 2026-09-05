@@ -325,7 +325,40 @@
         <div class="tab-pane fade module-tab-pane" id="editTabLab" role="tabpanel">
             <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>LAB-specific parameters will be configurable here.</p>
             <div class="row g-3">
-                @foreach (var p in new[] { "Report Prefix","Default Sample Type","Auto Report Delivery","Report TAT (Hours)","External Lab Integration","Critical Alert","Print Header on Report","Barcode on Sample" })
+                <div class="col-6 col-md-3">
+                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                        <i class="bi bi-envelope me-1 text-primary"></i>Email Notification (Bill)
+                    </label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="LabEmailNotificationRequired">
+                        <label class="form-check-label ms-2" asp-for="LabEmailNotificationRequired">Send emails for Lab Bills</label>
+                    </div>
+                    <span asp-validation-for="LabEmailNotificationRequired" class="text-danger small d-block mt-1"></span>
+                </div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                        <i class="bi bi-eyedropper me-1 text-warning"></i>Sample Collection Mandatory
+                    </label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IsSampleCollectionMandatory">
+                        <label class="form-check-label ms-2" asp-for="IsSampleCollectionMandatory">Is Sample Collection Mandatory</label>
+                    </div>
+                    <span asp-validation-for="IsSampleCollectionMandatory" class="text-danger small d-block mt-1"></span>
+                </div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
+                        <i class="bi bi-upc-scan me-1 text-info"></i>Barcode Gen at Billing
+                    </label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="BarcodeGenerateAtBilling">
+                        <label class="form-check-label ms-2" asp-for="BarcodeGenerateAtBilling">Generate Barcode at Billing</label>
+                    </div>
+                    <span asp-validation-for="BarcodeGenerateAtBilling" class="text-danger small d-block mt-1"></span>
+                </div>
+
+                @foreach (var p in new[] { "Report Prefix","Default Sample Type","Report TAT (Hours)","External Lab Integration","Critical Alert","Print Header on Report","Barcode on Sample" })
                 {
                     <div class="col-6 col-md-3">
                         <div class="param-placeholder">

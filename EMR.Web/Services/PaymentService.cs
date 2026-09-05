@@ -676,6 +676,19 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     tokenParams,
                     commandType: CommandType.StoredProcedure);
                 assignedToken = tokenParams.Get<string?>("@TokenNo");
+
+                // Auto-collect samples if HospitalSettings.IsSampleCollectionMandatory == NO (0)
+                try
+                {
+                    await con.ExecuteAsync(
+                        "dbo.usp_SampleCollection_AutoCollectIfNoMandatory",
+                        new { LabOrderId = targetModuleRefId, UserId = userId },
+                        commandType: CommandType.StoredProcedure);
+                }
+                catch
+                {
+                    // Non-blocking catch
+                }
             }
 
             decimal finalRoundOff = await con.QuerySingleOrDefaultAsync<decimal>("SELECT ISNULL(RoundOffAmount, 0) FROM PaymentHeader WHERE PaymentHeaderId = @Id", new { Id = paymentHeaderId });

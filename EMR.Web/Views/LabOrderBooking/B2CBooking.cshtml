@@ -851,6 +851,9 @@
                     <a href="#" id="btnPrintBill" target="_blank" class="btn btn-outline-success btn-sm px-3">
                         <i class="bi bi-printer me-1"></i> Print Bill
                     </a>
+                    <a href="#" id="btnPrintBarcode" target="_blank" class="btn btn-outline-info btn-sm px-3 d-none">
+                        <i class="bi bi-upc-scan me-1"></i> Print Barcode
+                    </a>
                     <button type="button" class="btn btn-primary btn-sm px-4" onclick="window.location.reload();">
                         <i class="bi bi-plus-lg me-1"></i> New Booking
                     </button>
@@ -1230,15 +1233,18 @@
                 if (!opt.id) return null;
                 var $elem = $(opt.element);
                 var isProfile = $elem.attr('data-is-profile') === '1';
+                var isPackage = $elem.attr('data-is-package') === '1';
                 var code = $elem.attr('data-code') || '';
                 var name = $elem.attr('data-name') || opt.text;
                 var tat = $elem.attr('data-tat');
                 var price = parseFloat($elem.attr('data-price')) || 0;
                 var sample = $elem.attr('data-sample');
 
-                var badgeHtml = isProfile
-                    ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-layers me-1"></i>Profile</span>'
-                    : '';
+                var badgeHtml = isPackage
+                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-box me-1"></i>Package</span>'
+                    : (isProfile
+                        ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-layers me-1"></i>Profile</span>'
+                        : '');
 
                 var sampleHtml = sample ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-droplet me-1"></i>${sample}</span>` : '';
                 var tatHtml = tat ? `<span class="badge bg-light text-secondary border ms-2" style="font-size:0.72rem;"><i class="bi bi-clock me-1"></i>${tat} hrs</span>` : '';
@@ -1305,18 +1311,38 @@
                         $('#lblAvailCount').text(res.data.length);
                         res.data.forEach(function (item) {
                             var isProf = item.isProfileTest === true || item.isProfileTest === 'true';
-                            var profileLabel = isProf ? ' [Profile]' : '';
-                            var sampleStr = item.sampleType ? ` [Sample: ${item.sampleType}]` : '';
+                            var isPack = item.isPackage === true || item.isPackage === 'true';
+                            var profileLabel = isProf ? ' <span class="badge badge-light-primary"><i class="fas fa-layer-group"></i> Profile</span>' : '';
+                            var packageLabel = isPack ? ' <span class="badge badge-light-success"><i class="fas fa-box"></i> Package</span>' : '';
+                            var sampleStr = item.sampleType ? ` <span class="badge badge-light-info"><i class="fas fa-tint"></i> ${item.sampleType}</span>` : '';
                             var isDiscAllowed = item.isDiscountAllowed === true || item.isDiscountAllowed === 'true' || item.isDiscountAllowed === 1;
+                            
+                            // Combine labels
+                            var allLabels = isPack ? packageLabel : (profileLabel + sampleStr);
+                            if (isPack) sampleStr = ''; // packages don't usually show a single sample type
+                            
+                            // We use html encoding for option text but Select2 can render HTML if we use templateResult. 
+                            // Since we might not be using templateResult, let's just stick to string tags or adjust if Select2 escapes them.
+                            // The original code was using raw text: profileLabel = isProf ? ' [Profile]' : '';
+                            // Let's stick to the original text approach to avoid XSS/Select2 escaping issues, unless we know Select2 is configured for HTML.
+                            
+                            var textProfileLabel = isProf ? ' [Profile]' : '';
+                            var textPackageLabel = isPack ? ' [Package]' : '';
+                            var textSampleStr = item.sampleType ? ` [Sample: ${item.sampleType}]` : '';
+                            
+                            var itemType = isPack ? 'P' : 'I';
+                            var valStr = `${itemType}_${item.investigationId}`;
+                            
                             var opt = new Option(
-                                `${item.testCode} - ${item.testName}${profileLabel}${sampleStr} [TAT: ${item.tatHours} hrs] - ₹ ${item.mrp.toFixed(2)}`,
-                                item.investigationId
+                                `${item.testCode} - ${item.testName}${textProfileLabel}${textPackageLabel}${textSampleStr} [TAT: ${item.tatHours} hrs] - ₹ ${item.mrp.toFixed(2)}`,
+                                valStr
                             );
                             $(opt).attr('data-price', item.mrp);
                             $(opt).attr('data-code', item.testCode);
                             $(opt).attr('data-name', item.testName);
                             $(opt).attr('data-tat', item.tatHours);
                             $(opt).attr('data-is-profile', isProf ? '1' : '0');
+                            $(opt).attr('data-is-package', isPack ? '1' : '0');
                             $(opt).attr('data-profile-id', item.profileId || '');
                             $(opt).attr('data-profile-url', item.profileEncryptedUrl || '');
                             $(opt).attr('data-sample', item.sampleType || '');
@@ -1336,17 +1362,22 @@
             var lineItems = [];
 
             // Directly add test on selection (via Keyboard Enter or Mouse Click)
-            $('#ddlInvestigations').on('select2:select', function(e) {
+            $('#ddlInvestigations').on('select2:select', async function(e) {
                 var data = e.params.data;
-                var id = parseInt(data.id);
-                if (!id) return;
+                var valStr = data.id;
+                if (!valStr) return;
 
-                var opt = $(this).find(`option[value="${id}"]`);
+                var opt = $(this).find(`option[value="${valStr}"]`);
+                
+                var parts = valStr.split('_');
+                var itemType = parts[0];
+                var id = parseInt(parts[1]);
                 var price = parseFloat(opt.attr('data-price')) || 0;
                 var code = opt.attr('data-code') || '';
                 var name = opt.attr('data-name') || '';
                 var tat = opt.attr('data-tat') || '';
                 var isProfile = opt.attr('data-is-profile') === '1';
+                var isPackage = opt.attr('data-is-package') === '1';
                 var profileId = opt.attr('data-profile-id') || '';
                 var profileUrl = opt.attr('data-profile-url') || '';
 
@@ -1354,12 +1385,66 @@
                 var method = opt.attr('data-method') || '';
                 var isDiscAllowed = opt.attr('data-disc-allowed') === '1';
 
-                // Check duplicate
-                if (lineItems.some(x => x.investigationId === id)) {
+                var newTestIds = [id];
+                var newTestNames = [name];
+                var profileTests = null;
+
+                if (isProfile || isPackage) {
+                    try {
+                        // Disable the dropdown to prevent further clicks while loading
+                        $(this).prop('disabled', true);
+                        var url = `@Url.Action("GetProfileDetails", "LabOrderBooking")?profileId=${profileId}`;
+                        var res = await $.get(url);
+                        if (res.success && res.tests) {
+                            profileTests = res.tests;
+                            newTestIds = res.tests.map(t => t.testId);
+                            newTestNames = res.tests.map(t => t.testName);
+                        }
+                    } catch (err) {
+                        console.error('Failed to fetch profile details:', err);
+                    } finally {
+                        $(this).prop('disabled', false);
+                    }
+                }
+
+                // Deep duplicate check
+                var duplicateFound = false;
+                var duplicateMessage = '';
+
+                for (var i = 0; i < newTestIds.length; i++) {
+                    var checkId = newTestIds[i];
+                    var checkName = newTestNames[i];
+                    
+                    // Check against single tests
+                    var singleMatch = lineItems.find(x => !x.isProfileTest && !x.isPackage && x.investigationId === checkId);
+                    if (singleMatch) {
+                        duplicateFound = true;
+                        if (isProfile || isPackage) {
+                            duplicateMessage = `${checkName} is already added as a single investigation.`;
+                        } else {
+                            duplicateMessage = `This investigation is already added.`;
+                        }
+                        break;
+                    }
+                    
+                    // Check against already added profiles/packages
+                    var profileMatch = lineItems.find(x => (x.isProfileTest || x.isPackage) && x.profileTests && x.profileTests.some(pt => pt.testId === checkId));
+                    if (profileMatch) {
+                        duplicateFound = true;
+                        if (isProfile || isPackage) {
+                            duplicateMessage = `${checkName} is already included in the added '${profileMatch.testName}'.`;
+                        } else {
+                            duplicateMessage = `This investigation is already included in the added '${profileMatch.testName}'.`;
+                        }
+                        break;
+                    }
+                }
+
+                if (duplicateFound) {
                     if (typeof showToast === 'function') {
-                        showToast('This investigation is already added.', 'danger');
+                        showToast(duplicateMessage, 'danger');
                     } else {
-                        alert('This investigation is already added.');
+                        alert(duplicateMessage);
                     }
                     $(this).val('').trigger('change.select2');
                     return;
@@ -1372,11 +1457,13 @@
                     testName: name,
                     tatHours: tat,
                     isProfileTest: isProfile,
+                    isPackage: isPackage,
                     profileId: profileId,
                     profileUrl: profileUrl,
                     sampleType: sampleType,
                     method: method,
-                    isDiscountAllowed: isDiscAllowed
+                    isDiscountAllowed: isDiscAllowed,
+                    profileTests: profileTests
                 });
 
                 renderTable();
@@ -1419,7 +1506,10 @@
                                <button type="button" class="btn btn-xs btn-outline-info ms-1 btn-view-profile rounded-pill shadow-2xs" data-test-id="${item.investigationId}" data-profile-id="${item.profileId || ''}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" title="View included investigations in this profile" style="font-size:0.75rem;line-height:1.4;vertical-align:middle;padding:0.15rem 0.55rem;">
                                    <i class="bi bi-eye me-1"></i>View Tests
                                </button>`
-                            : '';
+                            : (item.isPackage ? `<span class="badge bg-success text-white ms-2 cursor-pointer btn-view-profile" data-test-id="${item.investigationId}" data-profile-id="${item.investigationId}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" style="font-size:0.72rem;vertical-align:middle;padding:0.25rem 0.5rem;border-radius:4px;cursor:pointer;" title="Click to view included tests"><i class="fas fa-box me-1"></i>Package</span>
+                               <button type="button" class="btn btn-xs btn-outline-success ms-1 btn-view-profile rounded-pill shadow-2xs" data-test-id="${item.investigationId}" data-profile-id="${item.investigationId}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" title="View included investigations in this package" style="font-size:0.75rem;line-height:1.4;vertical-align:middle;padding:0.15rem 0.55rem;">
+                                   <i class="bi bi-eye me-1"></i>View Tests
+                               </button>` : '');
 
                         var badgeDisc = item.isDiscountAllowed
                             ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.68rem;padding:0.2rem 0.45rem" title="Discount allowed as per rate list"><i class="bi bi-tag-fill me-1"></i>Disc. Allowed</span>`
@@ -1448,7 +1538,12 @@
 
                 $('#badgeSelectedCount').text(`${lineItems.length} Test${lineItems.length === 1 ? '' : 's'} Selected`);
                 $('#lblTotalAmount').text(`₹ ${total.toFixed(2)}`);
-                $('#lineItemsJson').val(JSON.stringify(lineItems.map(x => ({ investigationId: x.investigationId, price: x.price }))));
+                $('#lineItemsJson').val(JSON.stringify(lineItems.map(x => ({
+                    investigationId: x.investigationId,
+                    type: (x.isPackage ? 'P' : 'I'),
+                    isPackage: !!x.isPackage,
+                    price: x.price
+                }))));
             }
 
             // Initial empty table render
@@ -1744,6 +1839,26 @@
 
                     // Auto-open print bill in new tab
                     window.open(printUrl, '_blank');
+
+                    if (result.showPrintBarcode) {
+                        var barcodeUrl = '@Url.Action("PrintBarcode", "SampleCollection")' + '?labOrderId=' + result.labOrderId;
+                        $('#btnPrintBarcode').removeClass('d-none').attr('href', barcodeUrl);
+
+                        setTimeout(() => {
+                            Swal.fire({
+                                title: 'Print Barcode Labels?',
+                                text: 'Do you want to print the barcode labels for this order now?',
+                                icon: 'question',
+                                showCancelButton: true,
+                                confirmButtonText: 'Yes, print barcodes',
+                                cancelButtonText: 'No'
+                            }).then((res) => {
+                                if (res.isConfirmed) {
+                                    window.open(barcodeUrl, '_blank');
+                                }
+                            });
+                        }, 500);
+                    }
                 } catch (err) {
                     _isLabBookingSubmitting = false;
                     throw err;

@@ -67,6 +67,10 @@ public class HospitalSettings
 
     public bool EmailNotificationRequired { get; set; } = true;
 
+    public bool LabEmailNotificationRequired { get; set; } = true;
+    public bool IsSampleCollectionMandatory { get; set; } = true;
+    public bool BarcodeGenerateAtBilling { get; set; } = false;
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedDate { get; set; } = DateTime.Now;

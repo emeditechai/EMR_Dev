@@ -1,0 +1,1998 @@
+@model EMR.Web.Models.ViewModels.SampleCollectionDashboardViewModel
+@{
+    ViewData["Title"] = "Sample Collection Management";
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
+}
+
+<div class="container-fluid px-3 py-3 sample-mgmt-wrapper">
+    <!-- Breadcrumb & Top Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-8">
+                    <li class="breadcrumb-item"><a asp-controller="Dashboard" asp-action="Index" class="text-decoration-none text-secondary">Home</a></li>
+                    <li class="breadcrumb-item text-secondary">LAB</li>
+                    <li class="breadcrumb-item active fw-semibold" aria-current="page">Sample Collection Management</li>
+                </ol>
+            </nav>
+            <h4 class="mb-0 fw-bold text-dark d-flex align-items-center">
+                <i class="bi bi-eyedropper text-primary me-2"></i>Sample Collection Management
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 fs-8 fw-semibold">B2C Patients</span>
+            </h4>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center shadow-sm" id="btnRefreshList">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+            <a asp-controller="LabOrderBooking" asp-action="B2CBooking" class="btn btn-primary btn-sm d-flex align-items-center shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i> New Lab Booking
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Stats Cards -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0 border-start border-primary border-4 rounded-3 h-100 stat-card" data-status="All" style="cursor: pointer;">
+                <div class="card-body p-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-8 fw-semibold text-uppercase">Total Orders</span>
+                        <h4 class="mb-0 fw-bold text-dark mt-1" id="statTotalOrders">@Model.Stats.TotalOrders</h4>
+                    </div>
+                    <div class="stat-icon bg-primary-subtle text-primary rounded-circle">
+                        <i class="bi bi-journal-medical fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0 border-start border-warning border-4 rounded-3 h-100 stat-card" data-status="Pending" style="cursor: pointer;">
+                <div class="card-body p-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-8 fw-semibold text-uppercase">Pending</span>
+                        <h4 class="mb-0 fw-bold text-warning mt-1" id="statPendingOrders">@Model.Stats.PendingOrders</h4>
+                    </div>
+                    <div class="stat-icon bg-warning-subtle text-warning rounded-circle">
+                        <i class="bi bi-hourglass-split fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0 border-start border-info border-4 rounded-3 h-100 stat-card" data-status="Partial" style="cursor: pointer;">
+                <div class="card-body p-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-8 fw-semibold text-uppercase">Partially Collected</span>
+                        <h4 class="mb-0 fw-bold text-info mt-1" id="statPartialOrders">@Model.Stats.PartialOrders</h4>
+                    </div>
+                    <div class="stat-icon bg-info-subtle text-info rounded-circle">
+                        <i class="bi bi-pie-chart fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm border-0 border-start border-success border-4 rounded-3 h-100 stat-card" data-status="Collected" style="cursor: pointer;">
+                <div class="card-body p-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-8 fw-semibold text-uppercase">Fully Collected</span>
+                        <h4 class="mb-0 fw-bold text-success mt-1" id="statCollectedOrders">@Model.Stats.CollectedOrders</h4>
+                    </div>
+                    <div class="stat-icon bg-success-subtle text-success rounded-circle">
+                        <i class="bi bi-check2-circle fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Toolbar Card -->
+    <div class="card shadow-sm border-0 rounded-3 mb-3 filter-toolbar-card">
+        <div class="card-body p-2 px-3">
+            <div class="row g-2 align-items-center">
+                <!-- Date Filter Type -->
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-8 text-muted mb-1 fw-semibold">Filter By Date</label>
+                    <select id="selDateFilterType" class="form-select form-select-sm">
+                        <option value="BookingDate" selected="@(Model.DateFilterType == "BookingDate")">Booking Date Time</option>
+                        <option value="OrderDate" selected="@(Model.DateFilterType == "OrderDate")">Order / Bill Date</option>
+                    </select>
+                </div>
+                <!-- From Date -->
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-8 text-muted mb-1 fw-semibold">From Date</label>
+                    <input type="date" id="txtFromDate" class="form-control form-control-sm" value="@Model.FromDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <!-- To Date -->
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-8 text-muted mb-1 fw-semibold">To Date</label>
+                    <input type="date" id="txtToDate" class="form-control form-control-sm" value="@Model.ToDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <!-- Quick Date Pills -->
+                <div class="col-6 col-md-3">
+                    <label class="form-label fs-8 text-muted mb-1 fw-semibold">Quick Select</label>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date" data-range="today">Today</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date" data-range="yesterday">Yesterday</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date" data-range="week">Last 7D</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date" data-range="month">This Month</button>
+                    </div>
+                </div>
+                <!-- Search Box -->
+                <div class="col-12 col-md-3">
+                    <label class="form-label fs-8 text-muted mb-1 fw-semibold">Search Orders / Patient</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="txtSearch" class="form-control border-start-0" placeholder="Token, Bill, Patient, Phone... (Alt+S)" value="@Model.Search" />
+                        <button class="btn btn-primary px-3" type="button" id="btnApplyFilter">Filter</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Filter Pills -->
+            <div class="d-flex flex-wrap gap-2 mt-2 pt-2 border-top align-items-center">
+                <span class="fs-8 text-muted fw-semibold me-1"><i class="bi bi-funnel me-1"></i>Status:</span>
+                <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "All" ? "btn-dark text-white active fw-bold shadow-sm" : "btn-outline-dark")" data-status="All">All</button>
+                <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Pending" ? "btn-warning text-dark active fw-bold shadow-sm" : "btn-outline-warning text-dark")" data-status="Pending">
+                    <i class="bi bi-hourglass-split me-1"></i>Pending
+                </button>
+                <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Partial" ? "btn-info text-dark active fw-bold shadow-sm" : "btn-outline-info text-dark")" data-status="Partial">
+                    <i class="bi bi-pie-chart me-1"></i>Partially Collected
+                </button>
+                <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Collected" ? "btn-success text-white active fw-bold shadow-sm" : "btn-outline-success")" data-status="Collected">
+                    <i class="bi bi-check2-circle me-1"></i>Collected
+                </button>
+                <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Re Collect" ? "btn-secondary text-white active fw-bold shadow-sm" : "btn-outline-secondary")" data-status="Re Collect">
+                    <i class="bi bi-arrow-repeat me-1"></i>Re Collect
+                </button>
+                <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Rejected" ? "btn-danger text-white active fw-bold shadow-sm" : "btn-outline-danger")" data-status="Rejected">
+                    <i class="bi bi-x-circle me-1"></i>Rejected
+                </button>
+                <span class="ms-auto fs-8 text-muted fw-semibold" id="lblOrderCount">Showing @Model.Headers.Count orders</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DUAL-PANE SPLIT CONTAINER -->
+    <div class="row g-3 dual-pane-layout">
+        <!-- LEFT PANEL: Orders Header Queue (col-lg-5 col-xl-5) -->
+        <div class="col-lg-5 col-xl-5 h-100">
+            <div class="card shadow-sm border-0 rounded-3 h-100 master-card d-flex flex-column">
+                <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-shrink-0">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary rounded-circle p-1 d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px;">
+                            <i class="bi bi-list-task text-white fs-9"></i>
+                        </span>
+                        <h6 class="mb-0 fw-bold text-dark">Lab Orders &amp; Bookings</h6>
+                    </div>
+                    <span class="fs-9 text-muted"><i class="bi bi-hand-index me-1"></i>Click row to select</span>
+                </div>
+                <div class="card-body p-0 flex-grow-1 overflow-auto master-table-scroll-wrap">
+                    <table class="table table-hover align-middle mb-0 master-order-table" id="tblOrderHeaders">
+                        <thead class="table-light sticky-top fs-8 text-uppercase border-bottom">
+                            <tr>
+                                <th style="width: 25%;">Booking / Status</th>
+                                <th style="width: 24%;">Token / Bill</th>
+                                <th style="width: 28%;">Patient Details</th>
+                                <th style="width: 23%;">Order Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblOrderHeadersBody">
+                            @if (Model.Headers.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                        No lab orders found for the selected date range and filter criteria.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var h in Model.Headers)
+                                {
+                                    var statusPatternClass = h.OverallStatus switch
+                                    {
+                                        "Collected" => "status-pattern-collected",
+                                        "Partially Collected" => "status-pattern-partial",
+                                        "Re Collect" => "status-pattern-recollect",
+                                        "Rejected" => "status-pattern-rejected",
+                                        _ => "status-pattern-pending"
+                                    };
+
+                                    var overallBadge = h.OverallStatus switch
+                                    {
+                                        "Collected" => "bg-success",
+                                        "Partially Collected" => "bg-info text-dark",
+                                        "Re Collect" => "bg-secondary text-white",
+                                        "Rejected" => "bg-danger",
+                                        _ => "bg-warning text-dark"
+                                    };
+
+                                    var payBadge = h.PaymentStatus switch
+                                    {
+                                        "P" => "badge-subtle-success",
+                                        "Partial" => "badge-subtle-info",
+                                        _ => "badge-subtle-danger"
+                                    };
+
+                                    var payText = h.PaymentStatus switch
+                                    {
+                                        "P" => "Paid",
+                                        "Partial" => "Partial",
+                                        _ => "Unpaid"
+                                    };
+
+                                    <tr class="order-header-row cursor-pointer @statusPatternClass" data-id="@h.LabOrderId" id="orderRow_@h.LabOrderId">
+                                        <!-- Booking Date & Status -->
+                                        <td>
+                                            <div class="fw-bold text-dark fs-8">
+                                                @(h.BookingDateTime.HasValue ? h.BookingDateTime.Value.ToString("dd-MMM-yyyy") : "—")
+                                            </div>
+                                            <div class="text-muted fs-9">
+                                                <i class="bi bi-clock me-1"></i>@(h.BookingDateTime.HasValue ? h.BookingDateTime.Value.ToString("hh:mm tt") : "—")
+                                            </div>
+                                            <div class="mt-1">
+                                                <span class="badge @overallBadge fs-9">@h.OverallStatus</span>
+                                            </div>
+                                        </td>
+
+                                        <!-- Token / Bill No / Payment -->
+                                        <td>
+                                            <div class="fw-bold text-primary fs-8">
+                                                <i class="bi bi-ticket-perforated me-1"></i>@(h.TokenNo ?? "—")
+                                            </div>
+                                            <div class="text-muted fs-9 text-truncate" style="max-width: 110px;" title="Bill: @h.BillNo">
+                                                @h.BillNo
+                                            </div>
+                                            <div class="d-flex align-items-center gap-1 mt-1">
+                                                <span class="custom-badge @payBadge fs-9">@payText</span>
+                                                <span class="fs-9 text-muted fw-bold">₹@h.TotalAmount.ToString("N0")</span>
+                                            </div>
+                                        </td>
+
+                                        <!-- Patient Details -->
+                                        <td>
+                                            <div class="fw-bold text-dark fs-8 text-truncate" style="max-width: 140px;" title="@h.PatientName">
+                                                @h.PatientName
+                                            </div>
+                                            <div class="fs-9 text-muted">
+                                                <span class="badge bg-light text-dark border me-1">@h.PatientCode</span>
+                                                @if (h.Age.HasValue) { <span>@h.Age Y</span> }
+                                                @if (!string.IsNullOrEmpty(h.Gender)) { <span>/@h.Gender</span> }
+                                            </div>
+                                            @if (!string.IsNullOrEmpty(h.PhoneNumber))
+                                            {
+                                                <div class="fs-9 text-muted text-truncate" style="max-width: 130px;">
+                                                    <i class="bi bi-telephone me-1"></i>@h.PhoneNumber
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <!-- Order Summary & Progress (Containers removed from Header!) -->
+                                        <td>
+                                            <div class="fw-bold text-dark fs-8">
+                                                <i class="bi bi-card-checklist me-1 text-primary"></i>@h.TotalTests Tests
+                                            </div>
+                                            <div class="fs-9 text-muted mt-1 fw-semibold">
+                                                <span class="badge @overallBadge fs-9">@h.CollectedCount/@h.TotalTests Collected</span>
+                                            </div>
+                                            <div class="mt-1">
+                                                @if (h.CollectionType?.ToLower().Contains("home") == true)
+                                                {
+                                                    <span class="badge bg-purple-subtle text-purple border border-purple fs-9">
+                                                        <i class="bi bi-house-door-fill me-1"></i>Home
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-light text-secondary border fs-9">
+                                                        <i class="bi bi-building me-1"></i>Center
+                                                    </span>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Collection Workspace (col-lg-7 col-xl-7) -->
+        <div class="col-lg-7 col-xl-7 h-100">
+            <div class="card shadow-sm border-0 rounded-3 h-100 workspace-card d-flex flex-column">
+                <!-- Pinned Workspace Header -->
+                <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center flex-shrink-0">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-success rounded-circle p-1 d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px;">
+                            <i class="bi bi-clipboard2-pulse text-white fs-8"></i>
+                        </span>
+                        <div>
+                            <h6 class="mb-0 fw-bold text-dark">Collection Workspace</h6>
+                            <span class="fs-9 text-muted" id="lblWorkspaceSubtitle">Select an order from the list</span>
+                        </div>
+                    </div>
+                    <div id="workspaceActionButtons" class="d-none d-flex gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center shadow-sm" id="btnViewAllBarcodes" title="View all scannable barcodes">
+                            <i class="bi bi-upc-scan me-1"></i> View Barcodes
+                        </button>
+                        <button type="button" class="btn btn-outline-dark btn-sm d-flex align-items-center shadow-sm" id="btnPrintAllLabels" title="Print Barcode Labels for all vials">
+                            <i class="bi bi-printer me-1"></i> Print Labels
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm d-flex align-items-center shadow-sm fw-semibold" id="btnCollectAll">
+                            <i class="bi bi-check-all me-1"></i> Collect All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scrollable Workspace Body -->
+                <div class="card-body p-3 flex-grow-1 overflow-auto workspace-scroll-body" id="workspaceContent">
+                    <!-- Placeholder State (When no order selected) -->
+                    <div id="workspacePlaceholder" class="text-center py-5">
+                        <div class="empty-icon-wrap bg-light text-primary rounded-circle d-inline-flex p-4 mb-3">
+                            <i class="bi bi-eyedropper fs-1"></i>
+                        </div>
+                        <h5 class="fw-bold text-dark">No Order Selected</h5>
+                        <p class="text-muted fs-8 mx-auto" style="max-width: 320px;">
+                            Click any order from the left list to review required sample containers, collection statuses, and print barcodes.
+                        </p>
+                    </div>
+
+                    <!-- Loading Spinner -->
+                    <div id="workspaceLoader" class="text-center py-5 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading order details...</span>
+                        </div>
+                        <p class="text-muted fs-8 mt-2">Loading sample collection details...</p>
+                    </div>
+
+                    <!-- Populated Workspace Area -->
+                    <div id="workspaceDetails" class="d-none">
+                        <!-- Patient & Order Header Hero Box -->
+                        <div class="patient-hero-card p-3 rounded-3 mb-3 border shadow-xs">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="avatar-circle bg-primary text-white rounded-circle fw-bold d-flex align-items-center justify-content-center shadow-sm" id="lblPatientAvatar">
+                                        PT
+                                    </div>
+                                    <div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <h6 class="mb-0 fw-bold text-dark fs-7" id="lblPatientName">—</h6>
+                                            <span class="badge bg-secondary-subtle text-secondary border fs-9" id="lblPatientCode">—</span>
+                                        </div>
+                                        <div class="fs-9 text-muted mt-1">
+                                            <span id="lblPatientAgeGender">—</span>
+                                            <span class="mx-1">•</span>
+                                            <i class="bi bi-telephone me-1"></i><span id="lblPatientPhone">—</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-primary fs-7 shadow-xs" id="lblTokenNo">—</span>
+                                    <div class="fs-9 text-muted mt-1" id="lblBillNo">—</div>
+                                </div>
+                            </div>
+                            <div class="row g-2 pt-2 border-top fs-8">
+                                <div class="col-sm-3 col-6">
+                                    <span class="text-muted fs-9 d-block">Booking Time</span>
+                                    <strong class="text-dark fs-8" id="lblBookingDateTime">—</strong>
+                                </div>
+                                <div class="col-sm-3 col-6">
+                                    <span class="text-muted fs-9 d-block">Collection Type</span>
+                                    <span id="lblCollectionTypeBadge" class="badge bg-light text-secondary border fs-9">Lab</span>
+                                </div>
+                                <div class="col-sm-3 col-6" id="rowPhlebotomist">
+                                    <span class="text-muted fs-9 d-block">Phlebotomist</span>
+                                    <strong class="text-dark fs-8 text-truncate d-block" id="lblPhlebotomist">—</strong>
+                                </div>
+                                <div class="col-sm-3 col-6 text-sm-end">
+                                    <span class="text-muted fs-9 d-block">Payment Status</span>
+                                    <span id="lblPaymentStatus" class="badge bg-success fs-9">Paid</span>
+                                </div>
+                            </div>
+
+                            <!-- Visual Collection Progress -->
+                            <div class="mt-2 pt-2 border-top">
+                                <div class="d-flex justify-content-between align-items-center fs-9 mb-1">
+                                    <span class="fw-semibold text-dark">
+                                        <i class="bi bi-check2-all text-primary me-1"></i>Collection Progress: <span id="lblProgressText" class="fw-bold">0/0 Collected</span>
+                                    </span>
+                                    <span class="text-primary fw-bold" id="lblProgressPercent">0%</span>
+                                </div>
+                                <div class="progress" style="height: 6px; border-radius: 3px; background-color: #e2e8f0;">
+                                    <div id="lblProgressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Booking Date Restriction Alert Banner -->
+                        <div id="alertDateRestriction" class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center rounded-3 fs-8 border-warning-subtle shadow-xs d-none">
+                            <i class="bi bi-exclamation-triangle-fill text-warning fs-5 me-2 flex-shrink-0"></i>
+                            <div>
+                                <strong>Sample Collection Restricted:</strong> 
+                                Sample collection is only permitted when the <strong>Booking Date</strong> equals the <strong>Current Date</strong>. 
+                                This order is booked for <span id="alertRestrictedDate" class="fw-bold"></span> (Today is <span id="alertTodayDate" class="fw-bold"></span>). 
+                                Save buttons are disabled for these records.
+                            </div>
+                        </div>
+
+                        <!-- INVESTIGATIONS TABLE (CONTAINER IN DETAILS BASED ON INVESTIGATION) -->
+                        <div class="card border rounded-3 overflow-hidden shadow-xs">
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0 fs-8" id="tblWorkspaceTests">
+                                    <thead class="table-light fs-9 text-uppercase text-secondary border-bottom">
+                                        <tr>
+                                            <th style="width: 3%;" class="text-center">#</th>
+                                            <th style="width: 27%;">Investigation / Test Details</th>
+                                            <th style="width: 17%;">Container &amp; Specimen</th>
+                                            <th style="width: 6%;" class="text-center">Fasting</th>
+                                            <th style="width: 18%;">Barcode</th>
+                                            <th style="width: 12%;">Status</th>
+                                            <th style="width: 17%;">Collection Time &amp; Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tblWorkspaceTestsBody">
+                                        <!-- Populated dynamically via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Scannable Vector Barcode Visualizer (Grid View of Distinct Barcodes) -->
+<div class="modal fade" id="barcodeVisualizerModal" tabindex="-1" aria-labelledby="barcodeVisualizerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header py-2 px-3 bg-light border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary text-white rounded-circle p-1"><i class="bi bi-upc-scan fs-8"></i></span>
+                    <h6 class="modal-title fw-bold text-dark" id="barcodeVisualizerModalLabel">Generated Barcodes</h6>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 bg-light-subtle" style="max-height: 70vh; overflow-y: auto;">
+                <div id="barcodeVisualizerContent" class="row g-3">
+                    <!-- Populated dynamically with distinct barcode cards -->
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 border-top bg-white">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnModalPrintAll">
+                    <i class="bi bi-printer me-1"></i> Print All Labels
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Barcode Label Print Preview (Iframe) -->
+<div class="modal fade" id="barcodePrintModal" tabindex="-1" aria-labelledby="barcodePrintModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header py-2 px-3 bg-light border-bottom">
+                <h6 class="modal-title fw-bold" id="barcodePrintModalLabel">
+                    <i class="bi bi-printer me-2 text-primary"></i>Print Barcode Labels
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="barcodePrintFrame" style="width: 100%; height: 440px; border: none;"></iframe>
+            </div>
+            <div class="modal-footer py-2 px-3 border-top bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnTriggerPrint">
+                    <i class="bi bi-printer me-1"></i> Print Label(s)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* ── Split Dual-Pane SaaS Viewport Constraint ── */
+    .dual-pane-layout {
+        height: calc(100vh - 240px);
+        min-height: 580px;
+    }
+    @@media (max-width: 991.98px) {
+        .dual-pane-layout {
+            height: auto;
+            min-height: auto;
+        }
+    }
+
+    .master-card, .workspace-card {
+        background-color: #ffffff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03) !important;
+    }
+
+    .master-table-scroll-wrap::-webkit-scrollbar,
+    .workspace-scroll-body::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    .master-table-scroll-wrap::-webkit-scrollbar-thumb,
+    .workspace-scroll-body::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 4px;
+    }
+    .master-table-scroll-wrap::-webkit-scrollbar-track,
+    .workspace-scroll-body::-webkit-scrollbar-track {
+        background-color: #f8fafc;
+    }
+
+    /* ── Typography and Icon Badges ── */
+    .fs-7 { font-size: 0.85rem !important; }
+    .fs-8 { font-size: 0.78rem !important; }
+    .fs-9 { font-size: 0.72rem !important; }
+    .cursor-pointer { cursor: pointer; }
+
+    .stat-card {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(0,0,0,0.08) !important;
+    }
+    .stat-icon {
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .avatar-circle {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+        letter-spacing: 0.5px;
+    }
+
+    /* ── Status-based colour patterns on Header Grid (Requirement 4) ── */
+    .order-header-row {
+        transition: background-color 0.15s ease, border-left-color 0.15s ease;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .status-pattern-pending {
+        border-left: 5px solid #f59e0b !important;
+        background-color: #fffdf5 !important;
+    }
+    .status-pattern-pending:hover {
+        background-color: #fef9c3 !important;
+    }
+    .status-pattern-partial {
+        border-left: 5px solid #0284c7 !important;
+        background-color: #f0f9ff !important;
+    }
+    .status-pattern-partial:hover {
+        background-color: #e0f2fe !important;
+    }
+    .status-pattern-collected {
+        border-left: 5px solid #16a34a !important;
+        background-color: #f6fef9 !important;
+    }
+    .status-pattern-collected:hover {
+        background-color: #dcfce7 !important;
+    }
+    .status-pattern-recollect {
+        border-left: 5px solid #9333ea !important;
+        background-color: #faf5ff !important;
+    }
+    .status-pattern-recollect:hover {
+        background-color: #f3e8ff !important;
+    }
+    .status-pattern-rejected {
+        border-left: 5px solid #dc2626 !important;
+        background-color: #fef2f2 !important;
+    }
+    .status-pattern-rejected:hover {
+        background-color: #fee2e2 !important;
+    }
+
+    .order-header-row.order-selected {
+        box-shadow: inset 0 0 0 2px #2563eb !important;
+        background-color: #eff6ff !important;
+        position: relative;
+        z-index: 2;
+    }
+
+    /* ── Patient Hero Card ── */
+    .patient-hero-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+        border-color: #e2e8f0 !important;
+    }
+
+    /* ── Subtle Badges ── */
+    .badge-subtle-success {
+        background-color: #dcfce7;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
+    }
+    .badge-subtle-info {
+        background-color: #e0f2fe;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+    }
+    .badge-subtle-danger {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    .badge-subtle-warning {
+        background-color: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+
+    /* ── Tube Cap Styling in Details Table ── */
+    .cap-badge-yellow {
+        background-color: #fef08a;
+        color: #854d0e;
+        border: 1px solid #fde047;
+    }
+    .cap-badge-purple {
+        background-color: #f3e8ff;
+        color: #6b21a8;
+        border: 1px solid #d8b4fe;
+    }
+    .cap-badge-blue {
+        background-color: #e0f2fe;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+    }
+    .cap-badge-grey {
+        background-color: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+    }
+    .cap-badge-red {
+        background-color: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    .cap-badge-green {
+        background-color: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+    }
+
+    #tblWorkspaceTests {
+        min-width: 780px;
+    }
+
+    .sel-collection-status {
+        min-width: 108px;
+        font-size: 0.78rem !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+        height: 28px !important;
+    }
+
+    .txt-collection-datetime {
+        min-width: 155px;
+        font-size: 0.75rem !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+        height: 28px !important;
+    }
+
+    .btn-copy-barcode {
+        transition: all 0.15s ease;
+    }
+    .btn-copy-barcode:hover {
+        background-color: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .btn-toggle-row-edit {
+        padding: 1px 6px !important;
+        font-size: 0.75rem !important;
+        border-radius: 4px;
+    }
+
+    .barcode-display-badge {
+        background: #0f172a;
+        color: #f8fafc;
+        font-family: 'Courier New', Courier, monospace;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        font-size: 0.76rem;
+        padding: 2px 7px;
+        border-radius: 4px;
+        display: inline-block;
+    }
+
+    .test-item-row:hover {
+        background-color: #f8fafc;
+    }
+
+    .group-header-row {
+        background-color: #f8fafc;
+        border-top: 1.5px solid #e2e8f0;
+        border-bottom: 1.5px solid #e2e8f0;
+    }
+
+    .profile-collapse-toggle {
+        cursor: pointer;
+        user-select: none;
+        transition: color 0.15s ease;
+    }
+    .profile-collapse-toggle:hover {
+        color: #1d4ed8 !important;
+    }
+    .profile-collapse-icon {
+        transition: transform 0.2s ease;
+        display: inline-block;
+    }
+    .profile-collapse-icon.collapsed {
+        transform: rotate(-90deg);
+    }
+    .profile-action-controls {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 6px;
+        padding: 3px 8px;
+    }
+</style>
+
+@section Scripts {
+    <!-- JsBarcode CDN for real scannable vector barcode rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+    <script>
+        function showNotify(msg, type = 'success') {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: type,
+                    title: msg,
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true
+                });
+            } else if (typeof toastr !== 'undefined') {
+                toastr.options = {
+                    closeButton: true,
+                    progressBar: true,
+                    positionClass: "toast-top-right",
+                    timeOut: "3000"
+                };
+                if (type === 'error') toastr.error(msg);
+                else if (type === 'info') toastr.info(msg);
+                else toastr.success(msg);
+            } else {
+                alert(msg);
+            }
+        }
+
+        if (typeof window.toastr === 'undefined') {
+            window.toastr = {
+                success: function(m) { showNotify(m, 'success'); },
+                error: function(m) { showNotify(m, 'error'); },
+                info: function(m) { showNotify(m, 'info'); },
+                warning: function(m) { showNotify(m, 'warning'); }
+            };
+        }
+
+        $(document).ready(function () {
+            let activeOrderId = null;
+            let currentDetailData = null;
+            let statusMasterList = [];
+
+            // ── 1. Row Selection Click ──────────────────────────────────────────
+            $(document).on('click', '.order-header-row', function () {
+                const orderId = $(this).data('id');
+                selectOrder(orderId);
+            });
+
+            function selectOrder(orderId) {
+                activeOrderId = orderId;
+                $('.order-header-row').removeClass('order-selected');
+                $(`#orderRow_${orderId}`).addClass('order-selected');
+
+                $('#workspacePlaceholder').addClass('d-none');
+                $('#workspaceDetails').addClass('d-none');
+                $('#workspaceActionButtons').addClass('d-none');
+                $('#workspaceLoader').removeClass('d-none');
+
+                $.ajax({
+                    url: '@Url.Action("GetDetailJson", "SampleCollection")',
+                    type: 'GET',
+                    data: { labOrderId: orderId },
+                    success: function (res) {
+                        $('#workspaceLoader').addClass('d-none');
+                        if (res.success && res.detail) {
+                            currentDetailData = res.detail;
+                            statusMasterList = res.statuses || [];
+                            renderWorkspaceDetails(res.detail, statusMasterList);
+                        } else {
+                            $('#workspacePlaceholder').removeClass('d-none');
+                            showNotify(res.message || 'Failed to load order details.', 'error');
+                        }
+                    },
+                    error: function () {
+                        $('#workspaceLoader').addClass('d-none');
+                        $('#workspacePlaceholder').removeClass('d-none');
+                        showNotify('Error fetching sample collection details.', 'error');
+                    }
+                });
+            }
+
+            // ── 2. Render Workspace Details (Containers Based on Investigation) ─
+            function renderWorkspaceDetails(detail, statuses) {
+                $('#workspaceDetails').removeClass('d-none');
+                $('#workspaceActionButtons').removeClass('d-none');
+
+                const rawBookingDate = detail.bookingDateTime || detail.orderDate;
+                const isAllowedToday = isDateToday(rawBookingDate);
+
+                // Date Restriction Banner
+                if (!isAllowedToday) {
+                    const bookingDateFormatted = formatDate(rawBookingDate);
+                    const todayFormatted = formatDate(new Date().toISOString());
+                    $('#alertRestrictedDate').text(bookingDateFormatted);
+                    $('#alertTodayDate').text(todayFormatted);
+                    $('#alertDateRestriction').removeClass('d-none');
+                } else {
+                    $('#alertDateRestriction').addClass('d-none');
+                }
+
+                // Header Subtitle
+                $('#lblWorkspaceSubtitle').text(`${detail.tokenNo || ''} — ${detail.patientName || ''}`);
+
+                // Patient Demographics
+                $('#lblPatientName').text(detail.patientName || '—');
+                $('#lblPatientCode').text(detail.patientCode || '—');
+                const ageGender = (detail.age ? detail.age + ' Yrs' : '') + (detail.gender ? ' / ' + detail.gender : '');
+                $('#lblPatientAgeGender').text(ageGender || '—');
+                $('#lblPatientPhone').text(detail.phoneNumber || 'No phone');
+
+                const initials = (detail.patientName || 'PT')
+                    .split(' ')
+                    .filter(Boolean)
+                    .map(x => x[0])
+                    .join('')
+                    .substring(0, 2)
+                    .toUpperCase();
+                $('#lblPatientAvatar').text(initials);
+
+                $('#lblTokenNo').text(detail.tokenNo || 'NO TOKEN');
+                $('#lblBillNo').text(detail.billNo || '—');
+                $('#lblBookingDateTime').text(detail.bookingDateTime ? formatDateTime(detail.bookingDateTime) : '—');
+
+                // Collection Type
+                if (detail.collectionType && detail.collectionType.toLowerCase().includes('home')) {
+                    $('#lblCollectionTypeBadge').removeClass('bg-light text-secondary').addClass('bg-purple-subtle text-purple border border-purple').html('<i class="bi bi-house-door-fill me-1"></i>Home Collection');
+                } else {
+                    $('#lblCollectionTypeBadge').removeClass('bg-purple-subtle text-purple border border-purple').addClass('bg-light text-secondary border').html('<i class="bi bi-building me-1"></i>Lab Center');
+                }
+
+                if (detail.phlebotomistName) {
+                    $('#rowPhlebotomist').show();
+                    $('#lblPhlebotomist').text(detail.phlebotomistName);
+                } else {
+                    $('#rowPhlebotomist').hide();
+                }
+
+                // Payment Status
+                const payBadge = detail.paymentStatus === 'P'
+                    ? '<span class="badge bg-success">Paid</span>'
+                    : (detail.paymentStatus === 'Partial'
+                        ? '<span class="badge bg-info text-dark">Partial</span>'
+                        : '<span class="badge bg-danger">Unpaid</span>');
+                $('#lblPaymentStatus').html(payBadge);
+
+                // Collection Progress & Pending Check
+                const items = detail.items || [];
+                const totalTests = items.length;
+                const collectedCount = items.filter(x => x.collectionstatusID === 2).length;
+                const pendingCount = items.filter(x => x.collectionstatusID !== 2).length;
+                const hasPending = pendingCount > 0;
+                const progressPct = totalTests > 0 ? Math.round((collectedCount / totalTests) * 100) : 0;
+
+                $('#lblProgressText').text(`${collectedCount}/${totalTests} Tests Collected`);
+                $('#lblProgressPercent').text(`${progressPct}%`);
+                $('#lblProgressBar').css('width', `${progressPct}%`);
+
+                // Update Print Labels button text with count of collected barcodes
+                const distinctCollectedBarcodes = new Set(items.filter(x => x.barcodeNo && x.collectionstatusID === 2).map(x => x.barcodeNo)).size;
+                if (distinctCollectedBarcodes > 0) {
+                    $('#btnPrintAllLabels').html(`<i class="bi bi-printer me-1"></i> Print Labels <span class="badge bg-light text-dark ms-1">${distinctCollectedBarcodes}</span>`);
+                } else {
+                    $('#btnPrintAllLabels').html(`<i class="bi bi-printer me-1"></i> Print Labels`);
+                }
+
+                // Collect All Button State based on Date & Pending items
+                if (!isAllowedToday) {
+                    const bookingDateFormatted = formatDate(rawBookingDate);
+                    $('#btnCollectAll')
+                        .prop('disabled', true)
+                        .removeClass('btn-success')
+                        .addClass('btn-secondary')
+                        .attr('title', `Sample collection is only permitted on the booking date (${bookingDateFormatted})`);
+                } else if (!hasPending) {
+                    $('#btnCollectAll')
+                        .prop('disabled', true)
+                        .removeClass('btn-success')
+                        .addClass('btn-secondary')
+                        .attr('title', 'All samples for this order are already collected');
+                } else {
+                    $('#btnCollectAll')
+                        .prop('disabled', false)
+                        .removeClass('btn-secondary')
+                        .addClass('btn-success')
+                        .attr('title', `Collect all ${pendingCount} pending sample(s) for this order`);
+                }
+
+                // Group items by Profile / Package or Standalone
+                // Profile items sharing profileId share the same barcode
+                const groups = [];
+                const profileGroupsMap = {};
+                const standaloneTests = [];
+
+                items.forEach(item => {
+                    const profileKey = item.profileId ? `PRF_${item.profileId}` : (item.profileName ? `PRFN_${item.profileName}` : null);
+                    const packageKey = item.packageId ? `PKG_${item.packageId}` : null;
+
+                    if (profileKey) {
+                        if (!profileGroupsMap[profileKey]) {
+                            profileGroupsMap[profileKey] = {
+                                type: 'Profile',
+                                name: item.profileName || item.profileOrPackageName || 'Profile',
+                                profileId: item.profileId,
+                                packageName: item.packageName,
+                                items: []
+                            };
+                            groups.push(profileGroupsMap[profileKey]);
+                        }
+                        profileGroupsMap[profileKey].items.push(item);
+                    } else if (packageKey) {
+                        // Standalone test within a package
+                        if (!profileGroupsMap[packageKey]) {
+                            profileGroupsMap[packageKey] = {
+                                type: 'Package',
+                                name: item.packageName || item.profileOrPackageName || 'Package',
+                                packageId: item.packageId,
+                                items: []
+                            };
+                            groups.push(profileGroupsMap[packageKey]);
+                        }
+                        profileGroupsMap[packageKey].items.push(item);
+                    } else {
+                        standaloneTests.push(item);
+                    }
+                });
+
+                if (standaloneTests.length > 0) {
+                    groups.push({
+                        type: 'Standalone',
+                        name: 'Individual Investigations',
+                        items: standaloneTests
+                    });
+                }
+
+                // Render Table Rows with Container Details per Investigation
+                let rowsHtml = '';
+                let rowNum = 0;
+                let grpIndex = 0;
+
+                groups.forEach(grp => {
+                    grpIndex++;
+                    const isProfile = (grp.type === 'Profile');
+                    const isPkg = (grp.type === 'Package');
+                    const grpId = `grp_${grpIndex}`;
+
+                    let headerIcon = 'bi-card-checklist';
+                    let headerBadge = 'Individual Tests';
+                    let headerClass = 'table-light text-secondary';
+
+                    if (isProfile) {
+                        headerIcon = 'bi-folder2-open';
+                        headerBadge = 'Profile Test';
+                        headerClass = 'table-primary-subtle text-primary';
+                    } else if (isPkg) {
+                        headerIcon = 'bi-box-seam';
+                        headerBadge = 'Package';
+                        headerClass = 'table-info-subtle text-info-emphasis';
+                    }
+
+                    // Shared Profile Barcode info if collected
+                    const sharedBarcode = isProfile ? grp.items.find(x => x.barcodeNo)?.barcodeNo : null;
+
+                    // Common status among items in this profile (if all are same, show that; otherwise default to Pending or first item status)
+                    const firstStatus = grp.items[0]?.collectionstatusID || 1;
+                    const allSameStatus = grp.items.every(x => x.collectionstatusID === firstStatus);
+                    const groupSelectedStatus = allSameStatus ? firstStatus : 1;
+
+                    // Is entire profile collected?
+                    const isAllProfileCollected = isProfile && grp.items.length > 0 && grp.items.every(x => x.collectionstatusID === 2);
+
+                    let profileStatusOptionsHtml = '';
+                    statuses.forEach(st => {
+                        const isSelected = (st.statusID === groupSelectedStatus) ? 'selected' : '';
+                        profileStatusOptionsHtml += `<option value="${st.statusID}" ${isSelected}>${escapeHtml(st.statusName)}</option>`;
+                    });
+
+                    // First item's collection date/time for profile default
+                    const firstDate = grp.items[0]?.samplecollectiondate;
+                    const firstTime = grp.items[0]?.samplecollectiontime;
+                    const defaultProfileDt = getFormattedDateTimeForInput(firstDate, firstTime);
+
+                    rowsHtml += `
+                        <tr class="${headerClass} group-header-row" id="groupHeader_${grpId}">
+                            <td colspan="7" class="py-2 px-3 fw-bold">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                    <div class="d-flex align-items-center profile-collapse-toggle" data-target="${grpId}" title="Click to Expand/Collapse">
+                                        <i class="bi bi-chevron-down me-2 profile-collapse-icon text-primary fs-7" id="icon_${grpId}"></i>
+                                        <i class="bi ${headerIcon} me-2 fs-7"></i>
+                                        <span class="fs-8 text-dark fw-bold">${escapeHtml(grp.name)}</span>
+                                        <span class="badge bg-white text-dark border ms-2 fs-9">${grp.items.length} Test(s)</span>
+                                        ${sharedBarcode ? `
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle fs-9 ms-2 d-inline-flex align-items-center gap-1">
+                                                <i class="bi bi-upc-scan"></i> Tube Barcode: <strong>${escapeHtml(sharedBarcode)}</strong>
+                                                <button type="button" class="btn btn-link p-0 text-success ms-1 btn-copy-barcode" data-barcode="${escapeHtml(sharedBarcode)}" title="Copy Barcode to Clipboard"><i class="bi bi-clipboard"></i></button>
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                    ${isProfile ? (
+                                        isAllProfileCollected ? `
+                                        <div class="d-flex align-items-center gap-2 profile-action-controls">
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-9 fw-semibold">
+                                                <i class="bi bi-check2-all me-1"></i>Profile Collected
+                                            </span>
+                                            <span class="fs-9 text-muted d-none d-md-inline">
+                                                <i class="bi bi-clock me-1"></i>${formatCollectionDateTime(firstDate, firstTime)}
+                                            </span>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 btn-toggle-profile-edit" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''} title="Change Profile collection status">
+                                                <i class="bi bi-pencil-square me-1"></i>Edit
+                                            </button>
+                                            <div class="profile-edit-wrapper d-none d-inline-flex align-items-center gap-2 ms-1 ps-2 border-start" id="profileEdit_${grpId}">
+                                                <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''}>
+                                                    ${profileStatusOptionsHtml}
+                                                </select>
+                                                <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
+                                                       data-grpid="${grpId}" value="${defaultProfileDt}" ${!isAllowedToday ? 'disabled' : ''} />
+                                                <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                                        data-grpid="${grpId}"
+                                                        data-profileid="${grp.profileId || ''}"
+                                                        data-profilename="${escapeHtml(grp.name)}"
+                                                        ${!isAllowedToday ? 'disabled' : ''}
+                                                        title="${isAllowedToday ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                                    <i class="bi ${isAllowedToday ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
+                                                </button>
+                                            </div>
+                                        </div>
+                                        ` : `
+                                        <div class="d-flex align-items-center gap-2 profile-action-controls">
+                                            <span class="fs-9 text-muted fw-normal me-1 d-none d-sm-inline">Profile Status:</span>
+                                            <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''}>
+                                                ${profileStatusOptionsHtml}
+                                            </select>
+                                            <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
+                                                   data-grpid="${grpId}" value="${defaultProfileDt}" ${!isAllowedToday ? 'disabled' : ''} />
+                                            <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                                    data-grpid="${grpId}"
+                                                    data-profileid="${grp.profileId || ''}"
+                                                    data-profilename="${escapeHtml(grp.name)}"
+                                                    ${!isAllowedToday ? 'disabled' : ''}
+                                                    title="${isAllowedToday ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                                <i class="bi ${isAllowedToday ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
+                                            </button>
+                                        </div>
+                                        `
+                                    ) : ''}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+
+                    grp.items.forEach(test => {
+                        rowNum++;
+
+                        // Container badge styling based on investigation
+                        const cTypeLower = (test.containerType || '').toLowerCase();
+                        const sTypeLower = (test.sampleTypeName || '').toLowerCase();
+
+                        let capBadgeClass = 'cap-badge-grey';
+                        if (cTypeLower.includes('yellow') || cTypeLower.includes('sst') || sTypeLower.includes('serum')) {
+                            capBadgeClass = 'cap-badge-yellow';
+                        } else if (cTypeLower.includes('purple') || cTypeLower.includes('edta') || sTypeLower.includes('blood')) {
+                            capBadgeClass = 'cap-badge-purple';
+                        } else if (cTypeLower.includes('blue') || cTypeLower.includes('citrate')) {
+                            capBadgeClass = 'cap-badge-blue';
+                        } else if (cTypeLower.includes('grey') || cTypeLower.includes('gray') || cTypeLower.includes('fluoride')) {
+                            capBadgeClass = 'cap-badge-grey';
+                        } else if (cTypeLower.includes('red') || cTypeLower.includes('plain')) {
+                            capBadgeClass = 'cap-badge-red';
+                        } else if (cTypeLower.includes('green') || cTypeLower.includes('heparin')) {
+                            capBadgeClass = 'cap-badge-green';
+                        }
+
+                        const fastingBadge = test.isFastingRequired
+                            ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9"><i class="bi bi-exclamation-circle me-1"></i>Yes</span>'
+                            : '<span class="badge bg-light text-muted border fs-9">No</span>';
+
+                        const barcodeCellHtml = (test.barcodeNo && test.collectionstatusID === 2)
+                            ? `<div class="d-flex align-items-center gap-1">
+                                 <span class="barcode-display-badge" title="Barcode">${escapeHtml(test.barcodeNo)}</span>
+                                 <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 btn-copy-barcode" data-barcode="${escapeHtml(test.barcodeNo)}" title="Copy Barcode to Clipboard"><i class="bi bi-clipboard"></i></button>
+                                 <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 btn-preview-barcode" data-barcode="${escapeHtml(test.barcodeNo)}" data-name="${escapeHtml(test.testName)}" title="View Barcode"><i class="bi bi-upc-scan"></i></button>
+                                 <button type="button" class="btn btn-outline-dark btn-sm py-0 px-1 btn-print-single-label" data-barcode="${escapeHtml(test.barcodeNo)}" title="Print Thermal Label"><i class="bi bi-printer"></i></button>
+                               </div>`
+                            : `<span class="badge bg-warning-subtle text-dark border border-warning-subtle fs-9"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`;
+
+                        let statusOptionsHtml = '';
+                        statuses.forEach(st => {
+                            const isSelected = (test.collectionstatusID === st.statusID) ? 'selected' : '';
+                            statusOptionsHtml += `<option value="${st.statusID}" ${isSelected}>${escapeHtml(st.statusName)}</option>`;
+                        });
+
+                        const isCollected = (test.collectionstatusID === 2);
+                        let statusCellHtml = '';
+                        let actionCellHtml = '';
+
+                        if (isCollected) {
+                            statusCellHtml = `
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-9 fw-semibold">
+                                        <i class="bi bi-check2-circle me-1"></i>Collected
+                                    </span>
+                                </div>
+                                <div class="row-edit-status d-none mt-1">
+                                    <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!isAllowedToday ? 'disabled' : ''}>
+                                        ${statusOptionsHtml}
+                                    </select>
+                                </div>
+                            `;
+
+                            actionCellHtml = `
+                                <div class="d-flex align-items-center justify-content-between gap-1 row-collected-view">
+                                    <div class="lh-sm">
+                                        <div class="fs-9 text-dark fw-semibold">${formatDate(test.samplecollectiondate)}</div>
+                                        <div class="fs-9 text-muted"><i class="bi bi-clock me-1"></i>${formatTime(test.samplecollectiontime || test.samplecollectiondate)}</div>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 fs-9 btn-toggle-row-edit" data-id="${test.samplecollectionID}" title="Edit collection time or status" ${!isAllowedToday ? 'disabled' : ''}>
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </div>
+                                <div class="row-edit-action d-none mt-1">
+                                    <div class="d-flex flex-column gap-1">
+                                        <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" 
+                                               data-id="${test.samplecollectionID}" 
+                                               value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
+                                               ${!isAllowedToday ? 'disabled' : ''} />
+                                        <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
+                                                data-id="${test.samplecollectionID}"
+                                                ${!isAllowedToday ? 'disabled' : ''}
+                                                title="${isAllowedToday ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                            <i class="bi ${isAllowedToday ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            statusCellHtml = `
+                                <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!isAllowedToday ? 'disabled' : ''}>
+                                    ${statusOptionsHtml}
+                                </select>
+                            `;
+
+                            actionCellHtml = `
+                                <div class="d-flex flex-column gap-1">
+                                    <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" 
+                                           data-id="${test.samplecollectionID}" 
+                                           value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
+                                           ${!isAllowedToday ? 'disabled' : ''} />
+                                    <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
+                                            data-id="${test.samplecollectionID}"
+                                            ${!isAllowedToday ? 'disabled' : ''}
+                                            title="${isAllowedToday ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                        <i class="bi ${isAllowedToday ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
+                                    </button>
+                                </div>
+                            `;
+                        }
+
+                        rowsHtml += `
+                            <tr id="testRow_${test.samplecollectionID}" class="test-item-row row-group-${grpId}" data-id="${test.samplecollectionID}" data-grpid="${grpId}">
+                                <td class="text-center text-muted fw-bold fs-9">${rowNum}</td>
+                                <td>
+                                    <div class="fw-bold text-dark fs-8">${escapeHtml(test.testName)}</div>
+                                    <div class="fs-9 text-muted mt-1">
+                                        <span class="badge bg-light text-dark border me-1">${escapeHtml(test.testCode)}</span>
+                                        ${test.profileName && test.profileName !== '—'
+                                            ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1"><i class="bi bi-folder2 me-1"></i>${escapeHtml(test.profileName)}</span>`
+                                            : ''}
+                                        ${test.packageName && test.packageName !== '—'
+                                            ? `<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-box-seam me-1"></i>${escapeHtml(test.packageName)}</span>`
+                                            : ''}
+                                    </div>
+                                </td>
+                                <!-- Container & Specimen based on Investigation -->
+                                <td>
+                                    <span class="badge ${capBadgeClass} fs-9 text-truncate" style="max-width: 150px;">
+                                        <i class="bi bi-droplet-fill me-1"></i>${escapeHtml(test.containerType || 'Standard Tube')}
+                                    </span>
+                                    <div class="fs-9 text-muted mt-1 fw-semibold">
+                                        ${escapeHtml(test.sampleTypeName || 'Specimen')}
+                                    </div>
+                                </td>
+                                <td class="text-center">${fastingBadge}</td>
+                                <td>${barcodeCellHtml}</td>
+                                <td>${statusCellHtml}</td>
+                                <td>${actionCellHtml}</td>
+                            </tr>
+                        `;
+                    });
+                });
+
+                $('#tblWorkspaceTestsBody').html(rowsHtml);
+            }
+
+            // ── 3. Barcode Visualizer Modal (Distinct Barcodes Only!) ──────────
+            $('#btnViewAllBarcodes').on('click', function () {
+                if (!activeOrderId || !currentDetailData) return;
+                const collectedItems = (currentDetailData.items || []).filter(x => x.barcodeNo && x.collectionstatusID === 2);
+                if (collectedItems.length === 0) {
+                    showNotify('No samples have been collected yet. Barcodes are generated upon sample collection.', 'warning');
+                    return;
+                }
+                showBarcodeModalWithItems(collectedItems);
+            });
+
+            $(document).on('click', '.btn-preview-barcode', function () {
+                const barcode = $(this).data('barcode');
+                const items = (currentDetailData?.items || []).filter(x => x.barcodeNo === barcode);
+                if (items.length > 0) {
+                    showBarcodeModalWithItems(items);
+                }
+            });
+
+            function showBarcodeModalWithItems(items) {
+                // Group by distinct barcode
+                const distinctBarcodes = {};
+                items.forEach(it => {
+                    if (!distinctBarcodes[it.barcodeNo]) {
+                        distinctBarcodes[it.barcodeNo] = {
+                            barcodeNo: it.barcodeNo,
+                            title: it.profileName || it.packageName || it.testName,
+                            sampleTypeName: it.sampleTypeName,
+                            containerType: it.containerType,
+                            isProfile: Boolean(it.profileName),
+                            tests: []
+                        };
+                    }
+                    distinctBarcodes[it.barcodeNo].tests.push(it);
+                });
+
+                const distinctKeys = Object.keys(distinctBarcodes);
+
+                $('#barcodeVisualizerModalLabel').html(`
+                    <span class="fw-bold">${currentDetailData?.tokenNo || 'LAB'}</span> — 
+                    <span class="text-secondary fs-7">${currentDetailData?.patientName || ''}</span> 
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-8 ms-1">${distinctKeys.length} Tube Barcode(s)</span>
+                `);
+
+                let gridHtml = '';
+                distinctKeys.forEach((bCode, idx) => {
+                    const bGroup = distinctBarcodes[bCode];
+                    const testCount = bGroup.tests.length;
+
+                    gridHtml += `
+                    <div class="col-md-6 col-12">
+                        <div class="card h-100 border shadow-xs rounded-3 p-3 bg-white text-center">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fs-8 fw-bold text-dark text-truncate" style="max-width: 200px;" title="${escapeHtml(bGroup.title)}">
+                                    ${escapeHtml(bGroup.title)}
+                                </span>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 btn-print-single-label" data-barcode="${escapeHtml(bCode)}" title="Print Thermal Label">
+                                    <i class="bi bi-printer me-1"></i> Print
+                                </button>
+                            </div>
+                            <div class="fs-9 text-muted mb-2 text-start">
+                                <span class="badge bg-light text-dark border me-1">${escapeHtml(bGroup.containerType)}</span>
+                                <span>${escapeHtml(bGroup.sampleTypeName)}</span>
+                                ${testCount > 1 ? `<span class="badge bg-primary-subtle text-primary ms-1">${testCount} Tests in this Tube</span>` : ''}
+                            </div>
+                            <div class="p-2 bg-light rounded border d-flex justify-content-center">
+                                <svg class="modal-barcode-svg" id="modalSvg_${idx}" data-barcode="${escapeHtml(bCode)}"></svg>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                });
+
+                $('#barcodeVisualizerContent').html(gridHtml);
+                $('#barcodeVisualizerModal').modal('show');
+
+                // Render barcodes with JsBarcode
+                setTimeout(() => {
+                    $('.modal-barcode-svg').each(function () {
+                        const code = $(this).attr('data-barcode');
+                        if (code) {
+                            try {
+                                JsBarcode(this, code, {
+                                    format: "CODE128",
+                                    width: 1.5,
+                                    height: 40,
+                                    displayValue: true,
+                                    fontSize: 11,
+                                    margin: 4
+                                });
+                            } catch (e) {
+                                console.warn('JsBarcode error in modal:', e);
+                            }
+                        }
+                    });
+                }, 150);
+            }
+
+            $('#btnModalPrintAll').on('click', function () {
+                if (!activeOrderId) return;
+                openBarcodeModal(activeOrderId, null, null);
+            });
+
+            // ── 3b. Inline Row & Profile Edit Toggles ───────────────────────────
+            $(document).on('click', '.btn-toggle-row-edit', function (e) {
+                e.stopPropagation();
+                const row = $(this).closest('tr');
+                const editStatus = row.find('.row-edit-status');
+                const editAction = row.find('.row-edit-action');
+                const collectedView = row.find('.row-collected-view');
+
+                if (editStatus.hasClass('d-none')) {
+                    editStatus.removeClass('d-none');
+                    editAction.removeClass('d-none');
+                    collectedView.addClass('d-none');
+                } else {
+                    editStatus.addClass('d-none');
+                    editAction.addClass('d-none');
+                    collectedView.removeClass('d-none');
+                }
+            });
+
+            $(document).on('click', '.btn-toggle-profile-edit', function (e) {
+                e.stopPropagation();
+                const grpId = $(this).data('grpid');
+                $(`#profileEdit_${grpId}`).toggleClass('d-none');
+            });
+
+            // ── 3c. One-Click Copy Barcode to Clipboard ─────────────────────────
+            $(document).on('click', '.btn-copy-barcode', function (e) {
+                e.stopPropagation();
+                const code = $(this).data('barcode');
+                if (!code) return;
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(String(code)).then(() => {
+                        showNotify(`Barcode "${code}" copied to clipboard`, 'success');
+                    }).catch(() => {
+                        copyFallback(code);
+                    });
+                } else {
+                    copyFallback(code);
+                }
+            });
+
+            function copyFallback(text) {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    showNotify(`Barcode "${text}" copied to clipboard`, 'success');
+                } catch (err) {
+                    showNotify('Failed to copy barcode', 'error');
+                }
+                document.body.removeChild(ta);
+            }
+
+            // ── 3d. Keyboard Shortcut (Alt + S) for Search Box ──────────────────
+            $(document).on('keydown', function (e) {
+                if (e.altKey && (e.key === 's' || e.key === 'S')) {
+                    e.preventDefault();
+                    $('#txtSearch').focus().select();
+                }
+            });
+
+            // ── 4. Status Dropdown Change -> Auto-fill current date/time if "Collected" ──
+            $(document).on('change', '.sel-collection-status', function () {
+                const statusId = parseInt($(this).val());
+                const row = $(this).closest('tr');
+                const dtInput = row.find('.txt-collection-datetime');
+
+                if (statusId === 2) { // Collected
+                    if (!dtInput.val()) {
+                        const now = new Date();
+                        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                        dtInput.val(now.toISOString().slice(0, 16));
+                    }
+                } else if (statusId === 1) { // Pending
+                    dtInput.val('');
+                }
+            });
+
+            // ── 4b. Profile Collapse / Expand Toggle ────────────────────────────
+            $(document).on('click', '.profile-collapse-toggle', function () {
+                const grpId = $(this).data('target');
+                const rows = $(`.row-group-${grpId}`);
+                const icon = $(`#icon_${grpId}`);
+
+                if (rows.is(':visible')) {
+                    rows.hide();
+                    icon.addClass('collapsed');
+                } else {
+                    rows.show();
+                    icon.removeClass('collapsed');
+                }
+            });
+
+            // ── 4c. Profile Status Dropdown Change -> Auto-fill date & cascade to rows ──
+            $(document).on('change', '.sel-profile-status', function () {
+                const grpId = $(this).data('grpid');
+                const statusId = parseInt($(this).val());
+                const dtInput = $(`.txt-profile-datetime[data-grpid="${grpId}"]`);
+
+                if (statusId === 2) { // Collected
+                    if (!dtInput.val()) {
+                        const now = new Date();
+                        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                        dtInput.val(now.toISOString().slice(0, 16));
+                    }
+                } else if (statusId === 1) { // Pending
+                    dtInput.val('');
+                }
+
+                // Synchronize child test rows in this profile
+                const dtVal = dtInput.val();
+                $(`.row-group-${grpId}`).each(function () {
+                    $(this).find('.sel-collection-status').val(statusId);
+                    if (statusId === 2 && dtVal) {
+                        $(this).find('.txt-collection-datetime').val(dtVal);
+                    } else if (statusId === 1) {
+                        $(this).find('.txt-collection-datetime').val('');
+                    }
+                });
+            });
+
+            $(document).on('change', '.txt-profile-datetime', function () {
+                const grpId = $(this).data('grpid');
+                const dtVal = $(this).val();
+                if (dtVal) {
+                    $(`.row-group-${grpId}`).find('.txt-collection-datetime').val(dtVal);
+                }
+            });
+
+            // ── 4d. Save Profile at once (All tests in this Profile) ───────────────
+            $(document).on('click', '.btn-save-profile', function () {
+                if (!activeOrderId || !currentDetailData) return;
+
+                const rawBookingDate = currentDetailData.bookingDateTime || currentDetailData.orderDate;
+                if (!isDateToday(rawBookingDate)) {
+                    showNotify(`Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)}).`, 'warning');
+                    return;
+                }
+
+                const btn = $(this);
+                const grpId = btn.data('grpid');
+                const profileIdRaw = btn.data('profileid');
+                const profileId = profileIdRaw ? parseInt(profileIdRaw) : null;
+                const profileName = btn.data('profilename') || null;
+
+                const statusId = parseInt($(`.sel-profile-status[data-grpid="${grpId}"]`).val());
+                const dtVal = $(`.txt-profile-datetime[data-grpid="${grpId}"]`).val();
+
+                let datePart = null;
+                let timePart = null;
+
+                if (dtVal) {
+                    const dt = new Date(dtVal);
+                    datePart = dt.toISOString().split('T')[0];
+                    timePart = dtVal.split('T')[1] ? dtVal.split('T')[1] + ':00' : '00:00:00';
+                }
+
+                btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Saving...');
+
+                $.ajax({
+                    url: '@Url.Action("UpdateProfileStatusJson", "SampleCollection")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        LabOrderId: activeOrderId,
+                        ProfileId: profileId,
+                        ProfileName: profileName,
+                        CollectionstatusID: statusId,
+                        SampleCollectionDate: datePart,
+                        SampleCollectionTime: timePart
+                    }),
+                    success: function (res) {
+                        btn.prop('disabled', false).html('<i class="bi bi-check-all me-1"></i> Save Profile');
+                        if (res.success) {
+                            showNotify(res.message || 'Profile samples updated successfully.', 'success');
+                            refreshOrderData(activeOrderId);
+                        } else {
+                            showNotify(res.message || 'Failed to update profile samples.', 'error');
+                        }
+                    },
+                    error: function () {
+                        btn.prop('disabled', false).html('<i class="bi bi-check-all me-1"></i> Save Profile');
+                        showNotify('Error occurred while updating profile samples.', 'error');
+                    }
+                });
+            });
+
+            // ── 5. Save Single Sample Status ────────────────────────────────────
+            $(document).on('click', '.btn-save-sample', function () {
+                if (!activeOrderId || !currentDetailData) return;
+
+                const rawBookingDate = currentDetailData.bookingDateTime || currentDetailData.orderDate;
+                if (!isDateToday(rawBookingDate)) {
+                    showNotify(`Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)}).`, 'warning');
+                    return;
+                }
+
+                const sampleId = $(this).data('id');
+                const row = $(`#testRow_${sampleId}`);
+                const statusId = parseInt(row.find('.sel-collection-status').val());
+                const dtVal = row.find('.txt-collection-datetime').val();
+
+                let datePart = null;
+                let timePart = null;
+
+                if (dtVal) {
+                    const dt = new Date(dtVal);
+                    datePart = dt.toISOString().split('T')[0];
+                    timePart = dtVal.split('T')[1] ? dtVal.split('T')[1] + ':00' : '00:00:00';
+                }
+
+                const btn = $(this);
+                btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+                $.ajax({
+                    url: '@Url.Action("UpdateStatusJson", "SampleCollection")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        SampleCollectionId: sampleId,
+                        LabOrderId: activeOrderId,
+                        CollectionstatusID: statusId,
+                        SampleCollectionDate: datePart,
+                        SampleCollectionTime: timePart
+                    }),
+                    success: function (res) {
+                        btn.prop('disabled', false).html('<i class="bi bi-check2"></i> Save');
+                        if (res.success) {
+                            showNotify('Sample status updated successfully.', 'success');
+                            refreshOrderData(activeOrderId);
+                        } else {
+                            showNotify(res.message || 'Failed to update sample.', 'error');
+                        }
+                    },
+                    error: function () {
+                        btn.prop('disabled', false).html('<i class="bi bi-check2"></i> Save');
+                        showNotify('Error occurred while updating sample.', 'error');
+                    }
+                });
+            });
+
+            // ── 6. Collect All Button Click ─────────────────────────────────────
+            $('#btnCollectAll').on('click', function () {
+                if (!activeOrderId || !currentDetailData) return;
+
+                const items = currentDetailData.items || [];
+                const pendingCount = items.filter(x => x.collectionstatusID !== 2).length;
+                if (pendingCount === 0) {
+                    showNotify('All samples for this order are already collected.', 'info');
+                    return;
+                }
+
+                const rawBookingDate = currentDetailData.bookingDateTime || currentDetailData.orderDate;
+                if (!isDateToday(rawBookingDate)) {
+                    showNotify(`Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)}).`, 'warning');
+                    return;
+                }
+
+                const proceedCollectAll = function () {
+                    const btn = $('#btnCollectAll');
+                    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Processing...');
+
+                    $.ajax({
+                        url: '@Url.Action("CollectAllJson", "SampleCollection")',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ LabOrderId: activeOrderId }),
+                        success: function (res) {
+                            btn.prop('disabled', false).html('<i class="bi bi-check-all me-1"></i> Collect All');
+                            if (res.success) {
+                                showNotify(res.message || 'All samples marked as Collected.', 'success');
+                                refreshOrderData(activeOrderId);
+                            } else {
+                                showNotify('Failed to update all samples.', 'error');
+                            }
+                        },
+                        error: function () {
+                            btn.prop('disabled', false).html('<i class="bi bi-check-all me-1"></i> Collect All');
+                            showNotify('Error occurred while collecting samples.', 'error');
+                        }
+                    });
+                };
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Collect All Samples?',
+                        text: 'Are you sure you want to mark all pending samples for this order as Collected?',
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#16a34a',
+                        cancelButtonColor: '#64748b',
+                        confirmButtonText: '<i class="bi bi-check-all me-1"></i> Yes, Collect All',
+                        cancelButtonText: 'Cancel',
+                        focusCancel: true,
+                        customClass: {
+                            confirmButton: 'btn btn-success px-3',
+                            cancelButton: 'btn btn-outline-secondary px-3 ms-2'
+                        },
+                        buttonsStyling: false
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            proceedCollectAll();
+                        }
+                    });
+                } else {
+                    if (confirm('Are you sure you want to mark all pending samples for this order as Collected?')) {
+                        proceedCollectAll();
+                    }
+                }
+            });
+
+            // ── 7. Print Barcode Labels Modal ───────────────────────────────────
+            $('#btnPrintAllLabels').on('click', function () {
+                if (!activeOrderId) return;
+                const anyBarcodes = (currentDetailData?.items || []).some(x => x.barcodeNo && x.collectionstatusID === 2);
+                if (!anyBarcodes) {
+                    showNotify('No samples have been collected yet. Barcodes are generated upon sample collection.', 'warning');
+                    return;
+                }
+                openBarcodeModal(activeOrderId, null, null);
+            });
+
+            $(document).on('click', '.btn-print-single-label', function () {
+                if (!activeOrderId) return;
+                const barcode = $(this).data('barcode');
+                if (!barcode) {
+                    showNotify('Barcode has not been generated for this sample yet.', 'warning');
+                    return;
+                }
+                openBarcodeModal(activeOrderId, barcode, null);
+            });
+
+            function openBarcodeModal(orderId, barcodeNo, sampleTypeId) {
+                let url = `@Url.Action("PrintBarcode", "SampleCollection")?labOrderId=${orderId}`;
+                if (barcodeNo) {
+                    url += `&barcodeNo=${encodeURIComponent(barcodeNo)}`;
+                }
+                if (sampleTypeId) {
+                    url += `&sampleTypeId=${sampleTypeId}`;
+                }
+                $('#barcodePrintFrame').attr('src', url);
+                $('#barcodePrintModal').modal('show');
+            }
+
+            $('#btnTriggerPrint').on('click', function () {
+                const frame = document.getElementById('barcodePrintFrame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.focus();
+                    frame.contentWindow.print();
+                }
+            });
+
+            // ── 8. Filter & Search Handlers (Status Wise Filtering) ─────────────
+            function setStatusFilter(status) {
+                $('.btn-filter-status').each(function () {
+                    const s = $(this).data('status');
+                    const isActive = (s.toLowerCase() === status.toLowerCase());
+                    $(this).removeClass('active btn-dark btn-warning btn-info btn-success btn-secondary btn-danger btn-outline-dark btn-outline-warning btn-outline-info btn-outline-success btn-outline-secondary btn-outline-danger text-dark text-white fw-bold shadow-sm');
+
+                    if (s === 'All') {
+                        $(this).addClass(isActive ? 'btn-dark text-white active fw-bold shadow-sm' : 'btn-outline-dark');
+                    } else if (s === 'Pending') {
+                        $(this).addClass(isActive ? 'btn-warning text-dark active fw-bold shadow-sm' : 'btn-outline-warning text-dark');
+                    } else if (s === 'Partial') {
+                        $(this).addClass(isActive ? 'btn-info text-dark active fw-bold shadow-sm' : 'btn-outline-info text-dark');
+                    } else if (s === 'Collected') {
+                        $(this).addClass(isActive ? 'btn-success text-white active fw-bold shadow-sm' : 'btn-outline-success');
+                    } else if (s === 'Re Collect') {
+                        $(this).addClass(isActive ? 'btn-secondary text-white active fw-bold shadow-sm' : 'btn-outline-secondary');
+                    } else if (s === 'Rejected') {
+                        $(this).addClass(isActive ? 'btn-danger text-white active fw-bold shadow-sm' : 'btn-outline-danger');
+                    }
+                });
+            }
+
+            $('#btnApplyFilter, #btnRefreshList').on('click', function () {
+                reloadHeaderList();
+            });
+
+            $('#txtSearch').on('keypress', function (e) {
+                if (e.which === 13) {
+                    reloadHeaderList();
+                }
+            });
+
+            $('.btn-filter-status').on('click', function () {
+                const status = $(this).data('status');
+                setStatusFilter(status);
+                reloadHeaderList();
+            });
+
+            $('.stat-card').on('click', function () {
+                const status = $(this).data('status');
+                setStatusFilter(status);
+                reloadHeaderList();
+            });
+
+            $('.btn-quick-date').on('click', function () {
+                const range = $(this).data('range');
+                const now = new Date();
+                let from = new Date();
+                let to = new Date();
+
+                if (range === 'today') {
+                    // today
+                } else if (range === 'yesterday') {
+                    from.setDate(now.getDate() - 1);
+                    to.setDate(now.getDate() - 1);
+                } else if (range === 'week') {
+                    from.setDate(now.getDate() - 6);
+                } else if (range === 'month') {
+                    from = new Date(now.getFullYear(), now.getMonth(), 1);
+                }
+
+                $('#txtFromDate').val(from.toISOString().split('T')[0]);
+                $('#txtToDate').val(to.toISOString().split('T')[0]);
+                reloadHeaderList();
+            });
+
+            function reloadHeaderList() {
+                const fromDate = $('#txtFromDate').val();
+                const toDate = $('#txtToDate').val();
+                const dateFilterType = $('#selDateFilterType').val();
+                const statusFilter = $('.btn-filter-status.active').data('status') || 'All';
+                const search = $('#txtSearch').val();
+
+                $.ajax({
+                    url: '@Url.Action("GetHeadersJson", "SampleCollection")',
+                    type: 'GET',
+                    data: {
+                        fromDate: fromDate,
+                        toDate: toDate,
+                        dateFilterType: dateFilterType,
+                        statusFilter: statusFilter,
+                        search: search
+                    },
+                    success: function (res) {
+                        if (res.success) {
+                            updateStatsCards(res.stats);
+                            renderHeaderRows(res.headers);
+                            if (activeOrderId) {
+                                $(`#orderRow_${activeOrderId}`).addClass('order-selected');
+                            }
+                        }
+                    },
+                    error: function () {
+                        showNotify('Failed to refresh order list.', 'error');
+                    }
+                });
+            }
+
+            function refreshOrderData(orderId) {
+                reloadHeaderList();
+                if (orderId) {
+                    selectOrder(orderId);
+                }
+            }
+
+            function updateStatsCards(stats) {
+                if (!stats) return;
+                $('#statTotalOrders').text(stats.totalOrders || 0);
+                $('#statPendingOrders').text(stats.pendingOrders || 0);
+                $('#statPartialOrders').text(stats.partialOrders || 0);
+                $('#statCollectedOrders').text(stats.collectedOrders || 0);
+            }
+
+            function renderHeaderRows(headers) {
+                $('#lblOrderCount').text(`Showing ${headers.length} orders`);
+                const tbody = $('#tblOrderHeadersBody');
+                tbody.empty();
+
+                if (!headers || headers.length === 0) {
+                    tbody.html(`
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                No lab orders found for the selected date range and filter criteria.
+                            </td>
+                        </tr>
+                    `);
+                    return;
+                }
+
+                headers.forEach(h => {
+                    let statusPatternClass = 'status-pattern-pending';
+                    let overallBadge = 'bg-warning text-dark';
+                    if (h.overallStatus === 'Collected') {
+                        statusPatternClass = 'status-pattern-collected';
+                        overallBadge = 'bg-success';
+                    } else if (h.overallStatus === 'Partially Collected') {
+                        statusPatternClass = 'status-pattern-partial';
+                        overallBadge = 'bg-info text-dark';
+                    } else if (h.overallStatus === 'Re Collect') {
+                        statusPatternClass = 'status-pattern-recollect';
+                        overallBadge = 'bg-secondary text-white';
+                    } else if (h.overallStatus === 'Rejected') {
+                        statusPatternClass = 'status-pattern-rejected';
+                        overallBadge = 'bg-danger';
+                    }
+
+                    let payBadge = 'badge-subtle-danger';
+                    let payText = 'Unpaid';
+                    if (h.paymentStatus === 'P') { payBadge = 'badge-subtle-success'; payText = 'Paid'; }
+                    else if (h.paymentStatus === 'Partial') { payBadge = 'badge-subtle-info'; payText = 'Partial'; }
+
+                    let typeBadge = (h.collectionType && h.collectionType.toLowerCase().includes('home'))
+                        ? '<span class="badge bg-purple-subtle text-purple border border-purple fs-9"><i class="bi bi-house-door-fill me-1"></i>Home</span>'
+                        : '<span class="badge bg-light text-secondary border fs-9"><i class="bi bi-building me-1"></i>Center</span>';
+
+                    const rowHtml = `
+                        <tr class="order-header-row cursor-pointer ${statusPatternClass}" data-id="${h.labOrderId}" id="orderRow_${h.labOrderId}">
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${h.bookingDateTime ? formatDate(h.bookingDateTime) : '—'}</div>
+                                <div class="text-muted fs-9"><i class="bi bi-clock me-1"></i>${h.bookingDateTime ? formatTime(h.bookingDateTime) : '—'}</div>
+                                <div class="mt-1"><span class="badge ${overallBadge} fs-9">${escapeHtml(h.overallStatus)}</span></div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-primary fs-8"><i class="bi bi-ticket-perforated me-1"></i>${escapeHtml(h.tokenNo || '—')}</div>
+                                <div class="text-muted fs-9 text-truncate" style="max-width: 110px;" title="Bill: ${escapeHtml(h.billNo)}">${escapeHtml(h.billNo)}</div>
+                                <div class="d-flex align-items-center gap-1 mt-1">
+                                    <span class="custom-badge ${payBadge} fs-9">${payText}</span>
+                                    <span class="fs-9 text-muted fw-bold">₹${Number(h.totalAmount || 0).toLocaleString()}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8 text-truncate" style="max-width: 140px;" title="${escapeHtml(h.patientName)}">${escapeHtml(h.patientName)}</div>
+                                <div class="fs-9 text-muted">
+                                    <span class="badge bg-light text-dark border me-1">${escapeHtml(h.patientCode)}</span>
+                                    ${h.age ? `<span>${h.age} Y</span>` : ''}
+                                    ${h.gender ? `<span>/${escapeHtml(h.gender)}</span>` : ''}
+                                </div>
+                                ${h.phoneNumber ? `<div class="fs-9 text-muted text-truncate" style="max-width: 130px;"><i class="bi bi-telephone me-1"></i>${escapeHtml(h.phoneNumber)}</div>` : ''}
+                            </td>
+                            <!-- Order Summary & Progress (No Containers in Header!) -->
+                            <td>
+                                <div class="fw-bold text-dark fs-8">
+                                    <i class="bi bi-card-checklist me-1 text-primary"></i>${h.totalTests} Tests
+                                </div>
+                                <div class="fs-9 text-muted mt-1 fw-semibold">
+                                    <span class="badge ${overallBadge} fs-9">${h.collectedCount}/${h.totalTests} Collected</span>
+                                </div>
+                                <div class="mt-1">
+                                    ${typeBadge}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.append(rowHtml);
+                });
+            }
+
+            // ── 9. Utility Functions ────────────────────────────────────────────
+            function formatDate(str) {
+                if (!str) return '—';
+                if (typeof str === 'string' && str.length >= 10 && str.charAt(4) === '-' && str.charAt(7) === '-') {
+                    const parts = str.substring(0, 10).split('-');
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const mIdx = parseInt(parts[1], 10) - 1;
+                    return `${parts[2]}-${months[mIdx] || parts[1]}-${parts[0]}`;
+                }
+                const d = new Date(str);
+                if (isNaN(d.getTime())) return str || '—';
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+
+            function formatTime(str) {
+                if (!str) return '—';
+                if (typeof str === 'string') {
+                    let timePart = str;
+                    if (timePart.includes('T')) timePart = timePart.split('T')[1];
+                    if (timePart.includes(' ')) timePart = timePart.split(' ')[1];
+                    if (timePart.includes(':')) {
+                        const tParts = timePart.split(':');
+                        let h = parseInt(tParts[0], 10);
+                        const m = tParts[1] || '00';
+                        if (!isNaN(h)) {
+                            const ampm = h >= 12 ? 'PM' : 'AM';
+                            h = h % 12;
+                            if (h === 0) h = 12;
+                            const hh = String(h).padStart(2, '0');
+                            return `${hh}:${m} ${ampm}`;
+                        }
+                    }
+                }
+                const d = new Date(str);
+                if (isNaN(d.getTime())) return str || '—';
+                return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }
+
+            function formatDateTime(str) {
+                if (!str) return '—';
+                return formatDate(str) + ' ' + formatTime(str);
+            }
+
+            function formatCollectionDateTime(dStr, tStr) {
+                if (!dStr) return '—';
+                const fDate = formatDate(dStr);
+                const fTime = formatTime(tStr || dStr);
+                return `${fDate} ${fTime}`.trim();
+            }
+
+            function isDateToday(rawDateStr) {
+                if (!rawDateStr) return false;
+                let bDateYMD = '';
+                if (typeof rawDateStr === 'string' && rawDateStr.length >= 10 && rawDateStr.charAt(4) === '-' && rawDateStr.charAt(7) === '-') {
+                    bDateYMD = rawDateStr.substring(0, 10);
+                } else {
+                    const d = new Date(rawDateStr);
+                    if (isNaN(d.getTime())) return false;
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    bDateYMD = `${y}-${m}-${day}`;
+                }
+
+                const now = new Date();
+                const curY = now.getFullYear();
+                const curM = String(now.getMonth() + 1).padStart(2, '0');
+                const curD = String(now.getDate()).padStart(2, '0');
+                const todayYMD = `${curY}-${curM}-${curD}`;
+
+                return bDateYMD === todayYMD;
+            }
+
+            function getFormattedDateTimeForInput(dStr, tStr) {
+                if (!dStr) return '';
+                const datePart = dStr.substring(0, 10);
+                const timePart = tStr ? tStr.substring(0, 5) : '00:00';
+                return `${datePart}T${timePart}`;
+            }
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return $('<div>').text(str).html();
+            }
+
+            // Auto-select first order if list is not empty
+            const firstRow = $('.order-header-row').first();
+            if (firstRow.length > 0) {
+                const firstId = firstRow.data('id');
+                selectOrder(firstId);
+            }
+        });
+    </script>
+}

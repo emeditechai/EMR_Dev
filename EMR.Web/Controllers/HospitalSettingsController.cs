@@ -129,6 +129,9 @@ public class HospitalSettingsController(
             existing.OpdRegistrationValidityDays = model.OpdRegistrationValidityDays;
             existing.GlobalPatientSearchRequired = model.GlobalPatientSearchRequired;
             existing.EmailNotificationRequired = model.EmailNotificationRequired;
+            existing.LabEmailNotificationRequired = model.LabEmailNotificationRequired;
+            existing.IsSampleCollectionMandatory = model.IsSampleCollectionMandatory;
+            existing.BarcodeGenerateAtBilling = model.BarcodeGenerateAtBilling;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -173,6 +176,9 @@ public class HospitalSettingsController(
             OpdRegistrationValidityDays = s.OpdRegistrationValidityDays,
             GlobalPatientSearchRequired = s.GlobalPatientSearchRequired,
             EmailNotificationRequired = s.EmailNotificationRequired,
+            LabEmailNotificationRequired = s.LabEmailNotificationRequired,
+            IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,
+            BarcodeGenerateAtBilling = s.BarcodeGenerateAtBilling,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -204,6 +210,9 @@ public class HospitalSettingsController(
             OpdRegistrationValidityDays = m.OpdRegistrationValidityDays,
             GlobalPatientSearchRequired = m.GlobalPatientSearchRequired,
             EmailNotificationRequired = m.EmailNotificationRequired,
+            LabEmailNotificationRequired = m.LabEmailNotificationRequired,
+            IsSampleCollectionMandatory = m.IsSampleCollectionMandatory,
+            BarcodeGenerateAtBilling = m.BarcodeGenerateAtBilling,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

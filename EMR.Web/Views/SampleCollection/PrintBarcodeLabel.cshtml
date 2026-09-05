@@ -1,0 +1,239 @@
+@model List<EMR.Web.Models.ViewModels.BarcodeLabelPrintViewModel>
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Print Barcode Labels</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #f1f5f9;
+            color: #000;
+            padding: 15px;
+        }
+
+        .no-print-bar {
+            background: #1e293b;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-print {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .labels-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        /* ── Standard Thermal Vial Label (50mm x 28mm approx) ── */
+        .vial-label {
+            width: 50mm;
+            height: 28mm;
+            border: 1px dashed #cbd5e1;
+            background: #fff;
+            padding: 1.5mm 2mm;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-inside: avoid;
+        }
+
+        .label-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            line-height: 1.1;
+        }
+
+        .patient-name {
+            font-size: 7.5pt;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 33mm;
+        }
+
+        .patient-demographics {
+            font-size: 6pt;
+            color: #333;
+        }
+
+        .token-badge {
+            font-size: 6.5pt;
+            font-weight: bold;
+            text-align: right;
+        }
+
+        .barcode-wrap {
+            text-align: center;
+            margin: 0.5mm 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .barcode-wrap svg {
+            width: 44mm;
+            height: 11mm;
+        }
+
+        .label-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 5.5pt;
+            line-height: 1.1;
+            border-top: 0.5px solid #000;
+            padding-top: 0.5mm;
+        }
+
+        .vial-type {
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 25mm;
+        }
+
+        .tests-summary {
+            font-size: 5pt;
+            color: #444;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 22mm;
+            text-align: right;
+        }
+
+        @@media print {
+            body {
+                background: #fff;
+                padding: 0;
+            }
+
+            .no-print-bar {
+                display: none !important;
+            }
+
+            .labels-grid {
+                gap: 0;
+            }
+
+            .vial-label {
+                border: none;
+                margin: 0;
+                page-break-after: always;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print-bar">
+        <div>
+            <strong>Thermal Vial Labels</strong> (@Model.Count label@(Model.Count != 1 ? "s" : ""))
+        </div>
+        @if (Model.Count > 0)
+        {
+            <button class="btn-print" onclick="window.print()">Print Now</button>
+        }
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <div style="background: #fff; padding: 40px 20px; text-align: center; border-radius: 8px; border: 1px dashed #cbd5e1; margin: 20px;">
+            <h3 style="color: #64748b; font-size: 16px; margin-bottom: 8px;">No Collected Sample Labels Available</h3>
+            <p style="color: #94a3b8; font-size: 13px;">Barcodes are only generated after samples are marked as Collected.</p>
+        </div>
+    }
+    else
+    {
+        <div class="labels-grid">
+            @for (int i = 0; i < Model.Count; i++)
+            {
+            var l = Model[i];
+            var ageStr = l.Age.HasValue ? $"{l.Age.Value}Y" : "";
+            var genderAge = !string.IsNullOrEmpty(l.Gender) ? $"{l.Gender}/{ageStr}" : ageStr;
+            var testsJoined = !string.IsNullOrEmpty(l.ProfileOrPackageName) && l.ProfileOrPackageName != "—"
+                ? $"{l.ProfileOrPackageName} ({l.TestNames.Count} test{(l.TestNames.Count != 1 ? "s" : "")})"
+                : string.Join(", ", l.TestNames);
+
+            <div class="vial-label">
+                <div class="label-header">
+                    <div>
+                        <div class="patient-name">@l.PatientName</div>
+                        <div class="patient-demographics">@l.PatientCode | @genderAge</div>
+                    </div>
+                    <div class="token-badge">
+                        <div>@(l.TokenNo ?? l.BillNo)</div>
+                    </div>
+                </div>
+
+                <div class="barcode-wrap">
+                    <svg id="labelSvg_@i" data-barcode="@l.BarcodeNo"></svg>
+                </div>
+
+                <div class="label-footer">
+                    <div class="vial-type">@l.SampleTypeName (@l.ContainerType)</div>
+                    <div class="tests-summary" title="@testsJoined">@testsJoined</div>
+                </div>
+            </div>
+        }
+    </div>
+    }
+
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const count = @Model.Count;
+            for (let i = 0; i < count; i++) {
+                const svg = document.getElementById('labelSvg_' + i);
+                if (svg) {
+                    const code = svg.getAttribute('data-barcode');
+                    if (code) {
+                        try {
+                            JsBarcode(svg, code, {
+                                format: "CODE128",
+                                width: 1.1,
+                                height: 28,
+                                displayValue: true,
+                                fontSize: 8,
+                                margin: 0
+                            });
+                        } catch (e) {
+                            console.warn(e);
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

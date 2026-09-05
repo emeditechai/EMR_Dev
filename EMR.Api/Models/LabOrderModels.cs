@@ -16,7 +16,9 @@ namespace EMR.Api.Models
     public class LabOrderItemRequest
     {
         public int InvestigationId { get; set; }
+        public string? Type { get; set; } = "I"; // 'P' or 'I'
         public decimal Price { get; set; }
+        public decimal DiscountAmount { get; set; }
     }
 
     public class LabOrderResponse
@@ -39,6 +41,7 @@ namespace EMR.Api.Models
         public string? SampleType { get; set; }
         public string? Method { get; set; }
         public bool IsDiscountAllowed { get; set; }
+        public bool IsPackage { get; set; }
     }
 
     public class DepartmentDto
@@ -149,6 +152,7 @@ namespace EMR.Api.Models
         public int LabOrderItemId { get; set; }
         public int LabOrderId { get; set; }
         public int InvestigationId { get; set; }
+        public string? Type { get; set; }
         public string? TestCode { get; set; }
         public string? TestName { get; set; }
         public string? SampleType { get; set; }

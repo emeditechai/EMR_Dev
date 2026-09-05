@@ -19,7 +19,11 @@ namespace EMR.Web.ApiClients
         public async Task<LabOrderResponseDto> CreateOrderAsync(LabOrderRequestDto request)
         {
             var response = await httpClient.PostAsJsonAsync("api/LabOrders", request);
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var errContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"API error ({(int)response.StatusCode} {response.ReasonPhrase}): {errContent}");
+            }
 
             var result = await response.Content.ReadFromJsonAsync<ApiResponse<LabOrderResponseDto>>();
             return result?.Data;
