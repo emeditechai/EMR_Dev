@@ -543,7 +543,7 @@ namespace EMR.Web.Controllers
             var patientEmail = patient.EmailId;
             var patientNameStr = patientFullName;
             
-            if (!string.IsNullOrWhiteSpace(patientEmail) && savedLabOrderId > 0)
+            if (savedLabOrderId > 0)
             {
                 var bId = branchId.Value;
                 var hostUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
@@ -556,32 +556,55 @@ namespace EMR.Web.Controllers
                     var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
                     var logger = scope.ServiceProvider.GetRequiredService<ILogger<LabOrderBookingController>>();
 
+                    string? tempPdfPath = null;
                     try
                     {
-                        var hs = await db.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == bId && s.IsActive);
-                        if (hs != null && hs.LabEmailNotificationRequired)
+                        // 1. Generate Lab Bill PDF via headless Chrome so both WhatsApp and Email can use it
+                        if (!string.IsNullOrWhiteSpace(safeBillNo))
                         {
-                            var secret = "lab_print_" + savedLabOrderId.ToString();
-                            var billUrl = $"{hostUrl}/LabOrderBooking/PrintBillAnonymous?labOrderId={savedLabOrderId}&secret={Uri.EscapeDataString(secret)}";
-                            
-                            string? tempPdfPath = null;
-                            if (!string.IsNullOrWhiteSpace(safeBillNo))
+                            try
                             {
                                 tempPdfPath = Path.Combine(Path.GetTempPath(), $"Lab_Bill_{safeBillNo}.pdf");
-                                logger.LogInformation($"[DEBUG-LAB-EMAIL] Generating PDF for lab bill. URL: {billUrl}, Output: {tempPdfPath}");
+                                var secret = "lab_print_" + savedLabOrderId.ToString();
+                                var billUrl = $"{hostUrl}/LabOrderBooking/PrintBillAnonymous?labOrderId={savedLabOrderId}&secret={Uri.EscapeDataString(secret)}";
+                                logger.LogInformation($"[LAB-NOTIF] Generating PDF for lab bill. URL: {billUrl}, Output: {tempPdfPath}");
                                 var chromeArgs = $"--headless --disable-gpu --ignore-certificate-errors --print-to-pdf=\"{tempPdfPath}\" \"{billUrl}\"";
-                                
+
                                 using var process = new System.Diagnostics.Process();
-                                process.StartInfo.FileName = OperatingSystem.IsWindows() ? "chrome" : "google-chrome"; 
+                                process.StartInfo.FileName = OperatingSystem.IsWindows() ? "chrome" : "google-chrome";
                                 if (OperatingSystem.IsMacOS()) process.StartInfo.FileName = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
                                 process.StartInfo.Arguments = chromeArgs;
                                 process.StartInfo.UseShellExecute = true;
                                 process.Start();
                                 await process.WaitForExitAsync();
                             }
+                            catch (Exception ex)
+                            {
+                                logger.LogWarning(ex, "[LAB-NOTIF] Headless chrome PDF generation failed for LabOrderId {Id}", savedLabOrderId);
+                            }
+                        }
 
-                            string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
-                            string body = $@"
+                        // 2. Trigger WhatsApp notification (attaches generated bill PDF)
+                        try
+                        {
+                            var whatsAppSvc = scope.ServiceProvider.GetRequiredService<IWhatsAppService>();
+                            await whatsAppSvc.TriggerLabBillWhatsAppAsync(bId, savedLabOrderId, tempPdfPath, hostUrl);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "[WhatsApp] Error sending LAB bill notification for LabOrderId {Id}", savedLabOrderId);
+                        }
+
+                        // 3. Trigger Email notification (if patient has email configured)
+                        if (!string.IsNullOrWhiteSpace(patientEmail))
+                        {
+                            try
+                            {
+                                var hs = await db.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == bId && s.IsActive);
+                                if (hs != null && hs.LabEmailNotificationRequired)
+                                {
+                                    string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
+                                    string body = $@"
 <!DOCTYPE html>
 <html>
 <head>
@@ -623,22 +646,29 @@ namespace EMR.Web.Controllers
 </body>
 </html>";
 
-                            if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
-                            {
-                                var attachment = new System.Net.Mail.Attachment(tempPdfPath, "application/pdf");
-                                await emailSvc.SendEmailAsync(bId, patientEmail, subj, body, new[] { attachment });
-                                
-                                try { System.IO.File.Delete(tempPdfPath); } catch { }
+                                    if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                                    {
+                                        var attachment = new System.Net.Mail.Attachment(tempPdfPath, "application/pdf");
+                                        await emailSvc.SendEmailAsync(bId, patientEmail, subj, body, new[] { attachment });
+                                    }
+                                    else
+                                    {
+                                        await emailSvc.SendEmailAsync(bId, patientEmail, subj, body);
+                                    }
+                                }
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                await emailSvc.SendEmailAsync(bId, patientEmail, subj, body);
+                                logger.LogError(ex, "[DEBUG-LAB-EMAIL] Error sending lab email notification.");
                             }
                         }
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        logger.LogError(ex, "[DEBUG-LAB-EMAIL] Error sending lab email notification.");
+                        if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                        {
+                            try { System.IO.File.Delete(tempPdfPath); } catch { }
+                        }
                     }
                 });
             }

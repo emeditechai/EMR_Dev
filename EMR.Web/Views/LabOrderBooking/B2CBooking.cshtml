@@ -1488,6 +1488,13 @@
                 var item = lineItems.find(x => x.investigationId === id);
                 if (item) {
                     item.isUrgent = isChecked;
+                    $('#lineItemsJson').val(JSON.stringify(lineItems.map(x => ({
+                        investigationId: x.investigationId,
+                        type: (x.isPackage ? 'P' : 'I'),
+                        isPackage: !!x.isPackage,
+                        price: x.price,
+                        isUrgent: !!x.isUrgent
+                    }))));
                 }
             });
 
@@ -1557,7 +1564,8 @@
                     investigationId: x.investigationId,
                     type: (x.isPackage ? 'P' : 'I'),
                     isPackage: !!x.isPackage,
-                    price: x.price
+                    price: x.price,
+                    isUrgent: !!x.isUrgent
                 }))));
             }
 

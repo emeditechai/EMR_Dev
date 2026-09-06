@@ -53,7 +53,7 @@
                                 <i class="bi bi-droplet-half me-2"></i>LAB
                             </a>
                             <ul class="dropdown-menu" aria-labelledby="labMenu">
-                                <li><a class="dropdown-item" href="#"><i class="bi bi-speedometer2 me-2"></i>LAB Dashboard</a></li>
+                                <li><a class="dropdown-item" asp-controller="LabDashboard" asp-action="Index"><i class="bi bi-speedometer2 me-2"></i>LAB Dashboard</a></li>
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-submenu-toggle" href="#">
                                         <i class="bi bi-journal-plus me-2"></i>LAB Order Booking / Registration
@@ -218,6 +218,7 @@
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="HospitalSettings" asp-action="Index"><i class="bi bi-hospital-fill me-2"></i>Hospital Settings</a></li>
                                 <li><a class="dropdown-item" asp-controller="SmtpConfig" asp-action="Index"><i class="bi bi-envelope-at me-2"></i>Email Configuration</a></li>
+                                <li><a class="dropdown-item" asp-controller="WhatsAppConfig" asp-action="Index"><i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp Configuration</a></li>
                                 <li><a class="dropdown-item" asp-controller="VideoConfig" asp-action="Index"><i class="bi bi-camera-video-fill me-2"></i>Video Consultation Config</a></li>
                             </ul>
                         </li>

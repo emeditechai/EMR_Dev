@@ -64,6 +64,7 @@ namespace EMR.Web.Models.DTOs
         public DateTime? BookingDateTime { get; set; }
         public string BillNo { get; set; } = string.Empty;
         public string? TokenNo { get; set; }
+        public bool IsUrgent { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }

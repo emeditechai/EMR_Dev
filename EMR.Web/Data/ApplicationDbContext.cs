@@ -112,6 +112,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<VideoSystemConfig> VideoSystemConfigs => Set<VideoSystemConfig>();
     public DbSet<VideoConsultation> VideoConsultations => Set<VideoConsultation>();
 
+    // WhatsApp Configuration & Logs
+    public DbSet<WhatsAppConfiguration> WhatsAppConfigurations => Set<WhatsAppConfiguration>();
+    public DbSet<WhatsAppLog> WhatsAppLogs => Set<WhatsAppLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -626,6 +630,20 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.RoomNamePrefix).HasMaxLength(100);
             entity.Property(x => x.Status).HasMaxLength(20);
             entity.Property(x => x.CreatedBy).HasMaxLength(100);
+        });
+
+        // ── WhatsApp Configuration ──────────────────────────────────────────
+        modelBuilder.Entity<WhatsAppConfiguration>(entity =>
+        {
+            entity.ToTable("WhatsAppConfiguration");
+            entity.HasKey(x => x.Id);
+        });
+
+        // ── WhatsApp Log ────────────────────────────────────────────────────
+        modelBuilder.Entity<WhatsAppLog>(entity =>
+        {
+            entity.ToTable("WhatsAppLog");
+            entity.HasKey(x => x.Id);
         });
 
         // ── Insurance / TPA Master ──────────────────────────────────────────

@@ -98,6 +98,9 @@ builder.Services.AddScoped<ICancellationService, CancellationService>();
 // Email (SMTP)
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// WhatsApp Notification Service
+builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
+
 // Video Consultation (Whereby)
 builder.Services.AddHttpClient("Whereby", client =>
 {
@@ -127,6 +130,7 @@ builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
 builder.Services.AddScoped<ILabOrderApiClient,          LabOrderApiClient>();
 builder.Services.AddScoped<ISampleCollectionApiClient,   SampleCollectionApiClient>();
+builder.Services.AddScoped<ILabDashboardApiClient,       LabDashboardApiClient>();
 builder.Services.AddScoped<IReportApiClient, ReportApiClient>();
 builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();

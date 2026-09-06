@@ -2297,8 +2297,9 @@ public class OPDController(
         });
     }
 
-    // ─── Email: Booking Confirmation ────────────────────────────────────────────
-    private void TriggerBookingEmail(int? branchId, int opdServiceId, string hostUrl)
+    // ─── Email & WhatsApp: Booking Confirmation ─────────────────────────────────
+    // ─── Email & WhatsApp: Booking Confirmation ─────────────────────────────────
+    private void TriggerBookingWhatsApp(int? branchId, int opdServiceId, string? hostUrl = null)
     {
         try
         {
@@ -2310,19 +2311,40 @@ public class OPDController(
                 try
                 {
                     using var scope = scopeFactory.CreateScope();
+                    var whatsAppSvc = scope.ServiceProvider.GetRequiredService<IWhatsAppService>();
+                    await whatsAppSvc.TriggerOpdBillWhatsAppAsync(activeBranchId, opdServiceId, null, hostUrl);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[DEBUG-WHATSAPP-TRIGGER] Error in TriggerBookingWhatsApp: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG-WHATSAPP-TRIGGER] Failed to initiate WhatsApp background task: {ex.Message}");
+        }
+    }
+
+    private void TriggerBookingEmail(int? branchId, int opdServiceId, string hostUrl)
+    {
+        try
+        {
+            var scopeFactory = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
+            var activeBranchId = branchId ?? 1;
+
+            _ = Task.Run(async () =>
+            {
+                string? tempPdfPath = null;
+                List<System.Net.Mail.Attachment> attachments = new();
+                try
+                {
+                    using var scope = scopeFactory.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    
-                    // Check if email notification is enabled for this branch
-                    var settings = await db.HospitalSettings.AsNoTracking().FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
-                    if (settings != null && !settings.EmailNotificationRequired)
-                    {
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Email notifications disabled for Branch {activeBranchId}, skipping.");
-                        return;
-                    }
-                    
-                    // Fetch booking details (poll if token is not generated yet)
+
+                    // Fetch booking details (poll if token is not generated yet, up to 5 attempts)
                     PatientOPDService? booking = null;
-                    for (int i = 0; i < 6; i++)
+                    for (int i = 0; i < 5; i++)
                     {
                         booking = await db.PatientOPDServices
                             .AsNoTracking()
@@ -2330,150 +2352,126 @@ public class OPDController(
 
                         if (booking != null && !string.IsNullOrEmpty(booking.TokenNo))
                         {
-                            Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Found TokenNo: '{booking.TokenNo}' at attempt {i + 1}");
+                            Console.WriteLine($"[DEBUG-OPD-NOTIF] Found TokenNo: '{booking.TokenNo}' at attempt {i + 1}");
                             break;
                         }
 
                         if (booking != null && booking.TotalAmount == 0)
                         {
-                            // If total amount is 0, SP might not assign a token or it's processed. 
-                            // Either way, if it's 0 and we waited once, we can proceed.
                             break;
                         }
 
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] TokenNo is null/empty at attempt {i + 1}. Waiting 3 seconds...");
-                        await Task.Delay(3000);
+                        Console.WriteLine($"[DEBUG-OPD-NOTIF] Waiting for TokenNo for OPDServiceId {opdServiceId} (attempt {i + 1})...");
+                        await Task.Delay(2500);
                     }
 
                     if (booking == null)
                     {
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Booking ID {opdServiceId} not found, skipping.");
+                        Console.WriteLine($"[DEBUG-OPD-NOTIF] Booking ID {opdServiceId} not found, skipping notifications.");
                         return;
                     }
 
-                    // Fetch patient details
-                    var patient = await db.PatientMasters
-                        .FirstOrDefaultAsync(p => p.PatientId == booking.PatientId);
-
-                    if (patient == null)
+                    if (booking.BranchId.HasValue && booking.BranchId.Value > 0)
                     {
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Patient ID {booking.PatientId} not found, skipping.");
-                        return;
+                        activeBranchId = booking.BranchId.Value;
                     }
 
-                    var patientEmail = patient.EmailId;
-                    var firstName = patient.FirstName;
-                    var lastName = patient.LastName;
-
-                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PatientId: {booking.PatientId}, Email: '{patientEmail}'");
-
-                    // Note: Video Consultation room is created on FULL PAYMENT,
-                    //       not at booking time. See TriggerVideoOnFullPayment().
-
-                    if (string.IsNullOrWhiteSpace(patientEmail))
+                    // 1. Generate OPD Bill PDF via headless Chrome so both WhatsApp and Email can use it
+                    try
                     {
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] No email for PatientId: {booking.PatientId}, skipping booking confirmation email.");
-                        return;
+                        var safeBillNo = (booking.OPDBillNo ?? opdServiceId.ToString()).Replace("/", "_").Replace("\\", "_");
+                        tempPdfPath = Path.Combine(Path.GetTempPath(), $"OPD_Bill_{safeBillNo}.pdf");
+                        var secret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"bill-{opdServiceId}-emr"));
+                        var billUrl = $"{hostUrl}/OPD/PrintBillAnonymous?id={opdServiceId}&secret={Uri.EscapeDataString(secret)}";
+
+                        Console.WriteLine($"[DEBUG-OPD-NOTIF] Generating PDF for OPD bill. URL: {billUrl}, Output: {tempPdfPath}");
+
+                        var chromeArgs = $"--headless --disable-gpu --ignore-certificate-errors --print-to-pdf=\"{tempPdfPath}\" \"{billUrl}\"";
+                        using var process = new System.Diagnostics.Process();
+                        process.StartInfo.FileName = OperatingSystem.IsWindows() ? "chrome" : "google-chrome";
+                        if (OperatingSystem.IsMacOS()) process.StartInfo.FileName = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+                        process.StartInfo.Arguments = chromeArgs;
+                        process.StartInfo.UseShellExecute = true;
+                        process.Start();
+                        await process.WaitForExitAsync();
+                    }
+                    catch (Exception pdfEx)
+                    {
+                        Console.WriteLine($"[DEBUG-OPD-NOTIF] Error generating OPD bill PDF: {pdfEx.Message}");
                     }
 
-                    var template = await db.EmailTemplates
-                        .FirstOrDefaultAsync(t => t.BranchId == activeBranchId && t.TemplateName == "Booking Confirmation" && t.IsActive);
-                    
-                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Template found for Branch {activeBranchId}: {template != null}");
-
-                    if (template != null)
+                    // 2. Trigger WhatsApp notification (attaches generated bill PDF)
+                    try
                     {
-                        var doctorName = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<string>(
-                            "SELECT FullName FROM DoctorMaster WHERE DoctorId = @Id", new { Id = booking.ConsultingDoctorId });
-                        var hospital = await db.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
-                        var hospitalName = hospital?.HospitalName ?? "Our Hospital";
+                        var whatsAppSvc = scope.ServiceProvider.GetRequiredService<IWhatsAppService>();
+                        await whatsAppSvc.TriggerOpdBillWhatsAppAsync(activeBranchId, opdServiceId, tempPdfPath, hostUrl);
+                    }
+                    catch (Exception waEx)
+                    {
+                        Console.WriteLine($"[DEBUG-WHATSAPP-TRIGGER] Error in TriggerBookingWhatsApp: {waEx.Message}");
+                    }
 
-                        var subject = template.Subject.Replace("{{HospitalName}}", hospitalName);
-                        
-                        var slotTimeStr = booking.AppointmentTime.HasValue 
-                            ? DateTime.Today.Add(booking.AppointmentTime.Value).ToString("hh:mm tt") 
-                            : "N/A";
+                    // 3. Trigger Email notification (if patient has email and branch setting enabled)
+                    var patient = await db.PatientMasters.FirstOrDefaultAsync(p => p.PatientId == booking.PatientId);
+                    var patientEmail = patient?.EmailId;
 
-                        var htmlBody = template.HtmlBody
-                            .Replace("{{PatientName}}", $"{firstName} {lastName}")
-                            .Replace("{{DoctorName}}", doctorName ?? "")
-                            .Replace("{{TokenNo}}", booking.TokenNo ?? "Pending")
-                            .Replace("{{TotalAmount}}", booking.TotalAmount?.ToString("0.00") ?? "0.00")
-                            .Replace("{{VisitDate}}", booking.VisitDate.ToString("dd-MMM-yyyy"))
-                            .Replace("{{SlotTime}}", slotTimeStr)
-                            .Replace("{{HospitalName}}", hospitalName);
-
-                        List<System.Net.Mail.Attachment> attachments = new();
-                        string? tempPdfPath = null;
-
-                        // Check if booking is fully paid (meaning TokenNo is generated/assigned)
-                        if (!string.IsNullOrEmpty(booking.TokenNo))
+                    if (!string.IsNullOrWhiteSpace(patientEmail))
+                    {
+                        var settings = await db.HospitalSettings.AsNoTracking().FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
+                        if (settings != null && settings.EmailNotificationRequired)
                         {
-                            try
+                            var template = await db.EmailTemplates
+                                .FirstOrDefaultAsync(t => t.BranchId == activeBranchId && t.TemplateName == "Booking Confirmation" && t.IsActive);
+
+                            if (template != null)
                             {
-                                var secret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"bill-{opdServiceId}-emr"));
-                                var billUrl = $"{hostUrl}/OPD/PrintBillAnonymous?id={opdServiceId}&secret={Uri.EscapeDataString(secret)}";
-                                
-                                var safeBillNo = booking.OPDBillNo ?? opdServiceId.ToString();
-                                tempPdfPath = Path.Combine(Path.GetTempPath(), $"OPD_Bill_{safeBillNo}.pdf");
+                                var doctorName = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<string>(
+                                    "SELECT FullName FROM DoctorMaster WHERE DoctorId = @Id", new { Id = booking.ConsultingDoctorId });
+                                var hospital = await db.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
+                                var hospitalName = hospital?.HospitalName ?? "Our Hospital";
 
-                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Generating PDF for fully paid bill. URL: {billUrl}, Output: {tempPdfPath}");
+                                var subject = template.Subject.Replace("{{HospitalName}}", hospitalName);
+                                var slotTimeStr = booking.AppointmentTime.HasValue 
+                                    ? DateTime.Today.Add(booking.AppointmentTime.Value).ToString("hh:mm tt") 
+                                    : "N/A";
 
-                                var chromeArgs = $"--headless --disable-gpu --ignore-certificate-errors --print-to-pdf=\"{tempPdfPath}\" \"{billUrl}\"";
-                                var processInfo = new System.Diagnostics.ProcessStartInfo("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", chromeArgs)
-                                {
-                                    CreateNoWindow = true,
-                                    UseShellExecute = false
-                                };
-                                using var process = System.Diagnostics.Process.Start(processInfo);
-                                if (process != null)
-                                {
-                                    await process.WaitForExitAsync();
-                                }
+                                var htmlBody = template.HtmlBody
+                                    .Replace("{{PatientName}}", $"{patient?.FirstName} {patient?.LastName}")
+                                    .Replace("{{DoctorName}}", doctorName ?? "")
+                                    .Replace("{{TokenNo}}", booking.TokenNo ?? "Pending")
+                                    .Replace("{{TotalAmount}}", booking.TotalAmount?.ToString("0.00") ?? "0.00")
+                                    .Replace("{{VisitDate}}", booking.VisitDate.ToString("dd-MMM-yyyy"))
+                                    .Replace("{{SlotTime}}", slotTimeStr)
+                                    .Replace("{{HospitalName}}", hospitalName);
 
-                                if (System.IO.File.Exists(tempPdfPath))
+                                if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                 {
                                     var attachment = new System.Net.Mail.Attachment(tempPdfPath, "application/pdf");
                                     attachments.Add(attachment);
-                                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PDF generated and attached successfully: {tempPdfPath}");
                                 }
-                                else
-                                {
-                                    Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] PDF generation failed, file does not exist: {tempPdfPath}");
-                                }
-                            }
-                            catch (Exception pdfEx)
-                            {
-                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Error generating PDF attachment: {pdfEx}");
-                            }
-                        }
 
-                        var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
-                        await emailSvc.SendEmailAsync(activeBranchId, patientEmail, subject, htmlBody, attachments.Any() ? attachments : null);
-                        Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Email sent to {patientEmail} successfully.");
-
-                        // Clean up temporary PDF file after email is sent
-                        if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
-                        {
-                            try
-                            {
-                                foreach (var att in attachments)
-                                {
-                                    att.Dispose();
-                                }
-                                System.IO.File.Delete(tempPdfPath);
-                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Temporary PDF deleted: {tempPdfPath}");
-                            }
-                            catch (Exception deleteEx)
-                            {
-                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Failed to delete temporary PDF file: {deleteEx}");
+                                var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                                await emailSvc.SendEmailAsync(activeBranchId, patientEmail, subject, htmlBody, attachments.Any() ? attachments : null);
+                                Console.WriteLine($"[DEBUG-EMAIL-TRIGGER] Email sent to {patientEmail} successfully.");
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error sending booking email: {ex}");
+                    Console.WriteLine($"Error in TriggerBookingEmail: {ex}");
+                }
+                finally
+                {
+                    foreach (var att in attachments)
+                    {
+                        try { att.Dispose(); } catch { }
+                    }
+
+                    if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                    {
+                        try { System.IO.File.Delete(tempPdfPath); } catch { }
+                    }
                 }
             });
         }
