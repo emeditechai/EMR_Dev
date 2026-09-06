@@ -802,6 +802,12 @@ public class OPDController(
                 }
             }
 
+            var finalPaymentStatus = paymentResult?.PaymentStatus ?? (totalAmount == 0 ? "P" : "U");
+            if (finalPaymentStatus == "P" && newSvcId > 0)
+            {
+                TriggerVideoOnFullPayment(branchId, newSvcId);
+            }
+
             string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
 
             return Json(new
@@ -2239,7 +2245,7 @@ public class OPDController(
 
                 // Mark as 'Consulting' immediately so it appears on the Doctor Dashboard
                 await db.Database.GetDbConnection().ExecuteAsync(
-                    "UPDATE PatientOPDService SET Status = 'Consulting', ModifiedDate = GETDATE(), ModifiedBy = 'System (Video)' WHERE OPDServiceId = @OpdId", 
+                    "UPDATE PatientOPDService SET Status = 'Consulting', ModifiedDate = GETDATE(), ModifiedBy = 0 WHERE OPDServiceId = @OpdId", 
                     new { OpdId = opdServiceId });
 
                 // Get slot end time from DoctorScheduleMaster, default +15 min if missing

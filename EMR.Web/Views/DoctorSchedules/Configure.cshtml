@@ -11,7 +11,7 @@
         { 4, ("Thu", "#f59e0b", "#fffbeb", "#fde68a", "#b45309") },
         { 5, ("Fri", "#8b5cf6", "#faf5ff", "#e9d5ff", "#6d28d9") },
         { 6, ("Sat", "#e11d48", "#fff1f2", "#fecdd3", "#be123c") },
-        { 7, ("Sun", "#0284c7", "#f0f9ff", "#bae6fd", "#0369a1") }
+        { 0, ("Sun", "#0284c7", "#f0f9ff", "#bae6fd", "#0369a1") }
     };
 }
 
@@ -129,8 +129,8 @@
                         <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 row-cols-lg-7 g-2">
                             @for (int d = 1; d <= 7; d++)
                             {
-                                var dayNum = d;
-                                var theme = dayThemes[d];
+                                var dayNum = d == 7 ? 0 : d;
+                                var theme = dayThemes[dayNum];
                                 var daySchedules = Model.Schedules.Where(x => x.DayOfWeek == dayNum).OrderBy(x => x.StartTime).ToList();
                                 
                                 <div class="col" style="min-width: 105px;">
@@ -335,7 +335,7 @@
                             <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="4">Thu</button>
                             <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="5">Fri</button>
                             <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="6">Sat</button>
-                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="7">Sun</button>
+                            <button type="button" class="btn btn-outline-primary day-pill-btn" data-value="0">Sun</button>
                         </div>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-sm btn-light-primary py-1 px-2 border" onclick="selectPresetDays('weekdays')">Weekdays (M-F)</button>
@@ -699,7 +699,7 @@
                 4: { name: 'Thu', color: '#fbbf24', bg: isDark ? '#451a03' : '#fffbeb', border: isDark ? '#78350f' : '#fde68a', text: isDark ? '#fef3c7' : '#b45309' },
                 5: { name: 'Fri', color: '#a78bfa', bg: isDark ? '#2e1065' : '#faf5ff', border: isDark ? '#4c1d95' : '#e9d5ff', text: isDark ? '#f3e8ff' : '#6d28d9' },
                 6: { name: 'Sat', color: '#fb7185', bg: isDark ? '#4c0519' : '#fff1f2', border: isDark ? '#881337' : '#fecdd3', text: isDark ? '#ffe4e6' : '#be123c' },
-                7: { name: 'Sun', color: '#38bdf8', bg: isDark ? '#082f49' : '#f0f9ff', border: isDark ? '#0c4a6e' : '#bae6fd', text: isDark ? '#e0f2fe' : '#0369a1' }
+                0: { name: 'Sun', color: '#38bdf8', bg: isDark ? '#082f49' : '#f0f9ff', border: isDark ? '#0c4a6e' : '#bae6fd', text: isDark ? '#e0f2fe' : '#0369a1' }
             };
             return themes[d];
         }
@@ -781,7 +781,7 @@
                 if (preset === 'weekdays') {
                     opt.selected = (val >= 1 && val <= 5);
                 } else if (preset === 'weekends') {
-                    opt.selected = (val === 6 || val === 7);
+                    opt.selected = (val === 6 || val === 0);
                 } else if (preset === 'clear') {
                     opt.selected = false;
                 }
@@ -892,7 +892,7 @@
                                                (newEffTo === null || existEffFrom <= newEffTo);
 
                         if (hasDateOverlap) {
-                            const daysMap = {1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday', 7: 'Sunday'};
+                            const daysMap = {1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday', 0: 'Sunday'};
                             overlapFound = true;
                             overlapMsg = `Overlaps with active schedule on <strong>${daysMap[s.dayOfWeek]}</strong> (${formatTimeStr(s.startTimeStr)} - ${formatTimeStr(s.endTimeStr)}).`;
                             break;

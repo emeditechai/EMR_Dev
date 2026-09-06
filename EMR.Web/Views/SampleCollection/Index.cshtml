@@ -7,29 +7,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
 }
 
-<div class="container-fluid px-3 py-3 sample-mgmt-wrapper">
+<div class="container-fluid px-2 py-1 sample-mgmt-wrapper">
     <!-- Breadcrumb & Top Bar -->
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex justify-content-between align-items-center mb-1">
         <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1 fs-8">
-                    <li class="breadcrumb-item"><a asp-controller="Dashboard" asp-action="Index" class="text-decoration-none text-secondary">Home</a></li>
-                    <li class="breadcrumb-item text-secondary">LAB</li>
-                    <li class="breadcrumb-item active fw-semibold" aria-current="page">Sample Collection Management</li>
-                </ol>
-            </nav>
+
             <h4 class="mb-0 fw-bold text-dark d-flex align-items-center">
                 <i class="bi bi-eyedropper text-primary me-2"></i>Sample Collection Management
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 fs-8 fw-semibold">B2C Patients</span>
             </h4>
         </div>
         <div class="d-flex gap-2 align-items-center">
-            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center shadow-sm" id="btnRefreshList">
-                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center shadow-sm" id="btnRefreshList" style="width: 32px; height: 32px;" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
             </button>
-            <a asp-controller="LabOrderBooking" asp-action="B2CBooking" class="btn btn-primary btn-sm d-flex align-items-center shadow-sm">
-                <i class="bi bi-plus-circle me-1"></i> New Lab Booking
-            </a>
         </div>
     </div>
 
