@@ -238,6 +238,9 @@
                                             </div>
                                             <div class="text-muted fs-9 text-truncate" style="max-width: 110px;" title="Bill: @h.BillNo">
                                                 @h.BillNo
+                                                @if(h.IsUrgent) {
+                                                    <span class="badge bg-danger ms-1 px-1 py-0 shadow-2xs" style="font-size:0.6rem;"><i class="bi bi-exclamation-circle"></i> Urgent</span>
+                                                }
                                             </div>
                                             <div class="d-flex align-items-center gap-1 mt-1">
                                                 <span class="custom-badge @payBadge fs-9">@payText</span>
@@ -367,6 +370,9 @@
                                 <div class="text-end">
                                     <span class="badge bg-primary fs-7 shadow-xs" id="lblTokenNo">—</span>
                                     <div class="fs-9 text-muted mt-1" id="lblBillNo">—</div>
+                                    <div class="fs-9 mt-1" id="lblUrgentBadge" style="display:none;">
+                                        <span class="badge bg-danger shadow-2xs"><i class="bi bi-exclamation-circle me-1"></i>Urgent</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="row g-2 pt-2 border-top fs-8">
@@ -863,6 +869,11 @@
 
                 $('#lblTokenNo').text(detail.tokenNo || 'NO TOKEN');
                 $('#lblBillNo').text(detail.billNo || '—');
+                if (detail.isUrgent) {
+                    $('#lblUrgentBadge').show();
+                } else {
+                    $('#lblUrgentBadge').hide();
+                }
                 $('#lblBookingDateTime').text(detail.bookingDateTime ? formatDateTime(detail.bookingDateTime) : '—');
 
                 // Collection Type

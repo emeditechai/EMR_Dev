@@ -19,6 +19,7 @@ namespace EMR.Api.Models
         public string? Type { get; set; } = "I"; // 'P' or 'I'
         public decimal Price { get; set; }
         public decimal DiscountAmount { get; set; }
+        public bool IsUrgent { get; set; }
     }
 
     public class LabOrderResponse
@@ -78,6 +79,7 @@ namespace EMR.Api.Models
         public DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
@@ -120,6 +122,7 @@ namespace EMR.Api.Models
         public DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
@@ -161,6 +164,7 @@ namespace EMR.Api.Models
         public string? CategoryName { get; set; }
         public string? SubCategoryName { get; set; }
         public decimal Price { get; set; }
+        public bool IsUrgent { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal NetAmount { get; set; }
         public bool IsActive { get; set; }

@@ -179,7 +179,13 @@
                             <tr data-search="@searchText">
                                 <td class="text-nowrap">@o.OrderDate.ToString("dd MMM yyyy HH:mm")</td>
                                 <td class="text-nowrap">@(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")</td>
-                                <td><span class="badge text-bg-light font-monospace border">@(o.BillNo ?? "—")</span></td>
+                                <td>
+                                    <span class="badge text-bg-light font-monospace border">@(o.BillNo ?? "—")</span>
+                                    @if (o.IsUrgent)
+                                    {
+                                        <span class="badge bg-danger ms-1 px-1 py-0 shadow-2xs" style="font-size:0.65rem;" title="Urgent Request"><i class="bi bi-exclamation-circle me-1"></i>Urgent</span>
+                                    }
+                                </td>
                                 <td>
                                     @if (!string.IsNullOrEmpty(o.TokenNo))
                                     {
@@ -490,7 +496,10 @@
                     <tr class="${it.isActive === false ? 'text-decoration-line-through text-muted' : ''}">
                         <td>${idx + 1}</td>
                         <td><span class="badge ${it.isActive === false ? 'bg-secondary' : 'bg-light text-dark border'} font-monospace">${it.testCode ?? '—'}</span></td>
-                        <td class="fw-semibold">${it.testName ?? '—'}</td>
+                        <td class="fw-semibold">
+                            ${it.testName ?? '—'}
+                            ${it.isUrgent ? '<span class="badge bg-danger ms-1" style="font-size:0.6rem;"><i class="bi bi-exclamation-circle"></i> Urgent</span>' : ''}
+                        </td>
                         <td>${it.departmentName ?? '—'}</td>
                         <td>${it.categoryName ?? '—'}</td>
                         <td><span class="badge bg-secondary-subtle text-secondary-emphasis">${it.sampleType ?? '—'}</span></td>

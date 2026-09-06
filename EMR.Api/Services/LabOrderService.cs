@@ -21,11 +21,12 @@ namespace EMR.Api.Services
             itemsTable.Columns.Add("InvestigationId", typeof(int));
             itemsTable.Columns.Add("Type", typeof(string));
             itemsTable.Columns.Add("Price", typeof(decimal));
+            itemsTable.Columns.Add("IsUrgent", typeof(bool));
 
             foreach (var item in request.Items)
             {
                 var itemType = string.IsNullOrWhiteSpace(item.Type) ? "I" : item.Type.Trim().ToUpperInvariant();
-                itemsTable.Rows.Add(item.InvestigationId, itemType, item.Price);
+                itemsTable.Rows.Add(item.InvestigationId, itemType, item.Price, item.IsUrgent);
             }
 
             var p = new DynamicParameters();
