@@ -1,10 +1,16 @@
 using EMR.Web.Models.Entities;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Data;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
+
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
+    // Required by IDataProtectionKeyContext — keys stored in DB so all environments share the same key ring
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
+
     public DbSet<CompanyMaster> CompanyMasters => Set<CompanyMaster>();
     public DbSet<User> Users => Set<User>();
     public DbSet<DoctorMaster> DoctorMasters => Set<DoctorMaster>();

@@ -168,9 +168,12 @@ builder.Services.AddSession(options =>
 });
 
 
-// Persist Data Protection keys to prevent random logouts on app recycle
+// Persist Data Protection keys to the shared SQL database so all environments
+// (local dev, IIS, staging) share the same key ring and can decrypt each other's
+// encrypted values (e.g. SMTP passwords). PersistKeysToFileSystem only works on
+// the machine that created the keys.
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "DataProtectionKeys")))
+    .PersistKeysToDbContext<ApplicationDbContext>()
     .SetApplicationName("EMR_Web_App");
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
