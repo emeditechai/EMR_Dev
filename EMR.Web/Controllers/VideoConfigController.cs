@@ -1,3 +1,4 @@
+using Dapper;
 using EMR.Web.Data;
 using EMR.Web.Models.Entities;
 using EMR.Web.Services;
@@ -31,6 +32,9 @@ public class VideoConfigController(
     {
         if (string.IsNullOrWhiteSpace(req.ConfigKey) || req.ConfigValue == null)
             return Json(new { success = false, message = "Invalid data." });
+
+        if (req.ConfigKey == "WherebyApiKey" && req.ConfigValue.Contains(" "))
+            return Json(new { success = false, message = "API Key cannot contain spaces. Please ensure you haven't accidentally pasted the URL." });
 
         var existing = await dbContext.VideoSystemConfigs
             .FirstOrDefaultAsync(c => c.ConfigKey == req.ConfigKey);
@@ -70,6 +74,9 @@ public class VideoConfigController(
     {
         if (string.IsNullOrWhiteSpace(req.ConfigKey) || req.ConfigValue == null)
             return Json(new { success = false, message = "Invalid data." });
+
+        if (req.ConfigKey == "WherebyApiKey" && req.ConfigValue.Contains(" "))
+            return Json(new { success = false, message = "API Key cannot contain spaces. Please ensure you haven't accidentally pasted the URL." });
 
         var exists = await dbContext.VideoSystemConfigs.AnyAsync(c => c.ConfigKey == req.ConfigKey.Trim());
         if (exists)
@@ -133,6 +140,85 @@ public class VideoConfigController(
         catch (Exception ex)
         {
             return Json(new { success = false, message = $"Error: {ex.Message}" });
+        }
+    }
+
+    // ── Get Failed Video Bookings for admin retrigger panel ───────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetFailedVideoBookings()
+    {
+        try
+        {
+            using var con = dbContext.Database.GetDbConnection();
+            var items = await con.QueryAsync<dynamic>(@"
+                -- Case 1: Failed video consultation records
+                SELECT 
+                    vc.ConsultationId,
+                    pos.OPDServiceId,
+                    ISNULL(vc.ErrorMessage, 'Whereby API call failed') AS ErrorMessage,
+                    vc.CreatedDate,
+                    pos.OPDBillNo AS OpdBillNo,
+                    pos.VisitDate,
+                    LTRIM(RTRIM(ISNULL(p.Salutation + ' ', '') + p.FirstName + ' ' + ISNULL(p.MiddleName + ' ', '') + p.LastName)) AS PatientName,
+                    ISNULL(d.FullName, 'Unknown Doctor') AS DoctorName,
+                    'Failed' AS IssueType
+                FROM tbl_VideoConsultation vc
+                JOIN PatientOPDService pos ON pos.OPDServiceId = vc.OPDServiceId
+                JOIN PatientMaster p ON p.PatientId = pos.PatientId
+                LEFT JOIN DoctorMaster d ON d.DoctorId = pos.ConsultingDoctorId
+                WHERE vc.Status = 'Failed'
+
+                UNION ALL
+
+                -- Case 2: Video OPDs that are fully paid but have NO consultation record at all
+                SELECT 
+                    NULL AS ConsultationId,
+                    pos.OPDServiceId,
+                    'Video room never created (trigger did not fire)' AS ErrorMessage,
+                    pos.ModifiedDate AS CreatedDate,
+                    pos.OPDBillNo AS OpdBillNo,
+                    pos.VisitDate,
+                    LTRIM(RTRIM(ISNULL(p.Salutation + ' ', '') + p.FirstName + ' ' + ISNULL(p.MiddleName + ' ', '') + p.LastName)) AS PatientName,
+                    ISNULL(d.FullName, 'Unknown Doctor') AS DoctorName,
+                    'NeverCreated' AS IssueType
+                FROM PatientOPDService pos
+                JOIN PatientMaster p ON p.PatientId = pos.PatientId
+                LEFT JOIN DoctorMaster d ON d.DoctorId = pos.ConsultingDoctorId
+                WHERE pos.IsActive = 1
+                  AND pos.Status IN ('Consulting', 'Completed', 'Skipped')
+                  AND EXISTS (
+                      SELECT 1 FROM PatientOPDServiceItem i
+                      JOIN ServiceMaster sm ON sm.ServiceId = i.ServiceId
+                      WHERE i.OPDServiceId = pos.OPDServiceId AND sm.ConsultingType = 'Video' AND i.IsActive = 1
+                  )
+                  AND EXISTS (
+                      SELECT 1 FROM PaymentHeader ph
+                      WHERE ph.ModuleCode = 'OPD' AND ph.ModuleRefId = pos.OPDServiceId AND ph.PaymentStatus = 'P' AND ph.IsActive = 1
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM tbl_VideoConsultation vc2
+                      WHERE vc2.OPDServiceId = pos.OPDServiceId
+                  )
+
+                ORDER BY VisitDate DESC, OPDServiceId DESC");
+
+            var result = items.Select(i => new
+            {
+                ConsultationId = (int?)i.ConsultationId,
+                OpdServiceId   = (int)i.OPDServiceId,
+                OpdBillNo      = (string?)i.OpdBillNo,
+                VisitDate      = ((DateTime)i.VisitDate).ToString("dd-MMM-yyyy"),
+                PatientName    = (string)i.PatientName,
+                DoctorName     = (string)i.DoctorName,
+                ErrorMessage   = (string?)i.ErrorMessage,
+                IssueType      = (string)i.IssueType
+            }).ToList();
+
+            return Json(new { success = true, items = result });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message, items = Array.Empty<object>() });
         }
     }
 }

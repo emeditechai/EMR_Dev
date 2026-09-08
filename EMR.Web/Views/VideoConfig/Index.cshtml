@@ -49,23 +49,24 @@
                         <div class="p-4">
                             <div class="mb-3">
                                 <label class="form-label fw-semibold text-muted small mb-1">Config Value</label>
-                                <div class="input-group">
-                                    @if (cfg.ConfigKey == "WherebyApiKey")
-                                    {
-                                        <input type="password" class="form-control font-monospace cfg-value-input"
-                                               data-key="@cfg.ConfigKey" value="@cfg.ConfigValue"
-                                               id="val-@cfg.ConfigId" />
-                                        <button class="btn btn-outline-secondary" type="button"
-                                                onclick="togglePass('val-@cfg.ConfigId', this)">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <input type="text" class="form-control cfg-value-input"
-                                               data-key="@cfg.ConfigKey" value="@cfg.ConfigValue" />
-                                    }
-                                </div>
+                                @if (cfg.ConfigKey == "WherebyApiKey")
+                                {
+                                    <div>
+                                        <textarea class="form-control font-monospace cfg-value-input"
+                                                  data-key="@cfg.ConfigKey"
+                                                  id="val-@cfg.ConfigId"
+                                                  rows="4"
+                                                  placeholder="Paste full Whereby API key (JWT token — all 3 parts required)"
+                                                  oninput="updateKeyHint('val-@cfg.ConfigId', 'hint-@cfg.ConfigId')"
+                                                  style="font-size:0.75rem;word-break:break-all;">@cfg.ConfigValue</textarea>
+                                        <div id="hint-@cfg.ConfigId" class="mt-1"></div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <input type="text" class="form-control cfg-value-input"
+                                           data-key="@cfg.ConfigKey" value="@cfg.ConfigValue" />
+                                }
                             </div>
                             @if (cfg.MeetingCreationUrl != null || cfg.ConfigKey == "WherebyBaseUrl")
                             {
@@ -101,9 +102,34 @@
             </div>
         }
     </div>
+
+    @* Failed Video Bookings Panel *@
+    <div class="card border-0 shadow-sm mt-4" id="failedVideoPanel">
+        <div class="card-header bg-danger text-white d-flex align-items-center justify-content-between py-3">
+            <div>
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Failed Video Room Creations</strong>
+                <span class="badge bg-white text-danger ms-2" id="failedCount">...</span>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-warning fw-bold" id="btnRetryAll" onclick="retryAllFailed()">
+                    <i class="bi bi-arrow-repeat me-1"></i>Retry All Failed
+                </button>
+                <button class="btn btn-sm btn-outline-light" onclick="loadFailedBookings()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <div id="failedBookingsContainer" class="p-3 text-muted text-center">
+                <span class="spinner-border spinner-border-sm me-2"></span> Loading...
+            </div>
+        </div>
+    </div>
 </div>
 
-@* Add Config Modal *@
+
 <div class="modal fade" id="addConfigModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
@@ -143,11 +169,31 @@
 <script>
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
 
-    function togglePass(id, btn) {
-        const el = document.getElementById(id);
-        if (el.type === 'password') { el.type = 'text'; btn.innerHTML = '<i class="bi bi-eye-slash"></i>'; }
-        else { el.type = 'password'; btn.innerHTML = '<i class="bi bi-eye"></i>'; }
+    function updateKeyHint(inputId, hintId) {
+        const el = document.getElementById(inputId);
+        const hint = document.getElementById(hintId);
+        if (!el || !hint) return;
+        const val = (el.tagName === 'TEXTAREA' ? el.value : el.value).trim();
+        const parts = val.split('.');
+        const len = val.length;
+        if (len === 0) {
+            hint.innerHTML = '';
+            return;
+        }
+        if (parts.length === 3 && len > 300) {
+            hint.innerHTML = `<small class="text-success"><i class="bi bi-check-circle me-1"></i>Valid JWT format — ${len} characters ✅</small>`;
+        } else if (parts.length < 3) {
+            hint.innerHTML = `<small class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Incomplete! JWT needs 3 dot-separated parts. Currently ${parts.length} part(s), ${len} chars. Paste the FULL key.</small>`;
+        } else {
+            hint.innerHTML = `<small class="text-warning"><i class="bi bi-info-circle me-1"></i>${len} chars, ${parts.length} JWT parts — may be truncated if under 300 chars.</small>`;
+        }
     }
+
+    // Run hint check on load for existing values
+    document.querySelectorAll('textarea.cfg-value-input[data-key="WherebyApiKey"]').forEach(el => {
+        const hintId = el.id.replace('val-', 'hint-');
+        updateKeyHint(el.id, hintId);
+    });
 
     function showBanner(msg, type = 'success') {
         const b = document.getElementById('statusBanner');
@@ -160,6 +206,16 @@
         const valueEl  = document.querySelector(`.cfg-value-input[data-key="${key}"]`);
         const urlEl    = document.querySelector(`.cfg-url-input[data-key="${key}"]`);
         const activeEl = document.querySelector(`.cfg-active-toggle[data-key="${key}"]`);
+
+        // Extra validation for WherebyApiKey
+        if (key === 'WherebyApiKey') {
+            const val = (valueEl?.value ?? '').trim();
+            const parts = val.split('.');
+            if (parts.length < 3 || val.length < 300) {
+                showBanner(`⚠️ WARNING: The API key looks incomplete (${val.length} chars, ${parts.length} JWT part(s)). A valid Whereby JWT has 3 parts separated by dots and is usually 400+ characters. Please paste the COMPLETE key from your Whereby dashboard.`, 'warning');
+                return;
+            }
+        }
 
         const payload = {
             configKey: key,
@@ -244,5 +300,130 @@
             btn.innerHTML = '<i class="bi bi-wifi me-1"></i>Test Connection';
         }
     });
+
+    // ── Failed Video Bookings ─────────────────────────────────────────────────
+    async function loadFailedBookings() {
+        const container = document.getElementById('failedBookingsContainer');
+        const countBadge = document.getElementById('failedCount');
+        container.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Loading...';
+
+        try {
+            const res = await fetch('/VideoConfig/GetFailedVideoBookings');
+            const data = await res.json();
+
+            if (!data.success || !data.items || data.items.length === 0) {
+                countBadge.textContent = '0';
+                container.innerHTML = `<div class="p-4 text-center text-success">
+                    <i class="bi bi-check-circle-fill fs-3 mb-2 d-block"></i>
+                    No failed video bookings found. All video rooms created successfully!
+                </div>`;
+                return;
+            }
+
+            countBadge.textContent = data.items.length;
+            let html = '<div class="table-responsive"><table class="table table-hover align-middle mb-0">';
+            html += `<thead class="table-light"><tr>
+                <th class="ps-3">OPD Bill</th>
+                <th>Patient</th>
+                <th>Doctor</th>
+                <th>Visit Date</th>
+                <th>Error</th>
+                <th class="text-center pe-3">Action</th>
+            </tr></thead><tbody>`;
+
+            for (const item of data.items) {
+                html += `<tr>
+                    <td class="ps-3"><span class="badge bg-secondary font-monospace">${item.opdBillNo || item.opdServiceId}</span></td>
+                    <td>${item.patientName}</td>
+                    <td>${item.doctorName}</td>
+                    <td>${item.visitDate}</td>
+                    <td><small class="text-danger">${item.errorMessage || 'Whereby API failed'}</small></td>
+                    <td class="text-center pe-3">
+                        <button class="btn btn-sm btn-warning" onclick="retriggerVideoRoom(${item.opdServiceId}, this)" title="Re-trigger video room creation">
+                            <i class="bi bi-arrow-repeat me-1"></i>Retry
+                        </button>
+                    </td>
+                </tr>`;
+            }
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        } catch (err) {
+            container.innerHTML = '<div class="p-3 text-danger"><i class="bi bi-x-circle me-2"></i>Failed to load. ' + err.message + '</div>';
+        }
+    }
+
+    async function retriggerVideoRoom(opdServiceId, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Retrying...';
+        try {
+            const res = await fetch('/OPD/RetriggerVideoRoom', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify(opdServiceId)
+            });
+            const data = await res.json();
+            if (data.success) {
+                showBanner(data.message, 'success');
+                setTimeout(() => loadFailedBookings(), 4000);
+            } else {
+                showBanner(data.message, 'danger');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Retry';
+            }
+        } catch (err) {
+            showBanner('Error: ' + err.message, 'danger');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Retry';
+        }
+    }
+
+    async function retryAllFailed() {
+        const btn = document.getElementById('btnRetryAll');
+        const rows = document.querySelectorAll('#failedBookingsContainer tr[data-opdid]');
+
+        // Collect all OPD service IDs from the table
+        const ids = [];
+        document.querySelectorAll('#failedBookingsContainer button[onclick^="retriggerVideoRoom"]').forEach(b => {
+            const match = b.getAttribute('onclick').match(/retriggerVideoRoom\((\d+)/);
+            if (match) ids.push(parseInt(match[1]));
+        });
+
+        if (ids.length === 0) {
+            showBanner('No failed bookings found to retry.', 'warning');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Retrying All...';
+        showBanner(`Retrying ${ids.length} failed video bookings... please wait.`, 'info');
+
+        let successCount = 0, failCount = 0;
+        for (const id of ids) {
+            try {
+                const res = await fetch('/OPD/RetriggerVideoRoom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify(id)
+                });
+                const data = await res.json();
+                if (data.success) successCount++;
+                else failCount++;
+            } catch { failCount++; }
+            await new Promise(r => setTimeout(r, 1500)); // wait between calls
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Retry All Failed';
+
+        if (successCount > 0) {
+            showBanner(`✅ ${successCount} video room(s) re-triggered! Email & WhatsApp notifications sent. Refreshing...`, 'success');
+            setTimeout(() => loadFailedBookings(), 8000);
+        } else {
+            showBanner(`❌ All ${failCount} retries failed. Check your API key with "Test Connection".`, 'danger');
+        }
+    }
+
+    // Load on page init
+    loadFailedBookings();
 </script>
 }

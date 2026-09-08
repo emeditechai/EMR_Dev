@@ -18,6 +18,9 @@ public class WhatsAppConfiguration
     public bool LabNotificationEnabled { get; set; } = true;
     public string OpdMessageTemplate { get; set; } = "Dear {PatientName}, thank you for visiting {HospitalName}. Your OPD Bill {BillNo} of Rs. {Amount} has been generated. Token: {TokenNo}, Doctor: {DoctorName}. Please find your bill attached. Wish you a speedy recovery!";
     public string LabMessageTemplate { get; set; } = "Dear {PatientName}, thank you for choosing {HospitalName}. Your Lab Order {BillNo} of Rs. {Amount} has been registered. Token: {TokenNo}. Please find your bill attached. Thank you!";
+    public bool VideoNotificationEnabled { get; set; } = true;
+    public string VideoPatientMessageTemplate { get; set; } = "Dear {PatientName}, your Video Consultation with Dr. {DoctorName} on {Date} at {Time} is confirmed. Join using: {Link}";
+    public string VideoDoctorMessageTemplate { get; set; } = "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}";
     public bool IsDefault { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public DateTime? LastTestedDate { get; set; }

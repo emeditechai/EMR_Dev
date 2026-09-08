@@ -20,6 +20,13 @@ public class WhatsAppService(
     IHttpClientFactory httpClientFactory,
     ILogger<WhatsAppService> logger) : IWhatsAppService
 {
+    // ── Global rate-limit gate: serialises ALL sends across every background task ──
+    // WaSender Account Protection allows only 1 message / 5 seconds.
+    private static readonly SemaphoreSlim _sendGate   = new SemaphoreSlim(1, 1);
+    private static          DateTime      _lastSentUtc = DateTime.MinValue;
+    private const           int           _minGapMs    = 5500;   // 5.5 s gap between sends
+    private const           int           _maxRetries  = 10;     // retry up to 10× on rate-limit
+
     public async Task<WhatsAppConfiguration?> GetActiveConfigAsync(int branchId)
     {
         using var scope = scopeFactory.CreateScope();
@@ -125,95 +132,113 @@ public class WhatsAppService(
             return result;
         }
 
-        var client = httpClientFactory.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(25);
-
-        object payload;
-        if (!string.IsNullOrWhiteSpace(documentUrl))
-        {
-            payload = new
-            {
-                to = formattedPhone,
-                text = text,
-                documentUrl = documentUrl,
-                fileName = fileName ?? "document.pdf"
-            };
-        }
-        else
-        {
-            payload = new
-            {
-                to = formattedPhone,
-                text = text
-            };
-        }
-
-        var jsonContent = JsonSerializer.Serialize(payload);
-        var request = new HttpRequestMessage(HttpMethod.Post, config.ApiUrl)
-        {
-            Content = new StringContent(jsonContent, Encoding.UTF8, "application/json")
-        };
-
-        // Format Bearer Token header properly
-        var token = config.ApiKey.Trim();
+        // Format token
+        var token     = config.ApiKey.Trim();
         if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
             token = token.Substring(7).Trim();
-        }
-
         var headerKey = string.IsNullOrWhiteSpace(config.AuthHeaderKey) ? "Authorization" : config.AuthHeaderKey.Trim();
-        if (headerKey.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-        else
-        {
-            request.Headers.TryAddWithoutValidation(headerKey, "Bearer " + token);
-        }
+
+        // Serialize JSON payload once
+        var jsonContent = string.IsNullOrWhiteSpace(documentUrl)
+            ? JsonSerializer.Serialize(new { to = formattedPhone, text })
+            : JsonSerializer.Serialize(new { to = formattedPhone, text, documentUrl, fileName = fileName ?? "document.pdf" });
 
         string rawResponse = string.Empty;
+
+        // ── Acquire global send gate — ensures only 1 WA message at a time ────────
+        await _sendGate.WaitAsync();
         try
         {
-            var response = await client.SendAsync(request);
-            rawResponse = await response.Content.ReadAsStringAsync();
-            result.RawResponse = rawResponse;
-
-            using var doc = JsonDocument.Parse(rawResponse);
-            var root = doc.RootElement;
-
-            bool isSuccess = false;
-            if (root.TryGetProperty("success", out var successProp) && successProp.ValueKind == JsonValueKind.True)
+            // Enforce minimum 5.5 s gap between any two sends
+            var elapsed = (DateTime.UtcNow - _lastSentUtc).TotalMilliseconds;
+            if (elapsed < _minGapMs)
             {
-                isSuccess = true;
+                var delayMs = (int)(_minGapMs - elapsed);
+                logger.LogInformation("[WhatsApp] Gap enforced: waiting {ms}ms before sending to {Phone}", delayMs, formattedPhone);
+                await Task.Delay(delayMs);
             }
 
-            result.Success = isSuccess;
-
-            if (root.TryGetProperty("data", out var dataProp) && dataProp.ValueKind == JsonValueKind.Object)
+            // ── Retry loop: keep retrying on rate-limit until success or max retries ──
+            for (int attempt = 1; attempt <= _maxRetries; attempt++)
             {
-                if (dataProp.TryGetProperty("msgId", out var msgIdProp))
-                    result.MsgId = msgIdProp.ToString();
+                HttpRequestMessage BuildReq() {
+                    var req = new HttpRequestMessage(HttpMethod.Post, config.ApiUrl)
+                    {
+                        Content = new StringContent(jsonContent, Encoding.UTF8, "application/json")
+                    };
+                    if (headerKey.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    else
+                        req.Headers.TryAddWithoutValidation(headerKey, "Bearer " + token);
+                    return req;
+                }
 
-                if (dataProp.TryGetProperty("jid", out var jidProp))
-                    result.Jid = jidProp.GetString();
+                try
+                {
+                    var httpClient = httpClientFactory.CreateClient();
+                    httpClient.Timeout = TimeSpan.FromSeconds(25);
 
-                if (dataProp.TryGetProperty("status", out var statusProp))
-                    result.Status = statusProp.GetString();
-            }
+                    var response = await httpClient.SendAsync(BuildReq());
+                    rawResponse  = await response.Content.ReadAsStringAsync();
+                    _lastSentUtc = DateTime.UtcNow; // stamp after every actual send
+                    result.RawResponse = rawResponse;
 
-            if (!isSuccess && root.TryGetProperty("message", out var msgProp))
-            {
-                result.ErrorMessage = msgProp.GetString();
+                    using var doc  = JsonDocument.Parse(rawResponse);
+                    var       root = doc.RootElement;
+
+                    bool isSuccess = root.TryGetProperty("success", out var sp) && sp.ValueKind == JsonValueKind.True;
+
+                    if (isSuccess)
+                    {
+                        result.Success = true;
+                        if (root.TryGetProperty("data", out var dp) && dp.ValueKind == JsonValueKind.Object)
+                        {
+                            if (dp.TryGetProperty("msgId",  out var mi)) result.MsgId  = mi.ToString();
+                            if (dp.TryGetProperty("jid",    out var ji)) result.Jid    = ji.GetString();
+                            if (dp.TryGetProperty("status", out var si)) result.Status = si.GetString();
+                        }
+                        logger.LogInformation("[WhatsApp] Sent to {Phone} on attempt {A}", formattedPhone, attempt);
+                        break; // ✅ done
+                    }
+
+                    // Check if this is a rate-limit error
+                    bool isRateLimit = root.TryGetProperty("retry_after", out var raProp);
+                    if (!isRateLimit)
+                    {
+                        // Non-rate-limit error (wrong number, bad token, etc.) — do not retry
+                        if (root.TryGetProperty("message", out var mp)) result.ErrorMessage = mp.GetString();
+                        logger.LogWarning("[WhatsApp] Non-retryable error for {Phone}: {Err}", formattedPhone, result.ErrorMessage);
+                        break;
+                    }
+
+                    if (attempt >= _maxRetries)
+                    {
+                        result.ErrorMessage = $"Rate limit persisted after {_maxRetries} retries.";
+                        logger.LogError("[WhatsApp] Rate limit: max retries ({M}) exhausted for {Phone}", _maxRetries, formattedPhone);
+                        break;
+                    }
+
+                    // Wait as instructed by WaSender and retry
+                    int waitSec = Math.Max(raProp.GetInt32(), 5) + 1;
+                    logger.LogWarning("[WhatsApp] Rate limited (attempt {A}/{M}). Retrying in {S}s for {Phone}...",
+                        attempt, _maxRetries, waitSec, formattedPhone);
+                    await Task.Delay(TimeSpan.FromSeconds(waitSec));
+                }
+                catch (Exception ex)
+                {
+                    result.Success      = false;
+                    result.ErrorMessage = ex.Message;
+                    logger.LogError(ex, "[WhatsApp] HTTP exception on attempt {A} for {Phone}", attempt, formattedPhone);
+                    break; // network error — do not retry
+                }
             }
         }
-        catch (Exception ex)
+        finally
         {
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            logger.LogError(ex, "[WhatsApp] HTTP Exception while sending to {Phone}", formattedPhone);
+            _sendGate.Release();
         }
 
-        // Log result to WhatsAppLog asynchronously
+        // ── Log result to DB ───────────────────────────────────────────────────────
         try
         {
             using var scope = scopeFactory.CreateScope();
@@ -221,31 +246,30 @@ public class WhatsAppService(
 
             var logEntry = new WhatsAppLog
             {
-                ConfigId = config.Id,
-                BranchId = branchId,
-                ModuleCode = moduleCode,
-                ModuleRefId = moduleRefId,
+                ConfigId       = config.Id,
+                BranchId       = branchId,
+                ModuleCode     = moduleCode,
+                ModuleRefId    = moduleRefId,
                 RecipientPhone = formattedPhone,
-                MessageText = text,
-                IsSuccess = result.Success,
-                MsgId = result.MsgId,
-                Jid = result.Jid,
-                Status = result.Status ?? (result.Success ? "sent" : "failed"),
-                ApiResponse = rawResponse,
-                ErrorMessage = result.ErrorMessage,
-                SentDate = DateTime.Now
+                MessageText    = text,
+                IsSuccess      = result.Success,
+                MsgId          = result.MsgId,
+                Jid            = result.Jid,
+                Status         = result.Status ?? (result.Success ? "sent" : "failed"),
+                ApiResponse    = rawResponse,
+                ErrorMessage   = result.ErrorMessage,
+                SentDate       = DateTime.Now
             };
 
             db.WhatsAppLogs.Add(logEntry);
 
-            // Update LastTested on config if test message
             if (moduleCode == "TEST")
             {
                 var trackedConfig = await db.WhatsAppConfigurations.FindAsync(config.Id);
                 if (trackedConfig != null)
                 {
-                    trackedConfig.LastTestedDate = DateTime.Now;
-                    trackedConfig.LastTestResult = result.Success ? "Success: Message queued" : $"Failed: {result.ErrorMessage}";
+                    trackedConfig.LastTestedDate  = DateTime.Now;
+                    trackedConfig.LastTestResult  = result.Success ? "Success: Message queued" : $"Failed: {result.ErrorMessage}";
                 }
             }
 
@@ -551,6 +575,62 @@ public class WhatsAppService(
         }
     }
 
+    public async Task TriggerVideoConsultationWhatsAppAsync(int branchId, int opdServiceId, string patientPhone, string doctorPhone, string patientName, string doctorName, string date, string time, string patientLink, string doctorLink)
+    {
+        try
+        {
+            var config = await GetActiveConfigAsync(branchId);
+            if (config == null || !config.IsEnabled || !config.VideoNotificationEnabled)
+            {
+                logger.LogInformation("[WhatsApp] Video notification disabled or not configured for branch {BranchId}", branchId);
+                return;
+            }
+
+            // 1. Send Patient Message
+            if (!string.IsNullOrWhiteSpace(patientPhone))
+            {
+                string patientTemplate = config.VideoPatientMessageTemplate;
+                if (string.IsNullOrWhiteSpace(patientTemplate))
+                    patientTemplate = "Dear {PatientName}, your Video Consultation with Dr. {DoctorName} on {Date} at {Time} is confirmed. Join using: {Link}";
+
+                string patientMessage = patientTemplate
+                    .Replace("{PatientName}", patientName)
+                    .Replace("{DoctorName}", doctorName)
+                    .Replace("{Date}", date)
+                    .Replace("{Time}", time)
+                    .Replace("{Link}", patientLink)
+                    .Trim();
+
+                await SendTextMessageAsync(patientPhone, patientMessage, branchId, "VIDEO", opdServiceId);
+            }
+
+            // ── Rate-limit guard: WaSender allows 1 message/5 sec ────────────
+            await Task.Delay(6000);
+
+            // 2. Send Doctor Message
+            if (!string.IsNullOrWhiteSpace(doctorPhone))
+            {
+                string doctorTemplate = config.VideoDoctorMessageTemplate;
+                if (string.IsNullOrWhiteSpace(doctorTemplate))
+                    doctorTemplate = "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}";
+
+                string doctorMessage = doctorTemplate
+                    .Replace("{DoctorName}", doctorName)
+                    .Replace("{PatientName}", patientName)
+                    .Replace("{Date}", date)
+                    .Replace("{Time}", time)
+                    .Replace("{Link}", doctorLink)
+                    .Trim();
+
+                await SendTextMessageAsync(doctorPhone, doctorMessage, branchId, "VIDEO", opdServiceId);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[WhatsApp] Error executing TriggerVideoConsultationWhatsAppAsync for OPDServiceId {Id}", opdServiceId);
+        }
+    }
+
     private static string FormatPhoneNumber(string rawPhone, string defaultCountryCode)
     {
         if (string.IsNullOrWhiteSpace(rawPhone)) return string.Empty;
@@ -570,10 +650,13 @@ public class WhatsAppService(
 
         if (digits.Length == 10)
         {
-            return cc + digits;
+            // Strip leading zero if present (e.g. 0987654321 → 987654321 → +91987654321)
+            var stripped = digits.TrimStart('0');
+            return cc + stripped;
         }
 
         // If it starts without plus but already has country code (e.g. 919007524092)
-        return "+" + digits;
+        // Also handle leading zero case e.g. 0919007524092
+        return "+" + digits.TrimStart('0');
     }
 }

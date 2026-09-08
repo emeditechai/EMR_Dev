@@ -237,6 +237,14 @@
                                 </div>
                                 <input class="form-check-input ms-3" type="checkbox" role="switch" asp-for="LabNotificationEnabled" style="width: 2.8em; height: 1.4em;" />
                             </div>
+                            <hr class="my-1" />
+                            <div class="form-check form-switch p-0 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <label class="form-check-label fw-bold text-dark d-block" for="VideoNotificationEnabled">Video Consultation WhatsApp Notifications</label>
+                                    <small class="text-muted">Automatically send WhatsApp message to Patient and Doctor when a Video Consultation is booked</small>
+                                </div>
+                                <input class="form-check-input ms-3" type="checkbox" role="switch" asp-for="VideoNotificationEnabled" style="width: 2.8em; height: 1.4em;" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -285,6 +293,42 @@
                                 <span class="tag-chip" onclick="insertTag('LabMessageTemplate', '{Amount}')">{Amount}</span>
                             </div>
                             <textarea asp-for="LabMessageTemplate" id="LabMessageTemplate" rows="4" class="form-control font-monospace" style="font-size: 0.88rem;"></textarea>
+                        </div>
+
+                        <!-- Video Consultation Patient Template -->
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div>
+                                    <label asp-for="VideoPatientMessageTemplate" class="form-label small fw-bold text-dark mb-0">Video Consultation Patient Message Template</label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <span class="small text-muted me-1">Click to insert:</span>
+                                <span class="tag-chip" onclick="insertTag('VideoPatientMessageTemplate', '{PatientName}')">{PatientName}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoPatientMessageTemplate', '{DoctorName}')">{DoctorName}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoPatientMessageTemplate', '{Date}')">{Date}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoPatientMessageTemplate', '{Time}')">{Time}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoPatientMessageTemplate', '{Link}')">{Link}</span>
+                            </div>
+                            <textarea asp-for="VideoPatientMessageTemplate" id="VideoPatientMessageTemplate" rows="4" class="form-control font-monospace" style="font-size: 0.88rem;"></textarea>
+                        </div>
+
+                        <!-- Video Consultation Doctor Template -->
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div>
+                                    <label asp-for="VideoDoctorMessageTemplate" class="form-label small fw-bold text-dark mb-0">Video Consultation Doctor Message Template</label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <span class="small text-muted me-1">Click to insert:</span>
+                                <span class="tag-chip" onclick="insertTag('VideoDoctorMessageTemplate', '{DoctorName}')">{DoctorName}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoDoctorMessageTemplate', '{PatientName}')">{PatientName}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoDoctorMessageTemplate', '{Date}')">{Date}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoDoctorMessageTemplate', '{Time}')">{Time}</span>
+                                <span class="tag-chip" onclick="insertTag('VideoDoctorMessageTemplate', '{Link}')">{Link}</span>
+                            </div>
+                            <textarea asp-for="VideoDoctorMessageTemplate" id="VideoDoctorMessageTemplate" rows="4" class="form-control font-monospace" style="font-size: 0.88rem;"></textarea>
                         </div>
 
                     </div>
@@ -499,10 +543,10 @@
                                     <div><i class="bi bi-check2 text-success me-1"></i><strong>Bearer Token:</strong> @(string.IsNullOrEmpty(Model.ApiKey) ? "Not set" : "●●●●●●●●●●●● (Configured)")</div>
                                 </div>
                                 <div class="col-sm-6">
-                                    <div><i class="bi bi-check2 text-success me-1"></i><strong>Notifications:</strong> OPD (@(Model.OpdNotificationEnabled ? "Enabled" : "Disabled")), LAB (@(Model.LabNotificationEnabled ? "Enabled" : "Disabled"))</div>
+                                    <div><i class="bi bi-check2 text-success me-1"></i><strong>Notifications:</strong> OPD (@(Model.OpdNotificationEnabled ? "Enabled" : "Disabled")), LAB (@(Model.LabNotificationEnabled ? "Enabled" : "Disabled")), Video (@(Model.VideoNotificationEnabled ? "Enabled" : "Disabled"))</div>
                                 </div>
                                 <div class="col-12">
-                                    <div><i class="bi bi-check2 text-success me-1"></i><strong>Message Templates:</strong> OPD Bill &amp; LAB Bill templates (with automatic bill PDF attachment)</div>
+                                    <div><i class="bi bi-check2 text-success me-1"></i><strong>Message Templates:</strong> OPD Bill, LAB Bill, and Video Consultation templates</div>
                                 </div>
                             </div>
                         </div>

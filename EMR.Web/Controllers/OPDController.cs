@@ -2195,6 +2195,36 @@ public class OPDController(
         return Json(new { success = true, message = "EMR consultation record saved successfully." });
     }
 
+    // ─── Video Consultation: Re-trigger failed room creation ──────────────────
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RetriggerVideoRoom([FromBody] int opdServiceId)
+    {
+        if (opdServiceId <= 0) return Json(new { success = false, message = "Invalid OPDServiceId." });
+
+        // Check if a Scheduled room already exists (don't retrigger)
+        var scheduled = await dbContext.VideoConsultations
+            .AnyAsync(v => v.OPDServiceId == opdServiceId && v.Status == "Scheduled");
+        if (scheduled)
+            return Json(new { success = false, message = "A Scheduled video room already exists for this booking." });
+
+        // If there's a Failed record, remove it first so TriggerVideoOnFullPayment can proceed
+        var failed = await dbContext.VideoConsultations
+            .Where(v => v.OPDServiceId == opdServiceId && v.Status == "Failed")
+            .ToListAsync();
+
+        if (failed.Any())
+        {
+            dbContext.VideoConsultations.RemoveRange(failed);
+            await dbContext.SaveChangesAsync();
+        }
+
+        var branchId = User.GetCurrentBranchId();
+        TriggerVideoOnFullPayment(branchId, opdServiceId);
+
+        return Json(new { success = true, message = "Video room creation re-triggered. Email & WhatsApp notifications will be sent shortly." });
+    }
+
+
     // ─── Video Consultation: Create room on Full Payment ────────────────────────
     private void TriggerVideoOnFullPayment(int? branchId, int opdServiceId)
     {

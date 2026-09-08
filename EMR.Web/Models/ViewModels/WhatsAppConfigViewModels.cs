@@ -48,6 +48,15 @@ public class WhatsAppConfigViewModel
     [Display(Name = "LAB Bill Message Template")]
     public string LabMessageTemplate { get; set; } = "Dear {PatientName}, thank you for choosing {HospitalName}. Your Lab Order {BillNo} of Rs. {Amount} has been registered. Token: {TokenNo}. Please find your bill attached. Thank you!";
 
+    [Display(Name = "Send WhatsApp for Video Consultations")]
+    public bool VideoNotificationEnabled { get; set; } = true;
+
+    [Display(Name = "Video Consultation Patient Template")]
+    public string VideoPatientMessageTemplate { get; set; } = "Dear {PatientName}, your Video Consultation with Dr. {DoctorName} on {Date} at {Time} is confirmed. Join using: {Link}";
+
+    [Display(Name = "Video Consultation Doctor Template")]
+    public string VideoDoctorMessageTemplate { get; set; } = "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}";
+
     public bool IsHOBranch { get; set; }
     public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> TargetBranches { get; set; } = new();
 

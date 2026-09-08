@@ -20,4 +20,5 @@ public interface IWhatsAppService
     Task<string?> UploadMediaAsync(byte[] fileBytes, string mimeType, int branchId);
     Task TriggerOpdBillWhatsAppAsync(int branchId, int opdServiceId, string? pdfPath = null, string? hostUrl = null);
     Task TriggerLabBillWhatsAppAsync(int branchId, int labOrderId, string? pdfPath = null, string? hostUrl = null);
+    Task TriggerVideoConsultationWhatsAppAsync(int branchId, int opdServiceId, string patientPhone, string doctorPhone, string patientName, string doctorName, string date, string time, string patientLink, string doctorLink);
 }

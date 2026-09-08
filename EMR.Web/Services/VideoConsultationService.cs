@@ -8,7 +8,8 @@ namespace EMR.Web.Services;
 public class VideoConsultationService(
     ApplicationDbContext dbContext,
     IWherebyService wherebyService,
-    IEmailService emailService) : IVideoConsultationService
+    IEmailService emailService,
+    IWhatsAppService whatsAppService) : IVideoConsultationService
 {
     public async Task CreateAndDispatchAsync(
         int opdServiceId, int doctorId, int patientId,
@@ -18,8 +19,18 @@ public class VideoConsultationService(
         Console.WriteLine($"[VIDEO] Starting Whereby room creation for OPDServiceId={opdServiceId}, DoctorId={doctorId}, PatientId={patientId}");
 
         // ── Step 1: Call Whereby API ─────────────────────────────────────────
-        var result = await wherebyService.CreateMeetingAsync(
-            patientId, appointmentDate, slotStartTime, slotEndTime, graceTimeMinutes);
+        WherebyMeetingResult? result = null;
+        string? wherebyError = null;
+        try
+        {
+            result = await wherebyService.CreateMeetingAsync(
+                patientId, appointmentDate, slotStartTime, slotEndTime, graceTimeMinutes);
+        }
+        catch (Exception ex)
+        {
+            wherebyError = ex.Message;
+            Console.WriteLine($"[VIDEO] Whereby API error: {wherebyError}");
+        }
 
         var prefix = wherebyService.GenerateMeetingPrefix(patientId, appointmentDate, slotStartTime);
 
@@ -37,16 +48,16 @@ public class VideoConsultationService(
 
         if (result == null)
         {
-            consultation.Status       = "Failed";
+            consultation.Status           = "Failed";
             consultation.WherebyMeetingId = "ERROR";
             consultation.DoctorHostUrl    = string.Empty;
             consultation.PatientRoomUrl   = string.Empty;
             consultation.MeetingStartDate = DateTime.UtcNow;
             consultation.MeetingEndDate   = DateTime.UtcNow;
-            consultation.ErrorMessage     = "Whereby API call failed. Check logs.";
+            consultation.ErrorMessage     = wherebyError ?? "Whereby API call failed. Check logs.";
             dbContext.VideoConsultations.Add(consultation);
             await dbContext.SaveChangesAsync();
-            Console.WriteLine($"[VIDEO] Whereby API failed for OPDServiceId={opdServiceId}. Saved Failed record.");
+            Console.WriteLine($"[VIDEO] Whereby API failed for OPDServiceId={opdServiceId}. Error: {consultation.ErrorMessage}");
             return;
         }
 
@@ -63,8 +74,8 @@ public class VideoConsultationService(
 
         // ── Step 3: Fetch doctor and patient details ──────────────────────────
         var con = dbContext.Database.GetDbConnection();
-        var doctorRow = await con.QueryFirstOrDefaultAsync<(string Name, string? Email)>(
-            "SELECT FullName AS Name, EmailId AS Email FROM DoctorMaster WHERE DoctorId = @DoctorId",
+        var doctorRow = await con.QueryFirstOrDefaultAsync<(string Name, string? Email, string? Phone)>(
+            "SELECT FullName AS Name, EmailId AS Email, PhoneNumber AS Phone FROM DoctorMaster WHERE DoctorId = @DoctorId",
             new { DoctorId = doctorId });
 
         var patient = await dbContext.PatientMasters.AsNoTracking()
@@ -74,6 +85,8 @@ public class VideoConsultationService(
         var doctorName   = string.IsNullOrWhiteSpace(doctorRow.Name) ? "Doctor" : doctorRow.Name;
         var patientEmail = patient?.EmailId;
         var doctorEmail  = doctorRow.Email;
+        var patientPhone = patient?.PhoneNumber;
+        var doctorPhone  = doctorRow.Phone;
 
         var apptDateStr  = appointmentDate.ToString("dd-MMM-yyyy");
         var slotStartStr = DateTime.Today.Add(slotStartTime).ToString("hh:mm tt");
@@ -128,7 +141,22 @@ public class VideoConsultationService(
             Console.WriteLine($"[VIDEO] No email for PatientId={patientId}, skipping patient email.");
         }
 
-        // ── Step 6: Update email sent flags ─────────────────────────────────
+        // ── Step 6: Send WhatsApp Messages ────────────────────────────────────
+        var slotString = $"{slotStartStr} to {slotEndStr}";
+        await whatsAppService.TriggerVideoConsultationWhatsAppAsync(
+            branchId,
+            opdServiceId,
+            patientPhone ?? string.Empty,
+            doctorPhone ?? string.Empty,
+            patientName,
+            doctorName,
+            apptDateStr,
+            slotString,
+            result.RoomUrl,
+            result.HostRoomUrl
+        );
+
+        // ── Step 7: Update email sent flags ─────────────────────────────────
         dbContext.VideoConsultations.Update(consultation);
         await dbContext.SaveChangesAsync();
     }

@@ -51,6 +51,15 @@ public class WherebyService(ApplicationDbContext dbContext, IHttpClientFactory h
             var slotEndDateTime = appointmentDate.Date + slotEndTime + TimeSpan.FromMinutes(graceTimeMinutes);
             // Convert IST → UTC
             var endDateUtc = TimeZoneInfo.ConvertTimeToUtc(slotEndDateTime, IstZone);
+
+            // ── Safety net: if endDate is already in the past, extend to now + 30 min ──
+            // This can happen when triggering a room for a past appointment (e.g. Admin retry)
+            if (endDateUtc <= DateTime.UtcNow)
+            {
+                endDateUtc = DateTime.UtcNow.AddMinutes(30);
+                Console.WriteLine($"[WHEREBY] endDate was in the past; using UtcNow+30min: {endDateUtc:O}");
+            }
+
             var endDateStr = endDateUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
 
             // Build request body (BRD FR-04)
@@ -78,8 +87,20 @@ public class WherebyService(ApplicationDbContext dbContext, IHttpClientFactory h
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[WHEREBY] API call failed: {(int)response.StatusCode} {responseJson}");
-                return null;
+                // Try to extract a human-readable error from Whereby's response
+                string wherebyError = responseJson;
+                try
+                {
+                    using var errDoc = JsonDocument.Parse(responseJson);
+                    if (errDoc.RootElement.TryGetProperty("message", out var msg))
+                        wherebyError = msg.GetString() ?? responseJson;
+                    else if (errDoc.RootElement.TryGetProperty("error", out var err))
+                        wherebyError = err.GetString() ?? responseJson;
+                }
+                catch { /* ignore parse errors, use raw body */ }
+
+                Console.WriteLine($"[WHEREBY] API call failed: HTTP {(int)response.StatusCode} — {wherebyError}");
+                throw new InvalidOperationException($"HTTP {(int)response.StatusCode}: {wherebyError}");
             }
 
             using var doc = JsonDocument.Parse(responseJson);
