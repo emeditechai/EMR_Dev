@@ -1,0 +1,97 @@
+@model EMR.Web.Models.ViewModels.LabSampleRejectionReasonFormViewModel
+
+@{
+    ViewData["Title"] = "Add Sample Rejection Reason";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Lab Master</li>
+                <li class="breadcrumb-item"><a asp-action="Index">Sample Rejection Reason Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Add New</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary">
+            <i class="bi bi-plus-circle me-2"></i>Add New Sample Rejection Reason
+        </h4>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white p-3">
+                    <h5 class="card-title mb-0 fw-semibold">
+                        <i class="bi bi-x-circle me-2"></i>Rejection Reason Information
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label asp-for="Reason_Text" class="form-label fw-semibold required-field"></label>
+                                <textarea asp-for="Reason_Text" class="form-control" rows="4" maxlength="1000" placeholder="Enter detailed rejection reason (max 1000 characters)..."></textarea>
+                                <div class="form-text text-muted text-end"><span id="reasonTextCount">0</span>/1000 characters</div>
+                                <span asp-validation-for="Reason_Text" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label asp-for="Applicable_Sample_Type_ID" class="form-label fw-semibold"></label>
+                                <select asp-for="Applicable_Sample_Type_ID" class="form-select" asp-items="Model.SampleTypeOptions">
+                                    <option value="">-- All Sample Types (Global) --</option>
+                                </select>
+                                <div class="form-text text-muted">Select an active Sample Type to restrict this rejection reason, or leave blank to apply globally.</div>
+                                <span asp-validation-for="Applicable_Sample_Type_ID" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Display_Order" class="form-label fw-semibold required-field"></label>
+                                <input asp-for="Display_Order" type="number" class="form-control" min="1" max="99999" />
+                                <span asp-validation-for="Display_Order" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check form-switch mb-2">
+                                    <input asp-for="Status" class="form-check-input" type="checkbox" role="switch" id="statusSwitch">
+                                    <label class="form-check-label fw-semibold" for="statusSwitch">Active Status</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4" />
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4">
+                                <i class="bi bi-x-lg me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                <i class="bi bi-save me-1"></i> Save Rejection Reason
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var txt = document.getElementById('Reason_Text');
+            var counter = document.getElementById('reasonTextCount');
+            if (txt && counter) {
+                var updateCount = function () { counter.textContent = txt.value.length; };
+                txt.addEventListener('input', updateCount);
+                updateCount();
+            }
+        });
+    </script>
+}
