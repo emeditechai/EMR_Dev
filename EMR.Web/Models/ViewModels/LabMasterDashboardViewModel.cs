@@ -23,4 +23,6 @@ public class LabMasterDashboardViewModel
     public int ActiveTestMethods { get; set; }
     public int TotalUnits { get; set; }
     public int ActiveUnits { get; set; }
+    public int TotalSampleRejections { get; set; }
+    public int ActiveSampleRejections { get; set; }
 }

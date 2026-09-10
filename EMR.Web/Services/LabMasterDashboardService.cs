@@ -13,7 +13,8 @@ public class LabMasterDashboardService(
     ILabTestSubCategoryApiClient subCategoryApiClient,
     ILabSampleTypeApiClient sampleTypeApiClient,
     ILabTestMethodApiClient methodApiClient,
-    ILabUnitApiClient unitApiClient) : ILabMasterDashboardService
+    ILabUnitApiClient unitApiClient,
+    ILabSampleRejectionApiClient sampleRejectionApiClient) : ILabMasterDashboardService
 {
     public async Task<LabMasterDashboardViewModel> GetDashboardAsync(int companyId, string activeModule)
     {
@@ -22,14 +23,16 @@ public class LabMasterDashboardService(
         var sampleTypesTask = sampleTypeApiClient.GetListAsync(companyId: companyId);
         var methodsTask = methodApiClient.GetListAsync(companyId: companyId);
         var unitsTask = unitApiClient.GetListAsync(companyId: companyId);
+        var rejectionsTask = sampleRejectionApiClient.GetListAsync(companyId: companyId);
 
-        await Task.WhenAll(categoriesTask, subCategoriesTask, sampleTypesTask, methodsTask, unitsTask);
+        await Task.WhenAll(categoriesTask, subCategoriesTask, sampleTypesTask, methodsTask, unitsTask, rejectionsTask);
 
         var categories = (await categoriesTask).ToList();
         var subCategories = (await subCategoriesTask).ToList();
         var sampleTypes = (await sampleTypesTask).ToList();
         var methods = (await methodsTask).ToList();
         var units = (await unitsTask).ToList();
+        var rejections = (await rejectionsTask).ToList();
 
         return new LabMasterDashboardViewModel
         {
@@ -43,7 +46,9 @@ public class LabMasterDashboardService(
             TotalTestMethods = methods.Count,
             ActiveTestMethods = methods.Count(m => m.Status),
             TotalUnits = units.Count,
-            ActiveUnits = units.Count(u => u.Status)
+            ActiveUnits = units.Count(u => u.Status),
+            TotalSampleRejections = rejections.Count,
+            ActiveSampleRejections = rejections.Count(r => r.Status)
         };
     }
 }

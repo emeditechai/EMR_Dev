@@ -1,0 +1,115 @@
+@model EMR.Web.ApiClients.Models.LabSampleRejectionModel
+
+@{
+    ViewData["Title"] = "Sample Rejection Details";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Sample Rejection Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Details</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-eye me-2"></i>Sample Rejection Details
+            </h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-encrypted-id="@Model.Rejection_ID" class="btn btn-primary px-3 shadow-sm">
+                <i class="bi bi-pencil me-1"></i> Edit Rejection Reason
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-primary text-white p-3 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 fw-semibold">
+                        <i class="bi bi-x-circle me-2"></i>@Model.Rejection_Reason
+                    </h5>
+                    <span class="badge bg-light text-dark font-monospace fs-6 px-3 py-1">@Model.Rejection_Code</span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Rejection ID</label>
+                            <span class="fw-bold text-dark fs-5">#@Model.Rejection_ID</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Rejection Code</label>
+                            <span class="badge bg-light text-dark border font-monospace px-3 py-2 fs-6">@Model.Rejection_Code</span>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Rejection Reason</label>
+                            <span class="fw-bold text-dark fs-5">@Model.Rejection_Reason</span>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Description</label>
+                            <div class="p-3 bg-light rounded border">
+                                @if (!string.IsNullOrWhiteSpace(Model.Description))
+                                {
+                                    <p class="mb-0 text-secondary">@Model.Description</p>
+                                }
+                                else
+                                {
+                                    <span class="text-muted fst-italic">No description provided.</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Display Order</label>
+                            <span class="badge bg-secondary rounded-pill px-3 py-2 fs-6">@Model.Display_Order</span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Status</label>
+                            @if (Model.Status)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fs-6">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Active
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill fs-6">
+                                    <i class="bi bi-x-circle-fill me-1"></i>Inactive
+                                </span>
+                            }
+                        </div>
+
+                        <div class="col-12"><hr class="my-2" /></div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Created At</label>
+                            <span class="text-secondary"><i class="bi bi-calendar3 me-1"></i>@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Modified At</label>
+                            @if (Model.ModifiedDate.HasValue)
+                            {
+                                <span class="text-secondary"><i class="bi bi-calendar3 me-1"></i>@Model.ModifiedDate.Value.ToString("dd MMM yyyy, hh:mm tt")</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted fst-italic">Never modified</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

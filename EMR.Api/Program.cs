@@ -58,6 +58,7 @@ builder.Services.AddScoped<ILabUnitService,            LabUnitService>();
 builder.Services.AddScoped<IAnalyzerService,           AnalyzerService>();
 builder.Services.AddScoped<ILabInvestigationService,     LabInvestigationService>();
 builder.Services.AddScoped<ILabInvestigationProfileService, LabInvestigationProfileService>();
+builder.Services.AddScoped<ILabSampleRejectionService,      LabSampleRejectionService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────
 builder.Services.AddCors(opt =>
