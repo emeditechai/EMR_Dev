@@ -614,6 +614,13 @@
                     </select>
                 </div>
                 <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="LanguageId" class="form-label fw-semibold small">Language</label>
+                    <select asp-for="LanguageId" id="ddlLanguage" class="form-select s2-search"
+                            asp-items="Model.LanguageOptions">
+                        <option value="">-- Select Language --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-4">
                     <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referral Doctor</label>
                     <div class="input-group">
                         <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search"
@@ -2867,6 +2874,7 @@
                 'ddlBloodGroup':    p.bloodGroup,
                 'ddlOccupation':    p.occupationId,
                 'ddlMaritalStatus': p.maritalStatusId,
+                'ddlLanguage':      p.languageId,
                 'ddlIdType':        p.identificationTypeId,
             };
             Object.entries(s2Map).forEach(([id, val]) => {

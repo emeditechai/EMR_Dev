@@ -173,6 +173,10 @@
                         <span class="fw-semibold text-dark fs-6">@(Model.MaritalStatusName ?? "--")</span>
                     </div>
                     <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Language</span>
+                        <span class="fw-semibold text-dark fs-6">@(Model.LanguageName ?? "--")</span>
+                    </div>
+                    <div class="col-sm-6 border-bottom pb-2">
                         <span class="text-muted d-block mb-1">Guardian Name / Relation</span>
                         <span class="fw-semibold text-dark fs-6">
                             @if (!string.IsNullOrEmpty(p.GuardianName))

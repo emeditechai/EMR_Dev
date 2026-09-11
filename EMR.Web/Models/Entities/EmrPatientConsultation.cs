@@ -29,7 +29,7 @@ public class EmrPatientConsultation
     [MaxLength(20)]
     public string? Gender { get; set; }
 
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string? Age { get; set; }
 
     [MaxLength(20)]

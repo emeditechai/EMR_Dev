@@ -78,7 +78,7 @@ public interface IPatientService
     /// Returns resolved display names for all picklist-ID fields on a patient
     /// (Religion, MaritalStatus, Occupation, Area, City, District, State, Country).
     /// </summary>
-    Task<(string? ReligionName, string? MaritalStatusName, string? OccupationName,
+    Task<(string? ReligionName, string? MaritalStatusName, string? OccupationName, string? LanguageName,
           string? AreaName, string? CityName, string? DistrictName, string? StateName, string? CountryName)>
         GetDemographicNamesAsync(int patientId);
 

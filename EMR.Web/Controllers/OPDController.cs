@@ -1439,6 +1439,7 @@ public class OPDController(
             ReligionName = names.ReligionName,
             MaritalStatusName = names.MaritalStatusName,
             OccupationName = names.OccupationName,
+            LanguageName = names.LanguageName,
             AreaName = names.AreaName,
             CityName = names.CityName,
             DistrictName = names.DistrictName,
@@ -1567,6 +1568,7 @@ public class OPDController(
             ReligionName      = names.ReligionName,
             MaritalStatusName = names.MaritalStatusName,
             OccupationName    = names.OccupationName,
+            LanguageName      = names.LanguageName,
             AreaName          = names.AreaName,
             CityName          = names.CityName,
             DistrictName      = names.DistrictName,
@@ -1893,6 +1895,12 @@ public class OPDController(
             .Select(m => new SelectListItem(m.StatusName, m.MaritalStatusId.ToString()))
             .ToListAsync();
 
+        model.LanguageOptions = await dbContext.LanguageMasters
+            .Where(l => l.IsActive)
+            .OrderBy(l => l.LanguageName)
+            .Select(l => new SelectListItem(l.LanguageName, l.LanguageId.ToString()))
+            .ToListAsync();
+
         var doctors = await patientService.GetOpdDoctorsAsync(branchId);
         model.DoctorOptions = doctors
             .Select(d => new SelectListItem(d.FullName, d.DoctorId.ToString()))
@@ -1963,6 +1971,7 @@ public class OPDController(
         PhotoPath             = m.PhotoPath,
         OccupationId          = m.OccupationId,
         MaritalStatusId       = m.MaritalStatusId,
+        LanguageId            = m.LanguageId,
         BloodGroup            = m.BloodGroup,
         KnownAllergies        = m.KnownAllergies?.Trim(),
         Remarks               = m.Remarks?.Trim(),
@@ -2012,6 +2021,7 @@ public class OPDController(
             PhotoPath             = p.PhotoPath,
             OccupationId          = p.OccupationId,
             MaritalStatusId       = p.MaritalStatusId,
+            LanguageId            = p.LanguageId,
             BloodGroup            = p.BloodGroup,
             KnownAllergies        = p.KnownAllergies,
             Remarks               = p.Remarks,

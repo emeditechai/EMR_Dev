@@ -572,6 +572,13 @@
                     </select>
                 </div>
                 <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="LanguageId" class="form-label fw-semibold small">Language</label>
+                    <select asp-for="LanguageId" id="ddlLanguage" class="form-select s2-search"
+                            asp-items="Model.LanguageOptions">
+                        <option value="">-- Select Language --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-4">
                     <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referral Doctor</label>
                     <div class="input-group">
                         <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search"
@@ -1362,7 +1369,7 @@
         const $doctor = $('#ddlDoctor');
 
         function checkLineItemsValidity() {
-            const demoOnly = document.getElementById('DemographicsOnly')?.value === 'true';
+            const demoOnly = (document.getElementById('DemographicsOnly')?.value || '').toLowerCase() === 'true';
             if (demoOnly) return true;
 
             const errEl = document.getElementById('lineItemsValidationError');
@@ -1415,7 +1422,10 @@
         }
 
         function saveJson() {
-            document.getElementById('hdnLineItemsJson').value = JSON.stringify(lineItems);
+            var hdn = document.getElementById('hdnLineItemsJson');
+            if (hdn) {
+                hdn.value = JSON.stringify(lineItems);
+            }
             checkLineItemsValidity();
         }
 
@@ -1663,6 +1673,7 @@
                 'ddlBloodGroup':    p.bloodGroup,
                 'ddlOccupation':    p.occupationId,
                 'ddlMaritalStatus': p.maritalStatusId,
+                'ddlLanguage':      p.languageId,
                 'ddlIdType':        p.identificationTypeId,
             };
             Object.entries(s2Map).forEach(([id, val]) => {
@@ -2067,11 +2078,7 @@
 
         // ── Client-side validation highlight & Pre-save Payment Flow ──────────
         document.getElementById('patientForm')?.addEventListener('submit', function (e) {
-            var isDemoOnly = document.getElementById('DemographicsOnly')?.value === 'true';
-            if (isDemoOnly) {
-                // Demographics only edit from list - allow standard form POST
-                return;
-            }
+            var isDemoOnly = (document.getElementById('DemographicsOnly')?.value || '').toLowerCase() === 'true';
 
             e.preventDefault();
             e.stopPropagation();
@@ -2142,7 +2149,20 @@
                 dInp?.classList.remove('is-invalid');
                 if (feedback) feedback.classList.add('d-none');
             }
+            this.classList.add('was-validated');
+
             if (!this.checkValidity()) {
+                return;
+            }
+
+            if (isDemoOnly) {
+                var saveBtn = document.getElementById('btnSave');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+                }
+                // For Demographics only, bypass payment logic and submit the standard form
+                this.submit();
                 return;
             }
 
@@ -2150,11 +2170,8 @@
             lineItemsFormSubmitted = true;
             if (!checkLineItemsValidity()) {
                 document.querySelector('.service-block')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                this.classList.add('was-validated');
                 return;
             }
-
-            this.classList.add('was-validated');
 
             var saveBtn = document.getElementById('btnSave');
             if (saveBtn) {

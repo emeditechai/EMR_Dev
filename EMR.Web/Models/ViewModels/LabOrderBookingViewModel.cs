@@ -122,6 +122,9 @@ namespace EMR.Web.Models.ViewModels
         [Display(Name = "Marital Status")]
         public int? MaritalStatusId { get; set; }
 
+        [Display(Name = "Language")]
+        public int? LanguageId { get; set; } = 1;
+
         [Display(Name = "Referral Doctor")]
         public int? ReferralDoctorId { get; set; }
 
@@ -163,6 +166,7 @@ namespace EMR.Web.Models.ViewModels
         public List<SelectListItem> RelationOptions { get; set; } = new();
         public List<SelectListItem> ReligionOptions { get; set; } = new();
         public List<SelectListItem> MaritalStatusOptions { get; set; } = new();
+        public List<SelectListItem> LanguageOptions { get; set; } = new();
         public List<SelectListItem> OccupationOptions { get; set; } = new();
         public List<SelectListItem> IdentificationTypeOptions { get; set; } = new();
         public List<SelectListItem> CountryOptions { get; set; } = new();

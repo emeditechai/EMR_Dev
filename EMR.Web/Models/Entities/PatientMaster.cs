@@ -73,6 +73,7 @@ public class PatientMaster
 
     public int? OccupationId { get; set; }
     public int? MaritalStatusId { get; set; }
+    public int? LanguageId { get; set; }
 
     [MaxLength(10)]
     public string? BloodGroup { get; set; }

@@ -247,6 +247,7 @@ namespace EMR.Web.Controllers
                 Longitude = model.Longitude,
                 OccupationId = model.OccupationId,
                 MaritalStatusId = model.MaritalStatusId,
+                LanguageId = model.LanguageId,
                 ReferralDoctorId = model.ReferralDoctorId,
                 BloodGroup = model.BloodGroup,
                 KnownAllergies = model.KnownAllergies,
@@ -432,6 +433,7 @@ namespace EMR.Web.Controllers
                 Longitude = model.Longitude,
                 OccupationId = model.OccupationId,
                 MaritalStatusId = model.MaritalStatusId,
+                LanguageId = model.LanguageId,
                 ReferralDoctorId = model.ReferralDoctorId,
                 BloodGroup = model.BloodGroup,
                 SecondaryPhoneNumber = model.SecondaryPhoneNumber,
@@ -739,6 +741,12 @@ namespace EMR.Web.Controllers
                 .Where(m => m.IsActive)
                 .OrderBy(m => m.StatusName)
                 .Select(m => new SelectListItem(m.StatusName, m.MaritalStatusId.ToString()))
+                .ToListAsync();
+
+            model.LanguageOptions = await dbContext.LanguageMasters
+                .Where(l => l.IsActive)
+                .OrderBy(l => l.LanguageName)
+                .Select(l => new SelectListItem(l.LanguageName, l.LanguageId.ToString()))
                 .ToListAsync();
 
             model.ReferralDoctorOptions = await dbContext.ReferralDoctorMasters

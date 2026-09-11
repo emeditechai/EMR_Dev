@@ -95,6 +95,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.HomeCollectionAddress,
                 p.Latitude,
                 p.Longitude,
+                p.LanguageId,
                 r.RelationName,
                 (SELECT TOP 1 OPDBillNo FROM PatientOPDService
                  WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
@@ -135,6 +136,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.HomeCollectionAddress,
                 p.Latitude,
                 p.Longitude,
+                p.LanguageId,
                 r.RelationName,
                 (SELECT TOP 1 OPDBillNo FROM PatientOPDService
                  WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
@@ -169,6 +171,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.HomeCollectionAddress,
                 p.Latitude,
                 p.Longitude,
+                p.LanguageId,
                 r.RelationName,
                 (SELECT TOP 1 OPDBillNo FROM PatientOPDService
                  WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
@@ -200,6 +203,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 p.BloodGroup,
                 p.DateOfBirth,
                 p.Address,
+                p.LanguageId,
                 r.RelationName,
                 (SELECT TOP 1 OPDBillNo FROM PatientOPDService
                  WHERE PatientId = p.PatientId ORDER BY CreatedDate DESC) AS LastOpdBillNo
@@ -321,6 +325,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         p.Add("@BloodGroup",             patient.BloodGroup);
         p.Add("@KnownAllergies",         patient.KnownAllergies);
         p.Add("@Remarks",                patient.Remarks);
+        p.Add("@LanguageId",             patient.LanguageId);
     }
 
     // ─── Demographics-only Update ────────────────────────────────────
@@ -362,6 +367,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 BloodGroup             = @BloodGroup,
                 KnownAllergies         = @KnownAllergies,
                 Remarks                = @Remarks,
+                LanguageId             = @LanguageId,
                 ModifiedBy             = @ModifiedBy,
                 ModifiedDate           = @ModifiedDate
             WHERE PatientId = @PatientId", patient);
@@ -625,7 +631,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
     }
 
     public async Task<(string? ReligionName, string? MaritalStatusName, string? OccupationName,
-         string? AreaName, string? CityName, string? DistrictName, string? StateName, string? CountryName)>
+         string? LanguageName, string? AreaName, string? CityName, string? DistrictName, string? StateName, string? CountryName)>
         GetDemographicNamesAsync(int patientId)
     {
         using var con = db.CreateConnection();
@@ -634,6 +640,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                 r.ReligionName,
                 ms.StatusName    AS MaritalStatusName,
                 oc.OccupationName,
+                lm.LanguageName,
                 a.AreaName,
                 ci.CityName,
                 di.DistrictName,
@@ -643,6 +650,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             LEFT JOIN ReligionMaster       r   ON r.ReligionId       = pm.ReligionId
             LEFT JOIN MaritalStatusMaster  ms  ON ms.MaritalStatusId = pm.MaritalStatusId
             LEFT JOIN OccupationMaster     oc  ON oc.OccupationId    = pm.OccupationId
+            LEFT JOIN LanguageMaster       lm  ON lm.LanguageId      = pm.LanguageId
             LEFT JOIN AreaMaster           a   ON a.AreaId           = pm.AreaId
             LEFT JOIN CityMaster           ci  ON ci.CityId          = pm.CityId
             LEFT JOIN DistrictMaster       di  ON di.DistrictId      = pm.DistrictId
@@ -654,6 +662,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             (string?)row?.ReligionName,
             (string?)row?.MaritalStatusName,
             (string?)row?.OccupationName,
+            (string?)row?.LanguageName,
             (string?)row?.AreaName,
             (string?)row?.CityName,
             (string?)row?.DistrictName,

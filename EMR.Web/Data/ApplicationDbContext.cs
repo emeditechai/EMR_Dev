@@ -48,6 +48,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<IdentificationTypeMaster> IdentificationTypeMasters => Set<IdentificationTypeMaster>();
     public DbSet<OccupationMaster> OccupationMasters => Set<OccupationMaster>();
     public DbSet<MaritalStatusMaster> MaritalStatusMasters => Set<MaritalStatusMaster>();
+    public DbSet<LanguageMaster> LanguageMasters => Set<LanguageMaster>();
     public DbSet<PatientMaster> PatientMasters => Set<PatientMaster>();
     public DbSet<PatientOPDService> PatientOPDServices => Set<PatientOPDService>();
     public DbSet<PatientOPDServiceItem> PatientOPDServiceItems => Set<PatientOPDServiceItem>();
@@ -495,6 +496,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             entity.ToTable("MaritalStatusMaster");
             entity.HasKey(x => x.MaritalStatusId);
+        });
+
+        modelBuilder.Entity<LanguageMaster>(entity =>
+        {
+            entity.ToTable("LanguageMaster");
+            entity.HasKey(x => x.LanguageId);
         });
 
         modelBuilder.Entity<PatientMaster>(entity =>

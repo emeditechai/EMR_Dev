@@ -174,6 +174,9 @@ public class PatientRegistrationViewModel
     [Display(Name = "Marital Status")]
     public int? MaritalStatusId { get; set; }
 
+    [Display(Name = "Language")]
+    public int? LanguageId { get; set; } = 1;
+
     [MaxLength(10)]
     [Display(Name = "Blood Group")]
     public string? BloodGroup { get; set; }
@@ -217,6 +220,7 @@ public class PatientRegistrationViewModel
     public List<SelectListItem> IdentificationTypeOptions { get; set; } = [];
     public List<SelectListItem> OccupationOptions { get; set; } = [];
     public List<SelectListItem> MaritalStatusOptions { get; set; } = [];
+    public List<SelectListItem> LanguageOptions { get; set; } = [];
     public List<SelectListItem> CountryOptions { get; set; } = [];
     public List<SelectListItem> StateOptions { get; set; } = [];
     public List<SelectListItem> DistrictOptions { get; set; } = [];
@@ -260,6 +264,7 @@ public class PatientQuickSearchResult
     public decimal? Longitude { get; set; }
     public string? RelationName { get; set; }
     public string? LastOpdBillNo { get; set; }
+    public int?    LanguageId { get; set; }
     /// <summary>Computed from DateOfBirth.</summary>
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
@@ -377,6 +382,7 @@ public class PatientDetailsViewModel
     public string? ReligionName { get; set; }
     public string? MaritalStatusName { get; set; }
     public string? OccupationName { get; set; }
+    public string? LanguageName { get; set; }
     public string? AreaName { get; set; }
     public string? CityName { get; set; }
     public string? DistrictName { get; set; }
