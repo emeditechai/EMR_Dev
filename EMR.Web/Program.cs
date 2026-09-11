@@ -159,6 +159,7 @@ builder.Services.AddScoped<ILabInvestigationProfileApiClient, LabInvestigationPr
 builder.Services.AddScoped<ILabRateCardApiClient, LabRateCardApiClient>();
 builder.Services.AddScoped<ILabSampleRejectionApiClient, LabSampleRejectionApiClient>();
 builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectionReasonApiClient>();
+builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();

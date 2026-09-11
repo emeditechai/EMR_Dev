@@ -1,0 +1,280 @@
+@model EMR.Web.Models.ViewModels.LabFranchiseWizardViewModel
+
+@{
+    ViewData["Title"] = "Edit Lab Franchise (Wizard)";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Franchise Setup</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit Franchise</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-pencil-square me-2"></i>Edit Franchise: @Model.Franchise_Name (@Model.Franchise_Code)
+            </h4>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3 shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Wizard Container -->
+    <div class="row justify-content-center">
+        <div class="col-xl-10">
+            <!-- Wizard Stepper Navigation -->
+            <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3">
+            <ul class="nav nav-pills nav-justified wizard-steps" id="wizardSteps" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fw-bold py-3 text-start d-flex align-items-center" id="tab-step1" data-bs-toggle="pill" data-bs-target="#step1" type="button" role="tab">
+                        <span class="badge rounded-circle bg-white text-primary fs-6 me-3 border shadow-sm px-2 py-1">1</span>
+                        <div>
+                            <div class="small text-uppercase text-muted fw-semibold">Step 1</div>
+                            <div class="fs-6">Basic Details</div>
+                        </div>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold py-3 text-start d-flex align-items-center" id="tab-step2" data-bs-toggle="pill" data-bs-target="#step2" type="button" role="tab">
+                        <span class="badge rounded-circle bg-light text-secondary fs-6 me-3 border shadow-sm px-2 py-1">2</span>
+                        <div>
+                            <div class="small text-uppercase text-muted fw-semibold">Step 2</div>
+                            <div class="fs-6">Credit Limit & Security</div>
+                        </div>
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Wizard Form -->
+    <form asp-action="Edit" asp-route-id="@Model.Franchise_ID" method="post" enctype="multipart/form-data" id="franchiseWizardEditForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Franchise_ID" />
+        <input type="hidden" asp-for="CompanyId" />
+        <input type="hidden" asp-for="Credit_ID" />
+        <input type="hidden" asp-for="Agreement_Doc_Path" />
+        <input type="hidden" asp-for="Status" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm mb-4" role="alert"></div>
+
+        <div class="tab-content" id="wizardTabContent">
+            
+            <!-- STEP 1: Basic Details -->
+            <div class="tab-pane fade show active" id="step1" role="tabpanel" aria-labelledby="tab-step1">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h6 class="card-title fw-bold mb-0 text-dark">
+                            <i class="bi bi-info-circle me-2 text-primary"></i>1st Tab: Basic Details
+                        </h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label asp-for="Franchise_Code" class="form-label fw-semibold text-muted"></label>
+                                <input asp-for="Franchise_Code" class="form-control bg-light" readonly />
+                            </div>
+                            <div class="col-md-8">
+                                <label asp-for="Franchise_Name" class="form-label fw-semibold">Franchise Name <span class="text-danger">*</span></label>
+                                <input asp-for="Franchise_Name" class="form-control" placeholder="Enter franchise / collection center name" maxlength="100" required />
+                                <span asp-validation-for="Franchise_Name" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Mobile_No" class="form-label fw-semibold">Mobile Number <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                                    <input asp-for="Mobile_No" class="form-control" placeholder="Enter 10-digit mobile number" maxlength="10" required />
+                                </div>
+                                <span asp-validation-for="Mobile_No" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Email" class="form-label fw-semibold"></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                    <input asp-for="Email" class="form-control" type="email" placeholder="Enter email address (optional)" maxlength="200" />
+                                </div>
+                                <span asp-validation-for="Email" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Franchise_Type" class="form-label fw-semibold">Franchise Type <span class="text-danger">*</span></label>
+                                <select asp-for="Franchise_Type" class="form-select" asp-items="Model.FranchiseTypeOptions" required>
+                                </select>
+                                <span asp-validation-for="Franchise_Type" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Parent_Branch_ID" class="form-label fw-semibold">Parent Branch <span class="text-danger">*</span></label>
+                                <select asp-for="Parent_Branch_ID" class="form-select" asp-items="Model.ParentBranchOptions" required>
+                                </select>
+                                <span asp-validation-for="Parent_Branch_ID" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Onboarding_Date" class="form-label fw-semibold"></label>
+                                <input asp-for="Onboarding_Date" class="form-control" type="date" />
+                                <span asp-validation-for="Onboarding_Date" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Go_Live_Date" class="form-label fw-semibold"></label>
+                                <input asp-for="Go_Live_Date" class="form-control" type="date" />
+                                <span asp-validation-for="Go_Live_Date" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label asp-for="Agreement_Doc_File" class="form-label fw-semibold"></label>
+                                @if (!string.IsNullOrEmpty(Model.Agreement_Doc_Path))
+                                {
+                                    <div class="mb-2">
+                                        <span class="badge bg-info-subtle text-info border p-2">
+                                            <i class="bi bi-file-earmark-check me-1"></i> Existing Document: 
+                                            <a href="@Model.Agreement_Doc_Path" target="_blank" class="fw-bold">View Document</a>
+                                        </span>
+                                    </div>
+                                }
+                                <input asp-for="Agreement_Doc_File" class="form-control" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" />
+                                <small class="text-muted">Choose file to upload or replace agreement document.</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Agreement_Valid_From" class="form-label fw-semibold"></label>
+                                <input asp-for="Agreement_Valid_From" class="form-control" type="date" />
+                                <span asp-validation-for="Agreement_Valid_From" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Agreement_Valid_To" class="form-label fw-semibold"></label>
+                                <input asp-for="Agreement_Valid_To" class="form-control" type="date" />
+                                <span asp-validation-for="Agreement_Valid_To" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border border-success-subtle bg-success-subtle p-3 rounded-3">
+                                    <div class="form-check form-switch mb-1">
+                                        <input class="form-check-input" type="checkbox" asp-for="IsActive" id="isActiveSwitch" role="switch">
+                                        <label class="form-check-label fw-bold text-dark" for="isActiveSwitch">
+                                            Is Active Status
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Master record active toggle.</small>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light p-3 d-flex justify-content-end">
+                        <button type="button" class="btn btn-primary px-4 shadow-sm" onclick="goToStep(2)">
+                            Next: Credit Limit <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: Credit Limit -->
+            <div class="tab-pane fade" id="step2" role="tabpanel" aria-labelledby="tab-step2">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h6 class="card-title fw-bold mb-0 text-dark">
+                            <i class="bi bi-wallet2 me-2 text-primary"></i>2nd Tab: Credit Limit & Security
+                        </h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label asp-for="Credit_Facility_Type" class="form-label fw-semibold">Credit Facility Type <span class="text-danger">*</span></label>
+                                <select asp-for="Credit_Facility_Type" class="form-select" asp-items="Model.CreditFacilityTypeOptions" required>
+                                </select>
+                                <span asp-validation-for="Credit_Facility_Type" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Credit_Limit" class="form-label fw-semibold">Credit Limit <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">₹</span>
+                                    <input asp-for="Credit_Limit" class="form-control" type="number" step="0.01" min="0" required />
+                                </div>
+                                <span asp-validation-for="Credit_Limit" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Credit_Days" class="form-label fw-semibold"></label>
+                                <input asp-for="Credit_Days" class="form-control" type="number" min="0" max="365" />
+                                <span asp-validation-for="Credit_Days" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="Grace_Days" class="form-label fw-semibold">Grace Days <span class="text-danger">*</span></label>
+                                <input asp-for="Grace_Days" class="form-control" type="number" min="0" max="365" placeholder="e.g. 7" required />
+                                <span asp-validation-for="Grace_Days" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Security_Deposit_Amount" class="form-label fw-semibold"></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">₹</span>
+                                    <input asp-for="Security_Deposit_Amount" class="form-control" type="number" step="0.01" min="0" />
+                                </div>
+                                <span asp-validation-for="Security_Deposit_Amount" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Security_Deposit_Received_On" class="form-label fw-semibold"></label>
+                                <input asp-for="Security_Deposit_Received_On" class="form-control" type="date" />
+                                <span asp-validation-for="Security_Deposit_Received_On" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="Interest_On_Overdue_Percent" class="form-label fw-semibold"></label>
+                                <div class="input-group">
+                                    <input asp-for="Interest_On_Overdue_Percent" class="form-control" type="number" step="0.01" min="0" max="100" />
+                                    <span class="input-group-text">%</span>
+                                </div>
+                                <span asp-validation-for="Interest_On_Overdue_Percent" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Temporary_Limit_Increase" class="form-label fw-semibold"></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">₹</span>
+                                    <input asp-for="Temporary_Limit_Increase" class="form-control" type="number" step="0.01" min="0" />
+                                </div>
+                                <small class="text-muted">Default 0. Can be given numerically optional.</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Temp_Limit_Valid_Till" class="form-label fw-semibold"></label>
+                                <input asp-for="Temp_Limit_Valid_Till" class="form-control" type="date" />
+                                <small class="text-muted">Forward date picker only.</small>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light p-3 d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary px-4" onclick="goToStep(1)">
+                            <i class="bi bi-arrow-left me-1"></i> Back to Basic Details
+                        </button>
+                        <button type="submit" class="btn btn-primary px-5 shadow-sm">
+                            <i class="bi bi-check-circle-fill me-1"></i> Update Franchise Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function goToStep(stepNumber) {
+            var tabTrigger = document.querySelector('#tab-step' + stepNumber);
+            var tab = new bootstrap.Tab(tabTrigger);
+            tab.show();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+}

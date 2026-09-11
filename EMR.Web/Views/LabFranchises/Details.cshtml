@@ -1,0 +1,218 @@
+@model EMR.Web.ApiClients.Models.LabFranchiseModel
+
+@{
+    ViewData["Title"] = "Lab Franchise Details";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Franchise Setup</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Franchise Details</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-building me-2"></i>@Model.Franchise_Name
+                <span class="badge bg-secondary fs-6 ms-2">@Model.Franchise_Code</span>
+            </h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.Franchise_ID" class="btn btn-primary px-3 shadow-sm">
+                <i class="bi bi-pencil me-1"></i> Edit Franchise
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3 shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Banner -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 p-2 px-3">
+                    <i class="bi bi-tags me-1"></i> @Model.Franchise_Type_Name
+                </span>
+                @if (Model.Status)
+                {
+                    <span class="badge bg-danger fs-6 p-2 px-3">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Suspended: @Model.Suspension_Reason
+                    </span>
+                }
+                else
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 p-2 px-3">
+                        <i class="bi bi-check-circle me-1"></i> Normal / Non-Suspended
+                    </span>
+                }
+                @if (Model.IsActive)
+                {
+                    <span class="badge bg-success fs-6 p-2 px-3"><i class="bi bi-toggle-on me-1"></i> Active</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary fs-6 p-2 px-3"><i class="bi bi-toggle-off me-1"></i> Inactive</span>
+                }
+            </div>
+            <div class="text-muted small">
+                Created on: @Model.CreatedDate.ToString("dd MMM yyyy HH:mm")
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Tabs -->
+    <ul class="nav nav-tabs mb-4" id="detailsTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold px-4 py-3" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic-details" type="button" role="tab">
+                <i class="bi bi-info-circle me-2"></i>1st Tab: Basic Details
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold px-4 py-3 text-success" id="credit-tab" data-bs-toggle="tab" data-bs-target="#credit-details" type="button" role="tab">
+                <i class="bi bi-wallet2 me-2"></i>2nd Tab: Credit Limit Details
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="detailsTabContent">
+        
+        <!-- Tab 1: Basic Details -->
+        <div class="tab-pane fade show active" id="basic-details" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-light py-3">
+                    <h6 class="fw-bold mb-0 text-dark">Franchise & Agreement Information</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Franchise ID (PK)</div>
+                            <div class="fw-bold text-dark fs-6">@Model.Franchise_ID</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Franchise Code</div>
+                            <div class="fw-bold text-primary fs-6">@Model.Franchise_Code</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Franchise Name</div>
+                            <div class="fw-bold text-dark fs-6">@Model.Franchise_Name</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Mobile Number</div>
+                            <div class="fw-bold text-dark fs-6"><i class="bi bi-telephone text-primary me-1"></i>@Model.Mobile_No</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Email Address</div>
+                            <div class="fw-bold text-dark fs-6">@(string.IsNullOrEmpty(Model.Email) ? "N/A" : Model.Email)</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Franchise Type</div>
+                            <div class="fw-bold text-dark">@Model.Franchise_Type_Name</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Parent Branch</div>
+                            <div class="fw-bold text-dark">@Model.Parent_Branch_Name</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Onboarding Date</div>
+                            <div class="fw-bold text-dark">@(Model.Onboarding_Date?.ToString("dd MMM yyyy") ?? "N/A")</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Go Live Date</div>
+                            <div class="fw-bold text-dark">@(Model.Go_Live_Date?.ToString("dd MMM yyyy") ?? "N/A")</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Agreement Document</div>
+                            <div>
+                                @if (!string.IsNullOrEmpty(Model.Agreement_Doc_Path))
+                                {
+                                    <a href="@Model.Agreement_Doc_Path" target="_blank" class="btn btn-sm btn-outline-primary fw-semibold">
+                                        <i class="bi bi-file-earmark-pdf me-1"></i> View Agreement Document
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted fw-semibold">No Document Uploaded</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Agreement Valid From</div>
+                            <div class="fw-bold text-dark">@(Model.Agreement_Valid_From?.ToString("dd MMM yyyy") ?? "N/A")</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Agreement Valid To</div>
+                            <div class="fw-bold text-dark">@(Model.Agreement_Valid_To?.ToString("dd MMM yyyy") ?? "N/A")</div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Credit Limit -->
+        <div class="tab-pane fade" id="credit-details" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-light py-3">
+                    <h6 class="fw-bold mb-0 text-success"><i class="bi bi-wallet2 me-2"></i>Credit Limit & Security Deposit Information</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Credit ID (PK)</div>
+                            <div class="fw-bold text-dark fs-6">@Model.Credit_ID</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Credit Facility Type</div>
+                            <div class="fw-bold text-dark fs-6">@Model.Credit_Facility_Type_Name</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Credit Limit</div>
+                            <div class="fw-bold text-success fs-5">₹@Model.Credit_Limit.ToString("N2")</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Credit Days</div>
+                            <div class="fw-bold text-dark">@(Model.Credit_Days.HasValue ? $"{Model.Credit_Days.Value} Days" : "N/A")</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Grace Days</div>
+                            <div class="fw-bold text-dark">@Model.Grace_Days Days</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Interest On Overdue (%)</div>
+                            <div class="fw-bold text-dark">@(Model.Interest_On_Overdue_Percent.HasValue ? $"{Model.Interest_On_Overdue_Percent.Value:N2}%" : "N/A")</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Security Deposit Amount</div>
+                            <div class="fw-bold text-dark">@(Model.Security_Deposit_Amount.HasValue ? $"₹{Model.Security_Deposit_Amount.Value:N2}" : "N/A")</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Security Deposit Received On</div>
+                            <div class="fw-bold text-dark">@(Model.Security_Deposit_Received_On?.ToString("dd MMM yyyy") ?? "N/A")</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Temporary Limit Increase</div>
+                            <div class="fw-bold text-primary">₹@Model.Temporary_Limit_Increase.ToString("N2")</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small fw-semibold">Temp Limit Valid Till</div>
+                            <div class="fw-bold text-dark">@(Model.Temp_Limit_Valid_Till?.ToString("dd MMM yyyy") ?? "N/A")</div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
