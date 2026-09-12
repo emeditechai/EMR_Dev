@@ -1574,16 +1574,27 @@
                 const profileId = profileIdRaw ? parseInt(profileIdRaw) : null;
                 const profileName = btn.data('profilename') || null;
 
-                const statusId = parseInt($(`.sel-profile-status[data-grpid="${grpId}"]`).val());
+                const statusId = parseInt($(`.sel-profile-status[data-grpid="${grpId}"]`).val()) || 0;
                 const dtVal = $(`.txt-profile-datetime[data-grpid="${grpId}"]`).val();
+
+                if (statusId <= 0) {
+                    showNotify('Please select a valid profile status.', 'warning');
+                    return;
+                }
 
                 let datePart = null;
                 let timePart = null;
 
                 if (dtVal) {
-                    const dt = new Date(dtVal);
-                    datePart = dt.toISOString().split('T')[0];
-                    timePart = dtVal.split('T')[1] ? dtVal.split('T')[1] + ':00' : '00:00:00';
+                    if (dtVal.includes('T')) {
+                        datePart = dtVal.split('T')[0];
+                        const t = dtVal.split('T')[1];
+                        timePart = t.length === 5 ? t + ':00' : (t || '00:00:00');
+                    } else {
+                        const dt = new Date(dtVal);
+                        datePart = dt.toISOString().split('T')[0];
+                        timePart = '00:00:00';
+                    }
                 }
 
                 btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Saving...');
@@ -1626,18 +1637,29 @@
                     return;
                 }
 
-                const sampleId = $(this).data('id');
-                const row = $(`#testRow_${sampleId}`);
-                const statusId = parseInt(row.find('.sel-collection-status').val());
+                const sampleId = parseInt($(this).data('id')) || 0;
+                const row = $(this).closest('tr').length ? $(this).closest('tr') : $(`#row_${sampleId}`);
+                const statusId = parseInt(row.find('.sel-collection-status').val()) || 0;
                 const dtVal = row.find('.txt-collection-datetime').val();
+
+                if (sampleId <= 0 || statusId <= 0) {
+                    showNotify('Please select a valid sample status.', 'warning');
+                    return;
+                }
 
                 let datePart = null;
                 let timePart = null;
 
                 if (dtVal) {
-                    const dt = new Date(dtVal);
-                    datePart = dt.toISOString().split('T')[0];
-                    timePart = dtVal.split('T')[1] ? dtVal.split('T')[1] + ':00' : '00:00:00';
+                    if (dtVal.includes('T')) {
+                        datePart = dtVal.split('T')[0];
+                        const t = dtVal.split('T')[1];
+                        timePart = t.length === 5 ? t + ':00' : (t || '00:00:00');
+                    } else {
+                        const dt = new Date(dtVal);
+                        datePart = dt.toISOString().split('T')[0];
+                        timePart = '00:00:00';
+                    }
                 }
 
                 const btn = $(this);
