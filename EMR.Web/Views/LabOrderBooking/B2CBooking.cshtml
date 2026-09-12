@@ -1253,6 +1253,9 @@
                     : (isProfile
                         ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-layers me-1"></i>Profile</span>'
                         : '');
+                
+                var isOutsourced = $elem.attr('data-outsourced') === '1';
+                var outsourcedHtml = isOutsourced ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-box-arrow-up-right me-1"></i>Outsourced</span>' : '';
 
                 var sampleHtml = sample ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-droplet me-1"></i>${sample}</span>` : '';
                 var tatHtml = tat ? `<span class="badge bg-light text-secondary border ms-2" style="font-size:0.72rem;"><i class="bi bi-clock me-1"></i>${tat} hrs</span>` : '';
@@ -1264,6 +1267,7 @@
                             <span class="badge bg-light text-primary font-monospace border px-1.5 py-1 me-2">${code}</span>
                             <span class="fw-semibold text-dark">${name}</span>
                             ${badgeHtml}
+                            ${outsourcedHtml}
                             ${sampleHtml}
                             ${tatHtml}
                         </div>
@@ -1279,9 +1283,11 @@
                 var code = $elem.attr('data-code') || '';
                 var name = $elem.attr('data-name') || opt.text;
                 var sample = $elem.attr('data-sample');
+                var isOutsourced = $elem.attr('data-outsourced') === '1';
                 var badgeText = isProfile ? ' [Profile]' : '';
                 var sampleText = sample ? ` [Sample: ${sample}]` : '';
-                return `${code ? code + ' - ' : ''}${name}${badgeText}${sampleText}`;
+                var outsourcedText = isOutsourced ? ' [Outsourced]' : '';
+                return `${code ? code + ' - ' : ''}${name}${badgeText}${outsourcedText}${sampleText}`;
             }
 
             $('#ddlInvestigations').select2({
@@ -1320,6 +1326,7 @@
                         res.data.forEach(function (item) {
                             var isProf = item.isProfileTest === true || item.isProfileTest === 'true';
                             var isPack = item.isPackage === true || item.isPackage === 'true';
+                            var isOut = item.isOutsourced === true || item.isOutsourced === 'true' || item.isOutsourced === 1;
                             var profileLabel = isProf ? ' <span class="badge badge-light-primary"><i class="fas fa-layer-group"></i> Profile</span>' : '';
                             var packageLabel = isPack ? ' <span class="badge badge-light-success"><i class="fas fa-box"></i> Package</span>' : '';
                             var sampleStr = item.sampleType ? ` <span class="badge badge-light-info"><i class="fas fa-tint"></i> ${item.sampleType}</span>` : '';
@@ -1337,12 +1344,13 @@
                             var textProfileLabel = isProf ? ' [Profile]' : '';
                             var textPackageLabel = isPack ? ' [Package]' : '';
                             var textSampleStr = item.sampleType ? ` [Sample: ${item.sampleType}]` : '';
+                            var textOutsourcedStr = isOut ? ' [Outsourced]' : '';
                             
                             var itemType = isPack ? 'P' : 'I';
                             var valStr = `${itemType}_${item.investigationId}`;
                             
                             var opt = new Option(
-                                `${item.testCode} - ${item.testName}${textProfileLabel}${textPackageLabel}${textSampleStr} [TAT: ${item.tatHours} hrs] - ₹ ${item.mrp.toFixed(2)}`,
+                                `${item.testCode} - ${item.testName}${textProfileLabel}${textPackageLabel}${textOutsourcedStr}${textSampleStr} [TAT: ${item.tatHours} hrs] - ₹ ${item.mrp.toFixed(2)}`,
                                 valStr
                             );
                             $(opt).attr('data-price', item.mrp);
@@ -1356,6 +1364,7 @@
                             $(opt).attr('data-sample', item.sampleType || '');
                             $(opt).attr('data-method', item.method || '');
                             $(opt).attr('data-disc-allowed', isDiscAllowed ? '1' : '0');
+                            $(opt).attr('data-outsourced', isOut ? '1' : '0');
                             $ddl.append(opt);
                         });
                     } else {
@@ -1392,6 +1401,7 @@
                 var sampleType = opt.attr('data-sample') || '';
                 var method = opt.attr('data-method') || '';
                 var isDiscAllowed = opt.attr('data-disc-allowed') === '1';
+                var isOutsourced = opt.attr('data-outsourced') === '1';
 
                 var newTestIds = [id];
                 var newTestNames = [name];
@@ -1471,6 +1481,7 @@
                     sampleType: sampleType,
                     method: method,
                     isDiscountAllowed: isDiscAllowed,
+                    isOutsourced: isOutsourced,
                     profileTests: profileTests
                 });
 
@@ -1538,12 +1549,16 @@
                         var badgeDisc = item.isDiscountAllowed
                             ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.68rem;padding:0.2rem 0.45rem" title="Discount allowed as per rate list"><i class="bi bi-tag-fill me-1"></i>Disc. Allowed</span>`
                             : `<span class="badge bg-light text-muted border ms-1" style="font-size:0.68rem;padding:0.2rem 0.45rem" title="No discount allowed"><i class="bi bi-slash-circle me-1"></i>No Disc.</span>`;
+                            
+                        var badgeOutsourced = item.isOutsourced
+                            ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size:0.68rem;padding:0.2rem 0.45rem" title="Outsourced Test"><i class="bi bi-box-arrow-up-right me-1"></i>Outsourced</span>`
+                            : ``;
 
                         $tbody.append(`
                             <tr>
                                 <td class="text-center text-muted fw-semibold">${idx + 1}</td>
                                 <td><span class="badge bg-light text-primary font-monospace border px-2 py-1">${item.testCode}</span></td>
-                                <td><span class="fw-bold text-dark">${item.testName}</span> ${badgeProfile} ${badgeDisc}</td>
+                                <td><span class="fw-bold text-dark">${item.testName}</span> ${badgeProfile} ${badgeOutsourced} ${badgeDisc}</td>
                                 <td>
                                     <div class="fw-semibold">${item.sampleType || '-'}</div>
                                     <small class="text-muted">${item.method || '-'}</small>

@@ -39,7 +39,7 @@ public class GlobalAuditLogFilter(IAuditLogService auditLogService) : IAsyncActi
 
             try 
             {
-                await auditLogService.LogAsync(eventType, action, description);
+                await auditLogService.LogActivityAsync(eventType, action, description, moduleCode: "PAGE_VIEW");
             }
             catch 
             {

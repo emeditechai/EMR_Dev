@@ -34,5 +34,18 @@ public class AuditLog
     [MaxLength(2000)]
     public string? Description { get; set; }
 
+    [MaxLength(50)]
+    public string? ModuleCode { get; set; }
+
+    [MaxLength(100)]
+    public string? ReferenceNo { get; set; }
+
+    public long? ReferenceId { get; set; }
+
+    [MaxLength(50)]
+    public string? PatientCode { get; set; }
+
+    public string? MetadataJson { get; set; }
+
     public DateTime CreatedDate { get; set; } = DateTime.Now;
 }

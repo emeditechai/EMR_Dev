@@ -6,13 +6,41 @@ namespace EMR.Web.Services;
 
 public class AuditLogService(ApplicationDbContext dbContext, IHttpContextAccessor httpContextAccessor) : IAuditLogService
 {
-    public async Task LogAsync(string eventType, string actionName, string? description = null, int? userId = null, int? branchId = null)
+    public Task LogAsync(string eventType, string actionName, string? description = null, int? userId = null, int? branchId = null)
+    {
+        return LogActivityAsync(eventType, actionName, description, userId, branchId);
+    }
+
+    public async Task LogActivityAsync(
+        string eventType,
+        string actionName,
+        string? description = null,
+        int? userId = null,
+        int? branchId = null,
+        string? moduleCode = null,
+        string? referenceNo = null,
+        long? referenceId = null,
+        string? patientCode = null,
+        object? metadata = null)
     {
         var httpContext = httpContextAccessor.HttpContext;
         var principal = httpContext?.User;
 
         var resolvedUserId = userId ?? ParseInt(principal?.FindFirstValue(ClaimTypes.NameIdentifier));
         var resolvedBranchId = branchId ?? ParseInt(principal?.FindFirstValue("BranchId"));
+
+        string? metadataJson = null;
+        if (metadata != null)
+        {
+            try
+            {
+                metadataJson = metadata is string str ? str : System.Text.Json.JsonSerializer.Serialize(metadata);
+            }
+            catch
+            {
+                // Fallback to null if serialization fails
+            }
+        }
 
         var log = new AuditLog
         {
@@ -26,6 +54,11 @@ public class AuditLogService(ApplicationDbContext dbContext, IHttpContextAccesso
             IpAddress = ResolveClientIp(httpContext),
             UserAgent = httpContext?.Request.Headers.UserAgent.ToString(),
             Description = description,
+            ModuleCode = moduleCode,
+            ReferenceNo = referenceNo,
+            ReferenceId = referenceId,
+            PatientCode = patientCode,
+            MetadataJson = metadataJson,
             CreatedDate = DateTime.Now,
         };
 

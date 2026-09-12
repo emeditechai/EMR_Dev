@@ -9,11 +9,14 @@ using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
+using EMR.Web.Services;
 
 namespace EMR.Web.Controllers
 {
     [Authorize]
-    public class SampleCollectionController(ISampleCollectionApiClient sampleCollectionApiClient) : Controller
+    public class SampleCollectionController(
+        ISampleCollectionApiClient sampleCollectionApiClient,
+        IAuditLogService auditLogService) : Controller
     {
         [HttpGet]
         public async Task<IActionResult> Index(
@@ -119,6 +122,48 @@ namespace EMR.Web.Controllers
             }
 
             bool isSuccess = await sampleCollectionApiClient.UpdateStatusAsync(request);
+
+            if (isSuccess && request.LabOrderId.HasValue && request.LabOrderId.Value > 0)
+            {
+                try
+                {
+                    var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId.Value);
+                    if (detail != null)
+                    {
+                        var item = detail.Items.FirstOrDefault(x => x.SamplecollectionID == request.SampleCollectionId);
+                        string testName = item?.TestName ?? $"Sample #{request.SampleCollectionId}";
+                        string actionName = request.CollectionstatusID == 2 ? "LAB.SampleCollected" : (request.CollectionstatusID == 3 ? "LAB.SampleRejected" : "LAB.SampleStatusUpdated");
+                        string descAction = request.CollectionstatusID == 2 ? "Sample collected" : (request.CollectionstatusID == 3 ? "Sample rejected" : "Sample status changed");
+                        string barcodeText = !string.IsNullOrEmpty(item?.BarcodeNo) ? $", Barcode: {item.BarcodeNo}" : "";
+
+                        await auditLogService.LogActivityAsync(
+                            eventType: "Sample Collection",
+                            actionName: actionName,
+                            description: $"{descAction} for test '{testName}' (Patient: {detail.PatientName}, {detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}{barcodeText}.",
+                            userId: User.GetUserId(),
+                            branchId: User.GetCurrentBranchId(),
+                            moduleCode: "LAB",
+                            referenceNo: detail.BillNo,
+                            referenceId: detail.LabOrderId,
+                            patientCode: detail.PatientCode,
+                            metadata: new {
+                                detail.LabOrderId,
+                                detail.BillNo,
+                                detail.TokenNo,
+                                request.SampleCollectionId,
+                                request.CollectionstatusID,
+                                item?.BarcodeNo,
+                                item?.SampleTypeName,
+                                item?.ContainerType
+                            });
+                    }
+                }
+                catch
+                {
+                    // Non-blocking logging
+                }
+            }
+
             return Json(new
             {
                 success = isSuccess,
@@ -132,9 +177,10 @@ namespace EMR.Web.Controllers
             if (request == null || request.LabOrderId <= 0 || request.CollectionstatusID <= 0 || (request.ProfileId == null && string.IsNullOrEmpty(request.ProfileName)))
                 return Json(new { success = false, message = "Invalid profile request parameters." });
 
+            SampleCollectionOrderDetailDto? detail = null;
             if (request.CollectionstatusID == 2)
             {
-                var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
+                detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
                 if (detail != null)
                 {
                     var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
@@ -146,6 +192,43 @@ namespace EMR.Web.Controllers
             }
 
             int count = await sampleCollectionApiClient.UpdateProfileStatusAsync(request);
+
+            if (count > 0)
+            {
+                try
+                {
+                    detail ??= await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
+                    if (detail != null)
+                    {
+                        string profName = request.ProfileName ?? $"Profile #{request.ProfileId}";
+                        string actionName = request.CollectionstatusID == 2 ? "LAB.ProfileSamplesCollected" : "LAB.ProfileStatusUpdated";
+                        await auditLogService.LogActivityAsync(
+                            eventType: "Sample Collection",
+                            actionName: actionName,
+                            description: $"{count} sample(s) collected for {profName} for patient {detail.PatientName} ({detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}.",
+                            userId: User.GetUserId(),
+                            branchId: User.GetCurrentBranchId(),
+                            moduleCode: "LAB",
+                            referenceNo: detail.BillNo,
+                            referenceId: detail.LabOrderId,
+                            patientCode: detail.PatientCode,
+                            metadata: new {
+                                detail.LabOrderId,
+                                detail.BillNo,
+                                detail.TokenNo,
+                                request.ProfileId,
+                                request.ProfileName,
+                                request.CollectionstatusID,
+                                UpdatedCount = count
+                            });
+                    }
+                }
+                catch
+                {
+                    // Non-blocking logging
+                }
+            }
+
             return Json(new
             {
                 success = count > 0,
@@ -177,6 +260,34 @@ namespace EMR.Web.Controllers
             }
 
             int count = await sampleCollectionApiClient.CollectAllAsync(request.LabOrderId);
+
+            if (count > 0 && detail != null)
+            {
+                try
+                {
+                    await auditLogService.LogActivityAsync(
+                        eventType: "Sample Collection",
+                        actionName: "LAB.AllSamplesCollected",
+                        description: $"All pending samples ({count}) collected for patient {detail.PatientName} ({detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}.",
+                        userId: User.GetUserId(),
+                        branchId: User.GetCurrentBranchId(),
+                        moduleCode: "LAB",
+                        referenceNo: detail.BillNo,
+                        referenceId: detail.LabOrderId,
+                        patientCode: detail.PatientCode,
+                        metadata: new {
+                            detail.LabOrderId,
+                            detail.BillNo,
+                            detail.TokenNo,
+                            CollectedCount = count
+                        });
+                }
+                catch
+                {
+                    // Non-blocking logging
+                }
+            }
+
             return Json(new
             {
                 success = count > 0,

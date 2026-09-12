@@ -26,10 +26,11 @@ body {
 
 .emr-brand {
   color: #ffffff;
-  font-size: 1.65rem;
+  font-size: 1.35rem;
   font-weight: 800;
   line-height: 1;
-  margin-right: 0.75rem;
+  margin-right: 0.5rem;
+  white-space: nowrap;
 }
 
 .emr-brand span {
@@ -42,21 +43,24 @@ body {
 .brand-plussign { color: #ec4899; }   /* Pink   */
 
 .emr-main-menu {
-  flex-wrap: wrap;
+  flex-wrap: nowrap !important;
+  white-space: nowrap;
+  gap: 0.05rem;
 }
 
 .emr-main-menu > li > .nav-link > i {
-  font-size: 0.85rem;
-  margin-right: 0.2rem !important;
+  font-size: 0.82rem;
+  margin-right: 0.25rem !important;
 }
 
 .emr-main-menu .nav-link {
   color: rgba(255, 255, 255, 0.85);
   font-weight: 600;
-  font-size: 0.85rem;
-  border-radius: 0;
-  border-bottom: 3px solid transparent;
-  padding: 0.8rem 0.45rem;
+  font-size: 0.80rem;
+  border-radius: 4px;
+  border-bottom: 2px solid transparent;
+  padding: 0.35rem 0.35rem;
+  white-space: nowrap;
 }
 
 .emr-main-menu .nav-link:hover,
@@ -69,14 +73,20 @@ body {
 
 .emr-top-actions {
   min-width: max-content;
+  gap: 0.35rem !important;
 }
 
 .emr-icon-btn {
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.08);
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .emr-icon-btn:hover {
@@ -88,20 +98,23 @@ body {
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  padding: 0.45rem 0.8rem;
+  border-radius: 8px;
+  padding: 0.22rem 0.55rem;
   font-weight: 600;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .emr-profile-btn {
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
-  border-radius: 16px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.45rem 0.9rem;
+  gap: 0.45rem;
+  padding: 0.22rem 0.55rem;
+  white-space: nowrap;
 }
 
 .emr-profile-btn strong,
@@ -111,16 +124,21 @@ body {
   line-height: 1.05;
 }
 
+.emr-profile-btn strong {
+  font-size: 0.80rem;
+}
+
 .emr-profile-btn small {
   opacity: 0.9;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 600;
   text-transform: uppercase;
 }
 
 .emr-avatar {
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
+  font-size: 0.82rem;
   border-radius: 50%;
   background: #ca2e6d;
   color: #ffffff;
@@ -130,8 +148,8 @@ body {
   justify-content: center;
 }
 .emr-avatar-img {
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, 0.45);

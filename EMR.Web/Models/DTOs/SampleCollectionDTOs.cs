@@ -100,6 +100,8 @@ namespace EMR.Web.Models.DTOs
         public TimeSpan? Samplecollectiontime { get; set; }
         public string? FormattedCollectionDateTime { get; set; }
         public bool Iscancelled { get; set; }
+        public bool IsOutsourced { get; set; }
+        public bool IsoutSource { get; set; }
     }
 
     public class SampleCollectionStatusMasterDto

@@ -498,11 +498,33 @@ public class OPDController(
             opdBill.BranchId = branchId;
             var (patientCode, billNo, tokenNo, newPatientId, newSvcId) = await patientService.CreateAsync(
                 patient, opdBill, model.LineItemsJson, User.GetUserId());
-            await auditLogService.LogAsync("OPD", "Patient.Create",
-                $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
+
+            decimal totalAmount = lineItems?.Sum(x => x.ServiceCharges) ?? 0;
+            var patientFullName = $"{patient.FirstName} {patient.LastName}".Trim();
+            var serviceNames = lineItems != null ? string.Join(", ", lineItems.Select(x => x.ItemName ?? x.ServiceType)) : "Consultation";
+            var tokenStr = !string.IsNullOrEmpty(tokenNo) ? $"Token: {tokenNo}." : "Token: Pending Payment.";
+            await auditLogService.LogActivityAsync(
+                eventType: "OPD Billing",
+                actionName: "OPD.BillGenerated",
+                description: $"OPD Bill {billNo} generated for patient {patientFullName} ({patientCode}). Services: {serviceNames}. Total: ₹{totalAmount:F2}. {tokenStr}",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "OPD",
+                referenceNo: billNo,
+                referenceId: newSvcId,
+                patientCode: patientCode,
+                metadata: new {
+                    PatientId = newPatientId,
+                    PatientCode = patientCode,
+                    PatientName = patientFullName,
+                    BillNo = billNo,
+                    TokenNo = tokenNo,
+                    OPDServiceId = newSvcId,
+                    TotalAmount = totalAmount,
+                    LineItems = lineItems?.Select(x => new { x.ServiceType, x.ItemName, x.ServiceCharges })
+                });
 
             // Ledger Entry
-            decimal totalAmount = lineItems?.Sum(x => x.ServiceCharges) ?? 0;
             await ledgerService.PostOpdBillLedgerAsync(newSvcId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), billNo);
 
             TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
@@ -567,9 +589,32 @@ public class OPDController(
             var (billNo, tokenNo, newSvcId) = await patientService.UpdateAsync(
                 patient, opdBill, model.LineItemsJson, User.GetUserId());
 
-            var action = model.OPDServiceId == 0 ? "Patient.NewVisit" : "Patient.Update";
-            await auditLogService.LogAsync("OPD", action,
-                $"{(model.OPDServiceId == 0 ? "New visit" : "Updated")} patient: {patient.PatientId} Bill:{billNo}");
+            var isNewVisit = model.OPDServiceId == 0;
+            var action = isNewVisit ? "OPD.NewVisitBill" : "OPD.BillUpdated";
+            var patientFullName = $"{patient.FirstName} {patient.LastName}".Trim();
+            var serviceNames = lineItems != null ? string.Join(", ", lineItems.Select(x => x.ItemName ?? x.ServiceType)) : "Consultation";
+            var tokenStr = !string.IsNullOrEmpty(tokenNo) ? $"Token: {tokenNo}." : "Token: Pending Payment.";
+            decimal visitTotalAmount = lineItems?.Sum(x => x.ServiceCharges) ?? 0;
+            await auditLogService.LogActivityAsync(
+                eventType: "OPD Billing",
+                actionName: action,
+                description: $"OPD {(isNewVisit ? "Visit Bill" : "Bill updated")} {billNo} for patient {patientFullName} ({patient.PatientCode}). Services: {serviceNames}. Total: ₹{visitTotalAmount:F2}. {tokenStr}",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "OPD",
+                referenceNo: billNo,
+                referenceId: newSvcId,
+                patientCode: patient.PatientCode,
+                metadata: new {
+                    PatientId = patient.PatientId,
+                    PatientCode = patient.PatientCode,
+                    PatientName = patientFullName,
+                    BillNo = billNo,
+                    TokenNo = tokenNo,
+                    OPDServiceId = newSvcId,
+                    TotalAmount = visitTotalAmount,
+                    LineItems = lineItems?.Select(x => new { x.ServiceType, x.ItemName, x.ServiceCharges })
+                });
 
             if (model.OPDServiceId == 0)   // new visit for returning patient
             {
@@ -744,8 +789,29 @@ public class OPDController(
                 actualPatientId = res.NewPatientId;
                 newSvcId = res.NewOPDServiceId;
 
-                await auditLogService.LogAsync("OPD", "Patient.Create",
-                    $"Registered patient: {patient.FirstName} {patient.LastName} ({patientCode}) Bill:{billNo}");
+                var pFullName = $"{patient.FirstName} {patient.LastName}".Trim();
+                var sNames = lineItems != null ? string.Join(", ", lineItems.Select(x => x.ItemName ?? x.ServiceType)) : "Consultation";
+                var tStr = !string.IsNullOrEmpty(tokenNo) ? $"Token: {tokenNo}." : "Token: Pending Payment.";
+                await auditLogService.LogActivityAsync(
+                    eventType: "OPD Billing",
+                    actionName: "OPD.BillGenerated",
+                    description: $"OPD Bill {billNo} generated for patient {pFullName} ({patientCode}). Services: {sNames}. Total: ₹{lineItems?.Sum(x => x.ServiceCharges) ?? 0:F2}. {tStr}",
+                    userId: User.GetUserId(),
+                    branchId: branchId,
+                    moduleCode: "OPD",
+                    referenceNo: billNo,
+                    referenceId: newSvcId,
+                    patientCode: patientCode,
+                    metadata: new {
+                        PatientId = actualPatientId,
+                        PatientCode = patientCode,
+                        PatientName = pFullName,
+                        BillNo = billNo,
+                        TokenNo = tokenNo,
+                        OPDServiceId = newSvcId,
+                        TotalAmount = lineItems?.Sum(x => x.ServiceCharges) ?? 0,
+                        LineItems = lineItems?.Select(x => new { x.ServiceType, x.ItemName, x.ServiceCharges })
+                    });
 
                 await TryGeneratePatientLoginAsync(actualPatientId, patientCode, patient.PhoneNumber, patient.EmailId, patient.FirstName + " " + patient.LastName, branchId.Value);
             }
@@ -769,8 +835,29 @@ public class OPDController(
                 newSvcId = res.NewOPDServiceId;
                 patientCode = existing?.PatientCode ?? "";
 
-                await auditLogService.LogAsync("OPD", "Patient.NewVisit",
-                    $"New visit patient: {patient.PatientId} Bill:{billNo}");
+                var pFullName = $"{patient.FirstName} {patient.LastName}".Trim();
+                var sNames = lineItems != null ? string.Join(", ", lineItems.Select(x => x.ItemName ?? x.ServiceType)) : "Consultation";
+                var tStr = !string.IsNullOrEmpty(tokenNo) ? $"Token: {tokenNo}." : "Token: Pending Payment.";
+                await auditLogService.LogActivityAsync(
+                    eventType: "OPD Billing",
+                    actionName: "OPD.NewVisitBill",
+                    description: $"OPD Visit Bill {billNo} for patient {pFullName} ({patientCode}). Services: {sNames}. Total: ₹{lineItems?.Sum(x => x.ServiceCharges) ?? 0:F2}. {tStr}",
+                    userId: User.GetUserId(),
+                    branchId: branchId,
+                    moduleCode: "OPD",
+                    referenceNo: billNo,
+                    referenceId: newSvcId,
+                    patientCode: patientCode,
+                    metadata: new {
+                        PatientId = patient.PatientId,
+                        PatientCode = patientCode,
+                        PatientName = pFullName,
+                        BillNo = billNo,
+                        TokenNo = tokenNo,
+                        OPDServiceId = newSvcId,
+                        TotalAmount = lineItems?.Sum(x => x.ServiceCharges) ?? 0,
+                        LineItems = lineItems?.Select(x => new { x.ServiceType, x.ItemName, x.ServiceCharges })
+                    });
 
                 await TryGeneratePatientLoginAsync(patient.PatientId, patientCode, patient.PhoneNumber, patient.EmailId, patient.FirstName + " " + patient.LastName, branchId.Value);
             }
@@ -798,6 +885,34 @@ public class OPDController(
                     if (paymentResult != null && !paymentResult.Success)
                     {
                         return Json(new { success = false, error = paymentResult.Error ?? "Failed to save payment." });
+                    }
+
+                    if (paymentResult != null && paymentResult.Success)
+                    {
+                        var statusStr = paymentResult.PaymentStatus == "P" ? "Fully Paid" : "Partial Payment";
+                        var tGen = !string.IsNullOrEmpty(paymentResult.TokenNo) ? $" Generated Token: {paymentResult.TokenNo}." : "";
+                        var receiptNo = paymentResult.PaymentHeaderId.HasValue ? $"RCP-{paymentResult.PaymentHeaderId}" : billNo;
+                        var paidAmt = paymentReq.Payments?.Sum(p => p.PaidAmount) ?? paymentResult.TotalPaid;
+                        await auditLogService.LogActivityAsync(
+                            eventType: "Payment Collection",
+                            actionName: "OPD.PaymentReceived",
+                            description: $"Payment of ₹{paidAmt:F2} collected for OPD Bill {billNo} (Receipt: {receiptNo}). Status: {statusStr}. Balance Due: ₹{paymentResult.BalanceDue:F2}.{tGen}",
+                            userId: User.GetUserId(),
+                            branchId: branchId,
+                            moduleCode: "OPD",
+                            referenceNo: billNo,
+                            referenceId: newSvcId,
+                            patientCode: patientCode,
+                            metadata: new {
+                                BillNo = billNo,
+                                OPDServiceId = newSvcId,
+                                Amount = paidAmt,
+                                ReceiptNo = receiptNo,
+                                PaymentStatus = paymentResult.PaymentStatus,
+                                BalanceDue = paymentResult.BalanceDue,
+                                TokenNo = paymentResult.TokenNo,
+                                PaymentHeaderId = paymentResult.PaymentHeaderId
+                            });
                     }
                 }
             }
@@ -1247,8 +1362,24 @@ public class OPDController(
         TempData["IsBooking"]      = true;
         TempData["NewOPDServiceId"] = newSvcId.ToString();
 
-        await auditLogService.LogAsync("OPD", "ServiceBooking.New",
-            $"New booking for patient {model.PatientCode} — Bill {billNo}, Token {(string.IsNullOrEmpty(tokenNo) ? "(pending payment)" : tokenNo)}");
+        var patientFullName = $"{model.FirstName} {model.LastName}".Trim();
+        await auditLogService.LogActivityAsync(
+            eventType: "OPD Billing",
+            actionName: "OPD.ServiceBooking",
+            description: $"OPD Service Booking bill {billNo} created for patient {patientFullName} ({model.PatientCode}). Token: {(string.IsNullOrEmpty(tokenNo) ? "Pending Payment" : tokenNo)}.",
+            userId: userId,
+            branchId: branchId,
+            moduleCode: "OPD",
+            referenceNo: billNo,
+            referenceId: newSvcId,
+            patientCode: model.PatientCode,
+            metadata: new {
+                BillNo = billNo,
+                TokenNo = tokenNo,
+                OPDServiceId = newSvcId,
+                PatientCode = model.PatientCode,
+                PatientName = patientFullName
+            });
 
         TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
 
@@ -2077,6 +2208,38 @@ public class OPDController(
         var userId = User.GetUserId();
         var result = await paymentService.SavePaymentAsync(request, userId);
 
+        if (result.Success)
+        {
+            var branchId = User.GetCurrentBranchId();
+            var modCode = string.IsNullOrWhiteSpace(request.ModuleCode) ? "OPD" : request.ModuleCode.ToUpperInvariant();
+            var statusStr = result.PaymentStatus == "P" ? "Fully Paid" : "Partial Payment";
+            var tokenStr = !string.IsNullOrEmpty(result.TokenNo) ? $" Generated Token: {result.TokenNo}." : "";
+            var actionName = modCode == "LAB" ? "LAB.PaymentReceived" : "OPD.PaymentReceived";
+            var eventType = "Payment Collection";
+            var receiptRef = result.PaymentHeaderId.HasValue ? $"RCP-{result.PaymentHeaderId}" : request.ModuleRefId.ToString();
+            var paidAmt = request.Payments?.Sum(p => p.PaidAmount) ?? result.TotalPaid;
+
+            await auditLogService.LogActivityAsync(
+                eventType: eventType,
+                actionName: actionName,
+                description: $"Payment of ₹{paidAmt:F2} collected for {modCode} Bill (Ref #{request.ModuleRefId}). Receipt: {receiptRef}. Status: {statusStr}. Balance Due: ₹{result.BalanceDue:F2}.{tokenStr}",
+                userId: userId,
+                branchId: branchId,
+                moduleCode: modCode,
+                referenceNo: receiptRef,
+                referenceId: request.ModuleRefId,
+                metadata: new {
+                    ModuleCode = modCode,
+                    ModuleRefId = request.ModuleRefId,
+                    Amount = paidAmt,
+                    ReceiptNo = receiptRef,
+                    PaymentHeaderId = result.PaymentHeaderId,
+                    PaymentStatus = result.PaymentStatus,
+                    BalanceDue = result.BalanceDue,
+                    TokenNo = result.TokenNo
+                });
+        }
+
         // ── Video Consultation: trigger ONLY when payment becomes fully paid (OPD only) ──
         if (request.ModuleCode == "OPD" && result.Success && result.PaymentStatus == "P" && (request.OPDServiceId ?? 0) > 0)
         {
@@ -2199,8 +2362,17 @@ public class OPDController(
         // Removed: Automatically marking consultation as Completed. 
         // The status should only be changed via the explicit "Complete" button on the queue list.
 
-        await auditLogService.LogAsync("OPD", "EMR.SaveConsultation", 
-            $"Saved consultation EMR for patient {req.PatientCode} (Service ID: {req.OPDServiceId})");
+        await auditLogService.LogActivityAsync(
+            eventType: "OPD Consultation",
+            actionName: "EMR.SaveConsultation", 
+            description: $"EMR Consultation record saved for patient {req.PatientCode} (OPD Service ID: {req.OPDServiceId}, Doctor ID: {req.DoctorId}). Clinical diagnosis & prescription updated.",
+            userId: userId,
+            branchId: User.GetCurrentBranchId(),
+            moduleCode: "OPD",
+            referenceNo: $"OPD-SVC-{req.OPDServiceId}",
+            referenceId: req.OPDServiceId,
+            patientCode: req.PatientCode,
+            metadata: new { OPDServiceId = req.OPDServiceId, DoctorId = req.DoctorId, PatientCode = req.PatientCode });
 
         return Json(new { success = true, message = "EMR consultation record saved successfully." });
     }

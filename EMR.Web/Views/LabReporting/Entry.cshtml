@@ -1,0 +1,792 @@
+@model EMR.Web.Models.ViewModels.LabReportingEntryPageViewModel
+@{
+    ViewData["Title"] = $"Report Entry - {Model.Detail.PatientName} ({Model.Detail.TokenNo})";
+    var d = Model.Detail;
+    var latestDrafted = d.Items?.FirstOrDefault(x => x.DraftedDate.HasValue)?.DraftedDate;
+    var latestSubmitted = d.Items?.FirstOrDefault(x => x.SubmittedDate.HasValue)?.SubmittedDate;
+    var latestValidated = d.Items?.FirstOrDefault(x => x.ValidatedDate.HasValue)?.ValidatedDate;
+    var latestApproved = d.Items?.FirstOrDefault(x => x.ApprovedDate.HasValue)?.ApprovedDate;
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
+    <style>
+        .reporting-entry-wrapper {
+            background-color: #f8fafc;
+            min-height: calc(100vh - 75px);
+            padding-bottom: 75px; /* space for sticky footer */
+        }
+        .patient-banner {
+            background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+        }
+        .patient-avatar-box {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            background: #e0e7ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #4f46e5;
+            border: 1px solid #c7d2fe;
+        }
+        .info-pill {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 4px 10px;
+        }
+        .table-entry-workspace {
+            background: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+        .group-header-row {
+            border-top: 1.5px solid #e2e8f0;
+            border-bottom: 1.5px solid #e2e8f0;
+        }
+        .group-header-profile {
+            background-color: #cfe2ff; /* table-primary-subtle */
+            color: #052c65; /* text-primary-emphasis */
+        }
+        .group-header-package {
+            background-color: #cff4fc; /* table-info-subtle */
+            color: #055160; /* text-info-emphasis */
+        }
+        .group-header-default {
+            background-color: #f8f9fa; /* table-light */
+            color: #6c757d; /* text-secondary */
+        }
+
+        /* ── Tube Cap Styling in Details Table ── */
+        .cap-badge-yellow {
+            background-color: #fef08a !important;
+            color: #854d0e !important;
+            border-color: #fde047 !important;
+        }
+        .cap-badge-purple {
+            background-color: #f3e8ff !important;
+            color: #6b21a8 !important;
+            border-color: #d8b4fe !important;
+        }
+        .cap-badge-blue {
+            background-color: #e0f2fe !important;
+            color: #0369a1 !important;
+            border-color: #bae6fd !important;
+        }
+        .cap-badge-grey {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border-color: #cbd5e1 !important;
+        }
+        .cap-badge-red {
+            background-color: #fee2e2 !important;
+            color: #b91c1c !important;
+            border-color: #fecaca !important;
+        }
+        .cap-badge-green {
+            background-color: #dcfce7 !important;
+            color: #166534 !important;
+            border-color: #86efac !important;
+        }
+        .group-collapse-toggle {
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.15s ease;
+        }
+        .group-collapse-toggle:hover {
+            color: #0284c7 !important;
+        }
+        .group-collapse-icon {
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+        .group-collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+        .group-child-row {
+            transition: background-color 0.15s ease;
+        }
+        .group-child-row.is-nested {
+            border-left: 3px solid #e0f2fe;
+        }
+        .group-child-row:hover {
+            background-color: #f8fafc;
+        }
+        .shadow-2xs {
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+        .test-val-input {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #0f172a;
+            border: 1.5px solid #cbd5e1;
+            transition: all 0.15s ease-in-out;
+        }
+        .test-val-input:focus {
+            border-color: #0284c7;
+            background-color: #f0f9ff;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+        .test-val-input.has-value {
+            border-color: #38bdf8;
+            background-color: #f8fafc;
+        }
+        .sticky-action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border-top: 1px solid #e2e8f0;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+            z-index: 1020;
+            padding: 10px 24px;
+        }
+        .fs-7 { font-size: 0.875rem !important; }
+        .fs-8 { font-size: 0.8rem !important; }
+        .fs-9 { font-size: 0.72rem !important; }
+    </style>
+}
+
+<div class="reporting-entry-wrapper px-3 py-3">
+    <!-- Breadcrumb & Top Bar -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0 fs-8">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index" class="text-decoration-none">Home</a></li>
+                <li class="breadcrumb-item"><a asp-controller="LabReporting" asp-action="Index" class="text-decoration-none">Lab Reporting Entry</a></li>
+                <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">Report Entry: @d.BillNo</li>
+            </ol>
+        </nav>
+        <div class="d-flex gap-2">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+                <i class="bi bi-arrow-left me-1"></i>Back to List
+            </a>
+            <button type="button" class="btn btn-outline-danger btn-sm px-3" onclick="window.close()">
+                <i class="bi bi-x-circle me-1"></i>Close Tab
+            </button>
+        </div>
+    </div>
+
+    <!-- Patient Header Banner -->
+    <div class="patient-banner p-3 p-md-4 mb-3 shadow-sm">
+        <div class="row g-3 align-items-center">
+            <!-- Patient identity -->
+            <div class="col-lg-6 col-12 d-flex align-items-center gap-3">
+                <div class="patient-avatar-box flex-shrink-0">
+                    <i class="bi bi-person-fill"></i>
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h4 class="mb-0 fw-bold text-dark">@d.PatientName</h4>
+                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fw-bold">@d.PatientCode</span>
+                        @if (d.IsUrgent)
+                        {
+                            <span class="badge bg-danger text-white"><i class="bi bi-lightning-fill me-1"></i>Urgent</span>
+                        }
+                    </div>
+                    <div class="text-muted fs-8 mt-1 d-flex align-items-center gap-3 flex-wrap">
+                        <span><i class="bi bi-gender-ambiguous me-1"></i>@(d.Age.HasValue ? $"{d.Age} Y / " : "")@(d.Gender ?? "—")</span>
+                        <span><i class="bi bi-telephone me-1"></i>@(d.PhoneNumber ?? "—")</span>
+                        @if (!string.IsNullOrWhiteSpace(d.EmailId))
+                        {
+                            <span><i class="bi bi-envelope me-1"></i>@d.EmailId</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order / Token identifiers & status -->
+            <div class="col-lg-6 col-12">
+                <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                    <div class="info-pill">
+                        <div class="fs-9 text-muted text-uppercase fw-semibold">Token No</div>
+                        <div class="fs-7 fw-bold text-dark font-monospace">@(d.TokenNo ?? "LAB")</div>
+                    </div>
+                    <div class="info-pill">
+                        <div class="fs-9 text-muted text-uppercase fw-semibold">Bill / Order No</div>
+                        <div class="fs-7 fw-bold text-dark font-monospace">@(d.BillNo ?? "—")</div>
+                    </div>
+                    <div class="info-pill">
+                        <div class="fs-9 text-muted text-uppercase fw-semibold">Booking Time</div>
+                        <div class="fs-8 fw-semibold text-dark">@((d.BookingDateTime ?? d.OrderDate).ToString("dd MMM yyyy, hh:mm tt"))</div>
+                    </div>
+                    <div class="info-pill">
+                        <div class="fs-9 text-muted text-uppercase fw-semibold">Collection Type</div>
+                        <div class="fs-8 fw-semibold text-dark">@d.CollectionType</div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(d.PhlebotomistName))
+                    {
+                        <div class="info-pill">
+                            <div class="fs-9 text-muted text-uppercase fw-semibold">Phlebotomist</div>
+                            <div class="fs-8 fw-semibold text-dark">@d.PhlebotomistName</div>
+                        </div>
+                    }
+                    <div class="info-pill" id="pillPayment">
+                        <div class="fs-9 text-muted text-uppercase fw-semibold">Payment Status</div>
+                        <div>
+                            @if (d.PaymentStatus == "P" || d.BalanceDue <= 0)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle fs-9">Paid (₹@d.TotalPaid.ToString("0.00"))</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9">Due: ₹@d.BalanceDue.ToString("0.00")</span>
+                            }
+                        </div>
+                    </div>
+                    @if (latestDrafted.HasValue)
+                    {
+                        <div class="info-pill" id="pillDrafted">
+                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-pencil-square text-warning me-1"></i>Drafted Date</div>
+                            <div class="fs-8 fw-semibold text-warning-emphasis font-monospace" id="pillDraftedVal">@latestDrafted.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
+                        </div>
+                    }
+                    @if (latestSubmitted.HasValue)
+                    {
+                        <div class="info-pill" id="pillSubmitted">
+                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-send-check text-primary me-1"></i>Submitted Date</div>
+                            <div class="fs-8 fw-semibold text-primary font-monospace" id="pillSubmittedVal">@latestSubmitted.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
+                        </div>
+                    }
+                    @if (latestValidated.HasValue)
+                    {
+                        <div class="info-pill" id="pillValidated">
+                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-check2-circle text-success me-1"></i>Validated Date</div>
+                            <div class="fs-8 fw-semibold text-success font-monospace" id="pillValidatedVal">@latestValidated.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
+                        </div>
+                    }
+                    @if (latestApproved.HasValue)
+                    {
+                        <div class="info-pill" id="pillApproved">
+                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-patch-check-fill text-info me-1"></i>Approved Date</div>
+                            <div class="fs-8 fw-semibold text-info font-monospace" id="pillApprovedVal">@latestApproved.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workspace Header & Quick Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h5 class="mb-0 fw-bold text-dark d-flex align-items-center">
+                <i class="bi bi-file-earmark-medical text-primary me-2"></i>Investigation Test Entry
+            </h5>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-8">
+                @d.Items.Count Collected In-House Tests
+            </span>
+            <div class="btn-group btn-group-sm ms-1" role="group">
+                <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 fs-9" id="btnExpandAll" title="Expand all groups">
+                    <i class="bi bi-chevron-expand me-1"></i>Expand All
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 fs-9" id="btnCollapseAll" title="Collapse all groups">
+                    <i class="bi bi-chevron-contract me-1"></i>Collapse All
+                </button>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-warning px-3 py-1.5 fs-8 fw-semibold text-dark shadow-xs btn-action-draft">
+                <i class="bi bi-file-earmark me-1"></i>Save as Draft
+            </button>
+            <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save">
+                <i class="bi bi-check-circle-fill me-1"></i>Save / Report Entry
+            </button>
+        </div>
+    </div>
+
+    <!-- Investigation Results Table -->
+    <div class="table-entry-workspace mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="tblInvestigationEntry">
+                <thead class="table-light fs-9 text-muted text-uppercase fw-bold border-bottom">
+                    <tr>
+                        <th class="ps-3" style="width: 40px;">#</th>
+                        <th style="min-width: 280px;">Investigation / Profile</th>
+                        <th style="width: 170px;">Sample / Tube Type</th>
+                        <th style="width: 130px;">Unit</th>
+                        <th style="min-width: 240px;">Test Result Value *</th>
+                        <th style="min-width: 220px;">Clinical Remarks / Notes</th>
+                        <th class="text-center" style="width: 130px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="fs-8">
+                    @if (d.Items == null || d.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="bi bi-journal-x fs-1 text-secondary d-block mb-2"></i>
+                                No collected in-house tests found for this lab order.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        var hierarchy = d.GetHierarchy();
+                        int globalRowIndex = 0;
+
+                        // 1. Render Packages
+                        foreach (var pkg in hierarchy.Packages)
+                        {
+                            <tr class="group-header-row group-header-package" id="header_@pkg.GroupId">
+                                <td colspan="7" class="py-2.5 px-3">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                        <div class="d-flex align-items-center group-collapse-toggle" data-target="@pkg.GroupId" title="Click to Expand/Collapse">
+                                            <i class="bi bi-chevron-down me-2 text-info fs-7 group-collapse-icon" id="icon_@pkg.GroupId"></i>
+                                            <i class="bi bi-box-seam me-2 fs-7"></i>
+                                            <span class="fs-8 text-dark fw-bold">@pkg.PackageName</span>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="@pkg.GroupId">
+                                                <span class="toggle-text">Collapse</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            // Render Profiles within Package
+                            foreach (var prof in pkg.Profiles)
+                            {
+                                <tr class="group-header-row group-header-profile group-child-@pkg.GroupId is-nested" id="header_@prof.GroupId">
+                                    <td colspan="7" class="py-2.5 px-3">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 ms-4">
+                                            <div class="d-flex align-items-center group-collapse-toggle" data-target="@prof.GroupId" title="Click to Expand/Collapse">
+                                                <i class="bi bi-chevron-down me-2 text-primary fs-7 group-collapse-icon" id="icon_@prof.GroupId"></i>
+                                                <i class="bi bi-folder2-open me-2 fs-7"></i>
+                                                <span class="fs-8 text-dark fw-bold">@prof.ProfileName</span>
+                                                <span class="badge bg-white text-dark border ms-2 fs-9 shadow-2xs">
+                                                    @prof.Items.Count Test@(prof.Items.Count > 1 ? "s" : "")
+                                                </span>
+                                                @if (!string.IsNullOrWhiteSpace(prof.SharedBarcode))
+                                                {
+                                                    <span class="badge bg-white text-dark border ms-2 font-monospace fs-9 shadow-2xs d-inline-flex align-items-center gap-1" title="Specimen Barcode">
+                                                        <i class="bi bi-upc-scan text-primary"></i>
+                                                        <span>Barcode: <strong>@prof.SharedBarcode</strong></span>
+                                                    </span>
+                                                }
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="fs-9 text-muted fw-semibold">
+                                                    <span class="group-filled-val" data-grpid="@prof.GroupId">0</span> / @prof.Items.Count entered
+                                                </span>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="@prof.GroupId">
+                                                    <span class="toggle-text">Collapse</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                // Render Items in Profile
+                                foreach (var item in prof.Items)
+                                {
+                                    globalRowIndex++;
+                                    <tr class="test-item-row group-child-row group-child-@pkg.GroupId group-child-@prof.GroupId is-nested"
+                                        data-samplecollection-id="@item.SamplecollectionID"
+                                        data-investigation-id="@item.InvestigationID"
+                                        data-reporting-type="@(item.ReportingType ?? "Numeric")"
+                                        data-grpid="@prof.GroupId">
+                                        @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                    </tr>
+                                }
+                            }
+
+                            // Render Standalone Items within Package
+                            foreach (var item in pkg.StandaloneItems)
+                            {
+                                globalRowIndex++;
+                                <tr class="test-item-row group-child-row group-child-@pkg.GroupId is-nested"
+                                    data-samplecollection-id="@item.SamplecollectionID"
+                                    data-investigation-id="@item.InvestigationID"
+                                    data-reporting-type="@(item.ReportingType ?? "Numeric")"
+                                    data-grpid="@pkg.GroupId">
+                                    @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                </tr>
+                            }
+                        }
+
+                        // 2. Render Standalone Profiles
+                        foreach (var prof in hierarchy.StandaloneProfiles)
+                        {
+                            <tr class="group-header-row group-header-profile" id="header_@prof.GroupId">
+                                <td colspan="7" class="py-2.5 px-3">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                        <div class="d-flex align-items-center group-collapse-toggle" data-target="@prof.GroupId" title="Click to Expand/Collapse">
+                                            <i class="bi bi-chevron-down me-2 text-primary fs-7 group-collapse-icon" id="icon_@prof.GroupId"></i>
+                                            <i class="bi bi-folder2-open me-2 fs-7"></i>
+                                            <span class="fs-8 text-dark fw-bold">@prof.ProfileName</span>
+                                            <span class="badge bg-white text-dark border ms-2 fs-9 shadow-2xs">
+                                                @prof.Items.Count Test@(prof.Items.Count > 1 ? "s" : "")
+                                            </span>
+                                            @if (!string.IsNullOrWhiteSpace(prof.SharedBarcode))
+                                            {
+                                                <span class="badge bg-white text-dark border ms-2 font-monospace fs-9 shadow-2xs d-inline-flex align-items-center gap-1" title="Specimen Barcode">
+                                                    <i class="bi bi-upc-scan text-primary"></i>
+                                                    <span>Barcode: <strong>@prof.SharedBarcode</strong></span>
+                                                </span>
+                                            }
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="fs-9 text-muted fw-semibold">
+                                                <span class="group-filled-val" data-grpid="@prof.GroupId">0</span> / @prof.Items.Count entered
+                                            </span>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="@prof.GroupId">
+                                                <span class="toggle-text">Collapse</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            foreach (var item in prof.Items)
+                            {
+                                globalRowIndex++;
+                                <tr class="test-item-row group-child-row group-child-@prof.GroupId is-nested"
+                                    data-samplecollection-id="@item.SamplecollectionID"
+                                    data-investigation-id="@item.InvestigationID"
+                                    data-reporting-type="@(item.ReportingType ?? "Numeric")"
+                                    data-grpid="@prof.GroupId">
+                                    @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                </tr>
+                            }
+                        }
+
+                        // 3. Render Standalone Items
+                        if (hierarchy.StandaloneItems.Any())
+                        {
+                            <tr class="group-header-row group-header-default" id="header_standalone">
+                                <td colspan="7" class="py-2.5 px-3">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                        <div class="d-flex align-items-center group-collapse-toggle" data-target="standalone" title="Click to Expand/Collapse">
+                                            <i class="bi bi-chevron-down me-2 text-secondary fs-7 group-collapse-icon" id="icon_standalone"></i>
+                                            <i class="bi bi-card-checklist me-2 fs-7"></i>
+                                            <span class="fs-8 text-dark fw-bold">Individual Investigations</span>
+                                            <span class="badge bg-white text-dark border ms-2 fs-9 shadow-2xs">
+                                                @hierarchy.StandaloneItems.Count Test@(hierarchy.StandaloneItems.Count > 1 ? "s" : "")
+                                            </span>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="standalone">
+                                                <span class="toggle-text">Collapse</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            foreach (var item in hierarchy.StandaloneItems)
+                            {
+                                globalRowIndex++;
+                                <tr class="test-item-row group-child-row group-child-standalone"
+                                    data-samplecollection-id="@item.SamplecollectionID"
+                                    data-investigation-id="@item.InvestigationID"
+                                    data-reporting-type="@(item.ReportingType ?? "Numeric")"
+                                    data-grpid="standalone">
+                                    @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                </tr>
+                            }
+                        }
+
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Sticky Bottom Action Footer -->
+<div class="sticky-action-bar">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3 fs-8 text-muted">
+            <span><i class="bi bi-info-circle text-primary me-1"></i>All entries are stored in <code>dbo.labentrydetails</code>.</span>
+            <span>&bull;</span>
+            <span id="counterEntered" class="fw-semibold text-dark">0 / @(d.Items?.Count ?? 0) Values Filled</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm px-3" onclick="window.close()">
+                <i class="bi bi-x me-1"></i>Close
+            </button>
+            <button type="button" class="btn btn-warning btn-sm px-3 fw-semibold text-dark shadow-xs btn-action-draft" id="btnStickyDraft">
+                <i class="bi bi-pencil-square me-1"></i>Save as Draft
+            </button>
+            <button type="button" class="btn btn-primary btn-sm px-3 fw-semibold shadow-xs btn-action-save" id="btnStickySave">
+                <i class="bi bi-send-check me-1"></i>Submit / Report Entry
+            </button>
+            <button type="button" class="btn btn-success btn-sm px-3 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate">
+                <i class="bi bi-check-circle-fill me-1"></i>Validate Report
+            </button>
+            <button type="button" class="btn btn-info text-white btn-sm px-3 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove">
+                <i class="bi bi-patch-check-fill me-1"></i>Approve Report
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            toastr.options = {
+                closeButton: true,
+                progressBar: true,
+                positionClass: "toast-top-right",
+                timeOut: "3500"
+            };
+
+            const labOrderId = @d.LabOrderId;
+
+            // ── Live counter update ─────────────────────────────────────────
+            function updateFilledCount() {
+                let totalFilled = 0;
+                const totalCount = $('.test-item-row').length;
+                const groupCounts = {};
+
+                $('.test-item-row').each(function () {
+                    const grpId = $(this).data('grpid');
+                    if (grpId) {
+                        if (!groupCounts[grpId]) groupCounts[grpId] = 0;
+                    }
+
+                    const val = $(this).find('.txt-test-val').val()?.trim() || '';
+                    if (val.length > 0) {
+                        totalFilled++;
+                        if (grpId) groupCounts[grpId]++;
+                        $(this).find('.txt-test-val').addClass('has-value');
+                    } else {
+                        $(this).find('.txt-test-val').removeClass('has-value');
+                    }
+                });
+
+                $('#counterEntered').text(`${totalFilled} / ${totalCount} Values Filled`);
+
+                // Update per-group header badges
+                $('.group-filled-val').each(function () {
+                    const grpId = $(this).data('grpid');
+                    $(this).text(groupCounts[grpId] || 0);
+                });
+            }
+
+            $('.txt-test-val').on('input change', updateFilledCount);
+            updateFilledCount();
+
+            // ── Expand / Collapse Group Logic ───────────────────────────────
+            $(document).on('click', '.group-collapse-toggle, .group-toggle-btn', function (e) {
+                e.stopPropagation();
+                const grpId = $(this).data('target');
+                const rows = $(`.group-child-${grpId}`);
+                const icon = $(`#icon_${grpId}`);
+                const btnText = $(`button.group-toggle-btn[data-target="${grpId}"] .toggle-text`);
+
+                if (rows.is(':visible')) {
+                    rows.hide();
+                    icon.addClass('collapsed');
+                    btnText.text('Expand');
+                } else {
+                    rows.show();
+                    icon.removeClass('collapsed');
+                    btnText.text('Collapse');
+                    
+                    // Also expand nested profiles automatically if parent package is expanded
+                    rows.each(function() {
+                        if ($(this).hasClass('group-header-row')) {
+                            const childId = $(this).find('.group-toggle-btn').data('target');
+                            if (childId) {
+                                $(`#icon_${childId}`).removeClass('collapsed');
+                                $(`button.group-toggle-btn[data-target="${childId}"] .toggle-text`).text('Collapse');
+                                $(`.group-child-${childId}`).show();
+                            }
+                        }
+                    });
+                }
+            });
+
+            // ── Expand All / Collapse All ───────────────────────────────────
+            $('#btnExpandAll').on('click', function () {
+                $('.test-item-row').show();
+                $('.group-collapse-icon').removeClass('collapsed');
+                $('.group-toggle-btn .toggle-text').text('Collapse');
+            });
+
+            $('#btnCollapseAll').on('click', function () {
+                $('.test-item-row').hide();
+                $('.group-collapse-icon').addClass('collapsed');
+                $('.group-toggle-btn .toggle-text').text('Expand');
+            });
+
+            // ── Submit logic ────────────────────────────────────────────────
+            $('.btn-action-draft').on('click', function () {
+                saveReporting(1, 'Draft');
+            });
+
+            $('.btn-action-save').on('click', function () {
+                saveReporting(2, 'Report Entry');
+            });
+
+            $('.btn-action-validate').on('click', function () {
+                saveReporting(3, 'Report Validated');
+            });
+
+            $('.btn-action-approve').on('click', function () {
+                saveReporting(5, 'Report Approve');
+            });
+
+            function saveReporting(statusId, statusLabel) {
+                const entries = [];
+                $('.test-item-row').each(function () {
+                    const samplecollectionID = $(this).data('samplecollection-id');
+                    const investigationID = $(this).data('investigation-id');
+                    const reportingType = $(this).data('reporting-type') || 'Numeric';
+                    const testValue = $(this).find('.txt-test-val').val() || '';
+                    const remarks = $(this).find('.txt-test-remarks').val() || '';
+
+                    entries.push({
+                        samplecollectionID: samplecollectionID,
+                        investigationID: investigationID,
+                        reportingType: reportingType,
+                        testValue: testValue.trim(),
+                        remarks: remarks.trim()
+                    });
+                });
+
+                if (entries.length === 0) {
+                    toastr.warning('No test items found to save.');
+                    return;
+                }
+
+                const payload = {
+                    labOrderId: labOrderId,
+                    reportStatusId: statusId,
+                    entries: entries
+                };
+
+                const $btns = $('.btn-action-draft, .btn-action-save, .btn-action-validate, .btn-action-approve');
+                $btns.prop('disabled', true);
+
+                $.ajax({
+                    url: '@Url.Action("SaveEntryJson", "LabReporting")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload)
+                })
+                .done(function (res) {
+                    $btns.prop('disabled', false);
+                    if (res.success) {
+                        toastr.success(res.message || `Test entries saved as ${statusLabel}!`);
+
+                        // Update badges in table dynamically
+                        let badgeClass = 'bg-primary-subtle text-primary border border-primary-subtle';
+                        let dateIcon = 'bi-send-check';
+                        let datePrefix = 'Sub:';
+                        let dateColorClass = 'text-primary';
+
+                        if (statusId === 1) {
+                            badgeClass = 'bg-warning-subtle text-warning border border-warning-subtle';
+                            dateIcon = 'bi-pencil-square';
+                            datePrefix = 'Draft:';
+                            dateColorClass = 'text-warning-emphasis';
+                        } else if (statusId === 3) {
+                            badgeClass = 'bg-success-subtle text-success border border-success-subtle';
+                            dateIcon = 'bi-check2-circle';
+                            datePrefix = 'Val:';
+                            dateColorClass = 'text-success';
+                        } else if (statusId === 5) {
+                            badgeClass = 'bg-info-subtle text-info border border-info-subtle';
+                            dateIcon = 'bi-patch-check-fill';
+                            datePrefix = 'Appr:';
+                            dateColorClass = 'text-info';
+                        }
+
+                        $('.row-status-badge').each(function () {
+                            $(this).attr('class', `badge ${badgeClass} fs-9 row-status-badge`).text(statusLabel);
+                        });
+
+                        const now = new Date();
+                        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const dateStr = now.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+                        const fullDateTimeStr = `${dateStr}, ${timeStr}`;
+
+                        $('.row-status-dates').html(`
+                            <div class="${dateColorClass} fw-semibold" title="${statusLabel}: ${fullDateTimeStr}">
+                                <i class="bi ${dateIcon} me-0.5"></i>${datePrefix} Today ${timeStr}
+                            </div>
+                        `);
+
+                        // Update banner timeline pills
+                        if (statusId === 1) {
+                            if ($('#pillDrafted').length) {
+                                $('#pillDraftedVal').text(fullDateTimeStr);
+                            } else {
+                                $('#pillPayment').after(`
+                                    <div class="info-pill" id="pillDrafted">
+                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-pencil-square text-warning me-1"></i>Drafted Date</div>
+                                        <div class="fs-8 fw-semibold text-warning-emphasis font-monospace" id="pillDraftedVal">${fullDateTimeStr}</div>
+                                    </div>
+                                `);
+                            }
+                        } else if (statusId === 2) {
+                            if ($('#pillSubmitted').length) {
+                                $('#pillSubmittedVal').text(fullDateTimeStr);
+                            } else {
+                                $('#pillPayment').after(`
+                                    <div class="info-pill" id="pillSubmitted">
+                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-send-check text-primary me-1"></i>Submitted Date</div>
+                                        <div class="fs-8 fw-semibold text-primary font-monospace" id="pillSubmittedVal">${fullDateTimeStr}</div>
+                                    </div>
+                                `);
+                            }
+                        } else if (statusId === 3) {
+                            if ($('#pillValidated').length) {
+                                $('#pillValidatedVal').text(fullDateTimeStr);
+                            } else {
+                                $('#pillPayment').after(`
+                                    <div class="info-pill" id="pillValidated">
+                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-check2-circle text-success me-1"></i>Validated Date</div>
+                                        <div class="fs-8 fw-semibold text-success font-monospace" id="pillValidatedVal">${fullDateTimeStr}</div>
+                                    </div>
+                                `);
+                            }
+                        } else if (statusId === 5) {
+                            if ($('#pillApproved').length) {
+                                $('#pillApprovedVal').text(fullDateTimeStr);
+                            } else {
+                                $('#pillPayment').after(`
+                                    <div class="info-pill" id="pillApproved">
+                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-patch-check-fill text-info me-1"></i>Approved Date</div>
+                                        <div class="fs-8 fw-semibold text-info font-monospace" id="pillApprovedVal">${fullDateTimeStr}</div>
+                                    </div>
+                                `);
+                            }
+                        }
+                    } else {
+                        toastr.error(res.message || 'Failed to save entries.');
+                    }
+                })
+                .fail(function () {
+                    $btns.prop('disabled', false);
+                    toastr.error('Server error while saving entries.');
+                });
+            }
+
+            // Keyboard navigation: Enter moves to next visible value input
+            $('.txt-test-val').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const $allInputs = $('.txt-test-val:visible');
+                    const idx = $allInputs.index(this);
+                    if (idx < $allInputs.length - 1) {
+                        $allInputs.eq(idx + 1).focus().select();
+                    } else {
+                        $('#btnStickySave').focus();
+                    }
+                }
+            });
+        });
+    </script>
+}

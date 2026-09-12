@@ -134,22 +134,23 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 SELECT
                     si.LabOrderItemId   AS LineRefId,
                     'LAB'               AS ServiceType,
-                    ISNULL(sm.Test_Name, '(Unknown Test)') AS ItemName,
+                    CASE WHEN si.Type = 'P' THEN ISNULL(pkg.Profile_Name, '(Unknown Package)') ELSE ISNULL(sm.Test_Name, '(Unknown Test)') END AS ItemName,
                     ISNULL(si.Price, 0) AS OriginalAmount,
                     ISNULL(pli.LineDiscountAmount, 0) AS LineDiscountAmount,
                     ISNULL(pli.NetLineAmount, si.Price) AS NetLineAmount,
                     CAST(ISNULL(d.Is_Discount_Allowed, 0) AS BIT) AS IsDiscountAllowed
                 FROM LabOrderItem si
                 INNER JOIN LabOrder lo ON lo.LabOrderId = si.LabOrderId
-                LEFT JOIN LabInvestigationMaster sm ON sm.Test_ID = si.InvestigationId
+                LEFT JOIN LabInvestigationProfileHeader pkg ON pkg.Profile_ID = si.InvestigationId AND si.Type = 'P'
+                LEFT JOIN LabInvestigationMaster sm ON sm.Test_ID = si.InvestigationId AND ISNULL(si.Type, 'I') <> 'P'
                 LEFT JOIN LabRateCardMaster m ON m.Branch_ID = lo.BranchId 
                     AND m.Rate_Type = 'B2C' 
                     AND m.Status = 1 
                     AND m.IsDeleted = 0 
                     AND CAST(GETDATE() AS DATE) BETWEEN m.Effective_From AND m.Effective_To
                 LEFT JOIN LabRateCardDetail d ON d.RateCard_ID = m.RateCard_ID 
-                    AND d.Item_ID = sm.Test_ID 
-                    AND d.Item_Type = CASE WHEN sm.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
+                    AND d.Item_ID = si.InvestigationId 
+                    AND d.Item_Type = CASE WHEN si.Type = 'P' THEN 'Profile' WHEN sm.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
                     AND d.IsDeleted = 0
                 LEFT JOIN PaymentHeader ph ON ph.ModuleCode = 'LAB' AND ph.ModuleRefId = si.LabOrderId AND ph.IsActive = 1
                 LEFT JOIN PaymentLineItem pli ON pli.PaymentHeaderId = ph.PaymentHeaderId 
@@ -287,15 +288,16 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     SELECT SUM(loi.Price)
                     FROM LabOrderItem loi
                     INNER JOIN LabOrder lo ON lo.LabOrderId = loi.LabOrderId
-                    INNER JOIN LabInvestigationMaster lim ON lim.Test_ID = loi.InvestigationId
+                    LEFT JOIN LabInvestigationProfileHeader pkg ON pkg.Profile_ID = loi.InvestigationId AND loi.Type = 'P'
+                    LEFT JOIN LabInvestigationMaster lim ON lim.Test_ID = loi.InvestigationId AND ISNULL(loi.Type, 'I') <> 'P'
                     LEFT JOIN LabRateCardMaster m ON m.Branch_ID = lo.BranchId 
                         AND m.Rate_Type = 'B2C' 
                         AND m.Status = 1 
                         AND m.IsDeleted = 0 
                         AND CAST(GETDATE() AS DATE) BETWEEN m.Effective_From AND m.Effective_To
                     LEFT JOIN LabRateCardDetail d ON d.RateCard_ID = m.RateCard_ID 
-                        AND d.Item_ID = lim.Test_ID 
-                        AND d.Item_Type = CASE WHEN lim.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
+                        AND d.Item_ID = loi.InvestigationId 
+                        AND d.Item_Type = CASE WHEN loi.Type = 'P' THEN 'Profile' WHEN lim.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
                         AND d.IsDeleted = 0
                     WHERE loi.LabOrderId = @ModuleRefId 
                       AND loi.IsActive = 1 
