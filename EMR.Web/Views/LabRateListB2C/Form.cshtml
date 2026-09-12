@@ -342,7 +342,7 @@
                             SubCategory_ID: itemSubCatId,
                             Default_Rate: item.Default_Rate || item.default_Rate,
                             Rate: item.Default_Rate || item.default_Rate,
-                            Is_Discount_Allowed: false,
+                            Is_Discount_Allowed: true,
                             Status: true
                         });
                         matchingCount++;
@@ -413,7 +413,7 @@
                             SubCategory_ID: item.SubCategory_ID,
                             Default_Rate: item.Default_Rate,
                             Rate: Math.round(newRate * 100) / 100, // Round to 2 decimals
-                            Is_Discount_Allowed: item.Is_Discount_Allowed || item.is_Discount_Allowed || false,
+                            Is_Discount_Allowed: item.Is_Discount_Allowed !== undefined ? item.Is_Discount_Allowed : (item.is_Discount_Allowed !== undefined ? item.is_Discount_Allowed : true),
                             Status: item.Status
                         };
                     });
@@ -455,7 +455,7 @@
                     SubCategory_ID: itemData.SubCategory_ID || itemData.subCategory_ID,
                     Default_Rate: itemData.Default_Rate || itemData.default_Rate,
                     Rate: itemData.Default_Rate || itemData.default_Rate, // default to MRP
-                    Is_Discount_Allowed: false,
+                    Is_Discount_Allowed: true,
                     Status: true
                 });
                 renderGrid();
@@ -481,7 +481,7 @@
                         SubCategory_ID: item.SubCategory_ID || item.subCategory_ID,
                         Default_Rate: item.Default_Rate || item.default_Rate,
                         Rate: item.Default_Rate || item.default_Rate,
-                        Is_Discount_Allowed: false,
+                        Is_Discount_Allowed: true,
                         Status: true
                     });
                     addedCount++;
@@ -642,7 +642,7 @@
                         </td>
                         <td class="text-center">
                             <div class="form-check form-switch d-flex justify-content-center mb-0">
-                                <input class="form-check-input chk-disc-allowed" type="checkbox" ${discChecked} title="Toggle Discount Allowed (Default: No)">
+                                <input class="form-check-input chk-disc-allowed" type="checkbox" ${discChecked} title="Toggle Discount Allowed (Default: Yes)">
                             </div>
                         </td>
                         <td class="text-center">
