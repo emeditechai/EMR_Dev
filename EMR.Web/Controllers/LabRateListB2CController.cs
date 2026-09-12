@@ -5,6 +5,7 @@ using EMR.Web.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using EMR.Web.Extensions;
+using EMR.Web.Services;
 
 using EMR.Web.Data;
 using EMR.Web.Models.Entities;
@@ -116,7 +117,7 @@ public class LabRateListB2CController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> LoadData(int? branchId, bool? status)
+    public async Task<IActionResult> LoadData(int? branchId, bool? status, [FromServices] IQueryStringEncryptionService encryptionService)
     {
         var isHO = CheckIsHOBranch();
         if (!isHO)
@@ -124,7 +125,20 @@ public class LabRateListB2CController(
             branchId = User.GetCurrentBranchId();
         }
         var list = await rateCardApi.GetListAsync(B2CRateType, branchId, status);
-        return Json(new { data = list }, new JsonSerializerOptions { PropertyNamingPolicy = null });
+        var result = list.Select(item => new
+        {
+            item.RateCard_ID,
+            item.CompanyId,
+            item.Branch_ID,
+            item.Branch_Name,
+            item.Rate_Type,
+            item.Effective_From,
+            item.Effective_To,
+            item.Status,
+            item.ItemCount,
+            EncryptedId = encryptionService.EncryptParameters(new Dictionary<string, string?> { { "id", item.RateCard_ID.ToString() } })
+        });
+        return Json(new { data = result }, new JsonSerializerOptions { PropertyNamingPolicy = null });
     }
 
     public async Task<IActionResult> Create()

@@ -176,8 +176,9 @@
                     data: null,
                     render: function (data, type, row) {
                         var id = row.RateCard_ID || row.rateCard_ID;
+                        var qToken = row.EncryptedId || row.encryptedId || id;
                         return `<div class="btn-group btn-group-sm shadow-sm" role="group">
-                                    <a href="@Url.Action("Edit")/${id}" class="btn btn-outline-primary" title="Edit Rate Card"><i class="bi bi-pencil"></i></a>
+                                    <a href="@Url.Action("Edit")?q=${encodeURIComponent(qToken)}" class="btn btn-outline-primary" title="Edit Rate Card"><i class="bi bi-pencil"></i></a>
                                     <button type="button" class="btn btn-outline-danger btn-delete" data-id="${id}" title="Delete Rate Card"><i class="bi bi-trash"></i></button>
                                 </div>`;
                     }

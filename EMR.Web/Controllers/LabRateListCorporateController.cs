@@ -5,6 +5,7 @@ using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -135,7 +136,7 @@ public class LabRateListCorporateController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> LoadData(int? branchId, bool? status)
+    public async Task<IActionResult> LoadData(int? branchId, bool? status, [FromServices] IQueryStringEncryptionService encryptionService)
     {
         var companyId = User.GetCompanyId();
         var isHO = CheckIsHOBranch();
@@ -144,7 +145,22 @@ public class LabRateListCorporateController(
         int? filterBranchId = isHO ? branchId : currentBranchId;
 
         var data = await rateCardApi.GetListAsync(CorporateRateType, filterBranchId, status, companyId);
-        return Json(new { data });
+        var result = data.Select(item => new
+        {
+            item.RateCard_ID,
+            item.CompanyId,
+            item.Branch_ID,
+            item.Branch_Name,
+            item.B2CIdentity_ID,
+            item.Entity_Name,
+            item.Rate_Type,
+            item.Effective_From,
+            item.Effective_To,
+            item.Status,
+            item.ItemCount,
+            EncryptedId = encryptionService.EncryptParameters(new Dictionary<string, string?> { { "id", item.RateCard_ID.ToString() } })
+        });
+        return Json(new { data = result }, new JsonSerializerOptions { PropertyNamingPolicy = null });
     }
 
     [HttpGet]

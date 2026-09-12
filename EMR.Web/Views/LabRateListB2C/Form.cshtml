@@ -44,7 +44,7 @@
         <h5 class="mb-0">@ViewData["Title"]</h5>
     </div>
     <div class="card-body">
-        <form asp-action="Save" method="post" id="frmRateCard">
+        <form asp-action="Save" asp-encrypted-id="@Model.RateCard_ID" method="post" id="frmRateCard">
             <input type="hidden" asp-for="RateCard_ID" />
             <input type="hidden" asp-for="CompanyId" />
             <input type="hidden" asp-for="Rate_Type" />
