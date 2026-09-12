@@ -1,171 +1,461 @@
 @model EMR.Web.Models.ViewModels.AuditLogPagedResult
 @{
-    ViewData["Title"] = "Audit Logs";
+    ViewData["Title"] = "Audit Logs & Activity Tracking";
     var f = Model.Filter;
+    var curMod = string.IsNullOrWhiteSpace(f.ModuleCode) ? "ALL" : f.ModuleCode.ToUpperInvariant();
 
-    string Q(int? pg = null, int? ps = null) {
+    string Q(int? pg = null, int? ps = null, string? mod = null, string? refNo = null) {
         var p = pg ?? f.Page;
         var s = ps ?? f.PageSize;
+        var m = mod ?? curMod;
+        var r = refNo ?? f.ReferenceNo;
         var parts = new List<string> { $"page={p}", $"pageSize={s}" };
-        if (!string.IsNullOrWhiteSpace(f.Search))    parts.Add($"search={Uri.EscapeDataString(f.Search)}");
-        if (!string.IsNullOrWhiteSpace(f.EventType)) parts.Add($"eventType={Uri.EscapeDataString(f.EventType)}");
+        if (!string.IsNullOrWhiteSpace(m) && m != "ALL") parts.Add($"moduleCode={Uri.EscapeDataString(m)}");
+        if (!string.IsNullOrWhiteSpace(r))               parts.Add($"referenceNo={Uri.EscapeDataString(r)}");
+        if (!string.IsNullOrWhiteSpace(f.Search))        parts.Add($"search={Uri.EscapeDataString(f.Search)}");
+        if (!string.IsNullOrWhiteSpace(f.EventType))     parts.Add($"eventType={Uri.EscapeDataString(f.EventType)}");
         if (f.DateFrom.HasValue) parts.Add($"dateFrom={f.DateFrom.Value:yyyy-MM-dd}");
         if (f.DateTo.HasValue)   parts.Add($"dateTo={f.DateTo.Value:yyyy-MM-dd}");
         return "?" + string.Join("&", parts);
     }
 }
 
-<div class="d-flex align-items-center justify-content-between mb-4">
+<style>
+    .audit-stat-card {
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .audit-stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.05);
+    }
+    .audit-stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+    }
+    .stat-blue .audit-stat-icon { background: #eff6ff; color: #2563eb; }
+    .stat-teal .audit-stat-icon { background: #f0fdfa; color: #0d9488; }
+    .stat-purple .audit-stat-icon { background: #faf5ff; color: #7c3aed; }
+    .stat-amber .audit-stat-icon { background: #fffbeb; color: #d97706; }
+
+    .nav-pills-audit {
+        gap: 0.5rem;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 0.75rem;
+    }
+    .nav-pills-audit .nav-link {
+        font-weight: 600;
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        color: #64748b;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease;
+    }
+    .nav-pills-audit .nav-link:hover {
+        background: #f1f5f9;
+        color: #1e293b;
+    }
+    .nav-pills-audit .nav-link.active {
+        background: var(--emr-primary, #6366f1);
+        color: #fff;
+        border-color: var(--emr-primary, #6366f1);
+        box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
+    }
+    .nav-pills-audit .nav-link .badge {
+        font-size: 0.75rem;
+        margin-left: 0.4rem;
+        vertical-align: middle;
+    }
+
+    .badge-opd { background: #e6fffa; color: #0f766e; border: 1px solid #99f6e4; }
+    .badge-lab { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+    .badge-payment { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-sample { background: #fdf4ff; color: #86198f; border: 1px solid #f5d0fe; }
+    .badge-reporting { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .badge-cancel { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .badge-security { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+    .badge-default { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+
+    .ref-pill {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        background: #f1f5f9;
+        color: #1e293b;
+        border: 1px solid #e2e8f0;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .ref-pill:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .log-desc-text {
+        font-size: 0.86rem;
+        color: #1e293b;
+        line-height: 1.45;
+    }
+
+    .user-avatar-circle {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #e0e7ff;
+        color: #4338ca;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
     <div>
-        <h1 class="h3 mb-0 fw-bold">Audit Logs</h1>
-        <small class="text-muted">Track all system activity and user actions</small>
+        <h1 class="h4 mb-1 fw-bold text-dark">
+            <i class="bi bi-clock-history me-2 text-primary"></i>Audit Log & Activity Tracking
+        </h1>
+        <small class="text-muted">Track all lifecycle events for OPD Billing, LAB Billing, Sample Collection, Reporting, and User Actions</small>
     </div>
-    <span class="badge text-bg-secondary fs-6 px-3 py-2">
-        <i class="bi bi-journal-text me-1"></i>@Model.TotalCount.ToString("N0") total records
-    </span>
+    <div class="d-flex align-items-center gap-2">
+        @if (!string.IsNullOrWhiteSpace(f.ReferenceNo))
+        {
+            <div class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 d-flex align-items-center gap-2">
+                <span><i class="bi bi-filter-circle me-1"></i>Filtered by Order: <strong>@f.ReferenceNo</strong></span>
+                <a href="@Q(refNo: "")" class="text-primary text-decoration-none" title="Clear Order Filter">
+                    <i class="bi bi-x-circle-fill"></i>
+                </a>
+            </div>
+        }
+        <span class="badge text-bg-secondary fs-6 px-3 py-2">
+            <i class="bi bi-journal-text me-1"></i>@Model.TotalCount.ToString("N0") records
+        </span>
+    </div>
 </div>
 
+<!-- Lifecycle Stats Cards -->
 <div class="row g-3 mb-4">
-    <div class="col-sm-4">
-        <div class="stat-card stat-blue">
-            <div class="stat-icon"><i class="bi bi-journal-text"></i></div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="audit-stat-card stat-blue">
+            <div class="audit-stat-icon"><i class="bi bi-layers-fill"></i></div>
             <div>
-                <div class="stat-value">@Model.TotalCount.ToString("N0")</div>
-                <div class="stat-label">Total Log Entries</div>
+                <div class="h5 mb-0 fw-bold">@Model.TotalCount.ToString("N0")</div>
+                <div class="small text-muted">Total Activity Logs</div>
             </div>
         </div>
     </div>
-    <div class="col-sm-4">
-        <div class="stat-card stat-green">
-            <div class="stat-icon"><i class="bi bi-tags-fill"></i></div>
-            <div>
-                <div class="stat-value">@Model.AvailableEventTypes.Count()</div>
-                <div class="stat-label">Event Types</div>
+    <div class="col-sm-6 col-lg-3">
+        <a href="@Q(mod: "OPD")" class="text-decoration-none">
+            <div class="audit-stat-card stat-teal">
+                <div class="audit-stat-icon"><i class="bi bi-hospital"></i></div>
+                <div>
+                    <div class="h5 mb-0 fw-bold text-dark">@Model.TotalOpdLogs.ToString("N0")</div>
+                    <div class="small text-muted">OPD Billing Lifecycle</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
-    <div class="col-sm-4">
-        <div class="stat-card stat-yellow">
-            <div class="stat-icon"><i class="bi bi-file-earmark-text"></i></div>
-            <div>
-                <div class="stat-value">@Model.TotalPages</div>
-                <div class="stat-label">Total Pages</div>
+    <div class="col-sm-6 col-lg-3">
+        <a href="@Q(mod: "LAB")" class="text-decoration-none">
+            <div class="audit-stat-card stat-purple">
+                <div class="audit-stat-icon"><i class="bi bi-droplet-half"></i></div>
+                <div>
+                    <div class="h5 mb-0 fw-bold text-dark">@Model.TotalLabLogs.ToString("N0")</div>
+                    <div class="small text-muted">LAB Billing & Lifecycle</div>
+                </div>
             </div>
-        </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <a href="@Q(mod: "SECURITY")" class="text-decoration-none">
+            <div class="audit-stat-card stat-amber">
+                <div class="audit-stat-icon"><i class="bi bi-shield-lock"></i></div>
+                <div>
+                    <div class="h5 mb-0 fw-bold text-dark">@Model.TotalSecurityLogs.ToString("N0")</div>
+                    <div class="small text-muted">Security & Authentication</div>
+                </div>
+            </div>
+        </a>
     </div>
 </div>
 
-<form method="get" asp-action="Index" class="dashboard-panel mb-3">
-    <div class="row g-2 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label fw-semibold small mb-1">Search</label>
-            <div class="input-icon-wrap">
-                <i class="bi bi-search input-icon"></i>
-                <input type="text" name="search" value="@f.Search" class="form-control ps-icon form-control-sm"
-                       placeholder="Username / action / description" />
+<!-- Module Tabs -->
+<ul class="nav nav-pills nav-pills-audit mb-3">
+    <li class="nav-item">
+        <a class="nav-link @(curMod == "ALL" ? "active" : "")" href="@Q(mod: "ALL")">
+            <i class="bi bi-grid-fill me-1"></i>All Activities
+            <span class="badge @(curMod == "ALL" ? "bg-light text-dark" : "bg-secondary")">@Model.TotalCount.ToString("N0")</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(curMod == "OPD" ? "active" : "")" href="@Q(mod: "OPD")">
+            <i class="bi bi-clipboard2-pulse me-1"></i>OPD Billing Lifecycle
+            <span class="badge @(curMod == "OPD" ? "bg-light text-dark" : "bg-secondary")">@Model.TotalOpdLogs.ToString("N0")</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(curMod == "LAB" ? "active" : "")" href="@Q(mod: "LAB")">
+            <i class="bi bi-eyedropper me-1"></i>LAB Billing Lifecycle
+            <span class="badge @(curMod == "LAB" ? "bg-light text-dark" : "bg-secondary")">@Model.TotalLabLogs.ToString("N0")</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(curMod == "SECURITY" ? "active" : "")" href="@Q(mod: "SECURITY")">
+            <i class="bi bi-shield-check me-1"></i>Security & Auth
+            <span class="badge @(curMod == "SECURITY" ? "bg-light text-dark" : "bg-secondary")">@Model.TotalSecurityLogs.ToString("N0")</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(curMod == "PAGE_VIEW" ? "active" : "")" href="@Q(mod: "PAGE_VIEW")">
+            <i class="bi bi-window-sidebar me-1"></i>Page Views
+        </a>
+    </li>
+</ul>
+
+<!-- Search & Filter Form -->
+<form method="get" asp-action="Index" class="card border-0 shadow-sm mb-3">
+    <div class="card-body p-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-semibold small mb-1">Search Keywords</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" value="@f.Search" class="form-control"
+                           placeholder="Patient name / code / action / notes" />
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold small mb-1">Order / Bill No</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light"><i class="bi bi-receipt"></i></span>
+                    <input type="text" name="referenceNo" value="@f.ReferenceNo" class="form-control"
+                           placeholder="e.g. LAB/HO... or OPD/HO..." />
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold small mb-1">Event Category</label>
+                <select name="eventType" class="form-select form-select-sm">
+                    <option value="">All Categories</option>
+                    @foreach (var et in Model.AvailableEventTypes)
+                    {
+                        if (f.EventType == et)
+                        { <option value="@et" selected>@et</option> }
+                        else
+                        { <option value="@et">@et</option> }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold small mb-1">From Date</label>
+                <input type="date" name="dateFrom" value="@(f.DateFrom?.ToString("yyyy-MM-dd"))"
+                       class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-1">
+                <label class="form-label fw-semibold small mb-1">To Date</label>
+                <input type="date" name="dateTo" value="@(f.DateTo?.ToString("yyyy-MM-dd"))"
+                       class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-1">
+                <label class="form-label fw-semibold small mb-1">Per Page</label>
+                <select name="pageSize" class="form-select form-select-sm">
+                    @if (f.PageSize == 25)  { <option value="25"  selected>25</option>  } else { <option value="25">25</option>  }
+                    @if (f.PageSize == 50)  { <option value="50"  selected>50</option>  } else { <option value="50">50</option>  }
+                    @if (f.PageSize == 100) { <option value="100" selected>100</option> } else { <option value="100">100</option> }
+                </select>
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <input type="hidden" name="moduleCode" value="@curMod" />
+                <input type="hidden" name="page" value="1" />
+                <button type="submit" class="btn btn-primary btn-sm flex-fill" title="Apply Filter">
+                    <i class="bi bi-funnel-fill"></i>
+                </button>
+                <a asp-action="Index" class="btn btn-outline-secondary btn-sm" title="Reset Filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
             </div>
         </div>
-        <div class="col-md-2">
-            <label class="form-label fw-semibold small mb-1">Event Type</label>
-            <select name="eventType" class="form-select form-select-sm">
-                <option value="">All Events</option>
-                @foreach (var et in Model.AvailableEventTypes)
-                {
-                    if (f.EventType == et)
-                    { <option value="@et" selected>@et</option> }
-                    else
-                    { <option value="@et">@et</option> }
-                }
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-semibold small mb-1">From Date</label>
-            <input type="date" name="dateFrom" value="@(f.DateFrom?.ToString("yyyy-MM-dd"))"
-                   class="form-control form-control-sm" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-semibold small mb-1">To Date</label>
-            <input type="date" name="dateTo" value="@(f.DateTo?.ToString("yyyy-MM-dd"))"
-                   class="form-control form-control-sm" />
-        </div>
-        <div class="col-md-1">
-            <label class="form-label fw-semibold small mb-1">Per Page</label>
-            <select name="pageSize" class="form-select form-select-sm">
-                @if (f.PageSize == 25)  { <option value="25"  selected>25</option>  } else { <option value="25">25</option>  }
-                @if (f.PageSize == 50)  { <option value="50"  selected>50</option>  } else { <option value="50">50</option>  }
-                @if (f.PageSize == 100) { <option value="100" selected>100</option> } else { <option value="100">100</option> }
-            </select>
-        </div>
-        <div class="col-md-2 d-flex gap-2">
-            <button type="submit" class="btn btn-primary btn-sm w-100">
-                <i class="bi bi-funnel-fill me-1"></i>Filter
-            </button>
-            <a asp-action="Index" class="btn btn-outline-secondary btn-sm" title="Clear filters">
-                <i class="bi bi-x-lg"></i>
-            </a>
-        </div>
     </div>
-    <input type="hidden" name="page" value="1" />
 </form>
 
-<div class="dashboard-panel table-responsive">
-    <table class="table table-hover align-middle mb-0">
-        <thead>
-            <tr>
-                <th>Timestamp (UTC)</th>
-                <th>Event</th>
-                <th>Action</th>
-                <th>User</th>
-                <th>Branch</th>
-                <th>IP</th>
-                <th>Description</th>
-                <th class="text-end">View</th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (!Model.Items.Any())
-            {
-                <tr>
-                    <td colspan="8" class="text-center text-muted py-4">
-                        <i class="bi bi-journal-x fs-3 d-block mb-2"></i>No audit logs match the selected filters.
-                    </td>
+<!-- Table of Logs -->
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr class="text-uppercase small text-muted" style="letter-spacing: 0.5px; font-size: 0.75rem;">
+                    <th style="width: 140px;">Timestamp</th>
+                    <th style="width: 130px;">Lifecycle</th>
+                    <th style="width: 160px;">Reference No</th>
+                    <th>Action</th>
+                    <th>User & Branch</th>
+                    <th>Human-Readable Description</th>
+                    <th class="text-end" style="width: 70px;">View</th>
                 </tr>
-            }
-            @foreach (var item in Model.Items)
-            {
-                <tr>
-                    <td class="text-nowrap">@item.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                    <td><span class="badge text-bg-light border">@item.EventType</span></td>
-                    <td>@item.ActionName</td>
-                    <td>@item.Username</td>
-                    <td>@item.BranchName</td>
-                    <td>@item.IpAddress</td>
-                    <td class="text-truncate" style="max-width:220px">@item.Description</td>
-                    <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-secondary"
-                                title="View Details"
-                                data-bs-toggle="modal"
-                                data-bs-target="#auditModal"
-                                data-ts="@item.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss") UTC"
-                                data-event="@item.EventType"
-                                data-action="@item.ActionName"
-                                data-controller="@(item.ControllerName ?? "—")"
-                                data-route="@(item.RoutePath ?? "—")"
-                                data-method="@(item.HttpMethod ?? "—")"
-                                data-user="@item.Username"
-                                data-branch="@item.BranchName"
-                                data-ip="@(item.IpAddress ?? "—")"
-                                data-agent="@(item.UserAgent ?? "—")"
-                                data-desc="@(item.Description ?? "—")">
-                            <i class="bi bi-eye-fill"></i>
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-journal-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            <div class="fw-semibold">No audit activity logs found</div>
+                            <small>Try selecting a different module tab or clearing the filters.</small>
+                        </td>
+                    </tr>
+                }
+                @foreach (var item in Model.Items)
+                {
+                    string badgeClass = "badge-default";
+                    string iconClass = "bi-dot";
+                    var ev = (item.EventType ?? "").ToLowerInvariant();
+
+                    if (ev.Contains("opd"))
+                    {
+                        badgeClass = "badge-opd";
+                        iconClass = "bi-hospital";
+                    }
+                    else if (ev.Contains("lab") || ev.Contains("order"))
+                    {
+                        badgeClass = "badge-lab";
+                        iconClass = "bi-droplet-half";
+                    }
+                    else if (ev.Contains("payment"))
+                    {
+                        badgeClass = "badge-payment";
+                        iconClass = "bi-cash-coin";
+                    }
+                    else if (ev.Contains("sample"))
+                    {
+                        badgeClass = "badge-sample";
+                        iconClass = "bi-eyedropper";
+                    }
+                    else if (ev.Contains("report"))
+                    {
+                        badgeClass = "badge-reporting";
+                        iconClass = "bi-file-earmark-medical";
+                    }
+                    else if (ev.Contains("cancel") || ev.Contains("refund"))
+                    {
+                        badgeClass = "badge-cancel";
+                        iconClass = "bi-x-circle";
+                    }
+                    else if (ev.StartsWith("auth") || ev.Contains("account"))
+                    {
+                        badgeClass = "badge-security";
+                        iconClass = "bi-shield-check";
+                    }
+
+                    var userInitial = !string.IsNullOrEmpty(item.Username) ? item.Username.Substring(0, 1).ToUpper() : "S";
+
+                    <tr>
+                        <td class="text-nowrap">
+                            <div class="fw-bold small text-dark">@item.CreatedDate.ToString("dd-MMM-yyyy")</div>
+                            <div class="text-muted" style="font-size:0.75rem;">@item.CreatedDate.ToString("HH:mm:ss") UTC</div>
+                        </td>
+                        <td>
+                            <span class="badge @badgeClass d-inline-flex align-items-center gap-1">
+                                <i class="bi @iconClass"></i>
+                                @(string.IsNullOrWhiteSpace(item.EventType) ? "General" : item.EventType)
+                            </span>
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(item.ReferenceNo))
+                            {
+                                <a href="@Q(refNo: item.ReferenceNo)" class="ref-pill" title="Filter by this reference: @item.ReferenceNo">
+                                    <i class="bi bi-tag text-primary"></i>@item.ReferenceNo
+                                </a>
+                                @if (!string.IsNullOrWhiteSpace(item.PatientCode))
+                                {
+                                    <div class="small text-muted mt-1" style="font-size:0.75rem;">
+                                        <i class="bi bi-person me-1"></i>@item.PatientCode
+                                    </div>
+                                }
+                            }
+                            else if (!string.IsNullOrWhiteSpace(item.PatientCode))
+                            {
+                                <span class="ref-pill">
+                                    <i class="bi bi-person text-secondary"></i>@item.PatientCode
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">—</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="fw-semibold small text-dark">@item.ActionName</div>
+                            @if (!string.IsNullOrEmpty(item.RoutePath))
+                            {
+                                <div class="text-muted" style="font-size:0.72rem; word-break:break-all;">@item.HttpMethod @item.RoutePath</div>
+                            }
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="user-avatar-circle">@userInitial</span>
+                                <div>
+                                    <div class="fw-semibold small text-dark">@item.Username</div>
+                                    <div class="text-muted" style="font-size:0.72rem;"><i class="bi bi-geo-alt me-1"></i>@item.BranchName</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="log-desc-text">
+                                @(item.Description ?? "—")
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle"
+                                    style="width:32px; height:32px; padding:0;"
+                                    title="View Full Details"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#auditModal"
+                                    data-id="@item.Id"
+                                    data-ts="@item.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss") UTC"
+                                    data-event="@item.EventType"
+                                    data-action="@item.ActionName"
+                                    data-module="@(item.ModuleCode ?? "—")"
+                                    data-refno="@(item.ReferenceNo ?? "—")"
+                                    data-refid="@(item.ReferenceId?.ToString() ?? "—")"
+                                    data-patcode="@(item.PatientCode ?? "—")"
+                                    data-controller="@(item.ControllerName ?? "—")"
+                                    data-route="@(item.RoutePath ?? "—")"
+                                    data-method="@(item.HttpMethod ?? "—")"
+                                    data-user="@item.Username"
+                                    data-branch="@item.BranchName"
+                                    data-ip="@(item.IpAddress ?? "—")"
+                                    data-agent="@(item.UserAgent ?? "—")"
+                                    data-desc="@(item.Description ?? "—")"
+                                    data-meta="@(item.MetadataJson ?? "")">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </div>
 
+<!-- Pagination -->
 @if (Model.TotalPages > 1)
 {
     <div class="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
@@ -202,32 +492,116 @@
     </div>
 }
 
+<!-- Enhanced Detail Modal -->
 <div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header" style="background: linear-gradient(90deg, #f0f4ff 0%, #eaf2ff 100%); border-bottom: 1px solid #d8e4f5;">
-                <h5 class="modal-title fw-bold" id="auditModalLabel" style="color:var(--emr-primary)">
-                    <i class="bi bi-journal-text me-2"></i>Audit Log Detail
-                </h5>
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-light border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="bg-primary text-white rounded p-2 d-inline-flex align-items-center justify-content-center">
+                        <i class="bi bi-shield-check fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="auditModalLabel">Activity Audit Trail Detail</h5>
+                        <small class="text-muted" id="am-header-sub"></small>
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <div class="row g-3">
-                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Timestamp</div><div class="detail-value" id="am-ts"></div></div></div>
-                    <div class="col-md-3"><div class="detail-field"><div class="detail-label">Event Type</div><div class="detail-value" id="am-event"></div></div></div>
-                    <div class="col-md-3"><div class="detail-field"><div class="detail-label">HTTP Method</div><div class="detail-value" id="am-method"></div></div></div>
-                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Action</div><div class="detail-value" id="am-action"></div></div></div>
-                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Controller</div><div class="detail-value" id="am-controller"></div></div></div>
-                    <div class="col-12"><div class="detail-field"><div class="detail-label">Route Path</div><div class="detail-value" id="am-route"></div></div></div>
-                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">User</div><div class="detail-value" id="am-user"></div></div></div>
-                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">Branch</div><div class="detail-value" id="am-branch"></div></div></div>
-                    <div class="col-md-6"><div class="detail-field"><div class="detail-label">IP Address</div><div class="detail-value" id="am-ip"></div></div></div>
-                    <div class="col-12"><div class="detail-field"><div class="detail-label">User Agent</div><div class="detail-value small" id="am-agent" style="word-break:break-all"></div></div></div>
-                    <div class="col-12"><div class="detail-field"><div class="detail-label">Description</div><div class="detail-value" id="am-desc"></div></div></div>
+                <!-- Human-Readable Narrative Card -->
+                <div class="card bg-primary-subtle border border-primary-subtle mb-4">
+                    <div class="card-body">
+                        <h6 class="fw-bold text-primary mb-2"><i class="bi bi-info-circle me-1"></i>Activity Summary</h6>
+                        <div class="text-dark fs-6" id="am-desc" style="line-height:1.6;"></div>
+                    </div>
+                </div>
+
+                <!-- Order & Entity Tracking Reference -->
+                <div class="card border mb-4">
+                    <div class="card-header bg-light py-2">
+                        <span class="fw-bold small text-uppercase text-secondary">
+                            <i class="bi bi-crosshair me-1"></i>Order / Lifecycle Tracking Context
+                        </span>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="text-muted small">Module</div>
+                                <div class="fw-bold" id="am-module"></div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Reference / Bill No</div>
+                                <div class="fw-bold text-primary font-monospace" id="am-refno"></div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Patient Code</div>
+                                <div class="fw-bold" id="am-patcode"></div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small">Reference ID</div>
+                                <div class="fw-bold" id="am-refid"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metadata JSON if available -->
+                <div id="am-meta-container" class="card border mb-4" style="display:none;">
+                    <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold small text-uppercase text-secondary">
+                            <i class="bi bi-code-square me-1"></i>Structured Financial & Itemized Payload
+                        </span>
+                        <span class="badge bg-secondary">JSON Metadata</span>
+                    </div>
+                    <div class="card-body p-3">
+                        <pre class="bg-dark text-light p-3 rounded mb-0 small" id="am-meta" style="max-height:220px; overflow-y:auto;"></pre>
+                    </div>
+                </div>
+
+                <!-- Technical Footprint -->
+                <div class="card border">
+                    <div class="card-header bg-light py-2">
+                        <span class="fw-bold small text-uppercase text-secondary">
+                            <i class="bi bi-hdd-network me-1"></i>Technical System Footprint
+                        </span>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="row g-3 small">
+                            <div class="col-md-4">
+                                <span class="text-muted d-block">Timestamp (UTC)</span>
+                                <span class="fw-semibold text-dark" id="am-ts"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted d-block">Operator / User</span>
+                                <span class="fw-semibold text-dark" id="am-user"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted d-block">Branch</span>
+                                <span class="fw-semibold text-dark" id="am-branch"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted d-block">Action Method</span>
+                                <span class="fw-semibold text-dark" id="am-action"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted d-block">HTTP Route</span>
+                                <span class="fw-semibold text-dark" id="am-route"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-muted d-block">Client IP</span>
+                                <span class="fw-semibold text-dark" id="am-ip"></span>
+                            </div>
+                            <div class="col-12">
+                                <span class="text-muted d-block">Browser User Agent</span>
+                                <span class="text-secondary small text-break" id="am-agent"></span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -237,17 +611,37 @@
 <script>
 document.getElementById('auditModal').addEventListener('show.bs.modal', function (e) {
     const b = e.relatedTarget;
+    document.getElementById('am-header-sub').textContent = `Log Entry #${b.dataset.id} • ${b.dataset.ts}`;
+    document.getElementById('am-desc').textContent       = b.dataset.desc || '—';
+    document.getElementById('am-module').textContent     = b.dataset.module || '—';
+    document.getElementById('am-refno').textContent      = b.dataset.refno || '—';
+    document.getElementById('am-patcode').textContent    = b.dataset.patcode || '—';
+    document.getElementById('am-refid').textContent      = b.dataset.refid || '—';
+
     document.getElementById('am-ts').textContent         = b.dataset.ts;
-    document.getElementById('am-event').textContent      = b.dataset.event;
-    document.getElementById('am-method').textContent     = b.dataset.method;
-    document.getElementById('am-action').textContent     = b.dataset.action;
-    document.getElementById('am-controller').textContent = b.dataset.controller;
-    document.getElementById('am-route').textContent      = b.dataset.route;
     document.getElementById('am-user').textContent       = b.dataset.user;
     document.getElementById('am-branch').textContent     = b.dataset.branch;
+    document.getElementById('am-action').textContent     = b.dataset.action;
+    document.getElementById('am-route').textContent      = `${b.dataset.method} ${b.dataset.route}`;
     document.getElementById('am-ip').textContent         = b.dataset.ip;
     document.getElementById('am-agent').textContent      = b.dataset.agent;
-    document.getElementById('am-desc').textContent       = b.dataset.desc;
+
+    const metaContainer = document.getElementById('am-meta-container');
+    const metaPre = document.getElementById('am-meta');
+    const metaStr = b.dataset.meta;
+    if (metaStr && metaStr.trim().length > 0) {
+        try {
+            const parsed = JSON.parse(metaStr);
+            metaPre.textContent = JSON.stringify(parsed, null, 2);
+            metaContainer.style.display = 'block';
+        } catch {
+            metaPre.textContent = metaStr;
+            metaContainer.style.display = 'block';
+        }
+    } else {
+        metaContainer.style.display = 'none';
+        metaPre.textContent = '';
+    }
 });
 </script>
 }

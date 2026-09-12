@@ -15,7 +15,7 @@ namespace EMR.Web.Models.DTOs
     public class LabOrderItemRequestDto
     {
         public int InvestigationId { get; set; }
-        public string? Type { get; set; } = "I"; // 'P' or 'I'
+        public string? Type { get; set; } // 'P' or 'I'
         public decimal Price { get; set; }
         public bool IsPackage { get; set; }
         public bool IsUrgent { get; set; }
@@ -43,6 +43,7 @@ namespace EMR.Web.Models.DTOs
         public string? Method { get; set; }
         public bool IsDiscountAllowed { get; set; }
         public bool IsPackage { get; set; }
+        public bool IsOutsourced { get; set; }
     }
 
     public class DepartmentDto
@@ -164,7 +165,7 @@ namespace EMR.Web.Models.DTOs
         public string? DepartmentName { get; set; }
         public string? CategoryName { get; set; }
         public string? SubCategoryName { get; set; }
-        public string? Type { get; set; } = "I";
+        public string? Type { get; set; }
         public decimal Price { get; set; }
         public bool IsUrgent { get; set; }
         public decimal DiscountAmount { get; set; }

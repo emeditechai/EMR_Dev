@@ -635,34 +635,34 @@
 
     /* ── Tube Cap Styling in Details Table ── */
     .cap-badge-yellow {
-        background-color: #fef08a;
-        color: #854d0e;
-        border: 1px solid #fde047;
+        background-color: #fef08a !important;
+        color: #854d0e !important;
+        border-color: #fde047 !important;
     }
     .cap-badge-purple {
-        background-color: #f3e8ff;
-        color: #6b21a8;
-        border: 1px solid #d8b4fe;
+        background-color: #f3e8ff !important;
+        color: #6b21a8 !important;
+        border-color: #d8b4fe !important;
     }
     .cap-badge-blue {
-        background-color: #e0f2fe;
-        color: #0369a1;
-        border: 1px solid #bae6fd;
+        background-color: #e0f2fe !important;
+        color: #0369a1 !important;
+        border-color: #bae6fd !important;
     }
     .cap-badge-grey {
-        background-color: #f1f5f9;
-        color: #475569;
-        border: 1px solid #cbd5e1;
+        background-color: #f1f5f9 !important;
+        color: #475569 !important;
+        border-color: #cbd5e1 !important;
     }
     .cap-badge-red {
-        background-color: #fee2e2;
-        color: #b91c1c;
-        border: 1px solid #fecaca;
+        background-color: #fee2e2 !important;
+        color: #b91c1c !important;
+        border-color: #fecaca !important;
     }
     .cap-badge-green {
-        background-color: #dcfce7;
-        color: #166534;
-        border: 1px solid #86efac;
+        background-color: #dcfce7 !important;
+        color: #166534 !important;
+        border-color: #86efac !important;
     }
 
     #tblWorkspaceTests {
@@ -940,88 +940,71 @@
                         .attr('title', `Collect all ${pendingCount} pending sample(s) for this order`);
                 }
 
-                // Group items by Profile / Package or Standalone
-                // Profile items sharing profileId share the same barcode
-                const groups = [];
-                const profileGroupsMap = {};
+                // Group items hierarchically: Package -> Profile -> Items
+                const packagesMap = {};
+                const standaloneProfilesMap = {};
                 const standaloneTests = [];
 
                 items.forEach(item => {
-                    const profileKey = item.profileId ? `PRF_${item.profileId}` : (item.profileName ? `PRFN_${item.profileName}` : null);
-                    const packageKey = item.packageId ? `PKG_${item.packageId}` : null;
+                    const hasProfile = !!(item.profileId || (item.profileName && item.profileName !== '—'));
+                    const hasPackage = !!(item.packageId || (item.packageName && item.packageName !== '—'));
 
-                    if (profileKey) {
-                        if (!profileGroupsMap[profileKey]) {
-                            profileGroupsMap[profileKey] = {
-                                type: 'Profile',
-                                name: item.profileName || item.profileOrPackageName || 'Profile',
-                                profileId: item.profileId,
-                                packageName: item.packageName,
-                                items: []
-                            };
-                            groups.push(profileGroupsMap[profileKey]);
-                        }
-                        profileGroupsMap[profileKey].items.push(item);
-                    } else if (packageKey) {
-                        // Standalone test within a package
-                        if (!profileGroupsMap[packageKey]) {
-                            profileGroupsMap[packageKey] = {
+                    if (hasPackage) {
+                        const pkgKey = `PKG_${item.packageId || item.packageName}`;
+                        if (!packagesMap[pkgKey]) {
+                            packagesMap[pkgKey] = {
                                 type: 'Package',
                                 name: item.packageName || item.profileOrPackageName || 'Package',
                                 packageId: item.packageId,
+                                profiles: {},
+                                standaloneItems: []
+                            };
+                        }
+                        const pkgGrp = packagesMap[pkgKey];
+
+                        if (hasProfile) {
+                            const profKey = `PRF_${item.profileId || item.profileName}`;
+                            if (!pkgGrp.profiles[profKey]) {
+                                pkgGrp.profiles[profKey] = {
+                                    type: 'Profile',
+                                    name: item.profileName,
+                                    profileId: item.profileId,
+                                    packageName: item.packageName,
+                                    items: []
+                                };
+                            }
+                            pkgGrp.profiles[profKey].items.push(item);
+                        } else {
+                            pkgGrp.standaloneItems.push(item);
+                        }
+                    } else if (hasProfile) {
+                        const profKey = `PRF_${item.profileId || item.profileName}`;
+                        if (!standaloneProfilesMap[profKey]) {
+                            standaloneProfilesMap[profKey] = {
+                                type: 'Profile',
+                                name: item.profileName,
+                                profileId: item.profileId,
                                 items: []
                             };
-                            groups.push(profileGroupsMap[packageKey]);
                         }
-                        profileGroupsMap[packageKey].items.push(item);
+                        standaloneProfilesMap[profKey].items.push(item);
                     } else {
                         standaloneTests.push(item);
                     }
                 });
 
-                if (standaloneTests.length > 0) {
-                    groups.push({
-                        type: 'Standalone',
-                        name: 'Individual Investigations',
-                        items: standaloneTests
-                    });
-                }
-
-                // Render Table Rows with Container Details per Investigation
                 let rowsHtml = '';
                 let rowNum = 0;
                 let grpIndex = 0;
 
-                groups.forEach(grp => {
+                function renderProfileHeader(profGrp, parentPkgGrpId) {
                     grpIndex++;
-                    const isProfile = (grp.type === 'Profile');
-                    const isPkg = (grp.type === 'Package');
                     const grpId = `grp_${grpIndex}`;
-
-                    let headerIcon = 'bi-card-checklist';
-                    let headerBadge = 'Individual Tests';
-                    let headerClass = 'table-light text-secondary';
-
-                    if (isProfile) {
-                        headerIcon = 'bi-folder2-open';
-                        headerBadge = 'Profile Test';
-                        headerClass = 'table-primary-subtle text-primary';
-                    } else if (isPkg) {
-                        headerIcon = 'bi-box-seam';
-                        headerBadge = 'Package';
-                        headerClass = 'table-info-subtle text-info-emphasis';
-                    }
-
-                    // Shared Profile Barcode info if collected
-                    const sharedBarcode = isProfile ? grp.items.find(x => x.barcodeNo)?.barcodeNo : null;
-
-                    // Common status among items in this profile (if all are same, show that; otherwise default to Pending or first item status)
-                    const firstStatus = grp.items[0]?.collectionstatusID || 1;
-                    const allSameStatus = grp.items.every(x => x.collectionstatusID === firstStatus);
+                    const sharedBarcode = profGrp.items.find(x => x.barcodeNo)?.barcodeNo || null;
+                    const firstStatus = profGrp.items[0]?.collectionstatusID || 1;
+                    const allSameStatus = profGrp.items.every(x => x.collectionstatusID === firstStatus);
                     const groupSelectedStatus = allSameStatus ? firstStatus : 1;
-
-                    // Is entire profile collected?
-                    const isAllProfileCollected = isProfile && grp.items.length > 0 && grp.items.every(x => x.collectionstatusID === 2);
+                    const isAllProfileCollected = profGrp.items.length > 0 && profGrp.items.every(x => x.collectionstatusID === 2);
 
                     let profileStatusOptionsHtml = '';
                     statuses.forEach(st => {
@@ -1029,20 +1012,24 @@
                         profileStatusOptionsHtml += `<option value="${st.statusID}" ${isSelected}>${escapeHtml(st.statusName)}</option>`;
                     });
 
-                    // First item's collection date/time for profile default
-                    const firstDate = grp.items[0]?.samplecollectiondate;
-                    const firstTime = grp.items[0]?.samplecollectiontime;
+                    const firstDate = profGrp.items[0]?.samplecollectiondate;
+                    const firstTime = profGrp.items[0]?.samplecollectiontime;
                     const defaultProfileDt = getFormattedDateTimeForInput(firstDate, firstTime);
 
-                    rowsHtml += `
-                        <tr class="${headerClass} group-header-row" id="groupHeader_${grpId}">
+                    const nestedClass = parentPkgGrpId ? `profile-nested child-of-${parentPkgGrpId}` : '';
+                    const msClass = parentPkgGrpId ? 'ms-4' : '';
+
+                    return {
+                        grpId: grpId,
+                        html: `
+                        <tr class="table-primary-subtle text-primary group-header-row ${nestedClass}" id="groupHeader_${grpId}">
                             <td colspan="7" class="py-2 px-3 fw-bold">
-                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 ${msClass}">
                                     <div class="d-flex align-items-center profile-collapse-toggle" data-target="${grpId}" title="Click to Expand/Collapse">
                                         <i class="bi bi-chevron-down me-2 profile-collapse-icon text-primary fs-7" id="icon_${grpId}"></i>
-                                        <i class="bi ${headerIcon} me-2 fs-7"></i>
-                                        <span class="fs-8 text-dark fw-bold">${escapeHtml(grp.name)}</span>
-                                        <span class="badge bg-white text-dark border ms-2 fs-9">${grp.items.length} Test(s)</span>
+                                        <i class="bi bi-folder2-open me-2 fs-7"></i>
+                                        <span class="fs-8 text-dark fw-bold">${escapeHtml(profGrp.name)}</span>
+                                        <span class="badge bg-white text-dark border ms-2 fs-9">${profGrp.items.length} Test(s)</span>
                                         ${sharedBarcode ? `
                                             <span class="badge bg-success-subtle text-success border border-success-subtle fs-9 ms-2 d-inline-flex align-items-center gap-1">
                                                 <i class="bi bi-upc-scan"></i> Tube Barcode: <strong>${escapeHtml(sharedBarcode)}</strong>
@@ -1050,37 +1037,18 @@
                                             </span>
                                         ` : ''}
                                     </div>
-                                    ${isProfile ? (
-                                        isAllProfileCollected ? `
-                                        <div class="d-flex align-items-center gap-2 profile-action-controls">
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-9 fw-semibold">
-                                                <i class="bi bi-check2-all me-1"></i>Profile Collected
-                                            </span>
-                                            <span class="fs-9 text-muted d-none d-md-inline">
-                                                <i class="bi bi-clock me-1"></i>${formatCollectionDateTime(firstDate, firstTime)}
-                                            </span>
-                                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 btn-toggle-profile-edit" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''} title="Change Profile collection status">
-                                                <i class="bi bi-pencil-square me-1"></i>Edit
-                                            </button>
-                                            <div class="profile-edit-wrapper d-none d-inline-flex align-items-center gap-2 ms-1 ps-2 border-start" id="profileEdit_${grpId}">
-                                                <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''}>
-                                                    ${profileStatusOptionsHtml}
-                                                </select>
-                                                <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
-                                                       data-grpid="${grpId}" value="${defaultProfileDt}" ${!isAllowedToday ? 'disabled' : ''} />
-                                                <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
-                                                        data-grpid="${grpId}"
-                                                        data-profileid="${grp.profileId || ''}"
-                                                        data-profilename="${escapeHtml(grp.name)}"
-                                                        ${!isAllowedToday ? 'disabled' : ''}
-                                                        title="${isAllowedToday ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
-                                                    <i class="bi ${isAllowedToday ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
-                                                </button>
-                                            </div>
-                                        </div>
-                                        ` : `
-                                        <div class="d-flex align-items-center gap-2 profile-action-controls">
-                                            <span class="fs-9 text-muted fw-normal me-1 d-none d-sm-inline">Profile Status:</span>
+                                    ${isAllProfileCollected ? `
+                                    <div class="d-flex align-items-center gap-2 profile-action-controls">
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-9 fw-semibold">
+                                            <i class="bi bi-check2-all me-1"></i>Profile Collected
+                                        </span>
+                                        <span class="fs-9 text-muted d-none d-md-inline">
+                                            <i class="bi bi-clock me-1"></i>${formatCollectionDateTime(firstDate, firstTime)}
+                                        </span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 btn-toggle-profile-edit" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''} title="Change Profile collection status">
+                                            <i class="bi bi-pencil-square me-1"></i>Edit
+                                        </button>
+                                        <div class="profile-edit-wrapper d-none d-inline-flex align-items-center gap-2 ms-1 ps-2 border-start" id="profileEdit_${grpId}">
                                             <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''}>
                                                 ${profileStatusOptionsHtml}
                                             </select>
@@ -1088,24 +1056,116 @@
                                                    data-grpid="${grpId}" value="${defaultProfileDt}" ${!isAllowedToday ? 'disabled' : ''} />
                                             <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                     data-grpid="${grpId}"
-                                                    data-profileid="${grp.profileId || ''}"
-                                                    data-profilename="${escapeHtml(grp.name)}"
+                                                    data-profileid="${profGrp.profileId || ''}"
+                                                    data-profilename="${escapeHtml(profGrp.name)}"
                                                     ${!isAllowedToday ? 'disabled' : ''}
                                                     title="${isAllowedToday ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
                                                 <i class="bi ${isAllowedToday ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
                                             </button>
                                         </div>
-                                        `
-                                    ) : ''}
+                                    </div>
+                                    ` : `
+                                    <div class="d-flex align-items-center gap-2 profile-action-controls">
+                                        <span class="fs-9 text-muted fw-normal me-1 d-none d-sm-inline">Profile Status:</span>
+                                        <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''}>
+                                            ${profileStatusOptionsHtml}
+                                        </select>
+                                        <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
+                                               data-grpid="${grpId}" value="${defaultProfileDt}" ${!isAllowedToday ? 'disabled' : ''} />
+                                        <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                                data-grpid="${grpId}"
+                                                data-profileid="${profGrp.profileId || ''}"
+                                                data-profilename="${escapeHtml(profGrp.name)}"
+                                                ${!isAllowedToday ? 'disabled' : ''}
+                                                title="${isAllowedToday ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                            <i class="bi ${isAllowedToday ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
+                                        </button>
+                                    </div>
+                                    `}
+                                </div>
+                            </td>
+                        </tr>
+                        `
+                    };
+                }
+
+                function renderPackageHeader(pkgGrp) {
+                    grpIndex++;
+                    const grpId = `grp_${grpIndex}`;
+                    const itemsCount = Object.values(pkgGrp.profiles).reduce((acc, p) => acc + p.items.length, 0) + pkgGrp.standaloneItems.length;
+
+                    return {
+                        grpId: grpId,
+                        html: `
+                        <tr class="table-info-subtle text-info-emphasis group-header-row" id="groupHeader_${grpId}">
+                            <td colspan="7" class="py-2 px-3 fw-bold">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                    <div class="d-flex align-items-center profile-collapse-toggle" data-target="${grpId}" title="Click to Expand/Collapse">
+                                        <i class="bi bi-chevron-down me-2 profile-collapse-icon text-info fs-7" id="icon_${grpId}"></i>
+                                        <i class="bi bi-box-seam me-2 fs-7"></i>
+                                        <span class="fs-8 text-dark fw-bold">${escapeHtml(pkgGrp.name)}</span>
+                                        <span class="badge bg-white text-dark border ms-2 fs-9">${itemsCount} Test(s)</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        `
+                    };
+                }
+
+                // 1. Render Packages
+                Object.values(packagesMap).forEach(pkgGrp => {
+                    const pkgHeader = renderPackageHeader(pkgGrp);
+                    rowsHtml += pkgHeader.html;
+
+                    // Render Profiles inside Package
+                    Object.values(pkgGrp.profiles).forEach(profGrp => {
+                        const profHeader = renderProfileHeader(profGrp, pkgHeader.grpId);
+                        rowsHtml += profHeader.html;
+                        profGrp.items.forEach(test => renderTestRow(test, profHeader.grpId, pkgHeader.grpId));
+                    });
+
+                    // Render Standalone Items inside Package
+                    pkgGrp.standaloneItems.forEach(test => renderTestRow(test, null, pkgHeader.grpId));
+                });
+
+                // 2. Render Standalone Profiles
+                Object.values(standaloneProfilesMap).forEach(profGrp => {
+                    const profHeader = renderProfileHeader(profGrp, null);
+                    rowsHtml += profHeader.html;
+                    profGrp.items.forEach(test => renderTestRow(test, profHeader.grpId, null));
+                });
+
+                // 3. Render Standalone Items
+                if (standaloneTests.length > 0) {
+                    grpIndex++;
+                    const grpId = `grp_${grpIndex}`;
+                    rowsHtml += `
+                        <tr class="table-light text-secondary group-header-row" id="groupHeader_${grpId}">
+                            <td colspan="7" class="py-2 px-3 fw-bold">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                    <div class="d-flex align-items-center profile-collapse-toggle" data-target="${grpId}" title="Click to Expand/Collapse">
+                                        <i class="bi bi-chevron-down me-2 profile-collapse-icon text-secondary fs-7" id="icon_${grpId}"></i>
+                                        <i class="bi bi-card-checklist me-2 fs-7"></i>
+                                        <span class="fs-8 text-dark fw-bold">Individual Investigations</span>
+                                        <span class="badge bg-white text-dark border ms-2 fs-9">${standaloneTests.length} Test(s)</span>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
                     `;
+                    standaloneTests.forEach(test => renderTestRow(test, grpId, null));
+                }
 
-                    grp.items.forEach(test => {
-                        rowNum++;
+                function renderTestRow(test, parentProfGrpId, parentPkgGrpId) {
+                    rowNum++;
+                    
+                    const childOfPkgClass = parentPkgGrpId ? `child-of-${parentPkgGrpId}` : '';
+                    const childOfProfClass = parentProfGrpId ? `child-of-${parentProfGrpId}` : '';
+                    const childOfGrpClass = childOfPkgClass || childOfProfClass;
+                    const rowGrpId = parentProfGrpId || parentPkgGrpId;
 
-                        // Container badge styling based on investigation
+                    // Container badge styling based on investigation
                         const cTypeLower = (test.containerType || '').toLowerCase();
                         const sTypeLower = (test.sampleTypeName || '').toLowerCase();
 
@@ -1209,38 +1269,37 @@
                             `;
                         }
 
+                        const isOutsourced = Boolean(test.isoutSource || test.IsoutSource || test.isOutsourced || test.IsOutsourced);
+                        const outsourcedBadge = isOutsourced
+                            ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1" style="font-size:0.68rem;padding:0.2rem 0.45rem" title="Outsourced Test"><i class="bi bi-box-arrow-up-right me-1"></i>Outsourced</span>`
+                            : '';
+
                         rowsHtml += `
-                            <tr id="testRow_${test.samplecollectionID}" class="test-item-row row-group-${grpId}" data-id="${test.samplecollectionID}" data-grpid="${grpId}">
-                                <td class="text-center text-muted fw-bold fs-9">${rowNum}</td>
-                                <td>
-                                    <div class="fw-bold text-dark fs-8">${escapeHtml(test.testName)}</div>
-                                    <div class="fs-9 text-muted mt-1">
-                                        <span class="badge bg-light text-dark border me-1">${escapeHtml(test.testCode)}</span>
-                                        ${test.profileName && test.profileName !== '—'
-                                            ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1"><i class="bi bi-folder2 me-1"></i>${escapeHtml(test.profileName)}</span>`
-                                            : ''}
-                                        ${test.packageName && test.packageName !== '—'
-                                            ? `<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-box-seam me-1"></i>${escapeHtml(test.packageName)}</span>`
-                                            : ''}
+                            <tr class="item-row row-group-${rowGrpId} ${childOfGrpClass}" id="row_${test.samplecollectionID}">
+                                <td class="ps-3 text-muted fw-bold">${rowNum}</td>
+                                <td class="ps-3">
+                                    ${test.packageName && test.packageName !== '—' && !parentPkgGrpId ? `<div class="fs-9 text-info-emphasis fw-semibold mb-0.5"><i class="bi bi-box-seam me-1"></i>Pkg: ${escapeHtml(test.packageName)}</div>` : ''}
+                                    ${test.profileName && test.profileName !== '—' && !parentProfGrpId ? `<div class="fs-9 text-primary fw-semibold mb-0.5"><i class="bi bi-folder2-open me-1"></i>Prof: ${escapeHtml(test.profileName)}</div>` : ''}
+                                    <div class="fw-bold text-dark fs-7">${escapeHtml(test.testName)}</div>
+                                    <div class="fs-9 text-muted mt-1 d-flex align-items-center gap-2">
+                                        <span class="badge bg-light text-secondary border">${escapeHtml(test.testCode)}</span>
+                                        ${test.departmentName ? `<span class="text-muted"><i class="bi bi-building me-1"></i>${escapeHtml(test.departmentName)}</span>` : ''}
+                                        ${test.isoutSource ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle py-0"><i class="bi bi-box-arrow-up-right me-1"></i>Outsourced</span>` : ''}
                                     </div>
                                 </td>
-                                <!-- Container & Specimen based on Investigation -->
                                 <td>
-                                    <span class="badge ${capBadgeClass} fs-9 text-truncate" style="max-width: 150px;">
+                                    <span class="badge fs-9 cap-badge ${capBadgeClass} border">
                                         <i class="bi bi-droplet-fill me-1"></i>${escapeHtml(test.containerType || 'Standard Tube')}
                                     </span>
-                                    <div class="fs-9 text-muted mt-1 fw-semibold">
-                                        ${escapeHtml(test.sampleTypeName || 'Specimen')}
-                                    </div>
+                                    <div class="fs-9 text-muted mt-1">${escapeHtml(test.sampleTypeName || 'Specimen')}</div>
                                 </td>
-                                <td class="text-center">${fastingBadge}</td>
+                                <td>${fastingBadge}</td>
                                 <td>${barcodeCellHtml}</td>
                                 <td>${statusCellHtml}</td>
                                 <td>${actionCellHtml}</td>
                             </tr>
                         `;
-                    });
-                });
+                }
 
                 $('#tblWorkspaceTestsBody').html(rowsHtml);
             }
@@ -1294,6 +1353,23 @@
                     const bGroup = distinctBarcodes[bCode];
                     const testCount = bGroup.tests.length;
 
+                    const cTypeLower = (bGroup.containerType || '').toLowerCase();
+                    const sTypeLower = (bGroup.sampleTypeName || '').toLowerCase();
+                    let modalCapClass = 'cap-badge-grey';
+                    if (cTypeLower.includes('yellow') || cTypeLower.includes('sst') || sTypeLower.includes('serum')) {
+                        modalCapClass = 'cap-badge-yellow';
+                    } else if (cTypeLower.includes('purple') || cTypeLower.includes('edta') || sTypeLower.includes('blood')) {
+                        modalCapClass = 'cap-badge-purple';
+                    } else if (cTypeLower.includes('blue') || cTypeLower.includes('citrate')) {
+                        modalCapClass = 'cap-badge-blue';
+                    } else if (cTypeLower.includes('grey') || cTypeLower.includes('gray') || cTypeLower.includes('fluoride')) {
+                        modalCapClass = 'cap-badge-grey';
+                    } else if (cTypeLower.includes('red') || cTypeLower.includes('plain')) {
+                        modalCapClass = 'cap-badge-red';
+                    } else if (cTypeLower.includes('green') || cTypeLower.includes('heparin')) {
+                        modalCapClass = 'cap-badge-green';
+                    }
+
                     gridHtml += `
                     <div class="col-md-6 col-12">
                         <div class="card h-100 border shadow-xs rounded-3 p-3 bg-white text-center">
@@ -1306,7 +1382,7 @@
                                 </button>
                             </div>
                             <div class="fs-9 text-muted mb-2 text-start">
-                                <span class="badge bg-light text-dark border me-1">${escapeHtml(bGroup.containerType)}</span>
+                                <span class="badge ${modalCapClass} border me-1">${escapeHtml(bGroup.containerType)}</span>
                                 <span>${escapeHtml(bGroup.sampleTypeName)}</span>
                                 ${testCount > 1 ? `<span class="badge bg-primary-subtle text-primary ms-1">${testCount} Tests in this Tube</span>` : ''}
                             </div>

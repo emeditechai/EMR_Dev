@@ -108,9 +108,15 @@ namespace EMR.Web.Controllers
                     {
                         foreach (var itm in lineItems)
                         {
-                            if (string.IsNullOrWhiteSpace(itm.Type))
+                            if (itm.IsPackage || string.Equals(itm.Type, "P", StringComparison.OrdinalIgnoreCase))
                             {
-                                itm.Type = itm.IsPackage ? "P" : "I";
+                                itm.Type = "P";
+                                itm.IsPackage = true;
+                            }
+                            else
+                            {
+                                itm.Type = "I";
+                                itm.IsPackage = false;
                             }
                         }
                     }
@@ -298,7 +304,27 @@ namespace EMR.Web.Controllers
             decimal totalAmount = lineItems!.Sum(x => x.Price);
             await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
 
-            TempData["NewPatientName"]  = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            await auditLogService.LogActivityAsync(
+                eventType: "LAB Billing",
+                actionName: "LAB.OrderBooked",
+                description: $"Lab Order Bill {labOrderRes.BillNo} generated for patient {patientFullName} ({patient.PatientCode ?? actualPatientId.ToString()}). Total Items: {lineItems!.Count}. Total: ₹{totalAmount:F2}. Token: {labOrderRes.TokenNo}.",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "LAB",
+                referenceNo: labOrderRes.BillNo,
+                referenceId: labOrderRes.LabOrderId,
+                patientCode: patient.PatientCode,
+                metadata: new {
+                    labOrderRes.LabOrderId,
+                    labOrderRes.BillNo,
+                    labOrderRes.TokenNo,
+                    TotalAmount = totalAmount,
+                    ItemCount = lineItems!.Count,
+                    Items = lineItems!.Select(x => new { x.InvestigationId, x.Price, x.Type })
+                });
+
+            TempData["NewPatientName"]  = patientFullName;
             TempData["BillNo"]          = labOrderRes.BillNo;
             TempData["NewLabOrderId"]   = labOrderRes.LabOrderId.ToString();
             return RedirectToAction(nameof(B2CBooking), new { registered = true });
@@ -329,9 +355,15 @@ namespace EMR.Web.Controllers
                 {
                     foreach (var itm in lineItems)
                     {
-                        if (string.IsNullOrWhiteSpace(itm.Type))
+                        if (itm.IsPackage || string.Equals(itm.Type, "P", StringComparison.OrdinalIgnoreCase))
                         {
-                            itm.Type = itm.IsPackage ? "P" : "I";
+                            itm.Type = "P";
+                            itm.IsPackage = true;
+                        }
+                        else
+                        {
+                            itm.Type = "I";
+                            itm.IsPackage = false;
                         }
                     }
                 }
@@ -481,6 +513,26 @@ namespace EMR.Web.Controllers
             decimal totalAmount = lineItems.Sum(x => x.Price);
             await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
 
+            string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            await auditLogService.LogActivityAsync(
+                eventType: "LAB Billing",
+                actionName: "LAB.OrderBooked",
+                description: $"Lab Order Bill {labOrderRes.BillNo} generated for patient {patientFullName} ({actualPatientCode}). Total Items: {lineItems.Count}. Total: ₹{totalAmount:F2}. Token: {labOrderRes.TokenNo}.",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "LAB",
+                referenceNo: labOrderRes.BillNo,
+                referenceId: labOrderRes.LabOrderId,
+                patientCode: actualPatientCode,
+                metadata: new {
+                    labOrderRes.LabOrderId,
+                    labOrderRes.BillNo,
+                    labOrderRes.TokenNo,
+                    TotalAmount = totalAmount,
+                    ItemCount = lineItems.Count,
+                    Items = lineItems.Select(x => new { x.InvestigationId, x.Price, x.Type })
+                });
+
             // Process Payment
             SavePaymentResult? paymentResult = null;
             if (!string.IsNullOrWhiteSpace(paymentDataJson))
@@ -523,6 +575,33 @@ namespace EMR.Web.Controllers
                     {
                         return Json(new { success = false, error = paymentResult.Error ?? "Failed to save payment." });
                     }
+
+                    if (paymentResult != null && paymentResult.Success)
+                    {
+                        var statusStr = paymentResult.PaymentStatus == "P" ? "Fully Paid" : "Partial Payment";
+                        var paidAmt = paymentReq.Payments?.Sum(p => p.PaidAmount) ?? paymentResult.TotalPaid;
+                        var receiptNo = paymentResult.PaymentHeaderId.HasValue ? $"RCP-{paymentResult.PaymentHeaderId}" : labOrderRes.BillNo;
+                        await auditLogService.LogActivityAsync(
+                            eventType: "Payment Collection",
+                            actionName: "LAB.PaymentReceived",
+                            description: $"Payment of ₹{paidAmt:F2} collected for Lab Order {labOrderRes.BillNo} (Token: {labOrderRes.TokenNo}). Receipt: {receiptNo}. Status: {statusStr}. Balance Due: ₹{paymentResult.BalanceDue:F2}.",
+                            userId: User.GetUserId(),
+                            branchId: branchId,
+                            moduleCode: "LAB",
+                            referenceNo: labOrderRes.BillNo,
+                            referenceId: labOrderRes.LabOrderId,
+                            patientCode: actualPatientCode,
+                            metadata: new {
+                                labOrderRes.LabOrderId,
+                                labOrderRes.BillNo,
+                                Amount = paidAmt,
+                                ReceiptNo = receiptNo,
+                                PaymentHeaderId = paymentResult.PaymentHeaderId,
+                                PaymentStatus = paymentResult.PaymentStatus,
+                                BalanceDue = paymentResult.BalanceDue,
+                                TokenNo = labOrderRes.TokenNo
+                            });
+                    }
                 }
             }
 
@@ -536,7 +615,7 @@ namespace EMR.Web.Controllers
                 // Non-blocking catch to ensure billing and payment completion is not hindered
             }
 
-            string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
 
             // ── TRIGGER BACKGROUND EMAIL NOTIFICATION IF CONFIGURED ─────────────────
             var savedLabOrderId = labOrderRes.LabOrderId;

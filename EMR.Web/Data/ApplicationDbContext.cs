@@ -463,6 +463,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.CreatedDate);
             entity.HasIndex(x => new { x.UserId, x.BranchId, x.CreatedDate });
+            entity.HasIndex(x => new { x.ModuleCode, x.ReferenceNo });
+            entity.HasIndex(x => new { x.ModuleCode, x.ReferenceId });
+            entity.HasIndex(x => x.PatientCode);
         });
 
 

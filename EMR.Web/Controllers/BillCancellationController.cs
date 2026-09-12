@@ -104,10 +104,24 @@ public class BillCancellationController(
 
             if (result.Success)
             {
-                await auditLogService.LogAsync(
-                    request.ModuleCode,
-                    "Bill.Cancel",
-                    $"Cancelled {result.CancellationType} bill {request.ModuleCode} #{request.ModuleRefId} → {result.CancellationNo}, Amount: {result.CancelledAmount:N2}"
+                var modCode = string.IsNullOrWhiteSpace(request.ModuleCode) ? "BILLING" : request.ModuleCode.ToUpperInvariant();
+                await auditLogService.LogActivityAsync(
+                    eventType: "Bill Cancellation",
+                    actionName: $"{modCode}.BillCancelled",
+                    description: $"Cancelled {result.CancellationType} {modCode} Bill (Ref #{request.ModuleRefId}) → Cancellation No: {result.CancellationNo}, Amount: ₹{result.CancelledAmount:F2}, Reason: {request.Reason}.",
+                    userId: userId,
+                    branchId: branchId,
+                    moduleCode: modCode,
+                    referenceNo: result.CancellationNo ?? request.ModuleRefId.ToString(),
+                    referenceId: request.ModuleRefId,
+                    metadata: new {
+                        ModuleCode = modCode,
+                        request.ModuleRefId,
+                        result.CancellationNo,
+                        result.CancelledAmount,
+                        result.CancellationType,
+                        request.Reason
+                    }
                 );
             }
 
@@ -135,10 +149,23 @@ public class BillCancellationController(
 
             if (result.Success)
             {
-                await auditLogService.LogAsync(
-                    request.ModuleCode,
-                    "Bill.Refund",
-                    $"Processed refund for {request.ModuleCode} #{request.ModuleRefId}: ₹{result.RefundAmount:N2} via {result.RefundMode}"
+                var modCode = string.IsNullOrWhiteSpace(request.ModuleCode) ? "BILLING" : request.ModuleCode.ToUpperInvariant();
+                await auditLogService.LogActivityAsync(
+                    eventType: "Bill Refund",
+                    actionName: $"{modCode}.BillRefunded",
+                    description: $"Processed refund for {modCode} Bill (Ref #{request.ModuleRefId}): ₹{result.RefundAmount:F2} via {result.RefundMode ?? request.RefundMode}. Notes: {request.Notes ?? "Standard Refund"}.",
+                    userId: userId,
+                    branchId: User.GetCurrentBranchId(),
+                    moduleCode: modCode,
+                    referenceNo: request.ModuleRefId.ToString(),
+                    referenceId: request.ModuleRefId,
+                    metadata: new {
+                        ModuleCode = modCode,
+                        request.ModuleRefId,
+                        result.RefundAmount,
+                        result.RefundMode,
+                        request.Notes
+                    }
                 );
             }
 

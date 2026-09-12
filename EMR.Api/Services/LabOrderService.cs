@@ -25,7 +25,8 @@ namespace EMR.Api.Services
 
             foreach (var item in request.Items)
             {
-                var itemType = string.IsNullOrWhiteSpace(item.Type) ? "I" : item.Type.Trim().ToUpperInvariant();
+                var isPkg = item.IsPackage || string.Equals(item.Type, "P", StringComparison.OrdinalIgnoreCase);
+                var itemType = isPkg ? "P" : (string.IsNullOrWhiteSpace(item.Type) ? "I" : item.Type.Trim().ToUpperInvariant());
                 itemsTable.Rows.Add(item.InvestigationId, itemType, item.Price, item.IsUrgent);
             }
 

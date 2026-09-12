@@ -1,0 +1,559 @@
+@model EMR.Web.Models.ViewModels.LabReportingDashboardViewModel
+@{
+    ViewData["Title"] = "Lab Reporting Entry";
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
+    <style>
+        .reporting-wrapper {
+            background-color: #f8f9fa;
+            min-height: calc(100vh - 60px);
+        }
+        .stat-card {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .stat-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 .25rem .5rem rgba(0,0,0,.06)!important;
+        }
+        .stat-card.active-card {
+            outline: 2px solid var(--bs-primary);
+            background-color: #f1f5f9;
+        }
+        .stat-icon {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+        .fs-7 { font-size: 0.85rem !important; }
+        .fs-8 { font-size: 0.78rem !important; }
+        .fs-9 { font-size: 0.70rem !important; }
+        .py-0.5 { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; }
+        .pt-1.5 { padding-top: 0.45rem !important; }
+        .mt-1.5 { margin-top: 0.45rem !important; }
+        .mb-1.5 { margin-bottom: 0.45rem !important; }
+        .mb-0.5 { margin-bottom: 0.15rem !important; }
+        .table-responsive-custom {
+            max-height: calc(100vh - 270px);
+            overflow-y: auto;
+        }
+        .table-sticky-header thead th {
+            position: sticky;
+            top: 0;
+            background: #f8f9fa;
+            z-index: 10;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .test-val-input:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
+        }
+    </style>
+}
+
+<div class="container-fluid px-3 py-1.5 reporting-wrapper">
+    <!-- Top Header -->
+    <div class="d-flex justify-content-between align-items-center mb-1.5">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="mb-0 fw-bold text-dark d-flex align-items-center">
+                <i class="bi bi-file-earmark-medical text-primary me-2"></i>Lab Reporting Entry
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 fs-9 fw-semibold">Collected In-House Samples</span>
+            </h5>
+            <span class="text-muted fs-9 d-none d-md-inline border-start ps-2">Enter and validate test results for collected lab specimens</span>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center shadow-sm" id="btnRefreshList" style="width: 30px; height: 30px;" title="Refresh List">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards (Compact) -->
+    <div class="row g-1.5 mb-1.5">
+        <div class="col-6 col-md">
+            <div class="card shadow-sm border-0 border-start border-primary border-4 rounded-3 h-100 stat-card active-card" data-status="All">
+                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Total Orders</span>
+                        <h5 class="mb-0 fw-bold text-dark mt-0.5" id="statTotalOrders">@Model.Stats.TotalOrders</h5>
+                    </div>
+                    <div class="stat-icon bg-primary-subtle text-primary rounded-circle">
+                        <i class="bi bi-journal-medical"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card shadow-sm border-0 border-start border-secondary border-4 rounded-3 h-100 stat-card" data-status="Pending Entry">
+                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Pending Entry</span>
+                        <h5 class="mb-0 fw-bold text-secondary mt-0.5" id="statPendingOrders">@Model.Stats.PendingOrders</h5>
+                    </div>
+                    <div class="stat-icon bg-secondary-subtle text-secondary rounded-circle">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card shadow-sm border-0 border-start border-warning border-4 rounded-3 h-100 stat-card" data-status="Draft">
+                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Draft</span>
+                        <h5 class="mb-0 fw-bold text-warning mt-0.5" id="statDraftOrders">@Model.Stats.DraftOrders</h5>
+                    </div>
+                    <div class="stat-icon bg-warning-subtle text-warning rounded-circle">
+                        <i class="bi bi-pencil-square"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card shadow-sm border-0 border-start border-info border-4 rounded-3 h-100 stat-card" data-status="Report Entry">
+                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Report Entered</span>
+                        <h5 class="mb-0 fw-bold text-info mt-0.5" id="statEnteredOrders">@Model.Stats.EnteredOrders</h5>
+                    </div>
+                    <div class="stat-icon bg-info-subtle text-info rounded-circle">
+                        <i class="bi bi-file-earmark-check"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card shadow-sm border-0 border-start border-success border-4 rounded-3 h-100 stat-card" data-status="Report Validated">
+                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Validated</span>
+                        <h5 class="mb-0 fw-bold text-success mt-0.5" id="statValidatedOrders">@Model.Stats.ValidatedOrders</h5>
+                    </div>
+                    <div class="stat-icon bg-success-subtle text-success rounded-circle">
+                        <i class="bi bi-patch-check-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Compact Filter Card -->
+    <div class="card shadow-sm border-0 rounded-3 mb-2">
+        <div class="card-body p-2 px-3">
+            <!-- Row 1: Date & Search Filters -->
+            <div class="row g-2 align-items-center">
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Filter By Date</label>
+                    <select id="selDateFilterType" class="form-select form-select-sm fs-8 py-0.5">
+                        <option value="BookingDate" selected="@(Model.DateFilterType == "BookingDate")">Booking Date Time</option>
+                        <option value="OrderDate" selected="@(Model.DateFilterType == "OrderDate")">Order / Bill Date</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">From Date</label>
+                    <input type="date" id="txtFromDate" class="form-control form-control-sm fs-8 py-0.5" value="@Model.FromDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">To Date</label>
+                    <input type="date" id="txtToDate" class="form-control form-control-sm fs-8 py-0.5" value="@Model.ToDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Quick Select</label>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="today">Today</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="yesterday">Yesterday</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="week">7 Days</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="month">This Month</button>
+                    </div>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Search Patient / Order</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0 py-0.5"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="txtSearch" class="form-control border-start-0 fs-8 py-0.5" placeholder="Name, Code, Token, Bill, Phone..." value="@Model.Search" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2: Investigation Cascading Filters (Compact) -->
+            <div class="pt-1.5 mt-1.5 border-top">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="fw-semibold text-secondary fs-9 d-flex align-items-center gap-1">
+                        <i class="bi bi-funnel-fill text-primary"></i> Filter Investigations:
+                    </span>
+                    <button type="button" class="btn btn-link btn-sm text-decoration-none text-danger p-0 fs-9" id="btnResetFilters" style="display:none;">
+                        <i class="bi bi-x-circle me-1"></i>Clear Filters
+                    </button>
+                </div>
+                <div class="row g-2">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-hospital me-1"></i>Department</label>
+                        <select id="ddlDepartment" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Departments --">
+                            <option value="">-- All Departments --</option>
+                            @foreach (var d in Model.DepartmentOptions)
+                            {
+                                <option value="@d.Value" selected="@(d.Value == Model.DepartmentId?.ToString() ? "selected" : null)">@d.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-tag me-1"></i>Category</label>
+                        <select id="ddlCategory" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Categories --">
+                            <option value="">-- All Categories --</option>
+                            @foreach (var c in Model.CategoryOptions)
+                            {
+                                <option value="@c.Value" selected="@(c.Value == Model.CategoryId?.ToString() ? "selected" : null)">@c.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-diagram-3 me-1"></i>Sub Category</label>
+                        <select id="ddlSubCategory" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Sub Categories --">
+                            <option value="">-- All Sub Categories --</option>
+                            @foreach (var s in Model.SubCategoryOptions)
+                            {
+                                <option value="@s.Value" selected="@(s.Value == Model.SubCategoryId?.ToString() ? "selected" : null)">@s.Text</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Orders Table Card -->
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive table-responsive-custom">
+                <table class="table table-hover table-sticky-header align-middle mb-0" id="tblReportingOrders">
+                    <thead class="table-light">
+                        <tr class="fs-9 text-muted text-uppercase fw-bold">
+                            <th class="ps-3" style="width: 40px;">#</th>
+                            <th style="width: 140px;">Order / Token</th>
+                            <th>Patient Details</th>
+                            <th>Contact</th>
+                            <th>Booking Date</th>
+                            <th class="text-center">Collection Status</th>
+                            <th class="text-center">Report Status</th>
+                            <th class="text-end pe-3" style="width: 130px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblReportingOrdersBody" class="fs-8">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <!-- Empty state -->
+            <div id="emptyOrdersState" class="text-center py-5 d-none">
+                <i class="bi bi-journal-x text-muted" style="font-size: 3rem;"></i>
+                <div class="fw-bold text-dark fs-6 mt-2">No Collected Orders Found</div>
+                <div class="text-muted fs-8">There are no in-house collected patient samples matching your filters.</div>
+            </div>
+            <!-- Loading state -->
+            <div id="loadingOrdersState" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="text-muted fs-8 mt-2">Fetching lab orders for reporting...</div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            toastr.options = {
+                closeButton: true,
+                progressBar: true,
+                positionClass: "toast-top-right",
+                timeOut: "3000"
+            };
+
+            let currentOrders = [];
+            let activeOrderId = null;
+            let currentDetailData = null;
+            let currentStatusFilter = '@Model.StatusFilter' || 'All';
+            let searchTimeout = null;
+
+            // ── 1. Fetch and Render Orders ──────────────────────────────────
+            function loadOrders() {
+                $('#loadingOrdersState').removeClass('d-none');
+                $('#emptyOrdersState').addClass('d-none');
+                $('#tblReportingOrdersBody').empty();
+
+                const params = {
+                    fromDate: $('#txtFromDate').val(),
+                    toDate: $('#txtToDate').val(),
+                    dateFilterType: $('#selDateFilterType').val(),
+                    statusFilter: currentStatusFilter,
+                    search: $('#txtSearch').val(),
+                    departmentId: $('#ddlDepartment').val() || null,
+                    categoryId: $('#ddlCategory').val() || null,
+                    subCategoryId: $('#ddlSubCategory').val() || null
+                };
+
+                $.get('@Url.Action("GetHeadersJson", "LabReporting")', params)
+                    .done(function (res) {
+                        $('#loadingOrdersState').addClass('d-none');
+                        if (res.success) {
+                            currentOrders = res.headers || [];
+                            updateStats(res.stats);
+                            renderOrdersTable(currentOrders);
+                        } else {
+                            toastr.error('Failed to load reporting headers.');
+                        }
+                    })
+                    .fail(function () {
+                        $('#loadingOrdersState').addClass('d-none');
+                        toastr.error('Server error while loading reporting list.');
+                    });
+            }
+
+            function updateStats(stats) {
+                if (!stats) return;
+                $('#statTotalOrders').text(stats.totalOrders || 0);
+                $('#statPendingOrders').text(stats.pendingOrders || 0);
+                $('#statDraftOrders').text(stats.draftOrders || 0);
+                $('#statEnteredOrders').text(stats.enteredOrders || 0);
+                $('#statValidatedOrders').text(stats.validatedOrders || 0);
+            }
+
+            function renderOrdersTable(orders) {
+                const $tbody = $('#tblReportingOrdersBody');
+                $tbody.empty();
+
+                if (!orders || orders.length === 0) {
+                    $('#emptyOrdersState').removeClass('d-none');
+                    return;
+                }
+
+                $('#emptyOrdersState').addClass('d-none');
+
+                let html = '';
+                orders.forEach((o, index) => {
+                    const urgentBadge = o.isUrgent
+                        ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-1"><i class="bi bi-lightning-fill me-1"></i>Urgent</span>'
+                        : '';
+
+                    const sampleBadgeClass = o.sampleCollectionStatus === 'Collected'
+                        ? 'bg-success-subtle text-success border border-success-subtle'
+                        : 'bg-info-subtle text-info border border-info-subtle';
+
+                    html += `
+                        <tr id="orderRow_${o.labOrderId}">
+                            <td class="ps-3 text-muted fw-bold">${index + 1}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="badge bg-primary text-white font-monospace fs-9">${escapeHtml(o.tokenNo || 'LAB')}</span>
+                                    ${urgentBadge}
+                                </div>
+                                <div class="fs-9 text-muted font-monospace mt-1">${escapeHtml(o.billNo || '—')}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${escapeHtml(o.patientName)}</div>
+                                <div class="fs-9 text-muted">
+                                    <span class="badge bg-light text-dark border me-1">${escapeHtml(o.patientCode)}</span>
+                                    ${o.age ? o.age + ' Y / ' : ''}${escapeHtml(o.gender || '—')}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-dark">${escapeHtml(o.phoneNumber || '—')}</div>
+                                <div class="fs-9 text-muted">${escapeHtml(o.emailId || '—')}</div>
+                            </td>
+                            <td>
+                                <div class="text-dark">${formatDate(o.bookingDateTime || o.orderDate)}</div>
+                                <div class="fs-9 text-muted">${formatTime(o.bookingDateTime || o.orderDate)}</div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge ${sampleBadgeClass} fs-9">
+                                    <i class="bi bi-eyedropper me-1"></i>${escapeHtml(o.sampleCollectionStatus)}
+                                </span>
+                                <div class="fs-9 text-muted mt-1">${o.collectedInHouseTests} / ${o.totalInHouseTests} Tests</div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge ${o.reportBadgeClass} fs-9">
+                                    ${escapeHtml(o.reportStatusName)}
+                                </span>
+                            </td>
+                            <td class="text-end pe-3">
+                                <a href="@Url.Action("Entry", "LabReporting")?labOrderId=${o.labOrderId}"
+                                   target="_blank"
+                                   class="btn btn-primary btn-sm py-1 px-2.5 fs-8 shadow-xs d-inline-flex align-items-center"
+                                   title="Open Report Entry in new tab">
+                                    <i class="bi bi-pencil-square me-1"></i>Report Entry
+                                    <i class="bi bi-box-arrow-up-right ms-1.5 fs-9 text-white-50"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                $tbody.html(html);
+            }
+
+            // ── 2. Filter & Date Handlers ──────────────────────────────────
+            $('.stat-card').on('click', function () {
+                $('.stat-card').removeClass('active-card');
+                $(this).addClass('active-card');
+                currentStatusFilter = $(this).data('status');
+                loadOrders();
+            });
+
+            $('#btnRefreshList').on('click', function () {
+                loadOrders();
+            });
+
+            $('#txtFromDate, #txtToDate, #selDateFilterType').on('change', function () {
+                loadOrders();
+            });
+
+            $('#txtSearch').on('input', function () {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(loadOrders, 350);
+            });
+
+            $('.btn-quick-date').on('click', function () {
+                const range = $(this).data('range');
+                const today = new Date();
+                let from = new Date();
+                let to = new Date();
+
+                if (range === 'today') {
+                    from = today;
+                    to = today;
+                } else if (range === 'yesterday') {
+                    from.setDate(today.getDate() - 1);
+                    to.setDate(today.getDate() - 1);
+                } else if (range === 'week') {
+                    from.setDate(today.getDate() - 7);
+                    to = today;
+                } else if (range === 'month') {
+                    from = new Date(today.getFullYear(), today.getMonth(), 1);
+                    to = today;
+                }
+
+                $('#txtFromDate').val(formatIsoDate(from));
+                $('#txtToDate').val(formatIsoDate(to));
+                loadOrders();
+            });
+
+            // ── 3. Auto-refresh on Window Focus ────────────────────────────
+            // When user switches back from the dedicated Entry tab, refresh the list automatically
+            $(window).on('focus', function () {
+                loadOrders();
+            });
+
+            // ── 5. Helper Utilities ────────────────────────────────────────
+            function escapeHtml(text) {
+                if (!text) return '';
+                return String(text)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            function formatDate(dt) {
+                if (!dt) return '—';
+                const d = new Date(dt);
+                if (isNaN(d)) return '—';
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+
+            function formatTime(dt) {
+                if (!dt) return '';
+                const d = new Date(dt);
+                if (isNaN(d)) return '';
+                return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            }
+
+            function formatIsoDate(d) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            // ── 6. Department, Category & Sub Category Cascading Filters ──
+            function checkFilterResetVisibility() {
+                var d = $('#ddlDepartment').val();
+                var c = $('#ddlCategory').val();
+                var s = $('#ddlSubCategory').val();
+                if (d || c || s) {
+                    $('#btnResetFilters').show();
+                } else {
+                    $('#btnResetFilters').hide();
+                }
+            }
+
+            $('#btnResetFilters').on('click', function () {
+                $('#ddlDepartment').val('');
+                $('#ddlCategory').empty().append('<option value="">-- All Categories --</option>').val('');
+                $('#ddlSubCategory').empty().append('<option value="">-- All Sub Categories --</option>').val('');
+                $(this).hide();
+                loadOrders();
+            });
+
+            $('#ddlDepartment').on('change', function () {
+                checkFilterResetVisibility();
+                var deptId = $(this).val();
+                
+                var $cat = $('#ddlCategory');
+                $cat.empty().append('<option value="">-- All Categories --</option>');
+                
+                var $subCat = $('#ddlSubCategory');
+                $subCat.empty().append('<option value="">-- All Sub Categories --</option>');
+
+                var catUrl = '@Url.Action("GetCategoriesForDropdown", "LabReporting")' + (deptId ? '?departmentId=' + deptId : '');
+                $.get(catUrl, function (data) {
+                    if (data && data.length) {
+                        data.forEach(function (item) {
+                            $cat.append(new Option(item.text, item.value));
+                        });
+                    }
+                    $cat.val('');
+                    $subCat.val('');
+                    loadOrders();
+                });
+            });
+
+            $('#ddlCategory').on('change', function () {
+                checkFilterResetVisibility();
+                var catId = $(this).val();
+                
+                var $subCat = $('#ddlSubCategory');
+                $subCat.empty().append('<option value="">-- All Sub Categories --</option>');
+                
+                var subCatUrl = '@Url.Action("GetSubCategoriesForDropdown", "LabReporting")' + (catId ? '?categoryId=' + catId : '');
+                $.get(subCatUrl, function (data) {
+                    if (data && data.length) {
+                        data.forEach(function (item) {
+                            $subCat.append(new Option(item.text, item.value));
+                        });
+                    }
+                    $subCat.val('');
+                    loadOrders();
+                });
+            });
+
+            $('#ddlSubCategory').on('change', function () {
+                checkFilterResetVisibility();
+                loadOrders();
+            });
+
+            checkFilterResetVisibility();
+
+            // Initial load
+            loadOrders();
+        });
+    </script>
+}

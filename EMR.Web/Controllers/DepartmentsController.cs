@@ -83,6 +83,13 @@ public class DepartmentsController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(DepartmentFormViewModel model)
     {
+        var existing = await departmentService.GetByIdAsync(model.DeptId);
+        if (existing is null) return NotFound();
+
+        // Enforce immutability of DeptCode on edit
+        model.DeptCode = existing.DeptCode;
+        ModelState.Remove(nameof(model.DeptCode));
+
         if (!model.IsActive)
         {
             var usage = await departmentService.CheckUsageAsync(model.DeptId);
@@ -94,9 +101,6 @@ public class DepartmentsController(
             }
         }
 
-        if (await departmentService.CodeExistsAsync(model.DeptCode.Trim().ToUpper(), model.DeptId))
-            ModelState.AddModelError(nameof(model.DeptCode), "This Department Code already exists.");
-
         if (!ModelState.IsValid)
         {
             ViewBag.DeptTypes = DeptTypes;
@@ -106,13 +110,13 @@ public class DepartmentsController(
         await departmentService.UpdateAsync(new DepartmentMaster
         {
             DeptId   = model.DeptId,
-            DeptCode = model.DeptCode.Trim().ToUpper(),
+            DeptCode = existing.DeptCode,
             DeptName = model.DeptName.Trim(),
             DeptType = model.DeptType,
             IsActive = model.IsActive
         }, User.GetUserId());
 
-        await auditLogService.LogAsync("MasterData", "Departments.Edit", $"Updated department: {model.DeptCode.Trim().ToUpper()} - {model.DeptName.Trim()} ({model.DeptType})");
+        await auditLogService.LogAsync("MasterData", "Departments.Edit", $"Updated department: {existing.DeptCode} - {model.DeptName.Trim()} ({model.DeptType})");
         TempData["Success"] = "Department updated successfully.";
         return RedirectToAction(nameof(Index));
     }

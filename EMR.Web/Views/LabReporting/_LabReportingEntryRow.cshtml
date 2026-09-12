@@ -1,0 +1,122 @@
+@model Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>
+@{
+    int globalRowIndex = Model.Item1;
+    var item = Model.Item2;
+
+    var cTypeLower = (item.ContainerType ?? "").ToLower();
+    var sTypeLower = (item.SampleTypeName ?? "").ToLower();
+    var capBadgeClass = "cap-badge-grey";
+
+    if (cTypeLower.Contains("yellow") || cTypeLower.Contains("sst") || sTypeLower.Contains("serum")) {
+        capBadgeClass = "cap-badge-yellow";
+    } else if (cTypeLower.Contains("purple") || cTypeLower.Contains("edta") || sTypeLower.Contains("blood")) {
+        capBadgeClass = "cap-badge-purple";
+    } else if (cTypeLower.Contains("blue") || cTypeLower.Contains("citrate")) {
+        capBadgeClass = "cap-badge-blue";
+    } else if (cTypeLower.Contains("grey") || cTypeLower.Contains("gray") || cTypeLower.Contains("fluoride")) {
+        capBadgeClass = "cap-badge-grey";
+    } else if (cTypeLower.Contains("red") || cTypeLower.Contains("plain")) {
+        capBadgeClass = "cap-badge-red";
+    } else if (cTypeLower.Contains("green") || cTypeLower.Contains("heparin")) {
+        capBadgeClass = "cap-badge-green";
+    }
+}
+
+<td class="ps-3 text-muted fw-bold">@globalRowIndex</td>
+<td class="ps-3 ps-md-4">
+    <!-- Investigation Name -->
+    <div class="fw-bold text-dark fs-7 d-flex align-items-center gap-1.5">
+        <span>@item.TestName</span>
+    </div>
+
+    <!-- Metadata details: Test Code, Reporting Type, Barcode No, Department -->
+    <div class="fs-9 text-muted mt-1 d-flex align-items-center gap-1.5 flex-wrap">
+        <span class="badge bg-light text-secondary border">@item.TestCode</span>
+
+        @if (!string.IsNullOrWhiteSpace(item.ReportingType))
+        {
+            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Reporting Type">
+                @item.ReportingType
+            </span>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(item.BarcodeNo))
+        {
+            <span class="badge bg-light text-dark border font-monospace" title="Specimen Barcode No">
+                <i class="bi bi-upc-scan text-primary me-1"></i>Barcode: <strong>@item.BarcodeNo</strong>
+            </span>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(item.DepartmentName))
+        {
+            <span class="text-muted"><i class="bi bi-building me-1"></i>@item.DepartmentName</span>
+        }
+    </div>
+</td>
+<td>
+    <span class="badge @capBadgeClass border fs-9">
+        <i class="bi bi-droplet-fill me-1"></i>@(item.ContainerType ?? "Standard Tube")
+    </span>
+    <div class="fs-9 text-muted mt-0.5">@(item.SampleTypeName ?? "Specimen")</div>
+    @if (!string.IsNullOrWhiteSpace(item.BarcodeNo))
+    {
+        <div class="fs-9 font-monospace text-muted mt-0.5">
+            <i class="bi bi-upc-scan me-1"></i>@item.BarcodeNo
+        </div>
+    }
+</td>
+<td>
+    <span class="badge bg-light text-secondary border fs-9">@(string.IsNullOrWhiteSpace(item.UnitName) ? "—" : item.UnitName)</span>
+</td>
+<td>
+    <input type="text"
+           class="form-control form-control-sm test-val-input txt-test-val @(!string.IsNullOrWhiteSpace(item.TestValue) ? "has-value" : "")"
+           value="@(item.TestValue ?? "")"
+           placeholder="Enter result value..."
+           tabindex="@globalRowIndex"
+           autocomplete="off" />
+</td>
+<td>
+    <input type="text"
+           class="form-control form-control-sm fs-8 txt-test-remarks"
+           value="@(item.Remarks ?? "")"
+           placeholder="Optional interpretation / notes..."
+           autocomplete="off" />
+</td>
+<td class="text-center">
+    <span class="badge @item.ReportBadgeClass fs-9 row-status-badge">
+        @(string.IsNullOrWhiteSpace(item.ReportStatusName) ? "Pending Entry" : item.ReportStatusName)
+    </span>
+    <div class="row-status-dates mt-1 fs-9">
+        @if (item.ApprovedDate.HasValue)
+        {
+            <div class="text-info fw-semibold" title="Approved: @item.ApprovedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
+                <i class="bi bi-patch-check-fill me-0.5"></i>@item.ApprovedDate.Value.ToString("dd/MM hh:mm tt")
+            </div>
+        }
+        else if (item.ValidatedDate.HasValue)
+        {
+            <div class="text-success fw-semibold" title="Validated: @item.ValidatedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
+                <i class="bi bi-check2-circle me-0.5"></i>@item.ValidatedDate.Value.ToString("dd/MM hh:mm tt")
+            </div>
+        }
+        else if (item.SubmittedDate.HasValue)
+        {
+            <div class="text-primary fw-semibold" title="Submitted: @item.SubmittedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
+                <i class="bi bi-send-check me-0.5"></i>@item.SubmittedDate.Value.ToString("dd/MM hh:mm tt")
+            </div>
+        }
+        else if (item.DraftedDate.HasValue)
+        {
+            <div class="text-warning-emphasis fw-semibold" title="Drafted: @item.DraftedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
+                <i class="bi bi-pencil-square me-0.5"></i>@item.DraftedDate.Value.ToString("dd/MM hh:mm tt")
+            </div>
+        }
+        else if (item.LastSavedDate.HasValue)
+        {
+            <div class="text-muted">
+                Saved: @item.LastSavedDate.Value.ToString("hh:mm tt")
+            </div>
+        }
+    </div>
+</td>

@@ -24,10 +24,11 @@
         <div class="row g-3 mb-3">
             <div class="col-sm-4">
                 <label asp-for="DeptCode" class="form-label fw-semibold">
-                    Dept Code <span class="text-danger">*</span>
+                    Dept Code
                 </label>
-                <input asp-for="DeptCode" class="form-control text-uppercase"
-                       maxlength="20" oninput="this.value=this.value.toUpperCase()" />
+                <input asp-for="DeptCode" type="hidden" />
+                <input type="text" class="form-control text-uppercase bg-light"
+                       value="@Model.DeptCode" disabled readonly title="Department code cannot be modified" />
                 <span asp-validation-for="DeptCode" class="text-danger small"></span>
             </div>
             <div class="col-sm-8">

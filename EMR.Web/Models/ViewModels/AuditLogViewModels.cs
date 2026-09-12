@@ -2,8 +2,10 @@ namespace EMR.Web.Models.ViewModels;
 
 public class AuditLogFilterViewModel
 {
-    public string? Search { get; set; }          // username / action / description
+    public string? Search { get; set; }          // username / action / description / ref no
     public string? EventType { get; set; }       // exact event type filter
+    public string? ModuleCode { get; set; }      // OPD / LAB / ALL
+    public string? ReferenceNo { get; set; }     // Bill No / Token No
     public DateTime? DateFrom { get; set; }
     public DateTime? DateTo { get; set; }
     public int Page { get; set; } = 1;
@@ -17,6 +19,9 @@ public class AuditLogPagedResult
     public int TotalCount { get; set; }
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / Filter.PageSize);
     public List<string> AvailableEventTypes { get; set; } = new();
+    public int TotalOpdLogs { get; set; }
+    public int TotalLabLogs { get; set; }
+    public int TotalSecurityLogs { get; set; }
 }
 
 public class AuditLogListItemViewModel
@@ -33,4 +38,9 @@ public class AuditLogListItemViewModel
     public string BranchName { get; set; } = "N/A";
     public string? IpAddress { get; set; }
     public string? Description { get; set; }
+    public string? ModuleCode { get; set; }
+    public string? ReferenceNo { get; set; }
+    public long? ReferenceId { get; set; }
+    public string? PatientCode { get; set; }
+    public string? MetadataJson { get; set; }
 }
