@@ -67,6 +67,7 @@ public class LabRateCardService(IDbConnectionFactory db) : ILabRateCardService
         p.Add("@RateCard_ID", req.RateCard_ID, dbType: DbType.Int32, direction: ParameterDirection.InputOutput);
         p.Add("@CompanyId", req.CompanyId);
         p.Add("@Branch_ID", req.Branch_ID);
+        p.Add("@B2CIdentity_ID", req.B2CIdentity_ID);
         p.Add("@Rate_Type", req.Rate_Type);
         p.Add("@Effective_From", req.Effective_From);
         p.Add("@Effective_To", req.Effective_To);

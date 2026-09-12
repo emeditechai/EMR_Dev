@@ -1,6 +1,6 @@
 @model EMR.Web.Models.ViewModels.LabRateCardFormViewModel
 @{
-    ViewData["Title"] = Model.RateCard_ID.HasValue ? "Edit Rate List (B2C)" : "Create Rate List (B2C)";
+    ViewData["Title"] = Model.RateCard_ID.HasValue ? "Edit Rate List (Franchise)" : "Create Rate List (Franchise)";
 }
 
 @section HeadStyles {
@@ -40,10 +40,20 @@
 }
 
 <div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0">@ViewData["Title"]</h5>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-building-gear me-2"></i>@ViewData["Title"]</h5>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back to List</a>
     </div>
     <div class="card-body">
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
         <form asp-action="Save" method="post" id="frmRateCard">
             <input type="hidden" asp-for="RateCard_ID" />
             <input type="hidden" asp-for="CompanyId" />
@@ -51,7 +61,7 @@
             <input type="hidden" id="DetailsJson" name="DetailsJson" value="@Model.DetailsJson" />
 
             <!-- Header Section -->
-            <div class="row mb-3">
+            <div class="row mb-3 g-3">
                 <div class="col-md-3">
                     <label asp-for="Branch_ID" class="form-label">Branch <span class="text-danger">*</span></label>
                     <select asp-for="Branch_ID" asp-items="Model.BranchList" class="form-select select2" required>
@@ -63,61 +73,81 @@
                     <span asp-validation-for="Branch_ID" class="text-danger"></span>
                 </div>
                 <div class="col-md-3">
+                    <label asp-for="B2CIdentity_ID" class="form-label">Franchise Name <span class="text-danger">*</span></label>
+                    <select asp-for="B2CIdentity_ID" asp-items="Model.FranchiseList" class="form-select select2" required>
+                        <option value="">Select Franchise</option>
+                    </select>
+                    <span asp-validation-for="B2CIdentity_ID" class="text-danger"></span>
+                </div>
+                <div class="col-md-2">
                     <label asp-for="Effective_From" class="form-label">Effective From <span class="text-danger">*</span></label>
-                    <input asp-for="Effective_From" class="form-control" type="date" required />
+                    <input asp-for="Effective_From" class="form-control" type="date" max="2099-12-31" required />
                     <span asp-validation-for="Effective_From" class="text-danger"></span>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label asp-for="Effective_To" class="form-label">Effective To <span class="text-danger">*</span></label>
-                    <input asp-for="Effective_To" class="form-control" type="date" required />
+                    <input asp-for="Effective_To" class="form-control" type="date" max="2099-12-31" required />
                     <span asp-validation-for="Effective_To" class="text-danger"></span>
                 </div>
-                @if (Model.RateCard_ID.HasValue && Model.RateCard_ID.Value > 0)
-                {
-                    <div class="col-md-3 mt-4">
-                        <div class="form-check form-switch mt-2">
-                            <input asp-for="Status" class="form-check-input" type="checkbox">
-                            <label asp-for="Status" class="form-check-label">Is Active</label>
-                        </div>
+                <div class="col-md-2">
+                    <label class="form-label d-block">Status</label>
+                    <div class="form-check form-switch mt-2">
+                        <input asp-for="Status" class="form-check-input" type="checkbox">
+                        <label asp-for="Status" class="form-check-label">Is Active</label>
                     </div>
-                }
-                else
-                {
-                    <input type="hidden" asp-for="Status" value="true" />
-                }
+                </div>
             </div>
 
             <hr />
 
             <!-- Copy Section -->
-            <div class="mb-4 bg-light p-3 border rounded">
+            <div class="mb-4 bg-light p-3 border rounded shadow-sm">
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="chkEnableCopy">
-                    <label class="form-check-label h6 mb-0" for="chkEnableCopy">Copy Rates from Another Branch</label>
+                    <label class="form-check-label h6 mb-0 fw-bold text-primary" for="chkEnableCopy">
+                        <i class="bi bi-copy me-1"></i> Copy Rates from Source Branch
+                    </label>
                 </div>
-                <div class="row align-items-end" id="divCopyFields" style="display:none;">
-                    <div class="col-md-4">
-                        <label class="form-label">Source Branch</label>
+                <div class="row align-items-end g-3" id="divCopyFields" style="display:none;">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Source Branch</label>
                         <select id="sourceBranch" asp-items="Model.SourceBranchList" class="form-select select2">
                             <option value="">Select Source Branch</option>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Adjustment Type</label>
+                        <label class="form-label small fw-semibold">Copy Adjustment Mode</label>
                         <select id="adjType" class="form-select">
-                            <option value="none">Same Rate</option>
-                            <option value="flat">Flat Percentage (+/-)</option>
+                            <option value="none">Same Rate (0% Change)</option>
+                            <option value="flat">Flat Percentage (+/-) All Tests</option>
+                            <option value="category">Category/SubCategory Wise % Hike/Low</option>
                         </select>
                     </div>
                     <div class="col-md-2" id="divAdjValue" style="display:none;">
-                        <label class="form-label">% Value</label>
-                        <input type="number" id="adjValue" class="form-control" placeholder="e.g. 10 or -10" />
+                        <label class="form-label small fw-semibold">% Adjustment</label>
+                        <input type="number" step="0.1" id="adjValue" class="form-control" placeholder="e.g. +10 or -5" />
                     </div>
-                    <div class="col-md-3">
-                        <button type="button" id="btnCopyRates" class="btn btn-warning"><i class="bi bi-arrow-down-square"></i> Apply Copy</button>
+                    <div class="col-md-2" id="divCategoryFilterCopy" style="display:none;">
+                        <label class="form-label small fw-semibold">Category Filter</label>
+                        <select id="cboCopyCat" asp-items="Model.CategoryList" class="form-select select2">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="divSubCategoryFilterCopy" style="display:none;">
+                        <label class="form-label small fw-semibold">SubCategory Filter</label>
+                        <select id="cboCopySubCat" asp-items="Model.SubCategoryList" class="form-select select2">
+                            <option value="">All SubCategories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" id="btnCopyRates" class="btn btn-warning w-100 fw-semibold">
+                            <i class="bi bi-arrow-down-square me-1"></i> Apply Copy
+                        </button>
                     </div>
                 </div>
-                <small class="text-muted mt-2 d-block" id="copyNote" style="display:none;">Note: Copying will replace all items currently in the grid below.</small>
+                <small class="text-muted mt-2 d-block" id="copyNote" style="display:none;">
+                    Note: Copying from source branch automatically populates all tests & profiles into the detail grid.
+                </small>
             </div>
 
             <!-- Bulk Add by Category/SubCategory Section -->
@@ -153,16 +183,16 @@
             <!-- Add Single Item Section -->
             <div class="row mb-3 align-items-end">
                 <div class="col-md-5">
-                    <label class="form-label">Add Individual Test/Profile</label>
+                    <label class="form-label fw-semibold">Add Missing Individual Test/Profile</label>
                     <select id="cboAllItems" class="form-select select2"></select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Base Rate</label>
+                    <label class="form-label small">Base Rate</label>
                     <input type="text" id="txtBaseRate" class="form-control text-end" readonly placeholder="0.00" />
                 </div>
                 <div class="col-md-5">
-                    <button type="button" id="btnAddItem" class="btn btn-secondary">Add</button>
-                    <button type="button" id="btnAddAllItems" class="btn btn-outline-secondary ms-2">Include All Missing</button>
+                    <button type="button" id="btnAddItem" class="btn btn-secondary"><i class="bi bi-plus"></i> Add Test</button>
+                    <button type="button" id="btnAddAllItems" class="btn btn-outline-secondary ms-2"><i class="bi bi-list-check"></i> Include All Missing</button>
                 </div>
             </div>
 
@@ -215,7 +245,7 @@
                             <th style="width: 110px;">Code</th>
                             <th>Item Name</th>
                             <th style="width: 120px;" class="text-end">Default MRP (₹)</th>
-                            <th style="width: 150px;" class="text-end">Branch Rate (₹)</th>
+                            <th style="width: 150px;" class="text-end">Franchise Rate (₹)</th>
                             <th style="width: 100px;" class="text-center">Disc. Allowed</th>
                             <th style="width: 70px;" class="text-center">Active</th>
                             <th style="width: 60px;" class="text-center">Action</th>
@@ -229,7 +259,7 @@
 
             <div class="form-group text-end mt-4">
                 <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
-                <button type="submit" class="btn btn-primary" id="btnSave"><i class="bi bi-save"></i> Save Rate List</button>
+                <button type="submit" class="btn btn-primary" id="btnSave"><i class="bi bi-save"></i> Save Franchise Rate List</button>
             </div>
         </form>
     </div>
@@ -244,7 +274,6 @@
     $(document).ready(function () {
         $('.select2').select2({ width: '100%' });
 
-        // Toggle Copy Section
         $('#chkEnableCopy').change(function() {
             if ($(this).is(':checked')) {
                 $('#divCopyFields').slideDown();
@@ -258,7 +287,6 @@
             }
         });
 
-        // Show Base Rate on select item change
         $('#cboAllItems').change(function() {
             var val = $(this).val();
             if (!val) {
@@ -277,7 +305,6 @@
             }
         });
 
-        // Cascading Department -> Category
         $('#cboFilterDept').change(function() {
             var deptId = $(this).val();
             var catUrl = '@Url.Action("GetCategories")' + (deptId ? '?departmentId=' + deptId : '');
@@ -293,7 +320,6 @@
             });
         });
 
-        // Cascading Category -> SubCategory
         $('#cboFilterCategory').change(function() {
             var catId = $(this).val();
             var subCatUrl = '@Url.Action("GetSubCategories")' + (catId ? '?categoryId=' + catId : '');
@@ -309,7 +335,6 @@
             });
         });
 
-        // Apply Category/SubCategory Filter to Bulk Add Tests
         $('#btnApplyCategoryFilter').click(function() {
             var deptId = $('#cboFilterDept').val();
             var catId = $('#cboFilterCategory').val();
@@ -358,7 +383,6 @@
             }
         });
 
-        // Load existing details if editing
         var existingJson = $('#DetailsJson').val();
         if (existingJson && existingJson !== "[]") {
             try {
@@ -367,7 +391,6 @@
             } catch (e) { console.error("Failed to parse existing details"); }
         }
 
-        // Fetch All Items for dropdown
         $.get('@Url.Action("GetAllItems")', function(res) {
             if (res.success) {
                 allLabItems = res.data;
@@ -376,17 +399,30 @@
         });
 
         $('#adjType').change(function() {
-            if ($(this).val() === 'flat') $('#divAdjValue').show();
-            else $('#divAdjValue').hide();
+            var val = $(this).val();
+            if (val === 'flat') {
+                $('#divAdjValue').show();
+                $('#divCategoryFilterCopy').hide();
+                $('#divSubCategoryFilterCopy').hide();
+            } else if (val === 'category') {
+                $('#divAdjValue').show();
+                $('#divCategoryFilterCopy').show();
+                $('#divSubCategoryFilterCopy').show();
+            } else {
+                $('#divAdjValue').hide();
+                $('#divCategoryFilterCopy').hide();
+                $('#divSubCategoryFilterCopy').hide();
+            }
         });
 
-        // Copy Rates Button
         $('#btnCopyRates').click(function() {
             var branchId = $('#sourceBranch').val();
             if (!branchId) { toastr.warning("Please select a source branch"); return; }
             
             var adjType = $('#adjType').val();
             var adjVal = parseFloat($('#adjValue').val()) || 0;
+            var filterCatId = $('#cboCopyCat').val();
+            var filterSubCatId = $('#cboCopySubCat').val();
 
             $.get('@Url.Action("GetDetailsForBranch")', { branchId: branchId }, function(res) {
                 if (res.success) {
@@ -395,38 +431,45 @@
                         return;
                     }
 
-                    // Apply logic
                     currentDetails = res.data.map(function(item) {
-                        var newRate = item.Rate;
+                        var newRate = item.Rate || item.rate || 0;
+                        var itemCatId = item.Category_ID || item.category_ID;
+                        var itemSubCatId = item.SubCategory_ID || item.subCategory_ID;
+
                         if (adjType === 'flat') {
                             newRate = newRate + (newRate * (adjVal / 100));
+                        } else if (adjType === 'category') {
+                            var catMatch = !filterCatId || (itemCatId == filterCatId);
+                            var subCatMatch = !filterSubCatId || (itemSubCatId == filterSubCatId);
+                            if (catMatch && subCatMatch) {
+                                newRate = newRate + (newRate * (adjVal / 100));
+                            }
                         }
                         
                         return {
                             Detail_ID: 0,
                             RateCard_ID: 0,
-                            Item_Type: item.Item_Type,
-                            Item_ID: item.Item_ID,
-                            Item_Code: item.Item_Code,
-                            Item_Name: item.Item_Name,
-                            Category_ID: item.Category_ID,
-                            SubCategory_ID: item.SubCategory_ID,
-                            Default_Rate: item.Default_Rate,
-                            Rate: Math.round(newRate * 100) / 100, // Round to 2 decimals
+                            Item_Type: item.Item_Type || item.item_Type,
+                            Item_ID: item.Item_ID || item.item_ID,
+                            Item_Code: item.Item_Code || item.item_Code,
+                            Item_Name: item.Item_Name || item.item_Name,
+                            Category_ID: itemCatId,
+                            SubCategory_ID: itemSubCatId,
+                            Default_Rate: item.Default_Rate || item.default_Rate,
+                            Rate: Math.round(newRate * 100) / 100,
                             Is_Discount_Allowed: item.Is_Discount_Allowed !== undefined ? item.Is_Discount_Allowed : (item.is_Discount_Allowed !== undefined ? item.is_Discount_Allowed : true),
-                            Status: item.Status
+                            Status: item.Status !== undefined ? item.Status : true
                         };
                     });
                     
                     renderGrid();
-                    toastr.success("Rates copied. Please review before saving.");
+                    toastr.success("Rates copied from source branch. Please review before saving.");
                 } else {
                     toastr.error(res.message);
                 }
             });
         });
 
-        // Add Individual Item
         $('#btnAddItem').click(function() {
             var val = $('#cboAllItems').val();
             if (!val) return;
@@ -435,7 +478,6 @@
             var type = parts[0];
             var id = parseInt(parts[1]);
             
-            // Check if exists
             var exists = currentDetails.find(x => (x.Item_Type || x.item_Type) === type && (x.Item_ID || x.item_ID) === id);
             if (exists) {
                 toastr.warning("Item already in grid");
@@ -454,17 +496,15 @@
                     Category_ID: itemData.Category_ID || itemData.category_ID,
                     SubCategory_ID: itemData.SubCategory_ID || itemData.subCategory_ID,
                     Default_Rate: itemData.Default_Rate || itemData.default_Rate,
-                    Rate: itemData.Default_Rate || itemData.default_Rate, // default to MRP
+                    Rate: itemData.Default_Rate || itemData.default_Rate,
                     Is_Discount_Allowed: true,
                     Status: true
                 });
                 renderGrid();
-                // Clear selection
                 $('#cboAllItems').val(null).trigger('change');
             }
         });
 
-        // Include All Missing Items
         $('#btnAddAllItems').click(function() {
             var addedCount = 0;
             allLabItems.forEach(function(item) {
@@ -495,7 +535,6 @@
             }
         });
 
-        // Search and Type Filter handlers for Details Grid
         $('#txtDetailSearch').on('input keyup', function() {
             var val = $(this).val().trim();
             if (val.length > 0) {
@@ -523,7 +562,6 @@
             renderGrid();
         });
 
-        // Delegate events for dynamically rendered rows
         $('#tblDetails').on('change', '.inp-rate', function() {
             var idx = $(this).closest('tr').data('idx');
             var newRate = parseFloat($(this).val()) || 0;
@@ -546,9 +584,7 @@
             renderGrid();
         });
 
-        // Submit intercept to serialize array to hidden field
         $('#frmRateCard').submit(function(e) {
-            // Update hidden field before submitting
             $('#DetailsJson').val(JSON.stringify(currentDetails));
             if (currentDetails.length === 0) {
                 e.preventDefault();
@@ -584,7 +620,7 @@
         $('#badgeTestItems').text(`Tests: ${testCount}`);
 
         if (totalCount === 0) {
-            tbody.append('<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use bulk category add or search dropdown above to add items.</td></tr>');
+            tbody.append('<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use copy rates or search dropdown above to add items.</td></tr>');
             return;
         }
 
@@ -599,12 +635,10 @@
             var code = item.Item_Code || item.item_Code || '';
             var name = item.Item_Name || item.item_Name || '';
 
-            // Apply type filter
             if (typeFilter && type !== typeFilter) {
                 return;
             }
 
-            // Apply search term filter
             if (searchTerm) {
                 var matchName = name.toLowerCase().includes(searchTerm);
                 var matchCode = code.toLowerCase().includes(searchTerm);

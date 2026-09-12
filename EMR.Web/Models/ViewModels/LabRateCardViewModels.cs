@@ -18,6 +18,9 @@ public class LabRateCardFormViewModel
     // Header
     public int Branch_ID { get; set; }
     public SelectList? BranchList { get; set; }
+    public int? B2CIdentity_ID { get; set; }
+    public SelectList? FranchiseList { get; set; }
+    public SelectList? CorporateList { get; set; }
     public string Rate_Type { get; set; } = "B2C";
     public DateTime Effective_From { get; set; } = DateTime.Today;
     public DateTime Effective_To { get; set; } = new DateTime(2099, 12, 31);
@@ -25,6 +28,7 @@ public class LabRateCardFormViewModel
 
     // Dropdowns for Copy functionality
     public SelectList? SourceBranchList { get; set; }
+    public SelectList? SourceCorporateList { get; set; }
 
     // Dropdowns for Category filtering
     public SelectList? DepartmentList { get; set; }

@@ -8,6 +8,8 @@ public class LabRateCardHeaderModel
     public int CompanyId { get; set; }
     public int Branch_ID { get; set; }
     public string Branch_Name { get; set; } = string.Empty;
+    public int? B2CIdentity_ID { get; set; }
+    public string? Entity_Name { get; set; }
     public string Rate_Type { get; set; } = string.Empty;
     public DateTime Effective_From { get; set; }
     public DateTime Effective_To { get; set; }
@@ -33,7 +35,7 @@ public class LabRateCardDetailModel
     public int? SubCategory_ID { get; set; }
     public bool Is_Profile_Test { get; set; }
     public decimal Rate { get; set; }
-    public bool Is_Discount_Allowed { get; set; } = false;
+    public bool Is_Discount_Allowed { get; set; } = true;
     public bool Status { get; set; }
 }
 
@@ -48,6 +50,7 @@ public class LabRateCardSaveRequest
     public int? RateCard_ID { get; set; }
     public int CompanyId { get; set; } = 1;
     public int Branch_ID { get; set; }
+    public int? B2CIdentity_ID { get; set; }
     public string Rate_Type { get; set; } = string.Empty;
     public DateTime Effective_From { get; set; }
     public DateTime Effective_To { get; set; }

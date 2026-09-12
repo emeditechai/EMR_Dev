@@ -16,6 +16,7 @@ BEGIN
         [RateCard_ID]    INT IDENTITY(1,1) NOT NULL,
         [CompanyId]      INT NOT NULL DEFAULT(1),
         [Branch_ID]      INT NOT NULL,
+        [B2CIdentity_ID] INT NULL,
         [Rate_Type]      VARCHAR(50) NOT NULL, -- 'B2C', 'Corporate', 'Franchise', 'Doctor', 'Camp'
         [Effective_From] DATE NOT NULL,
         [Effective_To]   DATE NOT NULL,
@@ -34,6 +35,14 @@ BEGIN
 
     PRINT 'Table dbo.LabRateCardMaster created successfully.';
 END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabRateCardMaster') AND name = 'B2CIdentity_ID')
+    BEGIN
+        ALTER TABLE [dbo].[LabRateCardMaster] ADD [B2CIdentity_ID] INT NULL;
+        PRINT 'Added B2CIdentity_ID column to dbo.LabRateCardMaster.';
+    END
+END
 GO
 
 -- 2. Create Detail Table: dbo.LabRateCardDetail
@@ -41,17 +50,18 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[La
 BEGIN
     CREATE TABLE [dbo].[LabRateCardDetail]
     (
-        [Detail_ID]    INT IDENTITY(1,1) NOT NULL,
-        [RateCard_ID]  INT NOT NULL,
-        [Item_Type]    VARCHAR(20) NOT NULL, -- 'Test' or 'Profile'
-        [Item_ID]      INT NOT NULL,
-        [Rate]         DECIMAL(18,2) NOT NULL DEFAULT(0.00),
-        [Status]       BIT NOT NULL DEFAULT(1),
-        [IsDeleted]    BIT NOT NULL DEFAULT(0),
-        [CreatedBy]    INT NULL,
-        [CreatedDate]  DATETIME2 NOT NULL DEFAULT(GETDATE()),
-        [ModifiedBy]   INT NULL,
-        [ModifiedDate] DATETIME2 NULL,
+        [Detail_ID]           INT IDENTITY(1,1) NOT NULL,
+        [RateCard_ID]         INT NOT NULL,
+        [Item_Type]           VARCHAR(20) NOT NULL, -- 'Test' or 'Profile'
+        [Item_ID]             INT NOT NULL,
+        [Rate]                DECIMAL(18,2) NOT NULL DEFAULT(0.00),
+        [Is_Discount_Allowed] BIT NOT NULL DEFAULT(1),
+        [Status]              BIT NOT NULL DEFAULT(1),
+        [IsDeleted]           BIT NOT NULL DEFAULT(0),
+        [CreatedBy]           INT NULL,
+        [CreatedDate]         DATETIME2 NOT NULL DEFAULT(GETDATE()),
+        [ModifiedBy]          INT NULL,
+        [ModifiedDate]        DATETIME2 NULL,
         CONSTRAINT [PK_LabRateCardDetail] PRIMARY KEY CLUSTERED ([Detail_ID] ASC),
         CONSTRAINT [FK_LabRateCardDetail_Header] FOREIGN KEY ([RateCard_ID]) REFERENCES [dbo].[LabRateCardMaster] ([RateCard_ID])
     );
@@ -59,6 +69,14 @@ BEGIN
     CREATE NONCLUSTERED INDEX [IX_LabRateCardDetail_RateCard] ON [dbo].[LabRateCardDetail]([RateCard_ID]) WHERE [IsDeleted] = 0;
 
     PRINT 'Table dbo.LabRateCardDetail created successfully.';
+END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabRateCardDetail') AND name = 'Is_Discount_Allowed')
+    BEGIN
+        ALTER TABLE [dbo].[LabRateCardDetail] ADD [Is_Discount_Allowed] BIT NOT NULL DEFAULT(1);
+        PRINT 'Added Is_Discount_Allowed column to dbo.LabRateCardDetail.';
+    END
 END
 GO
 
@@ -76,11 +94,12 @@ GO
 
 CREATE TYPE [dbo].[udt_LabRateCardDetail] AS TABLE
 (
-    [Detail_ID] INT NULL,
-    [Item_Type] VARCHAR(20) NOT NULL,
-    [Item_ID]   INT NOT NULL,
-    [Rate]      DECIMAL(18,2) NOT NULL,
-    [Status]    BIT NOT NULL DEFAULT(1)
+    [Detail_ID]           INT NULL,
+    [Item_Type]           VARCHAR(20) NOT NULL,
+    [Item_ID]             INT NOT NULL,
+    [Rate]                DECIMAL(18,2) NOT NULL,
+    [Is_Discount_Allowed] BIT NOT NULL DEFAULT(1),
+    [Status]              BIT NOT NULL DEFAULT(1)
 );
 GO
 PRINT 'User-Defined Table Type dbo.udt_LabRateCardDetail created successfully.';
@@ -105,6 +124,12 @@ BEGIN
         h.[CompanyId],
         h.[Branch_ID],
         b.[BranchName] AS [Branch_Name],
+        h.[B2CIdentity_ID],
+        CASE 
+            WHEN h.[Rate_Type] = 'Franchise' THEN f.[Franchise_Name]
+            WHEN h.[Rate_Type] = 'Corporate' THEN c.[Corporate_Name]
+            ELSE NULL 
+        END AS [Entity_Name],
         h.[Rate_Type],
         h.[Effective_From],
         h.[Effective_To],
@@ -116,6 +141,8 @@ BEGIN
         (SELECT COUNT(1) FROM [dbo].[LabRateCardDetail] d WHERE d.[RateCard_ID] = h.[RateCard_ID] AND d.[IsDeleted] = 0) AS [ItemCount]
     FROM [dbo].[LabRateCardMaster] h
     LEFT JOIN [dbo].[BranchMaster] b ON h.[Branch_ID] = b.[BranchId]
+    LEFT JOIN [dbo].[LabFranchiseMaster] f ON h.[B2CIdentity_ID] = f.[Franchise_ID]
+    LEFT JOIN [dbo].[CorporateMaster] c ON h.[B2CIdentity_ID] = c.[Corporate_ID]
     WHERE h.[IsDeleted] = 0
       AND (@CompanyId IS NULL OR h.[CompanyId] = @CompanyId)
       AND (@RateType IS NULL OR h.[Rate_Type] = @RateType)
@@ -142,6 +169,12 @@ BEGIN
         h.[CompanyId],
         h.[Branch_ID],
         b.[BranchName] AS [Branch_Name],
+        h.[B2CIdentity_ID],
+        CASE 
+            WHEN h.[Rate_Type] = 'Franchise' THEN f.[Franchise_Name]
+            WHEN h.[Rate_Type] = 'Corporate' THEN c.[Corporate_Name]
+            ELSE NULL 
+        END AS [Entity_Name],
         h.[Rate_Type],
         h.[Effective_From],
         h.[Effective_To],
@@ -152,6 +185,8 @@ BEGIN
         h.[ModifiedDate]
     FROM [dbo].[LabRateCardMaster] h
     LEFT JOIN [dbo].[BranchMaster] b ON h.[Branch_ID] = b.[BranchId]
+    LEFT JOIN [dbo].[LabFranchiseMaster] f ON h.[B2CIdentity_ID] = f.[Franchise_ID]
+    LEFT JOIN [dbo].[CorporateMaster] c ON h.[B2CIdentity_ID] = c.[Corporate_ID]
     WHERE h.[RateCard_ID] = @RateCard_ID AND h.[IsDeleted] = 0;
 
     -- Resultset 2: Details with Item Names resolved from LabInvestigationMaster
@@ -168,6 +203,7 @@ BEGIN
         t.[Department_ID],
         t.[Is_Profile_Test],
         d.[Rate],
+        d.[Is_Discount_Allowed],
         d.[Status]
     FROM [dbo].[LabRateCardDetail] d
     INNER JOIN [dbo].[LabInvestigationMaster] t ON d.[Item_ID] = t.[Test_ID]
@@ -185,6 +221,7 @@ CREATE PROCEDURE [dbo].[usp_Api_LabRateCardMaster_Save]
     @RateCard_ID     INT = NULL OUTPUT,
     @CompanyId       INT = 1,
     @Branch_ID       INT,
+    @B2CIdentity_ID  INT = NULL,
     @Rate_Type       VARCHAR(50),
     @Effective_From  DATE,
     @Effective_To    DATE,
@@ -201,12 +238,12 @@ BEGIN
         BEGIN
             INSERT INTO [dbo].[LabRateCardMaster]
             (
-                [CompanyId], [Branch_ID], [Rate_Type], [Effective_From], [Effective_To],
+                [CompanyId], [Branch_ID], [B2CIdentity_ID], [Rate_Type], [Effective_From], [Effective_To],
                 [Status], [IsDeleted], [CreatedBy], [CreatedDate]
             )
             VALUES
             (
-                @CompanyId, @Branch_ID, @Rate_Type, @Effective_From, @Effective_To,
+                @CompanyId, @Branch_ID, @B2CIdentity_ID, @Rate_Type, @Effective_From, @Effective_To,
                 @Status, 0, @UserId, GETDATE()
             );
 
@@ -217,6 +254,7 @@ BEGIN
             -- Update Header
             UPDATE [dbo].[LabRateCardMaster]
             SET [Branch_ID]      = @Branch_ID,
+                [B2CIdentity_ID] = @B2CIdentity_ID,
                 [Rate_Type]      = @Rate_Type,
                 [Effective_From] = @Effective_From,
                 [Effective_To]   = @Effective_To,
@@ -244,12 +282,13 @@ BEGIN
         WHEN MATCHED THEN
             UPDATE SET 
                 Target.[Rate] = Source.[Rate],
+                Target.[Is_Discount_Allowed] = Source.[Is_Discount_Allowed],
                 Target.[Status] = Source.[Status],
                 Target.[ModifiedBy] = @UserId,
                 Target.[ModifiedDate] = GETDATE()
         WHEN NOT MATCHED THEN
-            INSERT ([RateCard_ID], [Item_Type], [Item_ID], [Rate], [Status], [IsDeleted], [CreatedBy], [CreatedDate])
-            VALUES (@RateCard_ID, Source.[Item_Type], Source.[Item_ID], Source.[Rate], Source.[Status], 0, @UserId, GETDATE());
+            INSERT ([RateCard_ID], [Item_Type], [Item_ID], [Rate], [Is_Discount_Allowed], [Status], [IsDeleted], [CreatedBy], [CreatedDate])
+            VALUES (@RateCard_ID, Source.[Item_Type], Source.[Item_ID], Source.[Rate], Source.[Is_Discount_Allowed], Source.[Status], 0, @UserId, GETDATE());
 
         COMMIT TRANSACTION;
     END TRY
