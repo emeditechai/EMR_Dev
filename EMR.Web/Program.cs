@@ -129,6 +129,7 @@ builder.Services.AddScoped<IPatientApiClient,           PatientApiClient>();
 builder.Services.AddScoped<IServiceBookingApiClient,    ServiceBookingApiClient>();
 builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>();
 builder.Services.AddScoped<ILabOrderApiClient,          LabOrderApiClient>();
+builder.Services.AddScoped<IB2BBillingApiClient,         B2BBillingApiClient>();
 builder.Services.AddScoped<ISampleCollectionApiClient,   SampleCollectionApiClient>();
 builder.Services.AddScoped<ILabReportingApiClient,       LabReportingApiClient>();
 builder.Services.AddScoped<ILabDashboardApiClient,       LabDashboardApiClient>();

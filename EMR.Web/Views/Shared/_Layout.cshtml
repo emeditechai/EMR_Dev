@@ -60,8 +60,13 @@
                                         <i class="bi bi-chevron-right ms-auto submenu-arrow"></i>
                                     </a>
                                     <ul class="dropdown-menu dropdown-submenu-menu">
-                                        <li><a class="dropdown-item" asp-controller="LabOrderBooking" asp-action="B2CBooking"><i class="bi bi-person-fill-add me-2"></i>B2C Booking / Registration</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabOrderBooking" asp-action="B2CBooking"><i class="bi bi-person-fill-add me-2 text-primary"></i>B2C Booking / Registration</a></li>
                                         <li><a class="dropdown-item" asp-controller="LabOrderBooking" asp-action="B2COrderList"><i class="bi bi-journal-text me-2"></i>B2C Order List</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="LabOrderBooking" asp-action="B2BBooking"><i class="bi bi-building-fill-add me-2 text-primary"></i>B2B Lab Billing &amp; Booking</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabOrderBooking" asp-action="B2BRegistration"><i class="bi bi-journal-check me-2"></i>B2B Order List</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabOrderBooking" asp-action="B2BInvoices"><i class="bi bi-file-earmark-medical me-2 text-info"></i>B2B Invoices</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabOrderBooking" asp-action="B2BSettlement"><i class="bi bi-wallet2 me-2 text-success"></i>B2B Multi-Bill Settlement</a></li>
                                     </ul>
                                 </li>
                                 <li><a class="dropdown-item" asp-controller="SampleCollection" asp-action="Index"><i class="bi bi-eyedropper me-2 text-primary"></i>Sample Collection Management</a></li>

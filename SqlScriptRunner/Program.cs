@@ -39,13 +39,29 @@ class Program
         using var conn = new SqlConnection(connStr);
         conn.Open();
 
+        int idx = 0;
         foreach (var batch in batches)
         {
             if (string.IsNullOrWhiteSpace(batch)) continue;
+            idx++;
             using var cmd = conn.CreateCommand();
             cmd.CommandText = batch;
             cmd.CommandType = CommandType.Text;
-            cmd.ExecuteNonQuery();
+            try
+            {
+                cmd.ExecuteNonQuery();
+            }
+            catch (SqlException ex)
+            {
+                Console.WriteLine($"SqlException at Line {ex.LineNumber} in batch {idx}: {ex.Message}");
+                Console.WriteLine($"Full batch text:\n{batch}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in batch {idx}: {ex.Message}");
+                throw;
+            }
         }
         Console.WriteLine($"Successfully executed {filePath}.");
     }

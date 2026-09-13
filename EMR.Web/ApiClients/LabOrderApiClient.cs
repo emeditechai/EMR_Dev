@@ -29,7 +29,7 @@ namespace EMR.Web.ApiClients
             return result?.Data;
         }
 
-        public async Task<IEnumerable<AvailableInvestigationDto>> GetAvailableInvestigationsAsync(int branchId, int? departmentId, int? categoryId, int? subCategoryId, string? gender = null, int? ageInYears = null)
+        public async Task<IEnumerable<AvailableInvestigationDto>> GetAvailableInvestigationsAsync(int branchId, int? departmentId, int? categoryId, int? subCategoryId, string? gender = null, int? ageInYears = null, string? rateType = "B2C", int? agentId = null)
         {
             string query = $"?branchId={branchId}";
             if (departmentId.HasValue) query += $"&departmentId={departmentId.Value}";
@@ -37,6 +37,8 @@ namespace EMR.Web.ApiClients
             if (subCategoryId.HasValue) query += $"&subCategoryId={subCategoryId.Value}";
             if (!string.IsNullOrEmpty(gender)) query += $"&gender={Uri.EscapeDataString(gender)}";
             if (ageInYears.HasValue) query += $"&ageInYears={ageInYears.Value}";
+            if (!string.IsNullOrEmpty(rateType)) query += $"&rateType={Uri.EscapeDataString(rateType)}";
+            if (agentId.HasValue) query += $"&agentId={agentId.Value}";
 
             var response = await httpClient.GetAsync($"api/LabOrders/available-investigations{query}");
             response.EnsureSuccessStatusCode();
@@ -67,12 +69,13 @@ namespace EMR.Web.ApiClients
             return await response.Content.ReadFromJsonAsync<IEnumerable<SubCategoryDto>>();
         }
 
-        public async Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
+        public async Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null)
         {
             string query = $"?branchId={branchId}&pageNumber={page}&pageSize={pageSize}";
             if (!string.IsNullOrEmpty(fromDate)) query += $"&fromDate={fromDate}";
             if (!string.IsNullOrEmpty(toDate)) query += $"&toDate={toDate}";
             if (!string.IsNullOrEmpty(search)) query += $"&search={System.Uri.EscapeDataString(search)}";
+            if (isB2B.HasValue) query += $"&isB2B={isB2B.Value}";
 
             var response = await httpClient.GetAsync($"api/LabOrders/paged{query}");
             response.EnsureSuccessStatusCode();

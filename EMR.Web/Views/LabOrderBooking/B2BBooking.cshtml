@@ -1,0 +1,3358 @@
+@model EMR.Web.Models.ViewModels.LabOrderBookingViewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
+@{
+    ViewData["Title"] = "B2B Lab Order Registration & Billing";
+    var token = Xsrf.GetAndStoreTokens(Context).RequestToken;
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #leafletMapContainer {
+            height: 380px;
+            width: 100%;
+            border-radius: 8px;
+            z-index: 1;
+        }
+        .leaflet-container {
+            font-family: inherit;
+        }
+        .geo-addr-sug {
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            border: none;
+            border-bottom: 1px solid #f0f0f0;
+            border-left: 4px solid transparent;
+            background: #fff;
+        }
+        .geo-addr-sug:hover, .geo-addr-sug.kbd-active {
+            background-color: #e8f0fe !important;
+            border-left: 4px solid #1a73e8 !important;
+        }
+        .geo-addr-sug.kbd-active .fw-bold {
+            color: #1a73e8 !important;
+        }
+        .btn-close-xs {
+            width: 0.5rem;
+            height: 0.5rem;
+            padding: 0.15rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection {
+            min-height: 38px;
+            font-size: 0.875rem;
+            border-color: #cbd5e1;
+            border-radius: 8px;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        .select2-container--bootstrap-5.select2-container--focus .select2-selection,
+        .select2-container--bootstrap-5.select2-container--open .select2-selection,
+        .form-control:focus,
+        .form-select:focus,
+        .form-check-input:focus {
+            border-color: #2563eb !important;
+            box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.22) !important;
+            outline: 0 !important;
+        }
+        .form-check-input:focus + .form-check-label {
+            color: #2563eb !important;
+            font-weight: 700 !important;
+        }
+        .select2-container--bootstrap-5 .select2-dropdown {
+            border-color: #cbd5e1;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            z-index: 1060;
+        }
+        .select2-container--bootstrap-5 .select2-search--dropdown {
+            padding: 8px 10px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .select2-container--bootstrap-5 .select2-search--dropdown .select2-search__field {
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+        .select2-container--bootstrap-5 .select2-results__options {
+            max-height: 280px;
+            padding: 4px;
+        }
+        .select2-container--bootstrap-5 .select2-results__option {
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            margin-bottom: 2px;
+            transition: background-color 0.1s ease;
+        }
+        .select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
+            background-color: #eff6ff !important;
+            color: #1e3a8a !important;
+        }
+        .select2-container { width: 100% !important; }
+
+        .reg-section {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin-bottom: 1.25rem;
+            overflow: visible;
+            box-shadow: 0 1px 3px rgba(0,0,0,.04);
+        }
+        .reg-section-header {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid #e2e8f0;
+            background: #fff;
+        }
+        .reg-section-header .sec-icon {
+            width: 38px; height: 38px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.15rem;
+        }
+        .reg-section-header .sec-icon.blue  { background: #e8f0fe; color: #1967d2; }
+        .reg-section-header .sec-icon.green { background: #e6f4ea; color: #137333; }
+        .reg-section-header .sec-icon.purple { background: #f3e8fd; color: #7c3aed; }
+        .reg-section-body { padding: 1.25rem; }
+
+        .b2b-toggle-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 1.1rem 1.4rem;
+            margin-bottom: 1.25rem;
+        }
+        .btn-check:checked + .btn-b2b-toggle {
+            background: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(37,99,235,.25);
+        }
+        .btn-b2b-toggle {
+            border-color: #cbd5e1;
+            color: #475569;
+            font-weight: 600;
+            padding: .45rem 1.5rem;
+            transition: all .15s ease;
+        }
+
+        .action-bar {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.85rem 1.25rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: .75rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,.04);
+            position: sticky;
+            bottom: 0;
+            z-index: 100;
+        }
+
+        #phoneSearchDropdown, #topSearchDropdown {
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
+            background: #fff;
+        }
+        #phoneSearchDropdown .phone-sug, #topSearchDropdown .top-sug {
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            text-align: left;
+            border: none;
+            border-bottom: 1px solid #f0f0f0;
+            border-left: 4px solid transparent;
+            background: #fff;
+        }
+        #phoneSearchDropdown .phone-sug:hover,
+        #phoneSearchDropdown .phone-sug.kbd-active,
+        #topSearchDropdown .top-sug:hover,
+        #topSearchDropdown .top-sug.kbd-active {
+            background-color: #e8f0fe !important;
+            border-left: 4px solid #1a73e8 !important;
+        }
+        #phoneSearchDropdown .phone-sug.kbd-active .fw-semibold,
+        #topSearchDropdown .top-sug.kbd-active .fw-semibold {
+            color: #1a73e8 !important;
+        }
+
+        #tblLineItems tbody tr {
+            transition: background-color 0.15s ease;
+        }
+        #tblLineItems tbody tr:hover {
+            background-color: #f8fafc;
+        }
+    </style>
+}
+
+@* ── Payment Modal (Standby) ── *@
+@{
+    ViewData["PaymentModuleCode"]     = "LAB";
+    ViewData["PaymentModuleRefId"]    = 0;
+    ViewData["PaymentSuccessModalId"] = "bookingSuccessModal";
+}
+<partial name="_PaymentModal" />
+
+@* ── Page Title Header ── *@
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">
+            <i class="bi bi-building-add me-2 text-primary"></i>B2B Lab Registration &amp; Billing
+        </h1>
+        <small class="text-muted">Create B2B franchise &amp; corporate bookings with automated contracted rate cards</small>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a asp-action="B2BRegistration" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
+            <i class="bi bi-journal-text me-1"></i>B2B Order List
+        </a>
+    </div>
+</div>
+
+@* ── Top Patient Quick Search Card (Same as B2C) ── *@
+<div class="card shadow-sm border-0 mb-3 bg-body-tertiary">
+    <div class="card-body py-2 px-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-md-3">
+                <select id="searchType" class="form-select form-select-sm">
+                    <option value="phone">Mobile No</option>
+                    <option value="code">Patient ID</option>
+                    <option value="name">Patient Name</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-6 position-relative">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text" id="searchIcon"><i class="bi bi-telephone"></i></span>
+                    <input type="text" id="searchInput" class="form-control"
+                           placeholder="Enter 10-digit mobile number…" maxlength="50" autocomplete="off" />
+                    <button class="btn btn-primary px-3" type="button" id="btnTopSearch">
+                        <i class="bi bi-search me-1"></i>Search
+                    </button>
+                </div>
+                <div id="topSearchDropdown"
+                     class="list-group position-absolute shadow"
+                     style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:260px;overflow-y:auto;"></div>
+            </div>
+            <div class="col-12 col-md-3 text-end d-none d-md-block">
+                <span class="badge bg-light text-muted border"><i class="bi bi-info-circle me-1"></i>Auto-populates on selection</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form asp-action="B2BBooking" method="post" enctype="multipart/form-data" id="frmB2BBooking" autocomplete="off">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="PatientId" id="PatientId" />
+    <input type="hidden" asp-for="PatientCode" id="PatientCode" />
+    <input type="hidden" asp-for="IsB2B" value="true" />
+    <input type="hidden" asp-for="LineItemsJson" id="LineItemsJson" />
+    <input type="hidden" asp-for="B2BTotal" id="B2BTotal" />
+    <input type="hidden" id="SelectedB2BAgentId" name="B2BAgentId" value="@(Model.B2BAgentId ?? 0)" />
+    <input type="hidden" id="hdnDeductFromWallet" name="DeductFromWallet" value="true" />
+    <input type="hidden" id="hdnPaymentDataJson" name="PaymentDataJson" value="" />
+
+    @* ══════════════════════════════════════════════════════════════
+       SECTION 0: B2B PARTNER TOGGLE & SELECTION (AT TOP)
+       ══════════════════════════════════════════════════════════════ *@
+    <div class="b2b-toggle-card shadow-sm">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary px-2.5 py-1.5"><i class="bi bi-briefcase-fill me-1"></i>B2B Entity</span>
+                <span class="fw-bold text-dark fs-6">Select Partner Type:</span>
+            </div>
+            @* Toggle switch for Franchise and Company *@
+            <div class="btn-group" role="group" aria-label="B2B Partner Toggle">
+                <input type="radio" class="btn-check" name="AgentType" id="toggleFranchise" value="F" @(Model.AgentType != "C" ? "checked" : "") onchange="onPartnerTypeChanged('F')">
+                <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleFranchise">
+                    <i class="bi bi-shop me-1"></i>Franchise
+                </label>
+
+                <input type="radio" class="btn-check" name="AgentType" id="toggleCompany" value="C" @(Model.AgentType == "C" ? "checked" : "") onchange="onPartnerTypeChanged('C')">
+                <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleCompany">
+                    <i class="bi bi-building me-1"></i>Company
+                </label>
+            </div>
+        </div>
+
+        <div class="row g-3 align-items-center">
+            @* Franchise Dropdown *@
+            <div class="col-12 col-md-6" id="divFranchiseSelect" style="@(Model.AgentType == "C" ? "display:none;" : "")">
+                <label class="form-label fw-semibold small text-primary">
+                    <i class="bi bi-shop me-1"></i>Choose Franchise <span class="text-danger">*</span>
+                </label>
+                <select id="ddlFranchise" class="form-select s2-basic" data-placeholder="-- Select Franchise --">
+                    <option value="">-- Select Franchise --</option>
+                    @if (Model.FranchiseOptions != null && Model.FranchiseOptions.Any())
+                    {
+                        foreach (var f in Model.FranchiseOptions)
+                        {
+                            <option value="@f.Value" selected="@(Model.AgentType != "C" && Model.B2BAgentId.HasValue && Model.B2BAgentId.Value.ToString() == f.Value)">
+                                @f.Text
+                            </option>
+                        }
+                    }
+                    else if (ViewBag.Franchises != null)
+                    {
+                        foreach (var f in ViewBag.Franchises)
+                        {
+                            <option value="@f.Value" selected="@(Model.AgentType != "C" && Model.B2BAgentId.HasValue && Model.B2BAgentId.Value.ToString() == f.Value)">
+                                @f.Text
+                            </option>
+                        }
+                    }
+                </select>
+                <small class="text-muted d-block mt-1">Rates will load from Franchise Rate List based on Branch</small>
+            </div>
+
+            @* Company / Corporate Dropdown *@
+            <div class="col-12 col-md-6" id="divCompanySelect" style="@(Model.AgentType == "C" ? "" : "display:none;")">
+                <label class="form-label fw-semibold small text-primary">
+                    <i class="bi bi-building me-1"></i>Choose Company (Corporate) <span class="text-danger">*</span>
+                </label>
+                <select id="ddlCompany" class="form-select s2-basic" data-placeholder="-- Select Corporate Company --">
+                    <option value="">-- Select Corporate Company --</option>
+                    @if (Model.CorporateOptions != null && Model.CorporateOptions.Any())
+                    {
+                        foreach (var c in Model.CorporateOptions)
+                        {
+                            <option value="@c.Value" selected="@(Model.AgentType == "C" && Model.B2BAgentId.HasValue && Model.B2BAgentId.Value.ToString() == c.Value)">
+                                @c.Text
+                            </option>
+                        }
+                    }
+                    else if (ViewBag.Companies != null)
+                    {
+                        foreach (var c in ViewBag.Companies)
+                        {
+                            <option value="@c.Value" selected="@(Model.AgentType == "C" && Model.B2BAgentId.HasValue && Model.B2BAgentId.Value.ToString() == c.Value)">
+                                @c.Text
+                            </option>
+                        }
+                    }
+                </select>
+                <small class="text-muted d-block mt-1">Rates will load from Corporate Rate List for selected Company</small>
+            </div>
+
+            @* Dynamic Partner Credit & Facility Status Card *@
+            <div class="col-12 col-md-6">
+                <div id="partnerCreditCard" class="card border shadow-xs" style="background:#f8fafc; border-radius:10px;">
+                    <div class="card-body p-2.5">
+                        <!-- Top Row: Partner Name & Facility Badge -->
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1.5 pb-1 border-bottom">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center bg-white border text-primary" style="width:32px;height:32px;flex-shrink:0;">
+                                    <i class="bi bi-shield-check fs-6" id="partnerCardIcon"></i>
+                                </div>
+                                <div>
+                                    <span class="fw-bold text-dark small" id="partnerInfoTitle">No Partner Selected</span>
+                                    <span class="text-muted d-block" style="font-size:0.72rem;" id="partnerInfoSub">Select a partner to load credit facility rules &amp; contracted rates.</span>
+                                </div>
+                            </div>
+                            <div id="partnerFacilityBadgeContainer">
+                                <!-- Badge rendered dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Partner Details Grid (Hidden until partner selected) -->
+                        <div id="partnerDetailsGrid" style="display:none;">
+                            <!-- Prepaid Wallet Section -->
+                            <div id="sectionPrepaidWallet" class="row g-2 align-items-center mb-1" style="display:none;">
+                                <div class="col-7">
+                                    <div class="d-flex align-items-baseline gap-1">
+                                        <span class="text-muted small">Wallet Balance:</span>
+                                        <span class="fs-6 fw-bold text-success font-monospace" id="lblWalletBalance">₹ 0.00</span>
+                                    </div>
+                                    <div class="form-check form-switch mt-1">
+                                        <input class="form-check-input" type="checkbox" id="chkDeductWallet" checked onchange="onWalletDeductToggle(this)">
+                                        <label class="form-check-label small fw-semibold text-dark" for="chkDeductWallet">
+                                            Pay from Franchise Wallet
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-5 text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-success py-1 px-2.5" onclick="openWalletTopUpModal()">
+                                        <i class="bi bi-wallet2 me-1"></i>Top-Up
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Postpaid Credit Section -->
+                            <div id="sectionPostpaidCredit" class="row g-2 mb-1" style="display:none;">
+                                <div class="col-4">
+                                    <span class="text-muted d-block" style="font-size:0.7rem;">Credit Limit</span>
+                                    <span class="fw-bold text-dark font-monospace small" id="lblCreditLimit">₹ 0.00</span>
+                                </div>
+                                <div class="col-4">
+                                    <span class="text-muted d-block" style="font-size:0.7rem;">Outstanding</span>
+                                    <span class="fw-bold text-danger font-monospace small" id="lblCurrentOutstanding">₹ 0.00</span>
+                                </div>
+                                <div class="col-4">
+                                    <span class="text-muted d-block" style="font-size:0.7rem;">Available</span>
+                                    <span class="fw-bold text-success font-monospace small" id="lblAvailableCredit">₹ 0.00</span>
+                                </div>
+                                <div class="col-6 mt-1">
+                                    <span class="badge bg-light text-secondary border" style="font-size:0.7rem;" id="badgeCreditDays">
+                                        <i class="bi bi-calendar-event me-1"></i>Credit Days: --
+                                    </span>
+                                </div>
+                                <div class="col-6 mt-1 text-end">
+                                    <span class="badge bg-light text-secondary border" style="font-size:0.7rem;" id="badgeBillingCycle">
+                                        <i class="bi bi-arrow-repeat me-1"></i>Cycle: --
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Corporate Validity Banner -->
+                            <div id="bannerCorporateValidity" class="mt-1 p-1 rounded bg-light border" style="display:none; font-size:0.72rem;">
+                                <span class="text-muted"><i class="bi bi-file-earmark-text me-1"></i>Contract:</span>
+                                <span class="fw-semibold text-dark" id="lblContractDates">-- to --</span>
+                                <span class="badge ms-1" id="badgeContractStatus">Active</span>
+                            </div>
+
+                            <!-- Real-time Warning / Policy Alert Bar -->
+                            <div id="partnerPolicyAlert" class="alert py-1 px-2 mb-0 mt-1.5 small d-none" role="alert"></div>
+                        </div>
+                    </div>
+                </div>
+                <span asp-validation-for="B2BAgentId" class="text-danger small fw-semibold"></span>
+            </div>
+        </div>
+    </div>
+
+    @* ══════════════════════════════════════════════════════════════
+       SECTION 1: PATIENT DEMOGRAPHICS (EXACT B2C LAYOUT & STYLING)
+       ══════════════════════════════════════════════════════════════ *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon blue me-2"><i class="bi bi-person-circle"></i></div>
+            <div>
+                <h6 class="mb-0 fw-bold text-dark">Patient Information</h6>
+                <small class="text-muted">Basic patient demographics and identity</small>
+            </div>
+            <span id="loadedPatientBadge" class="badge text-bg-primary ms-3 font-monospace d-none"></span>
+            <span class="badge text-bg-danger ms-auto">* Required Fields</span>
+        </div>
+
+        <div class="reg-section-body">
+            @* ── Row 1: Phone Number* | Relation* | Profile Picture ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6 col-md-4 position-relative">
+                    <label asp-for="PhoneNumber" class="form-label fw-semibold small">
+                        Phone Number <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
+                        <input asp-for="PhoneNumber" id="phoneNumber" class="form-control"
+                               maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
+                               placeholder="10-digit mobile" autocomplete="off" />
+                        <button class="btn btn-outline-primary" type="button" id="btnSearchPatient" title="Search existing patient">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                    <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    <div id="phoneError" class="text-danger small" style="display:none"></div>
+                    <div id="phoneSearchDropdown"
+                         class="list-group position-absolute shadow"
+                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="RelationId" class="form-label fw-semibold small">
+                        Relation <span class="text-danger">*</span>
+                    </label>
+                    <select asp-for="RelationId" id="ddlRelation" class="form-select s2-basic"
+                            asp-items="Model.RelationOptions">
+                        <option value="">-- Select Relation --</option>
+                    </select>
+                    <span asp-validation-for="RelationId" class="text-danger small"></span>
+                </div>
+
+                <div class="col-12 col-sm-12 col-md-4">
+                    <label class="form-label fw-semibold small">
+                        Profile Picture
+                        <span class="text-muted fw-normal">(JPG / PNG / GIF)</span>
+                    </label>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="flex-grow-1">
+                            <div class="input-group">
+                                <input type="file" name="profilePictureFile" id="profilePictureFile"
+                                       class="form-control" accept=".jpg,.jpeg,.png,.gif" onchange="previewProfilePic(this)" />
+                                <button type="button" class="btn btn-outline-primary" id="btnWebcamOpen" title="Take photo via Webcam">
+                                    <i class="bi bi-camera-fill"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="profilePicPreviewContainer" class="@(string.IsNullOrEmpty(Model.PhotoPath) ? "d-none" : "")">
+                            <img id="profilePicPreview" src="@Model.PhotoPath" 
+                                 class="rounded-circle border" style="width: 38px; height: 38px; object-fit: cover;" />
+                        </div>
+                    </div>
+                    <span asp-validation-for="PhotoPath" class="text-danger small"></span>
+                </div>
+            </div>
+
+            @* ── Row 2: Title | First Name* | Middle Name | Last Name* ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-4 col-sm-3 col-md-2">
+                    <label asp-for="Salutation" class="form-label fw-semibold small">Title</label>
+                    <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic px-1">
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Master">Master</option>
+                        <option value="Dr.">Dr.</option>
+                        <option value="Prof.">Prof.</option>
+                        <option value="Baby">Baby</option>
+                    </select>
+                </div>
+                <div class="col-8 col-sm-5 col-md-4">
+                    <label asp-for="FirstName" class="form-label fw-semibold small">
+                        First Name <span class="text-danger">*</span>
+                    </label>
+                    <input asp-for="FirstName" id="FirstName" class="form-control text-capitalize" maxlength="100" placeholder="Enter first name" style="text-transform: capitalize;" />
+                    <span asp-validation-for="FirstName" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-4 col-md-2">
+                    <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
+                    <input asp-for="MiddleName" id="MiddleName" class="form-control text-capitalize" maxlength="100" placeholder="Optional" style="text-transform: capitalize;" />
+                </div>
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label asp-for="LastName" class="form-label fw-semibold small">
+                        Last Name <span class="text-danger">*</span>
+                    </label>
+                    <input asp-for="LastName" id="LastName" class="form-control text-capitalize" maxlength="100" placeholder="Enter last name" style="text-transform: capitalize;" />
+                    <span asp-validation-for="LastName" class="text-danger small"></span>
+                </div>
+            </div>
+
+            @* ── Row 3: Secondary Number | Email | Gender* | Date of Birth | Age* ── *@
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
+                        <input asp-for="SecondaryPhoneNumber" id="SecondaryPhoneNumber" class="form-control"
+                               maxlength="15" placeholder="Optional" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-2">
+                    <label asp-for="EmailId" class="form-label fw-semibold small">Email ID</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-envelope text-secondary"></i></span>
+                        <input asp-for="EmailId" id="EmailId" class="form-control text-lowercase" maxlength="150" placeholder="Optional" style="text-transform: lowercase;" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-4 col-md-2">
+                    <label asp-for="Gender" class="form-label fw-semibold small">
+                        Gender <span class="text-danger">*</span>
+                    </label>
+                    <select asp-for="Gender" id="ddlGender" class="form-select s2-basic">
+                        <option value="">-- Select --</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <span asp-validation-for="Gender" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-4 col-md-2">
+                    <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
+                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
+                           max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-8 col-md-4">
+                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span></label>
+                    <div class="d-flex gap-1 align-items-center">
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
+                                   min="0" max="150" placeholder="00" title="Years (0-150)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Year</span>
+                        </div>
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeMonths" type="number" id="AgeMonths" class="form-control px-2 text-center"
+                                   min="0" max="12" placeholder="00" title="Months (Max 12)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Month</span>
+                        </div>
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeDays" type="number" id="AgeDays" class="form-control px-2 text-center"
+                                   min="0" max="30" placeholder="00" title="Days (Max 30)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Days</span>
+                        </div>
+                    </div>
+                    <div id="ageValidationFeedback" class="text-danger small mt-1 d-none"></div>
+                    <span asp-validation-for="AgeYears" class="text-danger small d-block"></span>
+                </div>
+            </div>
+
+            @* ── Row 4: Blood Group | Referred By Doctor | Address ── *@
+            <div class="row g-3 mb-1">
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
+                    <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
+                        <option value="">-- Select --</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="Unknown">Unknown</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referred By Doctor</label>
+                    <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search" asp-items="Model.ReferralDoctorOptions">
+                        <option value="">-- Self / Direct --</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label asp-for="Address" class="form-label fw-semibold small">Residential Address</label>
+                    <input asp-for="Address" id="Address" class="form-control" placeholder="Patient residential address" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ══════════════════════════════════════════════════════════════
+       SECTION 2: COLLECTION & ORDER DETAILS
+       ══════════════════════════════════════════════════════════════ *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon green me-2"><i class="bi bi-clock-history"></i></div>
+            <div>
+                <h6 class="mb-0 fw-bold text-dark">Collection &amp; Order Details</h6>
+                <small class="text-muted">Collection mode, scheduling, and assigned phlebotomist</small>
+            </div>
+            <span class="badge bg-light text-muted border ms-auto fw-normal" style="font-size:0.75rem;">Step 2</span>
+        </div>
+
+        <div class="reg-section-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-semibold small">Collection Type <span class="text-danger">*</span></label>
+                    <div class="d-flex gap-3 mt-1">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="CollectionType" id="colB2B" value="B2BCollector" @(Model.CollectionType != "Home Collection" && Model.CollectionType != "Lab" ? "checked" : "") onchange="onCollectionTypeChanged()">
+                            <label class="form-check-label fw-semibold" for="colB2B">
+                                <i class="bi bi-briefcase text-primary me-1"></i>B2B Collector
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="CollectionType" id="colLab" value="Lab" @(Model.CollectionType == "Lab" ? "checked" : "") onchange="onCollectionTypeChanged()">
+                            <label class="form-check-label fw-semibold" for="colLab">
+                                <i class="bi bi-hospital text-primary me-1"></i>Lab (In-House)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="CollectionType" id="colHome" value="Home Collection" @(Model.CollectionType == "Home Collection" ? "checked" : "") onchange="onCollectionTypeChanged()">
+                            <label class="form-check-label fw-semibold" for="colHome">
+                                <i class="bi bi-house-door text-primary me-1"></i>Home Collection
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label asp-for="BookingDateTime" class="form-label fw-semibold small">Booking Date &amp; Time <span class="text-danger">*</span></label>
+                    <input asp-for="BookingDateTime" id="BookingDateTime" type="datetime-local" class="form-control"
+                           value="@(Model.BookingDateTime != default ? Model.BookingDateTime.ToString("yyyy-MM-ddTHH:mm") : DateTime.Now.ToString("yyyy-MM-ddTHH:mm"))" />
+                    <span asp-validation-for="BookingDateTime" class="text-danger small"></span>
+                </div>
+
+                <div class="col-12 col-md-4" id="divPhlebotomist">
+                    <label class="form-label fw-semibold small">Collector / Phlebotomist</label>
+                    <select asp-for="PhlebotomistId" id="ddlPhlebotomist" class="form-select s2-basic" asp-items="Model.PhlebotomistOptions">
+                        <option value="">-- Select Collector / Phlebotomist --</option>
+                    </select>
+                </div>
+
+                <!-- Home Collection Address (with Geo-Location Auto-Suggest, Map Picker & Lat/Long Capture) -->
+                <div class="col-12" id="divHomeCollectionAddress" style="@(Model.CollectionType == "Home Collection" ? "" : "display:none;")">
+                    <div class="p-3 rounded-3 bg-light border border-primary-subtle">
+                        <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-2">
+                            <label asp-for="HomeCollectionAddress" class="form-label fw-semibold small mb-0 d-flex align-items-center gap-1 text-primary">
+                                <i class="bi bi-geo-alt-fill text-danger"></i> Home Collection Address <span class="text-danger">*</span>
+                                <span class="text-muted fw-normal" style="font-size:0.75rem;">(Auto-suggests location &amp; captures doorstep Lat/Long coordinates)</span>
+                            </label>
+                            <div class="d-flex align-items-center gap-2">
+                                <span id="badgeGeoLocation" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 align-items-center gap-1" style="display:none; font-size: 0.75rem; cursor:pointer;" title="Click to view/edit on Map">
+                                    <i class="bi bi-pin-map-fill text-danger"></i><span id="lblGeoCoords"></span>
+                                    <button type="button" class="btn-close btn-close-xs ms-1" id="btnClearGeoCoords" title="Clear GPS coordinates" style="font-size: 0.55rem;"></button>
+                                </span>
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1" id="btnOpenMapModal" title="Open interactive map to pinpoint or adjust doorstep location">
+                                    <i class="bi bi-map-fill"></i>
+                                    <span id="txtOpenMap">Pick on Map</span>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-semibold d-inline-flex align-items-center gap-1" id="btnDetectLocation" title="Auto-detect current device GPS location">
+                                    <i class="bi bi-crosshair" id="iconDetectLocation"></i>
+                                    <span id="txtDetectLocation">Current GPS</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="position-relative" id="homeAddrSuggestWrapper">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0">
+                                    <i class="bi bi-search" id="iconAddrSearch"></i>
+                                </span>
+                                <input asp-for="HomeCollectionAddress" id="HomeCollectionAddress" class="form-control border-start-0" maxlength="500"
+                                       placeholder="Type patient area / landmark / address to auto-suggest (e.g., Belepole, Shibpur, Howrah)..." autocomplete="off" />
+                                <button type="button" class="btn btn-outline-secondary" id="btnClearHomeAddr" title="Clear address" style="display:none;">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                            <input type="hidden" asp-for="Latitude" id="hdnLatitude" />
+                            <input type="hidden" asp-for="Longitude" id="hdnLongitude" />
+
+                            <!-- Auto-Suggest Dropdown Menu for Geocoded Locations -->
+                            <div id="homeAddrDropdown" class="dropdown-menu shadow-lg border-0 w-100 p-0 mt-1" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1060; max-height:280px; overflow-y:auto; border-radius:8px; border:1px solid #dee2e6;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ══════════════════════════════════════════════════════════════
+       SECTION 3: INVESTIGATION SELECTION & B2B LINE ITEMS
+       ══════════════════════════════════════════════════════════════ *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon blue me-2"><i class="bi bi-search"></i></div>
+            <div>
+                <h6 class="mb-0 fw-bold text-dark">Search &amp; Add Investigation / Profile <span class="text-danger">*</span></h6>
+                <small class="text-muted">Filter by department or category, or search directly</small>
+            </div>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="b2bPaxBadge">
+                    <i class="bi bi-tag-fill me-1"></i>B2B PRICING MODE ACTIVE
+                </span>
+            </div>
+        </div>
+
+        <div class="reg-section-body">
+            @* Cascading Filters *@
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-semibold small">Department</label>
+                    <select id="ddlDepartment" class="form-select s2-search" onchange="loadCategories()">
+                        <option value="">-- All Departments --</option>
+                        @if (Model.DepartmentOptions != null)
+                        {
+                            foreach (var d in Model.DepartmentOptions)
+                            {
+                                <option value="@d.Value">@d.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-semibold small">Category</label>
+                    <select id="ddlCategory" class="form-select s2-search" onchange="loadSubCategories()">
+                        <option value="">-- All Categories --</option>
+                        @if (Model.CategoryOptions != null)
+                        {
+                            foreach (var c in Model.CategoryOptions)
+                            {
+                                <option value="@c.Value">@c.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label fw-semibold small">Sub Category</label>
+                    <select id="ddlSubCategory" class="form-select s2-search" onchange="loadInvestigations()">
+                        <option value="">-- All Sub Categories --</option>
+                        @if (Model.SubCategoryOptions != null)
+                        {
+                            foreach (var sc in Model.SubCategoryOptions)
+                            {
+                                <option value="@sc.Value">@sc.Text</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @* Investigation Search & Select2 Dropdown *@
+            <div class="row g-2 align-items-center mb-3">
+                <div class="col-12">
+                    <label class="form-label fw-semibold small d-flex justify-content-between align-items-center mb-1">
+                        <span>Select Test / Investigation / Profile <span class="text-danger">*</span></span>
+                        <span class="badge bg-light text-muted border">
+                            Available: <strong id="lblAvailCount" class="text-primary font-monospace">0</strong>
+                        </span>
+                    </label>
+                    <select id="ddlInvestigations" class="form-select" data-placeholder="-- Search by Test Code or Investigation Name --">
+                        <option value=""></option>
+                    </select>
+                    <div class="form-text text-muted small mt-1">
+                        <i class="bi bi-info-circle me-1"></i>Rates automatically update to contracted B2B rate cards when a Franchise or Corporate Company is selected.
+                    </div>
+                </div>
+            </div>
+
+            @* ── Line Items Table ── *@
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0" id="tblLineItems">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px;" class="text-center">#</th>
+                            <th style="width:110px;">Test Code</th>
+                            <th>Investigation / Profile Name</th>
+                            <th style="width:120px;">Sample Type</th>
+                            <th style="width:80px;">TAT</th>
+                            <th style="width:130px;" class="text-end">Standard MRP (₹)</th>
+                            <th style="width:130px;" class="text-end bg-primary-subtle text-primary">B2B Rate (₹)</th>
+                            <th style="width:70px;" class="text-center">Urgent</th>
+                            <th style="width:50px;" class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblLineItemsBody">
+                        <tr id="rowEmpty">
+                            <td colspan="9" class="text-center py-4 text-muted">
+                                <i class="bi bi-basket fs-4 d-block mb-1 text-secondary"></i>
+                                No investigations added yet. Search and select tests above.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            @* ── Totals Footer ── *@
+            <div class="row justify-content-end mt-3 g-2">
+                <div class="col-12 col-md-8 col-lg-6">
+                    <div class="p-3 bg-light rounded-3 border d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <span class="badge bg-secondary" id="badgeSelectedCount">0 Tests Selected</span>
+                            <div class="text-muted small mt-1">
+                                Standard MRP Total: <strong id="lblStandardTotal" class="font-monospace text-dark">₹ 0.00</strong>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <span class="fw-bold text-dark text-uppercase small">B2B Total:</span>
+                            <div class="bg-success-subtle border border-success-subtle rounded-3 px-3 py-1">
+                                <span class="fs-5 fw-bold text-success font-monospace" id="lblB2BTotalAmount">₹ 0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <span asp-validation-for="LineItemsJson" class="text-danger fw-bold small"></span>
+        </div>
+    </div>
+
+    @* ── Actions ── *@
+    <div class="action-bar shadow-sm">
+        <a asp-action="B2BRegistration" class="btn btn-outline-secondary px-3 fw-semibold">
+            <i class="bi bi-arrow-left me-1"></i>Back to List
+        </a>
+        <button type="button" class="btn btn-outline-secondary px-3 fw-semibold" id="btnResetForm">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+        </button>
+        <button type="submit" class="btn btn-primary px-5 fw-bold" id="btnSaveB2BSubmit">
+            <i class="bi bi-check2-circle me-1"></i>Save &amp; Book B2B Order
+        </button>
+    </div>
+</form>
+
+@* ══════════════════════════════════════════════════════════════
+   SUCCESS MODAL
+   ══════════════════════════════════════════════════════════════ *@
+<div class="modal fade" id="bookingSuccessModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+        <div class="modal-content border-0 shadow-lg" style="border-radius:14px;">
+            <div class="modal-body text-center py-4 px-4 position-relative">
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close" onclick="window.location.href='@Url.Action("B2BRegistration", "LabOrderBooking")'"></button>
+                <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                     style="width:68px;height:68px;background:#e6f4ea;color:#137333;">
+                    <i class="bi bi-check-circle-fill fs-1"></i>
+                </div>
+                <h4 class="fw-bold mb-1 text-success">B2B Lab Order Booked!</h4>
+                <p class="text-muted small mb-3" id="lblSuccessPatientName">Patient B2B laboratory order registered successfully.</p>
+                
+                <div class="d-flex gap-2 justify-content-center mt-2 mb-3 flex-wrap">
+                    <div class="alert alert-primary py-2 px-3 mb-0 text-center flex-fill" style="min-width:110px;">
+                        <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">BILL NO</p>
+                        <h5 class="fw-bold text-primary mb-0 font-monospace" id="lblSuccessBillNo">---</h5>
+                    </div>
+                    <div class="alert alert-info py-2 px-3 mb-0 text-center flex-fill" style="min-width:110px;" id="boxSuccessToken">
+                        <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">TOKEN NO</p>
+                        <h5 class="fw-bold text-dark mb-0 font-monospace" id="lblSuccessTokenNo">---</h5>
+                    </div>
+                    <div class="alert alert-success py-2 px-3 mb-0 text-center flex-fill" style="min-width:110px;">
+                        <p class="text-muted small mb-0 fw-semibold" style="font-size:.7rem">B2B TOTAL</p>
+                        <h5 class="fw-bold text-success mb-0 font-monospace" id="lblSuccessB2BTotal">₹ 0.00</h5>
+                    </div>
+                </div>
+                <div class="mb-3 text-center">
+                    <span class="badge bg-secondary-subtle text-dark border px-2.5 py-1" id="lblSuccessPaymentMode">Settlement: Pending</span>
+                </div>
+
+                <div class="d-flex gap-2 justify-content-center flex-wrap">
+                    <a href="@Url.Action("B2BRegistration", "LabOrderBooking")" class="btn btn-outline-secondary btn-sm px-3">
+                        <i class="bi bi-list-check me-1"></i> B2B Order List
+                    </a>
+                    <a href="#" id="btnPrintBill" target="_blank" class="btn btn-outline-success btn-sm px-3">
+                        <i class="bi bi-printer me-1"></i> Print Bill
+                    </a>
+                    <a href="@Url.Action("B2BBooking", "LabOrderBooking")" class="btn btn-primary btn-sm px-3">
+                        <i class="bi bi-plus-circle me-1"></i> New B2B Booking
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Franchise Wallet Top-Up Modal -->
+<div class="modal fade" id="walletTopUpModal" tabindex="-1" aria-labelledby="walletTopUpModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+        <div class="modal-content shadow-lg border-0" style="border-radius:12px;">
+            <div class="modal-header bg-success text-white py-2 px-3">
+                <h6 class="modal-title fw-bold mb-0" id="walletTopUpModalLabel">
+                    <i class="bi bi-wallet2 me-2"></i>Franchise Wallet Top-Up / Recharge
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="p-2 mb-3 bg-light rounded border text-center">
+                    <div class="text-muted small">Franchise Account:</div>
+                    <div class="fw-bold fs-6 text-dark" id="txtTopUpFranchiseName">--</div>
+                    <div class="small text-muted mt-1">Current Balance: <strong class="text-success font-monospace" id="txtTopUpCurrentBal">₹ 0.00</strong></div>
+                </div>
+                <form id="frmWalletTopUp" onsubmit="submitWalletTopUp(event)">
+                    <div class="mb-2.5">
+                        <label class="form-label fw-semibold small">Top-Up Amount (₹) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="1" class="form-control font-monospace fw-bold" id="txtTopUpAmount" required placeholder="Enter recharge amount" />
+                    </div>
+                    <div class="mb-2.5">
+                        <label class="form-label fw-semibold small">Payment Mode <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" id="ddlTopUpMethod">
+                            <option value="1">Cash</option>
+                            <option value="2">Bank Transfer (NEFT/RTGS)</option>
+                            <option value="3">UPI / QR</option>
+                            <option value="4">Cheque</option>
+                        </select>
+                    </div>
+                    <div class="mb-2.5">
+                        <label class="form-label fw-semibold small">Reference / UTR / Cheque No</label>
+                        <input type="text" class="form-control form-control-sm" id="txtTopUpRef" placeholder="Bank transaction ID or UTR number" />
+                    </div>
+                    <div class="mb-2.5">
+                        <label class="form-label fw-semibold small">Narration / Remarks</label>
+                        <input type="text" class="form-control form-control-sm" id="txtTopUpNarration" placeholder="e.g. Advance deposit for lab tests" />
+                    </div>
+                    <div id="topUpErrorAlert" class="alert alert-danger py-1 px-2 small d-none mb-2"></div>
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success btn-sm px-4 fw-bold" id="btnSubmitTopUp">
+                            <i class="bi bi-check2-circle me-1"></i>Recharge Wallet
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ══════════════════════════════════════════════════════════════
+   SEARCH RESULT MODAL (Same as B2C)
+   ══════════════════════════════════════════════════════════════ *@
+<div class="modal fade" id="searchResultModal" tabindex="-1" aria-labelledby="srmLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius:12px">
+            <div class="modal-header bg-primary text-white py-2 px-3">
+                <h6 class="modal-title fw-bold mb-0" id="srmLabel"><i class="bi bi-people-fill me-2"></i>Matching Patients</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="searchResultsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Patient ID</th>
+                                <th>Full Name</th>
+                                <th>Phone</th>
+                                <th>Gender</th>
+                                <th>Age</th>
+                                <th>Blood Group</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="searchResultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Webcam Capture Modal -->
+<div class="modal fade" id="webcamModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="webcamModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+            <div class="modal-header bg-primary text-white py-2 px-3 rounded-top-12">
+                <h6 class="modal-title fw-bold mb-0" id="webcamModalLabel">
+                    <i class="bi bi-camera-fill me-2"></i>Capture Profile Photo
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="btnWebcamCancel"></button>
+            </div>
+            <div class="modal-body p-3 text-center bg-light">
+                <div class="position-relative mx-auto rounded border overflow-hidden shadow-xs mb-3 bg-dark" style="width: 320px; height: 240px;">
+                    <video id="webcamVideo" width="320" height="240" autoplay playsinline style="object-fit: cover; width: 100%; height: 100%; transform: scaleX(-1);"></video>
+                    <canvas id="webcamCanvas" width="320" height="240" class="d-none" style="object-fit: cover; width: 100%; height: 100%; transform: scaleX(-1);"></canvas>
+                </div>
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-primary px-3 btn-sm" id="btnCapturePhoto">
+                        <i class="bi bi-camera me-1"></i>Capture Photo
+                    </button>
+                    <button type="button" class="btn btn-outline-warning px-3 btn-sm d-none" id="btnRetakePhoto">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Retake
+                    </button>
+                    <button type="button" class="btn btn-success px-4 btn-sm d-none" id="btnUsePhoto">
+                        <i class="bi bi-check-circle me-1"></i>Use Photo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Interactive Map Picker Modal -->
+<div class="modal fade" id="mapPickerModal" tabindex="-1" aria-labelledby="mapPickerModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0" style="border-radius:12px; overflow:hidden;">
+            <div class="modal-header bg-primary text-white py-2 px-3">
+                <h6 class="modal-title d-flex align-items-center gap-2 fw-bold mb-0" id="mapPickerModalLabel">
+                    <i class="bi bi-geo-alt-fill text-warning"></i> Pinpoint &amp; Select Location on Map
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <!-- Search bar inside map modal -->
+                <div class="input-group mb-2">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="mapSearchInput" class="form-control" placeholder="Search area, landmark, pincode or street on map..." autocomplete="off" />
+                    <button class="btn btn-primary" type="button" id="btnMapSearch">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" id="btnMapCurrentGps" title="Center map to device GPS">
+                        <i class="bi bi-crosshair"></i> GPS
+                    </button>
+                </div>
+
+                <!-- Leaflet Map Container -->
+                <div id="leafletMapContainer" style="height: 380px; width: 100%; border-radius: 8px; border: 1px solid #ced4da; position: relative;">
+                    <!-- Loading overlay for map operations -->
+                    <div id="mapLoadingOverlay" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.75); z-index:1000; justify-content:center; align-items:center; border-radius:8px;">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                        <span class="small fw-semibold text-primary">Fetching address details...</span>
+                    </div>
+                </div>
+
+                <!-- Selected Location Details Panel -->
+                <div class="card mt-2 bg-light border-0 shadow-sm">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex align-items-center gap-1 text-primary fw-bold small">
+                                    <i class="bi bi-pin-map-fill text-danger"></i> Selected Address:
+                                </div>
+                                <div id="mapSelectedAddressText" class="small text-dark fw-medium mt-1 text-break" style="line-height:1.35;">
+                                    Click on the map or drag the pin to select a location.
+                                </div>
+                            </div>
+                            <div class="text-end flex-shrink-0">
+                                <span class="badge bg-dark-subtle text-dark border small" id="mapSelectedCoordsBadge" style="font-family: monospace;">
+                                    Lat: --, Lon: --
+                                </span>
+                            </div>
+                        </div>
+                        <div class="text-muted mt-1" style="font-size:0.75rem;">
+                            <i class="bi bi-info-circle"></i> Click anywhere on the map or drag the red pin to fine-tune the exact doorstep location.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3 bg-light border-top d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-success btn-sm px-3 fw-bold" id="btnConfirmMapLocation">
+                    <i class="bi bi-check2-circle"></i> Confirm &amp; Use This Location
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const opdBase = '@Url.Content("~/OPD/")';
+        var lineItems = [];
+        var currentAgentType = '@Model.AgentType' || 'F';
+        var currentAgentId = parseInt($('#SelectedB2BAgentId').val()) || 0;
+
+        // ── Helper functions ──
+        async function fetchJson(url) {
+            try {
+                const r = await fetch(url);
+                return r.ok ? await r.json() : null;
+            } catch { return null; }
+        }
+
+        function setVal(nameOrId, val) {
+            if (val === null || val === undefined) return;
+            let el = document.getElementById(nameOrId) ?? document.querySelector(`[name="${nameOrId}"]`);
+            if (!el) return;
+            el.value = val;
+            if (el.tagName === 'SELECT' && $(el).hasClass('select2-hidden-accessible')) {
+                $(el).val(val).trigger('change.select2');
+            }
+        }
+
+        // ── Auto-select Gender based on chosen Title / Salutation (Same as B2C) ──
+        function getGenderForTitle(title) {
+            if (!title) return null;
+            const t = title.trim().toLowerCase().replace(/\./g, '');
+            if (['mr', 'master', 'shri', 'kumar', 'baba', 'baby_boy', 'babyboy'].includes(t)) {
+                return 'Male';
+            }
+            if (['mrs', 'ms', 'miss', 'smt', 'kumari', 'baby_girl', 'babygirl'].includes(t)) {
+                return 'Female';
+            }
+            return null;
+        }
+
+        $(document).ready(function() {
+            // ── Initialize Select2 plugins ──
+            if ($.fn.select2) {
+                $('.s2-basic').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    minimumResultsForSearch: Infinity
+                });
+
+                $('.s2-search').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    allowClear: true
+                });
+
+                $('#ddlFranchise').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: '-- Select Franchise --',
+                    allowClear: true
+                });
+
+                $('#ddlCompany').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: '-- Select Corporate Company --',
+                    allowClear: true
+                });
+
+                function formatInvestigationOption(opt) {
+                    if (!opt.id) return null;
+                    var $elem = $(opt.element);
+                    var isProfile = $elem.attr('data-is-profile') === '1';
+                    var isPackage = $elem.attr('data-is-package') === '1';
+                    var code = $elem.attr('data-code') || '';
+                    var name = $elem.attr('data-name') || opt.text;
+                    var tat = $elem.attr('data-tat');
+                    var price = parseFloat($elem.attr('data-price')) || 0;
+                    var b2bRate = parseFloat($elem.attr('data-b2b-rate')) || price;
+                    var sample = $elem.attr('data-sample');
+
+                    var badgeHtml = isPackage
+                        ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size:0.7rem;"><i class="bi bi-box me-1"></i>Package</span>'
+                        : (isProfile
+                            ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size:0.7rem;"><i class="bi bi-layers me-1"></i>Profile</span>'
+                            : '');
+                    
+                    var sampleHtml = sample ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" style="font-size:0.7rem;"><i class="bi bi-droplet me-1"></i>${sample}</span>` : '';
+                    var tatHtml = tat ? `<span class="badge bg-light text-secondary border ms-2" style="font-size:0.72rem;"><i class="bi bi-clock me-1"></i>${tat} hrs</span>` : '';
+                    
+                    var priceBadge = `<span class="ms-auto ps-3 text-end">
+                        <span class="text-muted text-decoration-line-through small me-1">MRP ₹${price.toFixed(2)}</span>
+                        <span class="fw-bold font-monospace text-primary" style="font-size:0.92rem;">B2B ₹${b2bRate.toFixed(2)}</span>
+                    </span>`;
+
+                    return $(`
+                        <div class="d-flex align-items-center justify-content-between w-100 py-0.5">
+                            <div class="d-flex align-items-center flex-wrap">
+                                <span class="badge bg-light text-primary font-monospace border px-1.5 py-1 me-2">${code}</span>
+                                <span class="fw-semibold text-dark">${name}</span>
+                                ${badgeHtml}
+                                ${sampleHtml}
+                                ${tatHtml}
+                            </div>
+                            ${priceBadge}
+                        </div>
+                    `);
+                }
+
+                function formatInvestigationSelection(opt) {
+                    if (!opt.id) return opt.text;
+                    var $elem = $(opt.element);
+                    var isProfile = $elem.attr('data-is-profile') === '1';
+                    var isPackage = $elem.attr('data-is-package') === '1';
+                    var code = $elem.attr('data-code') || '';
+                    var name = $elem.attr('data-name') || opt.text;
+                    var sample = $elem.attr('data-sample');
+                    var typeText = isPackage ? ' [Package]' : (isProfile ? ' [Profile]' : '');
+                    var sampleText = sample ? ` [Sample: ${sample}]` : '';
+                    return `${code ? code + ' - ' : ''}${name}${typeText}${sampleText}`;
+                }
+
+                $('#ddlInvestigations').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    placeholder: '-- Search by Test Code or Investigation Name --',
+                    allowClear: true,
+                    templateResult: formatInvestigationOption,
+                    templateSelection: formatInvestigationSelection
+                });
+            }
+
+            // ── Auto-Select Gender on Title Change ──
+            $('#ddlSalutation').on('change', function () {
+                const selectedTitle = $(this).val();
+                const autoGender = getGenderForTitle(selectedTitle);
+                if (autoGender) {
+                    $('#ddlGender').val(autoGender).trigger('change.select2');
+                    $('#ddlGender').removeClass('is-invalid');
+                }
+            });
+
+            // ── Partner Dropdown Change Listeners ──
+            $('#ddlFranchise').on('change select2:select', function() {
+                if (currentAgentType !== 'C') {
+                    onPartnerSelected($(this).val());
+                }
+            });
+
+            $('#ddlCompany').on('change select2:select', function() {
+                if (currentAgentType === 'C') {
+                    onPartnerSelected($(this).val());
+                }
+            });
+
+            // If initial partner is selected, update UI
+            if (currentAgentType === 'C') {
+                var cVal = $('#ddlCompany').val();
+                if (cVal) onPartnerSelected(cVal);
+            } else {
+                var fVal = $('#ddlFranchise').val();
+                if (fVal) onPartnerSelected(fVal);
+            }
+
+            // ── Check if returned from registration ──
+            @if (TempData["BillNo"] != null)
+            {
+                <text>
+                $('#lblSuccessBillNo').text('@TempData["BillNo"]');
+                $('#lblSuccessPatientName').text('@TempData["NewPatientName"]');
+                $('#lblSuccessB2BTotal').text('₹' + '@TempData["B2BTotal"]');
+                var tokenVal = '@(TempData["TokenNo"] ?? "")';
+                if (tokenVal) {
+                    $('#lblSuccessTokenNo').text(tokenVal);
+                    $('#boxSuccessToken').removeClass('alert-secondary').addClass('alert-info');
+                } else {
+                    $('#lblSuccessTokenNo').text('Postpaid / On-Hold');
+                    $('#boxSuccessToken').removeClass('alert-info').addClass('alert-secondary');
+                }
+                var pMode = '@(TempData["PaymentMode"] ?? "Credit (Postpaid)")';
+                $('#lblSuccessPaymentMode').text('Mode: ' + pMode);
+                var labOrderId = '@TempData["NewLabOrderId"]';
+                if (labOrderId) {
+                    $('#btnPrintBill').attr('href', '@Url.Action("PrintBill", "LabOrderBooking")?labOrderId=' + labOrderId);
+                }
+                $('#bookingSuccessModal').modal('show');
+                </text>
+            }
+
+            // ── Investigation selection handler ──
+            $('#ddlInvestigations').on('select2:select', function(e) {
+                var data = e.params.data;
+                var valStr = data.id;
+                if (!valStr) return;
+
+                var opt = $(this).find(`option[value="${valStr}"]`);
+                var parts = valStr.split('_');
+                var itemType = parts[0];
+                var id = parseInt(parts[1]);
+                var price = parseFloat(opt.attr('data-price')) || 0;
+                var b2bRate = parseFloat(opt.attr('data-b2b-rate')) || price;
+                var code = opt.attr('data-code') || '';
+                var name = opt.attr('data-name') || '';
+                var tat = opt.attr('data-tat') || '';
+                var isProfile = opt.attr('data-is-profile') === '1';
+                var isPackage = opt.attr('data-is-package') === '1';
+                var sampleType = opt.attr('data-sample') || '';
+                var method = opt.attr('data-method') || '';
+
+                if (lineItems.some(x => x.itemType === itemType && x.id === id)) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Duplicate Test',
+                        text: `${name} is already added to the order.`,
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $(this).val('').trigger('change.select2');
+                    return;
+                }
+
+                lineItems.push({
+                    investigationId: id,
+                    id: id,
+                    itemType: itemType,
+                    type: itemType,
+                    code: code,
+                    testCode: code,
+                    name: name,
+                    testName: name,
+                    sampleType: sampleType,
+                    tat: tat,
+                    price: price,
+                    b2bRate: b2bRate,
+                    method: method,
+                    isUrgent: false,
+                    isProfile: isProfile,
+                    isPackage: isPackage
+                });
+
+                renderTable();
+                $(this).val('').trigger('change.select2');
+            });
+
+            // ── Top Quick Search (Same as B2C) ──
+            const topSearchInput = document.getElementById('searchInput');
+            const topSearchDrop  = document.getElementById('topSearchDropdown');
+            let topDebounce;
+            let topKbdIndex = -1;
+
+            function getTopItems() { return Array.from(topSearchDrop.querySelectorAll('.top-sug')); }
+
+            function setTopKbdActive(idx) {
+                const items = getTopItems();
+                if (!items.length) return;
+                items.forEach(i => i.classList.remove('kbd-active'));
+                if (idx < 0) {
+                    topKbdIndex = -1;
+                    return;
+                }
+                topKbdIndex = Math.max(0, Math.min(idx, items.length - 1));
+                items[topKbdIndex].classList.add('kbd-active');
+                items[topKbdIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+
+            if (topSearchInput && topSearchDrop) {
+                topSearchInput.addEventListener('keydown', function(e) {
+                    if (topSearchDrop.style.display === 'none') return;
+                    const items = getTopItems();
+                    if (!items.length) return;
+
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        var next = (topKbdIndex < 0) ? 0 : (topKbdIndex + 1 >= items.length ? 0 : topKbdIndex + 1);
+                        setTopKbdActive(next);
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        var prev = (topKbdIndex <= 0) ? items.length - 1 : topKbdIndex - 1;
+                        setTopKbdActive(prev);
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        var targetIdx = topKbdIndex >= 0 ? topKbdIndex : 0;
+                        if (items[targetIdx]) {
+                            populatePatient(items[targetIdx].dataset.id);
+                            topSearchDrop.style.display = 'none';
+                            topKbdIndex = -1;
+                        }
+                    } else if (e.key === 'Escape' || e.key === 'Tab') {
+                        topSearchDrop.style.display = 'none';
+                        topKbdIndex = -1;
+                    }
+                });
+
+                topSearchInput.addEventListener('input', function() {
+                    clearTimeout(topDebounce);
+                    topKbdIndex = -1;
+                    const val = this.value.trim();
+                    if (val.length < 3) {
+                        topSearchDrop.style.display = 'none';
+                        return;
+                    }
+
+                    topDebounce = setTimeout(async () => {
+                        const type = document.getElementById('searchType').value;
+                        let url = '';
+                        const isAllDigits = /^\d+$/.test(val);
+
+                        if (type === 'phone') {
+                            if (!isAllDigits && val.length >= 2) url = opdBase + 'SearchPatientByName?name=' + encodeURIComponent(val);
+                            else url = opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val);
+                        } else if (type === 'code') {
+                            url = opdBase + 'SearchPatientByCode?code=' + encodeURIComponent(val);
+                        } else {
+                            if (isAllDigits && val.length >= 3) url = opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val);
+                            else url = opdBase + 'SearchPatientByName?name=' + encodeURIComponent(val);
+                        }
+
+                        const data = await fetchJson(url);
+                        if (data?.length) {
+                            topSearchDrop.innerHTML = data.map((p, idx) => `
+                                <button type="button"
+                                        class="list-group-item list-group-item-action py-2 px-3 top-sug ${idx === 0 ? 'kbd-active' : ''}"
+                                        data-id="${p.patientId}" tabindex="-1">
+                                    <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                                        <span class="fw-semibold">${p.fullName}</span>
+                                        <span class="badge text-bg-info text-dark font-monospace">${p.patientCode}</span>
+                                        ${p.relationName ? `<span class="badge text-bg-primary">${p.relationName}</span>` : ''}
+                                        ${p.bloodGroup   ? `<span class="badge text-bg-danger">${p.bloodGroup}</span>`   : ''}
+                                    </div>
+                                    <small class="text-muted">${p.phoneNumber} &nbsp;·&nbsp; ${p.gender || ''}</small>
+                                </button>`).join('');
+                            topSearchDrop.style.display = 'block';
+                            topKbdIndex = 0;
+
+                            topSearchDrop.querySelectorAll('.top-sug').forEach((btn, i) => {
+                                btn.addEventListener('mouseenter', () => {
+                                    getTopItems().forEach(b => b.classList.remove('kbd-active'));
+                                    btn.classList.add('kbd-active');
+                                    topKbdIndex = i;
+                                });
+                                btn.addEventListener('mousedown', (e) => { e.preventDefault(); });
+                                btn.addEventListener('click', () => {
+                                    populatePatient(btn.dataset.id);
+                                    topSearchDrop.style.display = 'none';
+                                    topKbdIndex = -1;
+                                });
+                            });
+                        } else {
+                            topSearchDrop.style.display = 'none';
+                            topKbdIndex = -1;
+                        }
+                    }, 300);
+                });
+
+                document.addEventListener('click', e => {
+                    if (!topSearchDrop.contains(e.target) && e.target !== topSearchInput) {
+                        topSearchDrop.style.display = 'none';
+                        topKbdIndex = -1;
+                    }
+                });
+
+                $('#btnTopSearch').on('click', async function() {
+                    const val = topSearchInput.value.trim();
+                    if (!val) return;
+                    const type = document.getElementById('searchType').value;
+                    let url = '';
+                    if (type === 'phone') url = opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val);
+                    else if (type === 'code') url = opdBase + 'SearchPatientByCode?code=' + encodeURIComponent(val);
+                    else url = opdBase + 'SearchPatientByName?name=' + encodeURIComponent(val);
+                    await openSearchModal(url);
+                });
+            }
+
+            // ── Inside-form Phone Number Search & Live Suggestion (Same as B2C) ──
+            const phoneInput = document.getElementById('phoneNumber');
+            const phoneDrop  = document.getElementById('phoneSearchDropdown');
+            let phoneDebounce;
+            let phoneKbdIndex = -1;
+
+            function getPhoneItems() { return Array.from(phoneDrop.querySelectorAll('.phone-sug')); }
+
+            function setPhoneKbdActive(idx) {
+                const items = getPhoneItems();
+                if (!items.length) return;
+                items.forEach(i => i.classList.remove('kbd-active'));
+                if (idx < 0) {
+                    phoneKbdIndex = -1;
+                    return;
+                }
+                phoneKbdIndex = Math.max(0, Math.min(idx, items.length - 1));
+                items[phoneKbdIndex].classList.add('kbd-active');
+                items[phoneKbdIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+
+            if (phoneInput && phoneDrop) {
+                phoneInput.addEventListener('keydown', function (e) {
+                    var allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End'];
+                    if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
+
+                    if (phoneDrop.style.display !== 'none') {
+                        const items = getPhoneItems();
+                        if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            var next = (phoneKbdIndex < 0) ? 0 : (phoneKbdIndex + 1 >= items.length ? 0 : phoneKbdIndex + 1);
+                            setPhoneKbdActive(next);
+                            return;
+                        } else if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            var prev = (phoneKbdIndex <= 0) ? items.length - 1 : phoneKbdIndex - 1;
+                            setPhoneKbdActive(prev);
+                            return;
+                        } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            var targetIdx = phoneKbdIndex >= 0 ? phoneKbdIndex : 0;
+                            if (items[targetIdx]) {
+                                populatePatient(items[targetIdx].dataset.id);
+                                phoneDrop.style.display = 'none';
+                                phoneKbdIndex = -1;
+                            }
+                            return;
+                        } else if (e.key === 'Escape' || e.key === 'Tab') {
+                            phoneDrop.style.display = 'none';
+                            phoneKbdIndex = -1;
+                        }
+                    }
+
+                    if (!/^[0-9]$/.test(e.key)) e.preventDefault();
+                });
+
+                phoneInput.addEventListener('input', function () {
+                    var cleaned = phoneInput.value.replace(/\D/g, '').slice(0, 10);
+                    if (phoneInput.value !== cleaned) phoneInput.value = cleaned;
+
+                    clearTimeout(phoneDebounce);
+                    phoneKbdIndex = -1;
+                    const val = cleaned.trim();
+                    if (val.length < 3) {
+                        phoneDrop.style.display = 'none';
+                        return;
+                    }
+
+                    phoneDebounce = setTimeout(async () => {
+                        const data = await fetchJson(opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val));
+                        if (data?.length) {
+                            phoneDrop.innerHTML = data.map((p, idx) => `
+                                <button type="button"
+                                        class="list-group-item list-group-item-action py-2 px-3 phone-sug ${idx === 0 ? 'kbd-active' : ''}"
+                                        data-id="${p.patientId}" tabindex="-1">
+                                    <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                                        <span class="fw-semibold">${p.fullName}</span>
+                                        <span class="badge text-bg-info text-dark font-monospace">${p.patientCode}</span>
+                                        ${p.relationName ? `<span class="badge text-bg-primary">${p.relationName}</span>` : ''}
+                                        ${p.bloodGroup   ? `<span class="badge text-bg-danger">${p.bloodGroup}</span>`   : ''}
+                                    </div>
+                                    <small class="text-muted">${p.phoneNumber} &nbsp;·&nbsp; ${p.gender || ''}</small>
+                                </button>`).join('');
+                            phoneDrop.style.display = 'block';
+                            phoneKbdIndex = 0;
+
+                            phoneDrop.querySelectorAll('.phone-sug').forEach((btn, i) => {
+                                btn.addEventListener('mouseenter', () => {
+                                    getPhoneItems().forEach(b => b.classList.remove('kbd-active'));
+                                    btn.classList.add('kbd-active');
+                                    phoneKbdIndex = i;
+                                });
+                                btn.addEventListener('mousedown', (e) => { e.preventDefault(); });
+                                btn.addEventListener('click', () => {
+                                    populatePatient(btn.dataset.id);
+                                    phoneDrop.style.display = 'none';
+                                    phoneKbdIndex = -1;
+                                });
+                            });
+                        } else {
+                            phoneDrop.style.display = 'none';
+                            phoneKbdIndex = -1;
+                        }
+                    }, 300);
+                });
+
+                phoneInput.addEventListener('blur', function () {
+                    var v = phoneInput.value.replace(/\D/g, '');
+                    var phErr = document.getElementById('phoneError');
+                    if (v.length === 0) {
+                        phoneInput.classList.remove('is-invalid', 'is-valid');
+                        if (phErr) phErr.style.display = 'none';
+                    } else if (v.length < 10) {
+                        phoneInput.classList.add('is-invalid');
+                        phoneInput.classList.remove('is-valid');
+                        if (phErr) {
+                            phErr.textContent = 'Phone number must be exactly 10 digits.';
+                            phErr.style.display = 'block';
+                        }
+                    } else {
+                        phoneInput.classList.remove('is-invalid');
+                        phoneInput.classList.add('is-valid');
+                        if (phErr) phErr.style.display = 'none';
+                    }
+                });
+
+                document.addEventListener('click', e => {
+                    if (!phoneDrop.contains(e.target) && e.target !== phoneInput) {
+                        phoneDrop.style.display = 'none';
+                        phoneKbdIndex = -1;
+                    }
+                });
+            }
+
+            // Search patient icon button
+            $('#btnSearchPatient').on('click', async function() {
+                var phone = ($('#phoneNumber').val() || '').trim();
+                if (!phone) {
+                    $('#phoneNumber').focus();
+                    return;
+                }
+                const url = opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(phone);
+                await openSearchModal(url);
+            });
+
+            // ── Demographics change triggers test reload ──
+            $('#ddlGender').on('change', function() {
+                loadInvestigations();
+            });
+
+            $('#AgeYears').on('change blur', function() {
+                loadInvestigations();
+            });
+
+            // ── Initial load of investigations ──
+            loadInvestigations();
+
+            // ── Form submit validation (Strictly matching B2C + B2B Partner check) ──
+            $('#frmB2BBooking').on('submit', function(e) {
+                // Partner Selection Validation
+                var chosenAgentId = currentAgentType === 'C' ? parseInt($('#ddlCompany').val()) : parseInt($('#ddlFranchise').val());
+                if (chosenAgentId > 0) {
+                    currentAgentId = chosenAgentId;
+                    $('#SelectedB2BAgentId').val(chosenAgentId);
+                }
+                var agentId = parseInt($('#SelectedB2BAgentId').val()) || 0;
+                if (!agentId || agentId <= 0) {
+                    e.preventDefault();
+                    var partnerLabel = currentAgentType === 'C' ? 'Company (Corporate)' : 'Franchise';
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Select Partner',
+                        text: 'Please select a ' + partnerLabel + ' before proceeding.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    if (currentAgentType === 'C') $('#ddlCompany').select2('open');
+                    else $('#ddlFranchise').select2('open');
+                    return false;
+                }
+
+                // Phone Validation
+                var phone = ($('#phoneNumber').val() || '').trim();
+                if (!phone || phone.length < 10) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Invalid Mobile',
+                        text: 'Please enter a valid 10-digit mobile number.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#phoneNumber').focus();
+                    return false;
+                }
+
+                // Relation Validation
+                var rel = $('#ddlRelation').val();
+                if (!rel) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Relation Required',
+                        text: 'Please select Relation.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#ddlRelation').focus();
+                    return false;
+                }
+
+                // First Name Validation
+                var fname = ($('#FirstName').val() || '').trim();
+                if (!fname) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'First Name Required',
+                        text: 'Please enter First Name.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#FirstName').focus();
+                    return false;
+                }
+
+                // Last Name Validation
+                var lname = ($('#LastName').val() || '').trim();
+                if (!lname) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Last Name Required',
+                        text: 'Please enter Last Name.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#LastName').focus();
+                    return false;
+                }
+
+                // Gender Validation
+                var gender = $('#ddlGender').val();
+                if (!gender) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Gender Required',
+                        text: 'Please select Gender.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#ddlGender').focus();
+                    return false;
+                }
+
+                // Age Validation
+                var yVal = parseInt($('#AgeYears').val(), 10);
+                if (isNaN(yVal) || yVal < 0 || yVal > 150) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Age Required',
+                        text: 'Please enter a valid Age (0-150 years).',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#AgeYears').focus();
+                    return false;
+                }
+
+                // Investigations Validation - Must have at least 1 valid test investigation
+                if (!lineItems || lineItems.length === 0) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'At Least One Test Required',
+                        text: 'A laboratory bill cannot be generated without at least one test investigation. Please search and add tests to the order before saving.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#ddlInvestigations').select2('open');
+                    return false;
+                }
+
+                var invalidTest = lineItems.find(x => (!x.investigationId && !x.id) || ((x.investigationId || x.id) <= 0));
+                if (invalidTest) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Invalid Test Selected',
+                        text: 'One or more items in your test selection do not have a valid Investigation ID. Please remove and re-add them.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                    return false;
+                }
+
+                // Home Collection Address Validation
+                var colType = $('input[name="CollectionType"]:checked').val();
+                if (colType === 'Home Collection') {
+                    var homeAddr = ($('#HomeCollectionAddress').val() || '').trim();
+                    if (!homeAddr) {
+                        e.preventDefault();
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Address Required',
+                            text: 'Please enter Home Collection Address.',
+                            confirmButtonColor: '#0d6efd'
+                        });
+                        $('#HomeCollectionAddress').focus();
+                        return false;
+                    }
+                }
+
+                // Booking Date & Time Validation
+                var bookingDateTimeStr = $('#BookingDateTime').val();
+                if (!bookingDateTimeStr) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Date & Time Required',
+                        text: 'Please select Booking Date & Time.',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $('#BookingDateTime').focus();
+                    return false;
+                }
+
+                // ── B2B Partner Credit Facility & Policy Validations ──
+                if (partnerCreditData) {
+                    var currentB2BTotal = parseFloat($('#B2BTotal').val()) || 0;
+
+                    // 1. Corporate Contract Validity Check
+                    if (partnerCreditData.agentType === 'C' && !partnerCreditData.isContractValid) {
+                        e.preventDefault();
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Corporate Contract Expired',
+                            text: partnerCreditData.blockReason || 'Corporate company contract is expired or inactive. Billing cannot proceed.',
+                            confirmButtonColor: '#dc3545'
+                        });
+                        return false;
+                    }
+
+                    // 2. Postpaid Credit Facility: Credit Limit Check
+                    if (partnerCreditData.creditFacilityType === 2 && partnerCreditData.creditLimit > 0) {
+                        if ((partnerCreditData.currentOutstanding + currentB2BTotal) > partnerCreditData.creditLimit) {
+                            e.preventDefault();
+                            var over = (partnerCreditData.currentOutstanding + currentB2BTotal) - partnerCreditData.creditLimit;
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Credit Limit Exceeded',
+                                html: `Credit Limit: <b>₹${partnerCreditData.creditLimit.toFixed(2)}</b><br>Current Outstanding: <b>₹${partnerCreditData.currentOutstanding.toFixed(2)}</b><br>This Bill Total: <b>₹${currentB2BTotal.toFixed(2)}</b><br><br><span class="text-danger">Exceeds partner credit limit by <b>₹${over.toFixed(2)}</b>.<br>Order booking on credit is blocked until outstanding bills are settled.</span>`,
+                                confirmButtonColor: '#dc3545'
+                            });
+                            return false;
+                        }
+                    }
+
+                    // 3. Prepaid (Wallet) Facility Check
+                    if (partnerCreditData.creditFacilityType === 1) {
+                        var isDeductWallet = $('#chkDeductWallet').is(':checked');
+                        if (isDeductWallet) {
+                            if (partnerCreditData.walletBalance < currentB2BTotal) {
+                                e.preventDefault();
+                                var deficit = currentB2BTotal - partnerCreditData.walletBalance;
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Insufficient Wallet Balance',
+                                    html: `Available Wallet: <b>₹${partnerCreditData.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>Please top up franchise wallet or uncheck "Pay from Wallet" to collect spot payment.`,
+                                    showCancelButton: true,
+                                    confirmButtonText: '<i class="bi bi-wallet2 me-1"></i>Top-Up Wallet',
+                                    cancelButtonText: '<i class="bi bi-cash-coin me-1"></i>Spot Payment',
+                                    confirmButtonColor: '#198754',
+                                    cancelButtonColor: '#0d6efd'
+                                }).then((res) => {
+                                    if (res.isConfirmed) {
+                                        openWalletTopUpModal();
+                                    } else if (res.dismiss === Swal.DismissReason.cancel) {
+                                        $('#chkDeductWallet').prop('checked', false).trigger('change');
+                                        triggerPrepaidSpotPayment();
+                                    }
+                                });
+                                return false;
+                            }
+                            $('#hdnDeductFromWallet').val('true');
+                        } else {
+                            $('#hdnDeductFromWallet').val('false');
+                            if (!$('#hdnPaymentDataJson').val()) {
+                                e.preventDefault();
+                                triggerPrepaidSpotPayment();
+                                return false;
+                            }
+                        }
+                    }
+                }
+
+                $('#LineItemsJson').val(JSON.stringify(lineItems));
+                return true;
+            });
+
+            // Reset Button
+            $('#btnResetForm').on('click', function() {
+                document.getElementById('frmB2BBooking').reset();
+                $('#PatientId').val('');
+                $('#PatientCode').val('');
+                $('#loadedPatientBadge').addClass('d-none').text('');
+                lineItems = [];
+                renderTable();
+                onPartnerTypeChanged(currentAgentType);
+                if (window._refreshAge) window._refreshAge();
+                loadInvestigations();
+                clearGeoCoordinates();
+                const container = document.getElementById('profilePicPreviewContainer');
+                if (container) container.classList.add('d-none');
+                const preview = document.getElementById('profilePicPreview');
+                if (preview) preview.src = '';
+                const btnClearHome = document.getElementById('btnClearHomeAddr');
+                if (btnClearHome) btnClearHome.style.display = 'none';
+            });
+        });
+
+        // ── Auto-populate patient data (Same as B2C) ──
+        async function populatePatient(patientId) {
+            const phoneDrop = document.getElementById('phoneSearchDropdown');
+            if (phoneDrop) phoneDrop.style.display = 'none';
+            const topDrop = document.getElementById('topSearchDropdown');
+            if (topDrop) topDrop.style.display = 'none';
+
+            const p = await fetchJson(opdBase + 'GetPatientDetails?id=' + patientId);
+            if (!p) return;
+
+            document.getElementById('PatientId').value   = p.patientId;
+            document.getElementById('PatientCode').value = p.patientCode ?? '';
+
+            const badge = document.getElementById('loadedPatientBadge');
+            if (badge) {
+                badge.textContent = p.patientCode;
+                badge.classList.remove('d-none');
+            }
+
+            setVal('phoneNumber', p.phoneNumber);
+            setVal('SecondaryPhoneNumber', p.secondaryPhoneNumber);
+            setVal('FirstName', p.firstName);
+            setVal('MiddleName', p.middleName);
+            setVal('LastName', p.lastName);
+            setVal('EmailId', p.emailId);
+            setVal('Address', p.address);
+            setVal('HomeCollectionAddress', p.homeCollectionAddress || p.address);
+            if (p.homeCollectionAddress || p.address) {
+                const btnClearHome = document.getElementById('btnClearHomeAddr');
+                if (btnClearHome) btnClearHome.style.display = 'block';
+            }
+
+            if (p.latitude && p.longitude) {
+                setVal('hdnLatitude', p.latitude);
+                setVal('hdnLongitude', p.longitude);
+                updateGeoBadge(p.latitude, p.longitude);
+            }
+
+            if (p.photoPath) {
+                const preview = document.getElementById('profilePicPreview');
+                const container = document.getElementById('profilePicPreviewContainer');
+                if (preview && container) {
+                    preview.src = p.photoPath;
+                    container.classList.remove('d-none');
+                }
+            }
+
+            if (p.salutation) $('#ddlSalutation').val(p.salutation).trigger('change.select2');
+            if (p.gender) $('#ddlGender').val(p.gender).trigger('change.select2');
+            if (p.relationId) $('#ddlRelation').val(p.relationId).trigger('change.select2');
+            if (p.bloodGroup) $('#ddlBloodGroup').val(p.bloodGroup).trigger('change.select2');
+            if (p.referralDoctorId) $('#ddlReferralDoctor').val(p.referralDoctorId).trigger('change.select2');
+
+            // Date of birth & Age
+            if (p.dateOfBirth) {
+                const dobStr = p.dateOfBirth.substring(0, 10);
+                $('#DateOfBirth').val(dobStr);
+                if (window._refreshAge) window._refreshAge();
+            } else if (p.age != null) {
+                $('#AgeYears').val(p.age);
+                $('#AgeMonths').val(0);
+                $('#AgeDays').val(0);
+                if (window._refreshDob) window._refreshDob();
+            }
+
+            const ph = document.getElementById('phoneNumber');
+            const phErr = document.getElementById('phoneError');
+            if (ph) {
+                ph.classList.remove('is-invalid');
+                ph.classList.add('is-valid');
+            }
+            if (phErr) phErr.style.display = 'none';
+
+            loadInvestigations();
+        }
+
+        // ── Search Result Modal (Same as B2C) ──
+        async function openSearchModal(url) {
+            const data = await fetchJson(url);
+            const tbody = document.getElementById('searchResultsBody');
+            if (!data?.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No matching patients found.</td></tr>';
+            } else {
+                tbody.innerHTML = data.map(p => `
+                    <tr>
+                        <td><span class="badge text-bg-info text-dark font-monospace">${p.patientCode}</span></td>
+                        <td class="fw-semibold">${p.fullName}</td>
+                        <td>${p.phoneNumber}</td>
+                        <td>${p.gender || '--'}</td>
+                        <td>${p.formattedAge || (p.age != null ? p.age + ' yrs' : '--')}</td>
+                        <td>${p.bloodGroup ? '<span class="badge text-bg-danger">' + p.bloodGroup + '</span>' : '--'}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    onclick="selectPatient(${p.patientId})" data-bs-dismiss="modal">
+                                <i class="bi bi-person-check-fill me-1"></i>Select
+                            </button>
+                        </td>
+                    </tr>`).join('');
+            }
+            new bootstrap.Modal(document.getElementById('searchResultModal')).show();
+        }
+
+        window.selectPatient = id => populatePatient(id);
+
+        // ── Bidirectional DOB ↔ Age calculation (Same as B2C) ──
+        (function setupAgeDobSync() {
+            const dobInput = document.getElementById('DateOfBirth');
+            const yearsInput = document.getElementById('AgeYears');
+            const monthsInput = document.getElementById('AgeMonths');
+            const daysInput = document.getElementById('AgeDays');
+            const feedbackEl = document.getElementById('ageValidationFeedback');
+
+            let isUpdating = false;
+
+            function clearAgeValidation() {
+                yearsInput?.classList.remove('is-invalid');
+                monthsInput?.classList.remove('is-invalid');
+                daysInput?.classList.remove('is-invalid');
+                dobInput?.classList.remove('is-invalid');
+                if (feedbackEl) {
+                    feedbackEl.textContent = '';
+                    feedbackEl.classList.add('d-none');
+                }
+            }
+
+            function calcAgeDetails(dobValue) {
+                if (!dobValue) return { years: '', months: '', days: '' };
+                const birthDate = new Date(dobValue);
+                if (isNaN(birthDate.getTime())) return { years: '', months: '', days: '' };
+                const today = new Date();
+                if (birthDate > today) return { years: 0, months: 0, days: 0 };
+
+                let years = today.getFullYear() - birthDate.getFullYear();
+                let months = today.getMonth() - birthDate.getMonth();
+                let days = today.getDate() - birthDate.getDate();
+
+                if (days < 0) {
+                    months--;
+                    const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                    days += prevMonth.getDate();
+                }
+
+                if (months < 0) {
+                    years--;
+                    months += 12;
+                }
+
+                return {
+                    years: Math.max(0, years),
+                    months: Math.max(0, months),
+                    days: Math.max(0, days)
+                };
+            }
+
+            function syncDobFromAge() {
+                if (isUpdating) return;
+                isUpdating = true;
+                clearAgeValidation();
+
+                const yVal = yearsInput?.value?.trim() ?? '';
+                const mVal = monthsInput?.value?.trim() ?? '';
+                const dVal = daysInput?.value?.trim() ?? '';
+
+                const y = parseInt(yVal, 10) || 0;
+                const m = parseInt(mVal, 10) || 0;
+                const d = parseInt(dVal, 10) || 0;
+
+                // Validate Month <= 12
+                if (m > 12) {
+                    monthsInput?.classList.add('is-invalid');
+                    if (feedbackEl) {
+                        feedbackEl.textContent = 'Month cannot exceed 12.';
+                        feedbackEl.classList.remove('d-none');
+                    }
+                    isUpdating = false;
+                    return;
+                }
+
+                // Validate Days <= 30
+                if (d > 30) {
+                    daysInput?.classList.add('is-invalid');
+                    if (feedbackEl) {
+                        feedbackEl.textContent = 'Days cannot exceed 30.';
+                        feedbackEl.classList.remove('d-none');
+                    }
+                    isUpdating = false;
+                    return;
+                }
+
+                // Validate Years <= 150
+                if (y > 150 || y < 0) {
+                    yearsInput?.classList.add('is-invalid');
+                    if (feedbackEl) {
+                        feedbackEl.textContent = 'Years must be between 0 and 150.';
+                        feedbackEl.classList.remove('d-none');
+                    }
+                    isUpdating = false;
+                    return;
+                }
+
+                if (yVal !== '' || mVal !== '' || dVal !== '') {
+                    const today = new Date();
+                    const targetDate = new Date(today.getFullYear() - y, today.getMonth() - m, today.getDate() - d);
+                    const yyyy = targetDate.getFullYear();
+                    const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+                    const dd = String(targetDate.getDate()).padStart(2, '0');
+                    if (dobInput) dobInput.value = `${yyyy}-${mm}-${dd}`;
+                } else {
+                    if (dobInput) dobInput.value = '';
+                }
+                isUpdating = false;
+            }
+
+            function syncAgeFromDob() {
+                if (isUpdating) return;
+                isUpdating = true;
+                clearAgeValidation();
+
+                const val = dobInput?.value;
+                if (val) {
+                    const age = calcAgeDetails(val);
+                    if (yearsInput) yearsInput.value = age.years !== '' ? age.years : '';
+                    if (monthsInput) monthsInput.value = age.months !== '' ? age.months : '';
+                    if (daysInput) daysInput.value = age.days !== '' ? age.days : '';
+                } else {
+                    if (yearsInput) yearsInput.value = '';
+                    if (monthsInput) monthsInput.value = '';
+                    if (daysInput) daysInput.value = '';
+                }
+                isUpdating = false;
+            }
+
+            dobInput?.addEventListener('change', syncAgeFromDob);
+            dobInput?.addEventListener('input', syncAgeFromDob);
+
+            [yearsInput, monthsInput, daysInput].forEach(inp => {
+                inp?.addEventListener('input', syncDobFromAge);
+                inp?.addEventListener('change', syncDobFromAge);
+            });
+
+            window._refreshAge = syncAgeFromDob;
+            window._refreshDob = syncDobFromAge;
+
+            if (dobInput?.value) {
+                syncAgeFromDob();
+            } else if (yearsInput?.value || monthsInput?.value || daysInput?.value) {
+                syncDobFromAge();
+            }
+        })();
+
+        // ── B2B Partner Switch & Selection Logic ──
+        function onPartnerTypeChanged(type) {
+            currentAgentType = type;
+            $('#toggleFranchise').prop('checked', type === 'F');
+            $('#toggleCompany').prop('checked', type === 'C');
+
+            if (type === 'F') {
+                $('#divFranchiseSelect').show();
+                $('#divCompanySelect').hide();
+                $('#ddlCompany').val('').trigger('change.select2');
+                var fVal = $('#ddlFranchise').val();
+                onPartnerSelected(fVal);
+            } else {
+                $('#divFranchiseSelect').hide();
+                $('#divCompanySelect').show();
+                $('#ddlFranchise').val('').trigger('change.select2');
+                var cVal = $('#ddlCompany').val();
+                onPartnerSelected(cVal);
+            }
+        }
+
+        var partnerCreditData = null;
+
+        function onPartnerSelected(agentId) {
+            currentAgentId = parseInt(agentId) || 0;
+            $('#SelectedB2BAgentId').val(currentAgentId);
+
+            if (currentAgentId > 0) {
+                var partnerName = currentAgentType === 'C' 
+                    ? $('#ddlCompany option:selected').text()
+                    : $('#ddlFranchise option:selected').text();
+
+                var partnerBadge = currentAgentType === 'C' ? 'Corporate' : 'Franchise';
+                $('#partnerInfoTitle').html(`<span class="badge bg-primary me-1">${partnerBadge}</span> ${partnerName}`);
+                $('#partnerInfoSub').text('Contracted B2B test rates & credit facility active.');
+
+                // Query Partner Credit Status & Policy from API
+                $.get(`/LabOrderBooking/GetPartnerCreditStatus?agentType=${currentAgentType}&agentId=${currentAgentId}`, function(res) {
+                    if (res && res.success && res.data) {
+                        partnerCreditData = res.data;
+                        applyPartnerCreditUI(partnerCreditData);
+                    } else {
+                        partnerCreditData = null;
+                        $('#partnerFacilityBadgeContainer').empty();
+                        $('#partnerDetailsGrid').hide();
+                    }
+                });
+
+                // Reload investigations with contracted B2B rate list
+                loadInvestigations();
+
+                // Recalculate existing line items with newly contracted rates
+                if (lineItems && lineItems.length > 0) {
+                    var rateType = currentAgentType === 'C' ? 'Corporate' : 'Franchise';
+                    $.get(`/LabOrderBooking/GetAvailableInvestigations?rateType=${rateType}&agentId=${currentAgentId}`, function(res) {
+                        if (res.isSuccess && res.data) {
+                            var map = new Map();
+                            res.data.forEach(x => {
+                                var key = (x.isPackage ? 'P' : 'I') + '_' + x.investigationId;
+                                var b2b = (x.b2BRate !== undefined && x.b2BRate !== null) ? x.b2BRate : ((x.b2bRate !== undefined && x.b2bRate !== null) ? x.b2bRate : x.mrp);
+                                map.set(key, b2b);
+                            });
+                            lineItems.forEach(item => {
+                                var key = item.itemType + '_' + item.id;
+                                if (map.has(key)) {
+                                    item.b2bRate = map.get(key);
+                                }
+                            });
+                            renderTable();
+                        }
+                    });
+                }
+            } else {
+                partnerCreditData = null;
+                $('#partnerInfoTitle').text('No Partner Selected');
+                $('#partnerInfoSub').text('Select partner above to activate B2B contracted test rates.');
+                $('#partnerFacilityBadgeContainer').empty();
+                $('#partnerDetailsGrid').hide();
+                loadInvestigations();
+            }
+        }
+
+        function applyPartnerCreditUI(credit) {
+            $('#partnerDetailsGrid').show();
+
+            // Facility Type Badge
+            if (credit.creditFacilityType === 1) { // Prepaid (Wallet)
+                $('#partnerFacilityBadgeContainer').html(`
+                    <span class="badge bg-success-subtle text-success border border-success px-2 py-1">
+                        <i class="bi bi-wallet2 me-1"></i>Prepaid (Wallet)
+                    </span>
+                `);
+                $('#sectionPrepaidWallet').show();
+                $('#sectionPostpaidCredit').hide();
+                $('#lblWalletBalance').text(`₹ ${credit.walletBalance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+                $('#chkDeductWallet').prop('checked', true);
+                $('#hdnDeductFromWallet').val('true');
+            } else { // Postpaid (Credit)
+                $('#partnerFacilityBadgeContainer').html(`
+                    <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1">
+                        <i class="bi bi-credit-card-2-front me-1"></i>Postpaid (Credit)
+                    </span>
+                `);
+                $('#sectionPrepaidWallet').hide();
+                $('#sectionPostpaidCredit').show();
+                $('#lblCreditLimit').text(credit.creditLimit > 0 ? `₹ ${credit.creditLimit.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'No Limit');
+                $('#lblCurrentOutstanding').text(`₹ ${credit.currentOutstanding.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+                $('#lblAvailableCredit').text(credit.creditLimit > 0 ? `₹ ${credit.availableCredit.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'Unlimited');
+                $('#badgeCreditDays').html(`<i class="bi bi-calendar-event me-1"></i>Credit: ${credit.creditDays > 0 ? credit.creditDays + ' Days' : 'Immediate'}`);
+                $('#badgeBillingCycle').html(`<i class="bi bi-arrow-repeat me-1"></i>Cycle: ${credit.billingCycle || 'On-Demand'}`);
+                $('#hdnDeductFromWallet').val('false');
+            }
+
+            // Corporate validity
+            if (credit.agentType === 'C' && (credit.effectiveFrom || credit.effectiveTo)) {
+                var fromStr = credit.effectiveFrom ? new Date(credit.effectiveFrom).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : 'N/A';
+                var toStr = credit.effectiveTo ? new Date(credit.effectiveTo).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : 'N/A';
+                $('#lblContractDates').text(`${fromStr} to ${toStr}`);
+                if (credit.isContractValid) {
+                    $('#badgeContractStatus').removeClass('bg-danger').addClass('bg-success').text('Active');
+                } else {
+                    $('#badgeContractStatus').removeClass('bg-success').addClass('bg-danger').text('Expired');
+                }
+                $('#bannerCorporateValidity').show();
+            } else {
+                $('#bannerCorporateValidity').hide();
+            }
+
+            validateCreditPolicy();
+        }
+
+        function validateCreditPolicy() {
+            if (!partnerCreditData) {
+                $('#partnerPolicyAlert').addClass('d-none').empty();
+                $('#btnSaveB2BSubmit').prop('disabled', false);
+                return;
+            }
+
+            var b2bTotal = parseFloat($('#B2BTotal').val()) || 0;
+            var alertEl = $('#partnerPolicyAlert');
+
+            // 1. Corporate contract validity
+            if (partnerCreditData.agentType === 'C' && !partnerCreditData.isContractValid) {
+                alertEl.removeClass('d-none alert-warning alert-info').addClass('alert-danger')
+                    .html(`<i class="bi bi-exclamation-octagon-fill me-1"></i><strong>Contract Expired:</strong> ${partnerCreditData.blockReason || 'Corporate contract is inactive. Billing cannot proceed.'}`);
+                $('#btnSaveB2BSubmit').prop('disabled', true);
+                return;
+            }
+
+            // 2. Postpaid Credit Limit
+            if (partnerCreditData.creditFacilityType === 2 && partnerCreditData.creditLimit > 0) {
+                var totalWithBill = partnerCreditData.currentOutstanding + b2bTotal;
+                if (totalWithBill > partnerCreditData.creditLimit) {
+                    var over = totalWithBill - partnerCreditData.creditLimit;
+                    alertEl.removeClass('d-none alert-warning alert-info').addClass('alert-danger')
+                        .html(`<i class="bi bi-slash-circle-fill me-1"></i><strong>Credit Limit Exceeded:</strong> Current Outstanding (₹${partnerCreditData.currentOutstanding.toFixed(2)}) + This Bill (₹${b2bTotal.toFixed(2)}) exceeds limit (₹${partnerCreditData.creditLimit.toFixed(2)}) by <strong class="text-danger">₹${over.toFixed(2)}</strong>. Booking on credit is blocked.`);
+                    $('#btnSaveB2BSubmit').prop('disabled', true);
+                    return;
+                } else if (totalWithBill > (partnerCreditData.creditLimit * 0.85)) {
+                    var remaining = partnerCreditData.creditLimit - totalWithBill;
+                    alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
+                        .html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Notice:</strong> 85%+ credit limit utilized. Available credit remaining after this bill: <strong>₹${remaining.toFixed(2)}</strong>.`);
+                    $('#btnSaveB2BSubmit').prop('disabled', false);
+                    return;
+                }
+            }
+
+            // 3. Prepaid Wallet
+            if (partnerCreditData.creditFacilityType === 1) {
+                var isDeduct = $('#chkDeductWallet').is(':checked');
+                if (isDeduct) {
+                    if (partnerCreditData.walletBalance < b2bTotal) {
+                        var shortfall = b2bTotal - partnerCreditData.walletBalance;
+                        alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
+                            .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. Top up wallet or uncheck to collect spot payment.`);
+                        $('#btnSaveB2BSubmit').prop('disabled', false);
+                        return;
+                    } else {
+                        alertEl.removeClass('d-none alert-danger alert-warning').addClass('alert-info')
+                            .html(`<i class="bi bi-check-circle-fill me-1 text-success"></i>Bill of <strong>₹${b2bTotal.toFixed(2)}</strong> will be automatically deducted from franchise wallet upon booking.`);
+                        $('#btnSaveB2BSubmit').prop('disabled', false);
+                        return;
+                    }
+                } else {
+                    alertEl.removeClass('d-none alert-danger alert-warning').addClass('alert-info')
+                        .html(`<i class="bi bi-cash-coin me-1 text-primary"></i>Immediate spot payment (Cash/UPI/Card) required for Prepaid facility.`);
+                    $('#btnSaveB2BSubmit').prop('disabled', false);
+                    return;
+                }
+            }
+
+            alertEl.addClass('d-none').empty();
+            $('#btnSaveB2BSubmit').prop('disabled', false);
+        }
+
+        function onWalletDeductToggle(el) {
+            var checked = $(el).is(':checked');
+            $('#hdnDeductFromWallet').val(checked ? 'true' : 'false');
+            validateCreditPolicy();
+        }
+
+        function openWalletTopUpModal() {
+            if (!partnerCreditData || partnerCreditData.agentType !== 'F') {
+                Swal.fire({ icon: 'info', title: 'Franchise Wallet', text: 'Please select a Franchise partner first.' });
+                return;
+            }
+            $('#txtTopUpFranchiseName').text(partnerCreditData.partnerName);
+            $('#txtTopUpCurrentBal').text(`₹ ${partnerCreditData.walletBalance.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+            $('#txtTopUpAmount').val('');
+            $('#txtTopUpRef').val('');
+            $('#txtTopUpNarration').val('');
+            $('#topUpErrorAlert').addClass('d-none').text('');
+            var modal = new bootstrap.Modal(document.getElementById('walletTopUpModal'));
+            modal.show();
+        }
+
+        function submitWalletTopUp(e) {
+            e.preventDefault();
+            if (!partnerCreditData || partnerCreditData.agentType !== 'F') return;
+
+            var amt = parseFloat($('#txtTopUpAmount').val()) || 0;
+            if (amt <= 0) {
+                $('#topUpErrorAlert').removeClass('d-none').text('Please enter a valid recharge amount.');
+                return;
+            }
+
+            var payload = {
+                franchiseId: partnerCreditData.agentId,
+                amount: amt,
+                paymentMethodId: parseInt($('#ddlTopUpMethod').val()) || 1,
+                transactionRef: $('#txtTopUpRef').val(),
+                narration: $('#txtTopUpNarration').val()
+            };
+
+            $('#btnSubmitTopUp').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Processing...');
+
+            $.ajax({
+                url: '/LabOrderBooking/FranchiseWalletTopUp',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function(res) {
+                    $('#btnSubmitTopUp').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Recharge Wallet');
+                    if (res && res.success) {
+                        var modalEl = document.getElementById('walletTopUpModal');
+                        var modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Wallet Recharged!',
+                            text: `Successfully added ₹${amt.toFixed(2)}. Receipt: ${res.receiptNo}. New Balance: ₹${res.newBalance.toFixed(2)}.`,
+                            confirmButtonColor: '#198754'
+                        });
+
+                        partnerCreditData.walletBalance = res.newBalance;
+                        $('#lblWalletBalance').text(`₹ ${res.newBalance.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                        validateCreditPolicy();
+                    } else {
+                        $('#topUpErrorAlert').removeClass('d-none').text(res.error || res.message || 'Failed to top-up wallet.');
+                    }
+                },
+                error: function() {
+                    $('#btnSubmitTopUp').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Recharge Wallet');
+                    $('#topUpErrorAlert').removeClass('d-none').text('Error connecting to server.');
+                }
+            });
+        }
+
+        function triggerPrepaidSpotPayment() {
+            var fname = ($('#FirstName').val() || '').trim();
+            var lname = ($('#LastName').val() || '').trim();
+            var sal = $('#ddlSalutation').val() || '';
+            var fullName = (sal + ' ' + fname + ' ' + lname).trim();
+            var phone = ($('#phoneNumber').val() || '').trim();
+            var b2bTotal = parseFloat($('#B2BTotal').val()) || 0;
+
+            if (typeof window.pmOpenPreSave === 'function') {
+                window.pmOpenPreSave({
+                    moduleCode: 'LAB',
+                    patientName: fullName,
+                    patientCode: $('input[name="PatientCode"]').val() || 'B2B Patient',
+                    patientPhone: phone,
+                    subTotal: b2bTotal,
+                    items: lineItems.map(function (x) {
+                        return {
+                            lineRefId: x.id,
+                            itemName: x.name,
+                            serviceType: x.isPackage ? 'Package' : 'Test',
+                            originalAmount: parseFloat(x.b2bRate) || parseFloat(x.price) || 0,
+                            isGstRequired: false,
+                            isDiscountAllowed: false
+                        };
+                    }),
+                    onCancel: function () {
+                        // Cancelled
+                    },
+                    onSave: function (paymentData) {
+                        $('#hdnPaymentDataJson').val(JSON.stringify(paymentData));
+                        $('#frmB2BBooking').submit();
+                    },
+                    onSkip: function (paymentData) {
+                        $('#hdnPaymentDataJson').val(JSON.stringify(paymentData));
+                        $('#frmB2BBooking').submit();
+                    }
+                });
+            } else {
+                $('#frmB2BBooking').submit();
+            }
+        }
+
+        function onCollectionTypeChanged() {
+            var val = $('input[name="CollectionType"]:checked').val();
+            if (val === 'Home Collection') {
+                $('#divHomeCollectionAddress').slideDown(150);
+                $('#divPhlebotomist').show();
+                var homeAddrInp = document.getElementById('HomeCollectionAddress');
+                var resAddrInp = document.getElementById('Address');
+                if (homeAddrInp && !homeAddrInp.value && resAddrInp && resAddrInp.value) {
+                    homeAddrInp.value = resAddrInp.value;
+                    var btnClearHome = document.getElementById('btnClearHomeAddr');
+                    if (btnClearHome) btnClearHome.style.display = 'block';
+                }
+            } else if (val === 'B2BCollector') {
+                $('#divHomeCollectionAddress').slideUp(150);
+                $('#divPhlebotomist').show();
+            } else {
+                $('#divHomeCollectionAddress').slideUp(150);
+                $('#divPhlebotomist').hide();
+            }
+        }
+
+        // ── Auto-Suggest Patient Address with Geolocation Coordinates (Lat/Long) ──
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        const homeAddrInput = document.getElementById('HomeCollectionAddress');
+        const homeAddrDrop  = document.getElementById('homeAddrDropdown');
+        const hdnLat        = document.getElementById('hdnLatitude');
+        const hdnLng        = document.getElementById('hdnLongitude');
+        const badgeGeo      = document.getElementById('badgeGeoLocation');
+        const lblGeo        = document.getElementById('lblGeoCoords');
+        const btnClearGeo   = document.getElementById('btnClearGeoCoords');
+        const btnClearHome  = document.getElementById('btnClearHomeAddr');
+        const iconSearch    = document.getElementById('iconAddrSearch');
+
+        let addrDebounceTimer = null;
+        let addrKbdIndex      = -1;
+
+        function getAddrItems() {
+            return homeAddrDrop ? Array.from(homeAddrDrop.querySelectorAll('.geo-addr-sug')) : [];
+        }
+
+        function setAddrKbdActive(idx) {
+            const items = getAddrItems();
+            if (!items.length) return;
+            items.forEach(i => i.classList.remove('kbd-active'));
+            if (idx < 0) {
+                addrKbdIndex = -1;
+                return;
+            }
+            addrKbdIndex = Math.max(0, Math.min(idx, items.length - 1));
+            items[addrKbdIndex].classList.add('kbd-active');
+            items[addrKbdIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+
+        function updateGeoBadge(lat, lon) {
+            if (lat && lon && !isNaN(Number(lat)) && !isNaN(Number(lon))) {
+                if (lblGeo) lblGeo.textContent = `Lat: ${Number(lat).toFixed(4)}, Lon: ${Number(lon).toFixed(4)}`;
+                if (badgeGeo) badgeGeo.style.display = 'inline-flex';
+            } else {
+                if (badgeGeo) badgeGeo.style.display = 'none';
+            }
+        }
+
+        function clearGeoCoordinates() {
+            if (hdnLat) hdnLat.value = '';
+            if (hdnLng) hdnLng.value = '';
+            if (badgeGeo) badgeGeo.style.display = 'none';
+        }
+
+        function selectAddressSuggestion(lat, lon, address) {
+            if (homeAddrInput) homeAddrInput.value = address;
+            if (hdnLat) hdnLat.value = lat;
+            if (hdnLng) hdnLng.value = lon;
+            updateGeoBadge(lat, lon);
+            if (homeAddrDrop) homeAddrDrop.style.display = 'none';
+            if (btnClearHome) btnClearHome.style.display = 'block';
+            addrKbdIndex = -1;
+
+            if (typeof Swal !== 'undefined') {
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2500,
+                    timerProgressBar: true
+                });
+                Toast.fire({
+                    icon: 'success',
+                    title: `Location coordinates (${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)}) captured`
+                });
+            }
+        }
+
+        if (btnClearGeo) {
+            btnClearGeo.addEventListener('click', function (e) {
+                e.stopPropagation();
+                clearGeoCoordinates();
+            });
+        }
+
+        if (btnClearHome) {
+            btnClearHome.addEventListener('click', function () {
+                if (homeAddrInput) {
+                    homeAddrInput.value = '';
+                    homeAddrInput.focus();
+                }
+                clearGeoCoordinates();
+                btnClearHome.style.display = 'none';
+                if (homeAddrDrop) homeAddrDrop.style.display = 'none';
+            });
+        }
+
+        async function fetchAddressSuggestions(query) {
+            const qs = new URLSearchParams({
+                query: query
+            });
+
+            // 1. Try server-side controller proxy
+            try {
+                const res = await fetch(`/LabOrderBooking/SearchAddressGeoSuggestions?${qs.toString()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        return data;
+                    }
+                }
+            } catch (e) {
+                console.warn('Server address search error, attempting client-side fallback...', e);
+            }
+
+            // 2. Client-side fallback: Try Nominatim first
+            try {
+                const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=in&limit=6`);
+                if (nomRes.ok) {
+                    const nomList = await nomRes.json();
+                    if (Array.isArray(nomList) && nomList.length > 0) {
+                        return nomList.map(item => {
+                            const addr = item.address || {};
+                            const name = item.name || (item.display_name ? item.display_name.split(',')[0] : '');
+                            const road = addr.road || '';
+                            const sub = addr.suburb || addr.neighbourhood || '';
+                            const dist = addr.county || addr.state_district || '';
+                            const st = addr.state || '';
+                            const pc = addr.postcode || '';
+                            const cnt = addr.country || 'India';
+
+                            const subParts = [];
+                            if (road && road !== name) subParts.push(road);
+                            if (sub && sub !== name) subParts.push(sub);
+                            if (dist && dist !== name) subParts.push(dist);
+                            if (st) subParts.push(pc ? `${st} ${pc}` : st);
+                            if (cnt) subParts.push(cnt);
+
+                            const secondary = subParts.filter((v, i, a) => a.indexOf(v) === i).join(', ');
+                            const fullAddress = secondary ? `${name}, ${secondary}` : name;
+
+                            return {
+                                name: name || fullAddress,
+                                secondary,
+                                fullAddress,
+                                latitude: parseFloat(item.lat),
+                                longitude: parseFloat(item.lon),
+                                city: dist,
+                                district: dist,
+                                state: st,
+                                postcode: pc,
+                                country: cnt
+                            };
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Client-side Nominatim search error:', e);
+            }
+
+            // 3. Photon Fallback
+            try {
+                const clientRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=8`);
+                if (clientRes.ok) {
+                    const geojson = await clientRes.json();
+                    if (geojson?.features?.length) {
+                        return geojson.features.map(feat => {
+                            const props = feat.properties || {};
+                            const coords = feat.geometry?.coordinates || [0, 0];
+                            const name = props.name || '';
+                            const subParts = [];
+                            if (props.street && props.street !== name) subParts.push(props.housenumber ? `${props.housenumber} ${props.street}` : props.street);
+                            if (props.district && props.district !== name) subParts.push(props.district);
+                            if (props.city && props.city !== name) subParts.push(props.city);
+                            if (props.county && props.county !== props.city && props.county !== name) subParts.push(props.county);
+                            if (props.state) subParts.push(props.postcode ? `${props.state} ${props.postcode}` : props.state);
+                            if (props.country) subParts.push(props.country);
+                            const secondary = subParts.filter((v, i, a) => a.indexOf(v) === i).join(', ');
+                            const fullAddress = secondary ? `${name}, ${secondary}` : name;
+                            return {
+                                name: name || fullAddress,
+                                secondary,
+                                fullAddress,
+                                latitude: coords[1],
+                                longitude: coords[0],
+                                city: props.city || '',
+                                district: props.district || '',
+                                state: props.state || '',
+                                postcode: props.postcode || '',
+                                country: props.country || ''
+                            };
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Client-side photon search error:', e);
+            }
+
+            return [];
+        }
+
+        if (homeAddrInput && homeAddrDrop) {
+            homeAddrInput.addEventListener('input', function () {
+                const val = this.value.trim();
+                if (btnClearHome) btnClearHome.style.display = val ? 'block' : 'none';
+                clearTimeout(addrDebounceTimer);
+                addrKbdIndex = -1;
+
+                if (val.length < 2) {
+                    homeAddrDrop.style.display = 'none';
+                    if (iconSearch) iconSearch.className = 'bi bi-search';
+                    return;
+                }
+
+                if (iconSearch) iconSearch.className = 'spinner-border spinner-border-sm text-primary';
+                homeAddrDrop.innerHTML = `
+                    <div class="p-3 text-center text-muted small">
+                        <span class="spinner-border spinner-border-sm text-primary me-2"></span>Searching locations for "<strong>${escapeHtml(val)}</strong>"...
+                    </div>
+                `;
+                homeAddrDrop.style.display = 'block';
+
+                addrDebounceTimer = setTimeout(async () => {
+                    const results = await fetchAddressSuggestions(val);
+                    if (iconSearch) iconSearch.className = 'bi bi-search';
+
+                    if (!results.length) {
+                        homeAddrDrop.innerHTML = `
+                            <div class="p-3 text-center text-muted small">
+                                <i class="bi bi-info-circle me-1"></i>No suggestions found for "<strong>${escapeHtml(val)}</strong>". You can continue typing custom address.
+                            </div>
+                        `;
+                        homeAddrDrop.style.display = 'block';
+                        return;
+                    }
+
+                    homeAddrDrop.innerHTML = results.map((item, idx) => `
+                        <button type="button"
+                                class="list-group-item list-group-item-action py-2.5 px-3 geo-addr-sug ${idx === 0 ? 'kbd-active' : ''}"
+                                data-lat="${item.latitude}"
+                                data-lon="${item.longitude}"
+                                data-address="${escapeHtml(item.fullAddress)}"
+                                tabindex="-1">
+                            <div class="d-flex align-items-start gap-2">
+                                <i class="bi bi-geo-alt-fill text-danger mt-1 fs-6 flex-shrink-0"></i>
+                                <div class="flex-grow-1 min-w-0">
+                                    <div class="d-flex justify-content-between align-items-baseline gap-2">
+                                        <span class="fw-bold text-dark text-truncate">${escapeHtml(item.name)}</span>
+                                        <span class="badge bg-light text-secondary border font-monospace flex-shrink-0" style="font-size:0.7rem;">
+                                            <i class="bi bi-pin-map-fill text-danger me-0.5"></i>${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}
+                                        </span>
+                                    </div>
+                                    <div class="small text-muted text-truncate mt-0.5" title="${escapeHtml(item.secondary || item.fullAddress)}">
+                                        ${escapeHtml(item.secondary || item.fullAddress)}
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+                    `).join('');
+                    homeAddrDrop.style.display = 'block';
+                    addrKbdIndex = 0;
+                }, 300);
+            });
+
+            // Keyboard navigation
+            homeAddrInput.addEventListener('keydown', function (e) {
+                if (homeAddrDrop.style.display === 'none') return;
+                const items = getAddrItems();
+                if (!items.length) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    var next = (addrKbdIndex < 0) ? 0 : (addrKbdIndex + 1 >= items.length ? 0 : addrKbdIndex + 1);
+                    setAddrKbdActive(next);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    var prev = (addrKbdIndex <= 0) ? items.length - 1 : addrKbdIndex - 1;
+                    setAddrKbdActive(prev);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var targetIdx = addrKbdIndex >= 0 ? addrKbdIndex : 0;
+                    if (items[targetIdx]) {
+                        const lat  = items[targetIdx].dataset.lat;
+                        const lon  = items[targetIdx].dataset.lon;
+                        const addr = items[targetIdx].dataset.address;
+                        selectAddressSuggestion(lat, lon, addr);
+                    }
+                } else if (e.key === 'Escape') {
+                    homeAddrDrop.style.display = 'none';
+                    addrKbdIndex = -1;
+                }
+            });
+
+            // Click suggestion item
+            $(document).on('click', '#homeAddrDropdown .geo-addr-sug', function (e) {
+                e.preventDefault();
+                const lat  = this.dataset.lat;
+                const lon  = this.dataset.lon;
+                const addr = this.dataset.address;
+                selectAddressSuggestion(lat, lon, addr);
+                if (homeAddrInput) homeAddrInput.focus();
+            });
+
+            // Close dropdown outside
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('#homeAddrSuggestWrapper')) {
+                    if (homeAddrDrop) homeAddrDrop.style.display = 'none';
+                    addrKbdIndex = -1;
+                }
+            });
+        }
+
+        // ── Device GPS Location Fallback ──
+        async function detectAndFillGeoLocation() {
+            const btn   = document.getElementById('btnDetectLocation');
+            const icon  = document.getElementById('iconDetectLocation');
+            const txt   = document.getElementById('txtDetectLocation');
+            const txtHomeAddr = document.getElementById('HomeCollectionAddress');
+
+            if (!navigator.geolocation) {
+                Swal.fire({ icon: 'info', title: 'Geolocation', text: 'Geolocation is not supported by your browser.', confirmButtonColor: '#0d6efd' });
+                return;
+            }
+
+            if (btn) btn.disabled = true;
+            if (icon) icon.className = 'spinner-border spinner-border-sm';
+            if (txt) txt.textContent = 'Detecting GPS...';
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    
+                    if (hdnLat) hdnLat.value = lat;
+                    if (hdnLng) hdnLng.value = lon;
+                    updateGeoBadge(lat, lon);
+
+                    if (txt) txt.textContent = 'Resolving Address...';
+
+                    let formattedAddress = '';
+
+                    // Try free BigDataCloud Client Reverse Geocode API
+                    try {
+                        const bdcRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+                        if (bdcRes.ok) {
+                            const bdcData = await bdcRes.json();
+                            const parts = [];
+                            if (bdcData.locality || bdcData.city) parts.push(bdcData.locality || bdcData.city);
+                            if (bdcData.principalSubdivision) parts.push(bdcData.principalSubdivision);
+                            if (bdcData.postcode) parts.push(bdcData.postcode);
+                            if (bdcData.countryName) parts.push(bdcData.countryName);
+                            if (parts.length > 0) formattedAddress = parts.join(', ');
+                        }
+                    } catch (e) {
+                        console.warn('BigDataCloud reverse geocode failed:', e);
+                    }
+
+                    if (txtHomeAddr) {
+                        if (formattedAddress) {
+                            txtHomeAddr.value = formattedAddress;
+                        } else if (!txtHomeAddr.value) {
+                            txtHomeAddr.value = `GPS: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                        }
+                        if (btnClearHome) btnClearHome.style.display = txtHomeAddr.value ? 'block' : 'none';
+                        $(txtHomeAddr).trigger('focusout');
+                    }
+
+                    if (btn) btn.disabled = false;
+                    if (icon) icon.className = 'bi bi-crosshair';
+                    if (txt) txt.textContent = 'Current GPS';
+
+                    if (typeof Swal !== 'undefined') {
+                        const Toast = Swal.mixin({
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 2500,
+                            timerProgressBar: true
+                        });
+                        Toast.fire({
+                            icon: 'success',
+                            title: `GPS coordinates captured: (${lat.toFixed(4)}, ${lon.toFixed(4)})`
+                        });
+                    }
+                },
+                (error) => {
+                    if (btn) btn.disabled = false;
+                    if (icon) icon.className = 'bi bi-crosshair';
+                    if (txt) txt.textContent = 'Current GPS';
+
+                    let errorMsg = 'Unable to retrieve device GPS.';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        errorMsg = 'Location permission was denied. You can search patient address by typing directly in the address field.';
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        errorMsg = 'Location information is unavailable.';
+                    } else if (error.code === error.TIMEOUT) {
+                        errorMsg = 'Location request timed out. Please try again.';
+                    }
+                    Swal.fire({ icon: 'warning', title: 'Location Error', text: errorMsg, confirmButtonColor: '#0d6efd' });
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+
+        $('#btnDetectLocation').on('click', detectAndFillGeoLocation);
+
+        // ── Interactive Leaflet Map Picker Logic ──
+        let leafletMap = null;
+        let mapMarker = null;
+        let currentMapLat = 0;
+        let currentMapLng = 0;
+        let currentMapAddress = '';
+
+        function initLeafletMap(initialLat, initialLng, initialAddress) {
+            const hasCoords = (initialLat && initialLng && initialLat !== 0 && initialLng !== 0);
+            const defaultLat = hasCoords ? initialLat : 22.5726;
+            const defaultLng = hasCoords ? initialLng : 88.3639;
+
+            currentMapLat = defaultLat;
+            currentMapLng = defaultLng;
+            currentMapAddress = initialAddress || '';
+
+            if (!leafletMap) {
+                leafletMap = L.map('leafletMapContainer').setView([defaultLat, defaultLng], hasCoords ? 16 : 13);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(leafletMap);
+
+                // Draggable Marker
+                mapMarker = L.marker([defaultLat, defaultLng], {
+                    draggable: true,
+                    autoPan: true
+                }).addTo(leafletMap);
+
+                mapMarker.on('dragend', function (e) {
+                    const pos = mapMarker.getLatLng();
+                    onMapLocationSelected(pos.lat, pos.lng);
+                });
+
+                leafletMap.on('click', function (e) {
+                    mapMarker.setLatLng(e.latlng);
+                    onMapLocationSelected(e.latlng.lat, e.latlng.lng);
+                });
+            } else {
+                leafletMap.setView([defaultLat, defaultLng], hasCoords ? 16 : 13);
+                mapMarker.setLatLng([defaultLat, defaultLng]);
+            }
+
+            if (initialAddress && hasCoords) {
+                updateMapModalInfo(defaultLat, defaultLng, initialAddress);
+            } else {
+                onMapLocationSelected(defaultLat, defaultLng);
+            }
+        }
+
+        async function onMapLocationSelected(lat, lng) {
+            currentMapLat = lat;
+            currentMapLng = lng;
+            updateMapModalInfo(lat, lng, 'Fetching address details for selected point...');
+            $('#mapLoadingOverlay').css('display', 'flex');
+
+            try {
+                // 1. Try Backend ReverseGeoLookup Proxy
+                const res = await fetch(`/LabOrderBooking/ReverseGeoLookup?lat=${lat}&lon=${lng}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.address) {
+                        currentMapAddress = data.address;
+                        updateMapModalInfo(lat, lng, currentMapAddress);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn('Backend reverse geocode failed:', err);
+            }
+
+            // 2. Client-side Nominatim Reverse Geocode Fallback
+            try {
+                const nomRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`);
+                if (nomRes.ok) {
+                    const nomData = await nomRes.json();
+                    if (nomData && nomData.display_name) {
+                        currentMapAddress = nomData.display_name;
+                        updateMapModalInfo(lat, lng, currentMapAddress);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Nominatim client reverse geocode failed:', e);
+            } finally {
+                $('#mapLoadingOverlay').hide();
+            }
+
+            currentMapAddress = `Location (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+            updateMapModalInfo(lat, lng, currentMapAddress);
+        }
+
+        function updateMapModalInfo(lat, lng, address) {
+            $('#mapLoadingOverlay').hide();
+            $('#mapSelectedAddressText').text(address || 'Click map or drag pin to select');
+            $('#mapSelectedCoordsBadge').text(`Lat: ${Number(lat).toFixed(5)}, Lon: ${Number(lng).toFixed(5)}`);
+        }
+
+        // Open Map Picker Modal
+        $('#btnOpenMapModal, #badgeGeoLocation').on('click', function (e) {
+            if ($(e.target).closest('#btnClearGeoCoords').length) return;
+            $('#mapPickerModal').modal('show');
+        });
+
+        // Initialize / Invalidate Leaflet Map on Modal Open
+        $('#mapPickerModal').on('shown.bs.modal', function () {
+            const lat = parseFloat($('#hdnLatitude').val()) || 0;
+            const lng = parseFloat($('#hdnLongitude').val()) || 0;
+            const addr = $('#HomeCollectionAddress').val().trim();
+
+            initLeafletMap(lat, lng, addr);
+            setTimeout(() => {
+                if (leafletMap) leafletMap.invalidateSize();
+            }, 100);
+        });
+
+        // Confirm Location from Map Modal
+        $('#btnConfirmMapLocation').on('click', function () {
+            if (currentMapLat && currentMapLng) {
+                $('#hdnLatitude').val(currentMapLat.toFixed(6));
+                $('#hdnLongitude').val(currentMapLng.toFixed(6));
+                $('#lblGeoCoords').text(`Lat: ${currentMapLat.toFixed(4)}, Lon: ${currentMapLng.toFixed(4)}`);
+                $('#badgeGeoLocation').css('display', 'inline-flex');
+
+                if (currentMapAddress && !currentMapAddress.startsWith('Fetching')) {
+                    $('#HomeCollectionAddress').val(currentMapAddress);
+                    if (btnClearHome) btnClearHome.style.display = 'block';
+                }
+            }
+            $('#mapPickerModal').modal('hide');
+        });
+
+        // In-Modal Search functionality
+        async function searchLocationInsideMap(query) {
+            if (!query || query.trim().length < 2) return;
+            $('#mapLoadingOverlay').css('display', 'flex');
+
+            const qs = new URLSearchParams({ query: query.trim() });
+
+            try {
+                const res = await fetch(`/LabOrderBooking/SearchAddressGeoSuggestions?${qs.toString()}`);
+                if (res.ok) {
+                    const list = await res.json();
+                    if (Array.isArray(list) && list.length > 0) {
+                        const first = list[0];
+                        if (first.latitude && first.longitude && leafletMap) {
+                            leafletMap.setView([first.latitude, first.longitude], 16);
+                            mapMarker.setLatLng([first.latitude, first.longitude]);
+                            currentMapLat = first.latitude;
+                            currentMapLng = first.longitude;
+                            currentMapAddress = first.fullAddress || first.name;
+                            updateMapModalInfo(first.latitude, first.longitude, currentMapAddress);
+                            $('#mapLoadingOverlay').hide();
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Map modal search error:', e);
+            }
+            $('#mapLoadingOverlay').hide();
+        }
+
+        $('#btnMapSearch').on('click', function () {
+            searchLocationInsideMap($('#mapSearchInput').val());
+        });
+
+        $('#mapSearchInput').on('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchLocationInsideMap($(this).val());
+            }
+        });
+
+        // In-Modal GPS button
+        $('#btnMapCurrentGps').on('click', function () {
+            if (navigator.geolocation) {
+                $('#mapLoadingOverlay').css('display', 'flex');
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        if (leafletMap) {
+                            leafletMap.setView([lat, lng], 16);
+                            mapMarker.setLatLng([lat, lng]);
+                        }
+                        onMapLocationSelected(lat, lng);
+                    },
+                    function (err) {
+                        $('#mapLoadingOverlay').hide();
+                        Swal.fire({ icon: 'warning', title: 'GPS Error', text: 'Could not retrieve GPS: ' + (err.message || 'Permission denied'), confirmButtonColor: '#0d6efd' });
+                    },
+                    { timeout: 8000, enableHighAccuracy: true }
+                );
+            } else {
+                Swal.fire({ icon: 'info', title: 'Geolocation', text: 'Geolocation is not supported by your browser.', confirmButtonColor: '#0d6efd' });
+            }
+        });
+
+        // ── Profile Photo Webcam Capture ──
+        window.previewProfilePic = function(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('profilePicPreview');
+                    const container = document.getElementById('profilePicPreviewContainer');
+                    if (preview && container) {
+                        preview.src = e.target.result;
+                        container.classList.remove('d-none');
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        let webcamStream = null;
+        const webcamModalEl = document.getElementById('webcamModal');
+        const webcamModal = webcamModalEl ? new bootstrap.Modal(webcamModalEl) : null;
+        const video = document.getElementById('webcamVideo');
+        const canvas = document.getElementById('webcamCanvas');
+        const btnCapture = document.getElementById('btnCapturePhoto');
+        const btnRetake = document.getElementById('btnRetakePhoto');
+        const btnUse = document.getElementById('btnUsePhoto');
+
+        document.getElementById('btnWebcamOpen')?.addEventListener('click', async () => {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "user" } });
+                video.srcObject = webcamStream;
+                video.classList.remove('d-none');
+                canvas.classList.add('d-none');
+                btnCapture.classList.remove('d-none');
+                btnRetake.classList.add('d-none');
+                btnUse.classList.add('d-none');
+                webcamModal?.show();
+            } catch (err) {
+                console.error("Camera access failed:", err);
+                Swal.fire({ icon: 'error', title: 'Camera Access', text: 'Could not access camera. Please check permissions.', confirmButtonColor: '#0d6efd' });
+            }
+        });
+
+        btnCapture?.addEventListener('click', () => {
+            if (!webcamStream) return;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, 320, 240);
+            stopCamera();
+            video.classList.add('d-none');
+            canvas.classList.remove('d-none');
+            btnCapture.classList.add('d-none');
+            btnRetake.classList.remove('d-none');
+            btnUse.classList.remove('d-none');
+        });
+
+        btnRetake?.addEventListener('click', async () => {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "user" } });
+                video.srcObject = webcamStream;
+                video.classList.remove('d-none');
+                canvas.classList.add('d-none');
+                btnCapture.classList.remove('d-none');
+                btnRetake.classList.add('d-none');
+                btnUse.classList.add('d-none');
+            } catch (err) {
+                console.error("Camera retake failed:", err);
+            }
+        });
+
+        btnUse?.addEventListener('click', () => {
+            canvas.toBlob((blob) => {
+                if (!blob) return;
+                const file = new File([blob], "webcam_capture.jpg", { type: "image/jpeg" });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                const fileInput = document.getElementById('profilePictureFile');
+                if (fileInput) {
+                    fileInput.files = dataTransfer.files;
+                    window.previewProfilePic(fileInput);
+                }
+                webcamModal?.hide();
+            }, 'image/jpeg', 0.9);
+        });
+
+        webcamModalEl?.addEventListener('hidden.bs.modal', () => {
+            stopCamera();
+        });
+
+        function stopCamera() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+            }
+            if (video) video.srcObject = null;
+        }
+
+        @if (Model.Latitude.HasValue && Model.Longitude.HasValue)
+        {
+            <text>
+            updateGeoBadge(@Model.Latitude.Value, @Model.Longitude.Value);
+            </text>
+        }
+
+        function loadCategories() {
+            var dept = $('#ddlDepartment').val();
+            var $cat = $('#ddlCategory');
+            $cat.empty().append('<option value="">-- All Categories --</option>');
+            $('#ddlSubCategory').empty().append('<option value="">-- All Sub Categories --</option>');
+
+            if (dept) {
+                $.get('/LabOrderBooking/GetCategoriesForDropdown?departmentId=' + dept, function(res) {
+                    if (res && res.length > 0) {
+                        res.forEach(function(c) {
+                            $cat.append(new Option(c.text, c.value));
+                        });
+                    }
+                    $cat.trigger('change.select2');
+                    loadInvestigations();
+                });
+            } else {
+                $cat.trigger('change.select2');
+                loadInvestigations();
+            }
+        }
+
+        function loadSubCategories() {
+            var cat = $('#ddlCategory').val();
+            var $subCat = $('#ddlSubCategory');
+            $subCat.empty().append('<option value="">-- All Sub Categories --</option>');
+
+            if (cat) {
+                $.get('/LabOrderBooking/GetSubCategoriesForDropdown?categoryId=' + cat, function(res) {
+                    if (res && res.length > 0) {
+                        res.forEach(function(s) {
+                            $subCat.append(new Option(s.text, s.value));
+                        });
+                    }
+                    $subCat.trigger('change.select2');
+                    loadInvestigations();
+                });
+            } else {
+                $subCat.trigger('change.select2');
+                loadInvestigations();
+            }
+        }
+
+        function loadInvestigations() {
+            var dept = $('#ddlDepartment').val() || '';
+            var cat = $('#ddlCategory').val() || '';
+            var subCat = $('#ddlSubCategory').val() || '';
+            var gender = $('#ddlGender').val() || '';
+            var ageYears = $('#AgeYears').val() || '';
+
+            var rateType = 'B2C';
+            var agentParam = '';
+            if (currentAgentId && currentAgentId > 0) {
+                rateType = currentAgentType === 'C' ? 'Corporate' : 'Franchise';
+                agentParam = `&agentId=${currentAgentId}`;
+            }
+
+            var url = `/LabOrderBooking/GetAvailableInvestigations?rateType=${rateType}${agentParam}`;
+            if (dept) url += `&departmentId=${dept}`;
+            if (cat) url += `&categoryId=${cat}`;
+            if (subCat) url += `&subCategoryId=${subCat}`;
+            if (gender) url += `&gender=${encodeURIComponent(gender)}`;
+            if (ageYears) url += `&ageInYears=${ageYears}`;
+
+            var $ddl = $('#ddlInvestigations');
+            $ddl.prop('disabled', true);
+
+            $.get(url, function(res) {
+                $ddl.empty().append('<option value=""></option>');
+                if (res.isSuccess && res.data && res.data.length > 0) {
+                    $('#lblAvailCount').text(res.data.length);
+                    res.data.forEach(function(item) {
+                        var isProf = item.isProfileTest === true;
+                        var isPack = item.isPackage === true;
+                        var itemType = isPack ? 'P' : 'I';
+                        var valStr = `${itemType}_${item.investigationId}`;
+
+                        var b2bRateVal = (item.b2BRate !== undefined && item.b2BRate !== null) ? item.b2BRate : ((item.b2bRate !== undefined && item.b2bRate !== null) ? item.b2bRate : item.mrp);
+
+                        var opt = new Option(item.testName, valStr);
+                        $(opt).attr('data-price', item.mrp);
+                        $(opt).attr('data-b2b-rate', b2bRateVal);
+                        $(opt).attr('data-code', item.testCode);
+                        $(opt).attr('data-name', item.testName);
+                        $(opt).attr('data-tat', item.tatHours || '');
+                        $(opt).attr('data-sample', item.sampleType || '');
+                        $(opt).attr('data-method', item.method || '');
+                        $(opt).attr('data-is-profile', isProf ? '1' : '0');
+                        $(opt).attr('data-is-package', isPack ? '1' : '0');
+                        $ddl.append(opt);
+                    });
+                } else {
+                    $('#lblAvailCount').text('0');
+                }
+                $ddl.val('').prop('disabled', false).trigger('change.select2');
+            }).fail(function() {
+                $ddl.prop('disabled', false);
+            });
+        }
+
+        // ── Render Line Items Table ──
+        function renderTable() {
+            var $tbody = $('#tblLineItemsBody');
+            $tbody.empty();
+
+            if (!lineItems || lineItems.length === 0) {
+                $tbody.append(`
+                    <tr id="rowEmpty">
+                        <td colspan="9" class="text-center py-4 text-muted">
+                            <i class="bi bi-exclamation-circle text-warning fs-3 d-block mb-2"></i>
+                            <span class="fw-semibold text-dark">No test investigations added yet.</span><br/>
+                            <span class="small text-secondary">A laboratory bill requires at least one test. Search and select tests above.</span>
+                        </td>
+                    </tr>`);
+                $('#lblStandardTotal').text('₹ 0.00');
+                $('#lblB2BTotalAmount').text('₹ 0.00');
+                $('#B2BTotal').val('0.00');
+                $('#badgeSelectedCount').text('0 Tests Selected');
+                validateCreditPolicy();
+                return;
+            }
+
+            var standardTotal = 0;
+            var b2bTotal = 0;
+
+            lineItems.forEach(function(item, idx) {
+                var mrp = parseFloat(item.price) || 0;
+                var b2b = parseFloat(item.b2bRate) || mrp;
+                standardTotal += mrp;
+                b2bTotal += b2b;
+
+                var typeBadge = item.isPackage
+                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-box me-1"></i>Package</span>'
+                    : (item.isProfile
+                        ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-layers me-1"></i>Profile</span>'
+                        : '');
+
+                var sampleBadge = item.sampleType ? `<span class="badge bg-light text-dark border">${item.sampleType}</span>` : '<span class="text-muted">--</span>';
+                var tatBadge = item.tat ? `<span class="badge bg-light text-secondary border">${item.tat} hrs</span>` : '<span class="text-muted">--</span>';
+
+                var rowHtml = `
+                    <tr>
+                        <td class="text-center text-muted fw-semibold">${idx + 1}</td>
+                        <td><span class="badge bg-light text-primary font-monospace border px-2 py-1">${item.code}</span></td>
+                        <td>
+                            <div class="fw-semibold text-dark">${item.name} ${typeBadge}</div>
+                            ${item.method ? `<small class="text-muted">Method: ${item.method}</small>` : ''}
+                        </td>
+                        <td>${sampleBadge}</td>
+                        <td>${tatBadge}</td>
+                        <td class="text-end font-monospace text-muted">₹ ${mrp.toFixed(2)}</td>
+                        <td class="text-end font-monospace fw-bold text-primary bg-primary-subtle">₹ ${b2b.toFixed(2)}</td>
+                        <td class="text-center">
+                            <input type="checkbox" class="form-check-input" ${item.isUrgent ? 'checked' : ''} onchange="toggleUrgent(${idx}, this.checked)" />
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeLineItem(${idx})" title="Remove">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                $tbody.append(rowHtml);
+            });
+
+            $('#lblStandardTotal').text('₹ ' + standardTotal.toFixed(2));
+            $('#lblB2BTotalAmount').text('₹ ' + b2bTotal.toFixed(2));
+            $('#B2BTotal').val(b2bTotal.toFixed(2));
+            $('#badgeSelectedCount').text(lineItems.length + (lineItems.length === 1 ? ' Test Selected' : ' Tests Selected'));
+            $('#LineItemsJson').val(JSON.stringify(lineItems));
+            validateCreditPolicy();
+        }
+
+        function removeLineItem(idx) {
+            lineItems.splice(idx, 1);
+            renderTable();
+        }
+
+        function toggleUrgent(idx, checked) {
+            if (lineItems[idx]) {
+                lineItems[idx].isUrgent = checked;
+            }
+        }
+    </script>
+}

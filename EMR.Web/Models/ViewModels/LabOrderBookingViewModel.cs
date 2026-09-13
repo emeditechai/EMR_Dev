@@ -181,6 +181,16 @@ namespace EMR.Web.Models.ViewModels
         public List<SelectListItem> DepartmentOptions { get; set; } = new();
         public List<SelectListItem> CategoryOptions { get; set; } = new();
         public List<SelectListItem> SubCategoryOptions { get; set; } = new();
+
+        // ── B2B Specific Properties ──
+        public bool IsB2B { get; set; }
+        public string AgentType { get; set; } = "F"; // 'F' for Franchise, 'C' for Company
+        public int? B2BAgentId { get; set; }
+        public decimal? B2BTotal { get; set; }
+        public bool DeductFromWallet { get; set; }
+        public string? PaymentDataJson { get; set; }
+        public List<SelectListItem> FranchiseOptions { get; set; } = new();
+        public List<SelectListItem> CorporateOptions { get; set; } = new();
     }
 
     public class LabOrderPagedListViewModel

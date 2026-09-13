@@ -518,8 +518,16 @@
             <tr>
                 <td class="lbl">Booking Centre</td>
                 <td>@(Model.BranchName ?? "—")</td>
-                <td class="lbl"></td>
-                <td></td>
+                @if (Model.IsB2B && !string.IsNullOrWhiteSpace(Model.PartnerName))
+                {
+                    <td class="lbl">Partner Name</td>
+                    <td><strong>@Model.PartnerName</strong> @(!string.IsNullOrEmpty(Model.PartnerCode) ? $"({Model.PartnerCode})" : "")</td>
+                }
+                else
+                {
+                    <td class="lbl"></td>
+                    <td></td>
+                }
             </tr>
         </tbody>
     </table>

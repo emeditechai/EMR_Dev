@@ -1223,7 +1223,12 @@
                 if (lineItems && lineItems.length > 0) {
                     lineItems = [];
                     renderTable();
-                    alert("Selected tests have been cleared because demographics changed. Please select tests again.");
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Demographics Changed',
+                        text: 'Selected tests have been cleared because demographics changed. Please select tests again.',
+                        confirmButtonColor: '#0d6efd'
+                    });
                 }
                 loadInvestigations();
             });
@@ -1232,7 +1237,12 @@
                 if (lineItems && lineItems.length > 0) {
                     lineItems = [];
                     renderTable();
-                    alert("Selected tests have been cleared because demographics changed. Please select tests again.");
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Demographics Changed',
+                        text: 'Selected tests have been cleared because demographics changed. Please select tests again.',
+                        confirmButtonColor: '#0d6efd'
+                    });
                 }
                 loadInvestigations();
             });
@@ -1459,11 +1469,13 @@
                 }
 
                 if (duplicateFound) {
-                    if (typeof showToast === 'function') {
-                        showToast(duplicateMessage, 'danger');
-                    } else {
-                        alert(duplicateMessage);
-                    }
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Already Added',
+                        text: duplicateMessage,
+                        confirmButtonColor: '#0d6efd',
+                        confirmButtonText: 'OK'
+                    });
                     $(this).val('').trigger('change.select2');
                     return;
                 }
@@ -1688,31 +1700,27 @@
                 var gender = $('#ddlGender').val();
 
                 if (!phone || phone.length < 10) {
-                    alert('Please enter a valid 10-digit mobile number.');
+                    Swal.fire({ icon: 'warning', title: 'Invalid Mobile', text: 'Please enter a valid 10-digit mobile number.', confirmButtonColor: '#0d6efd' });
                     $('#phoneNumber').focus();
                     return;
                 }
                 if (!rel) {
-                    alert('Please select Relation.');
+                    Swal.fire({ icon: 'warning', title: 'Relation Required', text: 'Please select Relation.', confirmButtonColor: '#0d6efd' });
                     $('#ddlRelation').focus();
                     return;
                 }
                 if (!fname) {
-                    alert('Please enter First Name.');
+                    Swal.fire({ icon: 'warning', title: 'First Name Required', text: 'Please enter First Name.', confirmButtonColor: '#0d6efd' });
                     $('input[name="FirstName"]').focus();
                     return;
                 }
                 if (!gender) {
-                    alert('Please select Gender.');
+                    Swal.fire({ icon: 'warning', title: 'Gender Required', text: 'Please select Gender.', confirmButtonColor: '#0d6efd' });
                     $('#ddlGender').focus();
                     return;
                 }
                 if (!lineItems || lineItems.length === 0) {
-                    if (typeof Swal !== 'undefined') {
-                        Swal.fire('Validation Error', 'Please select at least one investigation test.', 'warning');
-                    } else {
-                        alert('Please select at least one investigation test.');
-                    }
+                    Swal.fire({ icon: 'warning', title: 'Validation Error', text: 'Please select at least one investigation test.', confirmButtonColor: '#0d6efd' });
                     $('#ddlInvestigations').focus();
                     return;
                 }
@@ -1721,7 +1729,7 @@
                 if (colType === 'Home Collection') {
                     var country = $('#ddlCountry').val();
                     if (!country) {
-                        alert('Please select Country for Home Collection.');
+                        Swal.fire({ icon: 'warning', title: 'Country Required', text: 'Please select Country for Home Collection.', confirmButtonColor: '#0d6efd' });
                         $('#ddlCountry').next('.select2-container').find('.select2-selection').addClass('border-danger');
                         $('#ddlCountry').select2('open');
                         return;
@@ -1731,7 +1739,7 @@
 
                     var state = $('#ddlState').val();
                     if (!state) {
-                        alert('Please select State for Home Collection.');
+                        Swal.fire({ icon: 'warning', title: 'State Required', text: 'Please select State for Home Collection.', confirmButtonColor: '#0d6efd' });
                         $('#ddlState').next('.select2-container').find('.select2-selection').addClass('border-danger');
                         $('#ddlState').select2('open');
                         return;
@@ -1741,7 +1749,7 @@
 
                     var homeAddr = $('#HomeCollectionAddress').val().trim();
                     if (!homeAddr) {
-                        alert('Please enter Home Collection Address.');
+                        Swal.fire({ icon: 'warning', title: 'Address Required', text: 'Please enter Home Collection Address.', confirmButtonColor: '#0d6efd' });
                         $('#HomeCollectionAddress').addClass('is-invalid').focus();
                         return;
                     } else {
@@ -1750,7 +1758,7 @@
 
                     var phleb = $('#ddlPhlebotomist').val();
                     if (!phleb) {
-                        alert('Please select a Phlebotomist for Home Collection.');
+                        Swal.fire({ icon: 'warning', title: 'Phlebotomist Required', text: 'Please select a Phlebotomist for Home Collection.', confirmButtonColor: '#0d6efd' });
                         $('#ddlPhlebotomist').focus();
                         return;
                     }
@@ -1773,13 +1781,13 @@
                 // Booking Date & Time Validation
                 var bookingDateTimeStr = $('#txtBookingDateTime').val();
                 if (!bookingDateTimeStr) {
-                    alert('Please select Booking Date & Time.');
+                    Swal.fire({ icon: 'warning', title: 'Date & Time Required', text: 'Please select Booking Date & Time.', confirmButtonColor: '#0d6efd' });
                     $('#txtBookingDateTime').addClass('is-invalid').focus();
                     return;
                 }
                 var selectedBookingDate = new Date(bookingDateTimeStr);
                 if (selectedBookingDate < new Date(Date.now() - 60000)) {
-                    alert('Booking Date & Time cannot be less than current Date & Time.');
+                    Swal.fire({ icon: 'warning', title: 'Invalid Booking Time', text: 'Booking Date & Time cannot be less than current Date & Time.', confirmButtonColor: '#0d6efd' });
                     $('#txtBookingDateTime').addClass('is-invalid').focus();
                     return;
                 } else {
@@ -1792,7 +1800,7 @@
                 var fullName = (sal + ' ' + fname + ' ' + lname).trim();
 
                 if (typeof window.pmOpenPreSave !== 'function') {
-                    alert('Payment module is not initialized.');
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Payment module is not initialized.', confirmButtonColor: '#dc3545' });
                     return;
                 }
 
@@ -3799,7 +3807,7 @@
             const txtHomeAddr = document.getElementById('HomeCollectionAddress');
 
             if (!navigator.geolocation) {
-                alert('Geolocation is not supported by your browser.');
+                Swal.fire({ icon: 'info', title: 'Geolocation', text: 'Geolocation is not supported by your browser.', confirmButtonColor: '#0d6efd' });
                 return;
             }
 
@@ -3867,7 +3875,7 @@
                     } else if (error.code === error.TIMEOUT) {
                         errorMsg = 'Location request timed out. Please try again.';
                     }
-                    alert(errorMsg);
+                    Swal.fire({ icon: 'warning', title: 'Location Error', text: errorMsg, confirmButtonColor: '#0d6efd' });
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
@@ -4076,12 +4084,12 @@
                     },
                     function (err) {
                         $('#mapLoadingOverlay').hide();
-                        alert('Could not retrieve GPS: ' + (err.message || 'Permission denied'));
+                        Swal.fire({ icon: 'warning', title: 'GPS Error', text: 'Could not retrieve GPS: ' + (err.message || 'Permission denied'), confirmButtonColor: '#0d6efd' });
                     },
                     { timeout: 8000, enableHighAccuracy: true }
                 );
             } else {
-                alert('Geolocation is not supported by your browser.');
+                Swal.fire({ icon: 'info', title: 'Geolocation', text: 'Geolocation is not supported by your browser.', confirmButtonColor: '#0d6efd' });
             }
         });
 

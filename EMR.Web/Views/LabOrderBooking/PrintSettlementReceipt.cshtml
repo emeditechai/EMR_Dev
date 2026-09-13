@@ -1,0 +1,685 @@
+@model EMR.Web.Models.ViewModels.PrintSettlementReceiptViewModel
+@{
+    Layout = null;
+    var receiptDate = Model.PaymentDate != default 
+        ? Model.PaymentDate.ToString("dd-MMM-yyyy") 
+        : Model.CreatedDate.ToString("dd-MMM-yyyy");
+    var printDate = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Money Receipt — @Model.ReceiptNo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11.5px;
+            color: #111;
+            background: #f1f5f9;
+        }
+
+        .page-wrap {
+            width: 210mm;
+            margin: 20px auto;
+            padding: 12mm 15mm;
+            position: relative;
+            background: #fff;
+            border: 2px solid #0f172a;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        /* ── Print Actions (hidden on print) ── */
+        .print-actions {
+            position: fixed;
+            top: 14px;
+            right: 20px;
+            z-index: 999;
+            display: flex;
+            gap: 10px;
+        }
+        .btn-print {
+            background: #1e3a8a;
+            color: #fff;
+            border: none;
+            padding: 8px 22px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-print:hover { background: #172554; }
+        .btn-close-tab {
+            background: #475569;
+            color: #fff;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .btn-close-tab:hover { background: #334155; }
+
+        /* ── Hospital Header ── */
+        .receipt-header {
+            margin-bottom: 4mm;
+            padding-bottom: 3mm;
+            border-bottom: 2px solid #0f172a;
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex: 1;
+        }
+        .hosp-logo {
+            height: 56px;
+            max-width: 130px;
+            object-fit: contain;
+        }
+        .hosp-name {
+            font-size: 20px;
+            font-weight: 900;
+            color: #1e3a8a;
+            letter-spacing: 0.5px;
+            margin-bottom: 3px;
+        }
+        .hosp-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+        .badge-pill {
+            display: inline-block;
+            padding: 2px 7px;
+            font-size: 9.5px;
+            font-weight: bold;
+            border-radius: 3px;
+        }
+        .badge-type {
+            background: #e0edff;
+            color: #0b57d0;
+            border: 1px solid #c2dbff;
+        }
+        .badge-reg {
+            background: #f1f3f4;
+            color: #3c4043;
+            border: 1px solid #dadce0;
+        }
+        .badge-nabh {
+            background: #e6f4ea;
+            color: #137333;
+            border: 1px solid #ceead6;
+        }
+        .header-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+        }
+        .emergency-box {
+            background: #fce8e6;
+            color: #c5221f;
+            border: 1px solid #fad2cf;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .barcode-area {
+            font-size: 28px;
+            letter-spacing: -2px;
+            font-family: 'Libre Barcode 128', cursive;
+            color: #000;
+            line-height: 1;
+            margin-top: 2px;
+        }
+
+        .header-details-strip {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-top: 6px;
+            padding-top: 5px;
+            border-top: 1px dashed #cbd5e1;
+            font-size: 9.5px;
+            color: #334155;
+            gap: 8px;
+        }
+        .header-details-strip .item {
+            display: flex;
+            gap: 4px;
+        }
+        .header-details-strip .item-title {
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        /* ── Title Banner ── */
+        .title-banner {
+            text-align: center;
+            border: 2px solid #1e3a8a;
+            background: #eff6ff;
+            padding: 6px 0;
+            margin-bottom: 5mm;
+            position: relative;
+            border-radius: 4px;
+        }
+        .title-banner .title-main {
+            font-size: 17px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            color: #1e3a8a;
+            text-transform: uppercase;
+        }
+        .title-banner .title-sub {
+            font-size: 10px;
+            font-weight: 700;
+            color: #475569;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            margin-top: 1px;
+        }
+        .title-banner .badge-original {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 9.5px;
+            font-weight: 800;
+            color: #1e40af;
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+            padding: 3px 9px;
+            border-radius: 4px;
+            letter-spacing: 0.6px;
+        }
+
+        /* ── Meta Bar (Receipt No, Date, Branch, Billed By) ── */
+        .receipt-meta-grid {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            margin-bottom: 5mm;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .receipt-meta-grid td {
+            padding: 6px 10px;
+            font-size: 11px;
+            border: 1px solid #cbd5e1;
+            vertical-align: middle;
+        }
+        .meta-lbl {
+            font-weight: bold;
+            color: #64748b;
+            text-transform: uppercase;
+            font-size: 9.5px;
+            width: 18%;
+        }
+        .meta-val {
+            font-weight: bold;
+            color: #0f172a;
+            width: 32%;
+        }
+
+        /* ── Classic Money Receipt Body ── */
+        .money-receipt-body {
+            border: 1.5px solid #334155;
+            background: #ffffff;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin-bottom: 5mm;
+            line-height: 1.9;
+            font-size: 12px;
+        }
+        .receipt-line {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 8px;
+            border-bottom: 1px dotted #cbd5e1;
+            padding-bottom: 4px;
+        }
+        .receipt-line:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .rcpt-lbl {
+            width: 210px;
+            font-weight: bold;
+            color: #475569;
+            text-transform: uppercase;
+            font-size: 10.5px;
+            letter-spacing: 0.3px;
+            flex-shrink: 0;
+        }
+        .rcpt-val {
+            flex: 1;
+            color: #0f172a;
+        }
+        .rcpt-name {
+            font-size: 13.5px;
+            font-weight: 900;
+            color: #1e3a8a;
+        }
+        .rcpt-words {
+            font-size: 13px;
+            font-weight: 800;
+            color: #1e40af;
+            font-style: italic;
+        }
+        .rcpt-mode {
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        /* ── Prominent Amount Box & Ledger Row ── */
+        .bottom-summary-grid {
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            gap: 15px;
+            margin-bottom: 6mm;
+        }
+
+        .amount-box-prominent {
+            flex: 1;
+            border: 2.5px solid #166534;
+            background: #f0fdf4;
+            border-radius: 6px;
+            padding: 12px 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(22, 101, 52, 0.1);
+        }
+        .ab-title {
+            font-size: 10.5px;
+            font-weight: 800;
+            color: #15803d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 3px;
+        }
+        .ab-figures {
+            font-size: 26px;
+            font-weight: 900;
+            color: #14532d;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5px;
+            line-height: 1.1;
+        }
+        .ab-badge {
+            margin-top: 5px;
+            font-size: 9.5px;
+            font-weight: bold;
+            color: #166534;
+            background: #dcfce7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid #bbf7d0;
+            text-transform: uppercase;
+        }
+
+        .ledger-box-prominent {
+            flex: 1.2;
+            border: 1px dashed #94a3b8;
+            background: #fafafa;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 10.5px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .lb-title {
+            font-weight: bold;
+            color: #1e293b;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.4px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 3px;
+        }
+        .lb-row {
+            display: flex;
+            justify-content: space-between;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .lb-status {
+            margin-top: 4px;
+            color: #15803d;
+            font-weight: bold;
+            font-size: 9.5px;
+        }
+
+        /* ── Signatures Area ── */
+        .signatures-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 18mm;
+            padding-top: 4mm;
+        }
+        .sig-block {
+            text-align: center;
+            width: 30%;
+        }
+        .sig-line {
+            border-top: 1.5px solid #334155;
+            margin-bottom: 5px;
+        }
+        .sig-title {
+            font-size: 10px;
+            font-weight: 800;
+            color: #1e293b;
+            text-transform: uppercase;
+        }
+        .sig-subtitle {
+            font-size: 9px;
+            color: #64748b;
+        }
+        .stamp-box {
+            height: 48px;
+            border: 1.5px dashed #94a3b8;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 9.5px;
+            font-weight: bold;
+            background: #f8fafc;
+            text-transform: uppercase;
+        }
+
+        /* ── Legal & Footer ── */
+        .receipt-footer-legal {
+            margin-top: 8mm;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 5px;
+            font-size: 9px;
+            color: #64748b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @@media print {
+            .print-actions { display: none !important; }
+            body { background: #fff; }
+            .page-wrap {
+                margin: 0;
+                padding: 10mm 12mm;
+                box-shadow: none;
+                width: 100%;
+                border: 2px solid #000;
+            }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
+</head>
+<body onload="window.print()">
+
+<!-- ══ PRINT ACTIONS ══ -->
+<div class="print-actions">
+    <button class="btn-print" onclick="window.print()">🖨 Print Money Receipt</button>
+    <button class="btn-close-tab" onclick="window.close()">✕ Close</button>
+</div>
+
+<div class="page-wrap">
+
+    <!-- ══ HOSPITAL / LAB HEADER ══ -->
+    <div class="receipt-header">
+        <div class="header-top">
+            <div class="header-left">
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalLogoPath))
+                {
+                    <img src="@Model.HospitalLogoPath" class="hosp-logo" alt="Hospital Logo" />
+                }
+                <div class="hosp-info-main">
+                    <div class="hosp-name">@(Model.HospitalName ?? "eMeditech Diagnostic & Healthcare")</div>
+                    <div class="hosp-badges">
+                        @if (!string.IsNullOrWhiteSpace(Model.HospitalType))
+                        {
+                            <span class="badge-pill badge-type">🏷 @Model.HospitalType</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.RegistrationNumber))
+                        {
+                            <span class="badge-pill badge-reg">📋 Reg: @Model.RegistrationNumber</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.NabhStatus))
+                        {
+                            <span class="badge-pill badge-nabh">✔ NABH: @Model.NabhStatus</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalEmergencyPhone))
+                {
+                    <div class="emergency-box">
+                        <span>📞 Helpline: @Model.HospitalEmergencyPhone</span>
+                    </div>
+                }
+                <div class="barcode-area" title="@Model.ReceiptNo">
+                    *@Model.ReceiptNo*
+                </div>
+                <div style="font-size: 8.5px; font-family: monospace; color: #555; margin-top: -2px;">
+                    @Model.ReceiptNo
+                </div>
+            </div>
+        </div>
+
+        <div class="header-details-strip">
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalAddress))
+            {
+                <div class="item">
+                    <span class="item-title">📍 Address:</span>
+                    <span>@Model.HospitalAddress</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalPhone))
+            {
+                <div class="item">
+                    <span class="item-title">📞 Phone:</span>
+                    <span>@Model.HospitalPhone</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalEmail))
+            {
+                <div class="item">
+                    <span class="item-title">✉ Email:</span>
+                    <span>@Model.HospitalEmail</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalWebsite))
+            {
+                <div class="item">
+                    <span class="item-title">🌐 Web:</span>
+                    <span>@Model.HospitalWebsite</span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.HospitalGSTIN))
+            {
+                <div class="item">
+                    <span class="item-title">GSTIN:</span>
+                    <span>@Model.HospitalGSTIN</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- ══ MONEY RECEIPT TITLE BANNER ══ -->
+    <div class="title-banner">
+        <div class="title-main">MONEY RECEIPT</div>
+        <div class="title-sub">B2B Payment Settlement Voucher</div>
+        <span class="badge-original">ORIGINAL</span>
+    </div>
+
+    <!-- ══ RECEIPT META BAR ══ -->
+    <table class="receipt-meta-grid">
+        <tr>
+            <td class="meta-lbl">Receipt No:</td>
+            <td class="meta-val" style="color: #1a56db; font-family: monospace; font-size: 12px;">@Model.ReceiptNo</td>
+            <td class="meta-lbl">Payment Date:</td>
+            <td class="meta-val">@receiptDate</td>
+        </tr>
+        <tr>
+            <td class="meta-lbl">Branch / Centre:</td>
+            <td class="meta-val">@(Model.BranchName ?? "Head Office")</td>
+            <td class="meta-lbl">Received By:</td>
+            <td class="meta-val">@(Model.CreatedByName ?? "System Administrator")</td>
+        </tr>
+    </table>
+
+    <!-- ══ CLASSIC MONEY RECEIPT BODY ══ -->
+    <div class="money-receipt-body">
+        <div class="receipt-line">
+            <span class="rcpt-lbl">Received with thanks from :</span>
+            <div class="rcpt-val">
+                <span class="rcpt-name">@Model.PartnerName</span>
+                <span style="color: #475569; font-weight: 600; margin-left: 6px;">
+                    (Code: <strong style="font-family: monospace;">@Model.PartnerCode</strong> — @(!string.IsNullOrWhiteSpace(Model.PartnerType) ? Model.PartnerType : (Model.AgentType == "C" ? "Corporate Partner" : "Franchise Partner")))
+                </span>
+                @if (!string.IsNullOrWhiteSpace(Model.PartnerPhone) || !string.IsNullOrWhiteSpace(Model.PartnerAddress))
+                {
+                    <div style="font-size: 10px; color: #64748b; margin-top: 1px;">
+                        @if (!string.IsNullOrWhiteSpace(Model.PartnerPhone)) { <span>Phone: @Model.PartnerPhone &nbsp;|&nbsp; </span> }
+                        @if (!string.IsNullOrWhiteSpace(Model.PartnerAddress)) { <span>Address: @Model.PartnerAddress</span> }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="receipt-line">
+            <span class="rcpt-lbl">A Sum of Rupees :</span>
+            <div class="rcpt-val">
+                <span class="rcpt-words">@Model.AmountInWords</span>
+            </div>
+        </div>
+
+        <div class="receipt-line">
+            <span class="rcpt-lbl">By Payment Mode :</span>
+            <div class="rcpt-val">
+                <span class="rcpt-mode">@Model.PaymentMethod</span>
+                @if (!string.IsNullOrWhiteSpace(Model.BankName))
+                {
+                    <span> &nbsp;|&nbsp; Bank: <strong>@Model.BankName</strong></span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.TransactionRef))
+                {
+                    <span> &nbsp;|&nbsp; UTR / Ref No: <strong style="font-family: monospace; color: #1e3a8a;">@Model.TransactionRef</strong></span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.ChequeNo))
+                {
+                    <span> &nbsp;|&nbsp; Cheque No: <strong style="font-family: monospace;">@Model.ChequeNo</strong></span>
+                }
+            </div>
+        </div>
+
+        <div class="receipt-line">
+            <span class="rcpt-lbl">Against / On Account of :</span>
+            <div class="rcpt-val">
+                Payment settlement against <strong>@Model.SettledBillCount</strong> B2B Lab Order(s) / Bill(s)
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Notes))
+        {
+            <div class="receipt-line">
+                <span class="rcpt-lbl">Remarks / Notes :</span>
+                <div class="rcpt-val" style="color: #334155;">
+                    @Model.Notes
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- ══ PROMINENT AMOUNT BOX & GENERAL LEDGER POSTING ══ -->
+    <div class="bottom-summary-grid">
+        <!-- Prominent Money Amount Box -->
+        <div class="amount-box-prominent">
+            <div class="ab-title">Amount Received (in figures)</div>
+            <div class="ab-figures">₹ @Model.TotalAmount.ToString("N2")</div>
+            <div class="ab-badge">✔ Payment Received in Full</div>
+        </div>
+
+        <!-- Dual Entry Accounting Confirmation -->
+        <div class="ledger-box-prominent">
+            <div class="lb-title">Dual-Entry Accounting Ledger Posting</div>
+            <div class="lb-row">
+                <span>Debit Account (Bank/Cash):</span>
+                <strong>@(Model.DebitLedgerName ?? "Bank Account") (₹ @Model.TotalAmount.ToString("N2"))</strong>
+            </div>
+            <div class="lb-row">
+                <span>Credit Account (Receivable):</span>
+                <strong>@(Model.CreditLedgerName ?? "Partner Receivable") (₹ @Model.TotalAmount.ToString("N2"))</strong>
+            </div>
+            <div class="lb-status">
+                ✔ Automatically Reconciled &amp; Posted to General Ledger
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ SIGNATURES & STAMPS ══ -->
+    <div class="signatures-area">
+        <div class="sig-block">
+            <div class="sig-line"></div>
+            <div class="sig-title">Depositor / Partner</div>
+            <div class="sig-subtitle">Signature &amp; Seal</div>
+        </div>
+
+        <div class="sig-block">
+            <div class="stamp-box">
+                Official Cashier Stamp
+            </div>
+            <div class="sig-title">Verification Stamp</div>
+        </div>
+
+        <div class="sig-block">
+            <div class="sig-line"></div>
+            <div class="sig-title">For @(Model.HospitalName ?? "eMeditech Diagnostic")</div>
+            <div class="sig-subtitle">Authorized Cashier / Accountant</div>
+        </div>
+    </div>
+
+    <!-- ══ LEGAL FOOTER ══ -->
+    <div class="receipt-footer-legal">
+        <div>
+            * Cheques / DD are subject to realization. This is an official computer-generated money receipt for B2B billing settlement.
+        </div>
+        <div>
+            Batch Receipt: <strong>@Model.ReceiptNo</strong> &nbsp;|&nbsp; Printed On: @printDate
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

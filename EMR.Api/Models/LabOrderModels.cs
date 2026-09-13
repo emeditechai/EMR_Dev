@@ -10,15 +10,42 @@ namespace EMR.Api.Models
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public DateTime? BookingDate { get; set; }
+        public DateTime? DueDate { get; set; }
+        public bool IsB2B { get; set; }
+        public int? B2BAgentId { get; set; }
+        public string? AgentType { get; set; } // 'F' or 'C'
+        public decimal? B2BTotal { get; set; }
         public List<LabOrderItemRequest> Items { get; set; } = new();
     }
 
     public class LabOrderItemRequest
     {
-        public int InvestigationId { get; set; }
+        private int _investigationId;
+
+        [System.Text.Json.Serialization.JsonPropertyName("investigationId")]
+        public int InvestigationId
+        {
+            get => _investigationId;
+            set => _investigationId = value;
+        }
+
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public int? Id
+        {
+            get => _investigationId;
+            set
+            {
+                if (value.HasValue && value.Value > 0 && _investigationId <= 0)
+                {
+                    _investigationId = value.Value;
+                }
+            }
+        }
+
         public string? Type { get; set; } // 'P' or 'I'
         public bool IsPackage { get; set; }
         public decimal Price { get; set; }
+        public decimal? B2BRate { get; set; }
         public decimal DiscountAmount { get; set; }
         public bool IsUrgent { get; set; }
     }
@@ -37,6 +64,7 @@ namespace EMR.Api.Models
         public string TestName { get; set; }
         public string TATHours { get; set; }
         public decimal MRP { get; set; }
+        public decimal? B2BRate { get; set; }
         public bool IsProfileTest { get; set; }
         public int? ProfileId { get; set; }
         public string? ProfileCode { get; set; }
@@ -69,6 +97,7 @@ namespace EMR.Api.Models
     {
         public int TotalOrders { get; set; }
         public decimal TotalAmount { get; set; }
+        public decimal B2BTotalAmount { get; set; }
         public int PaidCount { get; set; }
         public int UnpaidCount { get; set; }
     }
@@ -83,6 +112,12 @@ namespace EMR.Api.Models
         public string? TokenNo { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
+        public bool IsB2B { get; set; }
+        public int? B2BAgentId { get; set; }
+        public string? AgentType { get; set; }
+        public string? AgentName { get; set; }
+        public string? AgentCode { get; set; }
+        public decimal? B2BTotal { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
@@ -126,6 +161,12 @@ namespace EMR.Api.Models
         public string? TokenNo { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
+        public bool IsB2B { get; set; }
+        public int? B2BAgentId { get; set; }
+        public string? AgentType { get; set; }
+        public string? AgentName { get; set; }
+        public string? AgentCode { get; set; }
+        public decimal? B2BTotal { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
@@ -166,6 +207,7 @@ namespace EMR.Api.Models
         public string? CategoryName { get; set; }
         public string? SubCategoryName { get; set; }
         public decimal Price { get; set; }
+        public decimal? B2BRate { get; set; }
         public bool IsUrgent { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal NetAmount { get; set; }

@@ -30,11 +30,13 @@ namespace EMR.Api.Controllers
             [FromQuery] int? categoryId,
             [FromQuery] int? subCategoryId,
             [FromQuery] string? gender,
-            [FromQuery] int? ageInYears)
+            [FromQuery] int? ageInYears,
+            [FromQuery] string? rateType = "B2C",
+            [FromQuery] int? agentId = null)
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
-            var data = await labOrderService.GetAvailableInvestigationsAsync(branchId, departmentId, categoryId, subCategoryId, gender, ageInYears);
+            var data = await labOrderService.GetAvailableInvestigationsAsync(branchId, departmentId, categoryId, subCategoryId, gender, ageInYears, rateType, agentId);
             return Ok(data);
         }
 
@@ -66,11 +68,12 @@ namespace EMR.Api.Controllers
             [FromQuery] DateTime? toDate,
             [FromQuery] string? search,
             [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10)
+            [FromQuery] int pageSize = 10,
+            [FromQuery] bool? isB2B = null)
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
-            var data = await labOrderService.GetPagedOrdersAsync(branchId, fromDate, toDate, search, pageNumber, pageSize);
+            var data = await labOrderService.GetPagedOrdersAsync(branchId, fromDate, toDate, search, pageNumber, pageSize, isB2B);
             return Ok(data);
         }
 

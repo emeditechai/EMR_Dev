@@ -248,26 +248,33 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             }
             else if (request.ModuleCode == "LAB")
             {
-                // Query real-time active lab items total
-                var labItemsSum = await con.QuerySingleOrDefaultAsync<decimal?>(@"
-                    SELECT SUM(Price)
-                    FROM LabOrderItem
-                    WHERE LabOrderId = @ModuleRefId AND IsActive = 1",
+                var labOrderInfo = await con.QuerySingleOrDefaultAsync<(decimal? TotalAmount, bool IsB2B, decimal? B2BTotal)>(@"
+                    SELECT TotalAmount, IsB2B, B2BTotal
+                    FROM LabOrder
+                    WHERE LabOrderId = @ModuleRefId",
                     new { ModuleRefId = request.ModuleRefId }, tx);
 
-                if (labItemsSum.HasValue && labItemsSum.Value > 0)
+                if (labOrderInfo.IsB2B)
                 {
-                    dbSubTotal = labItemsSum.Value;
+                    dbSubTotal = labOrderInfo.B2BTotal ?? request.SubTotal;
                 }
                 else
                 {
-                    var labMasterTotal = await con.QuerySingleOrDefaultAsync<decimal?>(@"
-                        SELECT TotalAmount
-                        FROM LabOrder
-                        WHERE LabOrderId = @ModuleRefId",
+                    // Query real-time active lab items total
+                    var labItemsSum = await con.QuerySingleOrDefaultAsync<decimal?>(@"
+                        SELECT SUM(Price)
+                        FROM LabOrderItem
+                        WHERE LabOrderId = @ModuleRefId AND IsActive = 1",
                         new { ModuleRefId = request.ModuleRefId }, tx);
 
-                    dbSubTotal = labMasterTotal ?? request.SubTotal;
+                    if (labItemsSum.HasValue && labItemsSum.Value > 0)
+                    {
+                        dbSubTotal = labItemsSum.Value;
+                    }
+                    else
+                    {
+                        dbSubTotal = labOrderInfo.TotalAmount ?? request.SubTotal;
+                    }
                 }
             }
             else

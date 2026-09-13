@@ -128,6 +128,31 @@ public class LedgerService(IDbConnectionFactory db, ILogger<LedgerService> logge
         }
     }
 
+    public async Task PostB2BLabBillLedgerAsync(int labOrderId, decimal totalAmount, string agentType, int agentId, int? branchId, int? companyId, int? userId, string billNo)
+    {
+        if (totalAmount <= 0) return;
+
+        try
+        {
+            using var con = db.CreateConnection();
+            var p = new DynamicParameters();
+            p.Add("@LabOrderId", labOrderId);
+            p.Add("@Amount", totalAmount);
+            p.Add("@AgentType", agentType);
+            p.Add("@AgentId", agentId);
+            p.Add("@BranchId", branchId ?? 1);
+            p.Add("@CompanyId", companyId ?? 1);
+            p.Add("@UserId", userId ?? 1);
+            p.Add("@BillNo", billNo);
+
+            await con.ExecuteAsync("dbo.usp_B2B_PostBillLedger", p, commandType: CommandType.StoredProcedure);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to post B2B LAB bill ledger entry for LabOrderId {LabOrderId}", labOrderId);
+        }
+    }
+
     public async Task PostCancellationReversalAsync(string moduleCode, int moduleRefId, decimal cancelledAmount, int? branchId, int? companyId, int? userId, string billNo, string cancellationNo)
     {
         if (cancelledAmount <= 0) return;

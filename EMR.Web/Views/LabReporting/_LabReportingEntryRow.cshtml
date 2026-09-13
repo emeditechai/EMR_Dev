@@ -29,16 +29,9 @@
         <span>@item.TestName</span>
     </div>
 
-    <!-- Metadata details: Test Code, Reporting Type, Barcode No, Department -->
+    <!-- Metadata details: Test Code, Barcode No, Department -->
     <div class="fs-9 text-muted mt-1 d-flex align-items-center gap-1.5 flex-wrap">
         <span class="badge bg-light text-secondary border">@item.TestCode</span>
-
-        @if (!string.IsNullOrWhiteSpace(item.ReportingType))
-        {
-            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Reporting Type">
-                @item.ReportingType
-            </span>
-        }
 
         @if (!string.IsNullOrWhiteSpace(item.BarcodeNo))
         {

@@ -20,6 +20,7 @@ using EMR.Web.Extensions;
 using Dapper;
 using System.Net.Http;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace EMR.Web.Controllers
 {
@@ -38,8 +39,445 @@ namespace EMR.Web.Controllers
         IAreaService areaService,
         IQueryStringEncryptionService encryptionService,
         IWebHostEnvironment env,
-        ISampleCollectionApiClient sampleCollectionApiClient) : Controller
+        ISampleCollectionApiClient sampleCollectionApiClient,
+        ILabFranchiseApiClient franchiseApiClient,
+        ICorporateApiClient corporateApiClient,
+        IB2BBillingApiClient b2bBillingApiClient,
+        ILogger<LabOrderBookingController> logger) : Controller
     {
+        [HttpGet]
+        public async Task<IActionResult> B2BBooking(int? patientId)
+        {
+            var model = new LabOrderBookingViewModel
+            {
+                IsB2B = true,
+                AgentType = "F",
+                CollectionType = "B2BCollector"
+            };
+
+            if (patientId.HasValue && patientId > 0)
+            {
+                var patient = await patientService.GetByIdAsync(patientId.Value);
+                if (patient != null)
+                {
+                    model.PatientId = patient.PatientId;
+                    model.PatientCode = patient.PatientCode;
+                    model.FirstName = patient.FirstName;
+                    model.LastName = patient.LastName;
+                    model.PhoneNumber = patient.PhoneNumber;
+                    model.EmailId = patient.EmailId;
+                    model.Gender = patient.Gender;
+                    model.DateOfBirth = patient.DateOfBirth;
+                    if (patient.DateOfBirth.HasValue)
+                    {
+                        var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
+                        model.AgeYears = y;
+                        model.AgeMonths = m;
+                        model.AgeDays = d;
+                    }
+                    model.RelationId = patient.RelationId;
+                    model.Salutation = patient.Salutation;
+                    model.PhotoPath = patient.PhotoPath;
+                    model.IdentificationFilePath = patient.IdentificationFilePath;
+                    model.Address = patient.Address;
+                    model.HomeCollectionAddress = patient.HomeCollectionAddress;
+                    model.Latitude = patient.Latitude;
+                    model.Longitude = patient.Longitude;
+                }
+            }
+
+            await PopulateSelectLists(model);
+            return View(model);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> B2BBooking(LabOrderBookingViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile)
+        {
+            model.IsB2B = true;
+            var branchId = User.GetCurrentBranchId();
+            if (branchId is null)
+            {
+                TempData["Error"] = "Please select a branch first.";
+                return RedirectToAction("SelectBranch", "Account");
+            }
+
+            if (!model.DemographicsOnly)
+            {
+                if (!model.B2BAgentId.HasValue || model.B2BAgentId.Value <= 0)
+                {
+                    var partnerTypeLabel = model.AgentType == "C" ? "Company" : "Franchise";
+                    ModelState.AddModelError(nameof(model.B2BAgentId), $"Please select a {partnerTypeLabel}.");
+                }
+            }
+
+            List<LabOrderItemRequestDto>? lineItems = null;
+            if (!model.DemographicsOnly)
+            {
+                if (model.BookingDateTime < DateTime.Now.AddMinutes(-2))
+                {
+                    ModelState.AddModelError("BookingDateTime", "Booking Date & Time cannot be less than current Date & Time.");
+                }
+
+                try
+                {
+                    var serializeOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    lineItems = string.IsNullOrWhiteSpace(model.LineItemsJson)
+                        ? null
+                        : System.Text.Json.JsonSerializer.Deserialize<List<LabOrderItemRequestDto>>(model.LineItemsJson, serializeOptions);
+                    if (lineItems != null)
+                    {
+                        foreach (var itm in lineItems)
+                        {
+                            if (itm.InvestigationId <= 0 && itm.Id.HasValue && itm.Id.Value > 0)
+                            {
+                                itm.InvestigationId = itm.Id.Value;
+                            }
+
+                            if (itm.IsPackage || string.Equals(itm.Type, "P", StringComparison.OrdinalIgnoreCase))
+                            {
+                                itm.Type = "P";
+                                itm.IsPackage = true;
+                            }
+                            else
+                            {
+                                itm.Type = "I";
+                                itm.IsPackage = false;
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                if (lineItems == null || !lineItems.Any())
+                {
+                    ModelState.AddModelError(nameof(model.LineItemsJson), "At least one test investigation is required. You cannot create a laboratory bill without tests.");
+                }
+                else if (lineItems.Any(x => x.InvestigationId <= 0))
+                {
+                    ModelState.AddModelError(nameof(model.LineItemsJson), "One or more tests have an invalid Investigation ID. Please re-select the tests.");
+                }
+            }
+
+            // Validate & Reconcile Age / Date of Birth
+            if (model.AgeMonths is > 12)
+                ModelState.AddModelError(nameof(model.AgeMonths), "Month cannot exceed 12.");
+            if (model.AgeDays is > 30)
+                ModelState.AddModelError(nameof(model.AgeDays), "Days cannot exceed 30.");
+            if (model.AgeYears is < 0 or > 150)
+                ModelState.AddModelError(nameof(model.AgeYears), "Years must be between 0 and 150.");
+
+            bool hasAgeInput = model.AgeYears.HasValue || model.AgeMonths.HasValue || model.AgeDays.HasValue;
+            if (hasAgeInput)
+            {
+                int y = model.AgeYears ?? 0;
+                int m = model.AgeMonths ?? 0;
+                int d = model.AgeDays ?? 0;
+                if (y == 0 && m == 0 && d == 0 && !model.DateOfBirth.HasValue)
+                {
+                    ModelState.AddModelError(nameof(model.AgeYears), "Age is required.");
+                }
+                else
+                {
+                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                }
+            }
+            else if (model.DateOfBirth.HasValue)
+            {
+                if (model.DateOfBirth.Value > DateTime.Today)
+                {
+                    ModelState.AddModelError(nameof(model.DateOfBirth), "Date of Birth cannot be in the future.");
+                }
+                else
+                {
+                    var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                    model.AgeYears = y;
+                    model.AgeMonths = m;
+                    model.AgeDays = d;
+                }
+            }
+            else
+            {
+                ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await PopulateSelectLists(model);
+                return View(model);
+            }
+
+            // Handle file upload
+            if (identificationFile is { Length: > 0 })
+            {
+                var allowed = new[] { ".pdf", ".jpg", ".jpeg", ".png" };
+                var ext = Path.GetExtension(identificationFile.FileName).ToLowerInvariant();
+                if (!allowed.Contains(ext))
+                {
+                    ModelState.AddModelError("IdentificationFilePath", "Only PDF, JPG, JPEG and PNG files are allowed.");
+                    await PopulateSelectLists(model);
+                    return View(model);
+                }
+
+                var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "patients");
+                Directory.CreateDirectory(uploadsDir);
+                var fileName = $"{Guid.NewGuid()}{ext}";
+                var fullPath = Path.Combine(uploadsDir, fileName);
+                await using (var stream = new FileStream(fullPath, FileMode.Create))
+                {
+                    await identificationFile.CopyToAsync(stream);
+                }
+                model.IdentificationFilePath = $"/uploads/patients/{fileName}";
+            }
+
+            // Handle profile picture upload
+            if (profilePictureFile is { Length: > 0 })
+            {
+                var allowed = new[] { ".jpg", ".jpeg", ".png", ".gif" };
+                var ext = Path.GetExtension(profilePictureFile.FileName).ToLowerInvariant();
+                if (!allowed.Contains(ext))
+                {
+                    ModelState.AddModelError("PhotoPath", "Only JPG, JPEG, PNG and GIF files are allowed for Profile Picture.");
+                    await PopulateSelectLists(model);
+                    return View(model);
+                }
+
+                var uploadsDir = Path.Combine(env.WebRootPath, "uploads", "patients");
+                Directory.CreateDirectory(uploadsDir);
+                var fileName = $"{Guid.NewGuid()}{ext}";
+                var fullPath = Path.Combine(uploadsDir, fileName);
+                await using (var stream = new FileStream(fullPath, FileMode.Create))
+                {
+                    await profilePictureFile.CopyToAsync(stream);
+                }
+                model.PhotoPath = $"/uploads/patients/{fileName}";
+            }
+
+            var patient = new PatientMaster
+            {
+                PatientId = model.PatientId,
+                FirstName = model.FirstName,
+                MiddleName = model.MiddleName,
+                LastName = model.LastName,
+                PhoneNumber = model.PhoneNumber,
+                SecondaryPhoneNumber = model.SecondaryPhoneNumber,
+                EmailId = model.EmailId,
+                Gender = model.Gender,
+                DateOfBirth = model.DateOfBirth,
+                RelationId = model.RelationId,
+                Salutation = model.Salutation,
+                PhotoPath = model.PhotoPath,
+                IdentificationFilePath = model.IdentificationFilePath,
+                IdentificationTypeId = model.IdentificationTypeId,
+                IdentificationNumber = model.IdentificationNumber,
+                ReligionId = model.ReligionId,
+                GuardianName = model.GuardianName,
+                CountryId = model.CountryId,
+                StateId = model.StateId,
+                DistrictId = model.DistrictId,
+                CityId = model.CityId,
+                AreaId = model.AreaId,
+                Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
+                Latitude = model.Latitude,
+                Longitude = model.Longitude,
+                OccupationId = model.OccupationId,
+                MaritalStatusId = model.MaritalStatusId,
+                LanguageId = model.LanguageId,
+                ReferralDoctorId = model.ReferralDoctorId,
+                BloodGroup = model.BloodGroup,
+                KnownAllergies = model.KnownAllergies,
+                Remarks = model.Remarks,
+                BranchId = branchId,
+                CompanyId = 1,
+                IsActive = true
+            };
+
+            int actualPatientId = model.PatientId;
+            if (model.PatientId == 0)
+            {
+                actualPatientId = await patientService.CreateDemographicsOnlyAsync(patient, User.GetUserId());
+                patient.PatientId = actualPatientId;
+                await auditLogService.LogAsync("LAB", "Patient.Create", $"Registered patient: {patient.FirstName} {patient.LastName} for B2B LAB.");
+            }
+            else
+            {
+                var existing = await patientService.GetByIdAsync(model.PatientId);
+                if (string.IsNullOrWhiteSpace(model.IdentificationFilePath)) patient.IdentificationFilePath = existing?.IdentificationFilePath;
+                if (string.IsNullOrWhiteSpace(model.PhotoPath)) patient.PhotoPath = existing?.PhotoPath;
+
+                await patientService.UpdateDemographicsAsync(patient, User.GetUserId());
+            }
+
+            if (model.DemographicsOnly)
+            {
+                TempData["Success"] = $"Patient demographics updated successfully.";
+                return RedirectToAction(nameof(B2BBooking), new { patientId = actualPatientId });
+            }
+
+            decimal totalAmount = lineItems!.Sum(x => x.Price);
+            decimal b2bTotal = lineItems!.Sum(x => x.B2BRate ?? x.Price);
+
+            // ── Fetch Partner Credit Status & Enforce Credit Facility Policies ──
+            var creditStatus = await b2bBillingApiClient.GetPartnerCreditStatusAsync(model.AgentType, model.B2BAgentId!.Value, branchId);
+            if (creditStatus != null)
+            {
+                // 1. Corporate contract validity enforcement
+                if (model.AgentType == "C" && !creditStatus.IsContractValid)
+                {
+                    ModelState.AddModelError(nameof(model.B2BAgentId), creditStatus.BlockReason ?? "Corporate company contract is expired or inactive. Billing cannot proceed.");
+                    await PopulateSelectLists(model);
+                    return View(model);
+                }
+
+                // 2. Postpaid (Credit) Facility Limit validation
+                if (creditStatus.CreditFacilityType == 2)
+                {
+                    if (creditStatus.CreditLimit > 0 && (creditStatus.CurrentOutstanding + b2bTotal) > creditStatus.CreditLimit)
+                    {
+                        var overBy = (creditStatus.CurrentOutstanding + b2bTotal) - creditStatus.CreditLimit;
+                        ModelState.AddModelError(string.Empty, $"Credit limit exceeded for {creditStatus.PartnerName}! Credit Limit: ₹{creditStatus.CreditLimit:N2}, Current Outstanding: ₹{creditStatus.CurrentOutstanding:N2}, Bill Total: ₹{b2bTotal:N2}. Exceeds limit by ₹{overBy:N2}. Billing cannot proceed until outstanding bills are settled.");
+                        await PopulateSelectLists(model);
+                        return View(model);
+                    }
+                }
+
+                // 3. Prepaid (Wallet) Facility validation
+                if (creditStatus.CreditFacilityType == 1)
+                {
+                    if (model.DeductFromWallet)
+                    {
+                        if (creditStatus.WalletBalance < b2bTotal)
+                        {
+                            var deficit = b2bTotal - creditStatus.WalletBalance;
+                            ModelState.AddModelError(string.Empty, $"Insufficient wallet balance for {creditStatus.PartnerName}! Available Wallet: ₹{creditStatus.WalletBalance:N2}, Required: ₹{b2bTotal:N2} (Deficit: ₹{deficit:N2}). Please recharge wallet or complete spot payment.");
+                            await PopulateSelectLists(model);
+                            return View(model);
+                        }
+                    }
+                    else if (string.IsNullOrWhiteSpace(model.PaymentDataJson))
+                    {
+                        ModelState.AddModelError(string.Empty, $"Prepaid (Wallet) facility requires immediate payment at billing. Please check 'Pay from Wallet Balance' (Available: ₹{creditStatus.WalletBalance:N2}) or complete immediate spot payment.");
+                        await PopulateSelectLists(model);
+                        return View(model);
+                    }
+                }
+            }
+
+            // Calculate Due Date based on Credit Days for Postpaid
+            int creditDays = creditStatus?.CreditDays ?? 0;
+            DateTime? dueDate = (creditStatus != null && creditStatus.CreditFacilityType == 2 && creditDays > 0)
+                ? model.BookingDateTime.AddDays(creditDays)
+                : (DateTime?)null;
+
+            // Create B2B Lab Order
+            var labOrderReq = new LabOrderRequestDto
+            {
+                PatientId = actualPatientId,
+                BranchId = branchId.Value,
+                CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "B2BCollector" : model.CollectionType,
+                PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
+                BookingDate = model.BookingDateTime,
+                DueDate = dueDate,
+                IsB2B = true,
+                B2BAgentId = model.B2BAgentId,
+                AgentType = model.AgentType,
+                B2BTotal = b2bTotal,
+                Items = lineItems!
+            };
+
+            var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
+            await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId);
+
+            // Post B2B Bill Ledger (Dr Franchise Receivable or Corporate Receivable, Cr LAB Revenue)
+            await ledgerService.PostB2BLabBillLedgerAsync(labOrderRes.LabOrderId, b2bTotal, model.AgentType, model.B2BAgentId.Value, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
+
+            string paymentModeUsed = "Credit (Postpaid)";
+
+            // Handle Prepaid Payment Processing
+            if (creditStatus != null && creditStatus.CreditFacilityType == 1)
+            {
+                if (model.DeductFromWallet)
+                {
+                    var deductReq = new DeductWalletRequestDto
+                    {
+                        LabOrderId = labOrderRes.LabOrderId,
+                        FranchiseId = model.B2BAgentId.Value,
+                        Amount = b2bTotal,
+                        BranchId = branchId.Value,
+                        BillNo = labOrderRes.BillNo
+                    };
+                    var deductRes = await b2bBillingApiClient.DeductWalletPaymentAsync(deductReq);
+                    if (deductRes != null && !string.IsNullOrWhiteSpace(deductRes.TokenNo))
+                    {
+                        labOrderRes.TokenNo = deductRes.TokenNo;
+                    }
+                    paymentModeUsed = "Prepaid Wallet Deduction";
+                }
+                else if (!string.IsNullOrWhiteSpace(model.PaymentDataJson))
+                {
+                    try
+                    {
+                        var paymentReq = JsonSerializer.Deserialize<SavePaymentRequest>(model.PaymentDataJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (paymentReq != null)
+                        {
+                            paymentReq.ModuleCode = "LAB";
+                            paymentReq.ModuleRefId = labOrderRes.LabOrderId;
+                            paymentReq.OPDServiceId = labOrderRes.LabOrderId;
+                            paymentReq.PatientId = actualPatientId;
+                            paymentReq.BranchId = branchId.Value;
+                            paymentReq.SubTotal = b2bTotal;
+
+                            var payRes = await paymentService.SavePaymentAsync(paymentReq, User.GetUserId());
+                            paymentModeUsed = "Immediate Spot Payment";
+                        }
+                    }
+                    catch (Exception payEx)
+                    {
+                        logger.LogError(payEx, "Error processing spot payment for B2B order {BillNo}", labOrderRes.BillNo);
+                    }
+                }
+            }
+
+            string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            string agentLabel = model.AgentType == "C" ? "Company" : "Franchise";
+            await auditLogService.LogActivityAsync(
+                eventType: "B2B LAB Billing",
+                actionName: "LAB.B2BOrderBooked",
+                description: $"B2B Lab Order Bill {labOrderRes.BillNo} generated for patient {patientFullName} ({patient.PatientCode ?? actualPatientId.ToString()}). Agent: {agentLabel} #{model.B2BAgentId}. Total: ₹{totalAmount:F2}, B2B Total: ₹{b2bTotal:F2}. Payment Mode: {paymentModeUsed}. Token: {labOrderRes.TokenNo}.",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "LAB",
+                referenceNo: labOrderRes.BillNo,
+                referenceId: labOrderRes.LabOrderId,
+                patientCode: patient.PatientCode,
+                metadata: new {
+                    labOrderRes.LabOrderId,
+                    labOrderRes.BillNo,
+                    labOrderRes.TokenNo,
+                    IsB2B = true,
+                    AgentType = model.AgentType,
+                    B2BAgentId = model.B2BAgentId,
+                    TotalAmount = totalAmount,
+                    B2BTotal = b2bTotal,
+                    PaymentMode = paymentModeUsed,
+                    DueDate = dueDate,
+                    CreditDays = creditDays,
+                    ItemCount = lineItems!.Count,
+                    Items = lineItems!.Select(x => new { x.InvestigationId, x.Price, x.B2BRate, x.Type })
+                });
+
+            TempData["NewPatientName"]  = patientFullName;
+            TempData["BillNo"]          = labOrderRes.BillNo;
+            TempData["NewLabOrderId"]   = labOrderRes.LabOrderId.ToString();
+            TempData["IsB2B"]           = "true";
+            TempData["AgentType"]       = model.AgentType;
+            TempData["B2BAgentId"]      = model.B2BAgentId?.ToString();
+            TempData["B2BTotal"]        = b2bTotal.ToString("F2");
+            TempData["TokenNo"]         = labOrderRes.TokenNo;
+            TempData["PaymentMode"]     = paymentModeUsed;
+            return RedirectToAction(nameof(B2BBooking), new { registered = true });
+        }
+
         [HttpGet]
         public async Task<IActionResult> B2CBooking(int? patientId)
         {
@@ -108,6 +546,11 @@ namespace EMR.Web.Controllers
                     {
                         foreach (var itm in lineItems)
                         {
+                            if (itm.InvestigationId <= 0 && itm.Id.HasValue && itm.Id.Value > 0)
+                            {
+                                itm.InvestigationId = itm.Id.Value;
+                            }
+
                             if (itm.IsPackage || string.Equals(itm.Type, "P", StringComparison.OrdinalIgnoreCase))
                             {
                                 itm.Type = "P";
@@ -125,7 +568,11 @@ namespace EMR.Web.Controllers
 
                 if (lineItems == null || !lineItems.Any())
                 {
-                    ModelState.AddModelError(nameof(model.LineItemsJson), "At least one investigation is required.");
+                    ModelState.AddModelError(nameof(model.LineItemsJson), "At least one test investigation is required. You cannot create a laboratory bill without tests.");
+                }
+                else if (lineItems.Any(x => x.InvestigationId <= 0))
+                {
+                    ModelState.AddModelError(nameof(model.LineItemsJson), "One or more tests have an invalid Investigation ID. Please re-select the tests.");
                 }
             }
 
@@ -501,9 +948,13 @@ namespace EMR.Web.Controllers
             {
                 PatientId = actualPatientId,
                 BranchId = branchId.Value,
-                CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "Lab" : model.CollectionType,
+                CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? (model.IsB2B ? "B2BCollector" : "Lab") : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                IsB2B = model.IsB2B,
+                B2BAgentId = model.B2BAgentId,
+                AgentType = model.AgentType,
+                B2BTotal = model.B2BTotal ?? (model.IsB2B ? lineItems.Sum(x => x.B2BRate ?? x.Price) : null),
                 Items = lineItems
             };
 
@@ -894,16 +1345,49 @@ namespace EMR.Web.Controllers
                 .OrderBy(u => u.FullName ?? u.Username)
                 .Select(u => new SelectListItem { Value = u.Id.ToString(), Text = u.FullName ?? u.Username })
                 .ToListAsync();
+
+            if (model.IsB2B)
+            {
+                try
+                {
+                    var franchises = await franchiseApiClient.GetListAsync(status: null, isActive: true);
+                    model.FranchiseOptions = franchises
+                        .OrderBy(f => f.Franchise_Name)
+                        .Select(f => new SelectListItem { Value = f.Franchise_ID.ToString(), Text = $"{f.Franchise_Name} ({f.Franchise_Code})" })
+                        .ToList();
+                }
+                catch
+                {
+                    model.FranchiseOptions = new();
+                }
+
+                try
+                {
+                    var corporates = await corporateApiClient.GetListAsync(type: null, status: true);
+                    model.CorporateOptions = corporates
+                        .Where(c => string.IsNullOrEmpty(c.Corporate_Type) || c.Corporate_Type == "ALL" || c.Corporate_Type == "LAB" || c.Corporate_Type == "OPD" || c.Corporate_Type == "MED")
+                        .OrderBy(c => c.Corporate_Name)
+                        .Select(c => new SelectListItem { Value = c.Corporate_ID.ToString(), Text = $"{c.Corporate_Name} ({c.Corporate_Code})" })
+                        .ToList();
+                }
+                catch
+                {
+                    model.CorporateOptions = new();
+                }
+
+                ViewBag.Franchises = model.FranchiseOptions;
+                ViewBag.Companies = model.CorporateOptions;
+            }
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAvailableInvestigations(int? branchId, int? departmentId, int? categoryId, int? subCategoryId, string? gender = null, int? ageInYears = null)
+        public async Task<IActionResult> GetAvailableInvestigations(int? branchId, int? departmentId, int? categoryId, int? subCategoryId, string? gender = null, int? ageInYears = null, string? rateType = "B2C", int? agentId = null)
         {
             int resolvedBranchId = branchId.HasValue && branchId.Value > 0
                 ? branchId.Value
                 : (HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 1);
 
-            var tests = await labOrderApiClient.GetAvailableInvestigationsAsync(resolvedBranchId, departmentId, categoryId, subCategoryId, gender, ageInYears);
+            var tests = await labOrderApiClient.GetAvailableInvestigationsAsync(resolvedBranchId, departmentId, categoryId, subCategoryId, gender, ageInYears, rateType, agentId);
 
             foreach (var t in tests)
             {
@@ -1006,7 +1490,29 @@ namespace EMR.Web.Controllers
         {
             int branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
 
-            var result = await labOrderApiClient.GetPagedOrdersAsync(branchId, fromDate, toDate, search, page, pageSize);
+            var result = await labOrderApiClient.GetPagedOrdersAsync(branchId, fromDate, toDate, search, page, pageSize, isB2B: false);
+
+            var vm = new LabOrderPagedListViewModel
+            {
+                Items = result?.Items ?? new List<LabOrderListItemDto>(),
+                Stats = result?.Stats ?? new LabOrderStatsDto(),
+                TotalCount = result?.TotalCount ?? 0,
+                Page = page,
+                PageSize = pageSize,
+                FromDate = fromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"),
+                ToDate = toDate ?? DateTime.Today.ToString("yyyy-MM-dd"),
+                Search = search
+            };
+
+            return View(vm);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> B2BRegistration(string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
+        {
+            int branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+
+            var result = await labOrderApiClient.GetPagedOrdersAsync(branchId, fromDate, toDate, search, page, pageSize, isB2B: true);
 
             var vm = new LabOrderPagedListViewModel
             {
@@ -1112,23 +1618,44 @@ namespace EMR.Web.Controllers
                 PhlebotomistName  = detail.PhlebotomistName,
                 CreatedByName     = detail.CreatedByName,
 
-                // Payment
+                // B2B vs B2C Payment & Billing Handling
+                IsB2B           = detail.IsB2B,
+                PartnerName     = detail.AgentName,
+                PartnerCode     = detail.AgentCode,
                 GrossAmount     = grossAmount,
                 DiscountAmount  = headerDiscount,
                 RoundOffAmount  = detail.RoundOffAmount,
-                GrandTotal      = detail.NetAmount,
-                ReceivedAmount  = detail.TotalPaid,
-                Balance         = detail.BalanceDue,
-                PaymentStatus   = detail.PaymentStatus,
+                GrandTotal      = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
+                ReceivedAmount  = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
+                Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
+                PaymentStatus   = detail.IsB2B ? "P" : detail.PaymentStatus,
 
                 LineItems = lineItems,
-                Payments  = detail.Payments.Select(p => new PrintBillPaymentRow
-                {
-                    MethodName     = p.MethodName,
-                    PaidAmount     = p.PaidAmount,
-                    TransactionRef = p.TransactionRef,
-                    ReceiptNo      = p.ReceiptNo
-                }).ToList()
+                Payments  = detail.IsB2B
+                    ? (detail.Payments.Any()
+                        ? detail.Payments.Select(p => new PrintBillPaymentRow
+                          {
+                              MethodName     = p.MethodName,
+                              PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
+                              TransactionRef = p.TransactionRef,
+                              ReceiptNo      = p.ReceiptNo
+                          }).ToList()
+                        : new List<PrintBillPaymentRow>
+                          {
+                              new PrintBillPaymentRow
+                              {
+                                  MethodName     = "B2B Partner Credit",
+                                  PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
+                                  ReceiptNo      = detail.BillNo
+                              }
+                          })
+                    : detail.Payments.Select(p => new PrintBillPaymentRow
+                      {
+                          MethodName     = p.MethodName,
+                          PaidAmount     = p.PaidAmount,
+                          TransactionRef = p.TransactionRef,
+                          ReceiptNo      = p.ReceiptNo
+                      }).ToList()
             };
 
             return View(vm);
@@ -1830,25 +2357,429 @@ namespace EMR.Web.Controllers
                 PhlebotomistName  = detail.PhlebotomistName,
                 CreatedByName     = detail.CreatedByName,
 
+                // B2B vs B2C Payment & Billing Handling
+                IsB2B           = detail.IsB2B,
+                PartnerName     = detail.AgentName,
+                PartnerCode     = detail.AgentCode,
                 GrossAmount     = grossAmount,
                 DiscountAmount  = headerDiscount,
                 RoundOffAmount  = detail.RoundOffAmount,
-                GrandTotal      = detail.NetAmount,
-                ReceivedAmount  = detail.TotalPaid,
-                Balance         = detail.BalanceDue,
-                PaymentStatus   = detail.PaymentStatus,
+                GrandTotal      = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
+                ReceivedAmount  = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
+                Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
+                PaymentStatus   = detail.IsB2B ? "P" : detail.PaymentStatus,
 
                 LineItems = lineItems,
-                Payments  = detail.Payments.Select(p => new PrintBillPaymentRow
-                {
-                    MethodName     = p.MethodName,
-                    PaidAmount     = p.PaidAmount,
-                    TransactionRef = p.TransactionRef
-                }).ToList()
+                Payments  = detail.IsB2B
+                    ? (detail.Payments.Any()
+                        ? detail.Payments.Select(p => new PrintBillPaymentRow
+                          {
+                              MethodName     = p.MethodName,
+                              PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
+                              TransactionRef = p.TransactionRef,
+                              ReceiptNo      = p.ReceiptNo
+                          }).ToList()
+                        : new List<PrintBillPaymentRow>
+                          {
+                              new PrintBillPaymentRow
+                              {
+                                  MethodName     = "B2B Partner Credit",
+                                  PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
+                                  ReceiptNo      = detail.BillNo
+                              }
+                          })
+                    : detail.Payments.Select(p => new PrintBillPaymentRow
+                      {
+                          MethodName     = p.MethodName,
+                          PaidAmount     = p.PaidAmount,
+                          TransactionRef = p.TransactionRef,
+                          ReceiptNo      = p.ReceiptNo
+                      }).ToList()
             };
 
             return View("PrintBill", vm);
         }
+
+        #region ── B2B Billing, Credit Policy, Invoicing & Multi-Bill Settlement ──
+
+        [HttpGet]
+        public async Task<IActionResult> GetPartnerCreditStatus(string agentType, int agentId)
+        {
+            try
+            {
+                var branchId = User.GetCurrentBranchId();
+                var status = await b2bBillingApiClient.GetPartnerCreditStatusAsync(agentType, agentId, branchId);
+                if (status == null || !status.Found)
+                {
+                    return Json(new { success = false, error = "Partner credit status could not be found." });
+                }
+                return Json(new { success = true, data = status });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> FranchiseWalletTopUp([FromBody] WalletTopUpDto request)
+        {
+            try
+            {
+                var branchId = User.GetCurrentBranchId();
+                if (branchId.HasValue) request.BranchId = branchId.Value;
+
+                var result = await b2bBillingApiClient.TopUpWalletAsync(request);
+                if (result != null && result.Success)
+                {
+                    await auditLogService.LogActivityAsync(
+                        eventType: "Franchise Wallet Top-Up",
+                        actionName: "LAB.FranchiseWalletTopUp",
+                        description: $"Wallet top-up of ₹{request.Amount:F2} processed for Franchise #{request.FranchiseId}. Receipt: {result.ReceiptNo}. New Balance: ₹{result.NewBalance:F2}.",
+                        userId: User.GetUserId(),
+                        branchId: branchId,
+                        moduleCode: "LAB",
+                        referenceNo: result.ReceiptNo
+                    );
+                    return Json(new { success = true, receiptNo = result.ReceiptNo, newBalance = result.NewBalance, message = result.Message });
+                }
+                return Json(new { success = false, error = result?.Message ?? "Wallet top-up failed." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> FranchiseWalletStatement(int franchiseId, DateTime? fromDate, DateTime? toDate)
+        {
+            try
+            {
+                var statement = await b2bBillingApiClient.GetWalletStatementAsync(franchiseId, fromDate, toDate);
+                return Json(new { success = true, data = statement });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> B2BSettlement(string? agentType = "F", int? agentId = null)
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (branchId == null)
+            {
+                TempData["Error"] = "Please select a branch first.";
+                return RedirectToAction("SelectBranch", "Account");
+            }
+
+            ViewBag.SelectedAgentType = agentType ?? "F";
+            ViewBag.SelectedAgentId = agentId ?? 0;
+
+            try
+            {
+                var franchises = await franchiseApiClient.GetListAsync(status: null, isActive: true);
+                ViewBag.Franchises = franchises.OrderBy(f => f.Franchise_Name)
+                    .Select(f => new SelectListItem { Value = f.Franchise_ID.ToString(), Text = $"{f.Franchise_Name} ({f.Franchise_Code})" })
+                    .ToList();
+            }
+            catch
+            {
+                ViewBag.Franchises = new List<SelectListItem>();
+            }
+
+            try
+            {
+                var corporates = await corporateApiClient.GetListAsync(type: null, status: true);
+                ViewBag.Corporates = corporates.OrderBy(c => c.Corporate_Name)
+                    .Select(c => new SelectListItem { Value = c.Corporate_ID.ToString(), Text = $"{c.Corporate_Name} ({c.Corporate_Code})" })
+                    .ToList();
+            }
+            catch
+            {
+                ViewBag.Corporates = new List<SelectListItem>();
+            }
+
+            try
+            {
+                var paymentMethods = await paymentService.GetActiveMethodsAsync();
+                ViewBag.PaymentMethods = paymentMethods.Select(m => new SelectListItem { Value = m.PaymentMethodId.ToString(), Text = m.MethodName }).ToList();
+            }
+            catch
+            {
+                ViewBag.PaymentMethods = new List<SelectListItem>();
+            }
+
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetOutstandingBillsForSettlement(string agentType, int agentId)
+        {
+            try
+            {
+                var branchId = User.GetCurrentBranchId();
+                var partnerStatus = await b2bBillingApiClient.GetPartnerCreditStatusAsync(agentType, agentId, branchId);
+                var bills = await b2bBillingApiClient.GetOutstandingBillsForSettlementAsync(agentType, agentId);
+                return Json(new { success = true, partner = partnerStatus, bills });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SettleBillsPayment([FromBody] B2BSettleBillsRequestDto request)
+        {
+            try
+            {
+                var branchId = User.GetCurrentBranchId();
+                if (branchId.HasValue) request.BranchId = branchId.Value;
+
+                if (request.PaidAmount <= 0)
+                {
+                    return Json(new { success = false, error = "Payment amount must be greater than zero." });
+                }
+
+                if (request.SelectedBills == null || !request.SelectedBills.Any())
+                {
+                    return Json(new { success = false, error = "Please select at least one bill or invoice to settle." });
+                }
+
+                var result = await b2bBillingApiClient.SettleBillsPaymentAsync(request);
+                if (result != null && result.Success)
+                {
+                    await auditLogService.LogActivityAsync(
+                        eventType: "B2B Multi-Bill Settlement",
+                        actionName: "LAB.B2BSettlement",
+                        description: $"B2B Multi-bill settlement of ₹{request.PaidAmount:F2} processed for {request.AgentType} #{request.AgentId}. Batch Receipt: {result.BatchReceiptNo}. Settled Bill Count: {result.SettledBillCount}.",
+                        userId: User.GetUserId(),
+                        branchId: branchId,
+                        moduleCode: "LAB",
+                        referenceNo: result.BatchReceiptNo
+                    );
+                    return Json(new { success = true, batchReceiptNo = result.BatchReceiptNo, count = result.SettledBillCount, message = result.Message });
+                }
+                return Json(new { success = false, error = result?.Message ?? "Payment settlement failed." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> PrintSettlementReceipt(string receiptNo)
+        {
+            if (string.IsNullOrWhiteSpace(receiptNo))
+            {
+                return BadRequest("Receipt number is required.");
+            }
+
+            var receipt = await b2bBillingApiClient.GetSettlementReceiptAsync(receiptNo);
+            if (receipt == null)
+            {
+                return NotFound($"Settlement receipt '{receiptNo}' was not found.");
+            }
+
+            var branchId = receipt.BranchId > 0 ? receipt.BranchId : (User.GetCurrentBranchId() ?? 1);
+
+            // Fetch hospital settings for this branch (fallback to any active hospital settings)
+            var settings = await dbContext.HospitalSettings
+                .Where(s => s.BranchId == branchId && s.IsActive)
+                .FirstOrDefaultAsync()
+                ?? await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.IsActive);
+
+            var vm = new PrintSettlementReceiptViewModel
+            {
+                // Hospital
+                HospitalName           = settings?.HospitalName ?? "eMeditech Hospital",
+                HospitalType           = settings?.HospitalType,
+                RegistrationNumber     = settings?.RegistrationNumber,
+                HospitalAddress        = settings?.Address,
+                HospitalPhone          = settings?.ContactNumber1,
+                HospitalEmergencyPhone = settings?.EmergencyNumber,
+                HospitalEmail          = settings?.EmailAddress,
+                HospitalWebsite        = settings?.Website,
+                HospitalGSTIN          = settings?.GSTCode,
+                HospitalLogoPath       = settings?.LogoPath,
+                BranchName             = receipt.BranchName,
+                NabhStatus             = settings?.NabhStatus,
+                NabhCertificateNo      = settings?.NabhCertificateNo,
+
+                // Receipt
+                ReceiptNo              = receipt.ReceiptNo,
+                PaymentDate            = receipt.PaymentDate,
+                CreatedDate            = receipt.CreatedDate,
+                TotalAmount            = receipt.TotalAmount,
+                SettledBillCount       = receipt.SettledBillCount,
+                PaymentMethod          = receipt.PaymentMethod,
+                TransactionRef         = receipt.TransactionRef,
+                BankName               = receipt.BankName,
+                ChequeNo               = receipt.ChequeNo,
+                Notes                  = receipt.Notes,
+                CreatedByName          = receipt.CreatedByName,
+                DebitLedgerName        = receipt.DebitLedgerName,
+                CreditLedgerName       = receipt.CreditLedgerName,
+
+                // Partner
+                AgentType              = receipt.AgentType,
+                AgentId                = receipt.AgentId,
+                PartnerName            = receipt.PartnerName,
+                PartnerCode            = receipt.PartnerCode,
+                PartnerType            = receipt.PartnerType,
+                PartnerPhone           = receipt.PartnerPhone,
+                PartnerEmail           = receipt.PartnerEmail,
+                PartnerAddress         = receipt.PartnerAddress,
+
+                // Bills
+                Bills                  = receipt.Bills
+            };
+
+            return View("PrintSettlementReceipt", vm);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> B2BInvoices(string? agentType, int? agentId, string? status, DateTime? fromDate, DateTime? toDate, string? search, int page = 1)
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (branchId == null)
+            {
+                TempData["Error"] = "Please select a branch first.";
+                return RedirectToAction("SelectBranch", "Account");
+            }
+
+            try
+            {
+                var franchises = await franchiseApiClient.GetListAsync(status: null, isActive: true);
+                ViewBag.Franchises = franchises.OrderBy(f => f.Franchise_Name)
+                    .Select(f => new SelectListItem { Value = f.Franchise_ID.ToString(), Text = $"{f.Franchise_Name} ({f.Franchise_Code})" })
+                    .ToList();
+            }
+            catch
+            {
+                ViewBag.Franchises = new List<SelectListItem>();
+            }
+
+            try
+            {
+                var corporates = await corporateApiClient.GetListAsync(type: null, status: true);
+                ViewBag.Corporates = corporates.OrderBy(c => c.Corporate_Name)
+                    .Select(c => new SelectListItem { Value = c.Corporate_ID.ToString(), Text = $"{c.Corporate_Name} ({c.Corporate_Code})" })
+                    .ToList();
+            }
+            catch
+            {
+                ViewBag.Corporates = new List<SelectListItem>();
+            }
+
+            ViewBag.CurrentAgentType = agentType;
+            ViewBag.CurrentAgentId = agentId;
+            ViewBag.CurrentStatus = status;
+            ViewBag.FromDate = fromDate?.ToString("yyyy-MM-dd");
+            ViewBag.ToDate = toDate?.ToString("yyyy-MM-dd");
+            ViewBag.Search = search;
+            ViewBag.CurrentPage = page;
+
+            var invoices = await b2bBillingApiClient.GetInvoiceListAsync(agentType, agentId, status, fromDate, toDate, search, page, 15);
+            return View(invoices);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetUninvoicedOrders(string agentType, int? agentId = null, string? agentIds = null, DateTime? fromDate = null, DateTime? toDate = null)
+        {
+            try
+            {
+                var orders = await b2bBillingApiClient.GetUninvoicedOrdersAsync(agentType, agentId, agentIds, fromDate, toDate);
+                return Json(new { success = true, orders });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> GenerateInvoice([FromBody] GenerateInvoiceRequestDto request)
+        {
+            try
+            {
+                var branchId = User.GetCurrentBranchId();
+                if (branchId.HasValue) request.BranchId = branchId.Value;
+
+                bool hasGroups = request.PartnerGroups != null && request.PartnerGroups.Any(g => !string.IsNullOrWhiteSpace(g.SelectedOrderIds));
+                bool hasSingle = request.AgentId > 0 && !string.IsNullOrWhiteSpace(request.SelectedOrderIds);
+
+                if (!hasGroups && !hasSingle)
+                {
+                    return Json(new { success = false, error = "Please select at least one order to include in the invoice." });
+                }
+
+                var result = await b2bBillingApiClient.GenerateInvoiceAsync(request);
+                if (result != null && result.Success)
+                {
+                    if (result.GeneratedInvoices != null && result.GeneratedInvoices.Count > 1)
+                    {
+                        foreach (var inv in result.GeneratedInvoices)
+                        {
+                            await auditLogService.LogActivityAsync(
+                                eventType: "B2B Invoicing",
+                                actionName: "LAB.B2BInvoiceGenerated",
+                                description: $"B2B Batch Invoice {inv.InvoiceNo} generated for {inv.PartnerName} ({inv.OrderCount} orders, ₹ {inv.TotalAmount:N2}).",
+                                userId: User.GetUserId(),
+                                branchId: branchId,
+                                moduleCode: "LAB",
+                                referenceNo: inv.InvoiceNo,
+                                referenceId: inv.InvoiceId
+                            );
+                        }
+                    }
+                    else
+                    {
+                        await auditLogService.LogActivityAsync(
+                            eventType: "B2B Invoicing",
+                            actionName: "LAB.B2BInvoiceGenerated",
+                            description: $"B2B Invoice {result.InvoiceNo} generated for {request.AgentType} #{request.AgentId}.",
+                            userId: User.GetUserId(),
+                            branchId: branchId,
+                            moduleCode: "LAB",
+                            referenceNo: result.InvoiceNo,
+                            referenceId: result.InvoiceId
+                        );
+                    }
+
+                    return Json(new { 
+                        success = true, 
+                        invoiceId = result.InvoiceId, 
+                        invoiceNo = result.InvoiceNo, 
+                        message = result.Message,
+                        generatedInvoices = result.GeneratedInvoices
+                    });
+                }
+                return Json(new { success = false, error = result?.Message ?? "Failed to generate invoice." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> B2BInvoiceDetail(int id)
+        {
+            var detail = await b2bBillingApiClient.GetInvoiceDetailAsync(id);
+            if (detail == null)
+            {
+                TempData["Error"] = "Invoice not found.";
+                return RedirectToAction(nameof(B2BInvoices));
+            }
+            return View(detail);
+        }
+
+        #endregion
     }
 
     public class GeoSuggestionItem

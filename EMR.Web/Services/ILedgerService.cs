@@ -21,6 +21,11 @@ public interface ILedgerService
     Task PostLabBillLedgerAsync(int labOrderId, decimal totalAmount, int? branchId, int? companyId, int? userId, string billNo);
 
     /// <summary>
+    /// Specific method to handle B2B Lab Bill generation ledger posting (Franchise or Corporate receivable).
+    /// </summary>
+    Task PostB2BLabBillLedgerAsync(int labOrderId, decimal totalAmount, string agentType, int agentId, int? branchId, int? companyId, int? userId, string billNo);
+
+    /// <summary>
     /// Posts a reversal ledger entry for a bill cancellation (module-agnostic).
     /// </summary>
     Task PostCancellationReversalAsync(string moduleCode, int moduleRefId, decimal cancelledAmount, int? branchId, int? companyId, int? userId, string billNo, string cancellationNo);
