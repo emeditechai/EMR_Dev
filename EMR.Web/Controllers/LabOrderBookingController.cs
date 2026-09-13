@@ -388,6 +388,39 @@ namespace EMR.Web.Controllers
             var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId);
 
+            // ── B2B: Apply the same HospitalSettings logic as B2C ─────────────────────
+            // 1. Auto-collect samples when IsSampleCollectionMandatory == NO (same as B2C line ~1062)
+            bool b2bShowPrintBarcode = false;
+            try
+            {
+                var b2bSettings = await dbContext.HospitalSettings
+                    .FirstOrDefaultAsync(s => s.BranchId == branchId.Value && s.IsActive);
+
+                if (b2bSettings != null)
+                {
+                    // Auto-collect: if collection is NOT mandatory, mark all samples collected immediately
+                    if (!b2bSettings.IsSampleCollectionMandatory)
+                    {
+                        try
+                        {
+                            await sampleCollectionApiClient.AutoCollectIfNotMandatoryAsync(labOrderRes.LabOrderId);
+                        }
+                        catch
+                        {
+                            // Non-blocking: billing must not fail due to auto-collect error
+                        }
+                    }
+
+                    // Barcode at Billing: flag the view to prompt barcode printing
+                    b2bShowPrintBarcode = b2bSettings.BarcodeGenerateAtBilling;
+                }
+            }
+            catch
+            {
+                // Non-blocking: settings lookup failure must not interrupt B2B billing
+            }
+            // ─────────────────────────────────────────────────────────────────────────
+
             // Post B2B Bill Ledger (Dr Franchise Receivable or Corporate Receivable, Cr LAB Revenue)
             await ledgerService.PostB2BLabBillLedgerAsync(labOrderRes.LabOrderId, b2bTotal, model.AgentType, model.B2BAgentId.Value, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
 
@@ -475,6 +508,7 @@ namespace EMR.Web.Controllers
             TempData["B2BTotal"]        = b2bTotal.ToString("F2");
             TempData["TokenNo"]         = labOrderRes.TokenNo;
             TempData["PaymentMode"]     = paymentModeUsed;
+            TempData["ShowPrintBarcode"] = b2bShowPrintBarcode ? "true" : "false"; // BarcodeGenerateAtBilling (B2B parity)
             return RedirectToAction(nameof(B2BBooking), new { registered = true });
         }
 
