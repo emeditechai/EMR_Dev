@@ -207,6 +207,7 @@
                                     {
                                         "P" => "badge-subtle-success",
                                         "Partial" => "badge-subtle-info",
+                                        "B" => "badge-subtle-primary",  // B2B Credit
                                         _ => "badge-subtle-danger"
                                     };
 
@@ -214,6 +215,7 @@
                                     {
                                         "P" => "Paid",
                                         "Partial" => "Partial",
+                                        "B" => "Credit",  // B2B Credit
                                         _ => "Unpaid"
                                     };
 
@@ -275,10 +277,19 @@
                                                 <span class="badge @overallBadge fs-9">@h.CollectedCount/@h.TotalTests Collected</span>
                                             </div>
                                             <div class="mt-1">
-                                                @if (h.CollectionType?.ToLower().Contains("home") == true)
+                                                @{
+                                                    var colTypeLower = h.CollectionType?.ToLower() ?? "";
+                                                }
+                                                @if (colTypeLower.Contains("home"))
                                                 {
                                                     <span class="badge bg-purple-subtle text-purple border border-purple fs-9">
                                                         <i class="bi bi-house-door-fill me-1"></i>Home
+                                                    </span>
+                                                }
+                                                else if (colTypeLower.Contains("b2b"))
+                                                {
+                                                    <span class="badge bg-info-subtle text-info border border-info-subtle fs-9">
+                                                        <i class="bi bi-diagram-2 me-1"></i>B2B
                                                     </span>
                                                 }
                                                 else
@@ -372,6 +383,12 @@
                                     <div class="fs-9 text-muted mt-1" id="lblBillNo">—</div>
                                     <div class="fs-9 mt-1" id="lblUrgentBadge" style="display:none;">
                                         <span class="badge bg-danger shadow-2xs"><i class="bi bi-exclamation-circle me-1"></i>Urgent</span>
+                                    </div>
+                                    <!-- B2B Partner Name (shown only for B2B orders) -->
+                                    <div class="fs-9 mt-1" id="rowPartnerInfo" style="display:none;">
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle shadow-2xs" id="lblPartnerName">
+                                            <i class="bi bi-diagram-2 me-1"></i>—
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -877,10 +894,22 @@
                 $('#lblBookingDateTime').text(detail.bookingDateTime ? formatDateTime(detail.bookingDateTime) : '—');
 
                 // Collection Type
-                if (detail.collectionType && detail.collectionType.toLowerCase().includes('home')) {
-                    $('#lblCollectionTypeBadge').removeClass('bg-light text-secondary').addClass('bg-purple-subtle text-purple border border-purple').html('<i class="bi bi-house-door-fill me-1"></i>Home Collection');
+                const colTypeLc = (detail.collectionType || '').toLowerCase();
+                if (colTypeLc.includes('home')) {
+                    $('#lblCollectionTypeBadge')
+                        .removeClass('bg-light text-secondary bg-info-subtle text-info border-info-subtle')
+                        .addClass('bg-purple-subtle text-purple border border-purple')
+                        .html('<i class="bi bi-house-door-fill me-1"></i>Home Collection');
+                } else if (colTypeLc.includes('b2b')) {
+                    $('#lblCollectionTypeBadge')
+                        .removeClass('bg-light text-secondary bg-purple-subtle text-purple border-purple')
+                        .addClass('bg-info-subtle text-info border border-info-subtle')
+                        .html('<i class="bi bi-diagram-2 me-1"></i>B2B Collector');
                 } else {
-                    $('#lblCollectionTypeBadge').removeClass('bg-purple-subtle text-purple border border-purple').addClass('bg-light text-secondary border').html('<i class="bi bi-building me-1"></i>Lab Center');
+                    $('#lblCollectionTypeBadge')
+                        .removeClass('bg-purple-subtle text-purple border-purple bg-info-subtle text-info border-info-subtle')
+                        .addClass('bg-light text-secondary border')
+                        .html('<i class="bi bi-building me-1"></i>Lab Center');
                 }
 
                 if (detail.phlebotomistName) {
@@ -890,12 +919,25 @@
                     $('#rowPhlebotomist').hide();
                 }
 
+                // B2B Partner Name
+                if (detail.isB2B && detail.partnerName) {
+                    $('#lblPartnerName').html('<i class="bi bi-diagram-2 me-1"></i>' + detail.partnerName);
+                    $('#rowPartnerInfo').show();
+                } else {
+                    $('#rowPartnerInfo').hide();
+                }
+
                 // Payment Status
-                const payBadge = detail.paymentStatus === 'P'
-                    ? '<span class="badge bg-success">Paid</span>'
-                    : (detail.paymentStatus === 'Partial'
-                        ? '<span class="badge bg-info text-dark">Partial</span>'
-                        : '<span class="badge bg-danger">Unpaid</span>');
+                let payBadge;
+                if (detail.paymentStatus === 'P') {
+                    payBadge = '<span class="badge bg-success">Paid</span>';
+                } else if (detail.paymentStatus === 'Partial') {
+                    payBadge = '<span class="badge bg-info text-dark">Partial</span>';
+                } else if (detail.paymentStatus === 'B') {
+                    payBadge = '<span class="badge bg-primary">Credit</span>';
+                } else {
+                    payBadge = '<span class="badge bg-danger">Unpaid</span>';
+                }
                 $('#lblPaymentStatus').html(payBadge);
 
                 // Collection Progress & Pending Check
@@ -1955,10 +1997,17 @@
                     let payText = 'Unpaid';
                     if (h.paymentStatus === 'P') { payBadge = 'badge-subtle-success'; payText = 'Paid'; }
                     else if (h.paymentStatus === 'Partial') { payBadge = 'badge-subtle-info'; payText = 'Partial'; }
+                    else if (h.paymentStatus === 'B') { payBadge = 'badge-subtle-primary'; payText = 'Credit'; } // B2B Credit
 
-                    let typeBadge = (h.collectionType && h.collectionType.toLowerCase().includes('home'))
-                        ? '<span class="badge bg-purple-subtle text-purple border border-purple fs-9"><i class="bi bi-house-door-fill me-1"></i>Home</span>'
-                        : '<span class="badge bg-light text-secondary border fs-9"><i class="bi bi-building me-1"></i>Center</span>';
+                    const colTypeLcVs = (h.collectionType || '').toLowerCase();
+                    let typeBadge;
+                    if (colTypeLcVs.includes('home')) {
+                        typeBadge = '<span class="badge bg-purple-subtle text-purple border border-purple fs-9"><i class="bi bi-house-door-fill me-1"></i>Home</span>';
+                    } else if (colTypeLcVs.includes('b2b')) {
+                        typeBadge = '<span class="badge bg-info-subtle text-info border border-info-subtle fs-9"><i class="bi bi-diagram-2 me-1"></i>B2B</span>';
+                    } else {
+                        typeBadge = '<span class="badge bg-light text-secondary border fs-9"><i class="bi bi-building me-1"></i>Center</span>';
+                    }
 
                     const rowHtml = `
                         <tr class="order-header-row cursor-pointer ${statusPatternClass}" data-id="${h.labOrderId}" id="orderRow_${h.labOrderId}">

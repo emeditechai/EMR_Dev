@@ -40,6 +40,9 @@ namespace EMR.Web.Models.DTOs
         public int ReCollectCount { get; set; }
         public int RejectedCount { get; set; }
         public string OverallStatus { get; set; } = "Pending";
+        // B2B partner info
+        public bool IsB2B { get; set; }
+        public string? PartnerName { get; set; }
     }
 
     public class SampleCollectionHeaderListResult
@@ -72,6 +75,9 @@ namespace EMR.Web.Models.DTOs
         public decimal TotalPaid { get; set; }
         public decimal BalanceDue { get; set; }
         public decimal TotalAmount { get; set; }
+        // B2B partner info
+        public bool IsB2B { get; set; }
+        public string? PartnerName { get; set; }
         public List<SampleCollectionItemDto> Items { get; set; } = new();
     }
 
