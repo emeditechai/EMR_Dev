@@ -28,6 +28,7 @@ public class LabRateCardDetailModel
     public string Item_Name { get; set; } = string.Empty;
     public string Item_Code { get; set; } = string.Empty;
     public decimal Default_Rate { get; set; }
+    public decimal? Branch_Rate { get; set; }
     public int? Department_ID { get; set; }
     public int? Category_ID { get; set; }
     public int? SubCategory_ID { get; set; }
@@ -74,5 +75,6 @@ public class LabItemModel
     public int? Category_ID { get; set; }
     public int? SubCategory_ID { get; set; }
     public decimal Default_Rate { get; set; }
+    public decimal? Branch_Rate { get; set; }
     public bool Is_Profile_Test { get; set; }
 }

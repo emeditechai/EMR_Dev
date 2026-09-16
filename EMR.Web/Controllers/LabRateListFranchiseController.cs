@@ -341,11 +341,50 @@ public class LabRateListFranchiseController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAllItems()
+    public async Task<IActionResult> GetAllItems(int? branchId)
     {
         try
         {
-            var items = await rateCardApi.GetAllItemsAsync(User.GetCompanyId());
+            var companyId = User.GetCompanyId();
+            var items = (await rateCardApi.GetAllItemsAsync(companyId)).ToList();
+            
+            var targetBranchId = branchId ?? User.GetCurrentBranchId();
+            if (targetBranchId.HasValue)
+            {
+                var b2cCards = await rateCardApi.GetListAsync("B2C", targetBranchId.Value, true, companyId);
+                var activeB2C = b2cCards.OrderByDescending(x => x.Effective_From).FirstOrDefault();
+                if (activeB2C != null)
+                {
+                    var b2cFull = await rateCardApi.GetByIdAsync(activeB2C.RateCard_ID);
+                    if (b2cFull?.Details != null && b2cFull.Details.Count > 0)
+                    {
+                        var b2cRateMap = b2cFull.Details.ToDictionary(
+                            d => $"{d.Item_Type}_{d.Item_ID}",
+                            d => d.Rate,
+                            StringComparer.OrdinalIgnoreCase
+                        );
+
+                        foreach (var item in items)
+                        {
+                            var key = $"{item.Item_Type}_{item.Item_ID}";
+                            if (b2cRateMap.TryGetValue(key, out var b2cRate))
+                            {
+                                item.Branch_Rate = b2cRate;
+                            }
+                            else
+                            {
+                                item.Branch_Rate = item.Default_Rate;
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var item in items)
+            {
+                item.Branch_Rate ??= item.Default_Rate;
+            }
+
             return Json(new { success = true, data = items });
         }
         catch (Exception ex)

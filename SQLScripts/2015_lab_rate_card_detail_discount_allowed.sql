@@ -57,6 +57,12 @@ BEGIN
         h.[CompanyId],
         h.[Branch_ID],
         b.[BranchName] AS [Branch_Name],
+        h.[B2CIdentity_ID],
+        CASE 
+            WHEN h.[Rate_Type] = 'Franchise' THEN f.[Franchise_Name]
+            WHEN h.[Rate_Type] = 'Corporate' THEN c.[Corporate_Name]
+            ELSE NULL 
+        END AS [Entity_Name],
         h.[Rate_Type],
         h.[Effective_From],
         h.[Effective_To],
@@ -67,9 +73,14 @@ BEGIN
         h.[ModifiedDate]
     FROM [dbo].[LabRateCardMaster] h
     LEFT JOIN [dbo].[BranchMaster] b ON h.[Branch_ID] = b.[BranchId]
+    LEFT JOIN [dbo].[LabFranchiseMaster] f ON h.[B2CIdentity_ID] = f.[Franchise_ID]
+    LEFT JOIN [dbo].[CorporateMaster] c ON h.[B2CIdentity_ID] = c.[Corporate_ID]
     WHERE h.[RateCard_ID] = @RateCard_ID AND h.[IsDeleted] = 0;
 
-    -- Resultset 2: Details
+    -- Resultset 2: Details with Item Names resolved & Branch B2C Rate resolved
+    DECLARE @Branch_ID INT;
+    SELECT @Branch_ID = [Branch_ID] FROM [dbo].[LabRateCardMaster] WHERE [RateCard_ID] = @RateCard_ID;
+
     SELECT 
         d.[Detail_ID],
         d.[RateCard_ID],
@@ -78,6 +89,7 @@ BEGIN
         t.[Test_Name] AS [Item_Name],
         t.[Test_Code] AS [Item_Code],
         t.[MRP] AS [Default_Rate],
+        COALESCE(b2cd.[Rate], t.[MRP], 0) AS [Branch_Rate],
         t.[Category_ID],
         t.[SubCategory_ID],
         t.[Department_ID],
@@ -87,6 +99,18 @@ BEGIN
         d.[Status]
     FROM [dbo].[LabRateCardDetail] d
     INNER JOIN [dbo].[LabInvestigationMaster] t ON d.[Item_ID] = t.[Test_ID]
+    OUTER APPLY (
+        SELECT TOP 1 cd.[Rate]
+        FROM [dbo].[LabRateCardMaster] ch
+        INNER JOIN [dbo].[LabRateCardDetail] cd ON ch.[RateCard_ID] = cd.[RateCard_ID] AND cd.[IsDeleted] = 0
+        WHERE ch.[Rate_Type] = 'B2C'
+          AND ch.[Branch_ID] = @Branch_ID
+          AND ch.[Status] = 1
+          AND ch.[IsDeleted] = 0
+          AND cd.[Item_Type] = d.[Item_Type]
+          AND cd.[Item_ID] = d.[Item_ID]
+        ORDER BY ch.[Effective_From] DESC, ch.[RateCard_ID] DESC
+    ) b2cd
     WHERE d.[RateCard_ID] = @RateCard_ID AND d.[IsDeleted] = 0
     ORDER BY t.[Is_Profile_Test] DESC, t.[Test_Name] ASC;
 END
