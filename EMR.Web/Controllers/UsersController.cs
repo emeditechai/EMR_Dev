@@ -68,6 +68,7 @@ public class UsersController(
                 x.IsPhlebotomist,
                 x.IsPathologist,
                 x.IsLabTechnician,
+                x.IsLogisticsBoy,
                 x.DepartmentIds,
                 Branches = string.Join(", ", x.UserBranches.Where(b => b.IsActive).Select(b => b.Branch.BranchName))
             })
@@ -97,6 +98,7 @@ public class UsersController(
                 IsPhlebotomist = x.IsPhlebotomist,
                 IsPathologist = x.IsPathologist,
                 IsLabTechnician = x.IsLabTechnician,
+                IsLogisticsBoy = x.IsLogisticsBoy,
                 Branches = x.Branches,
                 DepartmentNames = deptNames
             };
@@ -185,6 +187,9 @@ public class UsersController(
             IsPhlebotomist = user.IsPhlebotomist,
             IsPathologist = user.IsPathologist,
             IsLabTechnician = user.IsLabTechnician,
+            IsLogisticsBoy = user.IsLogisticsBoy,
+            IsVehicleAvailable = user.IsVehicleAvailable,
+            VehicleRegNo = user.VehicleRegNo,
             CertificationNo = user.CertificationNo,
             RegistrationNo = user.RegistrationNo,
             ShiftSlotId = user.ShiftSlotId,
@@ -255,6 +260,11 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
         }
 
+        if (model.IsLogisticsBoy && string.IsNullOrWhiteSpace(model.VehicleRegNo))
+        {
+            ModelState.AddModelError(nameof(model.VehicleRegNo), "Vehicle Reg No is mandatory when designated as Logistics Boy.");
+        }
+
         await ValidateEmployeeCodeUniquenessAsync(model);
         ValidateProfilePicture(model);
 
@@ -300,6 +310,9 @@ public class UsersController(
             IsPhlebotomist = model.IsPhlebotomist,
             IsPathologist = model.IsPathologist,
             IsLabTechnician = model.IsLabTechnician,
+            IsLogisticsBoy = model.IsLogisticsBoy,
+            IsVehicleAvailable = model.IsLogisticsBoy && model.IsVehicleAvailable,
+            VehicleRegNo = model.IsLogisticsBoy ? model.VehicleRegNo?.Trim() : null,
             CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null,
             RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null,
             ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null,
@@ -371,6 +384,9 @@ public class UsersController(
             IsPhlebotomist = user.IsPhlebotomist,
             IsPathologist = user.IsPathologist,
             IsLabTechnician = user.IsLabTechnician,
+            IsLogisticsBoy = user.IsLogisticsBoy,
+            IsVehicleAvailable = user.IsVehicleAvailable,
+            VehicleRegNo = user.VehicleRegNo,
             CertificationNo = user.CertificationNo,
             RegistrationNo = user.RegistrationNo,
             ShiftSlotId = user.ShiftSlotId,
@@ -422,6 +438,11 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
         }
 
+        if (model.IsLogisticsBoy && string.IsNullOrWhiteSpace(model.VehicleRegNo))
+        {
+            ModelState.AddModelError(nameof(model.VehicleRegNo), "Vehicle Reg No is mandatory when designated as Logistics Boy.");
+        }
+
         await ValidateEmployeeCodeUniquenessAsync(model);
         ValidateProfilePicture(model);
 
@@ -457,6 +478,9 @@ public class UsersController(
         user.IsPhlebotomist = model.IsPhlebotomist;
         user.IsPathologist = model.IsPathologist;
         user.IsLabTechnician = model.IsLabTechnician;
+        user.IsLogisticsBoy = model.IsLogisticsBoy;
+        user.IsVehicleAvailable = model.IsLogisticsBoy && model.IsVehicleAvailable;
+        user.VehicleRegNo = model.IsLogisticsBoy ? model.VehicleRegNo?.Trim() : null;
         user.CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null;
         user.RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null;
         user.ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null;

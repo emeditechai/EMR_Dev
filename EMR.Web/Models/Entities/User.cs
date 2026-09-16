@@ -66,6 +66,11 @@ public class User
     public bool IsPhlebotomist { get; set; }
     public bool IsPathologist { get; set; }
     public bool IsLabTechnician { get; set; }
+    public bool IsLogisticsBoy { get; set; }
+    public bool IsVehicleAvailable { get; set; }
+
+    [MaxLength(50)]
+    public string? VehicleRegNo { get; set; }
 
     [MaxLength(100)]
     public string? CertificationNo { get; set; }

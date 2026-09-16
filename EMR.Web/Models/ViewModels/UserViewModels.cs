@@ -16,6 +16,7 @@ public class UserListItemViewModel
     public bool IsPhlebotomist { get; set; }
     public bool IsPathologist { get; set; }
     public bool IsLabTechnician { get; set; }
+    public bool IsLogisticsBoy { get; set; }
     public string Branches { get; set; } = string.Empty;
     public string DepartmentNames { get; set; } = string.Empty;
 }
@@ -77,6 +78,16 @@ public class UserFormViewModel
 
     [Display(Name = "Is Lab Technician")]
     public bool IsLabTechnician { get; set; }
+
+    [Display(Name = "Is Logistics Boy")]
+    public bool IsLogisticsBoy { get; set; }
+
+    [Display(Name = "Is Vehicle Available")]
+    public bool IsVehicleAvailable { get; set; }
+
+    [MaxLength(50)]
+    [Display(Name = "Vehicle Reg No")]
+    public string? VehicleRegNo { get; set; }
 
     [DataType(DataType.Date)]
     [Display(Name = "Date of Joining")]
@@ -179,6 +190,10 @@ public class UserDetailsViewModel
     public bool IsPhlebotomist { get; set; }
     public bool IsPathologist { get; set; }
     public bool IsLabTechnician { get; set; }
+    public bool IsLogisticsBoy { get; set; }
+
+    public bool IsVehicleAvailable { get; set; }
+    public string? VehicleRegNo { get; set; }
 
     public string? CertificationNo { get; set; }
     public string? RegistrationNo { get; set; }

@@ -467,6 +467,38 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 4. Logistics Boy -->
+            <div class="col-md-4">
+                <div class="emr-role-card h-100" id="logisticsBoyCard">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="emr-role-icon" style="background:#fffbeb;color:#d97706;">
+                                <i class="bi bi-truck"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold" style="color:#d97706;">Is Logistics Boy</div>
+                                <div class="text-muted small" style="font-size:0.78rem;">Sample pickup & transport personnel</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input asp-for="IsLogisticsBoy" class="form-check-input uf-big-toggle" id="isLogisticsBoyToggle" role="switch">
+                        </div>
+                    </div>
+
+                    <div id="logisticsBoyBadgeContainer" class="role-config-drawer" style="@(Model.IsLogisticsBoy ? "" : "display:none;")">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;max-width:240px;" id="logisticsBoyBadgeText">
+                                <i class="bi bi-truck me-1"></i>Reg: @(string.IsNullOrWhiteSpace(Model.VehicleRegNo) ? "Not Set" : Model.VehicleRegNo)
+                            </span>
+                            <button type="button" class="btn btn-sm rounded-pill shadow-none" style="font-size:0.75rem;background:#fef3c7;color:#92400e;border:1px solid #fde68a;" onclick="openLogisticsBoyModal()">
+                                <i class="bi bi-gear-fill me-1"></i>Configure
+                            </button>
+                        </div>
+                        <div id="logisticsBoySummaryDetails"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -638,6 +670,60 @@
             <div class="modal-footer bg-light border-top-0 rounded-bottom-4 px-4 py-3">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn text-white" style="background:#0d9488;" onclick="saveLabTechnicianModal()">
+                    <i class="bi bi-check2-circle me-1"></i>Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Logistics Boy Configuration -->
+<div class="modal fade" id="logisticsBoyModal" tabindex="-1" aria-labelledby="logisticsBoyModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%);">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-white bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width:36px;height:36px;">
+                        <i class="bi bi-truck fs-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="logisticsBoyModalLabel">Logistics Boy Configuration</h5>
+                        <small class="text-white-50">Specify vehicle availability & registration details</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert d-flex align-items-center gap-2 mb-3 py-2 px-3 small border" style="background:#fffbeb;color:#92400e;border-color:#fef3c7 !important;">
+                    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+                    <div>Configure vehicle details for sample transport and logistics operations. Vehicle registration number is mandatory.</div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between p-3 rounded-3 border" style="background:#f8fafc;">
+                        <div>
+                            <label class="form-check-label fw-semibold text-dark mb-0" for="chkIsVehicleAvailable">Is Vehicle Available</label>
+                            <div class="text-muted small">Indicates whether a delivery vehicle is assigned or available</div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input asp-for="IsVehicleAvailable" class="form-check-input uf-big-toggle" id="chkIsVehicleAvailable" role="switch">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Vehicle Reg No <span class="text-danger">*</span></label>
+                    <div class="input-icon-wrap">
+                        <i class="bi bi-card-heading input-icon" style="color:#d97706;"></i>
+                        <input asp-for="VehicleRegNo" class="form-control ps-icon" id="txtVehicleRegNo" placeholder="e.g. DL-01-AB-1234 / WB-02-C-5678" autocomplete="off" maxlength="50" />
+                    </div>
+                    <div id="vehicleRegNoErrorMsg" class="text-danger small mt-1" style="display:none;">Vehicle Reg No is mandatory for Logistics Boy.</div>
+                    <span asp-validation-for="VehicleRegNo" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top-0 rounded-bottom-4 px-4 py-3">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn text-white" style="background:#d97706;" onclick="saveLogisticsBoyModal()">
                     <i class="bi bi-check2-circle me-1"></i>Save & Apply
                 </button>
             </div>
@@ -1192,6 +1278,106 @@ if (isPathologistToggle) {
     });
 }
 
+// ── Logistics Boy Modal & Logic ──────────────────────────────
+let logisticsBoyModalInstance = null;
+
+function getLogisticsBoyModal() {
+    if (!logisticsBoyModalInstance) {
+        const el = document.getElementById('logisticsBoyModal');
+        if (el && window.bootstrap && window.bootstrap.Modal) {
+            logisticsBoyModalInstance = new bootstrap.Modal(el);
+        }
+    }
+    return logisticsBoyModalInstance;
+}
+
+function openLogisticsBoyModal() {
+    const modal = getLogisticsBoyModal();
+    if (modal) {
+        const errDiv = document.getElementById('vehicleRegNoErrorMsg');
+        if (errDiv) errDiv.style.display = 'none';
+        modal.show();
+        setTimeout(() => {
+            const txt = document.getElementById('txtVehicleRegNo');
+            if (txt) txt.focus();
+        }, 400);
+    }
+}
+
+function saveLogisticsBoyModal() {
+    const regInput = document.getElementById('txtVehicleRegNo');
+    const errDiv = document.getElementById('vehicleRegNoErrorMsg');
+    if (!regInput || !regInput.value.trim()) {
+        if (errDiv) errDiv.style.display = 'block';
+        if (regInput) regInput.focus();
+        return;
+    }
+
+    if (errDiv) errDiv.style.display = 'none';
+    const modal = getLogisticsBoyModal();
+    if (modal) {
+        modal.hide();
+    }
+    updateLogisticsBoySummary();
+}
+
+function updateLogisticsBoySummary() {
+    const isLogistics = document.getElementById('isLogisticsBoyToggle')?.checked;
+    const container = document.getElementById('logisticsBoyBadgeContainer');
+    const badgeText = document.getElementById('logisticsBoyBadgeText');
+    const detailsContainer = document.getElementById('logisticsBoySummaryDetails');
+    const card = document.getElementById('logisticsBoyCard');
+
+    if (!container) return;
+
+    if (!isLogistics) {
+        container.style.display = 'none';
+        if (card) {
+            card.style.borderColor = '#e2e8f0';
+            card.style.background = '#ffffff';
+        }
+        return;
+    }
+
+    container.style.display = '';
+    if (card) {
+        card.style.borderColor = '#fde68a';
+        card.style.background = 'linear-gradient(180deg, #ffffff 0%, #fffdf7 100%)';
+    }
+
+    const regNo = document.getElementById('txtVehicleRegNo')?.value.trim();
+    if (badgeText) {
+        badgeText.innerHTML = `<i class="bi bi-truck me-1"></i>${regNo ? 'Reg: ' + regNo : '<span class="text-danger fw-bold">Reg Required</span>'}`;
+    }
+
+    const isVehAvailable = document.getElementById('chkIsVehicleAvailable')?.checked;
+    const chips = [];
+    if (isVehAvailable) {
+        chips.push(`<span class="role-chip text-success fw-semibold" style="border-color:#bbf7d0;background:#f0fdf4;"><i class="bi bi-check-circle-fill text-success me-1"></i>Vehicle Available</span>`);
+    } else {
+        chips.push(`<span class="role-chip text-muted" style="border-color:#e2e8f0;background:#f8fafc;"><i class="bi bi-dash-circle text-secondary me-1"></i>No Vehicle</span>`);
+    }
+    if (regNo) {
+        chips.push(`<span class="role-chip" style="border-color:#fde68a;background:#fef3c7;color:#92400e;"><i class="bi bi-card-heading me-1 text-amber"></i>${regNo}</span>`);
+    }
+
+    if (detailsContainer) {
+        detailsContainer.innerHTML = `<div class="d-flex flex-wrap gap-1 mt-2">${chips.join('')}</div>`;
+    }
+}
+
+const isLogisticsBoyToggle = document.getElementById('isLogisticsBoyToggle');
+if (isLogisticsBoyToggle) {
+    isLogisticsBoyToggle.addEventListener('change', function () {
+        if (this.checked) {
+            updateLogisticsBoySummary();
+            openLogisticsBoyModal();
+        } else {
+            updateLogisticsBoySummary();
+        }
+    });
+}
+
 // ── Init on load ─────────────────────────────────────────────
 (function () {
     onBranchChange(); // set initial visibility of role groups
@@ -1201,5 +1387,6 @@ if (isPathologistToggle) {
     updatePathologistSummary();
     updatePhlebotomistSummary();
     updateLabTechnicianSummary();
+    updateLogisticsBoySummary();
 })();
 </script>
