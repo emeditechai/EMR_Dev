@@ -246,7 +246,6 @@
                             <th>Item Name</th>
                             <th style="width: 120px;" class="text-end">Default MRP (₹)</th>
                             <th style="width: 150px;" class="text-end">Franchise Rate (₹)</th>
-                            <th style="width: 100px;" class="text-center">Disc. Allowed</th>
                             <th style="width: 70px;" class="text-center">Active</th>
                             <th style="width: 60px;" class="text-center">Action</th>
                         </tr>
@@ -367,7 +366,7 @@
                             SubCategory_ID: itemSubCatId,
                             Default_Rate: item.Default_Rate || item.default_Rate,
                             Rate: item.Default_Rate || item.default_Rate,
-                            Is_Discount_Allowed: true,
+                            Is_Discount_Allowed: false,
                             Status: true
                         });
                         matchingCount++;
@@ -457,7 +456,7 @@
                             SubCategory_ID: itemSubCatId,
                             Default_Rate: item.Default_Rate || item.default_Rate,
                             Rate: Math.round(newRate * 100) / 100,
-                            Is_Discount_Allowed: item.Is_Discount_Allowed !== undefined ? item.Is_Discount_Allowed : (item.is_Discount_Allowed !== undefined ? item.is_Discount_Allowed : true),
+                            Is_Discount_Allowed: false,
                             Status: item.Status !== undefined ? item.Status : true
                         };
                     });
@@ -497,7 +496,7 @@
                     SubCategory_ID: itemData.SubCategory_ID || itemData.subCategory_ID,
                     Default_Rate: itemData.Default_Rate || itemData.default_Rate,
                     Rate: itemData.Default_Rate || itemData.default_Rate,
-                    Is_Discount_Allowed: true,
+                    Is_Discount_Allowed: false,
                     Status: true
                 });
                 renderGrid();
@@ -521,7 +520,7 @@
                         SubCategory_ID: item.SubCategory_ID || item.subCategory_ID,
                         Default_Rate: item.Default_Rate || item.default_Rate,
                         Rate: item.Default_Rate || item.default_Rate,
-                        Is_Discount_Allowed: true,
+                        Is_Discount_Allowed: false,
                         Status: true
                     });
                     addedCount++;
@@ -566,11 +565,6 @@
             var idx = $(this).closest('tr').data('idx');
             var newRate = parseFloat($(this).val()) || 0;
             currentDetails[idx].Rate = newRate;
-        });
-
-        $('#tblDetails').on('change', '.chk-disc-allowed', function() {
-            var idx = $(this).closest('tr').data('idx');
-            currentDetails[idx].Is_Discount_Allowed = $(this).is(':checked');
         });
 
         $('#tblDetails').on('change', '.chk-status', function() {
@@ -620,7 +614,7 @@
         $('#badgeTestItems').text(`Tests: ${testCount}`);
 
         if (totalCount === 0) {
-            tbody.append('<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use copy rates or search dropdown above to add items.</td></tr>');
+            tbody.append('<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use copy rates or search dropdown above to add items.</td></tr>');
             return;
         }
 
@@ -650,7 +644,6 @@
 
             visibleCount++;
             var checked = item.Status ? 'checked' : '';
-            var discChecked = (item.Is_Discount_Allowed || item.is_Discount_Allowed) ? 'checked' : '';
             var typeBadge = type === 'Profile' ? 'bg-primary' : 'bg-info text-dark';
             
             var isSaved = (item.Detail_ID || item.detail_ID || 0) > 0;
@@ -676,11 +669,6 @@
                         </td>
                         <td class="text-center">
                             <div class="form-check form-switch d-flex justify-content-center mb-0">
-                                <input class="form-check-input chk-disc-allowed" type="checkbox" ${discChecked} title="Toggle Discount Allowed (Default: Yes)">
-                            </div>
-                        </td>
-                        <td class="text-center">
-                            <div class="form-check form-switch d-flex justify-content-center mb-0">
                                 <input class="form-check-input chk-status" type="checkbox" ${checked}>
                             </div>
                         </td>
@@ -691,7 +679,7 @@
         });
 
         if (visibleCount === 0) {
-            tbody.append(`<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-search me-1"></i>No items matching "<b>${searchTerm}</b>". <a href="javascript:void(0)" id="lnkClearSearch" class="text-primary fw-semibold ms-2">Clear Filter</a></td></tr>`);
+            tbody.append(`<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-search me-1"></i>No items matching "<b>${searchTerm}</b>". <a href="javascript:void(0)" id="lnkClearSearch" class="text-primary fw-semibold ms-2">Clear Filter</a></td></tr>`);
         } else {
             tbody.html(html);
         }

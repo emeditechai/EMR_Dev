@@ -255,6 +255,11 @@ public class LabRateListFranchiseController(
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
             ) ?? new List<LabRateCardDetailModel>();
 
+            foreach (var item in details)
+            {
+                item.Is_Discount_Allowed = false;
+            }
+
             var req = new LabRateCardSaveRequestModel
             {
                 RateCard_ID = vm.RateCard_ID,
