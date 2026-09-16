@@ -98,16 +98,29 @@ public class LabRateListCorporateController(
         }).ToList();
     }
 
-    private async Task<List<SelectListItem>> GetActiveCorporateListAsync(int? selectedId = null)
+    private async Task<List<SelectListItem>> GetActiveCorporateListAsync(int? selectedId = null, bool filterExistingConfigured = false)
     {
         try
         {
             var list = await corporateApiClient.GetListAsync(status: true);
             var now = DateTime.Now;
-            // Filter: Active status AND Effective_From <= now AND Effective_To >= now
-            return list
+            var activeCorporates = list
                 .Where(c => c.Status && c.Effective_From <= now && c.Effective_To >= now)
                 .OrderBy(c => c.Corporate_Name)
+                .ToList();
+
+            if (filterExistingConfigured)
+            {
+                var existingCards = await rateCardApi.GetListAsync(CorporateRateType, null, null, User.GetCompanyId());
+                var configuredCorporateIds = existingCards
+                    .Where(c => c.B2CIdentity_ID.HasValue && (!selectedId.HasValue || c.B2CIdentity_ID.Value != selectedId.Value))
+                    .Select(c => c.B2CIdentity_ID!.Value)
+                    .ToHashSet();
+
+                activeCorporates = activeCorporates.Where(c => !configuredCorporateIds.Contains(c.Corporate_ID)).ToList();
+            }
+
+            return activeCorporates
                 .Select(c => new SelectListItem
                 {
                     Value = c.Corporate_ID.ToString(),
@@ -139,12 +152,9 @@ public class LabRateListCorporateController(
     public async Task<IActionResult> LoadData(int? branchId, bool? status, [FromServices] IQueryStringEncryptionService encryptionService)
     {
         var companyId = User.GetCompanyId();
-        var isHO = CheckIsHOBranch();
-        var currentBranchId = User.GetCurrentBranchId();
 
-        int? filterBranchId = isHO ? branchId : currentBranchId;
-
-        var data = await rateCardApi.GetListAsync(CorporateRateType, filterBranchId, status, companyId);
+        // Corporate rate list is global / not branch specific, so pass null for branchId to view from all branches
+        var data = await rateCardApi.GetListAsync(CorporateRateType, null, status, companyId);
         var result = data.Select(item => new
         {
             item.RateCard_ID,
@@ -170,16 +180,17 @@ public class LabRateListCorporateController(
         var currentBranchId = User.GetCurrentBranchId() ?? 1;
 
         var branches = await GetBranchListAsync(currentBranchId);
-        var corporates = await GetActiveCorporateListAsync();
+        var corporates = await GetActiveCorporateListAsync(filterExistingConfigured: true);
+        var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
 
         var vm = new LabRateCardFormViewModel
         {
             CompanyId = User.GetCompanyId(),
             IsHOBranch = isHO,
-            Branch_ID = currentBranchId,
+            Branch_ID = null,
             BranchList = new SelectList(branches, "Value", "Text", currentBranchId),
             CorporateList = new SelectList(corporates, "Value", "Text"),
-            SourceCorporateList = new SelectList(corporates, "Value", "Text"),
+            SourceCorporateList = new SelectList(allCorporates, "Value", "Text"),
             Rate_Type = CorporateRateType,
             Effective_From = DateTime.Today,
             Effective_To = new DateTime(2099, 12, 31),
@@ -203,18 +214,19 @@ public class LabRateListCorporateController(
 
         var isHO = CheckIsHOBranch();
         var branches = await GetBranchListAsync(card.Header.Branch_ID);
-        var corporates = await GetActiveCorporateListAsync(card.Header.B2CIdentity_ID);
+        var corporates = await GetActiveCorporateListAsync(card.Header.B2CIdentity_ID, filterExistingConfigured: true);
+        var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
 
         var vm = new LabRateCardFormViewModel
         {
             RateCard_ID = card.Header.RateCard_ID,
             CompanyId = card.Header.CompanyId,
             IsHOBranch = isHO,
-            Branch_ID = card.Header.Branch_ID,
+            Branch_ID = null,
             BranchList = new SelectList(branches, "Value", "Text", card.Header.Branch_ID),
             B2CIdentity_ID = card.Header.B2CIdentity_ID,
             CorporateList = new SelectList(corporates, "Value", "Text", card.Header.B2CIdentity_ID),
-            SourceCorporateList = new SelectList(corporates, "Value", "Text"),
+            SourceCorporateList = new SelectList(allCorporates, "Value", "Text"),
             Rate_Type = CorporateRateType,
             Effective_From = card.Header.Effective_From,
             Effective_To = card.Header.Effective_To,
@@ -232,15 +244,19 @@ public class LabRateListCorporateController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(LabRateCardFormViewModel vm)
     {
+        // Corporate rate list is global and not branch specific
+        vm.Branch_ID = null;
+
         if (!ModelState.IsValid)
         {
             var errors = string.Join(" | ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
             TempData["ErrorMessage"] = string.IsNullOrWhiteSpace(errors) ? "Please fill all required fields correctly." : errors;
             var isHO = CheckIsHOBranch();
-            var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID);
+            var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
+            var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
-            vm.SourceCorporateList = new SelectList(corporates, "Value", "Text");
+            vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
             vm.DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text");
             vm.CategoryList = new SelectList(await GetCategoryListAsync(), "Value", "Text");
             vm.SubCategoryList = new SelectList(await GetSubCategoryListAsync(), "Value", "Text");
@@ -250,6 +266,29 @@ public class LabRateListCorporateController(
 
         try
         {
+            // Validation: Ensure no duplicate rate list for the same corporate
+            if (vm.B2CIdentity_ID.HasValue)
+            {
+                var existingCards = await rateCardApi.GetListAsync(CorporateRateType, null, null, vm.CompanyId);
+                var isDuplicate = existingCards.Any(c => c.B2CIdentity_ID == vm.B2CIdentity_ID && (!vm.RateCard_ID.HasValue || c.RateCard_ID != vm.RateCard_ID.Value));
+                if (isDuplicate)
+                {
+                    ModelState.AddModelError("B2CIdentity_ID", "A rate list already exists for this Corporate. Only one rate list is allowed per Corporate.");
+                    TempData["ErrorMessage"] = "A rate list already exists for this Corporate. Only one rate list is allowed per Corporate.";
+                    var isHO = CheckIsHOBranch();
+                    var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
+                    var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+                    vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
+                    vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
+                    vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
+                    vm.DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text");
+                    vm.CategoryList = new SelectList(await GetCategoryListAsync(), "Value", "Text");
+                    vm.SubCategoryList = new SelectList(await GetSubCategoryListAsync(), "Value", "Text");
+                    vm.IsHOBranch = isHO;
+                    return View("Form", vm);
+                }
+            }
+
             var details = JsonSerializer.Deserialize<List<LabRateCardDetailModel>>(
                 vm.DetailsJson, 
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
@@ -264,7 +303,7 @@ public class LabRateListCorporateController(
             {
                 RateCard_ID = vm.RateCard_ID,
                 CompanyId = vm.CompanyId,
-                Branch_ID = vm.Branch_ID,
+                Branch_ID = null, // Always NULL for Corporate rate list
                 B2CIdentity_ID = vm.B2CIdentity_ID,
                 Rate_Type = CorporateRateType,
                 Effective_From = vm.Effective_From,
@@ -283,10 +322,11 @@ public class LabRateListCorporateController(
             ModelState.AddModelError("", ex.Message);
             TempData["ErrorMessage"] = ex.Message;
             var isHO = CheckIsHOBranch();
-            var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID);
+            var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
+            var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
-            vm.SourceCorporateList = new SelectList(corporates, "Value", "Text");
+            vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
             vm.DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text");
             vm.CategoryList = new SelectList(await GetCategoryListAsync(), "Value", "Text");
             vm.SubCategoryList = new SelectList(await GetSubCategoryListAsync(), "Value", "Text");

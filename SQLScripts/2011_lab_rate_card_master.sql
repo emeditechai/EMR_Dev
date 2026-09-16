@@ -146,7 +146,11 @@ BEGIN
     WHERE h.[IsDeleted] = 0
       AND (@CompanyId IS NULL OR h.[CompanyId] = @CompanyId)
       AND (@RateType IS NULL OR h.[Rate_Type] = @RateType)
-      AND (@BranchId IS NULL OR h.[Branch_ID] = @BranchId)
+      AND (
+          @BranchId IS NULL 
+          OR h.[Branch_ID] = @BranchId 
+          OR (h.[Rate_Type] = 'Corporate' AND h.[Branch_ID] IS NULL)
+      )
       AND (@Status IS NULL OR h.[Status] = @Status)
     ORDER BY b.[BranchName] ASC, h.[Effective_From] DESC;
 END
@@ -220,7 +224,7 @@ GO
 CREATE PROCEDURE [dbo].[usp_Api_LabRateCardMaster_Save]
     @RateCard_ID     INT = NULL OUTPUT,
     @CompanyId       INT = 1,
-    @Branch_ID       INT,
+    @Branch_ID       INT = NULL,
     @B2CIdentity_ID  INT = NULL,
     @Rate_Type       VARCHAR(50),
     @Effective_From  DATE,
@@ -234,6 +238,27 @@ BEGIN
     BEGIN TRANSACTION;
 
     BEGIN TRY
+        -- For Corporate rate cards, Branch_ID is always NULL
+        IF @Rate_Type = 'Corporate'
+        BEGIN
+            SET @Branch_ID = NULL;
+        END
+
+        -- Validation: Check if another rate card already exists for this Corporate
+        IF @Rate_Type = 'Corporate' AND @B2CIdentity_ID IS NOT NULL
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM [dbo].[LabRateCardMaster]
+                WHERE [Rate_Type] = 'Corporate'
+                  AND [B2CIdentity_ID] = @B2CIdentity_ID
+                  AND [IsDeleted] = 0
+                  AND (@RateCard_ID IS NULL OR @RateCard_ID = 0 OR [RateCard_ID] <> @RateCard_ID)
+            )
+            BEGIN
+                RAISERROR('A rate list already exists for this Corporate. Only one rate list is allowed per Corporate.', 16, 1);
+            END
+        END
+
         IF @RateCard_ID IS NULL OR @RateCard_ID = 0
         BEGIN
             INSERT INTO [dbo].[LabRateCardMaster]

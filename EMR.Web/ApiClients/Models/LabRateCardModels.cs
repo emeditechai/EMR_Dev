@@ -4,8 +4,8 @@ public class LabRateCardHeaderModel
 {
     public int RateCard_ID { get; set; }
     public int CompanyId { get; set; }
-    public int Branch_ID { get; set; }
-    public string Branch_Name { get; set; } = string.Empty;
+    public int? Branch_ID { get; set; }
+    public string? Branch_Name { get; set; }
     public int? B2CIdentity_ID { get; set; }
     public string? Entity_Name { get; set; }
     public string Rate_Type { get; set; } = string.Empty;
@@ -47,7 +47,7 @@ public class LabRateCardSaveRequestModel
 {
     public int? RateCard_ID { get; set; }
     public int CompanyId { get; set; } = 1;
-    public int Branch_ID { get; set; }
+    public int? Branch_ID { get; set; }
     public int? B2CIdentity_ID { get; set; }
     public string Rate_Type { get; set; } = string.Empty;
     public DateTime Effective_From { get; set; }

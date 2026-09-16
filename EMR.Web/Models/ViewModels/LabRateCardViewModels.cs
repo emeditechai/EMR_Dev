@@ -16,7 +16,7 @@ public class LabRateCardFormViewModel
     public bool IsHOBranch { get; set; }
     
     // Header
-    public int Branch_ID { get; set; }
+    public int? Branch_ID { get; set; }
     public SelectList? BranchList { get; set; }
     public int? B2CIdentity_ID { get; set; }
     public SelectList? FranchiseList { get; set; }
