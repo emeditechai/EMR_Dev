@@ -952,10 +952,10 @@
                 $('#lblProgressPercent').text(`${progressPct}%`);
                 $('#lblProgressBar').css('width', `${progressPct}%`);
 
-                // Update Print Labels button text with count of collected barcodes
-                const distinctCollectedBarcodes = new Set(items.filter(x => x.barcodeNo && x.collectionstatusID === 2).map(x => x.barcodeNo)).size;
-                if (distinctCollectedBarcodes > 0) {
-                    $('#btnPrintAllLabels').html(`<i class="bi bi-printer me-1"></i> Print Labels <span class="badge bg-light text-dark ms-1">${distinctCollectedBarcodes}</span>`);
+                // Update Print Labels button text with count of generated barcodes
+                const distinctBarcodes = new Set(items.filter(x => x.barcodeNo).map(x => x.barcodeNo)).size;
+                if (distinctBarcodes > 0) {
+                    $('#btnPrintAllLabels').html(`<i class="bi bi-printer me-1"></i> Print Labels <span class="badge bg-light text-dark ms-1">${distinctBarcodes}</span>`);
                 } else {
                     $('#btnPrintAllLabels').html(`<i class="bi bi-printer me-1"></i> Print Labels`);
                 }
@@ -1230,7 +1230,7 @@
                             ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9"><i class="bi bi-exclamation-circle me-1"></i>Yes</span>'
                             : '<span class="badge bg-light text-muted border fs-9">No</span>';
 
-                        const barcodeCellHtml = (test.barcodeNo && test.collectionstatusID === 2)
+                        const barcodeCellHtml = test.barcodeNo
                             ? `<div class="d-flex align-items-center gap-1">
                                  <span class="barcode-display-badge" title="Barcode">${escapeHtml(test.barcodeNo)}</span>
                                  <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 btn-copy-barcode" data-barcode="${escapeHtml(test.barcodeNo)}" title="Copy Barcode to Clipboard"><i class="bi bi-clipboard"></i></button>
@@ -1349,12 +1349,12 @@
             // ── 3. Barcode Visualizer Modal (Distinct Barcodes Only!) ──────────
             $('#btnViewAllBarcodes').on('click', function () {
                 if (!activeOrderId || !currentDetailData) return;
-                const collectedItems = (currentDetailData.items || []).filter(x => x.barcodeNo && x.collectionstatusID === 2);
-                if (collectedItems.length === 0) {
-                    showNotify('No samples have been collected yet. Barcodes are generated upon sample collection.', 'warning');
+                const itemsWithBarcodes = (currentDetailData.items || []).filter(x => x.barcodeNo);
+                if (itemsWithBarcodes.length === 0) {
+                    showNotify('No barcodes have been generated for this order yet.', 'warning');
                     return;
                 }
-                showBarcodeModalWithItems(collectedItems);
+                showBarcodeModalWithItems(itemsWithBarcodes);
             });
 
             $(document).on('click', '.btn-preview-barcode', function () {
@@ -1807,9 +1807,9 @@
             // ── 7. Print Barcode Labels Modal ───────────────────────────────────
             $('#btnPrintAllLabels').on('click', function () {
                 if (!activeOrderId) return;
-                const anyBarcodes = (currentDetailData?.items || []).some(x => x.barcodeNo && x.collectionstatusID === 2);
+                const anyBarcodes = (currentDetailData?.items || []).some(x => x.barcodeNo);
                 if (!anyBarcodes) {
-                    showNotify('No samples have been collected yet. Barcodes are generated upon sample collection.', 'warning');
+                    showNotify('No barcodes have been generated for this order yet.', 'warning');
                     return;
                 }
                 openBarcodeModal(activeOrderId, null, null);
