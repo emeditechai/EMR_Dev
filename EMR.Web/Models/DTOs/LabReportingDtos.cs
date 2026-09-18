@@ -35,6 +35,10 @@ namespace EMR.Web.Models.DTOs
         public int ReportStatusId { get; set; }
         public string ReportStatusName { get; set; } = "Pending Entry";
         public string ReportBadgeClass { get; set; } = "bg-secondary-subtle text-secondary border border-secondary-subtle";
+        public bool IsTransferred { get; set; }
+        public int? SourceBranchId { get; set; }
+        public string? SourceBranchName { get; set; }
+        public DateTime? TransferredDate { get; set; }
     }
 
     public class LabReportingHeaderListResult
@@ -91,6 +95,11 @@ namespace EMR.Web.Models.DTOs
         public decimal TotalPaid { get; set; }
         public decimal BalanceDue { get; set; }
         public decimal TotalAmount { get; set; }
+        public bool IsTransferred { get; set; }
+        public int? SourceBranchId { get; set; }
+        public string? SourceBranchName { get; set; }
+        public DateTime? TransferredDate { get; set; }
+        public string? TransferRemarks { get; set; }
         public List<LabReportingItemDto> Items { get; set; } = new();
 
         public LabReportingHierarchyDto GetHierarchy()
@@ -212,6 +221,13 @@ namespace EMR.Web.Models.DTOs
         public DateTime? ValidatedDate { get; set; }
         public DateTime? ApprovedDate { get; set; }
         public DateTime? LastSavedDate { get; set; }
+        public bool IsTransferred { get; set; }
+        public int? SourceBranchId { get; set; }
+        public string? SourceBranchName { get; set; }
+        public int? TargetBranchId { get; set; }
+        public string? TargetBranchName { get; set; }
+        public DateTime? TransferredDate { get; set; }
+        public string? TransferRemarks { get; set; }
     }
 
     public class LabReportStatusMasterDto

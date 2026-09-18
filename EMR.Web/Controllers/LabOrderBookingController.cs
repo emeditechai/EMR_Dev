@@ -1444,13 +1444,26 @@ namespace EMR.Web.Controllers
                 if (con.State != System.Data.ConnectionState.Open)
                     await con.OpenAsync();
 
-                var profile = await con.QueryFirstOrDefaultAsync<dynamic>(@"
-                    SELECT TOP 1 h.Profile_ID, h.Profile_Code, h.Profile_Name, h.Profile_Type, h.Test_ID, h.MRP, h.Profile_TAT_Hours
-                    FROM LabInvestigationProfileHeader h
-                    WHERE ((@ProfileId IS NOT NULL AND h.Profile_ID = @ProfileId)
-                       OR (@TestId IS NOT NULL AND (h.Test_ID = @TestId OR h.Profile_Name = (SELECT TOP 1 Test_Name FROM LabInvestigationMaster WHERE Test_ID = @TestId))))
-                       AND h.IsDeleted = 0",
-                    new { ProfileId = profileId, TestId = testId });
+                dynamic? profile = null;
+                if (profileId.HasValue && profileId.Value > 0)
+                {
+                    profile = await con.QueryFirstOrDefaultAsync<dynamic>(@"
+                        SELECT TOP 1 h.Profile_ID, h.Profile_Code, h.Profile_Name, h.Profile_Type, h.Test_ID, h.MRP, h.Profile_TAT_Hours
+                        FROM LabInvestigationProfileHeader h
+                        WHERE h.Profile_ID = @ProfileId AND h.IsDeleted = 0",
+                        new { ProfileId = profileId.Value });
+                }
+
+                if (profile == null && testId.HasValue && testId.Value > 0)
+                {
+                    profile = await con.QueryFirstOrDefaultAsync<dynamic>(@"
+                        SELECT TOP 1 h.Profile_ID, h.Profile_Code, h.Profile_Name, h.Profile_Type, h.Test_ID, h.MRP, h.Profile_TAT_Hours
+                        FROM LabInvestigationProfileHeader h
+                        WHERE h.IsDeleted = 0 
+                          AND h.Profile_Type = 1
+                          AND (h.Test_ID = @TestId OR h.Profile_Name = (SELECT TOP 1 Test_Name FROM LabInvestigationMaster WHERE Test_ID = @TestId))",
+                        new { TestId = testId.Value });
+                }
 
                 if (profile == null)
                 {
@@ -1461,19 +1474,55 @@ namespace EMR.Web.Controllers
                 string encryptedToken = encryptionService.EncryptParameters(new Dictionary<string, string?> { ["id"] = resolvedProfileId.ToString() });
                 string fullUrl = $"/LabInvestigationProfiles/Details?q={encryptedToken}";
 
-                var tests = await con.QueryAsync<dynamic>(@"
+                var tests = (await con.QueryAsync<dynamic>(@"
                     SELECT d.Detail_ID, d.Test_ID, d.Sequence,
                            t.Test_Code, t.Test_Name, t.TAT_Hours, t.Reporting_Type,
                            COALESCE(t.MRP, 0) as MRP,
+                           CAST(ISNULL(t.Is_Profile_Test, 0) AS BIT) as IsProfileTest,
+                           subH.Profile_ID as SubProfileId,
                            dept.DeptName as DepartmentName,
                            cat.Category_Name as CategoryName
                     FROM LabInvestigationProfileDetail d
                     JOIN LabInvestigationMaster t ON t.Test_ID = d.Test_ID
+                    LEFT JOIN LabInvestigationProfileHeader subH ON (subH.Test_ID = t.Test_ID OR subH.Profile_Name = t.Test_Name) 
+                         AND subH.Profile_Type = 1 AND subH.IsDeleted = 0
                     LEFT JOIN DepartmentMaster dept ON dept.DeptId = t.Department_ID
                     LEFT JOIN LabTestCategoryMaster cat ON cat.Category_ID = t.Category_ID
                     WHERE d.Profile_ID = @ProfileId AND d.IsDeleted = 0
                     ORDER BY d.Sequence",
-                    new { ProfileId = resolvedProfileId });
+                    new { ProfileId = resolvedProfileId })).ToList();
+
+                var allIncludedTestIds = new HashSet<int>();
+                var allIncludedTestNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var dt in tests)
+                {
+                    allIncludedTestIds.Add((int)dt.Test_ID);
+                    allIncludedTestNames.Add((string)dt.Test_Name);
+                }
+
+                // If any test in this profile/package is itself a profile, fetch its sub-tests too
+                var subProfileIds = tests
+                    .Where(x => (bool)x.IsProfileTest && x.SubProfileId != null)
+                    .Select(x => (int)x.SubProfileId)
+                    .Distinct()
+                    .ToList();
+
+                if (subProfileIds.Any())
+                {
+                    var subTests = await con.QueryAsync<dynamic>(@"
+                        SELECT d.Test_ID, t.Test_Name
+                        FROM LabInvestigationProfileDetail d
+                        JOIN LabInvestigationMaster t ON t.Test_ID = d.Test_ID
+                        WHERE d.Profile_ID IN @SubProfileIds AND d.IsDeleted = 0",
+                        new { SubProfileIds = subProfileIds });
+
+                    foreach (var st in subTests)
+                    {
+                        allIncludedTestIds.Add((int)st.Test_ID);
+                        allIncludedTestNames.Add((string)st.Test_Name);
+                    }
+                }
 
                 return Json(new
                 {
@@ -1485,18 +1534,22 @@ namespace EMR.Web.Controllers
                     tatHours = profile.Profile_TAT_Hours,
                     mrp = profile.MRP,
                     profileUrl = fullUrl,
-                    testCount = tests.Count(),
+                    testCount = tests.Count,
                     tests = tests.Select(x => new
                     {
                         testId = (int)x.Test_ID,
                         sequence = x.Sequence,
                         testCode = (string)x.Test_Code,
                         testName = (string)x.Test_Name,
+                        isProfileTest = (bool)x.IsProfileTest,
+                        subProfileId = (int?)(x.SubProfileId != null ? (int)x.SubProfileId : null),
                         reportingType = (string)(x.Reporting_Type ?? "Numeric"),
                         categoryName = (string)(x.CategoryName ?? ""),
                         departmentName = (string)(x.DepartmentName ?? ""),
                         mrp = (decimal)(x.MRP ?? 0)
-                    })
+                    }),
+                    allIncludedTestIds = allIncludedTestIds.ToList(),
+                    allIncludedTestNames = allIncludedTestNames.ToList()
                 });
             }
             catch (Exception ex)

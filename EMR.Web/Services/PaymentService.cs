@@ -150,7 +150,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     AND CAST(GETDATE() AS DATE) BETWEEN m.Effective_From AND m.Effective_To
                 LEFT JOIN LabRateCardDetail d ON d.RateCard_ID = m.RateCard_ID 
                     AND d.Item_ID = si.InvestigationId 
-                    AND d.Item_Type = CASE WHEN si.Type = 'P' THEN 'Profile' WHEN sm.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
+                    AND d.Item_Type = CASE WHEN si.Type = 'P' THEN 'Package' WHEN sm.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
                     AND d.IsDeleted = 0
                 LEFT JOIN PaymentHeader ph ON ph.ModuleCode = 'LAB' AND ph.ModuleRefId = si.LabOrderId AND ph.IsActive = 1
                 LEFT JOIN PaymentLineItem pli ON pli.PaymentHeaderId = ph.PaymentHeaderId 
@@ -304,7 +304,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         AND CAST(GETDATE() AS DATE) BETWEEN m.Effective_From AND m.Effective_To
                     LEFT JOIN LabRateCardDetail d ON d.RateCard_ID = m.RateCard_ID 
                         AND d.Item_ID = loi.InvestigationId 
-                        AND d.Item_Type = CASE WHEN loi.Type = 'P' THEN 'Profile' WHEN lim.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
+                        AND d.Item_Type = CASE WHEN loi.Type = 'P' THEN 'Package' WHEN lim.Is_Profile_Test = 1 THEN 'Profile' ELSE 'Test' END 
                         AND d.IsDeleted = 0
                     WHERE loi.LabOrderId = @ModuleRefId 
                       AND loi.IsActive = 1 

@@ -1,0 +1,1793 @@
+@model EMR.Web.Models.ViewModels.SampleTransferDashboardViewModel
+@{
+    ViewData["Title"] = "Sample Transfer";
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
+    <style>
+        .transfer-wrapper {
+            background-color: #f8fafc;
+            min-height: calc(100vh - 60px);
+        }
+        .stat-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+        }
+        .stat-card.active-card {
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2) !important;
+            background-color: #f5f3ff;
+        }
+        .stat-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+        }
+        .fs-7 { font-size: 0.875rem !important; }
+        .fs-8 { font-size: 0.8rem !important; }
+        .fs-9 { font-size: 0.72rem !important; }
+        .py-0.5 { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; }
+        .px-2.5 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+        .py-1.5 { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+        .pt-1.5 { padding-top: 0.45rem !important; }
+        .mt-1.5 { margin-top: 0.45rem !important; }
+        .mb-1.5 { margin-bottom: 0.45rem !important; }
+        .g-1.5 { --bs-gutter-x: 0.45rem; --bs-gutter-y: 0.45rem; }
+        
+        .transfer-action-bar {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 0.75rem;
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+        }
+        .transfer-table-container {
+            max-height: calc(100vh - 350px);
+            overflow-y: auto;
+        }
+        .transfer-table thead th {
+            position: sticky;
+            top: 0;
+            background: #f1f5f9;
+            z-index: 5;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .barcode-badge {
+            font-family: var(--bs-font-monospace);
+            font-size: 0.78rem;
+            letter-spacing: 0.5px;
+            padding: 3px 7px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            color: #0f172a;
+        }
+        /* Tube Cap Styling */
+        .cap-badge-yellow { background-color: #fef08a !important; color: #854d0e !important; border: 1px solid #fde047 !important; }
+        .cap-badge-purple { background-color: #f3e8ff !important; color: #6b21a8 !important; border: 1px solid #d8b4fe !important; }
+        .cap-badge-blue   { background-color: #e0f2fe !important; color: #0369a1 !important; border: 1px solid #bae6fd !important; }
+        .cap-badge-grey   { background-color: #f1f5f9 !important; color: #475569 !important; border: 1px solid #cbd5e1 !important; }
+        .cap-badge-red    { background-color: #fee2e2 !important; color: #b91c1c !important; border: 1px solid #fecaca !important; }
+        .cap-badge-green  { background-color: #dcfce7 !important; color: #166534 !important; border: 1px solid #86efac !important; }
+        
+        .tab-btn.active {
+            font-weight: 700 !important;
+            border-bottom: 3px solid #4f46e5 !important;
+            color: #4f46e5 !important;
+            background: transparent !important;
+        }
+        .tab-btn {
+            border: none;
+            border-bottom: 3px solid transparent;
+            border-radius: 0;
+            color: #64748b;
+            padding: 10px 18px;
+            transition: all 0.2s ease;
+        }
+        .tab-btn:hover {
+            color: #1e293b;
+        }
+    </style>
+}
+
+<div class="container-fluid px-2 py-1 transfer-wrapper">
+    <!-- Top Bar -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-1 gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 fs-9">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index" class="text-decoration-none">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Laboratory</li>
+                    <li class="breadcrumb-item active fw-bold text-dark" aria-current="page">Sample Transfer</li>
+                </ol>
+            </nav>
+            <h4 class="mb-0 fw-bold text-dark d-flex align-items-center">
+                <i class="bi bi-arrow-left-right text-warning me-2"></i>Sample Transfer Management
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 fs-8 fw-semibold">
+                    <i class="bi bi-geo-alt-fill me-1"></i>Current: @(Model.BranchName ?? "Source Branch")
+                </span>
+            </h4>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center shadow-xs" id="btnRefreshList" style="width: 34px; height: 34px;" title="Refresh Data">
+                <i class="bi bi-arrow-clockwise fs-6"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards for Dispatch / Transfer (Dynamic) -->
+    <div class="row g-1 mb-1" id="dispatchKpiCards">
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0 border-start border-warning border-3 rounded-2 stat-card active-card" id="cardReadyFilter" data-status="Ready" title="Click to view samples ready for transfer">
+                <div class="card-body py-1 px-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.65rem !important; letter-spacing: 0.2px;">Ready for Transfer</span>
+                        <h6 class="mb-0 fw-bold text-warning mt-1" id="statReadyCount">@Model.Stats.ReadyCount</h6>
+                    </div>
+                    <div class="stat-icon bg-warning-subtle text-warning rounded-circle">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0 border-start border-success border-3 rounded-2 stat-card" id="cardTransferredFilter" data-status="Transferred" title="Click to view samples transferred today">
+                <div class="card-body py-1 px-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.65rem !important; letter-spacing: 0.2px;">Transferred Today</span>
+                        <h6 class="mb-0 fw-bold text-success mt-1" id="statTransferredToday">@Model.Stats.TransferredTodayCount</h6>
+                    </div>
+                    <div class="stat-icon bg-success-subtle text-success rounded-circle">
+                        <i class="bi bi-send-check-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm border-0 border-start border-primary border-3 rounded-2 stat-card" id="cardTargetLabs" title="Available target lab branches">
+                <div class="card-body py-1 px-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.65rem !important; letter-spacing: 0.2px;">Target Lab Branches</span>
+                        <h6 class="mb-0 fw-bold text-primary mt-1" id="statTargetBranches">@Model.Stats.TargetBranchesCount</h6>
+                    </div>
+                    <div class="stat-icon bg-primary-subtle text-primary rounded-circle">
+                        <i class="bi bi-hospital"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards for Receive (Dynamic) -->
+    <div class="row g-1 mb-1 d-none" id="receiveKpiCards">
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0 border-start border-warning border-3 rounded-2 stat-card active-card" id="cardPendingReceive" title="Click to view samples awaiting receipt">
+                <div class="card-body py-1 px-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.65rem !important; letter-spacing: 0.2px;">Pending Receipt</span>
+                        <h6 class="mb-0 fw-bold text-warning mt-1" id="statPendingReceiveCount">@Model.ReceiveStats.PendingReceiveCount</h6>
+                    </div>
+                    <div class="stat-icon bg-warning-subtle text-warning rounded-circle">
+                        <i class="bi bi-box-arrow-in-down"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm border-0 border-start border-success border-3 rounded-2 stat-card" id="cardReceivedToday" title="Click to filter samples received today">
+                <div class="card-body py-1 px-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.65rem !important; letter-spacing: 0.2px;">Received Today</span>
+                        <h6 class="mb-0 fw-bold text-success mt-1" id="statReceivedTodayCount">@Model.ReceiveStats.ReceivedTodayCount</h6>
+                    </div>
+                    <div class="stat-icon bg-success-subtle text-success rounded-circle">
+                        <i class="bi bi-check2-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm border-0 border-start border-primary border-3 rounded-2 stat-card" id="cardSourceBranches" title="Source branches sending samples to this lab">
+                <div class="card-body py-1 px-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.65rem !important; letter-spacing: 0.2px;">Source Lab Branches</span>
+                        <h6 class="mb-0 fw-bold text-primary mt-1" id="statSourceBranchesCount">@Model.ReceiveStats.SourceBranchesCount</h6>
+                    </div>
+                    <div class="stat-icon bg-primary-subtle text-primary rounded-circle">
+                        <i class="bi bi-buildings"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="card shadow-sm border-0 rounded-2 mb-1">
+        <div class="card-header bg-white p-0 border-bottom">
+            <ul class="nav nav-tabs border-0" id="transferTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link tab-btn active fs-9" id="dispatch-tab" data-bs-toggle="tab" data-bs-target="#dispatchPane" type="button" role="tab" aria-selected="true" style="padding: 6px 12px;">
+                        <i class="bi bi-send me-1 text-warning"></i>Dispatch Samples Worklist
+                        <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill ms-1" id="badgeTabCount" style="font-size: 0.65rem;">@Model.Stats.ReadyCount</span>
+                    </button>
+                </li>
+                
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link tab-btn fs-9" id="receive-tab" data-bs-toggle="tab" data-bs-target="#receivePane" type="button" role="tab" aria-selected="false" style="padding: 6px 12px;">
+                        <i class="bi bi-box-arrow-in-down me-1 text-success"></i>Receive Samples Worklist
+                        <span class="badge bg-success-subtle text-success-emphasis rounded-pill ms-1" id="badgeReceiveTabCount" style="font-size: 0.65rem; @(Model.ReceiveStats.PendingReceiveCount > 0 ? "" : "display: none;")">@Model.ReceiveStats.PendingReceiveCount</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link tab-btn fs-9" id="history-tab" data-bs-toggle="tab" data-bs-target="#historyPane" type="button" role="tab" aria-selected="false" style="padding: 6px 12px;">
+                        <i class="bi bi-clock-history me-1 text-info"></i>Transfer Audit &amp; History
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="tab-content" id="transferTabContent">
+        <!-- ==================== TAB 1: WORKLIST ==================== -->
+        <div class="tab-pane fade show active" id="dispatchPane" role="tabpanel">
+            <!-- Unified Compact Filter Card -->
+            <div class="card shadow-sm border-0 rounded-2 mb-1">
+                <div class="card-body p-1 px-2">
+                    <!-- Row 1: Date & Search Filters -->
+                    <div class="row g-2 align-items-center">
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Filter By Date</label>
+                            <select id="selDateFilterType" class="form-select form-select-sm fs-8 py-0.5">
+                                <option value="CollectionDate" selected="@(Model.DateFilterType == "CollectionDate")">Collection Date</option>
+                                <option value="TransferDate" selected="@(Model.DateFilterType == "TransferDate")">Transfer Date</option>
+                                <option value="BookingDate" selected="@(Model.DateFilterType == "BookingDate")">Booking Date Time</option>
+                                <option value="OrderDate" selected="@(Model.DateFilterType == "OrderDate")">Order / Bill Date</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">From Date</label>
+                            <input type="date" id="txtFromDate" class="form-control form-control-sm fs-8 py-0.5" value="@Model.FromDate.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">To Date</label>
+                            <input type="date" id="txtToDate" class="form-control form-control-sm fs-8 py-0.5" value="@Model.ToDate.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Quick Select</label>
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="today">Today</button>
+                                <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="yesterday">Yesterday</button>
+                                <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="week">7 Days</button>
+                                <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="month">This Month</button>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-1">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Status</label>
+                            <select id="selTransferStatus" class="form-select form-select-sm fs-8 py-0.5">
+                                <option value="Ready" selected="@(Model.TransferStatusFilter == "Ready")">Ready</option>
+                                <option value="Transferred" selected="@(Model.TransferStatusFilter == "Transferred")">Transferred</option>
+                                <option value="All" selected="@(Model.TransferStatusFilter == "All")">All</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Search</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0 py-0.5"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="txtSearch" class="form-control border-start-0 fs-8 py-0.5" placeholder="Token, Bill, Patient..." value="@Model.Search" />
+                                <button class="btn btn-outline-secondary py-0.5" type="button" id="btnClearSearch" title="Clear Search">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Investigation Cascading Filters (Compact) -->
+                    <div class="pt-1.5 mt-1.5 border-top">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="fw-semibold text-secondary fs-9 d-flex align-items-center gap-1">
+                                <i class="bi bi-funnel-fill text-primary"></i> Filter Investigations:
+                            </span>
+                            <button type="button" class="btn btn-link btn-sm text-decoration-none text-danger p-0 fs-9" id="btnResetFilters" style="display:none;">
+                                <i class="bi bi-x-circle me-1"></i>Clear Filters
+                            </button>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-hospital me-1"></i>Department</label>
+                                <select id="ddlDepartment" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Departments --">
+                                    <option value="">-- All Departments --</option>
+                                    @foreach (var d in Model.DepartmentOptions)
+                                    {
+                                        <option value="@d.Value" selected="@(d.Value == Model.DepartmentId?.ToString() ? "selected" : null)">@d.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-tag me-1"></i>Category</label>
+                                <select id="ddlCategory" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Categories --">
+                                    <option value="">-- All Categories --</option>
+                                    @foreach (var c in Model.CategoryOptions)
+                                    {
+                                        <option value="@c.Value" selected="@(c.Value == Model.CategoryId?.ToString() ? "selected" : null)">@c.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-diagram-3 me-1"></i>Sub Category</label>
+                                <select id="ddlSubCategory" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Sub Categories --">
+                                    <option value="">-- All Sub Categories --</option>
+                                    @foreach (var s in Model.SubCategoryOptions)
+                                    {
+                                        <option value="@s.Value" selected="@(s.Value == Model.SubCategoryId?.ToString() ? "selected" : null)">@s.Text</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Action Bar (Displayed always or highlighted when samples are checked) -->
+            <div class="transfer-action-bar p-2 mb-1 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-box-arrow-up-right fs-4 text-warning"></i>
+                        <div>
+                            <div class="fw-bold fs-8">Transfer Samples to Destination Branch</div>
+                            <div class="fs-9 text-light opacity-75" style="font-size: 0.65rem !important;">
+                                Routed to target branch's Lab Reporting Entry.
+                            </div>
+                        </div>
+                    </div>
+                    <span class="badge bg-warning text-dark fs-8 px-2.5 py-1.5 fw-bold" id="selectedCountBadge">0 Selected</span>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div style="min-width: 220px;">
+                        <select id="ddlTargetBranch" class="form-select form-select-sm fs-8 border-0 shadow-sm fw-semibold">
+                            <option value="">-- Select Destination Branch --</option>
+                            @foreach (var tb in Model.TargetBranches)
+                            {
+                                <option value="@tb.Value">@tb.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div style="min-width: 200px;">
+                        <input type="text" id="txtTransferRemarks" class="form-control form-control-sm fs-8 border-0 shadow-sm" placeholder="Transfer remarks (optional)..." maxlength="200" />
+                    </div>
+                    <button type="button" class="btn btn-outline-light text-warning btn-sm fw-bold px-2 py-1 shadow-sm d-flex align-items-center gap-1" id="btnPrintTransferSelected" style="font-size: 0.75rem;">
+                        <i class="bi bi-printer"></i>
+                        <span>Print Selected</span>
+                    </button>
+                    <button type="button" class="btn btn-warning btn-sm fw-bold px-2 py-1 shadow-sm d-flex align-items-center gap-1" id="btnExecuteTransfer" style="font-size: 0.75rem;">
+                        <i class="bi bi-send-fill"></i>
+                        <span>Transfer Selected</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Samples Table Card -->
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-body p-0">
+                    <div class="table-responsive transfer-table-container">
+                        <table class="table table-hover transfer-table align-middle mb-0" id="tblSamples">
+                            <thead class="table-light">
+                                <tr class="fs-9 text-muted text-uppercase fw-bold">
+                                    <th class="ps-3 text-center" style="width: 40px;">
+                                        <input type="checkbox" class="form-check-input" id="chkSelectAll" title="Select All Ready Samples" />
+                                    </th>
+                                    <th style="width: 130px;">Token / Bill</th>
+                                    <th>Patient Details</th>
+                                    <th>Specimen &amp; Barcode</th>
+                                    <th>Investigation / Test</th>
+                                    <th>Collection Info</th>
+                                    <th class="text-center">Transfer Status</th>
+                                    <th class="text-end pe-3" style="width: 100px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tblSamplesBody" class="fs-8">
+                                <!-- Populated dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptySamplesState" class="text-center py-5 d-none">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <div class="fw-bold text-dark fs-6 mt-2">No Samples Found</div>
+                        <div class="text-muted fs-8">There are no collected samples matching your current filters.</div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="loadingSamplesState" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted fs-8 mt-2">Fetching eligible samples for transfer...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <!-- ==================== TAB 1.5: RECEIVE ==================== -->
+        <div class="tab-pane fade" id="receivePane" role="tabpanel">
+            <div class="card shadow-sm border-0 rounded-2 mb-1">
+                <div class="card-body p-1 px-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Filter By Date</label>
+                            <select id="selReceiveDateFilterType" class="form-select form-select-sm fs-8 py-0.5">
+                                <option value="ReceivedDate" selected>Received Date</option>
+                                <option value="TransferDate">Transfer Date</option>
+                                <option value="CollectionDate">Collection Date</option>
+                                <option value="BookingDate">Booking Date Time</option>
+                                <option value="OrderDate">Order / Bill Date</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">From Date</label>
+                            <input type="date" id="txtReceiveFromDate" class="form-control form-control-sm fs-8 py-0.5" value="@DateTime.Today.AddDays(-7).ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">To Date</label>
+                            <input type="date" id="txtReceiveToDate" class="form-control form-control-sm fs-8 py-0.5" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Quick Select</label>
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-quick-receive-date py-0.5 fs-9" data-range="today">Today</button>
+                                <button type="button" class="btn btn-outline-secondary btn-quick-receive-date py-0.5 fs-9" data-range="yesterday">Yesterday</button>
+                                <button type="button" class="btn btn-outline-secondary btn-quick-receive-date py-0.5 fs-9" data-range="week">7 Days</button>
+                                <button type="button" class="btn btn-outline-secondary btn-quick-receive-date py-0.5 fs-9" data-range="month">This Month</button>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-1">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Status</label>
+                            <select id="selReceiveStatus" class="form-select form-select-sm fs-8 py-0.5">
+                                <option value="Pending" selected>Pending</option>
+                                <option value="Received">Received</option>
+                                <option value="All">All</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Search</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0 py-0.5"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="txtReceiveSearch" class="form-control border-start-0 fs-8 py-0.5" placeholder="Token, Bill, Patient..." />
+                                <button class="btn btn-outline-secondary py-0.5" type="button" id="btnClearReceiveSearch" title="Clear Search">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Action Bar -->
+            <div class="transfer-action-bar bg-success p-2 mb-1 d-flex flex-wrap align-items-center justify-content-between gap-2" id="receiveActionBar" style="background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-box-arrow-in-down fs-4 text-white"></i>
+                        <div>
+                            <div class="fw-bold fs-8 text-white">Receive Incoming Samples</div>
+                            <div class="fs-9 text-light opacity-75" style="font-size: 0.65rem !important;">
+                                Acknowledge receipt of samples dispatched from other branches.
+                            </div>
+                        </div>
+                    </div>
+                    <span class="badge bg-light text-success fs-8 px-2.5 py-1.5 fw-bold" id="selectedReceiveCountBadge">0 Selected</span>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div style="min-width: 200px;">
+                        <input type="text" id="txtReceiveRemarks" class="form-control form-control-sm fs-8 border-0 shadow-sm" placeholder="Receive remarks (optional)..." maxlength="200" />
+                    </div>
+                    <button type="button" class="btn btn-outline-light text-success btn-sm fw-bold px-2 py-1 shadow-sm d-flex align-items-center gap-1" id="btnPrintReceiveSelected" style="font-size: 0.75rem;">
+                        <i class="bi bi-printer"></i>
+                        <span>Print Selected</span>
+                    </button>
+                    <button type="button" class="btn btn-light text-success btn-sm fw-bold px-2 py-1 shadow-sm d-flex align-items-center gap-1" id="btnExecuteReceive" style="font-size: 0.75rem;">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>Receive Selected</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-body p-0">
+                    <div class="table-responsive transfer-table-container">
+                        <table class="table table-hover transfer-table align-middle mb-0" id="tblReceiveSamples">
+                            <thead class="table-light">
+                                <tr class="fs-9 text-muted text-uppercase fw-bold">
+                                    <th class="ps-3 text-center" style="width: 40px;">
+                                        <input type="checkbox" class="form-check-input" id="chkReceiveSelectAll" title="Select All Incoming Samples" />
+                                    </th>
+                                    <th style="width: 130px;">Token / Bill</th>
+                                    <th>Patient Details</th>
+                                    <th>Specimen &amp; Barcode</th>
+                                    <th>Investigation / Test</th>
+                                    <th>Source Branch</th>
+                                    <th>Dispatch Details</th>
+                                    <th class="text-center" style="width: 130px;">Receive Status</th>
+                                    <th class="text-end pe-3" style="width: 100px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tblReceiveSamplesBody" class="fs-8">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="emptyReceiveState" class="text-center py-5 d-none">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <div class="fw-bold text-dark fs-6 mt-2">No Incoming Samples</div>
+                        <div class="text-muted fs-8">There are no pending samples dispatched to this branch.</div>
+                    </div>
+                    <div id="loadingReceiveState" class="text-center py-5 d-none">
+                        <div class="spinner-border text-success" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted fs-8 mt-2">Fetching incoming samples...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2: AUDIT & HISTORY ==================== -->
+        <div class="tab-pane fade" id="historyPane" role="tabpanel">
+            <div class="card shadow-sm border-0 rounded-3 mb-2">
+                <div class="card-body p-2 px-3">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-3">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-semibold"><i class="bi bi-arrow-left-right me-1"></i>Transfer Direction</label>
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <input type="radio" class="btn-check" name="radHistoryMode" id="radOutgoing" value="Outgoing" checked>
+                                <label class="btn btn-outline-primary fs-8" for="radOutgoing"><i class="bi bi-box-arrow-up-right me-1"></i>Outgoing (Sent)</label>
+                                <input type="radio" class="btn-check" name="radHistoryMode" id="radIncoming" value="Incoming">
+                                <label class="btn btn-outline-success fs-8" for="radIncoming"><i class="bi bi-box-arrow-in-down me-1"></i>Incoming (Received)</label>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-semibold"><i class="bi bi-calendar-event me-1"></i>From Date</label>
+                            <input type="date" id="txtHistoryFromDate" class="form-control form-control-sm fs-8 py-0.5" value="@DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-semibold"><i class="bi bi-calendar-check me-1"></i>To Date</label>
+                            <input type="date" id="txtHistoryToDate" class="form-control form-control-sm fs-8 py-0.5" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fs-9 text-muted mb-0.5 fw-semibold"><i class="bi bi-search me-1"></i>Search Audit Logs</label>
+                            <input type="text" id="txtHistorySearch" class="form-control form-control-sm fs-8 py-0.5" placeholder="Filter by Barcode, Bill, Patient, Test..." />
+                        </div>
+                        <div class="col-12 col-md-1">
+                            <button type="button" class="btn btn-primary btn-sm w-100 py-0.5 fs-8" id="btnFilterHistory">
+                                <i class="bi bi-search me-1"></i>Filter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Table Card -->
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-body p-0">
+                    <div class="table-responsive transfer-table-container">
+                        <table class="table table-hover align-middle mb-0" id="tblHistory">
+                            <thead class="table-light">
+                                <tr class="fs-9 text-muted text-uppercase fw-bold">
+                                    <th class="ps-3" style="width: 50px;">#</th>
+                                    <th>Transferred Date</th>
+                                    <th>Barcode / Bill</th>
+                                    <th>Patient Details</th>
+                                    <th>Investigation / Test</th>
+                                    <th>Transfer Route</th>
+                                    <th>Transferred By &amp; Remarks</th>
+                                    <th class="text-center">Reporting Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tblHistoryBody" class="fs-8">
+                                <!-- Loaded via Ajax -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="emptyHistoryState" class="text-center py-5 d-none">
+                        <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
+                        <div class="fw-bold text-dark fs-6 mt-2">No Transfer History Found</div>
+                        <div class="text-muted fs-8">There are no transfer audit logs matching the chosen filter.</div>
+                    </div>
+                    <div id="loadingHistoryState" class="text-center py-5 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted fs-8 mt-2">Loading transfer audit records...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modal: Confirm Receive -->
+<div class="modal fade" id="modalConfirmReceive" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success-subtle text-dark border-0">
+                <h5 class="modal-title fs-7 fw-bold">
+                    <i class="bi bi-box-arrow-in-down text-success me-2"></i>Confirm Sample Receipt
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-success py-2 px-3 fs-8 mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle-fill fs-6 text-success"></i>
+                    <div>Once received, these samples will immediately appear in your Lab Reporting Entry screen for processing.</div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label fs-8 fw-semibold text-muted mb-1">Samples Selected for Receipt</label>
+                    <div class="p-2 rounded bg-light border fs-8" id="modalReceiveSamplesSummary">
+                        0 samples selected
+                    </div>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fs-8 fw-semibold text-muted mb-1">Receive Remarks / Notes</label>
+                    <div class="p-2 rounded bg-light border text-muted fs-8" id="modalReceiveRemarksText">
+                        None
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-light p-2 px-3">
+                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success btn-sm px-4 fw-bold shadow-sm" id="btnConfirmReceiveSubmit">
+                    <i class="bi bi-check-circle me-1"></i>Confirm Receive
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirm Transfer -->
+<div class="modal fade" id="modalConfirmTransfer" tabindex="-1" aria-labelledby="modalConfirmTransferTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning-subtle text-dark border-0">
+                <h5 class="modal-title fs-7 fw-bold" id="modalConfirmTransferTitle">
+                    <i class="bi bi-arrow-left-right text-warning me-2"></i>Confirm Sample Transfer
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-info py-2 px-3 fs-8 mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle-fill fs-6 text-info"></i>
+                    <div>Once transferred, these samples will be routed to the selected branch's Lab Reporting Entry screen and hidden from this branch.</div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label fs-8 fw-semibold text-muted mb-1">Target Destination Branch</label>
+                    <div class="p-2 rounded bg-light border fw-bold text-primary fs-7" id="modalTargetBranchText">
+                        -- None Selected --
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label fs-8 fw-semibold text-muted mb-1">Samples Selected for Dispatch</label>
+                    <div class="p-2 rounded bg-light border fs-8" id="modalSamplesSummary">
+                        0 samples selected
+                    </div>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fs-8 fw-semibold text-muted mb-1">Transfer Remarks / Notes</label>
+                    <div class="p-2 rounded bg-light border text-muted fs-8" id="modalRemarksText">
+                        None
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-light p-2 px-3">
+                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning btn-sm px-4 fw-bold shadow-sm" id="btnConfirmTransferSubmit">
+                    <i class="bi bi-send-check me-1"></i>Proceed Transfer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Print Worksheet (Iframe) -->
+<div class="modal fade" id="modalPrintWorksheet" tabindex="-1" aria-labelledby="modalPrintWorksheetLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-0">
+                <h5 class="modal-title fs-7 fw-bold" id="modalPrintWorksheetLabel">
+                    <i class="bi bi-printer me-2 text-primary"></i>Print Worksheet
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="printWorksheetFrame" style="width: 100%; height: 75vh; border: none;"></iframe>
+            </div>
+            <div class="modal-footer border-0 bg-light p-2 px-3">
+                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            toastr.options = {
+                closeButton: true,
+                progressBar: true,
+                positionClass: "toast-top-right",
+                timeOut: "3500"
+            };
+
+            let currentSamples = [];
+            let currentStatusFilter = '@Model.TransferStatusFilter' || 'Ready';
+            let searchTimeout = null;
+            let pendingTransferIds = [];
+
+            // Helper: Format Date
+            function formatDate(dtStr) {
+                if (!dtStr) return '—';
+                const d = new Date(dtStr);
+                if (isNaN(d.getTime())) return dtStr;
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+
+            // Helper: Format Time
+            function formatTime(dtStr) {
+                if (!dtStr) return '';
+                const d = new Date(dtStr);
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            }
+
+            // Helper: Escape HTML
+            function escapeHtml(text) {
+                if (!text) return '';
+                return String(text)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            // Tube Cap CSS mapper
+            function getTubeCapClass(containerType) {
+                if (!containerType) return 'cap-badge-grey';
+                const c = containerType.toLowerCase();
+                if (c.includes('sst') || c.includes('yellow') || c.includes('gel')) return 'cap-badge-yellow';
+                if (c.includes('edta') || c.includes('purple') || c.includes('lavender')) return 'cap-badge-purple';
+                if (c.includes('citrate') || c.includes('blue')) return 'cap-badge-blue';
+                if (c.includes('fluoride') || c.includes('grey') || c.includes('gray')) return 'cap-badge-grey';
+                if (c.includes('red') || c.includes('plain') || c.includes('clot')) return 'cap-badge-red';
+                if (c.includes('heparin') || c.includes('green')) return 'cap-badge-green';
+                return 'cap-badge-grey';
+            }
+
+            // ── 1. Fetch and Render Samples ────────────────────────────────
+            function loadSamples() {
+                $('#loadingSamplesState').removeClass('d-none');
+                $('#emptySamplesState').addClass('d-none');
+                $('#tblSamplesBody').empty();
+                $('#chkSelectAll').prop('checked', false);
+                updateSelectedCount();
+
+                const params = {
+                    fromDate: $('#txtFromDate').val(),
+                    toDate: $('#txtToDate').val(),
+                    dateFilterType: $('#selDateFilterType').val(),
+                    transferStatusFilter: currentStatusFilter,
+                    search: $('#txtSearch').val(),
+                    departmentId: $('#ddlDepartment').val() || null,
+                    categoryId: $('#ddlCategory').val() || null,
+                    subCategoryId: $('#ddlSubCategory').val() || null
+                };
+
+                $.get('@Url.Action("GetEligibleSamplesJson", "SampleTransfer")', params)
+                    .done(function (res) {
+                        $('#loadingSamplesState').addClass('d-none');
+                        if (res.success && res.data) {
+                            currentSamples = res.data.items || [];
+                            updateStats(res.data.stats);
+                            renderSamplesTable(currentSamples);
+                        } else {
+                            toastr.error('Failed to load eligible samples.');
+                        }
+                    })
+                    .fail(function () {
+                        $('#loadingSamplesState').addClass('d-none');
+                        toastr.error('Server error while loading sample list.');
+                    });
+            }
+
+            function updateStats(stats) {
+                if (!stats) return;
+                $('#statReadyCount').text(stats.readyCount);
+                $('#statTransferredToday').text(stats.transferredTodayCount);
+                $('#statTargetBranches').text(stats.targetBranchesCount);
+                $('#badgeTabCount').text(stats.readyCount);
+            }
+
+            function renderSamplesTable(items) {
+                const $tbody = $('#tblSamplesBody');
+                $tbody.empty();
+
+                if (!items || items.length === 0) {
+                    $('#emptySamplesState').removeClass('d-none');
+                    return;
+                }
+
+                $('#emptySamplesState').addClass('d-none');
+
+                let html = '';
+                items.forEach((item, idx) => {
+                    const capClass = getTubeCapClass(item.containerType);
+                    const isTransferred = item.isTransferred;
+                    const canSelect = !isTransferred;
+                    const chkHtml = item.isTransferred 
+                        ? `<span class="text-success fs-7" title="Already Transferred"><i class="bi bi-check-circle-fill"></i></span><input type="hidden" class="hidden-sample-id" value="${item.sampleCollectionId}" />`
+                        : `<input type="checkbox" class="form-check-input chk-sample-item" value="${item.sampleCollectionId}" data-transferred="false" />`;
+
+                    let statusBadgeHtml = '';
+                    if (isTransferred) {
+                        statusBadgeHtml = `
+                            <span class="badge bg-success-subtle text-success border border-success-subtle fs-9">
+                                <i class="bi bi-check-all me-1"></i>Transferred to ${escapeHtml(item.targetBranchName || 'Target Lab')}
+                            </span>
+                            <div class="fs-9 text-muted mt-0.5">${formatDate(item.transferredDate)} ${formatTime(item.transferredDate)}</div>
+                            <div class="fs-9 text-secondary font-monospace">${escapeHtml(item.reportStatusName || 'Pending Entry')}</div>
+                        `;
+                    } else {
+                        statusBadgeHtml = `
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-9">
+                                <i class="bi bi-hourglass-split me-1"></i>Ready for Transfer
+                            </span>
+                            <div class="fs-9 text-muted mt-0.5">Collected In-House</div>
+                        `;
+                    }
+
+                    let actionHtml = '';
+                    if (isTransferred) {
+                        actionHtml = `<span class="badge bg-light text-success border border-success-subtle py-1 px-2 fs-9 fw-semibold"><i class="bi bi-shield-check me-1"></i>Transferred</span>`;
+                    } else {
+                        actionHtml = `<button type="button" class="btn btn-outline-warning btn-sm py-0.5 px-2 fs-9 fw-semibold btn-single-transfer" data-id="${item.sampleCollectionId}">
+                                           <i class="bi bi-send me-1"></i>Transfer
+                                       </button>`;
+                    }
+
+                    html += `
+                        <tr id="sampleRow_${item.sampleCollectionId}" class="${isTransferred ? 'table-light opacity-75' : ''}">
+                            <td class="ps-3 text-center">${chkHtml}</td>
+                            <td>
+                                <div class="fw-bold font-monospace text-primary fs-8">${escapeHtml(item.tokenNo || 'LAB')}</div>
+                                <div class="fs-9 text-muted font-monospace">${escapeHtml(item.billNo || '—')}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${escapeHtml(item.patientName)}</div>
+                                <div class="fs-9 text-muted">
+                                    <span class="badge bg-light text-dark border me-1">${escapeHtml(item.patientCode)}</span>
+                                    ${item.age ? item.age + ' Y / ' : ''}${escapeHtml(item.gender || '—')}
+                                    ${item.phoneNumber ? ' | ' + escapeHtml(item.phoneNumber) : ''}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <span class="barcode-badge"><i class="bi bi-upc me-1"></i>${escapeHtml(item.barcodeNo || 'No Barcode')}</span>
+                                    <span class="badge fs-9 ${capClass}">${escapeHtml(item.containerType || 'Tube')}</span>
+                                </div>
+                                <div class="fs-9 text-muted mt-0.5">${escapeHtml(item.sampleTypeName || 'Specimen')}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${escapeHtml(item.testName)}</div>
+                                <div class="fs-9 text-muted">
+                                    <span class="badge bg-secondary-subtle text-secondary me-1">${escapeHtml(item.testCode)}</span>
+                                    ${item.profilePackageName ? `<span class="badge bg-info-subtle text-info">${escapeHtml(item.profilePackageName)}</span>` : ''}
+                                    ${item.departmentName ? `<span class="ms-1 text-muted">(${escapeHtml(item.departmentName)})</span>` : ''}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-dark">${formatDate(item.collectionDate || item.orderDate)}</div>
+                                <div class="fs-9 text-muted">${formatTime(item.collectionDate || item.orderDate)}</div>
+                            </td>
+                            <td class="text-center">${statusBadgeHtml}</td>
+                            <td class="text-end pe-3">${actionHtml}</td>
+                        </tr>
+                    `;
+                });
+
+                $tbody.html(html);
+                
+                // Update Transfer Action Bar visibility
+                const transferStatus = $('#selTransferStatus').val() || 'Pending';
+                if (transferStatus === 'Transferred') {
+                    $('#btnExecuteTransfer').addClass('d-none');
+                    $('#btnPrintTransferSelected').html('<i class="bi bi-printer"></i><span>Print All</span>');
+                    $('#chkSelectAll').addClass('d-none');
+                } else {
+                    $('#btnExecuteTransfer').removeClass('d-none');
+                    $('#btnPrintTransferSelected').html('<i class="bi bi-printer"></i><span>Print Selected</span>');
+                    $('#chkSelectAll').removeClass('d-none');
+                }
+            }
+
+            // ── 2. Selection Handling ─────────────────────────────────────
+            function updateSelectedCount() {
+                const count = $('.chk-sample-item:checked').length;
+                $('#selectedCountBadge').text(`${count} Selected`);
+                if (count > 0) {
+                    $('#selectedCountBadge').removeClass('bg-secondary').addClass('bg-warning text-dark');
+                } else {
+                    $('#selectedCountBadge').removeClass('bg-warning text-dark').addClass('bg-secondary text-white');
+                }
+            }
+
+            $('#chkSelectAll').on('change', function () {
+                const isChecked = $(this).is(':checked');
+                $('.chk-sample-item').prop('checked', isChecked);
+                updateSelectedCount();
+            });
+
+            $(document).on('change', '.chk-sample-item', function () {
+                updateSelectedCount();
+                const total = $('.chk-sample-item').length;
+                const checked = $('.chk-sample-item:checked').length;
+                $('#chkSelectAll').prop('checked', total > 0 && total === checked);
+            });
+
+            // ── 3. Filter Interactions ────────────────────────────────────
+            $('#cardReadyFilter').on('click', function () {
+                $('#dispatchKpiCards .stat-card').removeClass('active-card');
+                $(this).addClass('active-card');
+                currentStatusFilter = 'Ready';
+                $('#selTransferStatus').val('Ready');
+                if ($('#selDateFilterType').val() === 'TransferDate') {
+                    $('#selDateFilterType').val('CollectionDate');
+                }
+                loadSamples();
+            });
+
+            $('#cardTransferredFilter').on('click', function () {
+                $('#dispatchKpiCards .stat-card').removeClass('active-card');
+                $(this).addClass('active-card');
+                currentStatusFilter = 'Transferred';
+                $('#selTransferStatus').val('Transferred');
+                $('#selDateFilterType').val('TransferDate');
+                const todayIso = formatIsoDate(new Date());
+                $('#txtFromDate').val(todayIso);
+                $('#txtToDate').val(todayIso);
+                loadSamples();
+            });
+
+            $('#selTransferStatus').on('change', function () {
+                currentStatusFilter = $(this).val();
+                $('#dispatchKpiCards .stat-card').removeClass('active-card');
+                if (currentStatusFilter === 'Ready') {
+                    $('#cardReadyFilter').addClass('active-card');
+                    if ($('#selDateFilterType').val() === 'TransferDate') {
+                        $('#selDateFilterType').val('CollectionDate');
+                    }
+                }
+                if (currentStatusFilter === 'Transferred') {
+                    $('#cardTransferredFilter').addClass('active-card');
+                    $('#selDateFilterType').val('TransferDate');
+                }
+                loadSamples();
+            });
+
+            $('#txtFromDate, #txtToDate, #selDateFilterType').on('change', function () {
+                loadSamples();
+            });
+
+            $('#btnRefreshList').on('click', function () {
+                if ($('#receive-tab').hasClass('active')) {
+                    loadReceivableSamples();
+                } else if ($('#history-tab').hasClass('active')) {
+                    loadHistory();
+                } else {
+                    loadSamples();
+                }
+            });
+
+            $('#txtSearch').on('input', function () {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(loadSamples, 350);
+            });
+
+            $('#btnClearSearch').on('click', function () {
+                $('#txtSearch').val('');
+                loadSamples();
+            });
+
+            // ── Quick Date Range Selectors ──
+            $('.btn-quick-date').on('click', function () {
+                const range = $(this).data('range');
+                const today = new Date();
+                let from = new Date();
+                let to = new Date();
+
+                if (range === 'today') {
+                    from = today;
+                    to = today;
+                } else if (range === 'yesterday') {
+                    from.setDate(today.getDate() - 1);
+                    to.setDate(today.getDate() - 1);
+                } else if (range === 'week') {
+                    from.setDate(today.getDate() - 7);
+                    to = today;
+                } else if (range === 'month') {
+                    from = new Date(today.getFullYear(), today.getMonth(), 1);
+                    to = today;
+                }
+
+                $('#txtFromDate').val(formatIsoDate(from));
+                $('#txtToDate').val(formatIsoDate(to));
+                loadSamples();
+            });
+
+            function formatIsoDate(d) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            // ── Department, Category & Sub Category Cascading Filters ──
+            function checkFilterResetVisibility() {
+                var d = $('#ddlDepartment').val();
+                var c = $('#ddlCategory').val();
+                var s = $('#ddlSubCategory').val();
+                if (d || c || s) {
+                    $('#btnResetFilters').show();
+                } else {
+                    $('#btnResetFilters').hide();
+                }
+            }
+
+            $('#btnResetFilters').on('click', function () {
+                $('#ddlDepartment').val('');
+                $('#ddlCategory').empty().append('<option value="">-- All Categories --</option>').val('');
+                $('#ddlSubCategory').empty().append('<option value="">-- All Sub Categories --</option>').val('');
+                $(this).hide();
+                loadSamples();
+            });
+
+            $('#ddlDepartment').on('change', function () {
+                checkFilterResetVisibility();
+                var deptId = $(this).val();
+                
+                var $cat = $('#ddlCategory');
+                $cat.empty().append('<option value="">-- All Categories --</option>');
+                
+                var $subCat = $('#ddlSubCategory');
+                $subCat.empty().append('<option value="">-- All Sub Categories --</option>');
+
+                var catUrl = '@Url.Action("GetCategoriesForDropdown", "SampleTransfer")' + (deptId ? '?departmentId=' + deptId : '');
+                $.get(catUrl, function (data) {
+                    if (data && data.length) {
+                        data.forEach(function (item) {
+                            $cat.append(new Option(item.text, item.value));
+                        });
+                    }
+                    $cat.val('');
+                    $subCat.val('');
+                    loadSamples();
+                });
+            });
+
+            $('#ddlCategory').on('change', function () {
+                checkFilterResetVisibility();
+                var catId = $(this).val();
+                
+                var $subCat = $('#ddlSubCategory');
+                $subCat.empty().append('<option value="">-- All Sub Categories --</option>');
+                
+                var subCatUrl = '@Url.Action("GetSubCategoriesForDropdown", "SampleTransfer")' + (catId ? '?categoryId=' + catId : '');
+                $.get(subCatUrl, function (data) {
+                    if (data && data.length) {
+                        data.forEach(function (item) {
+                            $subCat.append(new Option(item.text, item.value));
+                        });
+                    }
+                    $subCat.val('');
+                    loadSamples();
+                });
+            });
+
+            $('#ddlSubCategory').on('change', function () {
+                checkFilterResetVisibility();
+                loadSamples();
+            });
+
+            checkFilterResetVisibility();
+
+            // ── 4. Transfer Execution ─────────────────────────────────────
+            function triggerTransferModal(ids) {
+                if (!ids || ids.length === 0) {
+                    toastr.warning('Please select at least one sample to transfer.');
+                    return;
+                }
+
+                const targetBranchId = $('#ddlTargetBranch').val();
+                if (!targetBranchId) {
+                    toastr.warning('Please select a destination/target branch first.');
+                    $('#ddlTargetBranch').focus();
+                    return;
+                }
+
+                const targetBranchText = $('#ddlTargetBranch option:selected').text();
+                const remarks = $('#txtTransferRemarks').val().trim();
+
+                pendingTransferIds = ids;
+                $('#modalTargetBranchText').text(targetBranchText);
+                $('#modalSamplesSummary').text(`${ids.length} sample(s) queued for transfer`);
+                $('#modalRemarksText').text(remarks || 'No remarks provided');
+
+                const modal = new bootstrap.Modal(document.getElementById('modalConfirmTransfer'));
+                modal.show();
+            }
+
+            // Bulk Transfer Button
+            $('#btnExecuteTransfer').on('click', function () {
+                const selectedIds = [];
+                let hasTransferred = false;
+                $('.chk-sample-item:checked').each(function () {
+                    if ($(this).attr('data-transferred') === 'true') hasTransferred = true;
+                    selectedIds.push(parseInt($(this).val()));
+                });
+
+                if (selectedIds.length === 0) {
+                    toastr.warning('No samples selected. Check the boxes next to the samples you want to transfer.');
+                    return;
+                }
+
+                if (hasTransferred) {
+                    toastr.error('You cannot transfer samples that have already been transferred. Please uncheck them.');
+                    return;
+                }
+
+                triggerTransferModal(selectedIds);
+            });
+
+            // Single Row Transfer Button
+            $(document).on('click', '.btn-single-transfer', function () {
+                const sampleId = parseInt($(this).data('id'));
+                // Check if target branch is picked
+                if (!$('#ddlTargetBranch').val()) {
+                    toastr.info('Select a Destination Branch from the top bar before initiating transfer.');
+                    $('#ddlTargetBranch').focus();
+                    return;
+                }
+                triggerTransferModal([sampleId]);
+            });
+
+            // Submit Transfer in Modal
+            $('#btnConfirmTransferSubmit').on('click', function () {
+                const targetBranchId = parseInt($('#ddlTargetBranch').val());
+                const remarks = $('#txtTransferRemarks').val().trim();
+
+                if (!pendingTransferIds || pendingTransferIds.length === 0 || !targetBranchId) {
+                    toastr.error('Invalid transfer parameters.');
+                    return;
+                }
+
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Transferring...');
+
+                const payload = {
+                    sampleCollectionIds: pendingTransferIds,
+                    targetBranchId: targetBranchId,
+                    transferRemarks: remarks
+                };
+
+                $.ajax({
+                    url: '@Url.Action("ExecuteTransferJson", "SampleTransfer")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload),
+                    success: function (res) {
+                        $btn.prop('disabled', false).html('<i class="bi bi-send-check me-1"></i>Proceed Transfer');
+                        const modalEl = document.getElementById('modalConfirmTransfer');
+                        const modalInstance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                        if (modalInstance) modalInstance.hide();
+
+                        if (res.success) {
+                            toastr.success(res.message || `Successfully transferred ${res.transferredCount} sample(s)!`);
+                            $('#txtTransferRemarks').val('');
+                            loadSamples();
+                            refreshReceiveStats();
+                            
+                            // Automatically popup print worksheet
+                            if (res.processedIds) {
+                                openPrintWorksheet(res.processedIds, 'Transfer');
+                            }
+                        } else {
+                            toastr.error(res.message || 'Transfer failed.');
+                        }
+                    },
+                    error: function (xhr) {
+                        $btn.prop('disabled', false).html('<i class="bi bi-send-check me-1"></i>Proceed Transfer');
+                        let errMsg = 'Error occurred while executing sample transfer.';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errMsg = xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            try {
+                                const parsed = JSON.parse(xhr.responseText);
+                                if (parsed.message) errMsg = parsed.message;
+                                else errMsg = xhr.responseText;
+                            } catch (e) {
+                                errMsg = xhr.responseText;
+                            }
+                        }
+                        toastr.error(errMsg);
+                    }
+                });
+            });
+
+            
+            // ── 1.5 Fetch and Render Receivable Samples ─────────────────────
+            let pendingReceiveIds = [];
+            
+            function updateReceiveStats(stats) {
+                if (!stats) return;
+                const pending = stats.pendingReceiveCount ?? 0;
+                const receivedToday = stats.receivedTodayCount ?? 0;
+                const sourceBranches = stats.sourceBranchesCount ?? 0;
+
+                $('#statPendingReceiveCount').text(pending);
+                $('#statReceivedTodayCount').text(receivedToday);
+                $('#statSourceBranchesCount').text(sourceBranches);
+
+                if (pending > 0) {
+                    $('#badgeReceiveTabCount').text(pending).show();
+                } else {
+                    $('#badgeReceiveTabCount').hide();
+                }
+            }
+
+            function refreshReceiveStats() {
+                $.get('/SampleTransfer/GetReceivableSamplesJson')
+                    .done(function (res) {
+                        if (res.success && res.data && res.data.stats) {
+                            updateReceiveStats(res.data.stats);
+                        }
+                    });
+            }
+
+            function loadReceivableSamples() {
+                $('#loadingReceiveState').removeClass('d-none');
+                $('#emptyReceiveState').addClass('d-none');
+                $('#tblReceiveSamplesBody').empty();
+                $('#chkReceiveSelectAll').prop('checked', false);
+                updateSelectedReceiveCount();
+
+                const receiveStatus = $('#selReceiveStatus').val() || 'Pending';
+                const dateFilterType = $('#selReceiveDateFilterType').val() || 'ReceivedDate';
+                const fromDate = $('#txtReceiveFromDate').val();
+                const toDate = $('#txtReceiveToDate').val();
+
+                // Always show receiveActionBar so Print button is available
+                $('#receiveActionBar').removeClass('d-none');
+                
+                if (receiveStatus === 'Received') {
+                    $('#btnExecuteReceive').addClass('d-none');
+                    $('#btnPrintReceiveSelected').html('<i class="bi bi-printer"></i><span>Print All</span>');
+                    $('#chkSelectAllReceive').addClass('d-none');
+                } else {
+                    $('#btnExecuteReceive').removeClass('d-none');
+                    $('#btnPrintReceiveSelected').html('<i class="bi bi-printer"></i><span>Print Selected</span>');
+                    $('#chkSelectAllReceive').removeClass('d-none');
+                }
+
+                const params = {
+                    receiveStatusFilter: receiveStatus,
+                    dateFilterType: dateFilterType,
+                    fromDate: fromDate,
+                    toDate: toDate,
+                    search: $('#txtReceiveSearch').val()
+                };
+
+                $.get('/SampleTransfer/GetReceivableSamplesJson', params)
+                    .done(function (res) {
+                        $('#loadingReceiveState').addClass('d-none');
+                        if (res.success && res.data) {
+                            const items = res.data.items || [];
+                            const stats = res.data.stats;
+                            
+                            updateReceiveStats(stats);
+                            renderReceivableTable(items);
+                        } else {
+                            toastr.error('Failed to load incoming samples.');
+                        }
+                    })
+                    .fail(function () {
+                        $('#loadingReceiveState').addClass('d-none');
+                        toastr.error('Server error while loading incoming sample list.');
+                    });
+            }
+
+            function renderReceivableTable(items) {
+                const $tbody = $('#tblReceiveSamplesBody');
+                $tbody.empty();
+
+                if (!items || items.length === 0) {
+                    const statusVal = $('#selReceiveStatus').val() || 'Pending';
+                    if (statusVal === 'Received') {
+                        $('#emptyReceiveState .fs-6').text('No Received Samples Found');
+                        $('#emptyReceiveState .text-muted.fs-8').text('No samples have been received for the selected date range.');
+                    } else {
+                        $('#emptyReceiveState .fs-6').text('No Incoming Samples');
+                        $('#emptyReceiveState .text-muted.fs-8').text('There are no pending samples dispatched to this branch.');
+                    }
+                    $('#emptyReceiveState').removeClass('d-none');
+                    return;
+                }
+
+                $('#emptyReceiveState').addClass('d-none');
+
+                let html = '';
+                items.forEach((item) => {
+                    const capClass = getTubeCapClass(item.containerType);
+                    
+                    let actionHtml = '';
+                    let statusHtml = '';
+
+                    let chkHtml = item.isReceived 
+                        ? `<span class="text-success fs-7" title="Already Received"><i class="bi bi-check-circle-fill"></i></span><input type="hidden" class="hidden-receive-id" value="${item.sampleCollectionId}" />`
+                        : `<input type="checkbox" class="form-check-input chk-receive-item" value="${item.sampleCollectionId}" data-received="false" />`;
+
+
+                    if (item.isReceived) {
+                        statusHtml = `
+                            <span class="badge bg-success-subtle text-success border border-success-subtle py-1 px-2">
+                                <i class="bi bi-check2-all me-1"></i>Received
+                            </span>
+                            <div class="fs-9 text-muted mt-1">
+                                <div><i class="bi bi-calendar-check me-1"></i>${formatDate(item.receivedDate)} ${formatTime(item.receivedDate)}</div>
+                                ${item.receivedByName ? `<div><i class="bi bi-person me-1"></i>${escapeHtml(item.receivedByName)}</div>` : ''}
+                            </div>
+                        `;
+                        actionHtml = `<span class="badge bg-light text-success border border-success-subtle py-1 px-2 fs-9 fw-semibold"><i class="bi bi-shield-check me-1"></i>Acknowledged</span>`;
+                    } else {
+                        statusHtml = `
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle py-1 px-2">
+                                <i class="bi bi-hourglass-split me-1"></i>Pending Receipt
+                            </span>
+                        `;
+                        actionHtml = `<button type="button" class="btn btn-outline-success btn-sm py-0.5 px-2 fs-9 fw-semibold btn-single-receive" data-id="${item.sampleCollectionId}">
+                                           <i class="bi bi-check me-1"></i>Receive
+                                       </button>`;
+                    }
+
+                    html += `
+                        <tr>
+                            <td class="ps-3 text-center">${chkHtml}</td>
+                            <td>
+                                <div class="fw-bold font-monospace text-primary fs-8">${escapeHtml(item.tokenNo || 'LAB')}</div>
+                                <div class="fs-9 text-muted font-monospace">${escapeHtml(item.billNo || '—')}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${escapeHtml(item.patientName)}</div>
+                                <div class="fs-9 text-muted">
+                                    <span class="badge bg-light text-dark border me-1">${escapeHtml(item.patientCode)}</span>
+                                    ${item.age ? item.age + ' Y / ' : ''}${escapeHtml(item.gender || '—')}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <span class="barcode-badge"><i class="bi bi-upc me-1"></i>${escapeHtml(item.barcodeNo || 'No Barcode')}</span>
+                                    <span class="badge fs-9 ${capClass}">${escapeHtml(item.containerType || 'Tube')}</span>
+                                </div>
+                                <div class="fs-9 text-muted mt-0.5">${escapeHtml(item.sampleTypeName || 'Specimen')}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${escapeHtml(item.testName)}</div>
+                                <div class="fs-9 text-muted">
+                                    <span class="badge bg-secondary-subtle text-secondary me-1">${escapeHtml(item.testCode)}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info-subtle text-info border border-info-subtle fs-9">
+                                    ${escapeHtml(item.sourceBranchName)}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="text-dark">${formatDate(item.transferredDate)} ${formatTime(item.transferredDate)}</div>
+                                <div class="fs-9 text-muted">By: ${escapeHtml(item.transferredByName || 'System')}</div>
+                            </td>
+                            <td class="text-center">${statusHtml}</td>
+                            <td class="text-end pe-3">${actionHtml}</td>
+                        </tr>
+                    `;
+                });
+                $tbody.html(html);
+            }
+
+            function updateSelectedReceiveCount() {
+                const count = $('.chk-receive-item:checked').length;
+                $('#selectedReceiveCountBadge').text(`${count} Selected`);
+            }
+
+            $('#chkReceiveSelectAll').on('change', function () {
+                $('.chk-receive-item').prop('checked', $(this).is(':checked'));
+                updateSelectedReceiveCount();
+            });
+
+            $(document).on('change', '.chk-receive-item', function () {
+                updateSelectedReceiveCount();
+                const total = $('.chk-receive-item').length;
+                const checked = $('.chk-receive-item:checked').length;
+                $('#chkReceiveSelectAll').prop('checked', total > 0 && total === checked);
+            });
+
+            $('#btnRefreshReceive').on('click', loadReceivableSamples);
+
+            $('#txtReceiveFromDate, #txtReceiveToDate, #selReceiveDateFilterType').on('change', function () {
+                loadReceivableSamples();
+            });
+
+            $('#selReceiveStatus').on('change', function () {
+                const val = $(this).val();
+                $('#receiveKpiCards .stat-card').removeClass('active-card');
+                if (val === 'Pending') {
+                    $('#cardPendingReceive').addClass('active-card');
+                } else if (val === 'Received') {
+                    $('#cardReceivedToday').addClass('active-card');
+                    $('#selReceiveDateFilterType').val('ReceivedDate');
+                }
+                loadReceivableSamples();
+            });
+
+            $('.btn-quick-receive-date').on('click', function () {
+                const range = $(this).data('range');
+                const today = new Date();
+                let from = new Date();
+                let to = new Date();
+
+                if (range === 'today') {
+                    from = today;
+                    to = today;
+                } else if (range === 'yesterday') {
+                    from.setDate(today.getDate() - 1);
+                    to.setDate(today.getDate() - 1);
+                } else if (range === 'week') {
+                    from.setDate(today.getDate() - 7);
+                    to = today;
+                } else if (range === 'month') {
+                    from = new Date(today.getFullYear(), today.getMonth(), 1);
+                    to = today;
+                }
+
+                $('#txtReceiveFromDate').val(formatIsoDate(from));
+                $('#txtReceiveToDate').val(formatIsoDate(to));
+                loadReceivableSamples();
+            });
+
+            let receiveSearchTimeout = null;
+            $('#txtReceiveSearch').on('input', function () {
+                clearTimeout(receiveSearchTimeout);
+                receiveSearchTimeout = setTimeout(loadReceivableSamples, 350);
+            });
+
+            $('#btnClearReceiveSearch').on('click', function () {
+                $('#txtReceiveSearch').val('');
+                loadReceivableSamples();
+            });
+
+            $('#receive-tab').on('shown.bs.tab', function () {
+                switchKpiCards('receive');
+                loadReceivableSamples();
+            });
+            
+            $('#dispatch-tab').on('shown.bs.tab', function () {
+                switchKpiCards('dispatch');
+                loadSamples();
+            });
+            
+            function triggerReceiveModal(ids) {
+                if (!ids || ids.length === 0) {
+                    toastr.warning('Please select at least one sample to receive.');
+                    return;
+                }
+                
+                const remarks = $('#txtReceiveRemarks').val().trim();
+                pendingReceiveIds = ids;
+                
+                $('#modalReceiveSamplesSummary').text(`${ids.length} sample(s) queued for receipt`);
+                $('#modalReceiveRemarksText').text(remarks || 'No remarks provided');
+                
+                new bootstrap.Modal(document.getElementById('modalConfirmReceive')).show();
+            }
+
+            $('#btnExecuteReceive').on('click', function () {
+                const selectedIds = [];
+                let hasReceived = false;
+                $('.chk-receive-item:checked').each(function () {
+                    if ($(this).attr('data-received') === 'true') hasReceived = true;
+                    selectedIds.push(parseInt($(this).val()));
+                });
+                
+                if (selectedIds.length === 0) {
+                    toastr.warning('No samples selected. Check the boxes next to the samples you want to receive.');
+                    return;
+                }
+
+                if (hasReceived) {
+                    toastr.error('You cannot receive samples that have already been received. Please uncheck them.');
+                    return;
+                }
+
+                triggerReceiveModal(selectedIds);
+            });
+            
+            $(document).on('click', '.btn-single-receive', function () {
+                triggerReceiveModal([parseInt($(this).data('id'))]);
+            });
+
+            $('#btnConfirmReceiveSubmit').on('click', function () {
+                const remarks = $('#txtReceiveRemarks').val().trim();
+                if (!pendingReceiveIds || pendingReceiveIds.length === 0) return;
+                
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Receiving...');
+
+                $.ajax({
+                    url: '/SampleTransfer/ExecuteReceiveJson',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        sampleCollectionIds: pendingReceiveIds,
+                        receiveRemarks: remarks
+                    }),
+                    success: function (res) {
+                        $btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i>Confirm Receive');
+                        const modalEl = document.getElementById('modalConfirmReceive');
+                        const modalInstance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                        if (modalInstance) modalInstance.hide();
+                        
+                        if (res.success) {
+                            toastr.success(res.message || `Successfully received ${res.receivedCount} sample(s)!`);
+                            $('#txtReceiveRemarks').val('');
+                            loadReceivableSamples();
+                            loadSamples();
+
+                            // Automatically popup print worksheet
+                            if (res.processedIds) {
+                                openPrintWorksheet(res.processedIds, 'Receive');
+                            }
+                        } else {
+                            toastr.error(res.message || 'Receive failed.');
+                        }
+                    },
+                    error: function (xhr) {
+                        $btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i>Confirm Receive');
+                        let errMsg = 'Error occurred while receiving samples.';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errMsg = xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            try {
+                                const parsed = JSON.parse(xhr.responseText);
+                                if (parsed.message) errMsg = parsed.message;
+                                else errMsg = xhr.responseText;
+                            } catch (e) {
+                                errMsg = xhr.responseText;
+                            }
+                        }
+                        toastr.error(errMsg);
+                    }
+                });
+            });
+
+            // ── 5. Audit & History ────────────────────────────────────────
+
+            function loadHistory() {
+                $('#loadingHistoryState').removeClass('d-none');
+                $('#emptyHistoryState').addClass('d-none');
+                $('#tblHistoryBody').empty();
+
+                const mode = $('input[name="radHistoryMode"]:checked').val() || 'Outgoing';
+                const params = {
+                    mode: mode,
+                    fromDate: $('#txtHistoryFromDate').val(),
+                    toDate: $('#txtHistoryToDate').val(),
+                    search: $('#txtHistorySearch').val()
+                };
+
+                $.get('@Url.Action("GetHistoryJson", "SampleTransfer")', params)
+                    .done(function (res) {
+                        $('#loadingHistoryState').addClass('d-none');
+                        if (res.success && res.data) {
+                            renderHistoryTable(res.data);
+                        } else {
+                            toastr.error('Failed to load transfer history.');
+                        }
+                    })
+                    .fail(function () {
+                        $('#loadingHistoryState').addClass('d-none');
+                        toastr.error('Server error loading transfer audit history.');
+                    });
+            }
+
+            function renderHistoryTable(items) {
+                const $tbody = $('#tblHistoryBody');
+                $tbody.empty();
+
+                if (!items || items.length === 0) {
+                    $('#emptyHistoryState').removeClass('d-none');
+                    return;
+                }
+
+                $('#emptyHistoryState').addClass('d-none');
+
+                let html = '';
+                items.forEach((item, idx) => {
+                    html += `
+                        <tr>
+                            <td class="ps-3 text-muted fw-bold">${idx + 1}</td>
+                            <td>
+                                <div class="text-dark fw-bold">${formatDate(item.transferredDate)}</div>
+                                <div class="fs-9 text-muted">${formatTime(item.transferredDate)}</div>
+                            </td>
+                            <td>
+                                <span class="barcode-badge"><i class="bi bi-upc me-1"></i>${escapeHtml(item.barcodeNo || 'No Barcode')}</span>
+                                <div class="fs-9 text-muted font-monospace mt-0.5">${escapeHtml(item.billNo || '—')}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${escapeHtml(item.patientName)}</div>
+                                <div class="fs-9 text-muted">${escapeHtml(item.patientCode)}</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark fs-8">${escapeHtml(item.testName)}</div>
+                                <div class="fs-9 text-muted">${escapeHtml(item.testCode || '')} (${escapeHtml(item.sampleTypeName || '')})</div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="badge bg-secondary-subtle text-secondary fs-9">${escapeHtml(item.sourceBranchName)}</span>
+                                    <i class="bi bi-arrow-right text-muted fs-8"></i>
+                                    <span class="badge bg-primary-subtle text-primary fs-9">${escapeHtml(item.targetBranchName)}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-dark fw-semibold fs-9"><i class="bi bi-person me-1"></i>${escapeHtml(item.transferredByName || 'System')}</div>
+                                <div class="fs-9 text-muted font-italic">${escapeHtml(item.transferRemarks || 'No remarks')}</div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-info-subtle text-info border border-info-subtle fs-9">
+                                    ${escapeHtml(item.reportStatusName || 'Pending Entry')}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                $tbody.html(html);
+            }
+
+            // ── Dynamic KPI Card Switching ──────────────────────────────
+            function switchKpiCards(tabKey) {
+                if (tabKey === 'receive') {
+                    $('#dispatchKpiCards').addClass('d-none');
+                    $('#receiveKpiCards').removeClass('d-none');
+                } else {
+                    $('#receiveKpiCards').addClass('d-none');
+                    $('#dispatchKpiCards').removeClass('d-none');
+                }
+            }
+
+            $('#history-tab').on('shown.bs.tab', function () {
+                const mode = $('input[name="radHistoryMode"]:checked').val() || 'Outgoing';
+                switchKpiCards(mode === 'Incoming' ? 'receive' : 'dispatch');
+                loadHistory();
+            });
+
+            $('input[name="radHistoryMode"]').on('change', function () {
+                if ($('#history-tab').hasClass('active')) {
+                    const mode = $(this).val();
+                    switchKpiCards(mode === 'Incoming' ? 'receive' : 'dispatch');
+                }
+            });
+
+            $('#btnFilterHistory').on('click', function () {
+                loadHistory();
+            });
+
+            // Receive KPI Card click interactions
+            $('#cardPendingReceive').on('click', function () {
+                const receiveTabTrigger = document.querySelector('#receive-tab');
+                if (receiveTabTrigger && !$('#receive-tab').hasClass('active')) {
+                    bootstrap.Tab.getOrCreateInstance(receiveTabTrigger).show();
+                }
+                $('#receiveKpiCards .stat-card').removeClass('active-card');
+                $(this).addClass('active-card');
+                $('#selReceiveStatus').val('Pending');
+                loadReceivableSamples();
+            });
+
+            $('#cardReceivedToday').on('click', function () {
+                const receiveTabTrigger = document.querySelector('#receive-tab');
+                if (receiveTabTrigger && !$('#receive-tab').hasClass('active')) {
+                    bootstrap.Tab.getOrCreateInstance(receiveTabTrigger).show();
+                }
+                $('#receiveKpiCards .stat-card').removeClass('active-card');
+                $(this).addClass('active-card');
+                $('#selReceiveStatus').val('Received');
+                $('#selReceiveDateFilterType').val('ReceivedDate');
+                const todayIso = formatIsoDate(new Date());
+                $('#txtReceiveFromDate').val(todayIso);
+                $('#txtReceiveToDate').val(todayIso);
+                loadReceivableSamples();
+            });
+
+            // Initial load
+            loadSamples();
+            refreshReceiveStats();
+            
+            // ── 6. Print Worksheet Functions ──────────────────────────────
+            function openPrintWorksheet(ids, mode) {
+                if (!ids) return;
+                const url = `@Url.Action("PrintWorksheet", "SampleTransfer")?ids=${encodeURIComponent(ids)}&mode=${encodeURIComponent(mode)}`;
+                $('#printWorksheetFrame').attr('src', url);
+                new bootstrap.Modal(document.getElementById('modalPrintWorksheet')).show();
+            }
+
+            $('#btnPrintTransferSelected').on('click', function () {
+                const transferStatus = $('#selTransferStatus').val() || 'Pending';
+                const selectedIds = [];
+                
+                if (transferStatus === 'Transferred') {
+                    $('.hidden-sample-id').each(function() {
+                        selectedIds.push(parseInt($(this).val()));
+                    });
+                } else {
+                    $('.chk-sample-item:checked').each(function () {
+                        selectedIds.push(parseInt($(this).val()));
+                    });
+                }
+                
+                if (selectedIds.length === 0) {
+                    toastr.warning(transferStatus === 'Transferred' ? 'No transferred samples found to print.' : 'Please select at least one sample to print.');
+                    return;
+                }
+                
+                if (transferStatus !== 'Transferred') {
+                    toastr.error('Worksheets can only be printed for samples that have already been transferred.');
+                    return;
+                }
+                
+                openPrintWorksheet(selectedIds.join(','), 'Transfer');
+            });
+
+            $('#btnPrintReceiveSelected').on('click', function () {
+                const receiveStatus = $('#selReceiveStatus').val() || 'Pending';
+                const selectedIds = [];
+                
+                if (receiveStatus === 'Received') {
+                    $('.hidden-receive-id').each(function() {
+                        selectedIds.push(parseInt($(this).val()));
+                    });
+                } else {
+                    $('.chk-receive-item:checked').each(function () {
+                        selectedIds.push(parseInt($(this).val()));
+                    });
+                }
+                
+                if (selectedIds.length === 0) {
+                    toastr.warning(receiveStatus === 'Received' ? 'No received samples found to print.' : 'Please select at least one sample to print.');
+                    return;
+                }
+                
+                if (receiveStatus !== 'Received') {
+                    toastr.error('Worksheets can only be printed for samples that have already been received.');
+                    return;
+                }
+                
+                openPrintWorksheet(selectedIds.join(','), 'Receive');
+            });
+        });
+    </script>
+}

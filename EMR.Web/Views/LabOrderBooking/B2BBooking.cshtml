@@ -1195,7 +1195,7 @@
                         ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size:0.7rem;"><i class="bi bi-box me-1"></i>Package</span>'
                         : (isProfile
                             ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size:0.7rem;"><i class="bi bi-layers me-1"></i>Profile</span>'
-                            : '');
+                            : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size:0.7rem;"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>');
                     
                     var sampleHtml = sample ? `<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" style="font-size:0.7rem;"><i class="bi bi-droplet me-1"></i>${sample}</span>` : '';
                     var tatHtml = tat ? `<span class="badge bg-light text-secondary border ms-2" style="font-size:0.72rem;"><i class="bi bi-clock me-1"></i>${tat} hrs</span>` : '';
@@ -1227,7 +1227,7 @@
                     var code = $elem.attr('data-code') || '';
                     var name = $elem.attr('data-name') || opt.text;
                     var sample = $elem.attr('data-sample');
-                    var typeText = isPackage ? ' [Package]' : (isProfile ? ' [Profile]' : '');
+                    var typeText = isPackage ? ' [Package]' : (isProfile ? ' [Profile]' : ' [Investigation]');
                     var sampleText = sample ? ` [Sample: ${sample}]` : '';
                     return `${code ? code + ' - ' : ''}${name}${typeText}${sampleText}`;
                 }
@@ -3309,7 +3309,8 @@
                 agentParam = `&agentId=${currentAgentId}`;
             }
 
-            var url = `/LabOrderBooking/GetAvailableInvestigations?rateType=${rateType}${agentParam}`;
+            var branchId = '@(User.GetCurrentBranchId() ?? 1)';
+            var url = `/LabOrderBooking/GetAvailableInvestigations?branchId=${branchId}&rateType=${rateType}${agentParam}`;
             if (dept) url += `&departmentId=${dept}`;
             if (cat) url += `&categoryId=${cat}`;
             if (subCat) url += `&subCategoryId=${subCat}`;
@@ -3323,6 +3324,11 @@
                 $ddl.empty().append('<option value=""></option>');
                 if (res.isSuccess && res.data && res.data.length > 0) {
                     $('#lblAvailCount').text(res.data.length);
+
+                    var $pkgGroup = $('<optgroup label="📦 Health Packages"></optgroup>');
+                    var $profGroup = $('<optgroup label="📑 Investigation Profiles"></optgroup>');
+                    var $testGroup = $('<optgroup label="🧪 Single Investigations"></optgroup>');
+
                     res.data.forEach(function(item) {
                         var isProf = item.isProfileTest === true;
                         var isPack = item.isPackage === true;
@@ -3330,8 +3336,9 @@
                         var valStr = `${itemType}_${item.investigationId}`;
 
                         var b2bRateVal = (item.b2BRate !== undefined && item.b2BRate !== null) ? item.b2BRate : ((item.b2bRate !== undefined && item.b2bRate !== null) ? item.b2bRate : item.mrp);
+                        var textTypeLabel = isPack ? ' [Package]' : (isProf ? ' [Profile]' : ' [Investigation]');
 
-                        var opt = new Option(item.testName, valStr);
+                        var opt = new Option(`${item.testName}${textTypeLabel}`, valStr);
                         $(opt).attr('data-price', item.mrp);
                         $(opt).attr('data-b2b-rate', b2bRateVal);
                         $(opt).attr('data-code', item.testCode);
@@ -3341,8 +3348,19 @@
                         $(opt).attr('data-method', item.method || '');
                         $(opt).attr('data-is-profile', isProf ? '1' : '0');
                         $(opt).attr('data-is-package', isPack ? '1' : '0');
-                        $ddl.append(opt);
+
+                        if (isPack) {
+                            $pkgGroup.append(opt);
+                        } else if (isProf) {
+                            $profGroup.append(opt);
+                        } else {
+                            $testGroup.append(opt);
+                        }
                     });
+
+                    if ($pkgGroup.children().length > 0) $ddl.append($pkgGroup);
+                    if ($profGroup.children().length > 0) $ddl.append($profGroup);
+                    if ($testGroup.children().length > 0) $ddl.append($testGroup);
                 } else {
                     $('#lblAvailCount').text('0');
                 }
@@ -3363,7 +3381,7 @@
                         <td colspan="9" class="text-center py-4 text-muted">
                             <i class="bi bi-exclamation-circle text-warning fs-3 d-block mb-2"></i>
                             <span class="fw-semibold text-dark">No test investigations added yet.</span><br/>
-                            <span class="small text-secondary">A laboratory bill requires at least one test. Search and select tests above.</span>
+                            <span class="small text-secondary">A laboratory bill requires at least one test. Search and select tests, profiles or packages above.</span>
                         </td>
                     </tr>`);
                 $('#lblStandardTotal').text('₹ 0.00');
@@ -3387,7 +3405,7 @@
                     ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-box me-1"></i>Package</span>'
                     : (item.isProfile
                         ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-layers me-1"></i>Profile</span>'
-                        : '');
+                        : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>');
 
                 var sampleBadge = item.sampleType ? `<span class="badge bg-light text-dark border">${item.sampleType}</span>` : '<span class="text-muted">--</span>';
                 var tatBadge = item.tat ? `<span class="badge bg-light text-secondary border">${item.tat} hrs</span>` : '<span class="text-muted">--</span>';

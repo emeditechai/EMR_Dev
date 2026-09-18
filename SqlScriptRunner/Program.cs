@@ -8,22 +8,30 @@ class Program
     static void Main(string[] args)
     {
         string connStr = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;MultipleActiveResultSets=True";
-        string[] scripts = args.Length > 0 ? args : new[]
+        if (args.Length > 0 && args[0] == "--query")
         {
-            "SQLScripts/78_api_master_list_stored_procedures.sql",
-            "SQLScripts/2000_lab_test_category_master.sql",
-            "SQLScripts/2001_lab_test_sub_category_master.sql",
-            "SQLScripts/2002_lab_sample_type_master.sql",
-            "SQLScripts/2003_lab_test_method_master.sql",
-            "SQLScripts/2004_lab_unit_master.sql",
-            "SQLScripts/2005_seed_lab_masters_data.sql",
-            "SQLScripts/2006_lab_investigation_master.sql",
-            "SQLScripts/2007_seed_lab_investigations_data.sql",
-            "SQLScripts/2008_lab_investigation_profile_master.sql",
-            "SQLScripts/2009_seed_lab_investigation_profile_data.sql",
-            "SQLScripts/2010_analyzer_master_tbl_mst_analyzer.sql"
-        };
+            using var conn = new SqlConnection(connStr);
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = string.Join(" ", args.Skip(1));
+            using var reader = cmd.ExecuteReader();
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                Console.Write(reader.GetName(i) + " | ");
+            }
+            Console.WriteLine();
+            while (reader.Read())
+            {
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    Console.Write(reader[i]?.ToString() + " | ");
+                }
+                Console.WriteLine();
+            }
+            return;
+        }
 
+        string[] scripts = args;
         foreach (var s in scripts)
         {
             RunScript(connStr, s);

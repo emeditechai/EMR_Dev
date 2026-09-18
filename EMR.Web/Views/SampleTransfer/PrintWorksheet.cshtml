@@ -1,0 +1,267 @@
+@model List<EMR.Web.Models.DTOs.SampleTransferEligibleItemDto>
+@{
+    Layout = null; // Standalone printable view
+    string printMode = ViewBag.PrintMode ?? "Transfer";
+    string printDate = ViewBag.PrintDate ?? DateTime.Now.ToString("dd MMM yyyy, hh:mm tt");
+    string printedBy = ViewBag.PrintedBy ?? "Unknown";
+
+    string title = printMode == "Receive" ? "Sample Receipt Worksheet" : "Sample Transfer Worksheet";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@title - eClinicPlus+</title>
+    <style>
+        @@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        .print-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin: 0 0 5px 0;
+            color: #0056b3;
+            text-transform: uppercase;
+        }
+
+        .header p {
+            margin: 0;
+            color: #555;
+            font-size: 11px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: #f4f6f9;
+            font-weight: 600;
+            color: #333;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        td {
+            font-size: 11px;
+        }
+
+        .barcode {
+            font-weight: 600;
+            color: #0056b3;
+        }
+
+        .footer {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #777;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+
+        .signature-box {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .signature-line {
+            width: 200px;
+            border-top: 1px solid #333;
+            text-align: center;
+            padding-top: 5px;
+            font-size: 11px;
+        }
+
+        .no-print-bar {
+            background: #333;
+            color: #fff;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .btn-print {
+            background: #0d6efd;
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: inherit;
+        }
+        .btn-print:hover { background: #0b5ed7; }
+
+        @@media print {
+            body {
+                background-color: #fff;
+                padding: 0;
+            }
+            .print-container {
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+            }
+            .no-print-bar {
+                display: none !important;
+            }
+            th {
+                background-color: #eee !important;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print-bar">
+        <span><i class="bi bi-info-circle"></i> Please ensure printer settings are set to A4 or Letter, Landscape recommended for wider tables.</span>
+        <button class="btn-print" onclick="window.print()">Print Now</button>
+    </div>
+
+    <div class="print-container">
+        <div class="header">
+            <div>
+                <h1>@title</h1>
+                <p>Printed on: @printDate</p>
+                <p>Printed by: @printedBy</p>
+            </div>
+            <div style="text-align: right;">
+                <h2 style="margin: 0; font-size: 18px; color: #333;">eClinicPlus+ EMR</h2>
+                <p>Total Samples: @Model.Count</p>
+            </div>
+        </div>
+
+        @if (!Model.Any())
+        {
+            <div style="padding: 20px; text-align: center; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;">
+                No samples provided for printing.
+            </div>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th width="3%">#</th>
+                        <th width="12%">Barcode</th>
+                        <th width="15%">Patient Name</th>
+                        <th width="10%">Age/Sex</th>
+                        <th width="18%">Test Name</th>
+                        <th width="12%">From Branch</th>
+                        <th width="12%">To Branch</th>
+                        <th width="10%">Status</th>
+                        <th width="8%">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ int sl = 1; }
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>@(sl++)</td>
+                            <td class="barcode">@item.BarcodeNo</td>
+                            <td>
+                                <strong>@item.PatientName</strong>
+                                @if (!string.IsNullOrEmpty(item.PatientCode))
+                                {
+                                    <br /><span style="color:#777">@item.PatientCode</span>
+                                }
+                            </td>
+                            <td>@(item.Age.HasValue ? item.Age.Value.ToString() : "-") / @(item.Gender ?? "-")</td>
+                            <td>@item.TestName</td>
+                            <td>@item.SourceBranchName</td>
+                            <td>@item.TargetBranchName</td>
+                            <td>
+                                @if (printMode == "Receive")
+                                {
+                                    <span>@(item.IsReceived ? "Received" : "Pending Receive")</span>
+                                }
+                                else
+                                {
+                                    <span>@(item.IsTransferred ? "Transferred" : "Ready")</span>
+                                }
+                            </td>
+                            <td>
+                                @if (printMode == "Receive")
+                                {
+                                    @(item.ReceivedDate?.ToString("dd/MM/yyyy HH:mm") ?? "-")
+                                }
+                                else
+                                {
+                                    @(item.TransferredDate?.ToString("dd/MM/yyyy HH:mm") ?? "-")
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div class="signature-box">
+                <div class="signature-line">
+                    <strong>Handed Over By</strong><br />
+                    (Signature & Date)
+                </div>
+                <div class="signature-line">
+                    <strong>Received By</strong><br />
+                    (Signature & Date)
+                </div>
+            </div>
+        }
+
+        <div class="footer">
+            <span>Powered by eClinicPlus+</span>
+            <span>Page 1 of 1</span>
+        </div>
+    </div>
+
+    <script>
+        // Automatically trigger print dialog when page loads
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

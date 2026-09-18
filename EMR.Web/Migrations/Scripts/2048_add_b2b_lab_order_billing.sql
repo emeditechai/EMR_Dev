@@ -226,7 +226,7 @@ BEGIN
         AND CAST(GETDATE() AS DATE) BETWEEN mb2c.Effective_From AND mb2c.Effective_To
     LEFT JOIN LabRateCardDetail db2c ON db2c.RateCard_ID = mb2c.RateCard_ID 
         AND db2c.Item_ID = h.Profile_ID 
-        AND (db2c.Item_Type = 'Package' OR db2c.Item_Type = 'Profile')
+        AND db2c.Item_Type = 'Package'
         AND db2c.IsDeleted = 0
     LEFT JOIN LabRateCardMaster mb2b ON mb2b.Branch_ID = @BranchId 
         AND mb2b.Rate_Type = @RateType 
@@ -236,7 +236,7 @@ BEGIN
         AND CAST(GETDATE() AS DATE) BETWEEN mb2b.Effective_From AND mb2b.Effective_To
     LEFT JOIN LabRateCardDetail db2b ON db2b.RateCard_ID = mb2b.RateCard_ID 
         AND db2b.Item_ID = h.Profile_ID 
-        AND (db2b.Item_Type = 'Package' OR db2b.Item_Type = 'Profile')
+        AND db2b.Item_Type = 'Package'
         AND db2b.IsDeleted = 0
     WHERE h.Status = 1 AND h.IsDeleted = 0
       AND h.Profile_Type = 2 -- 2 = Package

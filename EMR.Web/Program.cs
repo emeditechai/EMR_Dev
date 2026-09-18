@@ -131,6 +131,7 @@ builder.Services.AddScoped<IPaymentSummaryApiClient,    PaymentSummaryApiClient>
 builder.Services.AddScoped<ILabOrderApiClient,          LabOrderApiClient>();
 builder.Services.AddScoped<IB2BBillingApiClient,         B2BBillingApiClient>();
 builder.Services.AddScoped<ISampleCollectionApiClient,   SampleCollectionApiClient>();
+builder.Services.AddScoped<ISampleTransferApiClient,      SampleTransferApiClient>();
 builder.Services.AddScoped<ILabReportingApiClient,       LabReportingApiClient>();
 builder.Services.AddScoped<ILabDashboardApiClient,       LabDashboardApiClient>();
 builder.Services.AddScoped<IReportApiClient, ReportApiClient>();

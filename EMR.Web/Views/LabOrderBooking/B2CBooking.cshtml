@@ -1262,7 +1262,7 @@
                     ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-box me-1"></i>Package</span>'
                     : (isProfile
                         ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-layers me-1"></i>Profile</span>'
-                        : '');
+                        : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>');
                 
                 var isOutsourced = $elem.attr('data-outsourced') === '1';
                 var outsourcedHtml = isOutsourced ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-2" style="font-size:0.7rem;vertical-align:middle;padding:0.2rem 0.5rem;border-radius:4px;"><i class="bi bi-box-arrow-up-right me-1"></i>Outsourced</span>' : '';
@@ -1290,11 +1290,12 @@
                 if (!opt.id) return opt.text;
                 var $elem = $(opt.element);
                 var isProfile = $elem.attr('data-is-profile') === '1';
+                var isPackage = $elem.attr('data-is-package') === '1';
                 var code = $elem.attr('data-code') || '';
                 var name = $elem.attr('data-name') || opt.text;
                 var sample = $elem.attr('data-sample');
                 var isOutsourced = $elem.attr('data-outsourced') === '1';
-                var badgeText = isProfile ? ' [Profile]' : '';
+                var badgeText = isPackage ? ' [Package]' : (isProfile ? ' [Profile]' : ' [Investigation]');
                 var sampleText = sample ? ` [Sample: ${sample}]` : '';
                 var outsourcedText = isOutsourced ? ' [Outsourced]' : '';
                 return `${code ? code + ' - ' : ''}${name}${badgeText}${outsourcedText}${sampleText}`;
@@ -1318,8 +1319,9 @@
                 var subCat = $('#ddlSubCategory').val() || '';
                 var gender = $('#ddlGender').val() || '';
                 var ageYears = $('#AgeYears').val() || '';
+                var branchId = '@(User.GetCurrentBranchId() ?? 1)';
 
-                var url = `@Url.Action("GetAvailableInvestigations", "LabOrderBooking")?`;
+                var url = `@Url.Action("GetAvailableInvestigations", "LabOrderBooking")?branchId=${branchId}`;
                 if (dept) url += `&departmentId=${dept}`;
                 if (cat) url += `&categoryId=${cat}`;
                 if (subCat) url += `&subCategoryId=${subCat}`;
@@ -1333,26 +1335,20 @@
                     $ddl.empty().append('<option value=""></option>');
                     if (res.isSuccess && res.data && res.data.length > 0) {
                         $('#lblAvailCount').text(res.data.length);
+
+                        var $pkgGroup = $('<optgroup label="📦 Health Packages"></optgroup>');
+                        var $profGroup = $('<optgroup label="📑 Investigation Profiles"></optgroup>');
+                        var $testGroup = $('<optgroup label="🧪 Single Investigations"></optgroup>');
+
                         res.data.forEach(function (item) {
                             var isProf = item.isProfileTest === true || item.isProfileTest === 'true';
                             var isPack = item.isPackage === true || item.isPackage === 'true';
                             var isOut = item.isOutsourced === true || item.isOutsourced === 'true' || item.isOutsourced === 1;
-                            var profileLabel = isProf ? ' <span class="badge badge-light-primary"><i class="fas fa-layer-group"></i> Profile</span>' : '';
-                            var packageLabel = isPack ? ' <span class="badge badge-light-success"><i class="fas fa-box"></i> Package</span>' : '';
-                            var sampleStr = item.sampleType ? ` <span class="badge badge-light-info"><i class="fas fa-tint"></i> ${item.sampleType}</span>` : '';
                             var isDiscAllowed = item.isDiscountAllowed === true || item.isDiscountAllowed === 'true' || item.isDiscountAllowed === 1;
-                            
-                            // Combine labels
-                            var allLabels = isPack ? packageLabel : (profileLabel + sampleStr);
-                            if (isPack) sampleStr = ''; // packages don't usually show a single sample type
-                            
-                            // We use html encoding for option text but Select2 can render HTML if we use templateResult. 
-                            // Since we might not be using templateResult, let's just stick to string tags or adjust if Select2 escapes them.
-                            // The original code was using raw text: profileLabel = isProf ? ' [Profile]' : '';
-                            // Let's stick to the original text approach to avoid XSS/Select2 escaping issues, unless we know Select2 is configured for HTML.
                             
                             var textProfileLabel = isProf ? ' [Profile]' : '';
                             var textPackageLabel = isPack ? ' [Package]' : '';
+                            var textSingleLabel = (!isProf && !isPack) ? ' [Investigation]' : '';
                             var textSampleStr = item.sampleType ? ` [Sample: ${item.sampleType}]` : '';
                             var textOutsourcedStr = isOut ? ' [Outsourced]' : '';
                             
@@ -1360,7 +1356,7 @@
                             var valStr = `${itemType}_${item.investigationId}`;
                             
                             var opt = new Option(
-                                `${item.testCode} - ${item.testName}${textProfileLabel}${textPackageLabel}${textOutsourcedStr}${textSampleStr} [TAT: ${item.tatHours} hrs] - ₹ ${item.mrp.toFixed(2)}`,
+                                `${item.testCode} - ${item.testName}${textProfileLabel}${textPackageLabel}${textSingleLabel}${textOutsourcedStr}${textSampleStr} [TAT: ${item.tatHours} hrs] - ₹ ${item.mrp.toFixed(2)}`,
                                 valStr
                             );
                             $(opt).attr('data-price', item.mrp);
@@ -1375,8 +1371,19 @@
                             $(opt).attr('data-method', item.method || '');
                             $(opt).attr('data-disc-allowed', isDiscAllowed ? '1' : '0');
                             $(opt).attr('data-outsourced', isOut ? '1' : '0');
-                            $ddl.append(opt);
+
+                            if (isPack) {
+                                $pkgGroup.append(opt);
+                            } else if (isProf) {
+                                $profGroup.append(opt);
+                            } else {
+                                $testGroup.append(opt);
+                            }
                         });
+
+                        if ($pkgGroup.children().length > 0) $ddl.append($pkgGroup);
+                        if ($profGroup.children().length > 0) $ddl.append($profGroup);
+                        if ($testGroup.children().length > 0) $ddl.append($testGroup);
                     } else {
                         $('#lblAvailCount').text('0');
                     }
@@ -1407,26 +1414,42 @@
                 var isPackage = opt.attr('data-is-package') === '1';
                 var profileId = opt.attr('data-profile-id') || '';
                 var profileUrl = opt.attr('data-profile-url') || '';
+                var itemKey = (isPackage ? 'P_' : 'I_') + id;
 
                 var sampleType = opt.attr('data-sample') || '';
                 var method = opt.attr('data-method') || '';
                 var isDiscAllowed = opt.attr('data-disc-allowed') === '1';
                 var isOutsourced = opt.attr('data-outsourced') === '1';
 
-                var newTestIds = [id];
-                var newTestNames = [name];
+                // 1. Check exact duplicate first
+                var exactDuplicate = lineItems.find(x => x.itemKey === itemKey || (x.investigationId === id && !!x.isPackage === isPackage));
+                if (exactDuplicate) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Already Added',
+                        text: `${name} is already added to the order.`,
+                        confirmButtonColor: '#0d6efd',
+                        confirmButtonText: 'OK'
+                    });
+                    $(this).val('').trigger('change.select2');
+                    return;
+                }
+
                 var profileTests = null;
+                var allIncludedTestIds = [];
+                var allIncludedTestNames = [];
 
                 if (isProfile || isPackage) {
                     try {
-                        // Disable the dropdown to prevent further clicks while loading
                         $(this).prop('disabled', true);
-                        var url = `@Url.Action("GetProfileDetails", "LabOrderBooking")?profileId=${profileId}`;
+                        var targetProfileId = isPackage ? id : profileId;
+                        var targetTestId = isPackage ? '' : id;
+                        var url = `@Url.Action("GetProfileDetails", "LabOrderBooking")?profileId=${targetProfileId}&testId=${targetTestId}`;
                         var res = await $.get(url);
-                        if (res.success && res.tests) {
-                            profileTests = res.tests;
-                            newTestIds = res.tests.map(t => t.testId);
-                            newTestNames = res.tests.map(t => t.testName);
+                        if (res.success) {
+                            profileTests = res.tests || [];
+                            allIncludedTestIds = res.allIncludedTestIds || profileTests.map(t => t.testId);
+                            allIncludedTestNames = res.allIncludedTestNames || profileTests.map(t => t.testName);
                         }
                     } catch (err) {
                         console.error('Failed to fetch profile details:', err);
@@ -1435,52 +1458,164 @@
                     }
                 }
 
-                // Deep duplicate check
-                var duplicateFound = false;
-                var duplicateMessage = '';
+                // 2. Case A: Adding a SINGLE INVESTIGATION (!isProfile && !isPackage)
+                if (!isProfile && !isPackage) {
+                    var parentMatch = lineItems.find(x => 
+                        (x.isProfileTest || x.isPackage) && 
+                        ((x.allIncludedTestIds && x.allIncludedTestIds.includes(id)) || 
+                         (x.profileTests && x.profileTests.some(pt => pt.testId === id)))
+                    );
 
-                for (var i = 0; i < newTestIds.length; i++) {
-                    var checkId = newTestIds[i];
-                    var checkName = newTestNames[i];
-                    
-                    // Check against single tests
-                    var singleMatch = lineItems.find(x => !x.isProfileTest && !x.isPackage && x.investigationId === checkId);
-                    if (singleMatch) {
-                        duplicateFound = true;
-                        if (isProfile || isPackage) {
-                            duplicateMessage = `${checkName} is already added as a single investigation.`;
-                        } else {
-                            duplicateMessage = `This investigation is already added.`;
-                        }
-                        break;
-                    }
-                    
-                    // Check against already added profiles/packages
-                    var profileMatch = lineItems.find(x => (x.isProfileTest || x.isPackage) && x.profileTests && x.profileTests.some(pt => pt.testId === checkId));
-                    if (profileMatch) {
-                        duplicateFound = true;
-                        if (isProfile || isPackage) {
-                            duplicateMessage = `${checkName} is already included in the added '${profileMatch.testName}'.`;
-                        } else {
-                            duplicateMessage = `This investigation is already included in the added '${profileMatch.testName}'.`;
-                        }
-                        break;
+                    if (parentMatch) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Already Included',
+                            text: `'${name}' is already included in the added ${parentMatch.isPackage ? 'package' : 'profile'} '${parentMatch.testName}'. An individual test cannot be added.`,
+                            confirmButtonColor: '#0d6efd',
+                            confirmButtonText: 'OK'
+                        });
+                        $(this).val('').trigger('change.select2');
+                        return;
                     }
                 }
 
-                if (duplicateFound) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Already Added',
-                        text: duplicateMessage,
-                        confirmButtonColor: '#0d6efd',
-                        confirmButtonText: 'OK'
+                // 3. Case B: Adding a PROFILE (isProfile)
+                if (isProfile) {
+                    // Check if this profile is directly included inside an added Package
+                    var packageMatch = lineItems.find(x => 
+                        x.isPackage && 
+                        x.profileTests && 
+                        x.profileTests.some(pt => pt.testId === id || (pt.subProfileId && String(pt.subProfileId) === String(profileId)))
+                    );
+                    if (packageMatch) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Already Included',
+                            text: `'${name}' is already included in the added package '${packageMatch.testName}'.`,
+                            confirmButtonColor: '#0d6efd',
+                            confirmButtonText: 'OK'
+                        });
+                        $(this).val('').trigger('change.select2');
+                        return;
+                    }
+
+                    // Check if an individual investigation already in the order is part of this profile
+                    var conflictingSingles = lineItems.filter(x => 
+                        !x.isProfileTest && !x.isPackage && 
+                        ((allIncludedTestIds && allIncludedTestIds.includes(x.investigationId)) || 
+                         (profileTests && profileTests.some(pt => pt.testId === x.investigationId)))
+                    );
+
+                    if (conflictingSingles.length > 0) {
+                        var namesList = conflictingSingles.map(s => `'${s.testName}'`).join(', ');
+                        var confirmResult = await Swal.fire({
+                            icon: 'question',
+                            title: 'Individual Test Already Added',
+                            text: `${namesList} is already added as an individual investigation, but is included in '${name}'. Would you like to remove the individual test and add the complete profile instead?`,
+                            showCancelButton: true,
+                            confirmButtonColor: '#0d6efd',
+                            cancelButtonColor: '#6c757d',
+                            confirmButtonText: 'Yes, Replace with Profile',
+                            cancelButtonText: 'Cancel'
+                        });
+
+                        if (confirmResult.isConfirmed) {
+                            var removeKeys = conflictingSingles.map(s => s.itemKey);
+                            lineItems = lineItems.filter(x => !removeKeys.includes(x.itemKey));
+                        } else {
+                            $(this).val('').trigger('change.select2');
+                            return;
+                        }
+                    }
+                }
+
+                // 4. Case C: Adding a PACKAGE (isPackage)
+                if (isPackage) {
+                    // Check if any Profile in the order is directly included in this package
+                    var conflictingProfiles = lineItems.filter(x => 
+                        x.isProfileTest && 
+                        profileTests && 
+                        profileTests.some(pt => pt.testId === x.investigationId || (pt.subProfileId && String(pt.subProfileId) === String(x.profileId)))
+                    );
+
+                    if (conflictingProfiles.length > 0) {
+                        var profNames = conflictingProfiles.map(p => `'${p.testName}'`).join(', ');
+                        var confirmResult = await Swal.fire({
+                            icon: 'question',
+                            title: 'Profile Already Added',
+                            text: `${profNames} is already added to the order, but is included in the package '${name}'. Would you like to remove the separate profile and add the complete package instead?`,
+                            showCancelButton: true,
+                            confirmButtonColor: '#0d6efd',
+                            cancelButtonColor: '#6c757d',
+                            confirmButtonText: 'Yes, Replace with Package',
+                            cancelButtonText: 'Cancel'
+                        });
+
+                        if (confirmResult.isConfirmed) {
+                            var removeKeys = conflictingProfiles.map(p => p.itemKey);
+                            lineItems = lineItems.filter(x => !removeKeys.includes(x.itemKey));
+                        } else {
+                            $(this).val('').trigger('change.select2');
+                            return;
+                        }
+                    }
+
+                    // Check if any single investigation in the order is included in this package
+                    var conflictingSingles = lineItems.filter(x => 
+                        !x.isProfileTest && !x.isPackage && 
+                        ((allIncludedTestIds && allIncludedTestIds.includes(x.investigationId)) || 
+                         (profileTests && profileTests.some(pt => pt.testId === x.investigationId)))
+                    );
+
+                    if (conflictingSingles.length > 0) {
+                        var singleNames = conflictingSingles.map(s => `'${s.testName}'`).join(', ');
+                        var confirmResult = await Swal.fire({
+                            icon: 'question',
+                            title: 'Individual Test Already Added',
+                            text: `${singleNames} is already added as an individual investigation, but is included in the package '${name}'. Would you like to remove the individual test and add the complete package instead?`,
+                            showCancelButton: true,
+                            confirmButtonColor: '#0d6efd',
+                            cancelButtonColor: '#6c757d',
+                            confirmButtonText: 'Yes, Replace with Package',
+                            cancelButtonText: 'Cancel'
+                        });
+
+                        if (confirmResult.isConfirmed) {
+                            var removeKeys = conflictingSingles.map(s => s.itemKey);
+                            lineItems = lineItems.filter(x => !removeKeys.includes(x.itemKey));
+                        } else {
+                            $(this).val('').trigger('change.select2');
+                            return;
+                        }
+                    }
+                }
+
+                // 5. Check for overlapping constituent tests between multi-test panels (Informational Notice only, NEVER blocks)
+                var sharedTestNames = [];
+                if (isProfile || isPackage) {
+                    var thisIds = allIncludedTestIds && allIncludedTestIds.length > 0 ? allIncludedTestIds : (profileTests ? profileTests.map(t => t.testId) : [id]);
+                    lineItems.forEach(existing => {
+                        if (existing.isProfileTest || existing.isPackage) {
+                            var existingIds = existing.allIncludedTestIds && existing.allIncludedTestIds.length > 0 
+                                ? existing.allIncludedTestIds 
+                                : (existing.profileTests ? existing.profileTests.map(t => t.testId) : [existing.investigationId]);
+                            var overlap = thisIds.filter(tid => existingIds.includes(tid));
+                            if (overlap.length > 0) {
+                                overlap.forEach(otid => {
+                                    var tObj = (profileTests && profileTests.find(t => t.testId === otid)) || 
+                                               (existing.profileTests && existing.profileTests.find(t => t.testId === otid));
+                                    var tName = tObj ? tObj.testName : '';
+                                    if (tName && !sharedTestNames.includes(tName)) {
+                                        sharedTestNames.push(tName);
+                                    }
+                                });
+                            }
+                        }
                     });
-                    $(this).val('').trigger('change.select2');
-                    return;
                 }
 
                 lineItems.push({
+                    itemKey: itemKey,
                     investigationId: id,
                     price: price,
                     testCode: code,
@@ -1488,16 +1623,32 @@
                     tatHours: tat,
                     isProfileTest: isProfile,
                     isPackage: isPackage,
-                    profileId: profileId,
+                    profileId: profileId || (isPackage ? id : ''),
                     profileUrl: profileUrl,
                     sampleType: sampleType,
                     method: method,
                     isDiscountAllowed: isDiscAllowed,
                     isOutsourced: isOutsourced,
-                    profileTests: profileTests
+                    profileTests: profileTests,
+                    allIncludedTestIds: allIncludedTestIds,
+                    allIncludedTestNames: allIncludedTestNames
                 });
 
                 renderTable();
+
+                if (sharedTestNames.length > 0) {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 4000,
+                        timerProgressBar: true
+                    });
+                    Toast.fire({
+                        icon: 'info',
+                        title: `Note: '${sharedTestNames.join(', ')}' is common to both panels.`
+                    });
+                }
 
                 // Clear selection back to placeholder and reopen for rapid next test entry
                 $(this).val('').trigger('change.select2');
@@ -1507,15 +1658,15 @@
             });
 
             $(document).on('click', '.btn-remove', function() {
-                var id = $(this).data('id');
-                lineItems = lineItems.filter(x => x.investigationId !== id);
+                var key = $(this).data('key');
+                lineItems = lineItems.filter(x => x.itemKey !== key);
                 renderTable();
             });
 
             $(document).on('change', '.chk-urgent', function() {
-                var id = $(this).data('id');
+                var key = $(this).data('key');
                 var isChecked = $(this).is(':checked');
-                var item = lineItems.find(x => x.investigationId === id);
+                var item = lineItems.find(x => x.itemKey === key);
                 if (item) {
                     item.isUrgent = isChecked;
                     $('#lineItemsJson').val(JSON.stringify(lineItems.map(x => ({
@@ -1536,11 +1687,11 @@
                 if (lineItems.length === 0) {
                     $tbody.append(`
                         <tr id="trEmptyRow">
-                            <td colspan="6" class="text-center py-4 text-muted bg-light-subtle">
+                            <td colspan="8" class="text-center py-4 text-muted bg-light-subtle">
                                 <div class="py-2">
                                     <i class="bi bi-clipboard2-pulse fs-2 d-block mb-1 text-primary opacity-50"></i>
                                     <div class="fw-semibold text-secondary">No investigations added yet</div>
-                                    <div class="small text-muted">Use the search box above to search and select tests or profile packages</div>
+                                    <div class="small text-muted">Use the search box above to search and select tests, profiles or packages</div>
                                 </div>
                             </td>
                         </tr>
@@ -1548,15 +1699,17 @@
                 } else {
                     lineItems.forEach(function(item, idx) {
                         total += item.price;
-                        var badgeProfile = item.isProfileTest
-                            ? `<span class="badge bg-primary text-white ms-2 cursor-pointer btn-view-profile" data-test-id="${item.investigationId}" data-profile-id="${item.profileId || ''}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" style="font-size:0.72rem;vertical-align:middle;padding:0.25rem 0.5rem;border-radius:4px;cursor:pointer;" title="Click to view included tests"><i class="bi bi-layers me-1"></i>Profile</span>
-                               <button type="button" class="btn btn-xs btn-outline-info ms-1 btn-view-profile rounded-pill shadow-2xs" data-test-id="${item.investigationId}" data-profile-id="${item.profileId || ''}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" title="View included investigations in this profile" style="font-size:0.75rem;line-height:1.4;vertical-align:middle;padding:0.15rem 0.55rem;">
+                        var badgeProfile = item.isPackage
+                            ? `<span class="badge bg-success text-white ms-2 cursor-pointer btn-view-profile" data-test-id="${item.investigationId}" data-profile-id="${item.profileId || item.investigationId}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" style="font-size:0.72rem;vertical-align:middle;padding:0.25rem 0.5rem;border-radius:4px;cursor:pointer;" title="Click to view included tests"><i class="fas fa-box me-1"></i>Package</span>
+                               <button type="button" class="btn btn-xs btn-outline-success ms-1 btn-view-profile rounded-pill shadow-2xs" data-test-id="${item.investigationId}" data-profile-id="${item.profileId || item.investigationId}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" title="View included investigations in this package" style="font-size:0.75rem;line-height:1.4;vertical-align:middle;padding:0.15rem 0.55rem;">
                                    <i class="bi bi-eye me-1"></i>View Tests
                                </button>`
-                            : (item.isPackage ? `<span class="badge bg-success text-white ms-2 cursor-pointer btn-view-profile" data-test-id="${item.investigationId}" data-profile-id="${item.investigationId}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" style="font-size:0.72rem;vertical-align:middle;padding:0.25rem 0.5rem;border-radius:4px;cursor:pointer;" title="Click to view included tests"><i class="fas fa-box me-1"></i>Package</span>
-                               <button type="button" class="btn btn-xs btn-outline-success ms-1 btn-view-profile rounded-pill shadow-2xs" data-test-id="${item.investigationId}" data-profile-id="${item.investigationId}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" title="View included investigations in this package" style="font-size:0.75rem;line-height:1.4;vertical-align:middle;padding:0.15rem 0.55rem;">
-                                   <i class="bi bi-eye me-1"></i>View Tests
-                               </button>` : '');
+                            : (item.isProfileTest
+                                ? `<span class="badge bg-primary text-white ms-2 cursor-pointer btn-view-profile" data-test-id="${item.investigationId}" data-profile-id="${item.profileId || ''}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" style="font-size:0.72rem;vertical-align:middle;padding:0.25rem 0.5rem;border-radius:4px;cursor:pointer;" title="Click to view included tests"><i class="bi bi-layers me-1"></i>Profile</span>
+                                   <button type="button" class="btn btn-xs btn-outline-info ms-1 btn-view-profile rounded-pill shadow-2xs" data-test-id="${item.investigationId}" data-profile-id="${item.profileId || ''}" data-profile-url="${item.profileUrl || ''}" data-test-name="${item.testName}" title="View included investigations in this profile" style="font-size:0.75rem;line-height:1.4;vertical-align:middle;padding:0.15rem 0.55rem;">
+                                       <i class="bi bi-eye me-1"></i>View Tests
+                                   </button>`
+                                : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-2" style="font-size:0.72rem;vertical-align:middle;padding:0.25rem 0.5rem;border-radius:4px;"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>`);
 
                         var badgeDisc = item.isDiscountAllowed
                             ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.68rem;padding:0.2rem 0.45rem" title="Discount allowed as per rate list"><i class="bi bi-tag-fill me-1"></i>Disc. Allowed</span>`
@@ -1579,11 +1732,11 @@
                                 <td class="text-end font-monospace fw-bold text-success fs-6">₹${item.price.toFixed(2)}</td>
                                 <td class="text-center">
                                     <div class="form-check d-flex justify-content-center m-0">
-                                        <input class="form-check-input chk-urgent" type="checkbox" data-id="${item.investigationId}" ${item.isUrgent ? 'checked' : ''} title="Mark as Urgent">
+                                        <input class="form-check-input chk-urgent" type="checkbox" data-key="${item.itemKey}" ${item.isUrgent ? 'checked' : ''} title="Mark as Urgent">
                                     </div>
                                 </td>
                                 <td class="text-center">
-                                    <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-circle btn-remove" data-id="${item.investigationId}" title="Remove test" style="width:32px;height:32px;">
+                                    <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-circle btn-remove" data-key="${item.itemKey}" title="Remove test" style="width:32px;height:32px;">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -1665,11 +1818,14 @@
 
                             var tbodyHtml = '';
                             (res.tests || []).forEach(function (t) {
+                                var badgeProf = t.isProfileTest 
+                                    ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:0.68rem;padding:0.15rem 0.4rem"><i class="bi bi-layers me-1"></i>Profile</span>' 
+                                    : '';
                                 tbodyHtml += `
                                     <tr>
                                         <td class="text-center font-monospace text-muted small">${t.sequence}</td>
                                         <td class="fw-semibold text-primary font-monospace small">${t.testCode}</td>
-                                        <td class="fw-semibold text-dark">${t.testName}</td>
+                                        <td class="fw-semibold text-dark">${t.testName} ${badgeProf}</td>
                                         <td class="small text-muted">${t.categoryName || '-'}</td>
                                         <td class="text-end font-monospace small">₹${(t.mrp || 0).toFixed(2)}</td>
                                     </tr>

@@ -347,6 +347,10 @@
                         ? 'bg-success-subtle text-success border border-success-subtle'
                         : 'bg-info-subtle text-info border border-info-subtle';
 
+                    const transferredBadge = o.isTransferred
+                        ? `<div class="mt-1"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-9" title="Sample transferred from ${escapeHtml(o.sourceBranchName || 'External Branch')}"><i class="bi bi-arrow-left-right me-1"></i>From: ${escapeHtml(o.sourceBranchName || 'Branch')}</span></div>`
+                        : '';
+
                     html += `
                         <tr id="orderRow_${o.labOrderId}">
                             <td class="ps-3 text-muted fw-bold">${index + 1}</td>
@@ -356,6 +360,7 @@
                                     ${urgentBadge}
                                 </div>
                                 <div class="fs-9 text-muted font-monospace mt-1">${escapeHtml(o.billNo || '—')}</div>
+                                ${transferredBadge}
                             </td>
                             <td>
                                 <div class="fw-bold text-dark fs-8">${escapeHtml(o.patientName)}</div>
