@@ -66,6 +66,10 @@ public class LabReferenceRangeFormViewModel
     [Display(Name = "High Value")]
     public decimal? High_Value { get; set; }
 
+    [StringLength(1000, ErrorMessage = "Special Remarks cannot exceed 1000 characters.")]
+    [Display(Name = "Special Remarks")]
+    public string? Special_Remarks { get; set; }
+
     [StringLength(500, ErrorMessage = "Range Source cannot exceed 500 characters.")]
     [Display(Name = "Range Source")]
     public string? Range_Source { get; set; }

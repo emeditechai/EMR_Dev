@@ -145,6 +145,14 @@
                             }
                         </div>
 
+                        <!-- Special Remarks -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Special Remarks</label>
+                            <div class="fs-6 text-dark">
+                                @(!string.IsNullOrWhiteSpace(Model.Special_Remarks) ? Model.Special_Remarks : "N/A")
+                            </div>
+                        </div>
+
                         <!-- Range Source -->
                         <div class="col-md-6">
                             <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Range Source</label>

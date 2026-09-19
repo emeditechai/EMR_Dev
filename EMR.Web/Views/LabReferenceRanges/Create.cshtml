@@ -209,6 +209,18 @@
                                 <span asp-validation-for="High_Value" class="text-danger small"></span>
                             </div>
 
+                            <!-- Special Remarks (After High Value) -->
+                            <div class="col-md-6">
+                                <label asp-for="Special_Remarks" class="form-label fw-semibold">
+                                    Special Remarks
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-chat-left-text text-muted"></i></span>
+                                    <input asp-for="Special_Remarks" class="form-control" placeholder="e.g., Fasting required, Borderline values, Critical alert levels" maxlength="1000" />
+                                </div>
+                                <span asp-validation-for="Special_Remarks" class="text-danger small"></span>
+                            </div>
+
                             <!-- Effective From -->
                             <div class="col-md-3">
                                 <label asp-for="Effective_From" class="form-label fw-semibold">

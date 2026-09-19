@@ -19,6 +19,7 @@ public class LabReferenceRangeModel
     public string Pregnancy_Trimester { get; set; } = "Not Applicable";
     public decimal? Low_Value { get; set; }
     public decimal? High_Value { get; set; }
+    public string? Special_Remarks { get; set; }
     public string? Range_Source { get; set; }
     public DateTime Effective_From { get; set; }
     public DateTime? Effective_To { get; set; }
@@ -42,6 +43,7 @@ public class LabReferenceRangeCreateRequestModel
     public string Pregnancy_Trimester { get; set; } = "Not Applicable";
     public decimal? Low_Value { get; set; }
     public decimal? High_Value { get; set; }
+    public string? Special_Remarks { get; set; }
     public string? Range_Source { get; set; }
     public DateTime Effective_From { get; set; }
     public DateTime? Effective_To { get; set; }
@@ -63,6 +65,7 @@ public class LabReferenceRangeUpdateRequestModel
     public string Pregnancy_Trimester { get; set; } = "Not Applicable";
     public decimal? Low_Value { get; set; }
     public decimal? High_Value { get; set; }
+    public string? Special_Remarks { get; set; }
     public string? Range_Source { get; set; }
     public DateTime Effective_From { get; set; }
     public DateTime? Effective_To { get; set; }
