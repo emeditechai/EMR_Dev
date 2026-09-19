@@ -242,6 +242,20 @@ public class LabReferenceRangesController(
                 return RedirectToAction(nameof(Index));
             }
 
+            // Fetch all reference ranges configured for this test
+            var allTestRanges = (await refRangeApiClient.GetListAsync(testId: item.Test_ID, companyId: companyId)).ToList();
+            var gridItems = allTestRanges.Select(r => new LabReferenceRangeGridItemModel
+            {
+                Age_From = r.Age_From,
+                Age_To = r.Age_To,
+                Age_Unit = r.Age_Unit,
+                Gender = r.Gender,
+                Pregnancy_Trimester = r.Pregnancy_Trimester ?? "Not Applicable",
+                Low_Value = r.Low_Value,
+                High_Value = r.High_Value,
+                Special_Remarks = r.Special_Remarks
+            }).ToList();
+
             var model = new LabReferenceRangeFormViewModel
             {
                 RefRange_ID = item.RefRange_ID,
@@ -263,7 +277,8 @@ public class LabReferenceRangesController(
                 Effective_From = item.Effective_From,
                 Effective_To = item.Effective_To,
                 Is_Common_For_All = item.Is_Common_For_All,
-                Status = item.Status
+                Status = item.Status,
+                RangeItemsJson = System.Text.Json.JsonSerializer.Serialize(gridItems)
             };
 
             await PopulateDropdownsAsync(model, companyId);
@@ -286,62 +301,142 @@ public class LabReferenceRangesController(
         if (id != model.RefRange_ID)
             return BadRequest();
 
-        ValidateRanges(model);
-
-        if (!ModelState.IsValid)
+        if (model.Is_Common_For_All)
         {
-            await PopulateDropdownsAsync(model, companyId);
-            return View(model);
-        }
+            ValidateRanges(model);
 
-        try
-        {
-            var req = new LabReferenceRangeUpdateRequestModel
+            if (!ModelState.IsValid)
             {
-                RefRange_ID = model.RefRange_ID,
-                CompanyId = companyId,
-                Test_ID = model.Test_ID,
-                Method_ID = model.Method_ID,
-                Unit_ID = model.Unit_ID,
-                Age_From = model.Age_From,
-                Age_To = model.Age_To,
-                Age_Unit = model.Age_Unit,
-                Gender = model.Gender,
-                Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
-                Low_Value = model.Low_Value,
-                High_Value = model.High_Value,
-                Special_Remarks = model.Special_Remarks,
-                Range_Source = model.Range_Source,
-                Effective_From = model.Effective_From,
-                Effective_To = model.Effective_To,
-                Is_Common_For_All = model.Is_Common_For_All,
-                Status = model.Status,
-                UserId = User.GetUserId()
-            };
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
 
-            await refRangeApiClient.UpdateAsync(req);
+            try
+            {
+                var req = new LabReferenceRangeUpdateRequestModel
+                {
+                    RefRange_ID = model.RefRange_ID,
+                    CompanyId = companyId,
+                    Test_ID = model.Test_ID,
+                    Method_ID = model.Method_ID,
+                    Unit_ID = model.Unit_ID,
+                    Age_From = model.Age_From,
+                    Age_To = model.Age_To,
+                    Age_Unit = model.Age_Unit,
+                    Gender = model.Gender,
+                    Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
+                    Low_Value = model.Low_Value,
+                    High_Value = model.High_Value,
+                    Special_Remarks = model.Special_Remarks,
+                    Range_Source = model.Range_Source,
+                    Effective_From = model.Effective_From,
+                    Effective_To = model.Effective_To,
+                    Is_Common_For_All = true,
+                    Status = model.Status,
+                    UserId = User.GetUserId()
+                };
 
-            await auditLogService.LogAsync(
-                "Update Lab Reference Range",
-                "Edit",
-                $"Updated Reference Range #{model.RefRange_ID} for Test ID #{model.Test_ID}",
-                User.GetUserId(),
-                branchId
-            );
+                await refRangeApiClient.UpdateAsync(req);
 
-            TempData["SuccessMessage"] = "Reference Range updated successfully.";
-            return RedirectToAction(nameof(Index));
+                await auditLogService.LogAsync(
+                    "Update Lab Reference Range",
+                    "Edit",
+                    $"Updated Reference Range #{model.RefRange_ID} for Test ID #{model.Test_ID}",
+                    User.GetUserId(),
+                    branchId
+                );
+
+                TempData["SuccessMessage"] = "Reference Range updated successfully.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
+            catch (HttpRequestException)
+            {
+                ViewData["PageName"] = "Edit Reference Range";
+                return View("ApiDown");
+            }
         }
-        catch (InvalidOperationException ex)
+        else
         {
-            ModelState.AddModelError(string.Empty, ex.Message);
-            await PopulateDropdownsAsync(model, companyId);
-            return View(model);
-        }
-        catch (HttpRequestException)
-        {
-            ViewData["PageName"] = "Edit Reference Range";
-            return View("ApiDown");
+            // Multi-range Grid Bulk Save Mode in Edit
+            if (model.Test_ID <= 0)
+                ModelState.AddModelError(nameof(model.Test_ID), "Investigation Test is required.");
+
+            if (model.Unit_ID <= 0)
+                ModelState.AddModelError(nameof(model.Unit_ID), "Unit is required.");
+
+            List<LabReferenceRangeGridItemModel>? gridItems = null;
+            if (!string.IsNullOrWhiteSpace(model.RangeItemsJson) && model.RangeItemsJson != "[]")
+            {
+                try
+                {
+                    gridItems = System.Text.Json.JsonSerializer.Deserialize<List<LabReferenceRangeGridItemModel>>(model.RangeItemsJson, new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch
+                {
+                    ModelState.AddModelError(string.Empty, "Invalid reference range items format.");
+                }
+            }
+
+            if (gridItems == null || gridItems.Count == 0)
+            {
+                ModelState.AddModelError(string.Empty, "Please add at least one reference range bracket to the table.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
+
+            try
+            {
+                var bulkReq = new LabReferenceRangeBulkSaveRequestModel
+                {
+                    CompanyId = companyId,
+                    Test_ID = model.Test_ID,
+                    Method_ID = model.Method_ID,
+                    Unit_ID = model.Unit_ID,
+                    Range_Source = model.Range_Source,
+                    Effective_From = model.Effective_From,
+                    Effective_To = model.Effective_To,
+                    Is_Common_For_All = false,
+                    UserId = User.GetUserId(),
+                    RangeItems = gridItems!
+                };
+
+                await refRangeApiClient.BulkSaveAsync(bulkReq);
+
+                await auditLogService.LogAsync(
+                    "Bulk Save Lab Reference Ranges (Edit)",
+                    "BulkSave",
+                    $"Updated {gridItems!.Count} reference ranges for Test ID #{model.Test_ID}",
+                    User.GetUserId(),
+                    branchId
+                );
+
+                TempData["SuccessMessage"] = $"Successfully updated {gridItems!.Count} reference range bracket(s) for the test.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
+            catch (HttpRequestException)
+            {
+                ViewData["PageName"] = "Edit Reference Range";
+                return View("ApiDown");
+            }
         }
     }
 
