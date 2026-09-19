@@ -103,8 +103,8 @@ public class LabReferenceRangesController(
                     Test_ID = model.Test_ID,
                     Method_ID = model.Method_ID,
                     Unit_ID = model.Unit_ID,
-                    Age_From = model.Age_From,
-                    Age_To = model.Age_To,
+                    Age_From = model.Age_From ?? 0,
+                    Age_To = model.Age_To ?? 100,
                     Age_Unit = model.Age_Unit,
                     Gender = model.Gender,
                     Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
@@ -147,6 +147,11 @@ public class LabReferenceRangesController(
         else
         {
             // Multi-range Grid Bulk Save mode
+            ModelState.Remove(nameof(model.Age_From));
+            ModelState.Remove(nameof(model.Age_To));
+            ModelState.Remove(nameof(model.Age_Unit));
+            ModelState.Remove(nameof(model.Gender));
+
             if (model.Test_ID <= 0)
                 ModelState.AddModelError(nameof(model.Test_ID), "Investigation Test is required.");
 
@@ -320,8 +325,8 @@ public class LabReferenceRangesController(
                     Test_ID = model.Test_ID,
                     Method_ID = model.Method_ID,
                     Unit_ID = model.Unit_ID,
-                    Age_From = model.Age_From,
-                    Age_To = model.Age_To,
+                    Age_From = model.Age_From ?? 0,
+                    Age_To = model.Age_To ?? 100,
                     Age_Unit = model.Age_Unit,
                     Gender = model.Gender,
                     Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
@@ -364,6 +369,11 @@ public class LabReferenceRangesController(
         else
         {
             // Multi-range Grid Bulk Save Mode in Edit
+            ModelState.Remove(nameof(model.Age_From));
+            ModelState.Remove(nameof(model.Age_To));
+            ModelState.Remove(nameof(model.Age_Unit));
+            ModelState.Remove(nameof(model.Gender));
+
             if (model.Test_ID <= 0)
                 ModelState.AddModelError(nameof(model.Test_ID), "Investigation Test is required.");
 

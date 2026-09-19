@@ -39,21 +39,17 @@ public class LabReferenceRangeFormViewModel
     [Display(Name = "Unit")]
     public int Unit_ID { get; set; }
 
-    [Required(ErrorMessage = "Age From is required.")]
     [Range(0, 150, ErrorMessage = "Age From must be between 0 and 150.")]
     [Display(Name = "Age From")]
-    public decimal Age_From { get; set; }
+    public decimal? Age_From { get; set; }
 
-    [Required(ErrorMessage = "Age To is required.")]
     [Range(0, 150, ErrorMessage = "Age To must be between 0 and 150.")]
     [Display(Name = "Age To")]
-    public decimal Age_To { get; set; }
+    public decimal? Age_To { get; set; }
 
-    [Required(ErrorMessage = "Age Unit is required.")]
     [Display(Name = "Age Unit")]
     public string Age_Unit { get; set; } = "Years";
 
-    [Required(ErrorMessage = "Gender is required.")]
     [Display(Name = "Gender")]
     public string Gender { get; set; } = "All";
 
