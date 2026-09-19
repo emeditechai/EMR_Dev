@@ -235,9 +235,14 @@
                         <div id="multiRangeSection">
                             <!-- Row Entry Controls -->
                             <div class="card grid-entry-card p-3 mb-4 rounded-3">
-                                <h6 class="fw-bold text-dark mb-3">
-                                    <i class="bi bi-plus-circle me-1 text-success"></i>Add Age & Gender Bracket Row
-                                </h6>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="fw-bold text-dark mb-0" id="gridCardTitle">
+                                        <i class="bi bi-plus-circle me-1 text-success"></i>Add Age & Gender Bracket Row
+                                    </h6>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle d-none" id="editRowBadge">
+                                        <i class="bi bi-pencil me-1"></i>Editing Row #<span id="editingRowNum">1</span>
+                                    </span>
+                                </div>
                                 <div class="row g-2 align-items-end">
                                     <div class="col-md-2">
                                         <label class="form-label small fw-semibold text-muted mb-1">Age From <span class="text-danger">*</span></label>
@@ -281,14 +286,19 @@
                                         <label class="form-label small fw-semibold text-muted mb-1">High Value (Max)</label>
                                         <input type="number" step="any" class="form-control form-control-sm" id="gridHighValue" placeholder="Max" />
                                     </div>
-                                    <div class="col-md-8">
+                                    <div class="col-md-7">
                                         <label class="form-label small fw-semibold text-muted mb-1">Special Remarks</label>
                                         <input type="text" class="form-control form-control-sm" id="gridRemarks" placeholder="Optional notes for this range bracket" maxlength="1000" />
                                     </div>
-                                    <div class="col-md-2">
-                                        <button type="button" class="btn btn-success btn-sm w-100 fw-semibold" id="btnAddGridRow">
-                                            <i class="bi bi-plus-lg me-1"></i> Add to Table
-                                        </button>
+                                    <div class="col-md-3">
+                                        <div class="d-flex gap-1">
+                                            <button type="button" class="btn btn-success btn-sm w-100 fw-semibold" id="btnAddGridRow">
+                                                <i class="bi bi-plus-lg me-1"></i> Add to Table
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="btnCancelEditRow" title="Cancel Editing">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -450,17 +460,38 @@
                 });
             });
 
+            var editingRowIndex = -1;
+
+            function resetGridEntryForm() {
+                editingRowIndex = -1;
+                $('#gridAgeFrom').val('0');
+                $('#gridAgeTo').val('100');
+                $('#gridAgeUnit').val('Years');
+                $('#gridGender').val('All');
+                $('#gridTrimester').val('Not Applicable');
+                $('#gridLowValue').val('');
+                $('#gridHighValue').val('');
+                $('#gridRemarks').val('');
+
+                $('#gridCardTitle').html('<i class="bi bi-plus-circle me-1 text-success"></i>Add Age & Gender Bracket Row');
+                $('#editRowBadge').addClass('d-none');
+                $('#btnAddGridRow').html('<i class="bi bi-plus-lg me-1"></i> Add to Table').removeClass('btn-primary').addClass('btn-success');
+                $('#btnCancelEditRow').addClass('d-none');
+                $('#dtRanges tbody tr').removeClass('table-primary');
+            }
+
             // Render Table Rows
             function renderGridTable() {
                 dt.clear();
                 rangeGridList.forEach(function (item, idx) {
+                    var editBtn = '<button type="button" class="btn btn-outline-primary btn-sm p-1 me-1 btn-edit-row" data-index="' + idx + '" title="Edit Row"><i class="bi bi-pencil"></i></button>';
                     var delBtn = '<button type="button" class="btn btn-outline-danger btn-sm p-1 btn-delete-row" data-index="' + idx + '" title="Remove Row"><i class="bi bi-trash"></i></button>';
                     var genderBadge = '<span class="badge bg-secondary-subtle text-dark border">' + item.Gender + '</span>';
                     if (item.Gender === 'Male') genderBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">Male</span>';
                     else if (item.Gender === 'Female') genderBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Female</span>';
                     else if (item.Gender === 'Transgender') genderBadge = '<span class="badge bg-purple-subtle text-purple border border-purple-subtle">Transgender</span>';
 
-                    dt.row.add([
+                    var rowNode = dt.row.add([
                         (idx + 1),
                         item.Age_From,
                         item.Age_To,
@@ -470,8 +501,12 @@
                         item.Low_Value !== null && item.Low_Value !== undefined ? item.Low_Value : '-',
                         item.High_Value !== null && item.High_Value !== undefined ? item.High_Value : '-',
                         item.Special_Remarks || '-',
-                        '<div class="text-center">' + delBtn + '</div>'
-                    ]);
+                        '<div class="text-center text-nowrap">' + editBtn + delBtn + '</div>'
+                    ]).node();
+
+                    if (editingRowIndex === idx) {
+                        $(rowNode).addClass('table-primary');
+                    }
                 });
                 dt.draw();
                 $('#rangeCount').text(rangeGridList.length);
@@ -481,7 +516,7 @@
             // Render pre-filled table on load
             renderGridTable();
 
-            // Add Row to Grid
+            // Add or Update Row in Grid
             $('#btnAddGridRow').on('click', function () {
                 var ageFrom = parseFloat($('#gridAgeFrom').val());
                 var ageTo = parseFloat($('#gridAgeTo').val());
@@ -530,19 +565,65 @@
                     Special_Remarks: remarks
                 };
 
-                rangeGridList.push(rowItem);
-                renderGridTable();
+                if (editingRowIndex >= 0 && editingRowIndex < rangeGridList.length) {
+                    rangeGridList[editingRowIndex] = rowItem;
+                } else {
+                    rangeGridList.push(rowItem);
+                }
 
-                $('#gridLowValue').val('');
-                $('#gridHighValue').val('');
-                $('#gridRemarks').val('');
+                resetGridEntryForm();
+                renderGridTable();
                 $('#gridAgeFrom').focus();
+            });
+
+            // Edit Row from Grid
+            $('#dtRanges').on('click', '.btn-edit-row', function () {
+                var idx = parseInt($(this).data('index'));
+                if (!isNaN(idx) && idx >= 0 && idx < rangeGridList.length) {
+                    editingRowIndex = idx;
+                    var item = rangeGridList[idx];
+
+                    $('#gridAgeFrom').val(item.Age_From);
+                    $('#gridAgeTo').val(item.Age_To);
+                    $('#gridAgeUnit').val(item.Age_Unit);
+                    $('#gridGender').val(item.Gender);
+                    $('#gridTrimester').val(item.Pregnancy_Trimester || 'Not Applicable');
+                    $('#gridLowValue').val(item.Low_Value !== null && item.Low_Value !== undefined ? item.Low_Value : '');
+                    $('#gridHighValue').val(item.High_Value !== null && item.High_Value !== undefined ? item.High_Value : '');
+                    $('#gridRemarks').val(item.Special_Remarks || '');
+
+                    $('#gridCardTitle').html('<i class="bi bi-pencil-square me-1 text-primary"></i>Edit Age & Gender Bracket Row');
+                    $('#editingRowNum').text(idx + 1);
+                    $('#editRowBadge').removeClass('d-none');
+                    $('#btnAddGridRow').html('<i class="bi bi-check-lg me-1"></i> Update Row').removeClass('btn-success').addClass('btn-primary');
+                    $('#btnCancelEditRow').removeClass('d-none');
+
+                    $('#dtRanges tbody tr').removeClass('table-primary');
+                    $('#dtRanges tbody tr').eq(idx).addClass('table-primary');
+
+                    $('html, body').animate({
+                        scrollTop: $('.grid-entry-card').offset().top - 80
+                    }, 200);
+
+                    $('#gridAgeFrom').focus();
+                }
+            });
+
+            // Cancel Edit
+            $('#btnCancelEditRow').on('click', function () {
+                resetGridEntryForm();
+                renderGridTable();
             });
 
             // Delete Row from Grid
             $('#dtRanges').on('click', '.btn-delete-row', function () {
                 var idx = parseInt($(this).data('index'));
                 if (!isNaN(idx) && idx >= 0 && idx < rangeGridList.length) {
+                    if (editingRowIndex === idx) {
+                        resetGridEntryForm();
+                    } else if (editingRowIndex > idx) {
+                        editingRowIndex--;
+                    }
                     rangeGridList.splice(idx, 1);
                     renderGridTable();
                 }
