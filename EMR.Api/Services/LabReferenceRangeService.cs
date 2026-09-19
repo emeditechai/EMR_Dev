@@ -35,6 +35,7 @@ public class LabReferenceRangeService(IDbConnectionFactory db) : ILabReferenceRa
         p.Add("@Test_ID", req.Test_ID);
         p.Add("@Method_ID", req.Method_ID);
         p.Add("@Unit_ID", req.Unit_ID);
+        p.Add("@Is_Common_For_All", req.Is_Common_For_All);
         p.Add("@Age_From", req.Age_From);
         p.Add("@Age_To", req.Age_To);
         p.Add("@Age_Unit", req.Age_Unit);
@@ -54,6 +55,27 @@ public class LabReferenceRangeService(IDbConnectionFactory db) : ILabReferenceRa
         return p.Get<int>("@NewRefRange_ID");
     }
 
+    public async Task<int> BulkSaveAsync(LabReferenceRangeBulkSaveRequest req)
+    {
+        using var con = db.CreateConnection();
+        var json = System.Text.Json.JsonSerializer.Serialize(req.RangeItems);
+        var p = new DynamicParameters();
+        p.Add("@CompanyId", req.CompanyId);
+        p.Add("@Test_ID", req.Test_ID);
+        p.Add("@Method_ID", req.Method_ID);
+        p.Add("@Unit_ID", req.Unit_ID);
+        p.Add("@Is_Common_For_All", req.Is_Common_For_All);
+        p.Add("@Range_Source", req.Range_Source);
+        p.Add("@Effective_From", req.Effective_From);
+        p.Add("@Effective_To", req.Effective_To);
+        p.Add("@RangeItemsJson", json);
+        p.Add("@CreatedBy", req.UserId);
+        p.Add("@InsertedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
+
+        await con.ExecuteAsync("usp_Api_LabReferenceRange_BulkSave", p, commandType: CommandType.StoredProcedure);
+        return p.Get<int>("@InsertedCount");
+    }
+
     public async Task UpdateAsync(LabReferenceRangeUpdateRequest req)
     {
         using var con = db.CreateConnection();
@@ -66,6 +88,7 @@ public class LabReferenceRangeService(IDbConnectionFactory db) : ILabReferenceRa
                 Test_ID = req.Test_ID,
                 Method_ID = req.Method_ID,
                 Unit_ID = req.Unit_ID,
+                Is_Common_For_All = req.Is_Common_For_All,
                 Age_From = req.Age_From,
                 Age_To = req.Age_To,
                 Age_Unit = req.Age_Unit,

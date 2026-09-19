@@ -246,17 +246,36 @@
                             </div>
                         </div>
 
-                        <!-- Section 4: Status (IsActive) Toggle - Visible only in Edit mode -->
-                        <div class="p-3 bg-light rounded-3 border mb-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <label class="form-check-label fw-bold mb-0 text-dark" for="chkStatus">
-                                        <i class="bi bi-toggle-on me-2 text-primary"></i>Active Status (IsActive)
-                                    </label>
-                                    <small class="text-muted d-block mt-1">Enable or disable this reference range for clinical report generation.</small>
+                        <!-- Section 4: Configuration & Status -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3 border h-100">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <label class="form-check-label fw-bold mb-0 text-dark" for="chkCommon">
+                                                <i class="bi bi-globe me-2 text-primary"></i>Common for All
+                                            </label>
+                                            <small class="text-muted d-block mt-1">Designates if this is a single universal range for all demographics.</small>
+                                        </div>
+                                        <div class="form-check form-switch form-switch-md mb-0">
+                                            <input class="form-check-input" type="checkbox" role="switch" asp-for="Is_Common_For_All" id="chkCommon" style="width: 2.6em; height: 1.3em;">
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="form-check form-switch form-switch-lg mb-0">
-                                    <input class="form-check-input" type="checkbox" role="switch" asp-for="Status" id="chkStatus" style="width: 2.8em; height: 1.4em;">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 bg-light rounded-3 border h-100">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <label class="form-check-label fw-bold mb-0 text-dark" for="chkStatus">
+                                                <i class="bi bi-toggle-on me-2 text-primary"></i>Active Status (IsActive)
+                                            </label>
+                                            <small class="text-muted d-block mt-1">Enable or disable this reference range for clinical report generation.</small>
+                                        </div>
+                                        <div class="form-check form-switch form-switch-md mb-0">
+                                            <input class="form-check-input" type="checkbox" role="switch" asp-for="Status" id="chkStatus" style="width: 2.6em; height: 1.3em;">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

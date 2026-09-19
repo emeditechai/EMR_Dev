@@ -7,6 +7,7 @@
 @section HeadStyles {
     <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <style>
         .select2-container--default .select2-selection--single {
             height: 38px !important;
@@ -31,6 +32,10 @@
         .select2-search__field {
             border-radius: 4px !important;
             padding: 6px !important;
+        }
+        .grid-entry-card {
+            background-color: #f8fafc;
+            border: 1px dashed #cbd5e1;
         }
     </style>
 }
@@ -60,21 +65,26 @@
 
     <!-- Form Card -->
     <div class="row justify-content-center">
-        <div class="col-lg-10">
+        <div class="col-lg-11">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white py-3 border-bottom">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
                     <h6 class="card-title fw-bold mb-0 text-dark">
-                        <i class="bi bi-card-heading me-2 text-primary"></i>Reference Range Details
+                        <i class="bi bi-card-heading me-2 text-primary"></i>Reference Range Setup
                     </h6>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">
+                        <i class="bi bi-info-circle me-1"></i>Multi-Range / Bulk Support
+                    </span>
                 </div>
                 <div class="card-body p-4">
                     <form asp-action="Create" method="post" id="refRangeForm">
                         @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="RangeItemsJson" id="hfRangeItemsJson" />
+
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
 
                         <!-- Section 1: Test & Method Selection -->
                         <h6 class="text-secondary fw-semibold border-bottom pb-2 mb-3">
-                            <i class="bi bi-eyedropper me-2 text-primary"></i>1. Investigation Test & Method
+                            <i class="bi bi-eyedropper me-2 text-primary"></i>1. Investigation Test & Settings
                         </h6>
                         <div class="row g-3 mb-4">
                             <!-- Investigation Test (Numeric Only) Dropdown with Search -->
@@ -103,7 +113,7 @@
                             </div>
 
                             <!-- Unit Dropdown -->
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label asp-for="Unit_ID" class="form-label fw-semibold">
                                     Unit <span class="text-danger">*</span>
                                 </label>
@@ -113,116 +123,8 @@
                                 <span asp-validation-for="Unit_ID" class="text-danger small"></span>
                             </div>
 
-                            <!-- Range Source -->
-                            <div class="col-md-6">
-                                <label asp-for="Range_Source" class="form-label fw-semibold">
-                                    Range Source / Reference Guidelines
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light"><i class="bi bi-book text-muted"></i></span>
-                                    <input asp-for="Range_Source" class="form-control" placeholder="e.g., WHO Guidelines, Kit Insert, Tietz Textbook" maxlength="500" />
-                                </div>
-                                <span asp-validation-for="Range_Source" class="text-danger small"></span>
-                            </div>
-                        </div>
-
-                        <!-- Section 2: Patient Demographics & Applicability -->
-                        <h6 class="text-secondary fw-semibold border-bottom pb-2 mb-3">
-                            <i class="bi bi-person-badge me-2 text-primary"></i>2. Demographic & Clinical Applicability
-                        </h6>
-                        <div class="row g-3 mb-4">
-                            <!-- Age From -->
-                            <div class="col-md-3">
-                                <label asp-for="Age_From" class="form-label fw-semibold">
-                                    Age From <span class="text-danger">*</span>
-                                </label>
-                                <input asp-for="Age_From" type="number" step="any" min="0" max="150" class="form-control" id="txtAgeFrom" required />
-                                <span asp-validation-for="Age_From" class="text-danger small"></span>
-                            </div>
-
-                            <!-- Age To -->
-                            <div class="col-md-3">
-                                <label asp-for="Age_To" class="form-label fw-semibold">
-                                    Age To <span class="text-danger">*</span>
-                                </label>
-                                <input asp-for="Age_To" type="number" step="any" min="0" max="150" class="form-control" id="txtAgeTo" required />
-                                <span asp-validation-for="Age_To" class="text-danger small"></span>
-                            </div>
-
-                            <!-- Age Unit -->
-                            <div class="col-md-2">
-                                <label asp-for="Age_Unit" class="form-label fw-semibold">
-                                    Age Unit <span class="text-danger">*</span>
-                                </label>
-                                <select asp-for="Age_Unit" class="form-select" asp-items="Model.AgeUnitOptions" required>
-                                </select>
-                                <span asp-validation-for="Age_Unit" class="text-danger small"></span>
-                            </div>
-
-                            <!-- Gender -->
-                            <div class="col-md-2">
-                                <label asp-for="Gender" class="form-label fw-semibold">
-                                    Gender <span class="text-danger">*</span>
-                                </label>
-                                <select asp-for="Gender" class="form-select" asp-items="Model.GenderOptions" id="ddlGender" required>
-                                </select>
-                                <span asp-validation-for="Gender" class="text-danger small"></span>
-                            </div>
-
-                            <!-- Pregnancy Trimester -->
-                            <div class="col-md-2">
-                                <label asp-for="Pregnancy_Trimester" class="form-label fw-semibold">
-                                    Trimester
-                                </label>
-                                <select asp-for="Pregnancy_Trimester" class="form-select" asp-items="Model.TrimesterOptions" id="ddlTrimester">
-                                </select>
-                                <span asp-validation-for="Pregnancy_Trimester" class="text-danger small"></span>
-                            </div>
-                        </div>
-
-                        <!-- Section 3: Reference Values & Validity Period -->
-                        <h6 class="text-secondary fw-semibold border-bottom pb-2 mb-3">
-                            <i class="bi bi-graph-up-arrow me-2 text-primary"></i>3. Numeric Range & Effective Period
-                        </h6>
-                        <div class="row g-3 mb-4">
-                            <!-- Low Value -->
-                            <div class="col-md-3">
-                                <label asp-for="Low_Value" class="form-label fw-semibold">
-                                    Low Value (Min)
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light"><i class="bi bi-arrow-down text-primary"></i></span>
-                                    <input asp-for="Low_Value" type="number" step="any" class="form-control" id="txtLowValue" placeholder="e.g. 70.00" />
-                                </div>
-                                <span asp-validation-for="Low_Value" class="text-danger small"></span>
-                            </div>
-
-                            <!-- High Value -->
-                            <div class="col-md-3">
-                                <label asp-for="High_Value" class="form-label fw-semibold">
-                                    High Value (Max)
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light"><i class="bi bi-arrow-up text-danger"></i></span>
-                                    <input asp-for="High_Value" type="number" step="any" class="form-control" id="txtHighValue" placeholder="e.g. 110.00" />
-                                </div>
-                                <span asp-validation-for="High_Value" class="text-danger small"></span>
-                            </div>
-
-                            <!-- Special Remarks (After High Value) -->
-                            <div class="col-md-6">
-                                <label asp-for="Special_Remarks" class="form-label fw-semibold">
-                                    Special Remarks
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light"><i class="bi bi-chat-left-text text-muted"></i></span>
-                                    <input asp-for="Special_Remarks" class="form-control" placeholder="e.g., Fasting required, Borderline values, Critical alert levels" maxlength="1000" />
-                                </div>
-                                <span asp-validation-for="Special_Remarks" class="text-danger small"></span>
-                            </div>
-
                             <!-- Effective From -->
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label asp-for="Effective_From" class="form-label fw-semibold">
                                     Effective From <span class="text-danger">*</span>
                                 </label>
@@ -231,7 +133,7 @@
                             </div>
 
                             <!-- Effective To -->
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label asp-for="Effective_To" class="form-label fw-semibold">
                                     Effective To
                                 </label>
@@ -239,13 +141,195 @@
                                 <small class="text-muted">Leave blank for ongoing range.</small>
                                 <span asp-validation-for="Effective_To" class="text-danger small"></span>
                             </div>
+
+                            <!-- Range Source -->
+                            <div class="col-md-12">
+                                <label asp-for="Range_Source" class="form-label fw-semibold">
+                                    Range Source / Reference Guidelines
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-book text-muted"></i></span>
+                                    <input asp-for="Range_Source" class="form-control" id="txtRangeSource" placeholder="e.g., WHO Guidelines, Kit Insert, Tietz Textbook" maxlength="500" />
+                                </div>
+                                <span asp-validation-for="Range_Source" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <!-- Mode Switch: Common For All Checkbox Banner -->
+                        <div class="p-3 mb-4 rounded-3 border bg-light-subtle d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="form-check form-switch form-switch-md mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" asp-for="Is_Common_For_All" id="chkCommonForAll" style="width: 2.6em; height: 1.3em;">
+                                    <label class="form-check-label fw-bold text-dark ms-2" for="chkCommonForAll">
+                                        <i class="bi bi-globe me-1 text-primary"></i>Common for all (Single Universal Range)
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block ms-5">
+                                    Check this if the test has a single universal range applicable to all ages and genders. Uncheck to configure multiple age/gender brackets in a table and save in bulk.
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- ================= SINGLE RANGE SECTION (When Common For All is Checked) ================= -->
+                        <div id="singleRangeSection" style="display: none;">
+                            <h6 class="text-secondary fw-semibold border-bottom pb-2 mb-3">
+                                <i class="bi bi-sliders me-2 text-primary"></i>2. Universal Reference Range Values
+                            </h6>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-3">
+                                    <label asp-for="Age_From" class="form-label fw-semibold">Age From <span class="text-danger">*</span></label>
+                                    <input asp-for="Age_From" type="number" step="any" min="0" max="150" class="form-control" id="txtSingleAgeFrom" />
+                                    <span asp-validation-for="Age_From" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="Age_To" class="form-label fw-semibold">Age To <span class="text-danger">*</span></label>
+                                    <input asp-for="Age_To" type="number" step="any" min="0" max="150" class="form-control" id="txtSingleAgeTo" />
+                                    <span asp-validation-for="Age_To" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2">
+                                    <label asp-for="Age_Unit" class="form-label fw-semibold">Age Unit <span class="text-danger">*</span></label>
+                                    <select asp-for="Age_Unit" class="form-select" asp-items="Model.AgeUnitOptions" id="ddlSingleAgeUnit"></select>
+                                    <span asp-validation-for="Age_Unit" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2">
+                                    <label asp-for="Gender" class="form-label fw-semibold">Gender <span class="text-danger">*</span></label>
+                                    <select asp-for="Gender" class="form-select" asp-items="Model.GenderOptions" id="ddlSingleGender"></select>
+                                    <span asp-validation-for="Gender" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2">
+                                    <label asp-for="Pregnancy_Trimester" class="form-label fw-semibold">Trimester</label>
+                                    <select asp-for="Pregnancy_Trimester" class="form-select" asp-items="Model.TrimesterOptions" id="ddlSingleTrimester"></select>
+                                    <span asp-validation-for="Pregnancy_Trimester" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label asp-for="Low_Value" class="form-label fw-semibold">Low Value (Min)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-arrow-down text-primary"></i></span>
+                                        <input asp-for="Low_Value" type="number" step="any" class="form-control" id="txtSingleLowValue" placeholder="e.g. 70.00" />
+                                    </div>
+                                    <span asp-validation-for="Low_Value" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="High_Value" class="form-label fw-semibold">High Value (Max)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-arrow-up text-danger"></i></span>
+                                        <input asp-for="High_Value" type="number" step="any" class="form-control" id="txtSingleHighValue" placeholder="e.g. 110.00" />
+                                    </div>
+                                    <span asp-validation-for="High_Value" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <label asp-for="Special_Remarks" class="form-label fw-semibold">Special Remarks</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-chat-left-text text-muted"></i></span>
+                                        <input asp-for="Special_Remarks" class="form-control" id="txtSingleRemarks" placeholder="e.g., Fasting required, Critical alert levels" maxlength="1000" />
+                                    </div>
+                                    <span asp-validation-for="Special_Remarks" class="text-danger small"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ================= MULTI-RANGE GRID SECTION (When Common For All is Unchecked) ================= -->
+                        <div id="multiRangeSection">
+                            <!-- Row Entry Controls -->
+                            <div class="card grid-entry-card p-3 mb-4 rounded-3">
+                                <h6 class="fw-bold text-dark mb-3">
+                                    <i class="bi bi-plus-circle me-1 text-success"></i>Add Age & Gender Bracket Row
+                                </h6>
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Age From <span class="text-danger">*</span></label>
+                                        <input type="number" step="any" min="0" max="150" class="form-control form-control-sm" id="gridAgeFrom" value="0" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Age To <span class="text-danger">*</span></label>
+                                        <input type="number" step="any" min="0" max="150" class="form-control form-control-sm" id="gridAgeTo" value="100" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Age Unit <span class="text-danger">*</span></label>
+                                        <select class="form-select form-select-sm" id="gridAgeUnit">
+                                            <option value="Years" selected>Years</option>
+                                            <option value="Months">Months</option>
+                                            <option value="Days">Days</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Gender <span class="text-danger">*</span></label>
+                                        <select class="form-select form-select-sm" id="gridGender">
+                                            <option value="All" selected>All</option>
+                                            <option value="Male">Male</option>
+                                            <option value="Female">Female</option>
+                                            <option value="Transgender">Transgender</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Trimester</label>
+                                        <select class="form-select form-select-sm" id="gridTrimester">
+                                            <option value="Not Applicable" selected>Not Applicable</option>
+                                            <option value="1st Trimester">1st Trimester</option>
+                                            <option value="2nd Trimester">2nd Trimester</option>
+                                            <option value="3rd Trimester">3rd Trimester</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Low Value (Min)</label>
+                                        <input type="number" step="any" class="form-control form-control-sm" id="gridLowValue" placeholder="Min" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">High Value (Max)</label>
+                                        <input type="number" step="any" class="form-control form-control-sm" id="gridHighValue" placeholder="Max" />
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Special Remarks</label>
+                                        <input type="text" class="form-control form-control-sm" id="gridRemarks" placeholder="Optional notes for this range bracket" maxlength="1000" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-success btn-sm w-100 fw-semibold" id="btnAddGridRow">
+                                            <i class="bi bi-plus-lg me-1"></i> Add to Table
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- jQuery DataTable Grid for Bulk Insertion -->
+                            <div class="card border rounded-3 mb-4">
+                                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-dark small">
+                                        <i class="bi bi-table me-1 text-primary"></i>Configured Reference Range Brackets (<span id="rangeCount">0</span>)
+                                    </span>
+                                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" id="btnClearGrid" style="font-size: 0.8rem;">
+                                        <i class="bi bi-trash me-1"></i>Clear Table
+                                    </button>
+                                </div>
+                                <div class="table-responsive p-2">
+                                    <table class="table table-sm table-bordered table-hover align-middle mb-0" id="dtRanges" style="width: 100%;">
+                                        <thead class="table-light text-muted small">
+                                            <tr>
+                                                <th style="width: 50px;">#</th>
+                                                <th>Age From</th>
+                                                <th>Age To</th>
+                                                <th>Age Unit</th>
+                                                <th>Gender</th>
+                                                <th>Trimester</th>
+                                                <th>Min (Low)</th>
+                                                <th>Max (High)</th>
+                                                <th>Special Remarks</th>
+                                                <th class="text-center" style="width: 80px;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="gridTbody">
+                                            <!-- Rows populated dynamically -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Form Actions -->
                         <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
                             <a asp-action="Index" class="btn btn-light border px-4">Cancel</a>
                             <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm" id="btnSubmit">
-                                <i class="bi bi-save me-1"></i> Save Reference Range
+                                <i class="bi bi-save me-1"></i> Save Reference Range(s)
                             </button>
                         </div>
                     </form>
@@ -259,8 +343,24 @@
     <partial name="_ValidationScriptsPartial" />
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
     <script>
         $(document).ready(function () {
+            // Internal array to hold multi-range grid items
+            var rangeGridList = [];
+
+            // Initialize DataTables
+            var dt = $('#dtRanges').DataTable({
+                paging: false,
+                searching: false,
+                info: false,
+                ordering: false,
+                language: {
+                    emptyTable: "No reference ranges added yet. Use the fields above to add age/gender brackets."
+                }
+            });
+
             // Initialize Select2 for auto-suggest search
             $('.select2-test').select2({
                 placeholder: '-- Type to search Investigation Test... --',
@@ -273,6 +373,27 @@
                 allowClear: true,
                 width: '100%'
             });
+
+            // Toggle Common For All vs Multi-Range Grid
+            function toggleRangeMode() {
+                var isCommon = $('#chkCommonForAll').is(':checked');
+                if (isCommon) {
+                    $('#singleRangeSection').slideDown(200);
+                    $('#multiRangeSection').slideUp(200);
+                    // Single range inputs mandatory
+                    $('#txtSingleAgeFrom, #txtSingleAgeTo').prop('required', true);
+                } else {
+                    $('#singleRangeSection').slideUp(200);
+                    $('#multiRangeSection').slideDown(200);
+                    $('#txtSingleAgeFrom, #txtSingleAgeTo').prop('required', false);
+                }
+            }
+
+            $('#chkCommonForAll').on('change', function () {
+                toggleRangeMode();
+            });
+
+            toggleRangeMode();
 
             // Auto-fetch test method and unit when Investigation Test changes
             $('#ddlTestId').on('select2:select change', function () {
@@ -298,8 +419,9 @@
                             }
 
                             // If test has specific gender applicability and current is "All", set it
-                            if (res.gender && res.gender !== 'All' && $('#ddlGender').val() === 'All') {
-                                $('#ddlGender').val(res.gender).trigger('change');
+                            if (res.gender && res.gender !== 'All') {
+                                $('#gridGender').val(res.gender);
+                                $('#ddlSingleGender').val(res.gender);
                             }
                         }
                     },
@@ -309,22 +431,124 @@
                 });
             });
 
-            // Client-side validation for range bounds
+            // Render Table Rows
+            function renderGridTable() {
+                dt.clear();
+                rangeGridList.forEach(function (item, idx) {
+                    var delBtn = '<button type="button" class="btn btn-outline-danger btn-sm p-1 btn-delete-row" data-index="' + idx + '" title="Remove Row"><i class="bi bi-trash"></i></button>';
+                    var genderBadge = '<span class="badge bg-secondary-subtle text-dark border">' + item.Gender + '</span>';
+                    if (item.Gender === 'Male') genderBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">Male</span>';
+                    else if (item.Gender === 'Female') genderBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Female</span>';
+                    else if (item.Gender === 'Transgender') genderBadge = '<span class="badge bg-purple-subtle text-purple border border-purple-subtle">Transgender</span>';
+
+                    dt.row.add([
+                        (idx + 1),
+                        item.Age_From,
+                        item.Age_To,
+                        item.Age_Unit,
+                        genderBadge,
+                        item.Pregnancy_Trimester || 'Not Applicable',
+                        item.Low_Value !== null ? item.Low_Value : '-',
+                        item.High_Value !== null ? item.High_Value : '-',
+                        item.Special_Remarks || '-',
+                        '<div class="text-center">' + delBtn + '</div>'
+                    ]);
+                });
+                dt.draw();
+                $('#rangeCount').text(rangeGridList.length);
+                $('#hfRangeItemsJson').val(JSON.stringify(rangeGridList));
+            }
+
+            // Add Row to Grid
+            $('#btnAddGridRow').on('click', function () {
+                var ageFrom = parseFloat($('#gridAgeFrom').val());
+                var ageTo = parseFloat($('#gridAgeTo').val());
+                var ageUnit = $('#gridAgeUnit').val();
+                var gender = $('#gridGender').val();
+                var trimester = $('#gridTrimester').val();
+                var lowValStr = $('#gridLowValue').val();
+                var highValStr = $('#gridHighValue').val();
+                var remarks = $('#gridRemarks').val();
+
+                if (isNaN(ageFrom) || ageFrom < 0) {
+                    alert('Please enter a valid non-negative Age From.');
+                    $('#gridAgeFrom').focus();
+                    return;
+                }
+
+                if (isNaN(ageTo) || ageTo < 0) {
+                    alert('Please enter a valid non-negative Age To.');
+                    $('#gridAgeTo').focus();
+                    return;
+                }
+
+                if (ageFrom > ageTo) {
+                    alert('Age To must be greater than or equal to Age From.');
+                    $('#gridAgeTo').focus();
+                    return;
+                }
+
+                var lowVal = lowValStr !== '' ? parseFloat(lowValStr) : null;
+                var highVal = highValStr !== '' ? parseFloat(highValStr) : null;
+
+                if (lowVal !== null && highVal !== null && lowVal > highVal) {
+                    alert('High Value must be greater than or equal to Low Value.');
+                    $('#gridHighValue').focus();
+                    return;
+                }
+
+                var rowItem = {
+                    Age_From: ageFrom,
+                    Age_To: ageTo,
+                    Age_Unit: ageUnit,
+                    Gender: gender,
+                    Pregnancy_Trimester: trimester,
+                    Low_Value: lowVal,
+                    High_Value: highVal,
+                    Special_Remarks: remarks
+                };
+
+                rangeGridList.push(rowItem);
+                renderGridTable();
+
+                // Clear temporary inputs for next bracket
+                $('#gridLowValue').val('');
+                $('#gridHighValue').val('');
+                $('#gridRemarks').val('');
+                $('#gridAgeFrom').focus();
+            });
+
+            // Delete Row from Grid
+            $('#dtRanges').on('click', '.btn-delete-row', function () {
+                var idx = parseInt($(this).data('index'));
+                if (!isNaN(idx) && idx >= 0 && idx < rangeGridList.length) {
+                    rangeGridList.splice(idx, 1);
+                    renderGridTable();
+                }
+            });
+
+            // Clear All Rows
+            $('#btnClearGrid').on('click', function () {
+                if (rangeGridList.length > 0 && confirm('Are you sure you want to clear all added range brackets?')) {
+                    rangeGridList = [];
+                    renderGridTable();
+                }
+            });
+
+            // Form Submit Validation
             $('#refRangeForm').on('submit', function (e) {
-                var ageFrom = parseFloat($('#txtAgeFrom').val());
-                var ageTo = parseFloat($('#txtAgeTo').val());
-                if (!isNaN(ageFrom) && !isNaN(ageTo) && ageFrom > ageTo) {
-                    alert('Age From must be less than or equal to Age To.');
-                    $('#txtAgeTo').focus();
+                var testId = $('#ddlTestId').val();
+                if (!testId) {
+                    alert('Please select an Investigation Test.');
+                    $('#ddlTestId').focus();
                     e.preventDefault();
                     return false;
                 }
 
-                var lowVal = parseFloat($('#txtLowValue').val());
-                var highVal = parseFloat($('#txtHighValue').val());
-                if (!isNaN(lowVal) && !isNaN(highVal) && lowVal > highVal) {
-                    alert('Low Value must be less than or equal to High Value.');
-                    $('#txtHighValue').focus();
+                var unitId = $('#ddlUnitId').val();
+                if (!unitId) {
+                    alert('Please select a Unit.');
+                    $('#ddlUnitId').focus();
                     e.preventDefault();
                     return false;
                 }
@@ -336,6 +560,37 @@
                     $('#txtEffectiveTo').focus();
                     e.preventDefault();
                     return false;
+                }
+
+                var isCommon = $('#chkCommonForAll').is(':checked');
+                if (isCommon) {
+                    var sAgeFrom = parseFloat($('#txtSingleAgeFrom').val());
+                    var sAgeTo = parseFloat($('#txtSingleAgeTo').val());
+                    if (!isNaN(sAgeFrom) && !isNaN(sAgeTo) && sAgeFrom > sAgeTo) {
+                        alert('Age From must be less than or equal to Age To.');
+                        $('#txtSingleAgeTo').focus();
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    var sLow = parseFloat($('#txtSingleLowValue').val());
+                    var sHigh = parseFloat($('#txtSingleHighValue').val());
+                    if (!isNaN(sLow) && !isNaN(sHigh) && sLow > sHigh) {
+                        alert('Low Value must be less than or equal to High Value.');
+                        $('#txtSingleHighValue').focus();
+                        e.preventDefault();
+                        return false;
+                    }
+                } else {
+                    // Check if table has at least one row
+                    if (rangeGridList.length === 0) {
+                        alert('Please add at least one reference range bracket to the table before saving.');
+                        $('#btnAddGridRow').focus();
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    $('#hfRangeItemsJson').val(JSON.stringify(rangeGridList));
                 }
 
                 return true;

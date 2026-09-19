@@ -130,11 +130,11 @@
                         <th class="ps-4">#</th>
                         <th>Test Name</th>
                         <th>Test Method</th>
-                        <th>Age Group</th>
-                        <th>Gender</th>
+                        <th>Demographics</th>
                         <th>Trimester</th>
                         <th>Reference Range</th>
                         <th>Unit</th>
+                        <th class="text-center">Scope</th>
                         <th>Effective Period</th>
                         <th class="text-center">Status</th>
                         <th class="text-end pe-4">Actions</th>
@@ -172,25 +172,27 @@
                                     }
                                 </td>
                                 <td>
-                                    <span class="fw-semibold">@item.Age_From - @item.Age_To</span>
-                                    <small class="text-muted ms-1">@item.Age_Unit</small>
-                                </td>
-                                <td>
-                                    @switch (item.Gender?.ToLower())
-                                    {
-                                        case "male":
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-gender-male me-1"></i>Male</span>
-                                            break;
-                                        case "female":
-                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-gender-female me-1"></i>Female</span>
-                                            break;
-                                        case "transgender":
-                                            <span class="badge bg-purple-subtle text-purple border border-purple-subtle"><i class="bi bi-gender-ambiguous me-1"></i>Transgender</span>
-                                            break;
-                                        default:
-                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-people me-1"></i>All</span>
-                                            break;
-                                    }
+                                    <div>
+                                        <span class="fw-semibold">@item.Age_From - @item.Age_To</span>
+                                        <small class="text-muted ms-1">@item.Age_Unit</small>
+                                    </div>
+                                    <div class="mt-1">
+                                        @switch (item.Gender?.ToLower())
+                                        {
+                                            case "male":
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.75rem;"><i class="bi bi-gender-male me-1"></i>Male</span>
+                                                break;
+                                            case "female":
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.75rem;"><i class="bi bi-gender-female me-1"></i>Female</span>
+                                                break;
+                                            case "transgender":
+                                                <span class="badge bg-purple-subtle text-purple border border-purple-subtle" style="font-size: 0.75rem;"><i class="bi bi-gender-ambiguous me-1"></i>Transgender</span>
+                                                break;
+                                            default:
+                                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.75rem;"><i class="bi bi-people me-1"></i>All</span>
+                                                break;
+                                        }
+                                    </div>
                                 </td>
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(item.Pregnancy_Trimester) && item.Pregnancy_Trimester != "Not Applicable")
@@ -224,6 +226,20 @@
                                     <span class="badge bg-secondary-subtle text-dark border">
                                         @(!string.IsNullOrWhiteSpace(item.Unit_Symbol) ? item.Unit_Symbol : item.Unit_Name)
                                     </span>
+                                </td>
+                                <td class="text-center">
+                                    @if (item.Is_Common_For_All)
+                                    {
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Universal range for all demographics">
+                                            <i class="bi bi-globe me-1"></i>Common
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-secondary border" title="Bracketed range">
+                                            <i class="bi bi-diagram-3 me-1"></i>Bracket
+                                        </span>
+                                    }
                                 </td>
                                 <td>
                                     <small class="d-block text-dark fw-semibold">@item.Effective_From.ToString("dd-MMM-yyyy")</small>

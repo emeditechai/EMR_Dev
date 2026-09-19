@@ -83,6 +83,11 @@ public class LabReferenceRangeFormViewModel
     [Display(Name = "Effective To")]
     public DateTime? Effective_To { get; set; }
 
+    [Display(Name = "Common for All (Single Range)")]
+    public bool Is_Common_For_All { get; set; } = false;
+
+    public string? RangeItemsJson { get; set; }
+
     [Display(Name = "Status")]
     public bool Status { get; set; } = true;
 

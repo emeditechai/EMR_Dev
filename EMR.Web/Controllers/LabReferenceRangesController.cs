@@ -85,60 +85,147 @@ public class LabReferenceRangesController(
         var companyId = User.GetCompanyId();
         var branchId = User.GetCurrentBranchId() ?? 1;
 
-        ValidateRanges(model);
-
-        if (!ModelState.IsValid)
+        if (model.Is_Common_For_All)
         {
-            await PopulateDropdownsAsync(model, companyId);
-            return View(model);
-        }
+            ValidateRanges(model);
 
-        try
-        {
-            var req = new LabReferenceRangeCreateRequestModel
+            if (!ModelState.IsValid)
             {
-                CompanyId = companyId,
-                Test_ID = model.Test_ID,
-                Method_ID = model.Method_ID,
-                Unit_ID = model.Unit_ID,
-                Age_From = model.Age_From,
-                Age_To = model.Age_To,
-                Age_Unit = model.Age_Unit,
-                Gender = model.Gender,
-                Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
-                Low_Value = model.Low_Value,
-                High_Value = model.High_Value,
-                Special_Remarks = model.Special_Remarks,
-                Range_Source = model.Range_Source,
-                Effective_From = model.Effective_From,
-                Effective_To = model.Effective_To,
-                Status = true, // Default active on insert
-                UserId = User.GetUserId()
-            };
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
 
-            var newId = await refRangeApiClient.CreateAsync(req);
+            try
+            {
+                var req = new LabReferenceRangeCreateRequestModel
+                {
+                    CompanyId = companyId,
+                    Test_ID = model.Test_ID,
+                    Method_ID = model.Method_ID,
+                    Unit_ID = model.Unit_ID,
+                    Age_From = model.Age_From,
+                    Age_To = model.Age_To,
+                    Age_Unit = model.Age_Unit,
+                    Gender = model.Gender,
+                    Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
+                    Low_Value = model.Low_Value,
+                    High_Value = model.High_Value,
+                    Special_Remarks = model.Special_Remarks,
+                    Range_Source = model.Range_Source,
+                    Effective_From = model.Effective_From,
+                    Effective_To = model.Effective_To,
+                    Is_Common_For_All = true,
+                    Status = true, // Default active on insert
+                    UserId = User.GetUserId()
+                };
 
-            await auditLogService.LogAsync(
-                "Create Lab Reference Range",
-                "Create",
-                $"Created Reference Range #{newId} for Test ID #{model.Test_ID}",
-                User.GetUserId(),
-                branchId
-            );
+                var newId = await refRangeApiClient.CreateAsync(req);
 
-            TempData["SuccessMessage"] = "Reference Range created successfully.";
-            return RedirectToAction(nameof(Index));
+                await auditLogService.LogAsync(
+                    "Create Lab Reference Range",
+                    "Create",
+                    $"Created Reference Range #{newId} for Test ID #{model.Test_ID} (Common for all)",
+                    User.GetUserId(),
+                    branchId
+                );
+
+                TempData["SuccessMessage"] = "Common Reference Range created successfully.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
+            catch (HttpRequestException)
+            {
+                ViewData["PageName"] = "Create Reference Range";
+                return View("ApiDown");
+            }
         }
-        catch (InvalidOperationException ex)
+        else
         {
-            ModelState.AddModelError(string.Empty, ex.Message);
-            await PopulateDropdownsAsync(model, companyId);
-            return View(model);
-        }
-        catch (HttpRequestException)
-        {
-            ViewData["PageName"] = "Create Reference Range";
-            return View("ApiDown");
+            // Multi-range Grid Bulk Save mode
+            if (model.Test_ID <= 0)
+                ModelState.AddModelError(nameof(model.Test_ID), "Investigation Test is required.");
+
+            if (model.Unit_ID <= 0)
+                ModelState.AddModelError(nameof(model.Unit_ID), "Unit is required.");
+
+            if (string.IsNullOrWhiteSpace(model.RangeItemsJson) || model.RangeItemsJson == "[]")
+            {
+                ModelState.AddModelError(string.Empty, "Please add at least one reference range bracket to the table.");
+            }
+
+            List<LabReferenceRangeGridItemModel>? gridItems = null;
+            if (!string.IsNullOrWhiteSpace(model.RangeItemsJson) && model.RangeItemsJson != "[]")
+            {
+                try
+                {
+                    gridItems = System.Text.Json.JsonSerializer.Deserialize<List<LabReferenceRangeGridItemModel>>(model.RangeItemsJson, new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch
+                {
+                    ModelState.AddModelError(string.Empty, "Invalid reference range items format.");
+                }
+            }
+
+            if (gridItems == null || gridItems.Count == 0)
+            {
+                if (!ModelState.ContainsKey(string.Empty))
+                    ModelState.AddModelError(string.Empty, "Please add at least one reference range bracket to the table.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
+
+            try
+            {
+                var bulkReq = new LabReferenceRangeBulkSaveRequestModel
+                {
+                    CompanyId = companyId,
+                    Test_ID = model.Test_ID,
+                    Method_ID = model.Method_ID,
+                    Unit_ID = model.Unit_ID,
+                    Range_Source = model.Range_Source,
+                    Effective_From = model.Effective_From,
+                    Effective_To = model.Effective_To,
+                    Is_Common_For_All = false,
+                    UserId = User.GetUserId(),
+                    RangeItems = gridItems!
+                };
+
+                await refRangeApiClient.BulkSaveAsync(bulkReq);
+
+                await auditLogService.LogAsync(
+                    "Bulk Save Lab Reference Ranges",
+                    "BulkSave",
+                    $"Saved {gridItems!.Count} reference ranges for Test ID #{model.Test_ID}",
+                    User.GetUserId(),
+                    branchId
+                );
+
+                TempData["SuccessMessage"] = $"Successfully saved {gridItems!.Count} reference range(s) for the selected test.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                await PopulateDropdownsAsync(model, companyId);
+                return View(model);
+            }
+            catch (HttpRequestException)
+            {
+                ViewData["PageName"] = "Create Reference Range";
+                return View("ApiDown");
+            }
         }
     }
 
@@ -175,6 +262,7 @@ public class LabReferenceRangesController(
                 Range_Source = item.Range_Source,
                 Effective_From = item.Effective_From,
                 Effective_To = item.Effective_To,
+                Is_Common_For_All = item.Is_Common_For_All,
                 Status = item.Status
             };
 
@@ -226,6 +314,7 @@ public class LabReferenceRangesController(
                 Range_Source = model.Range_Source,
                 Effective_From = model.Effective_From,
                 Effective_To = model.Effective_To,
+                Is_Common_For_All = model.Is_Common_For_All,
                 Status = model.Status,
                 UserId = User.GetUserId()
             };

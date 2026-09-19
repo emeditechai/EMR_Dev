@@ -58,6 +58,22 @@ public class LabReferenceRangeController(ILabReferenceRangeService service) : Co
         }
     }
 
+    [HttpPost("bulk-save")]
+    [ProducesResponseType(typeof(ApiResponse<int>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    public async Task<IActionResult> BulkSave([FromBody] LabReferenceRangeBulkSaveRequest req)
+    {
+        try
+        {
+            var count = await service.BulkSaveAsync(req);
+            return Ok(ApiResponse<int>.Ok(count, $"{count} Reference Range(s) saved successfully."));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 400)]

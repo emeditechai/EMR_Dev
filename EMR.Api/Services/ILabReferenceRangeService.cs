@@ -7,6 +7,7 @@ public interface ILabReferenceRangeService
     Task<IEnumerable<LabReferenceRangeListItem>> GetListAsync(int? testId, string? gender, bool? status, string? search, int? companyId);
     Task<LabReferenceRangeDetail?> GetByIdAsync(int id, int? companyId);
     Task<int> CreateAsync(LabReferenceRangeCreateRequest req);
+    Task<int> BulkSaveAsync(LabReferenceRangeBulkSaveRequest req);
     Task UpdateAsync(LabReferenceRangeUpdateRequest req);
     Task DeleteAsync(int id, int companyId, int? userId);
     Task<bool> ToggleStatusAsync(int id, int companyId, int? userId);

@@ -77,6 +77,18 @@ public class LabReferenceRangeApiClient(IHttpClientFactory factory) : ILabRefere
         return true;
     }
 
+    public async Task<int> BulkSaveAsync(LabReferenceRangeBulkSaveRequestModel req)
+    {
+        var res = await Client.PostAsJsonAsync("api/lab-reference-ranges/bulk-save", req);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadFromJsonAsync<ApiResponse<object>>();
+            throw new InvalidOperationException(err?.Message ?? "Failed to bulk save Reference Ranges.");
+        }
+        var body = await res.Content.ReadFromJsonAsync<ApiResponse<int>>();
+        return body?.Data ?? 0;
+    }
+
     public async Task<IEnumerable<LabNumericTestOptionModel>> GetNumericTestsAsync(int companyId = 1)
     {
         var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<LabNumericTestOptionModel>>>($"api/lab-reference-ranges/numeric-tests?companyId={companyId}");
