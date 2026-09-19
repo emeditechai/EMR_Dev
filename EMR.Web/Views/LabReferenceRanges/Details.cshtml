@@ -1,0 +1,189 @@
+@model EMR.Web.ApiClients.Models.LabReferenceRangeModel
+
+@{
+    ViewData["Title"] = "Reference Range Details";
+}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Reference Range Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Details (#@Model.RefRange_ID)</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-info-circle me-2"></i>Reference Range Details
+            </h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-route-id="@Model.RefRange_ID" class="btn btn-primary px-3">
+                <i class="bi bi-pencil me-1"></i> Edit
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Details Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="card-title fw-bold mb-0 text-dark">
+                        <i class="bi bi-sliders2-vertical me-2 text-primary"></i>Reference Range #@Model.RefRange_ID
+                    </h6>
+                    <span class="badge @(Model.Status ? "bg-success-subtle text-success border border-success-subtle" : "bg-danger-subtle text-danger border border-danger-subtle") px-3 py-2">
+                        <i class="bi @(Model.Status ? "bi-check-circle-fill" : "bi-x-circle-fill") me-1"></i>
+                        @(Model.Status ? "Active" : "Inactive")
+                    </span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <!-- Investigation Test Info -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Investigation Test</label>
+                            <div class="fs-5 fw-bold text-dark">@Model.Test_Name</div>
+                            <small class="text-muted"><i class="bi bi-upc-scan me-1"></i>Test Code: @Model.Test_Code</small>
+                        </div>
+
+                        <!-- Test Method -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Test Method</label>
+                            <div class="fs-6 fw-semibold text-dark">
+                                @if (!string.IsNullOrWhiteSpace(Model.Method_Name))
+                                {
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-gear me-1 text-secondary"></i>@Model.Method_Name</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted fst-italic">Default Method</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="col-12"><hr class="my-0 text-secondary opacity-25" /></div>
+
+                        <!-- Age Applicability -->
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Age Range</label>
+                            <div class="fs-6 fw-bold text-dark">
+                                @Model.Age_From - @Model.Age_To <span class="badge bg-primary-subtle text-primary border ms-1">@Model.Age_Unit</span>
+                            </div>
+                        </div>
+
+                        <!-- Gender Applicability -->
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Gender</label>
+                            <div>
+                                @switch (Model.Gender?.ToLower())
+                                {
+                                    case "male":
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="bi bi-gender-male me-1"></i>Male</span>
+                                        break;
+                                    case "female":
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-gender-female me-1"></i>Female</span>
+                                        break;
+                                    case "transgender":
+                                        <span class="badge bg-purple-subtle text-purple border border-purple-subtle px-2 py-1"><i class="bi bi-gender-ambiguous me-1"></i>Transgender</span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="bi bi-people me-1"></i>All</span>
+                                        break;
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Pregnancy Trimester -->
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Pregnancy Trimester</label>
+                            <div class="fs-6 fw-semibold text-dark">
+                                @(string.IsNullOrWhiteSpace(Model.Pregnancy_Trimester) || Model.Pregnancy_Trimester == "Not Applicable" ? "Not Applicable" : Model.Pregnancy_Trimester)
+                            </div>
+                        </div>
+
+                        <div class="col-12"><hr class="my-0 text-secondary opacity-25" /></div>
+
+                        <!-- Reference Range Values -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Reference Range</label>
+                            <div class="p-3 bg-success-subtle rounded border border-success-subtle">
+                                <div class="fs-4 fw-bold text-success mb-0">
+                                    @if (Model.Low_Value.HasValue && Model.High_Value.HasValue)
+                                    {
+                                        <span>@Model.Low_Value.Value.ToString("0.##") - @Model.High_Value.Value.ToString("0.##")</span>
+                                    }
+                                    else if (Model.Low_Value.HasValue)
+                                    {
+                                        <span>&gt;= @Model.Low_Value.Value.ToString("0.##")</span>
+                                    }
+                                    else if (Model.High_Value.HasValue)
+                                    {
+                                        <span>&lt;= @Model.High_Value.Value.ToString("0.##")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Not specified</span>
+                                    }
+                                    <span class="fs-6 text-dark fw-normal ms-2">@(!string.IsNullOrWhiteSpace(Model.Unit_Symbol) ? Model.Unit_Symbol : Model.Unit_Name)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Unit -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Unit</label>
+                            <div class="fs-6 fw-bold text-dark">@Model.Unit_Name</div>
+                            @if (!string.IsNullOrWhiteSpace(Model.Unit_Symbol))
+                            {
+                                <small class="text-muted">Symbol: @Model.Unit_Symbol</small>
+                            }
+                        </div>
+
+                        <!-- Range Source -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Range Source</label>
+                            <div class="fs-6 text-dark">
+                                @(!string.IsNullOrWhiteSpace(Model.Range_Source) ? Model.Range_Source : "N/A")
+                            </div>
+                        </div>
+
+                        <!-- Effective Dates -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Effective Period</label>
+                            <div class="fs-6 text-dark">
+                                <strong>@Model.Effective_From.ToString("dd-MMM-yyyy")</strong>
+                                @if (Model.Effective_To.HasValue)
+                                {
+                                    <span>to <strong>@Model.Effective_To.Value.ToString("dd-MMM-yyyy")</strong></span>
+                                }
+                                else
+                                {
+                                    <span class="text-success ms-1">(Ongoing)</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="col-12"><hr class="my-0 text-secondary opacity-25" /></div>
+
+                        <!-- Audit Info -->
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Created On: @Model.CreatedDate.ToString("dd-MMM-yyyy hh:mm tt")</small>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            @if (Model.ModifiedDate.HasValue)
+                            {
+                                <small class="text-muted d-block">Last Modified: @Model.ModifiedDate.Value.ToString("dd-MMM-yyyy hh:mm tt")</small>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
