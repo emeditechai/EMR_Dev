@@ -193,6 +193,7 @@
                     <div class="d-flex align-items-center flex-wrap gap-2">
                         <h6 class="fw-bold m-0 text-dark"><i class="bi bi-list-check me-1"></i> Corporate Rate Items Detail</h6>
                         <span class="badge bg-secondary px-2 py-1" id="badgeTotalItems">Total: 0</span>
+                        <span class="badge bg-dark px-2 py-1" id="badgePackageItems">Packages: 0</span>
                         <span class="badge bg-primary px-2 py-1" id="badgeProfileItems">Profiles: 0</span>
                         <span class="badge bg-info text-dark px-2 py-1" id="badgeTestItems">Tests: 0</span>
                     </div>
@@ -219,6 +220,7 @@
                         <label class="form-label small mb-0 text-muted text-nowrap">Filter Type:</label>
                         <select id="cboDetailTypeFilter" class="form-select form-select-sm" style="max-width: 140px;">
                             <option value="">All Types</option>
+                            <option value="Package">Packages Only</option>
                             <option value="Profile">Profiles Only</option>
                             <option value="Test">Tests Only</option>
                         </select>
@@ -581,15 +583,30 @@
     });
 
     function initItemDropdown() {
+        var currentSelected = $('#cboAllItems').val();
         var options = '<option value="">Search and select...</option>';
+        
         allLabItems.forEach(function(item) {
             var iType = item.Item_Type || item.item_Type;
             var iID = item.Item_ID || item.item_ID;
             var iCode = item.Item_Code || item.item_Code;
             var iName = item.Item_Name || item.item_Name;
-            options += `<option value="${iType}_${iID}">[${iType}] ${iCode} - ${iName}</option>`;
+            
+            var isAdded = currentDetails.some(function(d) {
+                return (d.Item_Type || d.item_Type) === iType && (d.Item_ID || d.item_ID) === iID;
+            });
+
+            if (!isAdded) {
+                options += `<option value="${iType}_${iID}">[${iType}] ${iCode} - ${iName}</option>`;
+            }
         });
-        $('#cboAllItems').html(options).trigger('change');
+        
+        $('#cboAllItems').html(options);
+        if (currentSelected && $('#cboAllItems').find(`option[value="${currentSelected}"]`).length > 0) {
+            $('#cboAllItems').val(currentSelected).trigger('change');
+        } else {
+            $('#cboAllItems').val('').trigger('change');
+        }
     }
 
     function renderGrid() {
@@ -597,12 +614,17 @@
         tbody.empty();
         
         var totalCount = currentDetails.length;
+        var packageCount = currentDetails.filter(x => (x.Item_Type || x.item_Type) === 'Package').length;
         var profileCount = currentDetails.filter(x => (x.Item_Type || x.item_Type) === 'Profile').length;
         var testCount = currentDetails.filter(x => (x.Item_Type || x.item_Type) === 'Test').length;
 
         $('#badgeTotalItems').text(`Total: ${totalCount}`);
+        $('#badgePackageItems').text(`Packages: ${packageCount}`);
         $('#badgeProfileItems').text(`Profiles: ${profileCount}`);
         $('#badgeTestItems').text(`Tests: ${testCount}`);
+
+        // Keep the missing items dropdown synchronized with current grid state
+        initItemDropdown();
 
         if (totalCount === 0) {
             tbody.append('<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use copy rates or search dropdown above to add items.</td></tr>');
@@ -635,7 +657,7 @@
 
             visibleCount++;
             var checked = item.Status ? 'checked' : '';
-            var typeBadge = type === 'Profile' ? 'bg-primary' : 'bg-info text-dark';
+            var typeBadge = type === 'Package' ? 'bg-dark' : (type === 'Profile' ? 'bg-primary' : 'bg-info text-dark');
             
             var isSaved = (item.Detail_ID || item.detail_ID || 0) > 0;
             var rowClass = isSaved ? '' : 'table-warning bg-warning-subtle';

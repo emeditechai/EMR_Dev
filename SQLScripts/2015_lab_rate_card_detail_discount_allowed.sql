@@ -77,7 +77,7 @@ BEGIN
     LEFT JOIN [dbo].[CorporateMaster] c ON h.[B2CIdentity_ID] = c.[Corporate_ID]
     WHERE h.[RateCard_ID] = @RateCard_ID AND h.[IsDeleted] = 0;
 
-    -- Resultset 2: Details with Item Names resolved & Branch B2C Rate resolved
+    -- Resultset 2: Details with Item Names & Rates resolved for Tests, Profiles, and Packages
     DECLARE @Branch_ID INT;
     SELECT @Branch_ID = [Branch_ID] FROM [dbo].[LabRateCardMaster] WHERE [RateCard_ID] = @RateCard_ID;
 
@@ -86,19 +86,22 @@ BEGIN
         d.[RateCard_ID],
         d.[Item_Type],
         d.[Item_ID],
-        t.[Test_Name] AS [Item_Name],
-        t.[Test_Code] AS [Item_Code],
-        t.[MRP] AS [Default_Rate],
-        COALESCE(b2cd.[Rate], t.[MRP], 0) AS [Branch_Rate],
+        COALESCE(t.[Test_Name], pkg.[Profile_Name], 'Unknown Item') AS [Item_Name],
+        COALESCE(t.[Test_Code], pkg.[Profile_Code], '') AS [Item_Code],
+        COALESCE(t.[MRP], pkg.[MRP], 0) AS [Default_Rate],
+        COALESCE(b2cd.[Rate], t.[MRP], pkg.[MRP], 0) AS [Branch_Rate],
         t.[Category_ID],
         t.[SubCategory_ID],
         t.[Department_ID],
-        t.[Is_Profile_Test],
+        ISNULL(t.[Is_Profile_Test], 0) AS [Is_Profile_Test],
         d.[Rate],
         ISNULL(d.[Is_Discount_Allowed], 0) AS [Is_Discount_Allowed],
         d.[Status]
     FROM [dbo].[LabRateCardDetail] d
-    INNER JOIN [dbo].[LabInvestigationMaster] t ON d.[Item_ID] = t.[Test_ID]
+    LEFT JOIN [dbo].[LabInvestigationMaster] t 
+        ON d.[Item_ID] = t.[Test_ID] AND d.[Item_Type] IN ('Test', 'Profile')
+    LEFT JOIN [dbo].[LabInvestigationProfileHeader] pkg 
+        ON d.[Item_ID] = pkg.[Profile_ID] AND d.[Item_Type] = 'Package' AND pkg.[IsDeleted] = 0
     OUTER APPLY (
         SELECT TOP 1 cd.[Rate]
         FROM [dbo].[LabRateCardMaster] ch
@@ -112,7 +115,13 @@ BEGIN
         ORDER BY ch.[Effective_From] DESC, ch.[RateCard_ID] DESC
     ) b2cd
     WHERE d.[RateCard_ID] = @RateCard_ID AND d.[IsDeleted] = 0
-    ORDER BY t.[Is_Profile_Test] DESC, t.[Test_Name] ASC;
+    ORDER BY 
+        CASE d.[Item_Type] 
+            WHEN 'Package' THEN 1 
+            WHEN 'Profile' THEN 2 
+            ELSE 3 
+        END ASC,
+        COALESCE(t.[Test_Name], pkg.[Profile_Name]) ASC;
 END
 GO
 
