@@ -61,7 +61,7 @@ IF OBJECT_ID('dbo.usp_Api_LabReferenceRange_GetNumericTests', 'P') IS NOT NULL D
 GO
 
 -- 3. Stored Procedure: usp_Api_LabReferenceRange_GetNumericTests
--- Fetches only active numeric tests with their default method & unit
+-- Fetches only active numeric individual tests (excluding parent profiles/packages) with their default method & unit
 CREATE PROCEDURE dbo.usp_Api_LabReferenceRange_GetNumericTests
     @CompanyId INT = 1
 AS
@@ -86,6 +86,13 @@ BEGIN
       AND t.IsDeleted = 0
       AND t.Status = 1
       AND LOWER(LTRIM(RTRIM(ISNULL(t.Reporting_Type, '')))) = 'numeric'
+      AND ISNULL(t.Is_Profile_Test, 0) = 0
+      AND NOT EXISTS (
+          SELECT 1 
+          FROM dbo.LabInvestigationProfileHeader h 
+          WHERE h.Test_ID = t.Test_ID 
+            AND h.IsDeleted = 0
+      )
     ORDER BY t.Test_Name ASC;
 END
 GO
