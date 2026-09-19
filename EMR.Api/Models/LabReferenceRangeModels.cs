@@ -20,6 +20,11 @@ public class LabReferenceRangeListItem
     public string Pregnancy_Trimester { get; set; } = "Not Applicable";
     public decimal? Low_Value { get; set; }
     public decimal? High_Value { get; set; }
+    public string? Tier { get; set; }
+    public decimal? Low_Threshold { get; set; }
+    public decimal? High_Threshold { get; set; }
+    public bool Notification_Required { get; set; }
+    public bool Acknowledgement_Required { get; set; }
     public string? Special_Remarks { get; set; }
     public string? Range_Source { get; set; }
     public DateTime Effective_From { get; set; }
@@ -49,6 +54,11 @@ public class LabReferenceRangeCreateRequest
     public string Pregnancy_Trimester { get; set; } = "Not Applicable";
     public decimal? Low_Value { get; set; }
     public decimal? High_Value { get; set; }
+    public string? Tier { get; set; }
+    public decimal? Low_Threshold { get; set; }
+    public decimal? High_Threshold { get; set; }
+    public bool Notification_Required { get; set; }
+    public bool Acknowledgement_Required { get; set; }
     public string? Special_Remarks { get; set; }
     public string? Range_Source { get; set; }
     public DateTime Effective_From { get; set; }
@@ -72,6 +82,11 @@ public class LabReferenceRangeUpdateRequest
     public string Pregnancy_Trimester { get; set; } = "Not Applicable";
     public decimal? Low_Value { get; set; }
     public decimal? High_Value { get; set; }
+    public string? Tier { get; set; }
+    public decimal? Low_Threshold { get; set; }
+    public decimal? High_Threshold { get; set; }
+    public bool Notification_Required { get; set; }
+    public bool Acknowledgement_Required { get; set; }
     public string? Special_Remarks { get; set; }
     public string? Range_Source { get; set; }
     public DateTime Effective_From { get; set; }
@@ -89,6 +104,9 @@ public class LabReferenceRangeGridItemDto
     public string Pregnancy_Trimester { get; set; } = "Not Applicable";
     public decimal? Low_Value { get; set; }
     public decimal? High_Value { get; set; }
+    public string? Tier { get; set; }
+    public decimal? Low_Threshold { get; set; }
+    public decimal? High_Threshold { get; set; }
     public string? Special_Remarks { get; set; }
 }
 
@@ -99,6 +117,8 @@ public class LabReferenceRangeBulkSaveRequest
     public int? Method_ID { get; set; }
     public int Unit_ID { get; set; }
     public bool Is_Common_For_All { get; set; }
+    public bool Notification_Required { get; set; }
+    public bool Acknowledgement_Required { get; set; }
     public string? Range_Source { get; set; }
     public DateTime Effective_From { get; set; }
     public DateTime? Effective_To { get; set; }

@@ -56,11 +56,26 @@ public class LabReferenceRangeFormViewModel
     [Display(Name = "Pregnancy Trimester")]
     public string? Pregnancy_Trimester { get; set; } = "Not Applicable";
 
-    [Display(Name = "Low Value")]
+    [Display(Name = "Low Value (Min)")]
     public decimal? Low_Value { get; set; }
 
-    [Display(Name = "High Value")]
+    [Display(Name = "High Value (Max)")]
     public decimal? High_Value { get; set; }
+
+    [Display(Name = "Tier")]
+    public string? Tier { get; set; }
+
+    [Display(Name = "Low Threshold")]
+    public decimal? Low_Threshold { get; set; }
+
+    [Display(Name = "High Threshold")]
+    public decimal? High_Threshold { get; set; }
+
+    [Display(Name = "Notification Required")]
+    public bool Notification_Required { get; set; } = false;
+
+    [Display(Name = "Acknowledgement Required")]
+    public bool Acknowledgement_Required { get; set; } = false;
 
     [StringLength(1000, ErrorMessage = "Special Remarks cannot exceed 1000 characters.")]
     [Display(Name = "Special Remarks")]
@@ -93,4 +108,5 @@ public class LabReferenceRangeFormViewModel
     public List<SelectListItem> AgeUnitOptions { get; set; } = [];
     public List<SelectListItem> GenderOptions { get; set; } = [];
     public List<SelectListItem> TrimesterOptions { get; set; } = [];
+    public List<SelectListItem> TierOptions { get; set; } = [];
 }

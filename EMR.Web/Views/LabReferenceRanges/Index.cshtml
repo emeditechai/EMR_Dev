@@ -133,6 +133,7 @@
                         <th>Demographics</th>
                         <th>Trimester</th>
                         <th>Reference Range</th>
+                        <th>Tier / Thresholds</th>
                         <th>Unit</th>
                         <th class="text-center">Scope</th>
                         <th>Effective Period</th>
@@ -144,7 +145,7 @@
                     @if (Model.ReferenceRanges.Count == 0)
                     {
                         <tr>
-                            <td colspan="11" class="text-center py-5 text-muted">
+                            <td colspan="12" class="text-center py-5 text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                 No reference ranges found matching your criteria.
                             </td>
@@ -160,6 +161,19 @@
                                 <td>
                                     <div class="fw-bold text-dark">@item.Test_Name</div>
                                     <small class="text-muted"><i class="bi bi-upc-scan me-1"></i>@item.Test_Code</small>
+                                    @if (item.Notification_Required || item.Acknowledgement_Required)
+                                    {
+                                        <div class="mt-1 d-flex gap-1 flex-wrap">
+                                            @if (item.Notification_Required)
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Notification Required"><i class="bi bi-bell-fill me-1"></i>Notify</span>
+                                            }
+                                            @if (item.Acknowledgement_Required)
+                                            {
+                                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Acknowledgement Required"><i class="bi bi-shield-check me-1"></i>Ack</span>
+                                            }
+                                        </div>
+                                    }
                                 </td>
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(item.Method_Name))
@@ -220,6 +234,44 @@
                                     else
                                     {
                                         <span class="text-muted fst-italic">Not defined</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.Tier))
+                                    {
+                                        @if (item.Tier == "Critical Value")
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Critical</span>
+                                        }
+                                        else if (item.Tier == "Panic Value")
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle mb-1"><i class="bi bi-exclamation-octagon me-1"></i>Panic</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle mb-1">@item.Tier</span>
+                                        }
+                                    }
+                                    @if (item.Low_Threshold.HasValue || item.High_Threshold.HasValue)
+                                    {
+                                        <div class="small text-muted">
+                                            @if (item.Low_Threshold.HasValue && item.High_Threshold.HasValue)
+                                            {
+                                                <span>Alert: <strong>@item.Low_Threshold.Value.ToString("0.##") - @item.High_Threshold.Value.ToString("0.##")</strong></span>
+                                            }
+                                            else if (item.Low_Threshold.HasValue)
+                                            {
+                                                <span>Alert: &lt; <strong>@item.Low_Threshold.Value.ToString("0.##")</strong></span>
+                                            }
+                                            else if (item.High_Threshold.HasValue)
+                                            {
+                                                <span>Alert: &gt; <strong>@item.High_Threshold.Value.ToString("0.##")</strong></span>
+                                            }
+                                        </div>
+                                    }
+                                    else if (string.IsNullOrWhiteSpace(item.Tier))
+                                    {
+                                        <span class="text-muted">-</span>
                                     }
                                 </td>
                                 <td>

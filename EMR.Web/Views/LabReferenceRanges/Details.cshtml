@@ -135,6 +135,85 @@
                             </div>
                         </div>
 
+                        <!-- Tier & Thresholds -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Critical & Panic Thresholds</label>
+                            <div class="p-3 bg-light rounded border">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="text-muted me-2 small">Tier:</span>
+                                    @if (!string.IsNullOrWhiteSpace(Model.Tier))
+                                    {
+                                        @if (Model.Tier == "Critical Value")
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-exclamation-triangle me-1"></i>Critical Value</span>
+                                        }
+                                        else if (Model.Tier == "Panic Value")
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-exclamation-octagon me-1"></i>Panic Value</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle">@Model.Tier</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Standard</span>
+                                    }
+                                </div>
+                                <div class="fs-6 fw-semibold text-dark">
+                                    @if (Model.Low_Threshold.HasValue && Model.High_Threshold.HasValue)
+                                    {
+                                        <span>Alert Range: <strong>@Model.Low_Threshold.Value.ToString("0.##") - @Model.High_Threshold.Value.ToString("0.##")</strong></span>
+                                    }
+                                    else if (Model.Low_Threshold.HasValue)
+                                    {
+                                        <span>Low Alert: &lt; <strong>@Model.Low_Threshold.Value.ToString("0.##")</strong></span>
+                                    }
+                                    else if (Model.High_Threshold.HasValue)
+                                    {
+                                        <span>High Alert: &gt; <strong>@Model.High_Threshold.Value.ToString("0.##")</strong></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted fst-italic">No threshold alerts configured</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notification Settings -->
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Notification & Alert Settings</label>
+                            <div class="d-flex gap-2 flex-wrap">
+                                @if (Model.Notification_Required)
+                                {
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle p-2">
+                                        <i class="bi bi-bell-fill me-1"></i>Notification Required (Physician Alert)
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-muted border p-2">
+                                        <i class="bi bi-bell-slash me-1"></i>Notification Not Required
+                                    </span>
+                                }
+
+                                @if (Model.Acknowledgement_Required)
+                                {
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle p-2">
+                                        <i class="bi bi-shield-check me-1"></i>Clinical Acknowledgement Required
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-muted border p-2">
+                                        <i class="bi bi-shield-slash me-1"></i>Acknowledgement Not Required
+                                    </span>
+                                }
+                            </div>
+                        </div>
+
                         <!-- Unit -->
                         <div class="col-md-6">
                             <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Unit</label>

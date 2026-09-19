@@ -43,6 +43,11 @@ public class LabReferenceRangeService(IDbConnectionFactory db) : ILabReferenceRa
         p.Add("@Pregnancy_Trimester", req.Pregnancy_Trimester);
         p.Add("@Low_Value", req.Low_Value);
         p.Add("@High_Value", req.High_Value);
+        p.Add("@Tier", req.Tier);
+        p.Add("@Low_Threshold", req.Low_Threshold);
+        p.Add("@High_Threshold", req.High_Threshold);
+        p.Add("@Notification_Required", req.Notification_Required);
+        p.Add("@Acknowledgement_Required", req.Acknowledgement_Required);
         p.Add("@Special_Remarks", req.Special_Remarks);
         p.Add("@Range_Source", req.Range_Source);
         p.Add("@Effective_From", req.Effective_From);
@@ -65,6 +70,8 @@ public class LabReferenceRangeService(IDbConnectionFactory db) : ILabReferenceRa
         p.Add("@Method_ID", req.Method_ID);
         p.Add("@Unit_ID", req.Unit_ID);
         p.Add("@Is_Common_For_All", req.Is_Common_For_All);
+        p.Add("@Notification_Required", req.Notification_Required);
+        p.Add("@Acknowledgement_Required", req.Acknowledgement_Required);
         p.Add("@Range_Source", req.Range_Source);
         p.Add("@Effective_From", req.Effective_From);
         p.Add("@Effective_To", req.Effective_To);
@@ -96,6 +103,11 @@ public class LabReferenceRangeService(IDbConnectionFactory db) : ILabReferenceRa
                 Pregnancy_Trimester = req.Pregnancy_Trimester,
                 Low_Value = req.Low_Value,
                 High_Value = req.High_Value,
+                Tier = req.Tier,
+                Low_Threshold = req.Low_Threshold,
+                High_Threshold = req.High_Threshold,
+                Notification_Required = req.Notification_Required,
+                Acknowledgement_Required = req.Acknowledgement_Required,
                 Special_Remarks = req.Special_Remarks,
                 Range_Source = req.Range_Source,
                 Effective_From = req.Effective_From,
