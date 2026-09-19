@@ -71,7 +71,7 @@
                     </span>
                 </div>
                 <div class="card-body p-4">
-                    <form asp-action="Edit" asp-route-id="@Model.RefRange_ID" method="post" id="refRangeForm">
+                    <form asp-action="Edit" asp-encrypted-id="@Model.RefRange_ID" method="post" id="refRangeForm">
                         @Html.AntiForgeryToken()
                         <input type="hidden" asp-for="RefRange_ID" />
                         <input type="hidden" asp-for="CompanyId" />
