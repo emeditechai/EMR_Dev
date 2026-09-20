@@ -49,7 +49,7 @@ namespace EMR.Api.Controllers
                 return BadRequest("Source and target branch cannot be the same.");
 
             var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+            int userId = request.UserId ?? (int.TryParse(userIdClaim, out var uid) ? uid : 1);
 
             try
             {
@@ -148,7 +148,7 @@ namespace EMR.Api.Controllers
                 return BadRequest("Target branch is required.");
 
             var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+            int userId = request.UserId ?? (int.TryParse(userIdClaim, out var uid) ? uid : 1);
 
             try
             {

@@ -113,10 +113,15 @@ namespace EMR.Web.Controllers
                 var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId.Value);
                 if (detail != null)
                 {
-                    var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
-                    if (bookingDate != DateTime.Today)
+                    var currentItem = detail.Items?.FirstOrDefault(x => x.SamplecollectionID == request.SampleCollectionId);
+                    bool isReCollect = currentItem?.CollectionstatusID == 3;
+                    if (!isReCollect)
                     {
-                        return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
+                        var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
+                        if (bookingDate != DateTime.Today)
+                        {
+                            return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
+                        }
                     }
                 }
             }
@@ -183,10 +188,18 @@ namespace EMR.Web.Controllers
                 detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
                 if (detail != null)
                 {
-                    var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
-                    if (bookingDate != DateTime.Today)
+                    var profileItems = detail.Items?.Where(x =>
+                        (request.ProfileId != null && x.ProfileId == request.ProfileId) ||
+                        (!string.IsNullOrEmpty(request.ProfileName) && x.ProfileName == request.ProfileName)
+                    ).ToList();
+                    bool allReCollect = profileItems != null && profileItems.Count > 0 && profileItems.All(x => x.CollectionstatusID == 3);
+                    if (!allReCollect)
                     {
-                        return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
+                        var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
+                        if (bookingDate != DateTime.Today)
+                        {
+                            return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
+                        }
                     }
                 }
             }
@@ -246,16 +259,20 @@ namespace EMR.Web.Controllers
             var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
             if (detail != null)
             {
-                var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
-                if (bookingDate != DateTime.Today)
-                {
-                    return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
-                }
-
                 var pendingItems = detail.Items.Where(x => x.CollectionstatusID != 2).ToList();
                 if (!pendingItems.Any())
                 {
                     return Json(new { success = false, message = "All samples for this order are already collected." });
+                }
+
+                bool onlyReCollectRemaining = pendingItems.All(x => x.CollectionstatusID == 3);
+                if (!onlyReCollectRemaining)
+                {
+                    var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
+                    if (bookingDate != DateTime.Today)
+                    {
+                        return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
+                    }
                 }
             }
 

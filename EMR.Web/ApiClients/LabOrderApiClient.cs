@@ -89,11 +89,12 @@ namespace EMR.Web.ApiClients
             return await response.Content.ReadFromJsonAsync<LabOrderDetailDto>();
         }
 
-        public async Task<bool> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId)
+        public async Task<bool> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId, int? userId = null)
         {
             try
             {
-                var response = await httpClient.PostAsync($"api/LabOrders/{labOrderId}/sample-collection?branchId={branchId}&companyId={companyId}", null);
+                var url = $"api/LabOrders/{labOrderId}/sample-collection?branchId={branchId}&companyId={companyId}" + (userId.HasValue ? $"&userId={userId.Value}" : "");
+                var response = await httpClient.PostAsync(url, null);
                 return response.IsSuccessStatusCode;
             }
             catch

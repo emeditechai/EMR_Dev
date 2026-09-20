@@ -68,6 +68,7 @@ namespace EMR.Web.Models.DTOs
         public int SourceBranchId { get; set; }
         public int TargetBranchId { get; set; }
         public string? TransferRemarks { get; set; }
+        public int? UserId { get; set; }
     }
 
     public class ExecuteSampleTransferResponseDto
@@ -82,6 +83,7 @@ namespace EMR.Web.Models.DTOs
         public List<long> SampleCollectionIds { get; set; } = new();
         public int TargetBranchId { get; set; }
         public string? ReceiveRemarks { get; set; }
+        public int? UserId { get; set; }
     }
 
     public class ReceiveSampleTransferResponseDto

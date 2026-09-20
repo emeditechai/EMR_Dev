@@ -15,6 +15,7 @@ namespace EMR.Api.Models
         public int? B2BAgentId { get; set; }
         public string? AgentType { get; set; } // 'F' or 'C'
         public decimal? B2BTotal { get; set; }
+        public int? CreatedBy { get; set; }
         public List<LabOrderItemRequest> Items { get; set; } = new();
     }
 
@@ -136,6 +137,7 @@ namespace EMR.Api.Models
         public decimal TotalPaid { get; set; }
         public decimal BalanceDue { get; set; }
         public string? CreatedByName { get; set; }
+        public string? CreatedByUsername { get; set; }
         public int ItemCount { get; set; }
         public string? TestNamesSummary { get; set; }
         public int TotalCount { get; set; }
@@ -174,6 +176,7 @@ namespace EMR.Api.Models
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
         public string? CreatedByName { get; set; }
+        public string? CreatedByUsername { get; set; }
         public string? PatientCode { get; set; }
         public string? PatientName { get; set; }
         public string? PhoneNumber { get; set; }

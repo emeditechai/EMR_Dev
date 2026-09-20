@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using EMR.Web.Models.DTOs;
+using EMR.Web.ApiClients.Models;
 
 using Microsoft.AspNetCore.Mvc.Rendering;
 
@@ -29,5 +30,7 @@ namespace EMR.Web.Models.ViewModels
     {
         public LabReportingOrderDetailDto Detail { get; set; } = new();
         public List<LabReportStatusMasterDto> Statuses { get; set; } = new();
+        public List<SampleCollectionStatusMasterDto> SampleCollectionStatuses { get; set; } = new();
+        public List<LabSampleRejectionReasonModel> RejectionReasons { get; set; } = new();
     }
 }

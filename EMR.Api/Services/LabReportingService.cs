@@ -64,6 +64,10 @@ namespace EMR.Api.Services
             if (detail == null) return null;
 
             detail.Items = (await multi.ReadAsync<LabReportingItemDto>()).ToList();
+            if (!multi.IsConsumed)
+            {
+                detail.GroupRemarks = (await multi.ReadAsync<LabReportGroupRemarkDto>()).ToList();
+            }
             return detail;
         }
 
@@ -85,6 +89,7 @@ namespace EMR.Api.Services
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
             string entriesJson = JsonSerializer.Serialize(request.Entries ?? new List<LabReportingItemValueDto>(), jsonOptions);
+            string groupRemarksJson = JsonSerializer.Serialize(request.GroupRemarks ?? new List<LabReportGroupRemarkDto>(), jsonOptions);
 
             var count = await connection.ExecuteScalarAsync<int>(
                 "dbo.usp_LabReporting_SaveEntry",
@@ -93,12 +98,46 @@ namespace EMR.Api.Services
                     LabOrderId = request.LabOrderId,
                     ReportStatusId = request.ReportStatusId,
                     UserId = userId,
-                    EntriesJson = entriesJson
+                    EntriesJson = entriesJson,
+                    GroupRemarksJson = groupRemarksJson
                 },
                 commandType: CommandType.StoredProcedure
             );
 
             return count;
+        }
+
+        public async Task<int> UpdateSampleStatusAsync(UpdateLabSampleStatusRequestDto request, int userId)
+        {
+            using var connection = db.CreateConnection();
+            var count = await connection.ExecuteScalarAsync<int>(
+                "dbo.usp_LabReporting_UpdateSampleStatus",
+                new
+                {
+                    LabOrderId = request.LabOrderId,
+                    ProfileId = request.ProfileId,
+                    InvestigationId = request.InvestigationId,
+                    SampleCollectionId = request.SampleCollectionId,
+                    CollectionStatusId = request.CollectionStatusId,
+                    RejectionReasonId = request.RejectionReasonId,
+                    RejectionReason = request.RejectionReason,
+                    UserId = userId
+                },
+                commandType: CommandType.StoredProcedure
+            );
+
+            return count;
+        }
+
+        public async Task<List<LabOrderActivityDto>> GetActivityHistoryAsync(int labOrderId)
+        {
+            using var connection = db.CreateConnection();
+            var list = await connection.QueryAsync<LabOrderActivityDto>(
+                "dbo.usp_LabOrder_GetActivityHistory",
+                new { LabOrderId = labOrderId },
+                commandType: CommandType.StoredProcedure
+            );
+            return list.ToList();
         }
     }
 }

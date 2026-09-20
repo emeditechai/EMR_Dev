@@ -65,10 +65,15 @@ public class BranchesController(
             .Include(x => x.Company)
             .Include(x => x.UserBranches.Where(ub => ub.IsActive))
                 .ThenInclude(x => x.User)
-            .Include(x => x.Roles.OrderBy(r => r.Name))
             .FirstOrDefaultAsync(x => x.BranchId == id);
 
         if (branch is null) return NotFound();
+
+        var companyRoles = await dbContext.Roles
+            .Where(r => r.CompanyId == branch.CompanyId)
+            .OrderBy(r => r.Name)
+            .Select(r => r.Name)
+            .ToListAsync();
 
         var model = new BranchDetailsViewModel
         {
@@ -92,7 +97,7 @@ public class BranchesController(
                 .Select(ub => ub.User.FullName ?? ub.User.Username)
                 .OrderBy(n => n)
                 .ToList(),
-            Roles = branch.Roles.Select(r => r.Name).ToList()
+            Roles = companyRoles
         };
 
         return View(model);

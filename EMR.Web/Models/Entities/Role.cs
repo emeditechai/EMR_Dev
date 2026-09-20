@@ -16,11 +16,11 @@ public class Role
     public bool IsSystemRole { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public DateTime? LastModifiedDate { get; set; }
-    public int? BranchId { get; set; }
+    public int CompanyId { get; set; } = 1;
 
     [MaxLength(100)]
     public string? IconClass { get; set; }
 
-    public BranchMaster? Branch { get; set; }
+    public CompanyMaster? Company { get; set; }
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }

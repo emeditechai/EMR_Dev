@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Workflow & Approval Flow Engine - Architectural Plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #eff6ff;
+            --secondary: #475569;
+            --success: #059669;
+            --success-light: #ecfdf5;
+            --warning: #d97706;
+            --warning-light: #fffbeb;
+            --danger: #dc2626;
+            --danger-light: #fef2f2;
+            --info: #0284c7;
+            --info-light: #f0f9ff;
+            --purple: #7c3aed;
+            --purple-light: #f5f3ff;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --border-dark: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -1px rgba(0,0,0,0.04);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 2.5rem 1.5rem;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Document Header */
+        .doc-header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #ffffff;
+            padding: 3rem;
+            border-radius: var(--radius-lg);
+            margin-bottom: 2.5rem;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .doc-header::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(37,99,235,0.2) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .badge-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.12);
+            color: #93c5fd;
+            font-size: 0.825rem;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            margin-bottom: 1.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            backdrop-filter: blur(4px);
+        }
+
+        .doc-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .doc-subtitle {
+            font-size: 1.15rem;
+            color: #94a3b8;
+            max-width: 800px;
+            margin-bottom: 2rem;
+            font-weight: 400;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .meta-item .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        .meta-item .value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        /* Section Layout */
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-main);
+        }
+
+        .section-title i {
+            color: var(--primary);
+            font-size: 1.6rem;
+        }
+
+        /* Callout Box */
+        .callout {
+            border-left: 4px solid var(--primary);
+            background-color: var(--primary-light);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            margin-bottom: 1.75rem;
+            color: #1e3a8a;
+            font-size: 0.975rem;
+        }
+
+        .callout.warning {
+            border-left-color: var(--warning);
+            background-color: var(--warning-light);
+            color: #92400e;
+        }
+
+        /* Stepper Lifecycle Visualizer */
+        .stepper-container {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin: 2.5rem 0;
+            padding: 0 1rem;
+        }
+
+        .stepper-container::before {
+            content: '';
+            position: absolute;
+            top: 24px;
+            left: 50px;
+            right: 50px;
+            height: 3px;
+            background: #e2e8f0;
+            z-index: 1;
+        }
+
+        .step-item {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            flex: 1;
+            padding: 0 8px;
+        }
+
+        .step-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 3px solid #cbd5e1;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            font-size: 1.25rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 0 4px var(--bg-card);
+        }
+
+        .step-item.completed .step-icon {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .step-item.active .step-icon {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.2);
+            animation: pulse-ring 2s infinite;
+        }
+
+        .step-item.transferred .step-icon {
+            background: var(--purple);
+            border-color: var(--purple);
+            color: white;
+        }
+
+        .step-item.approval .step-icon {
+            background: var(--warning);
+            border-color: var(--warning);
+            color: white;
+        }
+
+        .step-title {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .step-subtext {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
+
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+
+        /* Lifecycle Detail Grid */
+        .stage-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .stage-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .stage-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stage-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .stage-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-paid { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .badge-due { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .badge-collect { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+        .badge-transfer { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+        .badge-report { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+        .badge-approval { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+        .badge-auth { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+
+        .stage-card h4 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+
+        .stage-card p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .stage-card-footer {
+            border-top: 1px solid #f1f5f9;
+            padding-top: 0.75rem;
+            font-size: 0.8rem;
+            color: var(--secondary);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stage-card-footer strong {
+            color: var(--text-main);
+        }
+
+        /* Architecture Tables */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            margin: 1.5rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
+        thead {
+            background-color: #f8fafc;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            padding: 12px 16px;
+            font-weight: 700;
+            color: #334155;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            vertical-align: top;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .code-pill {
+            font-family: 'JetBrains Mono', monospace;
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Mockup Window */
+        .mockup-window {
+            border: 1px solid var(--border-dark);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            margin: 2rem 0;
+            background: #ffffff;
+        }
+
+        .mockup-header {
+            background: #f1f5f9;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mockup-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .mockup-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+        }
+
+        .mockup-dot.red { background: #ef4444; }
+        .mockup-dot.yellow { background: #f59e0b; }
+        .mockup-dot.green { background: #10b981; }
+
+        .mockup-title {
+            font-size: 0.8rem;
+            color: #64748b;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+        }
+
+        .mockup-body {
+            padding: 1.75rem;
+        }
+
+        /* Mini Timeline In Mockup */
+        .tracker-bar {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .bill-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .pill-status {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Print Specifics */
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+            }
+            .section-card {
+                border: 1px solid #000;
+                box-shadow: none;
+                page-break-inside: avoid;
+            }
+            .doc-header {
+                background: #000 !important;
+                color: #fff !important;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Document Header -->
+    <header class="doc-header">
+        <div class="badge-tag">
+            <i class="bi bi-diagram-3-fill"></i> Enterprise EMR Architecture
+        </div>
+        <h1 class="doc-title">Configurable Workflow & Approval Management Engine</h1>
+        <p class="doc-subtitle">
+            A unified state-machine blueprint for end-to-end lifecycle tracking and role-based approvals. Starting with Lab Billing (Sample Tracking, Inter-branch Transfer, Pathologist Authorisation) and built for OPD & IPD expansion.
+        </p>
+
+        <div class="meta-grid">
+            <div class="meta-item">
+                <div class="label">System Component</div>
+                <div class="value">Settings > Workflow & Approvals</div>
+            </div>
+            <div class="meta-item">
+                <div class="label">Initial Target Domain</div>
+                <div class="value">Laboratory (Bill-Centric Lifecycle)</div>
+            </div>
+            <div class="meta-item">
+                <div class="label">Future Extensibility</div>
+                <div class="value">OPD Consultations & IPD Admissions</div>
+            </div>
+            <div class="meta-item">
+                <div class="label">Engine Type</div>
+                <div class="value">Role-Governed Deterministic State Machine</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Executive Summary -->
+    <section class="section-card">
+        <h2 class="section-title"><i class="bi bi-compass"></i> 1. Executive Summary & Problem Statement</h2>
+        <p style="margin-bottom: 1rem;">
+            In high-volume clinical laboratory and hospital settings, a diagnostic order passes through multiple departments, operators, and locations: Registration Cashier, Phlebotomy Station, Logistics Courier (for branch transfers), Laboratory Analyzers, Technician Workstations, and Pathologist Verification desks.
+        </p>
+        <div class="callout">
+            <strong>Key Objective:</strong> Every Lab Order / Invoice (e.g., <span class="code-pill">LAB/HO2627000099</span>) must act as an unbroken lifecycle instance. At any given moment, the hospital management, technicians, doctors, or patient query desk can pinpoint:
+            <ul style="margin-top: 8px; margin-left: 1.5rem;">
+                <li><strong>Current Status:</strong> Where the specimen/report is right now (e.g., <em>"Sample Transferred to City Central Lab"</em> or <em>"Pending Pathologist Approval"</em>).</li>
+                <li><strong>Past History:</strong> An immutable audit trail of every milestone (who acted, at what timestamp, from which branch).</li>
+                <li><strong>Next Actions:</strong> The exact allowed actions and who has the role authority to execute them.</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Visual Stepper Section -->
+    <section class="section-card">
+        <h2 class="section-title"><i class="bi bi-bezier2"></i> 2. End-to-End Lab Billing Lifecycle Flow</h2>
+        <p>The lifecycle begins immediately upon bill generation and advances dynamically based on payments, sample collections, transfer events, and pathologist sign-offs:</p>
+
+        <div class="stepper-container">
+            <div class="step-item completed">
+                <div class="step-icon"><i class="bi bi-receipt"></i></div>
+                <div class="step-title">1. Billing</div>
+                <div class="step-subtext">Registered (Paid/Due)</div>
+            </div>
+            <div class="step-item completed">
+                <div class="step-icon"><i class="bi bi-eyedropper"></i></div>
+                <div class="step-title">2. Phlebotomy</div>
+                <div class="step-subtext">Sample Collected</div>
+            </div>
+            <div class="step-item transferred">
+                <div class="step-icon"><i class="bi bi-truck"></i></div>
+                <div class="step-title">3. Logistics</div>
+                <div class="step-subtext">Transferred to Branch</div>
+            </div>
+            <div class="step-item completed">
+                <div class="step-icon"><i class="bi bi-file-earmark-medical"></i></div>
+                <div class="step-title">4. Lab Entry</div>
+                <div class="step-subtext">Results Draft Saved</div>
+            </div>
+            <div class="step-item active approval">
+                <div class="step-icon"><i class="bi bi-shield-check"></i></div>
+                <div class="step-title">5. Approval</div>
+                <div class="step-subtext">Pathologist Review</div>
+            </div>
+            <div class="step-item">
+                <div class="step-icon"><i class="bi bi-printer"></i></div>
+                <div class="step-title">6. Authorized</div>
+                <div class="step-subtext">Ready for Dispatch</div>
+            </div>
+        </div>
+
+        <!-- Stage Cards Detailed -->
+        <div class="stage-grid">
+            <!-- Stage 1 -->
+            <div class="stage-card">
+                <div class="stage-card-header">
+                    <span class="stage-badge badge-paid">Billing Stage</span>
+                    <span class="code-pill">BILL_REG_PAID</span>
+                </div>
+                <h4>Register Billing with Full Payment</h4>
+                <p>Order is booked and entire invoice net amount is settled at cash counter.</p>
+                <div class="stage-card-footer">
+                    <div><strong>Trigger:</strong> Automatic on LabOrder Save</div>
+                    <div><strong>Condition:</strong> PaidAmount >= NetAmount</div>
+                    <div><strong>Action Allowed:</strong> Forward to Sample Collection</div>
+                </div>
+            </div>
+
+            <!-- Stage 1 Alt -->
+            <div class="stage-card">
+                <div class="stage-card-header">
+                    <span class="stage-badge badge-due">Billing Stage</span>
+                    <span class="code-pill">BILL_REG_DUE</span>
+                </div>
+                <h4>Register Billing with Due</h4>
+                <p>Order is booked with partial payment or zero advance (Corporate / Due patient).</p>
+                <div class="stage-card-footer">
+                    <div><strong>Trigger:</strong> Automatic on LabOrder Save</div>
+                    <div><strong>Condition:</strong> BalanceAmount > 0</div>
+                    <div><strong>Action Allowed:</strong> Collection Allowed; Final Delivery can block on Due</div>
+                </div>
+            </div>
+
+            <!-- Stage 2 -->
+            <div class="stage-card">
+                <div class="stage-card-header">
+                    <span class="stage-badge badge-collect">Collection</span>
+                    <span class="code-pill">SAMPLE_COLLECTED</span>
+                </div>
+                <h4>Sample Collected</h4>
+                <p>Phlebotomist draws specimen, affixes barcode label, and marks samples received.</p>
+                <div class="stage-card-footer">
+                    <div><strong>Trigger:</strong> Phlebotomy Module Action</div>
+                    <div><strong>Context Data:</strong> Barcode, Phlebotomist UserID, Vial Type</div>
+                    <div><strong>Next:</strong> In-house Reporting OR Branch Transfer</div>
+                </div>
+            </div>
+
+            <!-- Stage 3 -->
+            <div class="stage-card">
+                <div class="stage-card-header">
+                    <span class="stage-badge badge-transfer">Logistics Routing</span>
+                    <span class="code-pill">SAMPLE_TRANSFERRED</span>
+                </div>
+                <h4>Sample Transferred to &lt;Branch&gt;</h4>
+                <p>Specimen packed into transport batch manifest and dispatched to reference branch.</p>
+                <div class="stage-card-footer">
+                    <div><strong>Trigger:</strong> Manifest Dispatch in Sample Transfer</div>
+                    <div><strong>Context Data:</strong> Target Branch Name, Courier/Runner ID</div>
+                    <div><strong>Sub-status:</strong> Manifest In-Transit &rarr; Received at Hub</div>
+                </div>
+            </div>
+
+            <!-- Stage 4 -->
+            <div class="stage-card">
+                <div class="stage-card-header">
+                    <span class="stage-badge badge-report">Testing</span>
+                    <span class="code-pill">PREPARE_REPORTING</span>
+                </div>
+                <h4>Prepare for Lab Reporting</h4>
+                <p>Samples accessioned into laboratory analyzer or technician testing queue.</p>
+                <div class="stage-card-footer">
+                    <div><strong>Trigger:</strong> Worklist Pickup / Draft Entry Start</div>
+                    <div><strong>Role:</strong> Lab Technician / Biochemist</div>
+                    <div><strong>Next:</strong> Test Entry &rarr; Pending Pathologist Approval</div>
+                </div>
+            </div>
+
+            <!-- Stage 5 -->
+            <div class="stage-card" style="border: 2px solid #f59e0b;">
+                <div class="stage-card-header">
+                    <span class="stage-badge badge-approval">Approval Matrix</span>
+                    <span class="code-pill">PENDING_APPROVAL</span>
+                </div>
+                <h4>Pathologist Verification & Sign-Off</h4>
+                <p>Mandatory clinical governance gate. Pathologist verifies values, delta checks, and flags.</p>
+                <div class="stage-card-footer">
+                    <div><strong>Required Role:</strong> Pathologist / Lab Director</div>
+                    <div><strong>Approval Options:</strong> Authorise & Sign OR Send Back for Retest</div>
+                    <div><strong>Security:</strong> Digital Signature & PIN validation</div>
+                </div>
+            </div>
+
+            <!-- Stage 6 -->
+            <div class="stage-card">
+                <div class="stage-card-header">
+                    <span class="stage-badge badge-auth">Final Delivery</span>
+                    <span class="code-pill">REPORT_AUTHORISED</span>
+                </div>
+                <h4>Report Authorised</h4>
+                <p>Clinically verified report with QR code and digital stamp ready for print/portal/WhatsApp.</p>
+                <div class="stage-card-footer">
+                    <div><strong>Terminal Stage:</strong> Yes</div>
+                    <div><strong>Automations:</strong> Trigger WhatsApp & Patient Portal notification</div>
+                    <div><strong>Locking:</strong> Test results locked against modifications</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Database Schema Architecture -->
+    <section class="section-card">
+        <h2 class="section-title"><i class="bi bi-database-check"></i> 3. Database Architecture & State Engine</h2>
+        <p>A resilient, normalized database design that separates the <strong>Configuration Rules</strong> from the <strong>Runtime Execution Instances</strong>:</p>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Table Name</th>
+                        <th>Classification</th>
+                        <th>Key Columns</th>
+                        <th>Functional Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong class="code-pill">WorkflowMaster</strong></td>
+                        <td>Configuration</td>
+                        <td>WorkflowId, ModuleName, WorkflowCode, WorkflowName, IsActive</td>
+                        <td>Defines domain workflows (<span class="code-pill">LAB_BILLING</span>, <span class="code-pill">OPD_CONSULT</span>, <span class="code-pill">IPD_ADMISSION</span>).</td>
+                    </tr>
+                    <tr>
+                        <td><strong class="code-pill">WorkflowStage</strong></td>
+                        <td>Configuration</td>
+                        <td>StageId, WorkflowId, StageCode, StageName, BadgeClass, SequenceNo, RequiresApproval, IsFinal</td>
+                        <td>Configured stages with visual badges, display text, and approval flags.</td>
+                    </tr>
+                    <tr>
+                        <td><strong class="code-pill">WorkflowTransition</strong></td>
+                        <td>Configuration</td>
+                        <td>TransitionId, WorkflowId, FromStageId, ToStageId, ActionName, TriggerType, AllowedRoles</td>
+                        <td>Strict state machine transition rules preventing out-of-order jumps.</td>
+                    </tr>
+                    <tr>
+                        <td><strong class="code-pill">WorkflowApprovalConfig</strong></td>
+                        <td>Configuration</td>
+                        <td>ApprovalConfigId, StageId, ApproverRole, StepOrder, IsMandatory, CanRejectToStageId</td>
+                        <td>Defines required approval roles (e.g. Pathologist) and rejection routing.</td>
+                    </tr>
+                    <tr>
+                        <td><strong class="code-pill">EntityWorkflowInstance</strong></td>
+                        <td>Runtime State</td>
+                        <td>InstanceId, ModuleName, EntityIdentifier (BillNo), EntityId (LabOrderId), CurrentStageId, StatusDetails, UpdatedAt</td>
+                        <td>Fast lookups for current live status of any bill without recalculating logs.</td>
+                    </tr>
+                    <tr>
+                        <td><strong class="code-pill">EntityWorkflowHistory</strong></td>
+                        <td>Audit Trail</td>
+                        <td>HistoryId, InstanceId, FromStageId, ToStageId, ActionTaken, Remarks, PerformedByUserId, BranchId, CreatedAt</td>
+                        <td>Append-only chronological audit log of every lifecycle movement.</td>
+                    </tr>
+                    <tr>
+                        <td><strong class="code-pill">WorkflowApprovalAction</strong></td>
+                        <td>Audit Trail</td>
+                        <td>ApprovalActionId, InstanceId, StageId, ApproverUserId, Decision (Approved/Rejected), Comments, SignatureRef</td>
+                        <td>Formal clinical sign-off records with timestamps and doctor remarks.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- UI Mockup / Walkthrough -->
+    <section class="section-card">
+        <h2 class="section-title"><i class="bi bi-window-sidebar"></i> 4. User Experience & Interface Design</h2>
+        <p>Preview of how the workflow engine will surface across the system for clinical staff and administrators:</p>
+
+        <!-- Mockup 1: Live Bill Tracker Widget -->
+        <div class="mockup-window">
+            <div class="mockup-header">
+                <div class="mockup-dots">
+                    <span class="mockup-dot red"></span>
+                    <span class="mockup-dot yellow"></span>
+                    <span class="mockup-dot green"></span>
+                </div>
+                <div class="mockup-title">Bill Lifecycle Tracker - Bill No: LAB/HO2627000099 (Patient: Rahul Sharma)</div>
+            </div>
+            <div class="mockup-body">
+                <div class="tracker-bar">
+                    <div class="bill-header-row">
+                        <div>
+                            <span style="font-size: 1.1rem; font-weight: 700; color: #0f172a;">Invoice # LAB/HO2627000099</span>
+                            <span style="color: #64748b; font-size: 0.85rem; margin-left: 10px;">Branch: Salt Lake Diagnostic Centre</span>
+                        </div>
+                        <div>
+                            <span class="pill-status" style="background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa;">
+                                <i class="bi bi-hourglass-split"></i> Current: Pending Pathologist Approval
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="stepper-container" style="margin: 1.5rem 0 0.5rem;">
+                        <div class="step-item completed">
+                            <div class="step-icon" style="width:38px; height:38px; font-size: 1rem;"><i class="bi bi-check2"></i></div>
+                            <div class="step-title" style="font-size: 0.8rem;">Bill Registered</div>
+                            <div class="step-subtext">Paid (₹ 1,450)</div>
+                        </div>
+                        <div class="step-item completed">
+                            <div class="step-icon" style="width:38px; height:38px; font-size: 1rem;"><i class="bi bi-check2"></i></div>
+                            <div class="step-title" style="font-size: 0.8rem;">Collected</div>
+                            <div class="step-subtext">EDTA + Serum</div>
+                        </div>
+                        <div class="step-item completed transferred">
+                            <div class="step-icon" style="width:38px; height:38px; font-size: 1rem;"><i class="bi bi-truck"></i></div>
+                            <div class="step-title" style="font-size: 0.8rem;">Transferred</div>
+                            <div class="step-subtext">To Central Lab</div>
+                        </div>
+                        <div class="step-item completed">
+                            <div class="step-icon" style="width:38px; height:38px; font-size: 1rem;"><i class="bi bi-check2"></i></div>
+                            <div class="step-title" style="font-size: 0.8rem;">Results Entered</div>
+                            <div class="step-subtext">By Tech A. Roy</div>
+                        </div>
+                        <div class="step-item active approval">
+                            <div class="step-icon" style="width:38px; height:38px; font-size: 1rem;"><i class="bi bi-shield-check"></i></div>
+                            <div class="step-title" style="font-size: 0.8rem;">Pending Approval</div>
+                            <div class="step-subtext">Dr. S. Mukherjee</div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-icon" style="width:38px; height:38px; font-size: 1rem;"><i class="bi bi-lock"></i></div>
+                            <div class="step-title" style="font-size: 0.8rem;">Authorised</div>
+                            <div class="step-subtext">Locked & Signed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: #f8fafc; border-radius: var(--radius-sm); padding: 1rem; border: 1px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 0.875rem; color: #475569;">
+                        <i class="bi bi-info-circle me-1 text-primary"></i> <strong>Next Step Available:</strong> Pathologist Review & Sign-off.
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button style="padding: 6px 14px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.825rem; font-weight: 600; cursor: pointer;">
+                            <i class="bi bi-clock-history me-1"></i> Full Audit History
+                        </button>
+                        <button style="padding: 6px 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 0.825rem; font-weight: 600; cursor: pointer;">
+                            <i class="bi bi-pen me-1"></i> Review & Authorise
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mockup 2: Settings Configuration Page -->
+        <div class="mockup-window">
+            <div class="mockup-header">
+                <div class="mockup-dots">
+                    <span class="mockup-dot red"></span>
+                    <span class="mockup-dot yellow"></span>
+                    <span class="mockup-dot green"></span>
+                </div>
+                <div class="mockup-title">Settings > Workflow & Approval Master Configuration</div>
+            </div>
+            <div class="mockup-body">
+                <div style="display: flex; gap: 10px; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                    <button style="padding: 6px 16px; background: #eff6ff; color: #2563eb; font-weight: 700; border: none; border-radius: 6px; font-size: 0.875rem;">
+                        <i class="bi bi-eyedropper me-1"></i> Laboratory Workflow (Active)
+                    </button>
+                    <button style="padding: 6px 16px; background: transparent; color: #64748b; font-weight: 600; border: none; border-radius: 6px; font-size: 0.875rem;">
+                        <i class="bi bi-file-medical me-1"></i> OPD Patient Journey (Draft)
+                    </button>
+                    <button style="padding: 6px 16px; background: transparent; color: #64748b; font-weight: 600; border: none; border-radius: 6px; font-size: 0.875rem;">
+                        <i class="bi bi-hospital me-1"></i> IPD Admission & Discharge (Draft)
+                    </button>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div>
+                        <h4 style="font-size: 1.1rem; font-weight: 700;">Configured Stages for Lab Diagnostics</h4>
+                        <p style="font-size: 0.825rem; color: #64748b;">Manage sequence, badge aesthetics, and approval gates.</p>
+                    </div>
+                    <button style="padding: 8px 16px; background: #059669; color: #fff; font-weight: 600; font-size: 0.825rem; border: none; border-radius: 6px; cursor: pointer;">
+                        <i class="bi bi-plus-lg me-1"></i> Add Custom Stage
+                    </button>
+                </div>
+
+                <table style="font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f8fafc;">
+                            <th>Seq</th>
+                            <th>Stage Name</th>
+                            <th>Code</th>
+                            <th>Badge Class</th>
+                            <th>Requires Approval</th>
+                            <th>Authorized Role</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td><strong>Register Billing with full payment</strong></td>
+                            <td><span class="code-pill">REG_BILL_PAID</span></td>
+                            <td><span class="stage-badge badge-paid">bg-success-subtle</span></td>
+                            <td><i class="bi bi-x-circle text-muted"></i> No</td>
+                            <td>Cashier / System</td>
+                            <td><i class="bi bi-pencil me-2 text-primary" style="cursor:pointer"></i> <i class="bi bi-trash text-danger" style="cursor:pointer"></i></td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td><strong>Register Billing with Due</strong></td>
+                            <td><span class="code-pill">REG_BILL_DUE</span></td>
+                            <td><span class="stage-badge badge-due">bg-warning-subtle</span></td>
+                            <td><i class="bi bi-x-circle text-muted"></i> No</td>
+                            <td>Cashier / System</td>
+                            <td><i class="bi bi-pencil me-2 text-primary" style="cursor:pointer"></i> <i class="bi bi-trash text-danger" style="cursor:pointer"></i></td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td><strong>Sample Collected</strong></td>
+                            <td><span class="code-pill">SAMPLE_COLLECTED</span></td>
+                            <td><span class="stage-badge badge-collect">bg-info-subtle</span></td>
+                            <td><i class="bi bi-x-circle text-muted"></i> No</td>
+                            <td>Phlebotomist</td>
+                            <td><i class="bi bi-pencil me-2 text-primary" style="cursor:pointer"></i> <i class="bi bi-trash text-danger" style="cursor:pointer"></i></td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td><strong>Sample Transferred to &lt;Branch&gt;</strong></td>
+                            <td><span class="code-pill">SAMPLE_TRANSFERRED</span></td>
+                            <td><span class="stage-badge badge-transfer">bg-purple-subtle</span></td>
+                            <td><i class="bi bi-x-circle text-muted"></i> No</td>
+                            <td>Lab Runner / Technician</td>
+                            <td><i class="bi bi-pencil me-2 text-primary" style="cursor:pointer"></i> <i class="bi bi-trash text-danger" style="cursor:pointer"></i></td>
+                        </tr>
+                        <tr style="background: #fffbeb;">
+                            <td>5</td>
+                            <td><strong>Prepare for lab Reporting / Draft</strong></td>
+                            <td><span class="code-pill">PREPARE_REPORTING</span></td>
+                            <td><span class="stage-badge badge-report">bg-secondary-subtle</span></td>
+                            <td><i class="bi bi-check-circle-fill text-warning"></i> <strong>Yes</strong></td>
+                            <td><span class="code-pill">Pathologist</span></td>
+                            <td><i class="bi bi-pencil me-2 text-primary" style="cursor:pointer"></i> <i class="bi bi-trash text-danger" style="cursor:pointer"></i></td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td><strong>Report Authorised</strong></td>
+                            <td><span class="code-pill">REPORT_AUTHORISED</span></td>
+                            <td><span class="stage-badge badge-auth">bg-success</span></td>
+                            <td><i class="bi bi-check-circle-fill text-success"></i> <strong>Yes (Final)</strong></td>
+                            <td><span class="code-pill">Pathologist</span></td>
+                            <td><i class="bi bi-pencil me-2 text-primary" style="cursor:pointer"></i> <i class="bi bi-trash text-danger" style="cursor:pointer"></i></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Modular Expansion Plan -->
+    <section class="section-card">
+        <h2 class="section-title"><i class="bi bi-arrows-fullscreen"></i> 5. Modular Expansion: OPD & IPD</h2>
+        <p>Because the database and engine use <span class="code-pill">ModuleName</span> and <span class="code-pill">EntityIdentifier</span>, the exact same system effortlessly powers OPD and IPD workflows without redesign:</p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+            <!-- OPD Flow -->
+            <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; background: #faf5ff;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 1rem;">
+                    <i class="bi bi-file-earmark-medical-fill" style="color: var(--purple); font-size: 1.25rem;"></i>
+                    <h4 style="font-size: 1.1rem; color: #581c87;">OPD Consultation Workflow</h4>
+                </div>
+                <ul style="padding-left: 1.25rem; font-size: 0.875rem; color: #4c1d95; display: flex; flex-direction: column; gap: 8px;">
+                    <li><strong>1. Token Registered:</strong> Patient arrives, payment taken (Paid/Due).</li>
+                    <li><strong>2. Vitals Recorded:</strong> Triage nurse captures BP, pulse, temp.</li>
+                    <li><strong>3. Doctor Consultation:</strong> Doctor enters clinical examination & Rx.</li>
+                    <li><strong>4. Prescription Authorised:</strong> Doctor signs and locks prescription.</li>
+                    <li><strong>5. Pharmacy Dispensed / Billing Cleared:</strong> Medicines issued, visit closed.</li>
+                </ul>
+            </div>
+
+            <!-- IPD Flow -->
+            <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; background: #ecfeff;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 1rem;">
+                    <i class="bi bi-hospital-fill" style="color: #0e7490; font-size: 1.25rem;"></i>
+                    <h4 style="font-size: 1.1rem; color: #155e75;">IPD Admission & Discharge Workflow</h4>
+                </div>
+                <ul style="padding-left: 1.25rem; font-size: 0.875rem; color: #164e63; display: flex; flex-direction: column; gap: 8px;">
+                    <li><strong>1. Admission Requested:</strong> Doctor issues IPD admission slip.</li>
+                    <li><strong>2. Bed Allocated:</strong> Ward manager assigns ward, room, and bed.</li>
+                    <li><strong>3. Clinical Rounds:</strong> Daily progress notes, OT scheduling, ICU tracking.</li>
+                    <li><strong>4. Discharge Initiated:</strong> Attending consultant prepares discharge summary.</li>
+                    <li><strong>5. Multi-dept Clearance:</strong> Pharmacy &rarr; Lab &rarr; Nursing &rarr; Final Billing Settlement.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Implementation Roadmap -->
+    <section class="section-card">
+        <h2 class="section-title"><i class="bi bi-calendar-check"></i> 6. Phased Implementation Roadmap</h2>
+        <div style="display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1rem;">
+            <div style="display: flex; gap: 1.25rem; align-items: flex-start;">
+                <div style="background: #2563eb; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">1</div>
+                <div>
+                    <h4 style="font-size: 1rem; font-weight: 700;">Phase 1: Database Migration Scripts (SQL Script Runner)</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">Execute <span class="code-pill">2069_create_workflow_and_approval_management_engine.sql</span> to create tables, stored procedures, and seed default Lab stages.</p>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1.25rem; align-items: flex-start;">
+                <div style="background: #2563eb; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">2</div>
+                <div>
+                    <h4 style="font-size: 1rem; font-weight: 700;">Phase 2: Workflow & Approval Engine Core Service in API</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">Create <span class="code-pill">IWorkflowEngineService</span> in <span class="code-pill">EMR.Api</span> to handle transitions, validations, and approval sign-offs.</p>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1.25rem; align-items: flex-start;">
+                <div style="background: #2563eb; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">3</div>
+                <div>
+                    <h4 style="font-size: 1rem; font-weight: 700;">Phase 3: Settings Configuration UI Page</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">Build <span class="code-pill">WorkflowConfigController</span> & Views under Settings menu for administrators to customize stages and approval roles.</p>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1.25rem; align-items: flex-start;">
+                <div style="background: #2563eb; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">4</div>
+                <div>
+                    <h4 style="font-size: 1rem; font-weight: 700;">Phase 4: Non-Intrusive Integration Hooks</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">Hook events in <span class="code-pill">LabOrderBooking</span>, <span class="code-pill">SampleCollection</span>, <span class="code-pill">SampleTransfer</span>, and <span class="code-pill">LabReporting</span> to transition status smoothly without breaking existing features.</p>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1.25rem; align-items: flex-start;">
+                <div style="background: #2563eb; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">5</div>
+                <div>
+                    <h4 style="font-size: 1rem; font-weight: 700;">Phase 5: Visual Stepper Component & Universal Bill Tracker</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">Deploy the reusable Razor partial <span class="code-pill">_WorkflowStepper.cshtml</span> and global quick-search modal to track any Bill No.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+</body>
+</html>

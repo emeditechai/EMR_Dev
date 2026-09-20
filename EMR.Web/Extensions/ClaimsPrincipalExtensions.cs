@@ -62,5 +62,13 @@ public static class ClaimsPrincipalExtensions
     {
         return user.FindFirstValue("ActiveRole") ?? string.Empty;
     }
+
+    public static string GetDisplayName(this ClaimsPrincipal user)
+    {
+        return user.FindFirstValue("DisplayName") 
+            ?? user.FindFirstValue(ClaimTypes.Name) 
+            ?? user.Identity?.Name 
+            ?? "Unknown User";
+    }
 }
 

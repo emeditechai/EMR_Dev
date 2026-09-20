@@ -40,6 +40,5 @@ public class BranchMaster
     public CompanyMaster? Company { get; set; }
 
     public ICollection<UserBranch> UserBranches { get; set; } = new List<UserBranch>();
-    public ICollection<Role> Roles { get; set; } = new List<Role>();
 }
 

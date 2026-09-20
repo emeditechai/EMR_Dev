@@ -23,5 +23,8 @@ namespace EMR.Api.Services
         Task<List<LabReportStatusMasterDto>> GetStatusesAsync();
 
         Task<int> SaveEntryAsync(SaveLabReportingRequestDto request, int userId);
+        Task<int> UpdateSampleStatusAsync(UpdateLabSampleStatusRequestDto request, int userId);
+
+        Task<List<LabOrderActivityDto>> GetActivityHistoryAsync(int labOrderId);
     }
 }

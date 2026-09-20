@@ -5,15 +5,19 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using EMR.Web.Models.DTOs;
 
+using Microsoft.Extensions.Logging;
+
 namespace EMR.Web.ApiClients
 {
     public class LabReportingApiClient : ILabReportingApiClient
     {
         private readonly HttpClient httpClient;
+        private readonly ILogger<LabReportingApiClient> logger;
 
-        public LabReportingApiClient(IHttpClientFactory factory)
+        public LabReportingApiClient(IHttpClientFactory factory, ILogger<LabReportingApiClient> logger)
         {
             httpClient = factory.CreateClient("EmrApi");
+            this.logger = logger;
         }
 
         public async Task<LabReportingHeaderListResult> GetHeaderListAsync(
@@ -64,10 +68,38 @@ namespace EMR.Web.ApiClients
         public async Task<bool> SaveEntryAsync(SaveLabReportingRequestDto request)
         {
             var response = await httpClient.PostAsJsonAsync("api/LabReporting/save-entry", request);
-            if (!response.IsSuccessStatusCode) return false;
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                logger.LogError("Error in SaveEntryAsync (status {StatusCode}): {ErrorBody}", response.StatusCode, errorBody);
+                return false;
+            }
 
             var res = await response.Content.ReadFromJsonAsync<SaveEntryResponse>();
             return res?.isSuccess ?? false;
+        }
+
+        public async Task<bool> UpdateSampleStatusAsync(UpdateLabSampleStatusRequestDto request)
+        {
+            var response = await httpClient.PostAsJsonAsync("api/LabReporting/update-sample-status", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                logger.LogError("Error in UpdateSampleStatusAsync (status {StatusCode}): {ErrorBody}", response.StatusCode, errorBody);
+                return false;
+            }
+
+            var res = await response.Content.ReadFromJsonAsync<SaveEntryResponse>();
+            return res?.isSuccess ?? false;
+        }
+
+        public async Task<List<LabOrderActivityDto>> GetActivityHistoryAsync(int labOrderId)
+        {
+            var response = await httpClient.GetAsync($"api/LabReporting/activity-history/{labOrderId}");
+            response.EnsureSuccessStatusCode();
+
+            return await response.Content.ReadFromJsonAsync<List<LabOrderActivityDto>>()
+                   ?? new List<LabOrderActivityDto>();
         }
 
         private class SaveEntryResponse

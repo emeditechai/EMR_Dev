@@ -200,6 +200,8 @@ namespace EMR.Web.Models.ViewModels
         public int TotalCount { get; set; }
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 10;
+        public int? BranchId { get; set; }
+        public string? BranchName { get; set; }
         public string? FromDate { get; set; }
         public string? ToDate { get; set; }
         public string? Search { get; set; }

@@ -219,10 +219,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             entity.ToTable("roles");
             entity.HasKey(x => x.Id);
-            entity.Property(x => x.BranchId).HasColumnName("BranchID");
-            entity.HasOne(x => x.Branch)
+            entity.HasOne(x => x.Company)
                 .WithMany(x => x.Roles)
-                .HasForeignKey(x => x.BranchId)
+                .HasForeignKey(x => x.CompanyId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

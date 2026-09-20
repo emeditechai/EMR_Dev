@@ -500,7 +500,7 @@
                 <td class="lbl">Bill Date</td>
                 <td>@billDate</td>
                 <td class="lbl">Created By</td>
-                <td>@(Model.CreatedByName ?? "—")</td>
+                <td>@(Model.CreatedByName ?? Model.CreatedByUsername ?? "—")</td>
             </tr>
             <tr>
                 <td class="lbl">Booking Date &amp; Time</td>
@@ -641,7 +641,7 @@
     </div>
 
     <div class="footer-meta" style="margin-top:4mm;">
-        <p>Created By : <strong>@(Model.CreatedByName ?? "System")</strong>&nbsp;&nbsp;&nbsp;Printed By : <strong>Auto</strong></p>
+        <p>Created By : <strong>@(Model.CreatedByName ?? Model.CreatedByUsername ?? "System")</strong>&nbsp;&nbsp;&nbsp;Printed By : <strong>@(Model.PrintedByName ?? "Auto")</strong></p>
         @if (!string.IsNullOrWhiteSpace(Model.HospitalGSTIN))
         {
             <p>GSTIN : @Model.HospitalGSTIN</p>

@@ -60,10 +60,9 @@ CREATE TABLE dbo.roles
     Description NVARCHAR(255) NULL,
     IsSystemRole BIT NOT NULL CONSTRAINT DF_roles_IsSystemRole DEFAULT(0),
     CreatedDate DATETIME2 NOT NULL CONSTRAINT DF_roles_CreatedDate DEFAULT(SYSUTCDATETIME()),
-    LastModifiedDate DATETIME2 NULL,
-    BranchID INT NULL,
+    CompanyId INT NOT NULL CONSTRAINT DF_roles_CompanyId DEFAULT(1),
     IconClass NVARCHAR(100) NULL,
-    CONSTRAINT FK_roles_Branchmaster FOREIGN KEY (BranchID) REFERENCES dbo.Branchmaster(BranchID)
+    CONSTRAINT FK_roles_CompanyMaster FOREIGN KEY (CompanyId) REFERENCES dbo.CompanyMaster(CompanyId)
 );
 GO
 

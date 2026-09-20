@@ -1,6 +1,15 @@
 @model EMR.Web.Models.ViewModels.SampleCollectionDashboardViewModel
 @{
     ViewData["Title"] = "Sample Collection Management";
+    var b2cHeaders = Model.Headers.Where(h => !h.IsB2B).ToList();
+    var b2bHeaders = Model.Headers.Where(h => h.IsB2B).ToList();
+
+    var b2cTotal = b2cHeaders.Count;
+    var b2cPending = b2cHeaders.Count(h => h.OverallStatus == "Pending");
+    var b2cPartial = b2cHeaders.Count(h => h.OverallStatus == "Partially Collected");
+    var b2cCollected = b2cHeaders.Count(h => h.OverallStatus == "Collected");
+
+    var b2bTotal = b2bHeaders.Count;
 }
 
 @section HeadStyles {
@@ -8,17 +17,33 @@
 }
 
 <div class="container-fluid px-2 py-1 sample-mgmt-wrapper">
-    <!-- Breadcrumb & Top Bar -->
-    <div class="d-flex justify-content-between align-items-center mb-1">
-        <div>
-
+    <!-- Top Bar with Page Title & Segregated Tabs -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+        <div class="d-flex align-items-center">
             <h4 class="mb-0 fw-bold text-dark d-flex align-items-center">
                 <i class="bi bi-eyedropper text-primary me-2"></i>Sample Collection Management
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 fs-8 fw-semibold">B2C Patients</span>
             </h4>
         </div>
-        <div class="d-flex gap-2 align-items-center">
-            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center shadow-sm" id="btnRefreshList" style="width: 32px; height: 32px;" title="Refresh">
+        <div class="d-flex align-items-center gap-2">
+            <!-- Segregated Booking Source Tabs -->
+            <ul class="nav nav-pills sample-source-tabs bg-light p-1 rounded-pill border shadow-xs" id="bookingSourceTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active rounded-pill px-3 py-1 fw-semibold d-flex align-items-center gap-2" id="tabB2C" data-tab="B2C" type="button" role="tab" aria-selected="true">
+                        <i class="bi bi-person-circle"></i>
+                        <span>B2C Patient</span>
+                        <span class="badge rounded-pill bg-primary text-white ms-1" id="badgeB2CCount">@b2cTotal</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link rounded-pill px-3 py-1 fw-semibold d-flex align-items-center gap-2" id="tabB2B" data-tab="B2B" type="button" role="tab" aria-selected="false">
+                        <i class="bi bi-building"></i>
+                        <span>B2B Booking</span>
+                        <span class="badge rounded-pill bg-secondary text-white ms-1" id="badgeB2BCount">@b2bTotal</span>
+                    </button>
+                </li>
+            </ul>
+
+            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center shadow-sm" id="btnRefreshList" style="width: 34px; height: 34px;" title="Refresh">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>
@@ -31,7 +56,7 @@
                 <div class="card-body p-2 d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted fs-8 fw-semibold text-uppercase">Total Orders</span>
-                        <h4 class="mb-0 fw-bold text-dark mt-1" id="statTotalOrders">@Model.Stats.TotalOrders</h4>
+                        <h4 class="mb-0 fw-bold text-dark mt-1" id="statTotalOrders">@b2cTotal</h4>
                     </div>
                     <div class="stat-icon bg-primary-subtle text-primary rounded-circle">
                         <i class="bi bi-journal-medical fs-5"></i>
@@ -44,7 +69,7 @@
                 <div class="card-body p-2 d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted fs-8 fw-semibold text-uppercase">Pending</span>
-                        <h4 class="mb-0 fw-bold text-warning mt-1" id="statPendingOrders">@Model.Stats.PendingOrders</h4>
+                        <h4 class="mb-0 fw-bold text-warning mt-1" id="statPendingOrders">@b2cPending</h4>
                     </div>
                     <div class="stat-icon bg-warning-subtle text-warning rounded-circle">
                         <i class="bi bi-hourglass-split fs-5"></i>
@@ -57,7 +82,7 @@
                 <div class="card-body p-2 d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted fs-8 fw-semibold text-uppercase">Partially Collected</span>
-                        <h4 class="mb-0 fw-bold text-info mt-1" id="statPartialOrders">@Model.Stats.PartialOrders</h4>
+                        <h4 class="mb-0 fw-bold text-info mt-1" id="statPartialOrders">@b2cPartial</h4>
                     </div>
                     <div class="stat-icon bg-info-subtle text-info rounded-circle">
                         <i class="bi bi-pie-chart fs-5"></i>
@@ -70,7 +95,7 @@
                 <div class="card-body p-2 d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted fs-8 fw-semibold text-uppercase">Fully Collected</span>
-                        <h4 class="mb-0 fw-bold text-success mt-1" id="statCollectedOrders">@Model.Stats.CollectedOrders</h4>
+                        <h4 class="mb-0 fw-bold text-success mt-1" id="statCollectedOrders">@b2cCollected</h4>
                     </div>
                     <div class="stat-icon bg-success-subtle text-success rounded-circle">
                         <i class="bi bi-check2-circle fs-5"></i>
@@ -142,7 +167,7 @@
                 <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Rejected" ? "btn-danger text-white active fw-bold shadow-sm" : "btn-outline-danger")" data-status="Rejected">
                     <i class="bi bi-x-circle me-1"></i>Rejected
                 </button>
-                <span class="ms-auto fs-8 text-muted fw-semibold" id="lblOrderCount">Showing @Model.Headers.Count orders</span>
+                <span class="ms-auto fs-8 text-muted fw-semibold" id="lblOrderCount">Showing @b2cHeaders.Count orders</span>
             </div>
         </div>
     </div>
@@ -158,6 +183,7 @@
                             <i class="bi bi-list-task text-white fs-9"></i>
                         </span>
                         <h6 class="mb-0 fw-bold text-dark">Lab Orders &amp; Bookings</h6>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-9 fw-semibold" id="lblCurrentTabIndicator">B2C Patients</span>
                     </div>
                     <span class="fs-9 text-muted"><i class="bi bi-hand-index me-1"></i>Click row to select</span>
                 </div>
@@ -172,18 +198,18 @@
                             </tr>
                         </thead>
                         <tbody id="tblOrderHeadersBody">
-                            @if (Model.Headers.Count == 0)
+                            @if (b2cHeaders.Count == 0)
                             {
                                 <tr>
                                     <td colspan="4" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-                                        No lab orders found for the selected date range and filter criteria.
+                                        No lab orders found for B2C patients.
                                     </td>
                                 </tr>
                             }
                             else
                             {
-                                @foreach (var h in Model.Headers)
+                                @foreach (var h in b2cHeaders)
                                 {
                                     var statusPatternClass = h.OverallStatus switch
                                     {
@@ -260,6 +286,12 @@
                                                 @if (h.Age.HasValue) { <span>@h.Age Y</span> }
                                                 @if (!string.IsNullOrEmpty(h.Gender)) { <span>/@h.Gender</span> }
                                             </div>
+                                            @if (!string.IsNullOrEmpty(h.PartnerName))
+                                            {
+                                                <div class="fs-9 text-info fw-semibold text-truncate" style="max-width: 140px;" title="@h.PartnerName">
+                                                    <i class="bi bi-building me-1"></i>@h.PartnerName
+                                                </div>
+                                            }
                                             @if (!string.IsNullOrEmpty(h.PhoneNumber))
                                             {
                                                 <div class="fs-9 text-muted text-truncate" style="max-width: 130px;">
@@ -514,6 +546,39 @@
 </div>
 
 <style>
+    /* ── Tab Switcher for B2C vs B2B ── */
+    .sample-source-tabs {
+        background-color: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 3px !important;
+    }
+    .sample-source-tabs .nav-link {
+        color: #64748b;
+        font-size: 0.815rem;
+        padding: 0.35rem 0.95rem;
+        border: none;
+        background: transparent;
+        transition: all 0.2s ease-in-out;
+    }
+    .sample-source-tabs .nav-link:hover {
+        color: #1e293b;
+        background-color: rgba(255, 255, 255, 0.6);
+    }
+    .sample-source-tabs .nav-link.active {
+        background-color: #ffffff !important;
+        color: #2563eb !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+    }
+    .sample-source-tabs .nav-link#tabB2B.active {
+        color: #0284c7 !important;
+    }
+    .sample-source-tabs .nav-link.active .badge {
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    }
+    .sample-source-tabs .nav-link#tabB2B.active #badgeB2BCount {
+        background-color: #0284c7 !important;
+    }
+
     /* ── Split Dual-Pane SaaS Viewport Constraint ── */
     .dual-pane-layout {
         height: calc(100vh - 240px);
@@ -806,6 +871,33 @@
             let activeOrderId = null;
             let currentDetailData = null;
             let statusMasterList = [];
+            let currentBookingTab = 'B2C';
+            let allHeadersCache = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Headers, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+
+            // ── Tab Switching between B2C Patient and B2B Booking ───────────────
+            $('#tabB2C, #tabB2B').on('click', function () {
+                const selectedTab = $(this).data('tab');
+                if (currentBookingTab === selectedTab) return;
+                currentBookingTab = selectedTab;
+
+                $('.sample-source-tabs .nav-link').removeClass('active').attr('aria-selected', 'false');
+                $(this).addClass('active').attr('aria-selected', 'true');
+
+                if (currentBookingTab === 'B2B') {
+                    $('#lblCurrentTabIndicator')
+                        .text('B2B Bookings')
+                        .removeClass('bg-primary-subtle text-primary border-primary-subtle')
+                        .addClass('bg-info-subtle text-info border-info-subtle');
+                } else {
+                    $('#lblCurrentTabIndicator')
+                        .text('B2C Patients')
+                        .removeClass('bg-info-subtle text-info border-info-subtle')
+                        .addClass('bg-primary-subtle text-primary border-primary-subtle');
+                }
+
+                updateStatsForCurrentTab();
+                renderFilteredHeaders();
+            });
 
             // ── 1. Row Selection Click ──────────────────────────────────────────
             $(document).on('click', '.order-header-row', function () {
@@ -1061,6 +1153,9 @@
                     const nestedClass = parentPkgGrpId ? `profile-nested child-of-${parentPkgGrpId}` : '';
                     const msClass = parentPkgGrpId ? 'ms-4' : '';
 
+                    const grpReason = profGrp.items.find(x => x.rejectionReason)?.rejectionReason;
+                    const canEditProfile = isAllowedToday || profGrp.items.every(x => x.collectionstatusID === 3);
+
                     return {
                         grpId: grpId,
                         html: `
@@ -1078,6 +1173,11 @@
                                                 <button type="button" class="btn btn-link p-0 text-success ms-1 btn-copy-barcode" data-barcode="${escapeHtml(sharedBarcode)}" title="Copy Barcode to Clipboard"><i class="bi bi-clipboard"></i></button>
                                             </span>
                                         ` : ''}
+                                        ${grpReason ? `
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-2" title="Reason: ${escapeHtml(grpReason)}">
+                                                <i class="bi bi-exclamation-octagon me-1"></i>${escapeHtml(grpReason)}
+                                            </span>
+                                        ` : ''}
                                     </div>
                                     ${isAllProfileCollected ? `
                                     <div class="d-flex align-items-center gap-2 profile-action-controls">
@@ -1087,40 +1187,40 @@
                                         <span class="fs-9 text-muted d-none d-md-inline">
                                             <i class="bi bi-clock me-1"></i>${formatCollectionDateTime(firstDate, firstTime)}
                                         </span>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 btn-toggle-profile-edit" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''} title="Change Profile collection status">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 btn-toggle-profile-edit" data-grpid="${grpId}" ${!canEditProfile ? 'disabled' : ''} title="Change Profile collection status">
                                             <i class="bi bi-pencil-square me-1"></i>Edit
                                         </button>
                                         <div class="profile-edit-wrapper d-none d-inline-flex align-items-center gap-2 ms-1 ps-2 border-start" id="profileEdit_${grpId}">
-                                            <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''}>
+                                            <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!canEditProfile ? 'disabled' : ''}>
                                                 ${profileStatusOptionsHtml}
                                             </select>
                                             <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
-                                                   data-grpid="${grpId}" value="${defaultProfileDt}" ${!isAllowedToday ? 'disabled' : ''} />
-                                            <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                                   data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
+                                            <button type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                     data-grpid="${grpId}"
                                                     data-profileid="${profGrp.profileId || ''}"
                                                     data-profilename="${escapeHtml(profGrp.name)}"
-                                                    ${!isAllowedToday ? 'disabled' : ''}
-                                                    title="${isAllowedToday ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
-                                                <i class="bi ${isAllowedToday ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
+                                                    ${!canEditProfile ? 'disabled' : ''}
+                                                    title="${canEditProfile ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                                <i class="bi ${canEditProfile ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
                                             </button>
                                         </div>
                                     </div>
                                     ` : `
                                     <div class="d-flex align-items-center gap-2 profile-action-controls">
                                         <span class="fs-9 text-muted fw-normal me-1 d-none d-sm-inline">Profile Status:</span>
-                                        <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!isAllowedToday ? 'disabled' : ''}>
+                                        <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!canEditProfile ? 'disabled' : ''}>
                                             ${profileStatusOptionsHtml}
                                         </select>
                                         <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
-                                               data-grpid="${grpId}" value="${defaultProfileDt}" ${!isAllowedToday ? 'disabled' : ''} />
-                                        <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                               data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
+                                        <button type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                 data-grpid="${grpId}"
                                                 data-profileid="${profGrp.profileId || ''}"
                                                 data-profilename="${escapeHtml(profGrp.name)}"
-                                                ${!isAllowedToday ? 'disabled' : ''}
-                                                title="${isAllowedToday ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
-                                            <i class="bi ${isAllowedToday ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
+                                                ${!canEditProfile ? 'disabled' : ''}
+                                                title="${canEditProfile ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                            <i class="bi ${canEditProfile ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
                                         </button>
                                     </div>
                                     `}
@@ -1249,6 +1349,8 @@
                         let statusCellHtml = '';
                         let actionCellHtml = '';
 
+                        const canEditTest = isAllowedToday || test.collectionstatusID === 3;
+
                         if (isCollected) {
                             statusCellHtml = `
                                 <div class="d-flex align-items-center">
@@ -1257,7 +1359,7 @@
                                     </span>
                                 </div>
                                 <div class="row-edit-status d-none mt-1">
-                                    <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!isAllowedToday ? 'disabled' : ''}>
+                                    <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!canEditTest ? 'disabled' : ''}>
                                         ${statusOptionsHtml}
                                     </select>
                                 </div>
@@ -1269,7 +1371,7 @@
                                         <div class="fs-9 text-dark fw-semibold">${formatDate(test.samplecollectiondate)}</div>
                                         <div class="fs-9 text-muted"><i class="bi bi-clock me-1"></i>${formatTime(test.samplecollectiontime || test.samplecollectiondate)}</div>
                                     </div>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 fs-9 btn-toggle-row-edit" data-id="${test.samplecollectionID}" title="Edit collection time or status" ${!isAllowedToday ? 'disabled' : ''}>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 fs-9 btn-toggle-row-edit" data-id="${test.samplecollectionID}" title="Edit collection time or status" ${!canEditTest ? 'disabled' : ''}>
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                 </div>
@@ -1278,21 +1380,22 @@
                                         <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" 
                                                data-id="${test.samplecollectionID}" 
                                                value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
-                                               ${!isAllowedToday ? 'disabled' : ''} />
-                                        <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
+                                               ${!canEditTest ? 'disabled' : ''} />
+                                        <button type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
                                                 data-id="${test.samplecollectionID}"
-                                                ${!isAllowedToday ? 'disabled' : ''}
-                                                title="${isAllowedToday ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
-                                            <i class="bi ${isAllowedToday ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
+                                                ${!canEditTest ? 'disabled' : ''}
+                                                title="${canEditTest ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                            <i class="bi ${canEditTest ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
                                         </button>
                                     </div>
                                 </div>
                             `;
                         } else {
                             statusCellHtml = `
-                                <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!isAllowedToday ? 'disabled' : ''}>
+                                <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!canEditTest ? 'disabled' : ''}>
                                     ${statusOptionsHtml}
                                 </select>
+                                ${test.rejectionReason ? `<div class="mt-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9" title="Reason: ${escapeHtml(test.rejectionReason)}"><i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(test.rejectionReason)}</span></div>` : ''}
                             `;
 
                             actionCellHtml = `
@@ -1300,12 +1403,12 @@
                                     <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" 
                                            data-id="${test.samplecollectionID}" 
                                            value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
-                                           ${!isAllowedToday ? 'disabled' : ''} />
-                                    <button type="button" class="btn btn-sm ${isAllowedToday ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
+                                           ${!canEditTest ? 'disabled' : ''} />
+                                    <button type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
                                             data-id="${test.samplecollectionID}"
-                                            ${!isAllowedToday ? 'disabled' : ''}
-                                            title="${isAllowedToday ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
-                                        <i class="bi ${isAllowedToday ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
+                                            ${!canEditTest ? 'disabled' : ''}
+                                            title="${canEditTest ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                        <i class="bi ${canEditTest ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
                                     </button>
                                 </div>
                             `;
@@ -1881,13 +1984,13 @@
             $('.btn-filter-status').on('click', function () {
                 const status = $(this).data('status');
                 setStatusFilter(status);
-                reloadHeaderList();
+                renderFilteredHeaders();
             });
 
             $('.stat-card').on('click', function () {
                 const status = $(this).data('status');
                 setStatusFilter(status);
-                reloadHeaderList();
+                renderFilteredHeaders();
             });
 
             $('.btn-quick-date').on('click', function () {
@@ -1916,7 +2019,6 @@
                 const fromDate = $('#txtFromDate').val();
                 const toDate = $('#txtToDate').val();
                 const dateFilterType = $('#selDateFilterType').val();
-                const statusFilter = $('.btn-filter-status.active').data('status') || 'All';
                 const search = $('#txtSearch').val();
 
                 $.ajax({
@@ -1926,16 +2028,15 @@
                         fromDate: fromDate,
                         toDate: toDate,
                         dateFilterType: dateFilterType,
-                        statusFilter: statusFilter,
+                        statusFilter: 'All',
                         search: search
                     },
                     success: function (res) {
                         if (res.success) {
-                            updateStatsCards(res.stats);
-                            renderHeaderRows(res.headers);
-                            if (activeOrderId) {
-                                $(`#orderRow_${activeOrderId}`).addClass('order-selected');
-                            }
+                            allHeadersCache = res.headers || [];
+                            updateTabBadges();
+                            updateStatsForCurrentTab();
+                            renderFilteredHeaders();
                         }
                     },
                     error: function () {
@@ -1951,12 +2052,63 @@
                 }
             }
 
-            function updateStatsCards(stats) {
-                if (!stats) return;
-                $('#statTotalOrders').text(stats.totalOrders || 0);
-                $('#statPendingOrders').text(stats.pendingOrders || 0);
-                $('#statPartialOrders').text(stats.partialOrders || 0);
-                $('#statCollectedOrders').text(stats.collectedOrders || 0);
+            function updateTabBadges() {
+                const b2cCount = (allHeadersCache || []).filter(h => !h.isB2B).length;
+                const b2bCount = (allHeadersCache || []).filter(h => h.isB2B).length;
+                $('#badgeB2CCount').text(b2cCount);
+                $('#badgeB2BCount').text(b2bCount);
+            }
+
+            function updateStatsForCurrentTab() {
+                const list = (allHeadersCache || []).filter(h => currentBookingTab === 'B2B' ? h.isB2B : !h.isB2B);
+                const total = list.length;
+                const pending = list.filter(h => h.overallStatus === 'Pending').length;
+                const partial = list.filter(h => h.overallStatus === 'Partially Collected').length;
+                const collected = list.filter(h => h.overallStatus === 'Collected').length;
+
+                $('#statTotalOrders').text(total);
+                $('#statPendingOrders').text(pending);
+                $('#statPartialOrders').text(partial);
+                $('#statCollectedOrders').text(collected);
+            }
+
+            function renderFilteredHeaders() {
+                const currentStatus = $('.btn-filter-status.active').data('status') || 'All';
+                let list = (allHeadersCache || []).filter(h => currentBookingTab === 'B2B' ? h.isB2B : !h.isB2B);
+
+                if (currentStatus !== 'All') {
+                    list = list.filter(h => {
+                        if (currentStatus === 'Pending') return h.overallStatus === 'Pending';
+                        if (currentStatus === 'Partial') return h.overallStatus === 'Partially Collected';
+                        if (currentStatus === 'Collected') return h.overallStatus === 'Collected';
+                        if (currentStatus === 'Re Collect') return h.overallStatus === 'Re Collect';
+                        if (currentStatus === 'Rejected') return h.overallStatus === 'Rejected';
+                        return true;
+                    });
+                }
+
+                renderHeaderRows(list);
+
+                if (activeOrderId && list.some(h => h.labOrderId === activeOrderId)) {
+                    $(`#orderRow_${activeOrderId}`).addClass('order-selected');
+                } else {
+                    if (list.length > 0) {
+                        selectOrder(list[0].labOrderId);
+                    } else {
+                        resetWorkspace();
+                    }
+                }
+            }
+
+            function resetWorkspace() {
+                activeOrderId = null;
+                currentDetailData = null;
+                $('.order-header-row').removeClass('order-selected');
+                $('#workspaceDetails').addClass('d-none');
+                $('#workspaceActionButtons').addClass('d-none');
+                $('#workspaceLoader').addClass('d-none');
+                $('#workspacePlaceholder').removeClass('d-none');
+                $('#lblWorkspaceSubtitle').text('Select an order from the list');
             }
 
             function renderHeaderRows(headers) {
@@ -1965,11 +2117,14 @@
                 tbody.empty();
 
                 if (!headers || headers.length === 0) {
+                    const emptyMsg = currentBookingTab === 'B2B'
+                        ? 'No lab orders found for B2B bookings.'
+                        : 'No lab orders found for B2C patients.';
                     tbody.html(`
                         <tr>
                             <td colspan="4" class="text-center py-5 text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-                                No lab orders found for the selected date range and filter criteria.
+                                ${emptyMsg}
                             </td>
                         </tr>
                     `);
@@ -2009,6 +2164,11 @@
                         typeBadge = '<span class="badge bg-light text-secondary border fs-9"><i class="bi bi-building me-1"></i>Center</span>';
                     }
 
+                    let partnerHtml = '';
+                    if (h.isB2B && h.partnerName) {
+                        partnerHtml = `<div class="fs-9 text-info fw-semibold text-truncate" style="max-width: 140px;" title="${escapeHtml(h.partnerName)}"><i class="bi bi-building me-1"></i>${escapeHtml(h.partnerName)}</div>`;
+                    }
+
                     const rowHtml = `
                         <tr class="order-header-row cursor-pointer ${statusPatternClass}" data-id="${h.labOrderId}" id="orderRow_${h.labOrderId}">
                             <td>
@@ -2031,6 +2191,7 @@
                                     ${h.age ? `<span>${h.age} Y</span>` : ''}
                                     ${h.gender ? `<span>/${escapeHtml(h.gender)}</span>` : ''}
                                 </div>
+                                ${partnerHtml}
                                 ${h.phoneNumber ? `<div class="fs-9 text-muted text-truncate" style="max-width: 130px;"><i class="bi bi-telephone me-1"></i>${escapeHtml(h.phoneNumber)}</div>` : ''}
                             </td>
                             <!-- Order Summary & Progress (No Containers in Header!) -->

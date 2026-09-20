@@ -23,5 +23,8 @@ namespace EMR.Web.ApiClients
         Task<List<LabReportStatusMasterDto>> GetStatusesAsync();
 
         Task<bool> SaveEntryAsync(SaveLabReportingRequestDto request);
+        Task<bool> UpdateSampleStatusAsync(UpdateLabSampleStatusRequestDto request);
+
+        Task<List<LabOrderActivityDto>> GetActivityHistoryAsync(int labOrderId);
     }
 }
