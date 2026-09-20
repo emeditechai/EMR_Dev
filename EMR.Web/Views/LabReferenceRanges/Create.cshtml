@@ -6,8 +6,8 @@
 
 @section HeadStyles {
     <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
+    <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="~/lib/datatables/dataTables.bootstrap5.min.css" />
     <style>
         .select2-container--default .select2-selection--single {
             height: 38px !important;
@@ -153,6 +153,34 @@
                                 </div>
                                 <span asp-validation-for="Range_Source" class="text-danger small"></span>
                             </div>
+
+                            <!-- Header Notification Toggles -->
+                            <div class="col-md-6">
+                                <div class="p-3 rounded-3 border bg-white h-100 d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <label class="form-check-label fw-bold text-dark d-block mb-1" for="chkNotificationRequired">
+                                            <i class="bi bi-bell me-1 text-warning"></i>Notification Required
+                                        </label>
+                                        <small class="text-muted">Trigger immediate alert notification to ordering physician/ward when critical/panic threshold is breached.</small>
+                                    </div>
+                                    <div class="form-check form-switch form-switch-md ms-3">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="Notification_Required" id="chkNotificationRequired" style="width: 2.6em; height: 1.3em;">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 rounded-3 border bg-white h-100 d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <label class="form-check-label fw-bold text-dark d-block mb-1" for="chkAcknowledgementRequired">
+                                            <i class="bi bi-shield-check me-1 text-info"></i>Acknowledgement Required
+                                        </label>
+                                        <small class="text-muted">Require explicit clinical acknowledgement and sign-off by duty doctor/pathologist for critical values.</small>
+                                    </div>
+                                    <div class="form-check form-switch form-switch-md ms-3">
+                                        <input class="form-check-input" type="checkbox" role="switch" asp-for="Acknowledgement_Required" id="chkAcknowledgementRequired" style="width: 2.6em; height: 1.3em;">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Mode Switch: Common For All Checkbox Banner -->
@@ -218,7 +246,29 @@
                                     </div>
                                     <span asp-validation-for="High_Value" class="text-danger small"></span>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-2">
+                                    <label asp-for="Tier" class="form-label fw-semibold">Tier / Severity</label>
+                                    <select asp-for="Tier" class="form-select" asp-items="Model.TierOptions" id="ddlSingleTier"></select>
+                                    <span asp-validation-for="Tier" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2">
+                                    <label asp-for="Low_Threshold" class="form-label fw-semibold">Low Threshold</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-exclamation-triangle text-warning"></i></span>
+                                        <input asp-for="Low_Threshold" type="number" step="any" class="form-control" id="txtSingleLowThreshold" placeholder="Low alert" />
+                                    </div>
+                                    <span asp-validation-for="Low_Threshold" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2">
+                                    <label asp-for="High_Threshold" class="form-label fw-semibold">High Threshold</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-exclamation-octagon text-danger"></i></span>
+                                        <input asp-for="High_Threshold" type="number" step="any" class="form-control" id="txtSingleHighThreshold" placeholder="High alert" />
+                                    </div>
+                                    <span asp-validation-for="High_Threshold" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-12">
                                     <label asp-for="Special_Remarks" class="form-label fw-semibold">Special Remarks</label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-light"><i class="bi bi-chat-left-text text-muted"></i></span>
@@ -284,17 +334,34 @@
                                         <label class="form-label small fw-semibold text-muted mb-1">High Value (Max)</label>
                                         <input type="number" step="any" class="form-control form-control-sm" id="gridHighValue" placeholder="Max" />
                                     </div>
-                                    <div class="col-md-7">
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Tier / Severity</label>
+                                        <select class="form-select form-select-sm" id="gridTier">
+                                            <option value="" selected>-- None --</option>
+                                            <option value="Reportable Range">Reportable Range</option>
+                                            <option value="Critical Value">Critical Value</option>
+                                            <option value="Panic Value">Panic Value</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">Low Threshold</label>
+                                        <input type="number" step="any" class="form-control form-control-sm" id="gridLowThreshold" placeholder="Low alert" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1">High Threshold</label>
+                                        <input type="number" step="any" class="form-control form-control-sm" id="gridHighThreshold" placeholder="High alert" />
+                                    </div>
+                                    <div class="col-md-4">
                                         <label class="form-label small fw-semibold text-muted mb-1">Special Remarks</label>
                                         <input type="text" class="form-control form-control-sm" id="gridRemarks" placeholder="Optional notes for this range bracket" maxlength="1000" />
                                     </div>
-                                    <div class="col-md-3">
-                                        <div class="d-flex gap-1">
-                                            <button type="button" class="btn btn-success btn-sm w-100 fw-semibold" id="btnAddGridRow">
-                                                <i class="bi bi-plus-lg me-1"></i> Add to Table
-                                            </button>
+                                    <div class="col-md-12 text-end mt-2">
+                                        <div class="d-inline-flex gap-1">
                                             <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="btnCancelEditRow" title="Cancel Editing">
-                                                <i class="bi bi-x-lg"></i>
+                                                <i class="bi bi-x-lg me-1"></i> Cancel
+                                            </button>
+                                            <button type="button" class="btn btn-success btn-sm px-4 fw-semibold" id="btnAddGridRow">
+                                                <i class="bi bi-plus-lg me-1"></i> Add to Table
                                             </button>
                                         </div>
                                     </div>
@@ -315,14 +382,13 @@
                                     <table class="table table-sm table-bordered table-hover align-middle mb-0" id="dtRanges" style="width: 100%;">
                                         <thead class="table-light text-muted small">
                                             <tr>
-                                                <th style="width: 50px;">#</th>
-                                                <th>Age From</th>
-                                                <th>Age To</th>
-                                                <th>Age Unit</th>
+                                                <th style="width: 40px;">#</th>
+                                                <th>Age Range</th>
                                                 <th>Gender</th>
                                                 <th>Trimester</th>
-                                                <th>Min (Low)</th>
-                                                <th>Max (High)</th>
+                                                <th>Min - Max</th>
+                                                <th>Tier</th>
+                                                <th>Thresholds</th>
                                                 <th>Special Remarks</th>
                                                 <th class="text-center" style="width: 80px;">Action</th>
                                             </tr>
@@ -352,9 +418,9 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script src="~/lib/datatables/jquery.dataTables.min.js"></script>
+    <script src="~/lib/datatables/dataTables.bootstrap5.min.js"></script>
     <script>
         $(document).ready(function () {
             // Internal array to hold multi-range grid items
@@ -452,6 +518,9 @@
                 $('#gridTrimester').val('Not Applicable');
                 $('#gridLowValue').val('');
                 $('#gridHighValue').val('');
+                $('#gridTier').val('');
+                $('#gridLowThreshold').val('');
+                $('#gridHighThreshold').val('');
                 $('#gridRemarks').val('');
 
                 $('#gridCardTitle').html('<i class="bi bi-plus-circle me-1 text-success"></i>Add Age & Gender Bracket Row');
@@ -467,20 +536,49 @@
                 rangeGridList.forEach(function (item, idx) {
                     var editBtn = '<button type="button" class="btn btn-outline-primary btn-sm p-1 me-1 btn-edit-row" data-index="' + idx + '" title="Edit Row"><i class="bi bi-pencil"></i></button>';
                     var delBtn = '<button type="button" class="btn btn-outline-danger btn-sm p-1 btn-delete-row" data-index="' + idx + '" title="Remove Row"><i class="bi bi-trash"></i></button>';
+                    
                     var genderBadge = '<span class="badge bg-secondary-subtle text-dark border">' + item.Gender + '</span>';
                     if (item.Gender === 'Male') genderBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">Male</span>';
                     else if (item.Gender === 'Female') genderBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Female</span>';
                     else if (item.Gender === 'Transgender') genderBadge = '<span class="badge bg-purple-subtle text-purple border border-purple-subtle">Transgender</span>';
 
+                    var ageDisp = '<strong>' + item.Age_From + ' - ' + item.Age_To + '</strong> <small class="text-muted">' + item.Age_Unit + '</small>';
+
+                    var minMaxDisp = '-';
+                    if (item.Low_Value !== null && item.Low_Value !== undefined && item.High_Value !== null && item.High_Value !== undefined) {
+                        minMaxDisp = '<span class="text-success fw-bold">' + item.Low_Value + ' - ' + item.High_Value + '</span>';
+                    } else if (item.Low_Value !== null && item.Low_Value !== undefined) {
+                        minMaxDisp = '<span class="text-success fw-bold">&ge; ' + item.Low_Value + '</span>';
+                    } else if (item.High_Value !== null && item.High_Value !== undefined) {
+                        minMaxDisp = '<span class="text-success fw-bold">&le; ' + item.High_Value + '</span>';
+                    }
+
+                    var tierBadge = '<span class="text-muted">-</span>';
+                    if (item.Tier === 'Critical Value') {
+                        tierBadge = '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-exclamation-triangle me-1"></i>Critical</span>';
+                    } else if (item.Tier === 'Panic Value') {
+                        tierBadge = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-exclamation-octagon me-1"></i>Panic</span>';
+                    } else if (item.Tier === 'Reportable Range') {
+                        tierBadge = '<span class="badge bg-info-subtle text-info border border-info-subtle">Reportable</span>';
+                    }
+
+                    var thresholdDisp = '-';
+                    if (item.Low_Threshold !== null && item.Low_Threshold !== undefined && item.High_Threshold !== null && item.High_Threshold !== undefined) {
+                        thresholdDisp = '<small class="text-dark fw-semibold">' + item.Low_Threshold + ' - ' + item.High_Threshold + '</small>';
+                    } else if (item.Low_Threshold !== null && item.Low_Threshold !== undefined) {
+                        thresholdDisp = '<small class="text-dark fw-semibold">&lt; ' + item.Low_Threshold + '</small>';
+                    } else if (item.High_Threshold !== null && item.High_Threshold !== undefined) {
+                        thresholdDisp = '<small class="text-dark fw-semibold">&gt; ' + item.High_Threshold + '</small>';
+                    }
+
                     var rowNode = dt.row.add([
                         (idx + 1),
-                        item.Age_From,
-                        item.Age_To,
-                        item.Age_Unit,
+                        ageDisp,
                         genderBadge,
                         item.Pregnancy_Trimester || 'Not Applicable',
-                        item.Low_Value !== null && item.Low_Value !== undefined ? item.Low_Value : '-',
-                        item.High_Value !== null && item.High_Value !== undefined ? item.High_Value : '-',
+                        minMaxDisp,
+                        tierBadge,
+                        thresholdDisp,
                         item.Special_Remarks || '-',
                         '<div class="text-center text-nowrap">' + editBtn + delBtn + '</div>'
                     ]).node();
@@ -503,6 +601,9 @@
                 var trimester = $('#gridTrimester').val();
                 var lowValStr = $('#gridLowValue').val();
                 var highValStr = $('#gridHighValue').val();
+                var tier = $('#gridTier').val();
+                var lowThreshStr = $('#gridLowThreshold').val();
+                var highThreshStr = $('#gridHighThreshold').val();
                 var remarks = $('#gridRemarks').val();
 
                 if (isNaN(ageFrom) || ageFrom < 0) {
@@ -532,6 +633,15 @@
                     return;
                 }
 
+                var lowThresh = lowThreshStr !== '' ? parseFloat(lowThreshStr) : null;
+                var highThresh = highThreshStr !== '' ? parseFloat(highThreshStr) : null;
+
+                if (lowThresh !== null && highThresh !== null && lowThresh > highThresh) {
+                    alert('High Threshold must be greater than or equal to Low Threshold.');
+                    $('#gridHighThreshold').focus();
+                    return;
+                }
+
                 var rowItem = {
                     Age_From: ageFrom,
                     Age_To: ageTo,
@@ -540,6 +650,9 @@
                     Pregnancy_Trimester: trimester,
                     Low_Value: lowVal,
                     High_Value: highVal,
+                    Tier: tier || null,
+                    Low_Threshold: lowThresh,
+                    High_Threshold: highThresh,
                     Special_Remarks: remarks
                 };
 
@@ -568,6 +681,9 @@
                     $('#gridTrimester').val(item.Pregnancy_Trimester || 'Not Applicable');
                     $('#gridLowValue').val(item.Low_Value !== null && item.Low_Value !== undefined ? item.Low_Value : '');
                     $('#gridHighValue').val(item.High_Value !== null && item.High_Value !== undefined ? item.High_Value : '');
+                    $('#gridTier').val(item.Tier || '');
+                    $('#gridLowThreshold').val(item.Low_Threshold !== null && item.Low_Threshold !== undefined ? item.Low_Threshold : '');
+                    $('#gridHighThreshold').val(item.High_Threshold !== null && item.High_Threshold !== undefined ? item.High_Threshold : '');
                     $('#gridRemarks').val(item.Special_Remarks || '');
 
                     $('#gridCardTitle').html('<i class="bi bi-pencil-square me-1 text-primary"></i>Edit Age & Gender Bracket Row');
@@ -658,6 +774,15 @@
                     if (!isNaN(sLow) && !isNaN(sHigh) && sLow > sHigh) {
                         alert('Low Value must be less than or equal to High Value.');
                         $('#txtSingleHighValue').focus();
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    var sLowThresh = parseFloat($('#txtSingleLowThreshold').val());
+                    var sHighThresh = parseFloat($('#txtSingleHighThreshold').val());
+                    if (!isNaN(sLowThresh) && !isNaN(sHighThresh) && sLowThresh > sHighThresh) {
+                        alert('Low Threshold must be less than or equal to High Threshold.');
+                        $('#txtSingleHighThreshold').focus();
                         e.preventDefault();
                         return false;
                     }

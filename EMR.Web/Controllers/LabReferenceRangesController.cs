@@ -110,6 +110,11 @@ public class LabReferenceRangesController(
                     Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
                     Low_Value = model.Low_Value,
                     High_Value = model.High_Value,
+                    Tier = model.Tier,
+                    Low_Threshold = model.Low_Threshold,
+                    High_Threshold = model.High_Threshold,
+                    Notification_Required = model.Notification_Required,
+                    Acknowledgement_Required = model.Acknowledgement_Required,
                     Special_Remarks = model.Special_Remarks,
                     Range_Source = model.Range_Source,
                     Effective_From = model.Effective_From,
@@ -199,6 +204,8 @@ public class LabReferenceRangesController(
                     Test_ID = model.Test_ID,
                     Method_ID = model.Method_ID,
                     Unit_ID = model.Unit_ID,
+                    Notification_Required = model.Notification_Required,
+                    Acknowledgement_Required = model.Acknowledgement_Required,
                     Range_Source = model.Range_Source,
                     Effective_From = model.Effective_From,
                     Effective_To = model.Effective_To,
@@ -258,6 +265,9 @@ public class LabReferenceRangesController(
                 Pregnancy_Trimester = r.Pregnancy_Trimester ?? "Not Applicable",
                 Low_Value = r.Low_Value,
                 High_Value = r.High_Value,
+                Tier = r.Tier,
+                Low_Threshold = r.Low_Threshold,
+                High_Threshold = r.High_Threshold,
                 Special_Remarks = r.Special_Remarks
             }).ToList();
 
@@ -277,6 +287,11 @@ public class LabReferenceRangesController(
                 Pregnancy_Trimester = item.Pregnancy_Trimester ?? "Not Applicable",
                 Low_Value = item.Low_Value,
                 High_Value = item.High_Value,
+                Tier = item.Tier,
+                Low_Threshold = item.Low_Threshold,
+                High_Threshold = item.High_Threshold,
+                Notification_Required = item.Notification_Required,
+                Acknowledgement_Required = item.Acknowledgement_Required,
                 Special_Remarks = item.Special_Remarks,
                 Range_Source = item.Range_Source,
                 Effective_From = item.Effective_From,
@@ -332,6 +347,11 @@ public class LabReferenceRangesController(
                     Pregnancy_Trimester = string.IsNullOrWhiteSpace(model.Pregnancy_Trimester) ? "Not Applicable" : model.Pregnancy_Trimester,
                     Low_Value = model.Low_Value,
                     High_Value = model.High_Value,
+                    Tier = model.Tier,
+                    Low_Threshold = model.Low_Threshold,
+                    High_Threshold = model.High_Threshold,
+                    Notification_Required = model.Notification_Required,
+                    Acknowledgement_Required = model.Acknowledgement_Required,
                     Special_Remarks = model.Special_Remarks,
                     Range_Source = model.Range_Source,
                     Effective_From = model.Effective_From,
@@ -415,6 +435,8 @@ public class LabReferenceRangesController(
                     Test_ID = model.Test_ID,
                     Method_ID = model.Method_ID,
                     Unit_ID = model.Unit_ID,
+                    Notification_Required = model.Notification_Required,
+                    Acknowledgement_Required = model.Acknowledgement_Required,
                     Range_Source = model.Range_Source,
                     Effective_From = model.Effective_From,
                     Effective_To = model.Effective_To,
@@ -568,17 +590,20 @@ public class LabReferenceRangesController(
 
     private void ValidateRanges(LabReferenceRangeFormViewModel model)
     {
-        if (model.Age_From < 0)
+        if (model.Age_From.HasValue && model.Age_From < 0)
             ModelState.AddModelError(nameof(model.Age_From), "Age From cannot be negative.");
 
-        if (model.Age_To < 0)
+        if (model.Age_To.HasValue && model.Age_To < 0)
             ModelState.AddModelError(nameof(model.Age_To), "Age To cannot be negative.");
 
-        if (model.Age_From > model.Age_To)
+        if (model.Age_From.HasValue && model.Age_To.HasValue && model.Age_From > model.Age_To)
             ModelState.AddModelError(nameof(model.Age_To), "Age To must be greater than or equal to Age From.");
 
         if (model.Low_Value.HasValue && model.High_Value.HasValue && model.Low_Value.Value > model.High_Value.Value)
             ModelState.AddModelError(nameof(model.High_Value), "High Value must be greater than or equal to Low Value.");
+
+        if (model.Low_Threshold.HasValue && model.High_Threshold.HasValue && model.Low_Threshold.Value > model.High_Threshold.Value)
+            ModelState.AddModelError(nameof(model.High_Threshold), "High Threshold must be greater than or equal to Low Threshold.");
 
         if (model.Effective_To.HasValue && model.Effective_From > model.Effective_To.Value)
             ModelState.AddModelError(nameof(model.Effective_To), "Effective To must be on or after Effective From.");
@@ -619,6 +644,14 @@ public class LabReferenceRangesController(
                 new() { Value = "1st Trimester", Text = "1st Trimester", Selected = model.Pregnancy_Trimester == "1st Trimester" },
                 new() { Value = "2nd Trimester", Text = "2nd Trimester", Selected = model.Pregnancy_Trimester == "2nd Trimester" },
                 new() { Value = "3rd Trimester", Text = "3rd Trimester", Selected = model.Pregnancy_Trimester == "3rd Trimester" }
+            ];
+
+            model.TierOptions =
+            [
+                new() { Value = "", Text = "-- None / Standard --", Selected = string.IsNullOrEmpty(model.Tier) },
+                new() { Value = "Reportable Range", Text = "Reportable Range", Selected = model.Tier == "Reportable Range" },
+                new() { Value = "Critical Value", Text = "Critical Value", Selected = model.Tier == "Critical Value" },
+                new() { Value = "Panic Value", Text = "Panic Value", Selected = model.Tier == "Panic Value" }
             ];
         }
         catch

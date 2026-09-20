@@ -4,7 +4,7 @@
 }
 
 @section HeadStyles {
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
+    <link rel="stylesheet" href="~/lib/toastr/css/toastr.min.css" />
 }
 
 <div class="container-fluid px-2 py-1 sample-mgmt-wrapper">
@@ -763,8 +763,8 @@
 
 @section Scripts {
     <!-- JsBarcode CDN for real scannable vector barcode rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="~/lib/jsbarcode/dist/JsBarcode.all.min.js"></script>
+    <script src="~/lib/toastr/js/toastr.min.js"></script>
 
     <script>
         function showNotify(msg, type = 'success') {
