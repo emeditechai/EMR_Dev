@@ -31,6 +31,9 @@
 
     bool isRejectedOrReCollect = item.CollectionstatusID == 3 || item.CollectionstatusID == 4;
     bool hasValue = !isRejectedOrReCollect && !string.IsNullOrWhiteSpace(item.TestValue);
+    // No Reference Range configured for this test/patient => result entry is blocked until the range is configured.
+    // Values saved before this rule existed stay untouched (so those reports can still be validated / approved).
+    bool noRefRange = !item.RefRangeId.HasValue && !hasValue && !isRejectedOrReCollect;
     bool isOrderFullyApproved = (ViewData["IsOrderApproved"] as bool? ?? false);
     bool isApproved = (isOrderFullyApproved || item.ReportStatusId == 5) && hasValue;
     bool isLocked = isApproved || (hasValue && item.ReportStatusId >= 2) || isRejectedOrReCollect;
@@ -120,12 +123,13 @@
     <div class="d-flex align-items-center gap-1">
         <input type="number"
                step="any"
-               class="form-control form-control-sm result-val-numeric-input test-val-input txt-test-val @(hasValue ? "has-value" : "") @(isAutoCalculated ? "bg-light-subtle" : "") @(isLocked ? "is-locked bg-light text-dark" : "")"
+               data-no-ref-range="@(!item.RefRangeId.HasValue && !hasValue ? "true" : "false")"
+               class="form-control form-control-sm result-val-numeric-input test-val-input txt-test-val @(hasValue ? "has-value" : "") @(noRefRange ? "no-ref-range" : "") @(isAutoCalculated ? "bg-light-subtle" : "") @(isLocked ? "is-locked bg-light text-dark" : "")"
                value="@(isRejectedOrReCollect ? "" : (item.TestValue ?? ""))"
-               placeholder="@(isRejectedOrReCollect ? "Pending" : "Value")"
+               placeholder="@(isRejectedOrReCollect ? "Pending" : (noRefRange ? "N/A" : "Value"))"
                tabindex="@globalRowIndex"
                autocomplete="off"
-               @(isRejectedOrReCollect ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
+               @(isRejectedOrReCollect || noRefRange ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
         
         <button type="button" 
                 class="btn btn-outline-secondary btn-sm btn-edit-row py-1 px-1.5 shadow-2xs @(canEditRow ? "" : "d-none")" 
@@ -134,6 +138,13 @@
         </button>
     </div>
     
+    @if (!item.RefRangeId.HasValue && !isRejectedOrReCollect && !hasValue)
+    {
+        <div class="no-ref-range-msg fs-9 mt-1" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Need to configure Reference Range first
+        </div>
+    }
+
     @if (!string.IsNullOrWhiteSpace(formulaHint))
     {
         <div class="fs-9 text-muted font-monospace mt-1 formula-text" style="max-width: 140px; line-height: 1.2;">

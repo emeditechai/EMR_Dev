@@ -1,0 +1,48 @@
+@model EMR.Web.Models.ViewModels.LabReportingConditionFormViewModel
+@{
+    bool isEdit = ViewData["IsEdit"] as bool? ?? false;
+}
+<div class="row g-3">
+    <!-- Code: always the first field (auto-generated, read-only) -->
+    <div class="col-md-6">
+        <label asp-for="Condition_Code" class="form-label fw-semibold"></label>
+        @if (isEdit)
+        {
+            <input asp-for="Condition_Code" class="form-control bg-light fw-bold font-monospace" readonly />
+        }
+        else
+        {
+            <input type="text" class="form-control bg-light text-muted" value="Auto-generated on save (e.g. LCOR0001)" disabled />
+        }
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="Branch_ID" class="form-label fw-semibold"></label>
+        <select asp-for="Branch_ID" class="form-select" asp-items="Model.BranchOptions">
+            <option value="">All Branches (company-wide)</option>
+        </select>
+        <div class="form-text text-muted">Company-wide conditions print on every branch's report unless that branch has its own active conditions.</div>
+        <span asp-validation-for="Branch_ID" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-12">
+        <label asp-for="Condition_Text" class="form-label fw-semibold required-field"></label>
+        <textarea asp-for="Condition_Text" class="form-control" rows="4" maxlength="1000" placeholder="Enter the condition exactly as it should print on the report (max 1000 characters)..."></textarea>
+        <div class="form-text text-muted text-end"><span id="conditionTextCount">0</span>/1000 characters</div>
+        <span asp-validation-for="Condition_Text" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="Display_Order" class="form-label fw-semibold required-field"></label>
+        <input asp-for="Display_Order" type="number" class="form-control" min="1" max="99999" />
+        <div class="form-text text-muted">Conditions are numbered on the report in ascending Display Order.</div>
+        <span asp-validation-for="Display_Order" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-6 d-flex align-items-start pt-4">
+        <div class="form-check form-switch mb-2">
+            <input asp-for="Status" class="form-check-input" type="checkbox" role="switch" id="statusSwitch">
+            <label class="form-check-label fw-semibold" for="statusSwitch">Active Status</label>
+        </div>
+    </div>
+</div>

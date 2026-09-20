@@ -42,3 +42,14 @@ public class LabTestCategoryToggleStatusRequestModel
     public bool Status { get; set; }
     public int? UserId { get; set; }
 }
+
+/// <summary>A category that can be assigned to a pathologist, with its department.</summary>
+public class LabTestCategoryOptionModel
+{
+    public int CategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public string? CategoryCode { get; set; }
+    public int? DepartmentId { get; set; }
+    public string DepartmentName { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+}

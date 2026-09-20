@@ -20,6 +20,17 @@ public class LabTestCategoryApiClient(IHttpClientFactory factory) : ILabTestCate
         return res?.Data ?? [];
     }
 
+    public async Task<IEnumerable<LabTestCategoryOptionModel>> GetByDepartmentsAsync(string? departmentIds, int? companyId = null)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(departmentIds)) query.Add($"departmentIds={Uri.EscapeDataString(departmentIds)}");
+        if (companyId.HasValue) query.Add($"companyId={companyId.Value}");
+
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : "";
+        var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<LabTestCategoryOptionModel>>>($"api/lab-test-categories/by-departments{queryString}");
+        return res?.Data ?? [];
+    }
+
     public async Task<LabTestCategoryModel?> GetByIdAsync(int id)
     {
         var res = await Client.GetFromJsonAsync<ApiResponse<LabTestCategoryModel>>($"api/lab-test-categories/{id}");

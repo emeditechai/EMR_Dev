@@ -102,6 +102,14 @@ namespace EMR.Web.ApiClients
                    ?? new List<LabOrderActivityDto>();
         }
 
+        public async Task<LabReportPrintMetaDto?> GetPrintMetaAsync(int labOrderId)
+        {
+            var response = await httpClient.GetAsync($"api/LabReporting/print-meta/{labOrderId}");
+            if (!response.IsSuccessStatusCode) return null;
+
+            return await response.Content.ReadFromJsonAsync<LabReportPrintMetaDto>();
+        }
+
         private class SaveEntryResponse
         {
             public bool isSuccess { get; set; }

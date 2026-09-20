@@ -174,10 +174,13 @@ Order booking ─► Sample collection ─► (optional) Sample transfer ─► 
 | Result entry, delta check, validate | `LabReporting` | `api/LabReporting` (headers, detail, save-entry, update-sample-status) | `labentrydetails`, `Reportentrystatus` (DRAFT → REPORT_ENTRY → REPORT_VALIDATED / RE_COLLECTED), `LabReportTestRemarks` |
 | B2B franchise wallet, invoices, multi-bill settlement | `LabOrderBooking` (B2BInvoices, B2BSettlement, FranchiseWalletTopUp…) | `api/B2BBilling` | `LabFranchiseMaster`, `LabFranchiseWallet(+Transaction)`, credit-limit table |
 | Lab dashboard | `LabDashboard` | `api/LabDashboard/stats` | — |
+| Report print (PDF) | `LabReporting` → `PrintReportPdf`, `LogReportPrintedJson`; Print button + modal on the Entry page | `api/LabReporting/print-meta/{id}` (dept/category, signatories, processing lab) | — |
+
+**Lab report PDF (QuestPDF):** `Services/LabReportPrintBuilder` (pure rules: prints Validated + Approved tests, "NOT APPROVED" watermark while any printed test is unapproved, Final vs Provisional, Department -> Category page sections, Package -> Profile -> Investigation grouping) feeds `Services/LabReportPdfDocument` (QuestPDF; header, "Page X of Y" footer and watermark repeat on every page; QR via QRCoder). Community licence is set in that class. Data comes from `usp_LabReporting_GetPrintMeta` (script `2088`).
 
 Sample transfer routes a sample to a target branch and **hides it from the source branch's reporting worklist** (`usp_LabReporting_GetHeaderList` was changed in `2064`).
 
-**Lab masters** (Masters → Lab Master): Test Category, Test Sub Category, Sample Type, Test Method, Unit, Analyzer, Investigation, Investigation Profile, Reference Range (multi-range bulk insert, "common for all" flag), Sample Rejection Reason, Franchise Setup, and three rate lists (B2C, Franchise, Corporate — include packages/profiles).
+**Lab masters** (Masters → Lab Master): Test Category, Test Sub Category, Sample Type, Test Method, Unit, Analyzer, Investigation, Investigation Profile, Reference Range (multi-range bulk insert, "common for all" flag), Sample Rejection Reason, **Conditions of Reporting** (company- and branch-wise; feeds the last page of the Lab Report PDF - branch's own active set overrides the company-wide set, built-in text only if a company never configured any; script `2089`), Franchise Setup, and three rate lists (B2C, Franchise, Corporate — include packages/profiles).
 
 ### Masters & admin
 Company, Branch, User (incl. `IsLogisticsBoy`), Roles/Access, Hospital Settings; geography (Country→State→District→City→Area); Doctor, Referral Doctor, Speciality, Sub-Speciality, Department, Clinical Unit; Building, Floor, Ward, Nursing Station, Room, Bed Category, Bed, Tariff Category, Bed/Room Tariff; Hospital Service (+rates), Procedure (+tariff), OT (+equipment, tariff), Anaesthesia, ICU; Corporate, Insurance/TPA, Government Scheme, Discount Type, Shift, Consent, Housekeeping, Hospital Package.

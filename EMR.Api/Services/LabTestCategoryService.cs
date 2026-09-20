@@ -17,6 +17,16 @@ public class LabTestCategoryService(IDbConnectionFactory db) : ILabTestCategoryS
         );
     }
 
+    public async Task<IEnumerable<LabTestCategoryOption>> GetByDepartmentsAsync(string? departmentIds, int? companyId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<LabTestCategoryOption>(
+            "dbo.usp_Api_LabTestCategories_GetByDepartments",
+            new { DepartmentIds = departmentIds, CompanyId = companyId },
+            commandType: CommandType.StoredProcedure
+        );
+    }
+
     public async Task<LabTestCategoryListItem?> GetByIdAsync(int id)
     {
         using var con = db.CreateConnection();

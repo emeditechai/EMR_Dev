@@ -42,3 +42,14 @@ public class LabTestCategoryToggleStatusRequest
     public bool Status { get; set; }
     public int? UserId { get; set; }
 }
+
+/// <summary>A category offered for assignment, grouped by its department.</summary>
+public class LabTestCategoryOption
+{
+    public int CategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public string? CategoryCode { get; set; }
+    public int? DepartmentId { get; set; }
+    public string DepartmentName { get; set; } = string.Empty;
+    public int DisplayOrder { get; set; }
+}

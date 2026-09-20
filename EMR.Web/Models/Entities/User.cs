@@ -43,6 +43,10 @@ public class User
     [MaxLength(250)]
     public string? DepartmentIds { get; set; }
 
+    /// <summary>CSV of LabTestCategoryMaster.Category_ID a pathologist is authorised to sign off.</summary>
+    [MaxLength(500)]
+    public string? PathologistCategoryIds { get; set; }
+
     public DateTime? DateOfJoining { get; set; }
     public DateTime? DateOfBirth { get; set; }
 

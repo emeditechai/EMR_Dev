@@ -151,9 +151,25 @@ public class UserFormViewModel
     public List<int> SelectedRoleIds { get; set; } = new();
     public List<int> SelectedDepartmentIds { get; set; } = new();
 
+    /// <summary>Lab Test Categories a pathologist may sign off; always a subset of the granted departments.</summary>
+    [Display(Name = "Test Categories")]
+    public List<int> SelectedTestCategoryIds { get; set; } = new();
+
+    /// <summary>Categories of the user's current departments, used to render the assignment dropdown.</summary>
+    public List<TestCategoryOptionItem> TestCategoryOptions { get; set; } = new();
+
     public List<SelectListItem> BranchOptions { get; set; } = new();
     public List<SelectListItem> DepartmentOptions { get; set; } = new();
     public List<BranchRoleGroup> BranchRoleGroups { get; set; } = new();
+}
+
+/// <summary>One assignable Lab Test Category, grouped under its department.</summary>
+public class TestCategoryOptionItem
+{
+    public int CategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public int? DepartmentId { get; set; }
+    public string DepartmentName { get; set; } = string.Empty;
 }
 
 public class BranchRoleGroup
@@ -197,6 +213,7 @@ public class UserDetailsViewModel
 
     public string? CertificationNo { get; set; }
     public string? RegistrationNo { get; set; }
+    public List<string> PathologistCategoryNames { get; set; } = new();
     public int? ShiftSlotId { get; set; }
     public string? ShiftSlotName { get; set; }
     public int? AssignedZoneId { get; set; }

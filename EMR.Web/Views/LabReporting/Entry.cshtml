@@ -29,6 +29,10 @@
     bool showApprove = (validatedCount > 0) && !isAllApproved;
     bool showApprovedBadge = isAllApproved || isPartialApproved;
 
+    // Print Report: available once any test is Validated/Approved. Amber "Not Approved" copy while a printed test is not yet approved.
+    bool showPrint = (validatedCount + approvedCount) > 0;
+    bool printProvisional = validatedCount > 0;
+
     // Colour hook for the patient avatar (male = blue, female = rose, other = violet)
     var genderKey = (d.Gender ?? string.Empty).Trim().ToLowerInvariant() switch
     {
@@ -479,6 +483,11 @@
         .reporting-entry-wrapper .info-pill .pill-label { color: var(--pill); letter-spacing: 0.03em; }
         .reporting-entry-wrapper .pill-token   { --pill: #4f46e5; --pill-bg: #eef2ff; }
         .reporting-entry-wrapper .pill-bill    { --pill: #7c3aed; --pill-bg: #f5f3ff; }
+        .reporting-entry-wrapper .pill-client  { --pill: #0f766e; --pill-bg: #f0fdfa; }
+        .reporting-entry-wrapper .pill-client .pill-val { max-width: 210px; }
+        .reporting-entry-wrapper .test-val-input.no-ref-range { background: repeating-linear-gradient(135deg, #fff7ed, #fff7ed 6px, #ffedd5 6px, #ffedd5 12px); border-color: #fdba74; cursor: not-allowed; }
+        .reporting-entry-wrapper .no-ref-range-msg { color: #b45309; font-weight: 600; line-height: 1.25; max-width: 170px; }
+        .reporting-entry-wrapper tr.test-item-row:has(.test-val-input.no-ref-range) > td { background-color: #fffbf5; }
         .reporting-entry-wrapper .pill-booking { --pill: #0284c7; --pill-bg: #f0f9ff; }
         .reporting-entry-wrapper .pill-collect { --pill: #0d9488; --pill-bg: #f0fdfa; }
         .reporting-entry-wrapper .pill-phleb   { --pill: #9333ea; --pill-bg: #faf5ff; }
@@ -620,6 +629,16 @@
         .reporting-entry-wrapper .row-status-badge.bg-info-subtle  { background-color: var(--st-approved-bg) !important;  color: var(--st-approved) !important;  border: 1px solid var(--st-approved-bd) !important; }
         .reporting-entry-wrapper .row-status-badge.bg-danger-subtle { background-color: var(--st-rejected-bg) !important;  color: var(--st-rejected) !important;  border: 1px solid var(--st-rejected-bd) !important; }
 
+        /* Print Report button: teal when final, amber while any printed test is not yet approved */
+        .btn.btn-print-report {
+            background: #ffffff; color: var(--st-approved); border: 1.5px solid var(--st-approved); font-weight: 600;
+            transition: background-color 0.12s ease, box-shadow 0.12s ease;
+        }
+        .btn.btn-print-report:hover { background: var(--st-approved-bg); color: var(--st-approved); box-shadow: 0 2px 8px rgba(15, 118, 110, 0.25); }
+        .btn.btn-print-report.is-provisional { background: #fffbeb; color: #b45309; border-color: #f59e0b; }
+        .btn.btn-print-report.is-provisional:hover { background: #fef3c7; color: #92400e; box-shadow: 0 2px 8px rgba(217, 119, 6, 0.28); }
+        #reportPrintFrame { width: 100%; height: 100%; border: 0; background: #525659; }
+
         /* Sticky footer accent */
         .sticky-action-bar { border-top: 0; box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.09); }
         .sticky-action-bar::before {
@@ -708,7 +727,7 @@
             <div class="col-xl-9 col-lg-8 col-12">
                 <div class="d-flex flex-column gap-1.5">
                     <!-- Row 1: Key Metadata Pills -->
-                    <div class="d-flex flex-wrap flex-lg-nowrap gap-1.5 justify-content-lg-end align-items-center">
+                    <div class="d-flex flex-wrap gap-1.5 justify-content-lg-end align-items-center">
                         <div class="info-pill pill-token">
                             <span class="pill-label">Token No</span>
                             <span class="pill-val font-monospace">@(d.TokenNo ?? "LAB")</span>
@@ -717,6 +736,16 @@
                             <span class="pill-label">Bill / Order No</span>
                             <span class="pill-val font-monospace">@(d.BillNo ?? "—")</span>
                         </div>
+                        @if (Model.B2BClient != null)
+                        {
+                            var b2bIsFranchise = string.Equals(Model.B2BClient.ClientType, "FRANCHISE", StringComparison.OrdinalIgnoreCase);
+                            var b2bName = string.Join(" · ", new[] { Model.B2BClient.Code, Model.B2BClient.Name }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                            var b2bTip = string.Join(" | ", new[] { Model.B2BClient.Name, Model.B2BClient.Phone, Model.B2BClient.Address }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                            <div class="info-pill pill-client" id="pillB2BClient">
+                                <span class="pill-label"><i class="bi @(b2bIsFranchise ? "bi-shop" : "bi-building") me-0.5"></i>B2B @(b2bIsFranchise ? "Franchise" : "Company")</span>
+                                <span class="pill-val text-truncate" title="@b2bTip">@(string.IsNullOrWhiteSpace(b2bName) ? "—" : b2bName)</span>
+                            </div>
+                        }
                         <div class="info-pill pill-booking">
                             <span class="pill-label">Booking Time</span>
                             <span class="pill-val">@((d.BookingDateTime ?? d.OrderDate).ToString("dd MMM yyyy, hh:mm tt"))</span>
@@ -849,6 +878,10 @@
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1.5 fs-8 @(showApprovedBadge ? "" : "d-none")" id="badgeHeaderApproved">
                 <i class="bi bi-patch-check-fill me-1"></i>@(isPartialApproved ? $"Partially Approved ({approvedCount}/{totalCount})" : "Report Approved")
             </span>
+            <button type="button" class="btn btn-sm px-3 py-1.5 fs-8 btn-print-report @(printProvisional ? "is-provisional" : "")" id="btnHeaderPrint"
+                    style="@(showPrint ? "" : "display:none;")" title="Preview and print the lab report">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">@(printProvisional ? "Print (Not Approved)" : "Print Report")</span>
+            </button>
         </div>
     </div>
 
@@ -1387,6 +1420,10 @@
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fs-8 @(isAllApproved ? "" : "d-none")" id="badgeApprovedFooter">
                 <i class="bi bi-patch-check-fill me-1"></i>Report Approved
             </span>
+            <button type="button" class="btn btn-sm px-3 fw-semibold btn-print-report @(printProvisional ? "is-provisional" : "")" id="btnStickyPrint"
+                    style="@(showPrint ? "" : "display:none;")" title="Preview and print the lab report">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">@(printProvisional ? "Print (Not Approved)" : "Print Report")</span>
+            </button>
         </div>
     </div>
 </div>
@@ -1492,6 +1529,37 @@
     </div>
 </div>
 
+<!-- Report Print Modal (PDF preview) -->
+<div class="modal fade" id="modalReportPrint" tabindex="-1" aria-labelledby="modalReportPrintLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2 px-3 bg-light flex-wrap gap-2">
+                <div class="flex-grow-1">
+                    <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalReportPrintLabel">
+                        <i class="bi bi-printer-fill text-primary"></i>Lab Report
+                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9" id="printBillChip">@(d.BillNo ?? "—")</span>
+                        <span class="badge fs-9 d-none" id="printStatusChip"></span>
+                    </h6>
+                    <div class="text-muted fs-9 mt-0.5" id="printSubtitle">Preparing report&hellip;</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-primary btn-sm fs-8 px-3" id="btnReportPrintNow" disabled><i class="bi bi-printer me-1"></i>Print</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportDownload" disabled><i class="bi bi-download me-1"></i>Download PDF</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportNewTab" disabled><i class="bi bi-box-arrow-up-right me-1"></i>New Tab</button>
+                    <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0 position-relative" style="height: 78vh; background:#525659;">
+                <div id="printLoading" class="position-absolute top-50 start-50 translate-middle text-center text-white">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Generating report&hellip;
+                </div>
+                <div id="printError" class="alert alert-warning fs-8 m-4 d-none"></div>
+                <iframe id="reportPrintFrame" title="Lab report preview" class="d-none"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
@@ -1576,6 +1644,16 @@
                 return 'pending';
             }
 
+            // Print Report is available once any test is Validated/Approved; amber "Not Approved" while a printed test is unapproved.
+            function syncPrintButtons(counts) {
+                const printable = counts.validated + counts.approved;
+                const provisional = counts.validated > 0;
+                const $btns = $('#btnHeaderPrint, #btnStickyPrint');
+                $btns.toggle(printable > 0)
+                     .toggleClass('is-provisional', provisional)
+                     .find('.print-btn-label').text(provisional ? 'Print (Not Approved)' : 'Print Report');
+            }
+
             function refreshWorkflowProgress() {
                 const counts = { approved: 0, validated: 0, submitted: 0, draft: 0, recollect: 0, pending: 0 };
                 let total = 0;
@@ -1589,6 +1667,8 @@
                     $('.wf-chip[data-wf="' + k + '"]').toggleClass('is-zero', counts[k] === 0);
                     $('.wf-seg[data-wf="' + k + '"]').css('width', total ? (counts[k] / total * 100) + '%' : '0%');
                 });
+
+                syncPrintButtons(counts);
 
                 const pct = total ? Math.round(counts.approved / total * 100) : 0;
                 $('#wfPercent').text(total ? (counts.approved + ' of ' + total + ' tests approved (' + pct + '%)') : '');
@@ -2186,6 +2266,22 @@
                     }
                 });
 
+                // Safety net: a row without a configured Reference Range can never be submitted
+                // (its input is disabled so it is skipped above; this also catches a re-enabled input).
+                const blockedNames = [];
+                for (let i = entries.length - 1; i >= 0; i--) {
+                    const $r = $('.test-item-row[data-samplecollection-id="' + entries[i].samplecollectionID + '"]');
+                    if (String($r.find('.txt-test-val').attr('data-no-ref-range')) === 'true') {
+                        blockedNames.push($.trim($r.find('td:nth-child(2) .fw-bold').first().text()));
+                        entries.splice(i, 1);
+                        targetRowIds.splice(i, 1);
+                    }
+                }
+                if (blockedNames.length) {
+                    toastr.error('Need to configure Reference Range first for: ' + blockedNames.join(', '));
+                    if (entries.length === 0) return;
+                }
+
                 if (entries.length === 0) {
                     if (statusId === 3) {
                         toastr.warning('No submitted test entries found to validate.');
@@ -2559,7 +2655,8 @@
                     const $flagBadge = $row.find('.flag-badge');
 
                     if (isRejOrReCollect) {
-                        $valInp.val('').prop('disabled', true).removeClass('has-value is-flagged-l is-flagged-h border-primary shadow-sm').attr('placeholder', 'Pending');
+                        $row.find('.no-ref-range-msg').remove();
+                        $valInp.val('').prop('disabled', true).removeClass('has-value is-flagged-l is-flagged-h border-primary shadow-sm no-ref-range').attr('placeholder', 'Pending');
                         $remInp.val('').prop('disabled', true).attr('placeholder', newStatus === 3 ? 'Re-Collect pending' : 'Sample Rejected');
                         $editBtn.addClass('d-none');
                         $flagBadge.attr('class', 'badge flag-badge flag-none fs-8 px-2 py-1').text('—');
@@ -2580,8 +2677,12 @@
                             </div>
                         `);
                     } else {
-                        // Re-enabled back to Collected (2)
-                        $valInp.prop('disabled', false).attr('placeholder', 'Value');
+                        // Re-enabled back to Collected (2) - unless no Reference Range is configured for this test
+                        const noRefRange = String($valInp.attr('data-no-ref-range')) === 'true';
+                        $valInp.prop('disabled', noRefRange).toggleClass('no-ref-range', noRefRange).attr('placeholder', noRefRange ? 'N/A' : 'Value');
+                        if (noRefRange && !$row.find('.no-ref-range-msg').length) {
+                            $valInp.closest('td').append('<div class="no-ref-range-msg fs-9 mt-1" role="alert"><i class="bi bi-exclamation-triangle-fill me-1"></i>Need to configure Reference Range first</div>');
+                        }
                         $remInp.prop('disabled', false).attr('placeholder', 'Optional note');
                         $row.find('.row-rejection-info').remove();
                         $statusBadge.attr('class', 'badge fs-9 row-status-badge bg-secondary-subtle text-secondary border border-secondary-subtle').text('Pending entry');
@@ -2602,7 +2703,7 @@
             $(document).on('keydown', '.txt-test-val', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    const $editableInputs = $('.txt-test-val:visible:not([readonly])');
+                    const $editableInputs = $('.txt-test-val:visible:not([readonly]):not(:disabled)');
                     const idx = $editableInputs.index(this);
                     if (idx >= 0 && idx < $editableInputs.length - 1) {
                         $editableInputs.eq(idx + 1).focus().select();
@@ -2659,7 +2760,8 @@
                     'LAB.ReportValidated':        ['Results Validated',         'bi-patch-check-fill',   '#0891b2', 'Reporting'],
                     'LAB.ReportApproved':         ['Results Approved',          'bi-check2-circle',      '#16a34a', 'Reporting'],
                     'LAB.ReportReCollected':      ['Marked for Re-collection',  'bi-arrow-repeat',       '#dc2626', 'Reporting'],
-                    'LAB.ReportSaved':            ['Report Saved',              'bi-floppy',             '#64748b', 'Reporting']
+                    'LAB.ReportSaved':            ['Report Saved',              'bi-floppy',             '#64748b', 'Reporting'],
+                    'LAB.ReportPrinted':          ['Report Printed',            'bi-printer-fill',       '#0891b2', 'Reporting']
                 };
                 if (map[a]) return { label: map[a][0], icon: map[a][1], color: map[a][2], cat: map[a][3] };
                 if (a === 'LAB.SampleStatusChanged') {
@@ -2841,6 +2943,109 @@
                     renderChips();
                     render();
                 });
+            });
+        })();
+    </script>
+
+    <script>
+        // Report PDF preview / print (QuestPDF report streamed by LabReporting/PrintReportPdf)
+        (function () {
+            const labOrderId = @d.LabOrderId;
+            const pdfUrl = '@Url.Action("PrintReportPdf", "LabReporting")';
+            const logUrl = '@Url.Action("LogReportPrintedJson", "LabReporting")';
+            let blobUrl = null;
+            let fileName = 'LabReport.pdf';
+
+            const $frame = $('#reportPrintFrame'), $loading = $('#printLoading'), $error = $('#printError');
+            const $actions = $('#btnReportPrintNow, #btnReportDownload, #btnReportNewTab');
+
+            function reset() {
+                if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+                $frame.addClass('d-none').attr('src', 'about:blank');
+                $error.addClass('d-none').text('');
+                $('#printStatusChip').addClass('d-none');
+                $('#printSubtitle').text('Preparing report\u2026');
+                $actions.prop('disabled', true);
+                $loading.removeClass('d-none');
+            }
+
+            function fail(message) {
+                $loading.addClass('d-none');
+                $error.text(message).removeClass('d-none');
+                $('#printSubtitle').text('Report unavailable');
+            }
+
+            async function load() {
+                reset();
+                try {
+                    const res = await fetch(pdfUrl + '?labOrderId=' + labOrderId + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' });
+                    const type = res.headers.get('content-type') || '';
+
+                    if (!res.ok) {
+                        let msg = 'Unable to generate the report.';
+                        try { msg = (await res.json()).message || msg; } catch (e) { /* keep default */ }
+                        return fail(msg);
+                    }
+                    if (res.redirected || type.indexOf('pdf') === -1) {
+                        return fail('Your session may have expired. Please refresh the page and sign in again.');
+                    }
+
+                    const watermark = res.headers.get('X-Report-Watermark') === '1';
+                    const status = res.headers.get('X-Report-Status');
+                    const tests = res.headers.get('X-Report-Tests');
+                    const disp = res.headers.get('Content-Disposition') || '';
+                    const m = /filename="?([^";]+)"?/i.exec(disp);
+                    if (m) fileName = m[1];
+
+                    blobUrl = URL.createObjectURL(await res.blob());
+                    $frame.attr('src', blobUrl + '#toolbar=1&navpanes=0').removeClass('d-none');
+                    $loading.addClass('d-none');
+                    $actions.prop('disabled', false);
+
+                    $('#printStatusChip')
+                        .attr('class', 'badge fs-9 ' + (watermark
+                            ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle'
+                            : (status === 'final' ? 'bg-success-subtle text-success border border-success-subtle'
+                                                  : 'bg-primary-subtle text-primary border border-primary-subtle')))
+                        .text(watermark ? 'NOT APPROVED copy' : (status === 'final' ? 'Final Report' : 'Provisional Report'));
+                    $('#printSubtitle').text(tests + ' validated/approved test(s) on this report'
+                        + (watermark ? ' \u2022 watermarked until every printed test is approved' : ''));
+                } catch (e) {
+                    fail('Server error while generating the report. Please try again.');
+                }
+            }
+
+            function logPrinted() { $.post(logUrl + '?labOrderId=' + labOrderId); }
+
+            $(function () {
+                const modalEl = document.getElementById('modalReportPrint');
+                if (!modalEl) return;
+
+                $('#btnHeaderPrint, #btnStickyPrint').on('click', function () {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                });
+                $(modalEl).on('shown.bs.modal', load);
+                $(modalEl).on('hidden.bs.modal', reset);
+
+                $('#btnReportPrintNow').on('click', function () {
+                    if (!blobUrl) return;
+                    try {
+                        const w = $frame[0].contentWindow;
+                        w.focus();
+                        w.print();
+                    } catch (e) {
+                        window.open(blobUrl, '_blank'); // viewer refused: open it so the browser's own Print works
+                    }
+                    logPrinted();
+                });
+                $('#btnReportDownload').on('click', function () {
+                    if (!blobUrl) return;
+                    const a = document.createElement('a');
+                    a.href = blobUrl; a.download = fileName;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    logPrinted();
+                });
+                $('#btnReportNewTab').on('click', function () { if (blobUrl) window.open(blobUrl, '_blank'); });
             });
         })();
     </script>

@@ -26,5 +26,7 @@ namespace EMR.Web.ApiClients
         Task<bool> UpdateSampleStatusAsync(UpdateLabSampleStatusRequestDto request);
 
         Task<List<LabOrderActivityDto>> GetActivityHistoryAsync(int labOrderId);
+
+        Task<LabReportPrintMetaDto?> GetPrintMetaAsync(int labOrderId);
     }
 }

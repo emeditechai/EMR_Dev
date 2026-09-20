@@ -1,0 +1,136 @@
+-- ============================================================================
+-- Migration: 2088_lab_report_print_meta.sql
+-- Description:
+--   Adds dbo.usp_LabReporting_GetPrintMeta - a READ-ONLY procedure that supplies the extra
+--   data the printable Lab Report needs and that usp_LabReporting_GetDetail does not return:
+--     RS1  per-sample Department / Test Category (+ display order) / Sub Category / Received date
+--     RS2  signatories: users who validated / approved the report (name, registration no.,
+--          pathologist flag). Taken from AuditLogs (LAB.ReportValidated / LAB.ReportApproved)
+--          with a fallback to the last modifier of approved result rows.
+--     RS3  processing lab: where the specimen was actually tested (target branch if the
+--          sample was transferred, otherwise the billing branch) with its address / phone.
+--     RS4  B2B partner the order was billed to (Franchise or Company) with code / name / address /
+--          phone. No row for B2C orders. (Franchise master has no address column -> Address is NULL.)
+--
+--   No existing table or procedure is altered.
+-- ============================================================================
+
+USE [Dev_EMR];
+GO
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE OR ALTER PROCEDURE dbo.usp_LabReporting_GetPrintMeta
+    @LabOrderId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @BillNo   NVARCHAR(100);
+    DECLARE @BranchId INT;
+    SELECT @BillNo = lo.BillNo, @BranchId = lo.BranchId FROM dbo.LabOrder lo WHERE lo.LabOrderId = @LabOrderId;
+
+    -- ── RS1: department / category per sample ───────────────────────────────
+    SELECT
+        sc.samplecollectionID                           AS SamplecollectionID,
+        d.DeptId                                        AS DepartmentId,
+        d.DeptName                                      AS DepartmentName,
+        c.Category_ID                                   AS CategoryId,
+        c.Category_Name                                 AS CategoryName,
+        ISNULL(c.Display_Order, 9999)                   AS CategoryOrder,
+        sub.SubCategory_Name                            AS SubCategoryName,
+        sc.ReceivedDate                                 AS ReceivedDate
+    FROM dbo.SampleCollection sc
+    INNER JOIN dbo.LabInvestigationMaster lim ON lim.Test_ID = sc.InvestigationID
+    LEFT  JOIN dbo.LabTestCategoryMaster c    ON c.Category_ID = COALESCE(NULLIF(sc.TestcategoryID, 0), lim.Category_ID)
+    LEFT  JOIN dbo.LabTestSubCategoryMaster sub ON sub.SubCategory_ID = COALESCE(NULLIF(sc.TestsubcategoryID, 0), lim.SubCategory_ID)
+    LEFT  JOIN dbo.DepartmentMaster d         ON d.DeptId = COALESCE(NULLIF(sc.DepartmentID, 0), lim.Department_ID)
+    WHERE sc.Laborderid = @LabOrderId
+      AND sc.Is_Active = 1
+      AND sc.Iscancelled = 0;
+
+    -- ── RS2: signatories (validated / approved by) ──────────────────────────
+    ;WITH Ev AS (
+        SELECT
+            CASE a.ActionName WHEN 'LAB.ReportValidated' THEN 'VALIDATED' ELSE 'APPROVED' END AS SignRole,
+            a.UserId,
+            MAX(a.CreatedDate) AS EventDate
+        FROM dbo.AuditLogs a
+        WHERE @BillNo IS NOT NULL
+          AND a.ModuleCode = 'LAB'
+          AND a.ReferenceNo = @BillNo
+          AND a.ActionName IN ('LAB.ReportValidated', 'LAB.ReportApproved')
+          AND a.UserId IS NOT NULL
+        GROUP BY CASE a.ActionName WHEN 'LAB.ReportValidated' THEN 'VALIDATED' ELSE 'APPROVED' END, a.UserId
+
+        UNION ALL
+
+        -- fallback for orders approved before audit logging existed: last modifier of approved rows
+        SELECT 'APPROVED', led.ModifiedBy, MAX(led.Approved_Date)
+        FROM dbo.labentrydetails led
+        WHERE led.LabOrderId = @LabOrderId
+          AND led.ReportStatusId = 5
+          AND led.ModifiedBy IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM dbo.AuditLogs a2
+                          WHERE a2.ModuleCode = 'LAB' AND a2.ReferenceNo = @BillNo
+                            AND a2.ActionName = 'LAB.ReportApproved' AND a2.UserId IS NOT NULL)
+        GROUP BY led.ModifiedBy
+    )
+    SELECT
+        Ev.SignRole,
+        Ev.UserId,
+        ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) AS FullName,
+        u.RegistrationNo,
+        u.CertificationNo,
+        CAST(ISNULL(u.IsPathologist, 0) AS BIT)                  AS IsPathologist,
+        Ev.EventDate
+    FROM Ev
+    INNER JOIN dbo.Users u ON u.Id = Ev.UserId
+    ORDER BY Ev.SignRole, Ev.EventDate DESC;
+
+    -- ── RS3: processing lab (where the specimen was tested) ─────────────────
+    DECLARE @LabBranchId INT = @BranchId;
+    SELECT TOP 1 @LabBranchId = sc.TargetBranchID
+    FROM dbo.SampleCollection sc
+    WHERE sc.Laborderid = @LabOrderId AND sc.IsTransferred = 1 AND sc.TargetBranchID IS NOT NULL
+    ORDER BY sc.TransferredDate DESC;
+
+    SELECT TOP 1
+        b.BranchId                                       AS BranchId,
+        b.BranchName                                     AS BranchName,
+        b.BranchCode                                     AS BranchCode,
+        COALESCE(NULLIF(LTRIM(RTRIM(hs.Address)), ''), b.Address) AS Address,
+        b.City                                           AS City,
+        b.State                                          AS State,
+        b.Pincode                                        AS Pincode,
+        hs.ContactNumber1                                AS Phone,
+        hs.EmailAddress                                  AS Email
+    FROM dbo.Branchmaster b
+    LEFT JOIN dbo.HospitalSettings hs ON hs.BranchID = b.BranchID AND hs.IsActive = 1
+    WHERE b.BranchID = @LabBranchId;
+
+    -- ── RS4: B2B partner (Franchise 'F' / Company 'C'); no row for B2C ───────
+    SELECT TOP 1
+        CASE o.AgentType WHEN 'F' THEN 'FRANCHISE' ELSE 'COMPANY' END              AS ClientType,
+        CASE WHEN o.AgentType = 'F' THEN f.Franchise_Code ELSE corp.Corporate_Code END AS Code,
+        CASE WHEN o.AgentType = 'F' THEN f.Franchise_Name ELSE corp.Corporate_Name END AS Name,
+        CASE WHEN o.AgentType = 'C'
+             THEN NULLIF(LTRIM(RTRIM(CONCAT(corp.Address,
+                        CASE WHEN NULLIF(CAST(corp.Pincode AS NVARCHAR(20)), '') IS NOT NULL
+                             THEN ' - ' + CAST(corp.Pincode AS NVARCHAR(20)) ELSE '' END))), '')
+             ELSE NULL END                                                          AS Address,
+        CASE WHEN o.AgentType = 'F' THEN f.Mobile_No ELSE corp.Contact_No END       AS Phone
+    FROM dbo.LabOrder o
+    LEFT JOIN dbo.LabFranchiseMaster f ON f.Franchise_ID  = o.B2BAgentID AND o.AgentType = 'F'
+    LEFT JOIN dbo.CorporateMaster  corp ON corp.Corporate_ID = o.B2BAgentID AND o.AgentType = 'C'
+    WHERE o.LabOrderId = @LabOrderId
+      AND o.IsB2B = 1
+      AND o.AgentType IN ('F', 'C');
+END;
+GO
+
+PRINT 'Created procedure dbo.usp_LabReporting_GetPrintMeta';
+GO

@@ -164,6 +164,9 @@ builder.Services.AddScoped<ILabSampleRejectionApiClient, LabSampleRejectionApiCl
 builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectionReasonApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabReferenceRangeApiClient,        LabReferenceRangeApiClient>();
+builder.Services.AddScoped<ILabReportingConditionApiClient,   LabReportingConditionApiClient>();
+builder.Services.AddScoped<ILabReportDispatchApiClient,       LabReportDispatchApiClient>();
+builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();

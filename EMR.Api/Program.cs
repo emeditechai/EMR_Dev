@@ -64,6 +64,8 @@ builder.Services.AddScoped<ILabSampleRejectionService,      LabSampleRejectionSe
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabReferenceRangeService,        LabReferenceRangeService>();
+builder.Services.AddScoped<ILabReportingConditionService,     LabReportingConditionService>();
+builder.Services.AddScoped<ILabReportDispatchService,              LabReportDispatchService>();
 builder.Services.AddScoped<IB2BBillingService,              B2BBillingService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────

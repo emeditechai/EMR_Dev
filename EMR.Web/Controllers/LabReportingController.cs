@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +14,7 @@ using EMR.Web.Services;
 
 using System.Linq;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers
 {
@@ -21,7 +24,11 @@ namespace EMR.Web.Controllers
         ILabOrderApiClient labOrderApiClient,
         ISampleCollectionApiClient sampleCollectionApiClient,
         ILabSampleRejectionReasonApiClient rejectionReasonApiClient,
-        IAuditLogService auditLogService) : Controller
+        IAuditLogService auditLogService,
+        EMR.Web.Data.ApplicationDbContext dbContext,
+        Microsoft.AspNetCore.Hosting.IWebHostEnvironment env,
+        ILabReportingConditionApiClient conditionApiClient,
+        ILabReportPdfService reportPdfService) : Controller
     {
         [HttpGet]
         public async Task<IActionResult> Index(
@@ -116,8 +123,14 @@ namespace EMR.Web.Controllers
             var companyId = User.GetCompanyId();
             var rejectionReasons = (await rejectionReasonApiClient.GetListAsync(status: true, companyId: companyId)).ToList();
 
+            // B2B partner (Franchise / Company) for the banner; display-only, so a failure must never block the page.
+            LabReportClientDto? b2bClient = null;
+            try { b2bClient = (await labReportingApiClient.GetPrintMetaAsync(labOrderId))?.Client; }
+            catch { /* banner-only */ }
+
             var viewModel = new LabReportingEntryPageViewModel
             {
+                B2BClient = b2bClient,
                 Detail = detail,
                 Statuses = statuses,
                 SampleCollectionStatuses = sampleStatuses,
@@ -200,6 +213,29 @@ namespace EMR.Web.Controllers
             LabReportingOrderDetailDto? detailBeforeSave = null;
             try { detailBeforeSave = await labReportingApiClient.GetDetailAsync(request.LabOrderId); }
             catch { /* audit-only; must never block the save */ }
+
+            // A result can only be entered for a test that has a Reference Range configured for this patient.
+            // Unchanged values that were saved before this rule existed are left alone so existing reports can still be approved.
+            if (detailBeforeSave?.Items != null)
+            {
+                var itemsById = detailBeforeSave.Items.ToDictionary(i => i.SamplecollectionID);
+                var missingRange = enteredEntries
+                    .Select(e => itemsById.TryGetValue(e.SamplecollectionID, out var it) ? (Entry: e, Item: it) : default)
+                    .Where(x => x.Item != null && !x.Item.RefRangeId.HasValue
+                                && !string.Equals(x.Entry.TestValue?.Trim(), x.Item.TestValue?.Trim(), StringComparison.Ordinal))
+                    .Select(x => x.Item!.TestName)
+                    .Distinct()
+                    .ToList();
+
+                if (missingRange.Count > 0)
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = "Need to configure Reference Range first for: " + string.Join(", ", missingRange) + ". Result cannot be entered or submitted until then."
+                    });
+                }
+            }
 
             bool success = await labReportingApiClient.SaveEntryAsync(request);
             string statusName = request.ReportStatusId switch
@@ -329,6 +365,94 @@ namespace EMR.Web.Controllers
                 success = success,
                 message = success ? "Sample status updated successfully." : "Failed to update sample status."
             });
+        }
+
+        /// <summary>
+        /// Lab Report as a PDF (QuestPDF). Shown inline in the Print modal on the Entry page, or downloaded with download=true.
+        /// Prints Validated + Approved tests; a "NOT APPROVED" watermark is applied while any printed test is not yet approved.
+        /// Each Department / Test Category starts on a new page.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> PrintReportPdf(int labOrderId, bool download = false, bool conditions = true)
+        {
+            if (labOrderId <= 0)
+                return BadRequest(new { message = "Valid LabOrderId is required." });
+
+            try
+            {
+                var vm = await reportPdfService.BuildAsync(labOrderId, User);
+                if (vm == null)
+                    return NotFound(new { message = "Lab report details not found." });
+
+                if (vm.IncludedTestCount == 0)
+                    return Conflict(new { message = "Nothing to print yet. Validate at least one test to print a report." });
+
+                var pdf = LabReportPdfDocument.Generate(vm, reportPdfService.LoadLogo(vm.HospitalLogoPath), conditions);
+
+                var safeBill = new string((vm.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
+                var fileName = $"LabReport_{safeBill}{(vm.ShowNotApprovedWatermark ? "_NOT-APPROVED" : "")}.pdf";
+
+                Response.Headers.CacheControl = "no-store";
+                Response.Headers["X-Report-Status"] = vm.IsFinal ? "final" : "provisional";
+                Response.Headers["X-Report-Watermark"] = vm.ShowNotApprovedWatermark ? "1" : "0";
+                Response.Headers["X-Report-Tests"] = vm.IncludedTestCount.ToString();
+                Response.Headers["Access-Control-Expose-Headers"] = "X-Report-Status, X-Report-Watermark, X-Report-Tests";
+
+                if (download)
+                    return File(pdf, "application/pdf", fileName);
+
+                Response.Headers.ContentDisposition = $"inline; filename=\"{fileName}\"";
+                return File(pdf, "application/pdf");
+            }
+            catch (HttpRequestException)
+            {
+                return StatusCode(503, new { message = "The reporting service is unreachable. Please try again." });
+            }
+        }
+
+        /// <summary>Records that the report was printed (called by the Print modal when the user clicks Print).</summary>
+        [HttpPost]
+        public async Task<IActionResult> LogReportPrintedJson(int labOrderId)
+        {
+            if (labOrderId <= 0)
+                return Json(new { success = false });
+
+            try
+            {
+                var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
+                if (detail == null) return Json(new { success = false });
+
+                var summary = LabReportPrintBuilder.Summarize(detail);
+                var kind = summary.ShowNotApprovedWatermark ? "Provisional copy (NOT APPROVED watermark)"
+                         : summary.IsFinal ? "Final report" : "Provisional report";
+
+                await auditLogService.LogActivityAsync(
+                    eventType: "Lab Reporting",
+                    actionName: "LAB.ReportPrinted",
+                    description: $"Lab report printed - {kind} - for patient {detail.PatientName} ({detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}. {summary.IncludedTestCount} test(s) on the printout.",
+                    userId: User.GetUserId(),
+                    branchId: User.GetCurrentBranchId(),
+                    moduleCode: "LAB",
+                    referenceNo: detail.BillNo,
+                    referenceId: detail.LabOrderId,
+                    patientCode: detail.PatientCode,
+                    metadata: new
+                    {
+                        detail.LabOrderId,
+                        detail.BillNo,
+                        IsFinal = summary.IsFinal,
+                        NotApprovedWatermark = summary.ShowNotApprovedWatermark,
+                        TestsPrinted = summary.IncludedTestCount,
+                        TestsNotPrinted = summary.ExcludedTestCount
+                    });
+
+                return Json(new { success = true });
+            }
+            catch
+            {
+                // Audit only - never surface an error to the print flow
+                return Json(new { success = false });
+            }
         }
 
         /// <summary>Full activity trail (booking, payment, collection, transfer, reporting) for one Lab Order / Bill.</summary>

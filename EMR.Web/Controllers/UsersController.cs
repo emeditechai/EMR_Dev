@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
@@ -21,7 +22,8 @@ public class UsersController(
     ICountryService countryService,
     IStateService stateService,
     ICityService cityService,
-    IAreaService areaService) : Controller
+    IAreaService areaService,
+    ILabTestCategoryApiClient labTestCategoryApiClient) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -192,6 +194,7 @@ public class UsersController(
             VehicleRegNo = user.VehicleRegNo,
             CertificationNo = user.CertificationNo,
             RegistrationNo = user.RegistrationNo,
+            PathologistCategoryNames = await GetCategoryNamesAsync(user.PathologistCategoryIds),
             ShiftSlotId = user.ShiftSlotId,
             ShiftSlotName = shiftSlotName,
             AssignedZoneId = user.AssignedZoneId,
@@ -260,6 +263,8 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
         }
 
+        await ValidatePathologistCategoriesAsync(model);
+
         if (model.IsLogisticsBoy && string.IsNullOrWhiteSpace(model.VehicleRegNo))
         {
             ModelState.AddModelError(nameof(model.VehicleRegNo), "Vehicle Reg No is mandatory when designated as Logistics Boy.");
@@ -315,6 +320,7 @@ public class UsersController(
             VehicleRegNo = model.IsLogisticsBoy ? model.VehicleRegNo?.Trim() : null,
             CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null,
             RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null,
+            PathologistCategoryIds = PathologistCategoryCsv(model),
             ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null,
             AssignedZoneId = model.IsPhlebotomist && model.AssignedZoneId > 0 ? model.AssignedZoneId : null,
             DailyCollectionTarget = model.IsPhlebotomist ? model.DailyCollectionTarget : null,
@@ -396,7 +402,8 @@ public class UsersController(
             AnalyzerTrainedOn = user.AnalyzerTrainedOn,
             SelectedBranchIds = user.UserBranches.Where(x => x.IsActive).Select(x => x.BranchId).ToList(),
             SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList(),
-            SelectedDepartmentIds = selectedDeptIds
+            SelectedDepartmentIds = selectedDeptIds,
+            SelectedTestCategoryIds = ParseIdCsv(user.PathologistCategoryIds)
         };
 
         await PopulateSelections(model);
@@ -437,6 +444,8 @@ public class UsersController(
         {
             ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
         }
+
+        await ValidatePathologistCategoriesAsync(model);
 
         if (model.IsLogisticsBoy && string.IsNullOrWhiteSpace(model.VehicleRegNo))
         {
@@ -483,6 +492,7 @@ public class UsersController(
         user.VehicleRegNo = model.IsLogisticsBoy ? model.VehicleRegNo?.Trim() : null;
         user.CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null;
         user.RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null;
+        user.PathologistCategoryIds = PathologistCategoryCsv(model);
         user.ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null;
         user.AssignedZoneId = model.IsPhlebotomist && model.AssignedZoneId > 0 ? model.AssignedZoneId : null;
         user.DailyCollectionTarget = model.IsPhlebotomist ? model.DailyCollectionTarget : null;
@@ -552,6 +562,116 @@ public class UsersController(
     {
         var areas = await areaService.GetByCityAsync(cityId);
         return Json(areas.Where(a => a.IsActive).OrderBy(a => a.AreaName).Select(a => new { a.AreaId, a.AreaName, a.AreaCode }));
+    }
+
+    /// <summary>Splits a stored CSV of ids ("3,7,11") into a list, ignoring anything unparseable.</summary>
+    private static List<int> ParseIdCsv(string? csv) =>
+        string.IsNullOrWhiteSpace(csv)
+            ? new List<int>()
+            : csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                 .Select(x => int.TryParse(x, out var id) ? id : 0)
+                 .Where(id => id > 0)
+                 .Distinct()
+                 .ToList();
+
+    /// <summary>Categories are kept only while the user is a pathologist.</summary>
+    private static string? PathologistCategoryCsv(UserFormViewModel model)
+    {
+        if (!model.IsPathologist || model.SelectedTestCategoryIds == null || model.SelectedTestCategoryIds.Count == 0)
+            return null;
+
+        return string.Join(",", model.SelectedTestCategoryIds.Distinct().OrderBy(id => id));
+    }
+
+    /// <summary>
+    /// The posted categories must exist and must belong to a department the user has access to.
+    /// Checked on the server so the rule holds regardless of what the browser sent.
+    /// </summary>
+    private async Task ValidatePathologistCategoriesAsync(UserFormViewModel model)
+    {
+        if (!model.IsPathologist || model.SelectedTestCategoryIds == null || model.SelectedTestCategoryIds.Count == 0)
+            return;
+
+        // The field error sits inside the Pathologist popup (closed after a post-back), so the same message
+        // is also added at model level to reach the summary at the top of the page.
+        void Fail(string message)
+        {
+            ModelState.AddModelError(nameof(model.SelectedTestCategoryIds), message);
+            ModelState.AddModelError(string.Empty, message);
+        }
+
+        if (model.SelectedDepartmentIds == null || model.SelectedDepartmentIds.Count == 0)
+        {
+            Fail("Select at least one Department Access before assigning Test Categories to a Pathologist.");
+            return;
+        }
+
+        try
+        {
+            var allowedIds = (await labTestCategoryApiClient.GetByDepartmentsAsync(
+                    string.Join(",", model.SelectedDepartmentIds.Distinct()), User.GetCompanyId()))
+                .Select(x => x.CategoryId)
+                .ToHashSet();
+
+            if (model.SelectedTestCategoryIds.Any(id => !allowedIds.Contains(id)))
+            {
+                Fail("One or more selected Test Categories do not belong to the departments granted to this user. Please re-select.");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            Fail("Test Categories could not be verified because the lab service is unreachable. Please try again.");
+        }
+    }
+
+    /// <summary>Names of the assigned categories, for the read-only Details page.</summary>
+    private async Task<List<string>> GetCategoryNamesAsync(string? categoryIdCsv)
+    {
+        var ids = ParseIdCsv(categoryIdCsv);
+        if (ids.Count == 0) return new List<string>();
+
+        try
+        {
+            var all = await labTestCategoryApiClient.GetByDepartmentsAsync(null, User.GetCompanyId());
+            return all.Where(c => ids.Contains(c.CategoryId))
+                      .Select(c => string.IsNullOrWhiteSpace(c.DepartmentName) ? c.CategoryName : $"{c.CategoryName} ({c.DepartmentName})")
+                      .ToList();
+        }
+        catch (HttpRequestException)
+        {
+            return new List<string>();   // the page still renders without the names
+        }
+    }
+
+    /// <summary>Categories of the given departments - feeds the Pathologist Configuration dropdown.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetTestCategoriesByDepartments(string? departmentIds)
+    {
+        var ids = ParseIdCsv(departmentIds);
+        if (ids.Count == 0)
+            return Json(new { success = true, categories = Array.Empty<object>() });
+
+        try
+        {
+            var categories = await labTestCategoryApiClient.GetByDepartmentsAsync(
+                string.Join(",", ids), User.GetCompanyId());
+
+            return Json(new
+            {
+                success = true,
+                categories = categories.Select(c => new
+                {
+                    categoryId = c.CategoryId,
+                    categoryName = c.CategoryName,
+                    departmentId = c.DepartmentId,
+                    departmentName = c.DepartmentName
+                })
+            });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The lab service is unreachable. Please try again." });
+        }
     }
 
     private async Task PopulateSelections(UserFormViewModel model)

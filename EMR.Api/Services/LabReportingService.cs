@@ -139,5 +139,23 @@ namespace EMR.Api.Services
             );
             return list.ToList();
         }
+
+        public async Task<LabReportPrintMetaDto> GetPrintMetaAsync(int labOrderId)
+        {
+            using var connection = db.CreateConnection();
+            using var multi = await connection.QueryMultipleAsync(
+                "dbo.usp_LabReporting_GetPrintMeta",
+                new { LabOrderId = labOrderId },
+                commandType: CommandType.StoredProcedure
+            );
+
+            return new LabReportPrintMetaDto
+            {
+                Samples = (await multi.ReadAsync<LabReportSampleMetaDto>()).ToList(),
+                Signatories = (await multi.ReadAsync<LabReportSignatoryDto>()).ToList(),
+                ProcessingLab = await multi.ReadFirstOrDefaultAsync<LabReportProcessingLabDto>(),
+                Client = await multi.ReadFirstOrDefaultAsync<LabReportClientDto>()
+            };
+        }
     }
 }

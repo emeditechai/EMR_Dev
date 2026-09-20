@@ -400,6 +400,10 @@
                             </button>
                         </div>
                         <div id="pathologistSummaryDetails"></div>
+                        @foreach (var catId in Model.SelectedTestCategoryIds)
+                        {
+                            <input type="hidden" name="SelectedTestCategoryIds" value="@catId" class="patho-cat-initial" />
+                        }
                     </div>
                 </div>
             </div>
@@ -503,6 +507,13 @@
     </div>
 </div>
 
+<style>
+    /* Inside the Pathologist modal the category list opens inline (it would otherwise be clipped by the
+       modal's rounded overflow) and pushes the footer down instead of floating over it. */
+    #pathologistModal .cms-dropdown { position: static; margin-top: 4px; box-shadow: none; }
+    #pathologistModal .cms-options-container { max-height: 200px; }
+</style>
+
 <!-- Modal: Pathologist Configuration -->
 <div class="modal fade" id="pathologistModal" tabindex="-1" aria-labelledby="pathologistModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
@@ -533,6 +544,40 @@
                     </div>
                     <div id="pathoRegNoErrorMsg" class="text-danger small mt-1" style="display:none;">Registration No is mandatory for Pathologists.</div>
                     <span asp-validation-for="RegistrationNo" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-1">
+                    <label class="form-label fw-semibold d-flex align-items-center justify-content-between">
+                        <span>Test Categories <span class="text-muted fw-normal" style="font-size:0.78rem;">(sign-off scope)</span></span>
+                        <span class="badge rounded-pill" style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;" id="pathoCategoryCount">0 selected</span>
+                    </label>
+
+                    <div class="cms-wrap" id="pathoCatWrap">
+                        <div class="cms-trigger" id="pathoCatTrigger" onclick="toggleCms('pathoCatWrap')">
+                            <span id="pathoCatLabel">Select test categories...</span>
+                            <i class="bi bi-chevron-down cms-arrow"></i>
+                        </div>
+                        <div class="cms-dropdown" id="pathoCatDropdown">
+                            <div class="cms-search-box p-2 border-bottom bg-white">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                    <input type="text" id="pathoCatSearchInput" class="form-control border-start-0 ps-0" placeholder="Type to search category..." autocomplete="off" oninput="filterCmsOptions('pathoCatDropdown', this.value, 'pathoCatNoResults')" onclick="event.stopPropagation()">
+                                </div>
+                            </div>
+                            <div class="cms-options-container" id="pathoCatOptions">
+                                <div class="text-muted small px-3 py-2 text-center" id="pathoCatLoading">
+                                    <span class="spinner-border spinner-border-sm me-1"></span>Loading categories...
+                                </div>
+                            </div>
+                            <div id="pathoCatNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
+                                <i class="bi bi-search me-1"></i>No matching categories found.
+                            </div>
+                        </div>
+                    </div>
+
+                    <small class="text-muted" id="pathoCatHelp">Categories come from the departments granted under Department Access.</small>
+                    <div id="pathoCatWarning" class="text-danger small mt-1" style="display:none;"></div>
+                    <span asp-validation-for="SelectedTestCategoryIds" class="text-danger small"></span>
                 </div>
             </div>
             <div class="modal-footer bg-light px-4 py-3">
@@ -1205,6 +1250,7 @@ function openPathologistModal() {
     if (modal) {
         const errDiv = document.getElementById('pathoRegNoErrorMsg');
         if (errDiv) errDiv.style.display = 'none';
+        loadPathologistCategories(true);
         modal.show();
         setTimeout(() => {
             const txt = document.getElementById('txtRegistrationNo');
@@ -1212,6 +1258,138 @@ function openPathologistModal() {
         }, 400);
     }
 }
+
+// Test Categories assigned to the pathologist. The options come from the server for the
+// departments ticked under "Department Access"; until they are loaded the saved selection is
+// held in hidden inputs so an unrelated edit never wipes it.
+const pathoCatUrl = '@Url.Action("GetTestCategoriesByDepartments", "Users")';
+let pathoCatLoaded = false;
+let pathoCatLoading = false;
+
+function selectedDepartmentIds() {
+    return [...document.querySelectorAll('input[name="SelectedDepartmentIds"]:checked')].map(cb => cb.value);
+}
+
+function pathoSelectedCategoryIds() {
+    // checkboxes once rendered, otherwise the hidden inputs carrying the saved value
+    const boxes = document.querySelectorAll('#pathoCatOptions input[name="SelectedTestCategoryIds"]:checked');
+    if (boxes.length || pathoCatLoaded) return [...boxes].map(cb => cb.value);
+    return [...document.querySelectorAll('.patho-cat-initial')].map(i => i.value);
+}
+
+function loadPathologistCategories(force) {
+    if (pathoCatLoading) return;
+    if (pathoCatLoaded && !force) return;
+
+    const container = document.getElementById('pathoCatOptions');
+    const warning = document.getElementById('pathoCatWarning');
+    if (!container) return;
+
+    const deptIds = selectedDepartmentIds();
+    const keep = new Set(pathoSelectedCategoryIds());
+
+    if (deptIds.length === 0) {
+        pathoCatLoaded = false;
+        container.innerHTML = '<div class="text-muted small px-3 py-2 text-center">Select Department Access first.</div>';
+        if (warning) {
+            warning.textContent = 'No department is granted to this user yet, so there are no categories to assign.';
+            warning.style.display = 'block';
+        }
+        updatePathoCatLabel();
+        return;
+    }
+
+    pathoCatLoading = true;
+    container.innerHTML = '<div class="text-muted small px-3 py-2 text-center"><span class="spinner-border spinner-border-sm me-1"></span>Loading categories...</div>';
+
+    fetch(pathoCatUrl + '?departmentIds=' + encodeURIComponent(deptIds.join(',')), { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(res => {
+            pathoCatLoading = false;
+            if (!res || !res.success) {
+                container.innerHTML = '<div class="text-danger small px-3 py-2 text-center">' + ((res && res.message) || 'Unable to load categories.') + '</div>';
+                return;
+            }
+
+            const list = res.categories || [];
+            if (list.length === 0) {
+                pathoCatLoaded = true;
+                container.innerHTML = '<div class="text-muted small px-3 py-2 text-center">No active test categories for the selected departments.</div>';
+                document.querySelectorAll('.patho-cat-initial').forEach(i => i.remove());
+                if (warning) { warning.style.display = 'none'; }
+                updatePathoCatLabel();
+                return;
+            }
+
+            let html = '', lastDept = null, dropped = 0;
+            const available = new Set(list.map(c => String(c.categoryId)));
+            keep.forEach(id => { if (!available.has(String(id))) dropped++; });
+
+            list.forEach(c => {
+                if (c.departmentName && c.departmentName !== lastDept) {
+                    html += '<div class="px-3 pt-2 pb-1 text-uppercase fw-bold text-muted" style="font-size:0.68rem;letter-spacing:.3px;">' + escHtml(c.departmentName) + '</div>';
+                    lastDept = c.departmentName;
+                }
+                const checked = keep.has(String(c.categoryId)) ? ' checked' : '';
+                html += '<label class="cms-option" data-search-text="' + escHtml((c.categoryName + ' ' + (c.departmentName || '')).toLowerCase()) + '">'
+                     +   '<input type="checkbox" name="SelectedTestCategoryIds" value="' + c.categoryId + '"' + checked + ' onchange="updatePathoCatLabel()">'
+                     +   '<span>' + escHtml(c.categoryName) + '</span>'
+                     + '</label>';
+            });
+
+            container.innerHTML = html;
+            pathoCatLoaded = true;
+            document.querySelectorAll('.patho-cat-initial').forEach(i => i.remove());   // checkboxes are now the source of truth
+
+            if (warning) {
+                if (dropped > 0) {
+                    warning.textContent = dropped + ' previously assigned categor' + (dropped === 1 ? 'y is' : 'ies are') + ' no longer available for the selected departments and ' + (dropped === 1 ? 'was' : 'were') + ' removed.';
+                    warning.style.display = 'block';
+                } else {
+                    warning.style.display = 'none';
+                }
+            }
+            updatePathoCatLabel();
+        })
+        .catch(() => {
+            pathoCatLoading = false;
+            container.innerHTML = '<div class="text-danger small px-3 py-2 text-center">Unable to load categories. Please try again.</div>';
+        });
+}
+
+function escHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function updatePathoCatLabel() {
+    const ids = pathoSelectedCategoryIds();
+    const lbl = document.getElementById('pathoCatLabel');
+    const count = document.getElementById('pathoCategoryCount');
+    const checked = [...document.querySelectorAll('#pathoCatOptions input[name="SelectedTestCategoryIds"]:checked')];
+
+    if (count) count.textContent = ids.length + ' selected';
+    if (lbl) {
+        if (ids.length === 0) {
+            lbl.textContent = 'Select test categories...';
+        } else if (checked.length && checked.length <= 2) {
+            lbl.textContent = checked.map(cb => cb.nextElementSibling.textContent.trim()).join(', ');
+        } else {
+            lbl.textContent = ids.length + ' categor' + (ids.length === 1 ? 'y' : 'ies') + ' selected';
+        }
+    }
+    updatePathologistSummary();
+}
+
+// Departments drive the category list, so a change there refreshes it.
+document.querySelectorAll('input[name="SelectedDepartmentIds"]').forEach(cb => {
+    cb.addEventListener('change', function () {
+        if (document.getElementById('isPathologistToggle')?.checked) {
+            loadPathologistCategories(true);
+        } else {
+            pathoCatLoaded = false;
+        }
+    });
+});
 
 function savePathologistModal() {
     const regInput = document.getElementById('txtRegistrationNo');
@@ -1260,10 +1438,21 @@ function updatePathologistSummary() {
     }
 
     if (detailsContainer) {
+        const catCount = pathoSelectedCategoryIds().length;
+        const catChip = catCount > 0
+            ? `<span class="role-chip" style="color:#6b21a8;"><i class="bi bi-tags-fill" style="color:#7c3aed;"></i>${catCount} test categor${catCount === 1 ? 'y' : 'ies'}</span>`
+            : '<span class="role-chip text-muted"><i class="bi bi-tags" style="color:#a78bfa;"></i>All categories</span>';
+
         detailsContainer.innerHTML = regNo
-            ? `<div class="d-flex flex-wrap gap-1 mt-2"><span class="role-chip" style="color:#6b21a8;"><i class="bi bi-person-badge-fill" style="color:#7c3aed;"></i>${regNo}</span></div>`
+            ? `<div class="d-flex flex-wrap gap-1 mt-2"><span class="role-chip" style="color:#6b21a8;"><i class="bi bi-person-badge-fill" style="color:#7c3aed;"></i>${regNo}</span>${catChip}</div>`
             : '<div class="text-muted small mt-1" style="font-size:0.75rem;">Click Configure to enter Registration No</div>';
     }
+}
+
+// A failed post-back (e.g. missing Registration No, or a category outside the user's departments) re-renders the
+// page with the popup closed; reopen it so the message is shown next to the field it belongs to.
+if (document.querySelector('#pathologistModal .field-validation-error')) {
+    setTimeout(openPathologistModal, 350);
 }
 
 const isPathologistToggle = document.getElementById('isPathologistToggle');

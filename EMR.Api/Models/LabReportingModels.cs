@@ -209,4 +209,60 @@ namespace EMR.Api.Models
         public string? IpAddress { get; set; }
         public string? MetadataJson { get; set; }
     }
+
+    public class LabReportSampleMetaDto
+    {
+        public long SamplecollectionID { get; set; }
+        public int? DepartmentId { get; set; }
+        public string? DepartmentName { get; set; }
+        public int? CategoryId { get; set; }
+        public string? CategoryName { get; set; }
+        public int CategoryOrder { get; set; } = 9999;
+        public string? SubCategoryName { get; set; }
+        public DateTime? ReceivedDate { get; set; }
+    }
+
+    public class LabReportSignatoryDto
+    {
+        /// <summary>VALIDATED or APPROVED</summary>
+        public string SignRole { get; set; } = string.Empty;
+        public int UserId { get; set; }
+        public string? FullName { get; set; }
+        public string? RegistrationNo { get; set; }
+        public string? CertificationNo { get; set; }
+        public bool IsPathologist { get; set; }
+        public DateTime? EventDate { get; set; }
+    }
+
+    public class LabReportProcessingLabDto
+    {
+        public int BranchId { get; set; }
+        public string? BranchName { get; set; }
+        public string? BranchCode { get; set; }
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public string? Pincode { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+    }
+
+    /// <summary>B2B partner an order was billed to. ClientType: FRANCHISE or COMPANY.</summary>
+    public class LabReportClientDto
+    {
+        public string ClientType { get; set; } = string.Empty;
+        public string? Code { get; set; }
+        public string? Name { get; set; }
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+    }
+
+    public class LabReportPrintMetaDto
+    {
+        public List<LabReportSampleMetaDto> Samples { get; set; } = new();
+        public List<LabReportSignatoryDto> Signatories { get; set; } = new();
+        public LabReportProcessingLabDto? ProcessingLab { get; set; }
+        /// <summary>Null for B2C orders.</summary>
+        public LabReportClientDto? Client { get; set; }
+    }
 }

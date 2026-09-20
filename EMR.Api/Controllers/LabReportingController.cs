@@ -61,6 +61,15 @@ namespace EMR.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("print-meta/{labOrderId}")]
+        public async Task<IActionResult> GetPrintMeta(int labOrderId)
+        {
+            if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
+
+            var result = await labReportingService.GetPrintMetaAsync(labOrderId);
+            return Ok(result);
+        }
+
         [HttpPost("save-entry")]
         public async Task<IActionResult> SaveEntry([FromBody] SaveLabReportingRequestDto request)
         {
