@@ -44,7 +44,13 @@ public class LabReportPrintViewModel
     public bool IsFinal { get; set; }
     /// <summary>True when any test on the printout is validated but not yet approved (=> "NOT APPROVED" watermark).</summary>
     public bool ShowNotApprovedWatermark { get; set; }
-    public string ReportStatusText => IsFinal ? "Final Report" : "Provisional Report";
+    /// <summary>
+    /// Final once every test printed here is approved. "(Partial)" is added while other tests of the same bill are
+    /// still to be reported, so a final report never implies the whole bill is complete.
+    /// </summary>
+    public string ReportStatusText => IsFinal
+        ? (ExcludedTestCount > 0 ? "Final Report (Partial)" : "Final Report")
+        : "Provisional Report";
     public bool HasCritical { get; set; }
     public int IncludedTestCount { get; set; }
     /// <summary>Active tests that are not on this printout yet (pending / submitted / re-collect / rejected).</summary>
@@ -61,6 +67,11 @@ public class LabReportPrintViewModel
     // ── Sign-off / footer ─────────────────────────────────────────────────────
     public List<LabReportSignatory> ValidatedBy { get; set; } = new();
     public List<LabReportSignatory> ApprovedBy { get; set; } = new();
+    /// <summary>
+    /// The Pathologist Approval Flow levels already signed, in level order. Each one prints its own signature
+    /// block (image, name, designation, registration number) at the foot of the report.
+    /// </summary>
+    public List<LabReportLevelSignatory> LevelSignatories { get; set; } = new();
     public string? ProcessingLabName { get; set; }
     public string? ProcessingLabAddress { get; set; }
     /// <summary>1 = original, 2+ = reprint of the same bill (prints a DUPLICATE marker).</summary>
@@ -112,4 +123,20 @@ public class LabReportSignatory
     public string Name { get; set; } = string.Empty;
     public string? Qualification { get; set; }
     public string? RegistrationNo { get; set; }
+}
+
+/// <summary>One signed approval level of the Pathologist Approval Flow, with the signatory's signature image.</summary>
+public class LabReportLevelSignatory
+{
+    public int LevelNo { get; set; }
+    public int TotalLevels { get; set; }
+    public string? LevelTitle { get; set; }
+    public bool IsFinalLevel { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Qualification { get; set; }
+    public string? RegistrationNo { get; set; }
+    /// <summary>When the level was signed; null for a signatory configured in Hospital Settings (never signed).</summary>
+    public DateTime? SignedOn { get; set; }
+    /// <summary>The uploaded signature image (png/jpg); null when the pathologist has not uploaded one.</summary>
+    public byte[]? SignatureImage { get; set; }
 }

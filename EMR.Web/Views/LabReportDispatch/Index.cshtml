@@ -573,8 +573,13 @@
                 } else if (hasDue) {
                     // Kept clickable on purpose: the click explains why the report is held back.
                     printBtn = '<button type="button" class="btn btn-outline-danger btn-sm fs-9 px-2 py-1 btn-print-due" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '" title="Payment pending - the report cannot be printed"><i class="bi bi-lock-fill me-1"></i>Print</button>';
+                } else if (r.dispatchStatus === 'PARTIAL') {
+                    // Part approved, part still awaiting approval: the approved tests can go out as a clean report,
+                    // and the rest as the usual NOT APPROVED copy. Dues are already cleared at this point.
+                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-ready" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="approved" title="Print the approved test(s) of this bill - ' + r.approvedTests + ' of ' + total + '"><i class="bi bi-printer-fill me-1"></i>Print Approved</button>'
+                        + ' <button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-prov" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="pending" title="Print a NOT APPROVED copy of the tests still awaiting approval"><i class="bi bi-printer-fill me-1"></i>Not Approved</button>';
                 } else {
-                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print ' + (isReady ? 'btn-print-ready' : 'btn-print-prov') + '" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" title="' + (isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)') + '"><i class="bi bi-printer-fill me-1"></i>' + (isReady ? 'Print' : 'Print (Not Approved)') + '</button>';
+                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print ' + (isReady ? 'btn-print-ready' : 'btn-print-prov') + '" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="all" title="' + (isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)') + '"><i class="bi bi-printer-fill me-1"></i>' + (isReady ? 'Print' : 'Print (Not Approved)') + '</button>';
                 }
 
                 const client = isB2B
@@ -710,8 +715,8 @@
             });
 
             // ── Print modal (same PDF as the Entry page) ─────────────────────
-            let printOrderId = 0, blobUrl = null, fileName = 'LabReport.pdf', printLogged = false;
-            const reportUrl = (id, mode) => pdfUrl + '?labOrderId=' + id + '&mode=' + mode + '&_=' + Date.now();
+            let printOrderId = 0, blobUrl = null, fileName = 'LabReport.pdf', printLogged = false, printScope = 'all';
+            const reportUrl = (id, mode) => pdfUrl + '?labOrderId=' + id + '&mode=' + mode + '&scope=' + printScope + '&_=' + Date.now();
             const $frame = $('#dispatchPrintFrame'), $loading = $('#printLoading'), $error = $('#printError');
             const $actions = $('#btnReportPrintNow, #btnReportDownload, #btnReportNewTab');
 
@@ -762,11 +767,11 @@
                     $('#printStatusChip')
                         .attr('class', 'badge fs-9 ' + (watermark ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle'
                             : (status === 'final' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-primary-subtle text-primary border border-primary-subtle')))
-                        .text(watermark ? 'NOT APPROVED copy' : (status === 'final' ? 'Final Report' : 'Provisional Report'));
+                        .text(watermark ? 'NOT APPROVED copy' : (status === 'final' ? (printScope === 'approved' ? 'Approved tests (final)' : 'Final Report') : 'Provisional Report'));
                     const isDup = res.headers.get('X-Report-Duplicate') === '1';
                     const seq = res.headers.get('X-Report-Print-Sequence');
                     $('#printDuplicateChip').toggleClass('d-none', !isDup).text(isDup ? 'DUPLICATE · Print #' + seq : '');
-                    $('#printSubtitle').text(tests + ' validated/approved test(s) on this report'
+                    $('#printSubtitle').text(tests + ' ' + (printScope === 'approved' ? 'approved' : printScope === 'pending' ? 'validated (not approved)' : 'validated/approved') + ' test(s) on this report'
                         + (watermark ? ' • watermarked until every printed test is approved' : '')
                         + (isDup ? ' • this bill was printed before, so the copy is marked DUPLICATE' : ''));
                 } catch (e) {
@@ -908,6 +913,7 @@
             const modalEl = document.getElementById('modalDispatchPrint');
             $('#tblDispatchBody').on('click', '.btn-print', function () {
                 printOrderId = parseInt($(this).data('id'), 10);
+                printScope = $(this).attr('data-scope') || 'all';
                 printLogged = false;
                 $('#printBillChip').text($(this).data('bill') || '—');
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();

@@ -16,6 +16,20 @@
     .module-tab-nav .nav-link[data-tab="lab"]:not(.active):hover { background:#fff3e0; color:#fd7e14; }
     .module-tab-nav .nav-link[data-tab="med"]:not(.active):hover { background:#f1ecff; color:#6f42c1; }
     .module-tab-pane { background:#fff; border:1px solid #e9ecef; border-radius:0 12px 12px 12px; padding:1.4rem; min-height:220px; }
+    /* LAB tab: grouped, evenly sized parameter cards with the switch on the right */
+    .lab-section-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:700; display:flex; align-items:center; gap:.6rem; margin:0 0 .85rem; }
+    .lab-section-title::after { content:""; flex:1; height:1px; background:#e2e8f0; }
+    .lab-param { --lp:#2563eb; --lp-bg:#dbeafe; display:flex; gap:.9rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--lp); border-radius:12px; padding:1rem 1.1rem; height:100%; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+    .lab-param .lp-icon { width:42px; height:42px; border-radius:10px; background:var(--lp-bg); color:var(--lp); display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
+    .lab-param .lp-body { flex:1 1 auto; min-width:0; }
+    .lab-param .lp-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#475569; font-weight:700; line-height:1.25; }
+    .lab-param .lp-desc { font-size:.74rem; color:#94a3b8; margin-top:.2rem; line-height:1.3; }
+    .lab-param .form-check-input { width:2.6rem; height:1.35rem; cursor:pointer; margin:0; }
+    .lab-param .form-check-input:checked { background-color:var(--lp); border-color:var(--lp); }
+    .lab-param .lp-switch { display:flex; align-items:center; gap:.55rem; margin-top:.6rem; }
+    .lab-param .lp-switch label { font-size:.8rem; font-weight:600; color:#334155; cursor:pointer; margin:0; }
+    .lab-soon-row { display:flex; flex-wrap:wrap; gap:.5rem; }
+    .lab-soon-chip { border:1px dashed #cbd5e1; border-radius:2rem; padding:.3rem .85rem; font-size:.76rem; color:#94a3b8; background:#f8fafc; }
     .param-placeholder { background:#f8f9fc; border:1px dashed #ced4da; border-radius:10px; padding:1rem 1.2rem; }
     .param-placeholder .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#adb5bd; font-weight:700; margin-bottom:.4rem; }
     .coming-soon-badge { font-size:.65rem; background:#e9ecef; color:#6c757d; padding:2px 7px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; }
@@ -257,50 +271,57 @@
 
         @* OPD *@
         <div class="tab-pane fade show active module-tab-pane" id="editTabOpd" role="tabpanel">
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <label asp-for="OpdRegistrationValidityDays" class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                        <i class="bi bi-calendar-check me-1 text-primary"></i>Registration Charges Validity
-                    </label>
-                    <div class="input-group">
-                        <input asp-for="OpdRegistrationValidityDays" type="number" class="form-control"
-                               min="0" max="3650" placeholder="e.g. 365" />
-                        <span class="input-group-text">Days</span>
-                    </div>
-                    <span asp-validation-for="OpdRegistrationValidityDays" class="text-danger small d-block mt-1"></span>
-                    <div class="form-text">How long a patient's registration charge remains valid.</div>
-                </div>
-
-                <div class="col-6 col-md-3">
-                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                        <i class="bi bi-search me-1 text-primary"></i>Global Patient Search Required
-                    </label>
-                    <div class="form-check form-switch mt-2">
-                        <input class="form-check-input" type="checkbox" role="switch" asp-for="GlobalPatientSearchRequired">
-                        <label class="form-check-label ms-2" asp-for="GlobalPatientSearchRequired">Require global search for patient workflows</label>
-                    </div>
-                    <span asp-validation-for="GlobalPatientSearchRequired" class="text-danger small d-block mt-1"></span>
-                </div>
-
-                <div class="col-6 col-md-3">
-                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                        <i class="bi bi-envelope me-1 text-primary"></i>Email Notification Required
-                    </label>
-                    <div class="form-check form-switch mt-2">
-                        <input class="form-check-input" type="checkbox" role="switch" asp-for="EmailNotificationRequired">
-                        <label class="form-check-label ms-2" asp-for="EmailNotificationRequired">Send emails for Bills & Prescriptions</label>
-                    </div>
-                    <span asp-validation-for="EmailNotificationRequired" class="text-danger small d-block mt-1"></span>
-                </div>
-                
-                @foreach (var p in new[] { "Token Prefix","Auto Token Reset","Default Consulting Fee","Allow Walk-In","Max Patients / Day","Print Bill on Save","GST on Services" })
-                {
-                    <div class="col-6 col-md-3">
-                        <div class="param-placeholder">
-                            <div class="param-label">@p</div>
-                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+            <div class="lab-section-title">Registration &amp; Notifications</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#2563eb;--lp-bg:#dbeafe;">
+                        <div class="lp-icon"><i class="bi bi-calendar-check-fill"></i></div>
+                        <div class="lp-body">
+                            <label asp-for="OpdRegistrationValidityDays" class="lp-label d-block">Registration Charges Validity</label>
+                            <div class="lp-desc">How long a patient's registration charge remains valid.</div>
+                            <div class="input-group input-group-sm mt-2">
+                                <input asp-for="OpdRegistrationValidityDays" type="number" class="form-control" min="0" max="3650" placeholder="e.g. 365" />
+                                <span class="input-group-text">Days</span>
+                            </div>
+                            <span asp-validation-for="OpdRegistrationValidityDays" class="text-danger small d-block mt-1"></span>
                         </div>
                     </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-search"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Global Patient Search Required</div>
+                            <div class="lp-desc">Require global search in patient workflows.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="GlobalPatientSearchRequired">
+                                <label class="form-check-label" asp-for="GlobalPatientSearchRequired">Require global search for patient workflows</label>
+                            </div>
+                            <span asp-validation-for="GlobalPatientSearchRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#4f46e5;--lp-bg:#e0e7ff;">
+                        <div class="lp-icon"><i class="bi bi-envelope-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Email Notification Required</div>
+                            <div class="lp-desc">Send emails for bills and prescriptions.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="EmailNotificationRequired">
+                                <label class="form-check-label" asp-for="EmailNotificationRequired">Send emails for Bills &amp; Prescriptions</label>
+                            </div>
+                            <span asp-validation-for="EmailNotificationRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lab-section-title">Planned parameters</div>
+            <div class="lab-soon-row">
+                @foreach (var soon in new[] { "Token Prefix", "Auto Token Reset", "Default Consulting Fee", "Allow Walk-In", "Max Patients / Day", "Print Bill on Save", "GST on Services" })
+                {
+                    <span class="lab-soon-chip">@soon</span>
                 }
             </div>
         </div>
@@ -323,49 +344,107 @@
 
         @* LAB *@
         <div class="tab-pane fade module-tab-pane" id="editTabLab" role="tabpanel">
-            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>LAB-specific parameters will be configurable here.</p>
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                        <i class="bi bi-envelope me-1 text-primary"></i>Email Notification (Bill)
-                    </label>
-                    <div class="form-check form-switch mt-2">
-                        <input class="form-check-input" type="checkbox" role="switch" asp-for="LabEmailNotificationRequired">
-                        <label class="form-check-label ms-2" asp-for="LabEmailNotificationRequired">Send emails for Lab Bills</label>
-                    </div>
-                    <span asp-validation-for="LabEmailNotificationRequired" class="text-danger small d-block mt-1"></span>
-                </div>
-
-                <div class="col-6 col-md-3">
-                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                        <i class="bi bi-eyedropper me-1 text-warning"></i>Sample Collection Mandatory
-                    </label>
-                    <div class="form-check form-switch mt-2">
-                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IsSampleCollectionMandatory">
-                        <label class="form-check-label ms-2" asp-for="IsSampleCollectionMandatory">Is Sample Collection Mandatory</label>
-                    </div>
-                    <span asp-validation-for="IsSampleCollectionMandatory" class="text-danger small d-block mt-1"></span>
-                </div>
-
-                <div class="col-6 col-md-3">
-                    <label class="form-label fw-semibold" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#495057;">
-                        <i class="bi bi-upc-scan me-1 text-info"></i>Barcode Gen at Billing
-                    </label>
-                    <div class="form-check form-switch mt-2">
-                        <input class="form-check-input" type="checkbox" role="switch" asp-for="BarcodeGenerateAtBilling">
-                        <label class="form-check-label ms-2" asp-for="BarcodeGenerateAtBilling">Generate Barcode at Billing</label>
-                    </div>
-                    <span asp-validation-for="BarcodeGenerateAtBilling" class="text-danger small d-block mt-1"></span>
-                </div>
-
-                @foreach (var p in new[] { "Report Prefix","Default Sample Type","Report TAT (Hours)","External Lab Integration","Critical Alert","Print Header on Report","Barcode on Sample" })
-                {
-                    <div class="col-6 col-md-3">
-                        <div class="param-placeholder">
-                            <div class="param-label">@p</div>
-                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
+            <div class="lab-section-title">Billing &amp; Sample Collection</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#2563eb;--lp-bg:#dbeafe;">
+                        <div class="lp-icon"><i class="bi bi-envelope-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Email Notification (Bill)</div>
+                            <div class="lp-desc">Email the bill to the patient after billing.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="LabEmailNotificationRequired">
+                                <label class="form-check-label" asp-for="LabEmailNotificationRequired">Send emails for Lab Bills</label>
+                            </div>
+                            <span asp-validation-for="LabEmailNotificationRequired" class="text-danger small d-block mt-1"></span>
                         </div>
                     </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0891b2;--lp-bg:#cffafe;">
+                        <div class="lp-icon"><i class="bi bi-upc-scan"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Barcode Gen at Billing</div>
+                            <div class="lp-desc">Offer to print the sample barcode right after billing.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="BarcodeGenerateAtBilling">
+                                <label class="form-check-label" asp-for="BarcodeGenerateAtBilling">Generate Barcode at Billing</label>
+                            </div>
+                            <span asp-validation-for="BarcodeGenerateAtBilling" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-ticket-perforated-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Token No Generate in Due Payment</div>
+                            <div class="lp-desc">No: token only once the bill is fully paid. Yes: also while a payment is due.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="TokenGenerateOnDuePayment">
+                                <label class="form-check-label" asp-for="TokenGenerateOnDuePayment">Token No Generate in Due Payment</label>
+                            </div>
+                            <span asp-validation-for="TokenGenerateOnDuePayment" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#d97706;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-eyedropper"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Is Sample Collection Mandatory</div>
+                            <div class="lp-desc">No: samples are collected automatically at billing / payment.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="IsSampleCollectionMandatory">
+                                <label class="form-check-label" asp-for="IsSampleCollectionMandatory">Is Sample Collection Mandatory</label>
+                            </div>
+                            <span asp-validation-for="IsSampleCollectionMandatory" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lab-section-title">Reporting</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-envelope-paper-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Email Notification to Patient (LAB Reports)</div>
+                            <div class="lp-desc">Email the finished lab report to the patient.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="LabReportEmailNotificationRequired">
+                                <label class="form-check-label" asp-for="LabReportEmailNotificationRequired">Email LAB reports to the patient</label>
+                            </div>
+                            <span asp-validation-for="LabReportEmailNotificationRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Pathologist Approval Required</div>
+                            <div class="lp-desc">Lab reports need a pathologist's approval before release.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="PathologistApprovalRequired">
+                                <label class="form-check-label" asp-for="PathologistApprovalRequired">Pathologist approval required</label>
+                            </div>
+                            <span asp-validation-for="PathologistApprovalRequired" class="text-danger small d-block mt-1"></span>
+                            @* With approval switched off, the report signatories are named here instead. *@
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-2 py-0 px-2" id="btnConfigSignatories" style="display:none;font-size:.72rem;">
+                                <i class="bi bi-pen me-1"></i>Configure signatories <span class="badge bg-secondary ms-1" id="sigCountChip">0</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lab-section-title">Planned parameters</div>
+            <div class="lab-soon-row">
+                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Critical Alert", "Print Header on Report", "Barcode on Sample" })
+                {
+                    <span class="lab-soon-chip">@soon</span>
                 }
             </div>
         </div>
@@ -399,6 +478,187 @@
 
 </form>
 
+<!-- Default report signatories (used when pathologist approval is switched off) -->
+<div class="modal fade" id="modalSignatories" tabindex="-1" aria-labelledby="modalSignatoriesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2 px-3 bg-light">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0" id="modalSignatoriesLabel">
+                        <i class="bi bi-pen-fill text-primary me-1"></i>Report Signatories
+                    </h6>
+                    <div class="text-muted mt-1" style="font-size:.72rem;">
+                        Pathologist approval is switched off, so name the signatories printed on the report.
+                        Fill any one level or all three.
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3" style="background:#f8fafc;">
+                <div id="sigAlert" class="alert alert-danger py-2 px-3 d-none" style="font-size:.78rem;"></div>
+                <div id="sigLoading" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                    <div class="text-muted mt-2" style="font-size:.78rem;">Loading pathologists&hellip;</div>
+                </div>
+                <div id="sigLevels" class="d-none"></div>
+                <div class="text-muted mt-2" style="font-size:.7rem;">
+                    <i class="bi bi-info-circle me-1"></i>Only active pathologists of this branch can be chosen, and the
+                    same pathologist cannot hold two levels. A signature is optional: without one, the pathologist's own
+                    uploaded signature is used.
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2 px-3 bg-light">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm px-3" id="btnSaveSignatories">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="sigSpinner"></span>
+                    <i class="bi bi-check2-circle me-1"></i>Save Signatories
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(function () {
+            const urls = {
+                list: '@Url.Action("GetSignatoriesJson", "HospitalSettings")',
+                save: '@Url.Action("SaveSignatoriesJson", "HospitalSettings")'
+            };
+            const $toggle = $('#PathologistApprovalRequired');
+            const $btn = $('#btnConfigSignatories');
+            let candidates = [], current = [], loaded = false;
+
+            const esc = v => $('<div>').text(v == null ? '' : v).html();
+
+            // the button only matters while approval is OFF
+            function syncVisibility() {
+                const off = !$toggle.is(':checked');
+                $btn.toggle(off);
+                if (off && !loaded) loadSignatories();
+            }
+
+            function levelCard(level) {
+                const saved = current.find(s => s.levelNo === level);
+                const opts = ['<option value="">— Not set —</option>'].concat(candidates.map(c =>
+                    `<option value="${c.userId}" ${saved && saved.userId === c.userId ? 'selected' : ''}>`
+                    + esc(c.fullName) + (c.registrationNo ? ' — ' + esc(c.registrationNo) : '')
+                    + (c.hasSignature ? '' : ' (no signature on profile)') + '</option>')).join('');
+
+                const has = saved && (saved.signaturePath || saved.userSignaturePath);
+                return `
+                    <div class="card border-0 shadow-sm mb-2">
+                        <div class="card-body p-2 px-3">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Level ${level}</span>
+                                <span class="text-muted" style="font-size:.7rem;">${level === 1 ? 'First signatory' : level === 2 ? 'Second signatory' : 'Third signatory'}</span>
+                                ${has ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-auto" style="font-size:.66rem;"><i class="bi bi-check2 me-1"></i>Signature on file</span>' : ''}
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-7">
+                                    <label class="form-label text-muted mb-1" style="font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;">Pathologist</label>
+                                    <select class="form-select form-select-sm sig-user" data-level="${level}">${opts}</select>
+                                </div>
+                                <div class="col-12 col-md-5">
+                                    <label class="form-label text-muted mb-1" style="font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;">Signature (optional)</label>
+                                    <input type="file" class="form-control form-control-sm sig-file" data-level="${level}" accept=".png,.jpg,.jpeg" />
+                                    <div class="form-text" style="font-size:.66rem;">PNG or JPG, up to 2 MB. Replaces this level's signature.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            function render() {
+                $('#sigLevels').html([1, 2, 3].map(levelCard).join('')).removeClass('d-none');
+                $('#sigLoading').addClass('d-none');
+                $('#sigCountChip').text(current.length);
+            }
+
+            function loadSignatories() {
+                $('#sigLoading').removeClass('d-none');
+                $('#sigLevels').addClass('d-none');
+                $.getJSON(urls.list).done(function (res) {
+                    if (!res || !res.success) { $('#sigAlert').text((res && res.message) || 'Unable to load.').removeClass('d-none'); return; }
+                    candidates = res.candidates || [];
+                    current = res.signatories || [];
+                    loaded = true;
+                    render();
+                }).fail(function () {
+                    $('#sigAlert').text('Server error while loading the pathologists.').removeClass('d-none');
+                    $('#sigLoading').addClass('d-none');
+                });
+            }
+
+            $toggle.on('change', function () {
+                syncVisibility();
+                // switching approval OFF is exactly when the signatories have to be named
+                if (!$(this).is(':checked')) {
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSignatories')).show();
+                }
+            });
+            $btn.on('click', function () {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSignatories')).show();
+            });
+            $('#modalSignatories').on('shown.bs.modal', function () { if (!loaded) loadSignatories(); });
+
+            // the same pathologist may not hold two levels
+            $('#sigLevels').on('change', '.sig-user', function () {
+                const picked = $('.sig-user').map(function () { return $(this).val(); }).get().filter(Boolean);
+                $('.sig-user').each(function () {
+                    const own = $(this).val();
+                    $(this).find('option').each(function () {
+                        const v = $(this).val();
+                        $(this).prop('disabled', !!v && v !== own && picked.includes(v));
+                    });
+                });
+            }).on('change', '.sig-file', function () {
+                const f = this.files && this.files[0];
+                if (f && f.size > 2 * 1024 * 1024) {
+                    $('#sigAlert').text('Signature image size must be up to 2 MB.').removeClass('d-none');
+                    $(this).val('');
+                } else {
+                    $('#sigAlert').addClass('d-none');
+                }
+            });
+
+            $('#btnSaveSignatories').on('click', function () {
+                const fd = new FormData();
+                fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').first().val());
+                let any = false;
+                $('.sig-user').each(function () {
+                    const level = $(this).data('level'), userId = $(this).val();
+                    if (!userId) return;
+                    any = true;
+                    fd.append('userId_' + level, userId);
+                    const file = $('.sig-file[data-level="' + level + '"]')[0].files[0];
+                    if (file) fd.append('signature_' + level, file);
+                });
+
+                if (!any && !confirm('No signatory is selected. Save and clear the configured signatories?')) return;
+
+                const $b = $(this).prop('disabled', true);
+                $('#sigSpinner').removeClass('d-none');
+                $('#sigAlert').addClass('d-none');
+
+                $.ajax({ url: urls.save, type: 'POST', data: fd, processData: false, contentType: false })
+                    .done(function (res) {
+                        if (res && res.success) {
+                            bootstrap.Modal.getInstance(document.getElementById('modalSignatories')).hide();
+                            if (typeof toastr !== 'undefined') toastr.success(res.message);
+                            else if (typeof Swal !== 'undefined') Swal.fire({ icon: 'success', title: 'Saved', text: res.message, timer: 2200, showConfirmButton: false });
+                            loaded = false;
+                            loadSignatories();
+                        } else {
+                            $('#sigAlert').text((res && res.message) || 'Unable to save.').removeClass('d-none');
+                        }
+                    })
+                    .fail(function () { $('#sigAlert').text('Server error while saving. Please try again.').removeClass('d-none'); })
+                    .always(function () { $b.prop('disabled', false); $('#sigSpinner').addClass('d-none'); });
+            });
+
+            syncVisibility();
+        });
+    </script>
 }

@@ -73,6 +73,8 @@
                                 <li><a class="dropdown-item" asp-controller="SampleTransfer" asp-action="Index"><i class="bi bi-arrow-left-right me-2 text-warning"></i>Sample Transfer</a></li>
                                 <li><a class="dropdown-item" asp-controller="LabReporting" asp-action="Index"><i class="bi bi-file-earmark-medical me-2 text-info"></i>Lab Reporting Entry</a></li>
                                 <li><a class="dropdown-item" asp-controller="LabReportDispatch" asp-action="Index"><i class="bi bi-printer-fill me-2 text-success"></i>Lab Report Dispatch</a></li>
+                                <li><a class="dropdown-item" asp-controller="PathologistDashboard" asp-action="Index"><i class="bi bi-clipboard2-pulse-fill me-2 text-danger"></i>Pathologist Dashboard</a></li>
+                                <li><a class="dropdown-item" asp-controller="LabUnapprove" asp-action="Index"><i class="bi bi-unlock-fill me-2 text-warning"></i>Un-Authorize Report</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="BillCancellation" asp-action="Index" asp-route-moduleCode="LAB"><i class="bi bi-x-circle-fill me-2 text-danger"></i>Bill Cancellation &amp; Refund</a></li>
                             </ul>
@@ -231,6 +233,7 @@
                                 <li><a class="dropdown-item" asp-controller="Users" asp-action="Index"><i class="bi bi-people me-2"></i>User Master</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="HospitalSettings" asp-action="Index"><i class="bi bi-hospital-fill me-2"></i>Hospital Settings</a></li>
+                                <li><a class="dropdown-item" asp-controller="LabApprovalFlows" asp-action="Index"><i class="bi bi-diagram-3-fill me-2 text-success"></i>Pathologist Approval Flow</a></li>
                                 <li><a class="dropdown-item" asp-controller="SmtpConfig" asp-action="Index"><i class="bi bi-envelope-at me-2"></i>Email Configuration</a></li>
                                 <li><a class="dropdown-item" asp-controller="WhatsAppConfig" asp-action="Index"><i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp Configuration</a></li>
                                 <li><a class="dropdown-item" asp-controller="VideoConfig" asp-action="Index"><i class="bi bi-camera-video-fill me-2"></i>Video Consultation Config</a></li>

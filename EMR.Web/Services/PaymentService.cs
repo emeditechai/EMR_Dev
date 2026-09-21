@@ -675,8 +675,11 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     commandType: CommandType.StoredProcedure);
                 assignedToken = tokenParams.Get<string?>("@TokenNo");
             }
-            else if (status == "P" && request.ModuleCode == "LAB")
+            else if (request.ModuleCode == "LAB" && (status == "P" || await IsTokenOnDuePaymentEnabledAsync(con, request.BranchId)))
             {
+                // Fully paid: always. Still due (partial / unpaid): only when Hospital Settings > LAB >
+                // "Token No Generate in Due Payment" is Yes for the branch. The SP is idempotent, so a later full payment
+                // simply returns the token that was already issued.
                 var tokenParams = new DynamicParameters();
                 tokenParams.Add("@LabOrderId", targetModuleRefId);
                 tokenParams.Add("@TokenNo", dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
@@ -686,17 +689,20 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     commandType: CommandType.StoredProcedure);
                 assignedToken = tokenParams.Get<string?>("@TokenNo");
 
-                // Auto-collect samples if HospitalSettings.IsSampleCollectionMandatory == NO (0)
-                try
+                // Auto-collect samples if HospitalSettings.IsSampleCollectionMandatory == NO (0) - unchanged: only on full payment
+                if (status == "P")
                 {
-                    await con.ExecuteAsync(
-                        "dbo.usp_SampleCollection_AutoCollectIfNoMandatory",
-                        new { LabOrderId = targetModuleRefId, UserId = userId },
-                        commandType: CommandType.StoredProcedure);
-                }
-                catch
-                {
-                    // Non-blocking catch
+                    try
+                    {
+                        await con.ExecuteAsync(
+                            "dbo.usp_SampleCollection_AutoCollectIfNoMandatory",
+                            new { LabOrderId = targetModuleRefId, UserId = userId },
+                            commandType: CommandType.StoredProcedure);
+                    }
+                    catch
+                    {
+                        // Non-blocking catch
+                    }
                 }
             }
 
@@ -717,6 +723,21 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
         catch (Exception ex)
         {
             return new SavePaymentResult { Success = false, Error = ex.Message };
+        }
+    }
+
+    /// <summary>Hospital Settings > LAB > "Token No Generate in Due Payment" for the branch. Any failure means "No" (today's behaviour).</summary>
+    private static async Task<bool> IsTokenOnDuePaymentEnabledAsync(System.Data.IDbConnection con, int branchId)
+    {
+        try
+        {
+            return await con.ExecuteScalarAsync<bool>(
+                "SELECT CAST(ISNULL(MAX(CAST(TokenGenerateOnDuePayment AS INT)), 0) AS BIT) FROM dbo.HospitalSettings WHERE BranchId = @BranchId AND IsActive = 1",
+                new { BranchId = branchId });
+        }
+        catch
+        {
+            return false;
         }
     }
 

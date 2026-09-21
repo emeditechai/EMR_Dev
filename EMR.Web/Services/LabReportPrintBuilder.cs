@@ -11,8 +11,13 @@ namespace EMR.Web.Services;
 /// Rules
 ///  - Only tests that are Validated (status 3) or Approved (status 5) with a value are printed;
 ///    pending / submitted / draft / re-collect / rejected tests are left out.
+///  - Scope (which tests print): "all" (default: validated + approved), "approved" (approved only, never watermarked) or
+///    "pending" (validated but not yet approved only, always watermarked). Entry page prints the two separately
+///    while a bill is part approved / part validated.
 ///  - "NOT APPROVED" watermark: shown when any printed test is validated but not yet approved.
-///  - "Final Report": every active test of the order is approved; otherwise "Provisional Report".
+///  - "Final Report": every test ON THIS REPORT is approved (the ones left out are simply not reported yet);
+///    otherwise "Provisional Report". A report whose tests are all approved while other tests of the bill are
+///    still to come is a final report for what it contains, so it is labelled "Final Report (Partial)".
 ///  - A new page starts for every Department + Test Category. Within a page: Package heading -> Profile
 ///    heading -> tests, and standalone investigations each get their own heading. A package or profile
 ///    is never split across sections: it is placed under the section of its first test.
@@ -22,6 +27,16 @@ public static class LabReportPrintBuilder
     private const int StatusValidated = 3;
     private const int StatusApproved = 5;
 
+    public const string ScopeAll = "all";
+    public const string ScopeApproved = "approved";
+    public const string ScopePending = "pending";
+
+    /// <summary>Normalises a requested scope; anything unknown means "all" (the pre-existing behaviour).</summary>
+    public static string NormalizeScope(string? scope) =>
+        string.Equals(scope, ScopeApproved, StringComparison.OrdinalIgnoreCase) ? ScopeApproved
+        : string.Equals(scope, ScopePending, StringComparison.OrdinalIgnoreCase) ? ScopePending
+        : ScopeAll;
+
     public static LabReportPrintViewModel Build(
         LabReportingOrderDetailDto detail,
         LabOrderDetailDto? order,
@@ -29,11 +44,13 @@ public static class LabReportPrintBuilder
         HospitalSettings? settings,
         BranchMaster? billingBranch,
         string printedBy,
-        DateTime now)
+        DateTime now,
+        string scope = ScopeAll,
+        IReadOnlyList<LabReportSignoffLevelDto>? signoffLevels = null)
     {
         var items = detail.Items ?? new List<LabReportingItemDto>();
         var activeItems = items.Where(IsActiveTest).ToList();
-        var included = IncludedItems(activeItems);
+        var included = IncludedItems(activeItems, scope);
 
         var sampleMeta = (meta?.Samples ?? new List<LabReportSampleMetaDto>())
             .GroupBy(s => s.SamplecollectionID)
@@ -44,7 +61,7 @@ public static class LabReportPrintBuilder
             .GroupBy(r => r.GroupKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().LabRemarks!, StringComparer.OrdinalIgnoreCase);
 
-        var summary = Summarize(detail);
+        var summary = Summarize(detail, scope);
 
         var vm = new LabReportPrintViewModel
         {
@@ -89,28 +106,39 @@ public static class LabReportPrintBuilder
         vm.HasCritical = vm.Sections.SelectMany(s => s.Groups).SelectMany(g => g.Rows).Any(r => r.IsCritical);
 
         FillSignatories(vm, meta);
+        FillLevelSignatories(vm, signoffLevels);
         FillProcessingLab(vm, meta, detail);
 
         return vm;
     }
 
     /// <summary>The print-state rules on their own: what prints, whether it is final, and whether it is watermarked.</summary>
-    public static (int IncludedTestCount, int ExcludedTestCount, bool IsFinal, bool ShowNotApprovedWatermark) Summarize(LabReportingOrderDetailDto detail)
+    public static (int IncludedTestCount, int ExcludedTestCount, bool IsFinal, bool ShowNotApprovedWatermark) Summarize(LabReportingOrderDetailDto detail, string scope = ScopeAll)
     {
         var activeItems = (detail.Items ?? new List<LabReportingItemDto>()).Where(IsActiveTest).ToList();
-        var included = IncludedItems(activeItems);
+        var included = IncludedItems(activeItems, scope);
 
+        // Final / provisional describes what is printed, exactly like the watermark: a report carrying only
+        // approved tests is final, even when other tests of the bill have not been reported yet.
         return (
             included.Count,
             activeItems.Count - included.Count,
-            activeItems.Count > 0 && activeItems.All(i => HasValue(i) && i.ReportStatusId == StatusApproved),
+            included.Count > 0 && included.All(i => i.ReportStatusId == StatusApproved),
             included.Any(i => i.ReportStatusId != StatusApproved));
     }
 
-    private static List<LabReportingItemDto> IncludedItems(List<LabReportingItemDto> activeItems) =>
-        activeItems
-            .Where(i => HasValue(i) && (i.ReportStatusId == StatusValidated || i.ReportStatusId == StatusApproved))
+    private static List<LabReportingItemDto> IncludedItems(List<LabReportingItemDto> activeItems, string scope = ScopeAll)
+    {
+        scope = NormalizeScope(scope);
+        return activeItems
+            .Where(i => HasValue(i) && scope switch
+            {
+                ScopeApproved => i.ReportStatusId == StatusApproved,
+                ScopePending => i.ReportStatusId == StatusValidated,
+                _ => i.ReportStatusId == StatusValidated || i.ReportStatusId == StatusApproved
+            })
             .ToList();
+    }
 
     // ═════════════════════════ header / patient / client ═════════════════════════
 
@@ -199,6 +227,28 @@ public static class LabReportPrintBuilder
 
         vm.ValidatedBy = Pick("VALIDATED");
         vm.ApprovedBy = Pick("APPROVED");
+    }
+
+    /// <summary>The approval-flow levels already signed, in order, each printed as its own signature block.</summary>
+    private static void FillLevelSignatories(LabReportPrintViewModel vm, IReadOnlyList<LabReportSignoffLevelDto>? levels)
+    {
+        if (levels == null || levels.Count == 0) return;
+
+        vm.LevelSignatories = levels
+            .Where(l => !string.IsNullOrWhiteSpace(l.FullName))
+            .OrderBy(l => l.LevelNo)
+            .Select(l => new LabReportLevelSignatory
+            {
+                LevelNo = l.LevelNo,
+                TotalLevels = l.TotalLevels,
+                LevelTitle = string.IsNullOrWhiteSpace(l.LevelTitle) ? $"Signatory {l.LevelNo}" : l.LevelTitle,
+                IsFinalLevel = l.IsFinalLevel,
+                Name = l.FullName!,
+                Qualification = l.IsPathologist ? "Pathologist" : null,
+                RegistrationNo = l.RegistrationNo,
+                SignedOn = l.SignedOn
+            })
+            .ToList();
     }
 
     private static void FillProcessingLab(LabReportPrintViewModel vm, LabReportPrintMetaDto? meta, LabReportingOrderDetailDto detail)

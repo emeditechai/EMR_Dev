@@ -48,12 +48,31 @@ namespace EMR.Web.ApiClients
                    ?? new LabReportingHeaderListResult();
         }
 
-        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId)
+        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null)
         {
-            var response = await httpClient.GetAsync($"api/LabReporting/detail/{labOrderId}");
+            var url = $"api/LabReporting/detail/{labOrderId}" + (branchId.HasValue ? $"?branchId={branchId.Value}" : string.Empty);
+            var response = await httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode) return null;
 
             return await response.Content.ReadFromJsonAsync<LabReportingOrderDetailDto>();
+        }
+
+        public async Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null)
+        {
+            var url = $"api/LabReporting/signoff-panel/{labOrderId}" + (branchId.HasValue ? $"?branchId={branchId}" : "");
+            var response = await httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return [];
+            return await response.Content.ReadFromJsonAsync<List<LabReportSignoffLevelDto>>() ?? [];
+        }
+
+        public async Task<int> RecordEntryApprovalAsync(int labOrderId, IEnumerable<long> sampleCollectionIds, int userId, int? branchId)
+        {
+            var response = await httpClient.PostAsJsonAsync("api/LabReporting/record-entry-approval",
+                new { LabOrderId = labOrderId, SampleCollectionIds = sampleCollectionIds, UserId = userId, BranchId = branchId });
+            if (!response.IsSuccessStatusCode) return 0;
+
+            using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return doc.RootElement.TryGetProperty("recordedCount", out var c) ? c.GetInt32() : 0;
         }
 
         public async Task<List<LabReportStatusMasterDto>> GetStatusesAsync()

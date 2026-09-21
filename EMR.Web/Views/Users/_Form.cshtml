@@ -510,6 +510,9 @@
 <style>
     /* Inside the Pathologist modal the category list opens inline (it would otherwise be clipped by the
        modal's rounded overflow) and pushes the footer down instead of floating over it. */
+    .sig-preview { width: 150px; height: 72px; flex-shrink: 0; border: 1px dashed #c4b5fd; border-radius: .5rem; display: flex; align-items: center; justify-content: center; overflow: hidden;
+                   background: repeating-conic-gradient(#f5f3ff 0% 25%, #ffffff 0% 50%) 50% / 12px 12px; }
+    .sig-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
     #pathologistModal .cms-dropdown { position: static; margin-top: 4px; box-shadow: none; }
     #pathologistModal .cms-options-container { max-height: 200px; }
 </style>
@@ -578,6 +581,30 @@
                     <small class="text-muted" id="pathoCatHelp">Categories come from the departments granted under Department Access.</small>
                     <div id="pathoCatWarning" class="text-danger small mt-1" style="display:none;"></div>
                     <span asp-validation-for="SelectedTestCategoryIds" class="text-danger small"></span>
+                </div>
+
+                <div class="mt-3">
+                    <label class="form-label fw-semibold">Signature <span class="text-muted fw-normal" style="font-size:0.78rem;">(.png, .jpg, .jpeg &middot; max 2 MB)</span></label>
+                    <div class="d-flex align-items-center gap-3 p-2 border rounded-3" style="background:#faf5ff;border-color:#e9d5ff !important;">
+                        <div class="sig-preview" id="sigPreviewBox">
+                            <img id="sigPreviewImg" alt="Signature preview"
+                                 src="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) && Model.Id > 0 ? Url.Action("Signature", "Users", new { id = Model.Id }) + "?v=" + Uri.EscapeDataString(Model.ExistingSignaturePath) : "")"
+                                 style="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) && Model.Id > 0 ? "" : "display:none;")" />
+                            <span id="sigPreviewEmpty" class="text-muted small" style="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) && Model.Id > 0 ? "display:none;" : "")">No signature</span>
+                        </div>
+                        <div class="flex-grow-1" style="min-width:0;">
+                            <input asp-for="SignatureFile" type="file" id="fileSignature" class="form-control form-control-sm"
+                                   accept=".png,.jpg,.jpeg,image/png,image/jpeg" onchange="previewSignature(this)" />
+                            <input asp-for="ExistingSignaturePath" type="hidden" />
+                            <div class="form-check mt-2" id="sigRemoveWrap" style="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) ? "" : "display:none;")">
+                                <input asp-for="RemoveSignature" type="checkbox" class="form-check-input" id="chkRemoveSignature" onchange="onRemoveSignatureChanged(this)" />
+                                <label class="form-check-label small" for="chkRemoveSignature">Remove the current signature</label>
+                            </div>
+                            <div id="sigClientError" class="text-danger small mt-1" style="display:none;"></div>
+                            <span asp-validation-for="SignatureFile" class="text-danger small d-block"></span>
+                        </div>
+                    </div>
+                    <small class="text-muted">Printed under this pathologist's name on reports they approve. A transparent PNG looks best.</small>
                 </div>
             </div>
             <div class="modal-footer bg-light px-4 py-3">
@@ -1357,6 +1384,68 @@ function loadPathologistCategories(force) {
         });
 }
 
+// ── Signature upload: instant client-side checks (the server validates again) and a live preview ──
+const SIG_MAX_BYTES = 2 * 1024 * 1024;
+
+function showSigError(msg) {
+    const el = document.getElementById('sigClientError');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+}
+
+function setSigPreview(src) {
+    const img = document.getElementById('sigPreviewImg');
+    const empty = document.getElementById('sigPreviewEmpty');
+    if (!img || !empty) return;
+    if (src) { img.src = src; img.style.display = ''; empty.style.display = 'none'; }
+    else { img.removeAttribute('src'); img.style.display = 'none'; empty.style.display = ''; }
+}
+
+function previewSignature(input) {
+    showSigError('');
+    const file = input.files && input.files[0];
+    if (!file) { return; }
+
+    const okExt = /\.(png|jpe?g)$/i.test(file.name);
+    const okType = file.type === '' || file.type === 'image/png' || file.type === 'image/jpeg';
+    if (!okExt || !okType) { input.value = ''; showSigError('Only .png, .jpg or .jpeg files are allowed.'); return; }
+    if (file.size > SIG_MAX_BYTES) { input.value = ''; showSigError('Signature image size must be up to 2 MB.'); return; }
+
+    const chk = document.getElementById('chkRemoveSignature');
+    if (chk) chk.checked = false;                       // a new upload replaces the old one
+    const reader = new FileReader();
+    reader.onload = e => { setSigPreview(e.target.result); updatePathologistSummary(); };
+    reader.readAsDataURL(file);
+}
+
+function onRemoveSignatureChanged(chk) {
+    showSigError('');
+    const input = document.getElementById('fileSignature');
+    if (chk.checked) {
+        if (input) input.value = '';
+        setSigPreview(null);
+    } else {
+        const existing = document.getElementById('ExistingSignaturePath')?.value;
+        const url = document.querySelector('#sigPreviewImg')?.dataset.existing;
+        if (existing && url) setSigPreview(url);
+    }
+    updatePathologistSummary();
+}
+
+// remember the stored signature's URL so "Remove" can be undone
+(function () {
+    const img = document.getElementById('sigPreviewImg');
+    if (img && img.getAttribute('src')) img.dataset.existing = img.getAttribute('src');
+})();
+
+function pathoHasSignature() {
+    const file = document.getElementById('fileSignature')?.files?.length > 0;
+    const existing = !!document.getElementById('ExistingSignaturePath')?.value;
+    const removing = !!document.getElementById('chkRemoveSignature')?.checked;
+    return file || (existing && !removing);
+}
+
 function escHtml(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -1443,8 +1532,12 @@ function updatePathologistSummary() {
             ? `<span class="role-chip" style="color:#6b21a8;"><i class="bi bi-tags-fill" style="color:#7c3aed;"></i>${catCount} test categor${catCount === 1 ? 'y' : 'ies'}</span>`
             : '<span class="role-chip text-muted"><i class="bi bi-tags" style="color:#a78bfa;"></i>All categories</span>';
 
+        const sigChip = pathoHasSignature()
+            ? '<span class="role-chip" style="color:#6b21a8;"><i class="bi bi-pen-fill" style="color:#7c3aed;"></i>Signature</span>'
+            : '<span class="role-chip text-muted"><i class="bi bi-pen" style="color:#a78bfa;"></i>No signature</span>';
+
         detailsContainer.innerHTML = regNo
-            ? `<div class="d-flex flex-wrap gap-1 mt-2"><span class="role-chip" style="color:#6b21a8;"><i class="bi bi-person-badge-fill" style="color:#7c3aed;"></i>${regNo}</span>${catChip}</div>`
+            ? `<div class="d-flex flex-wrap gap-1 mt-2"><span class="role-chip" style="color:#6b21a8;"><i class="bi bi-person-badge-fill" style="color:#7c3aed;"></i>${regNo}</span>${catChip}${sigChip}</div>`
             : '<div class="text-muted small mt-1" style="font-size:0.75rem;">Click Configure to enter Registration No</div>';
     }
 }

@@ -34,6 +34,11 @@ namespace EMR.Web.Models.ViewModels
         public List<LabSampleRejectionReasonModel> RejectionReasons { get; set; } = new();
         /// <summary>Franchise / Company the order was billed to; null for B2C orders.</summary>
         public LabReportClientDto? B2BClient { get; set; }
+        /// <summary>
+        /// Hospital Settings > LAB > "Pathologist approval required" for this branch. When it is on, approval belongs
+        /// to the Pathologist Dashboard and this screen must not offer an Approve button.
+        /// </summary>
+        public bool PathologistApprovalRequired { get; set; }
     }
 
     /// <summary>Initial filter values of the Lab Report Dispatch dashboard.</summary>

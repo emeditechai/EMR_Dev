@@ -166,6 +166,10 @@ builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiCli
 builder.Services.AddScoped<ILabReferenceRangeApiClient,        LabReferenceRangeApiClient>();
 builder.Services.AddScoped<ILabReportingConditionApiClient,   LabReportingConditionApiClient>();
 builder.Services.AddScoped<ILabReportDispatchApiClient,       LabReportDispatchApiClient>();
+builder.Services.AddScoped<ILabUnapproveApiClient,             LabUnapproveApiClient>();
+builder.Services.AddScoped<IPathologistDashboardApiClient,    PathologistDashboardApiClient>();
+builder.Services.AddScoped<ILabDefaultSignatoryApiClient,     LabDefaultSignatoryApiClient>();
+builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowApiClient>();
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 

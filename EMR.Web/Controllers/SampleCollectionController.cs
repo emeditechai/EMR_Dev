@@ -113,16 +113,9 @@ namespace EMR.Web.Controllers
                 var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId.Value);
                 if (detail != null)
                 {
-                    var currentItem = detail.Items?.FirstOrDefault(x => x.SamplecollectionID == request.SampleCollectionId);
-                    bool isReCollect = currentItem?.CollectionstatusID == 3;
-                    if (!isReCollect)
-                    {
-                        var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
-                        if (bookingDate != DateTime.Today)
-                        {
-                            return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
-                        }
-                    }
+                    var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
+                    if (tooEarly != null)
+                        return Json(new { success = false, message = tooEarly });
                 }
             }
 
@@ -188,19 +181,9 @@ namespace EMR.Web.Controllers
                 detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
                 if (detail != null)
                 {
-                    var profileItems = detail.Items?.Where(x =>
-                        (request.ProfileId != null && x.ProfileId == request.ProfileId) ||
-                        (!string.IsNullOrEmpty(request.ProfileName) && x.ProfileName == request.ProfileName)
-                    ).ToList();
-                    bool allReCollect = profileItems != null && profileItems.Count > 0 && profileItems.All(x => x.CollectionstatusID == 3);
-                    if (!allReCollect)
-                    {
-                        var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
-                        if (bookingDate != DateTime.Today)
-                        {
-                            return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
-                        }
-                    }
+                    var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
+                    if (tooEarly != null)
+                        return Json(new { success = false, message = tooEarly });
                 }
             }
 
@@ -265,15 +248,9 @@ namespace EMR.Web.Controllers
                     return Json(new { success = false, message = "All samples for this order are already collected." });
                 }
 
-                bool onlyReCollectRemaining = pendingItems.All(x => x.CollectionstatusID == 3);
-                if (!onlyReCollectRemaining)
-                {
-                    var bookingDate = (detail.BookingDateTime ?? detail.OrderDate).Date;
-                    if (bookingDate != DateTime.Today)
-                    {
-                        return Json(new { success = false, message = $"Sample collection is only permitted on the booking date ({bookingDate:dd-MMM-yyyy})." });
-                    }
-                }
+                var tooEarly = CollectionBeforeBooking(detail, null, null);
+                if (tooEarly != null)
+                    return Json(new { success = false, message = tooEarly });
             }
 
             int count = await sampleCollectionApiClient.CollectAllAsync(request.LabOrderId);
@@ -357,5 +334,23 @@ namespace EMR.Web.Controllers
 
             return View("PrintBarcodeLabel", labels);
         }
+
+    /// <summary>
+    /// Collection date &amp; time must not be earlier than the booking date &amp; time (compared to the minute).
+    /// A missing date/time means "now". Returns the error message, or null when the collection time is acceptable.
+    /// The stored procedures enforce the same rule; this gives the user the message before the round trip.
+    /// </summary>
+    private static string? CollectionBeforeBooking(SampleCollectionOrderDetailDto detail, DateTime? collectionDate, TimeSpan? collectionTime)
+    {
+        var booking = detail.BookingDateTime ?? detail.OrderDate;
+        var now = DateTime.Now;
+        var collectAt = (collectionDate ?? now).Date + (collectionTime ?? now.TimeOfDay);
+
+        static DateTime ToMinute(DateTime d) => new(d.Year, d.Month, d.Day, d.Hour, d.Minute, 0);
+
+        return ToMinute(collectAt) < ToMinute(booking)
+            ? $"Sample collection date and time ({collectAt:dd-MMM-yyyy HH:mm}) cannot be earlier than the booking date and time ({booking:dd-MMM-yyyy HH:mm})."
+            : null;
+    }
     }
 }

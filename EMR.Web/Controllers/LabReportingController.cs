@@ -105,13 +105,34 @@ namespace EMR.Web.Controllers
             return Json(subCategories.Select(s => new { value = s.SubCategoryId, text = s.SubCategoryName }));
         }
 
+        /// <summary>
+        /// Hospital Settings > LAB > "Pathologist approval required" for the current branch. When it is on, a report
+        /// is approved only from the Pathologist Dashboard, so this screen neither shows nor accepts an approval.
+        /// </summary>
+        private async Task<bool> PathologistApprovalRequiredAsync()
+        {
+            var branchId = CurrentBranchId();
+            return await dbContext.HospitalSettings
+                .AsNoTracking()
+                .Where(s => s.BranchId == branchId)
+                .Select(s => (bool?)s.PathologistApprovalRequired)
+                .FirstOrDefaultAsync() ?? false;
+        }
+
+        /// <summary>
+        /// The branch whose samples the Report Entry screen works on. On a partially transferred bill each branch
+        /// only sees its own tests: the ones it kept, plus the ones transferred to it and received.
+        /// </summary>
+        private int CurrentBranchId()
+            => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+
         [HttpGet]
         public async Task<IActionResult> Entry(int labOrderId)
         {
             if (labOrderId <= 0)
                 return RedirectToAction(nameof(Index));
 
-            var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
+            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId());
             if (detail == null)
             {
                 TempData["ErrorMessage"] = "Reporting order details not found or no eligible collected in-house tests.";
@@ -130,6 +151,7 @@ namespace EMR.Web.Controllers
 
             var viewModel = new LabReportingEntryPageViewModel
             {
+                PathologistApprovalRequired = await PathologistApprovalRequiredAsync(),
                 B2BClient = b2bClient,
                 Detail = detail,
                 Statuses = statuses,
@@ -176,7 +198,7 @@ namespace EMR.Web.Controllers
             if (labOrderId <= 0)
                 return Json(new { success = false, message = "Valid LabOrderId is required." });
 
-            var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
+            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId());
             if (detail == null)
                 return Json(new { success = false, message = "Reporting details not found." });
 
@@ -199,6 +221,14 @@ namespace EMR.Web.Controllers
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
 
+            // With pathologist approval switched on, only the Pathologist Dashboard may approve.
+            if (request.ReportStatusId == 5 && await PathologistApprovalRequiredAsync())
+                return Json(new
+                {
+                    success = false,
+                    message = "Pathologist approval is required for this branch. Approve the report from the Pathologist Dashboard."
+                });
+
             var enteredEntries = request.Entries?.Where(e => !string.IsNullOrWhiteSpace(e.TestValue)).ToList() ?? new List<LabReportingItemValueDto>();
             if (enteredEntries.Count == 0)
             {
@@ -211,8 +241,32 @@ namespace EMR.Web.Controllers
 
             // Best-effort "before" snapshot so the audit trail can record exactly which tests changed.
             LabReportingOrderDetailDto? detailBeforeSave = null;
-            try { detailBeforeSave = await labReportingApiClient.GetDetailAsync(request.LabOrderId); }
+            try { detailBeforeSave = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId()); }
             catch { /* audit-only; must never block the save */ }
+
+            // A test that was transferred to another branch and approved there is shown here read-only:
+            // this branch must never write to it, whatever the page posted.
+            if (detailBeforeSave?.Items != null)
+            {
+                var foreignIds = detailBeforeSave.Items.Where(i => i.IsReadOnlyForBranch)
+                                                       .Select(i => i.SamplecollectionID).ToHashSet();
+                if (foreignIds.Count > 0)
+                {
+                    var blocked = enteredEntries.Where(e => foreignIds.Contains(e.SamplecollectionID)).ToList();
+                    if (blocked.Count > 0)
+                    {
+                        enteredEntries = enteredEntries.Where(e => !foreignIds.Contains(e.SamplecollectionID)).ToList();
+                        request.Entries = request.Entries?.Where(e => !foreignIds.Contains(e.SamplecollectionID)).ToList();
+
+                        if (enteredEntries.Count == 0)
+                            return Json(new
+                            {
+                                success = false,
+                                message = "These tests were processed at the branch the sample was transferred to and cannot be changed here."
+                            });
+                    }
+                }
+            }
 
             // A result can only be entered for a test that has a Reference Range configured for this patient.
             // Unchanged values that were saved before this rule existed are left alone so existing reports can still be approved.
@@ -248,11 +302,25 @@ namespace EMR.Web.Controllers
                 _ => "saved"
             };
 
+            if (success && request.ReportStatusId == 5)
+            {
+                // Every approval is recorded with the route it came through, so the printed signature can follow it.
+                try
+                {
+                    await labReportingApiClient.RecordEntryApprovalAsync(
+                        request.LabOrderId,
+                        enteredEntries.Select(e => e.SamplecollectionID),
+                        User.GetUserId(),
+                        CurrentBranchId());
+                }
+                catch (HttpRequestException) { /* never block the save */ }
+            }
+
             if (success)
             {
                 try
                 {
-                    var detail = await labReportingApiClient.GetDetailAsync(request.LabOrderId);
+                    var detail = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId());
                     string actionName = request.ReportStatusId switch
                     {
                         1 => "LAB.ReportDraftSaved",
@@ -309,8 +377,26 @@ namespace EMR.Web.Controllers
             // Best-effort "before" snapshot: the update clears entered results on re-collect/reject,
             // so this is the only chance to record which tests (and values) were affected.
             LabReportingOrderDetailDto? detailBeforeStatusChange = null;
-            try { detailBeforeStatusChange = await labReportingApiClient.GetDetailAsync(request.LabOrderId); }
+            try { detailBeforeStatusChange = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId()); }
             catch { /* audit-only; must never block the update */ }
+
+            // Same rule for the sample status: the branch that only transferred the sample out cannot
+            // re-collect or reject a test that the target branch has already produced and approved.
+            if (detailBeforeStatusChange?.Items != null)
+            {
+                var targeted = detailBeforeStatusChange.Items.Where(i =>
+                    (request.SampleCollectionId.HasValue && i.SamplecollectionID == request.SampleCollectionId.Value)
+                    || (!request.SampleCollectionId.HasValue && request.ProfileId.HasValue && i.ProfileId == request.ProfileId.Value)
+                    || (!request.SampleCollectionId.HasValue && !request.ProfileId.HasValue
+                        && request.InvestigationId.HasValue && i.InvestigationID == request.InvestigationId.Value)).ToList();
+
+                if (targeted.Count > 0 && targeted.All(i => i.IsReadOnlyForBranch))
+                    return Json(new
+                    {
+                        success = false,
+                        message = "This sample was transferred to another branch and processed there. Its status cannot be changed from this branch."
+                    });
+            }
 
             bool success = await labReportingApiClient.UpdateSampleStatusAsync(request);
             if (success)
@@ -373,30 +459,40 @@ namespace EMR.Web.Controllers
         /// Each Department / Test Category starts on a new page.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> PrintReportPdf(int labOrderId, bool download = false, bool conditions = true)
+        public async Task<IActionResult> PrintReportPdf(int labOrderId, bool download = false, bool conditions = true, string? scope = null)
         {
             if (labOrderId <= 0)
                 return BadRequest(new { message = "Valid LabOrderId is required." });
 
             try
             {
-                var vm = await reportPdfService.BuildAsync(labOrderId, User);
+                scope = LabReportPrintBuilder.NormalizeScope(scope);
+                var vm = await reportPdfService.BuildAsync(labOrderId, User, scope);
                 if (vm == null)
                     return NotFound(new { message = "Lab report details not found." });
 
                 if (vm.IncludedTestCount == 0)
-                    return Conflict(new { message = "Nothing to print yet. Validate at least one test to print a report." });
+                    return Conflict(new
+                    {
+                        message = scope switch
+                        {
+                            LabReportPrintBuilder.ScopeApproved => "Nothing to print yet. Approve at least one test to print the approved report.",
+                            LabReportPrintBuilder.ScopePending => "There is no validated (not yet approved) test to print.",
+                            _ => "Nothing to print yet. Validate at least one test to print a report."
+                        }
+                    });
 
                 var pdf = LabReportPdfDocument.Generate(vm, reportPdfService.LoadLogo(vm.HospitalLogoPath), conditions);
 
                 var safeBill = new string((vm.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
                 var fileName = $"LabReport_{safeBill}{(vm.ShowNotApprovedWatermark ? "_NOT-APPROVED" : "")}.pdf";
 
+                Response.Headers["X-Report-Scope"] = scope;
                 Response.Headers.CacheControl = "no-store";
                 Response.Headers["X-Report-Status"] = vm.IsFinal ? "final" : "provisional";
                 Response.Headers["X-Report-Watermark"] = vm.ShowNotApprovedWatermark ? "1" : "0";
                 Response.Headers["X-Report-Tests"] = vm.IncludedTestCount.ToString();
-                Response.Headers["Access-Control-Expose-Headers"] = "X-Report-Status, X-Report-Watermark, X-Report-Tests";
+                Response.Headers["Access-Control-Expose-Headers"] = "X-Report-Status, X-Report-Watermark, X-Report-Tests, X-Report-Scope";
 
                 if (download)
                     return File(pdf, "application/pdf", fileName);
@@ -412,7 +508,7 @@ namespace EMR.Web.Controllers
 
         /// <summary>Records that the report was printed (called by the Print modal when the user clicks Print).</summary>
         [HttpPost]
-        public async Task<IActionResult> LogReportPrintedJson(int labOrderId)
+        public async Task<IActionResult> LogReportPrintedJson(int labOrderId, string? scope = null)
         {
             if (labOrderId <= 0)
                 return Json(new { success = false });
@@ -422,14 +518,15 @@ namespace EMR.Web.Controllers
                 var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
                 if (detail == null) return Json(new { success = false });
 
-                var summary = LabReportPrintBuilder.Summarize(detail);
+                scope = LabReportPrintBuilder.NormalizeScope(scope);
+                var summary = LabReportPrintBuilder.Summarize(detail, scope);
                 var kind = summary.ShowNotApprovedWatermark ? "Provisional copy (NOT APPROVED watermark)"
                          : summary.IsFinal ? "Final report" : "Provisional report";
 
                 await auditLogService.LogActivityAsync(
                     eventType: "Lab Reporting",
                     actionName: "LAB.ReportPrinted",
-                    description: $"Lab report printed - {kind} - for patient {detail.PatientName} ({detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}. {summary.IncludedTestCount} test(s) on the printout.",
+                    description: $"Lab report printed - {kind}{(scope == LabReportPrintBuilder.ScopePending ? " " + LabReportPdfService.PendingCopyMarker : scope == LabReportPrintBuilder.ScopeApproved ? " (approved tests only)" : "")} - for patient {detail.PatientName} ({detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}. {summary.IncludedTestCount} test(s) on the printout.",
                     userId: User.GetUserId(),
                     branchId: User.GetCurrentBranchId(),
                     moduleCode: "LAB",
@@ -440,6 +537,7 @@ namespace EMR.Web.Controllers
                     {
                         detail.LabOrderId,
                         detail.BillNo,
+                        Scope = scope,
                         IsFinal = summary.IsFinal,
                         NotApprovedWatermark = summary.ShowNotApprovedWatermark,
                         TestsPrinted = summary.IncludedTestCount,

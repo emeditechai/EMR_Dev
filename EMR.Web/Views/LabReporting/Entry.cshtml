@@ -25,13 +25,19 @@
     bool showSubmit = (unenteredCount > 0 || unsubmittedCount > 0) && !isAllApproved;
     // Validate button: visible if there are any submitted tests awaiting validation (allows partial validation)
     bool showValidate = (submittedCount > 0) && !isAllApproved;
-    // Approve button: visible if there are any validated tests awaiting approval (allows partial approval)
-    bool showApprove = (validatedCount > 0) && !isAllApproved;
+    // Approve button: visible if there are any validated tests awaiting approval (allows partial approval).
+    // With "Pathologist approval required" on for the branch, approval belongs to the Pathologist Dashboard,
+    // so this screen never offers it.
+    bool pathologistApprovalRequired = Model.PathologistApprovalRequired;
+    bool showApprove = (validatedCount > 0) && !isAllApproved && !pathologistApprovalRequired;
     bool showApprovedBadge = isAllApproved || isPartialApproved;
 
     // Print Report: available once any test is Validated/Approved. Amber "Not Approved" copy while a printed test is not yet approved.
     bool showPrint = (validatedCount + approvedCount) > 0;
     bool printProvisional = validatedCount > 0;
+    // Part approved / part validated: two separate prints - the approved tests (final look) and the not-yet-approved ones (watermarked).
+    bool printSplit = approvedCount > 0 && validatedCount > 0;
+    if (printSplit) { printProvisional = false; }
 
     // Colour hook for the patient avatar (male = blue, female = rose, other = violet)
     var genderKey = (d.Gender ?? string.Empty).Trim().ToLowerInvariant() switch
@@ -68,51 +74,6 @@
             color: #4f46e5;
             border: 1px solid #c7d2fe;
         }
-        /* ── Audit history (i icon + modal timeline) ── */
-        .btn-audit-info {
-            border: 0;
-            background: transparent;
-            color: #4f46e5;
-            padding: 0 2px;
-            line-height: 1;
-            font-size: 1.05rem;
-            cursor: pointer;
-            border-radius: 50%;
-            transition: color .15s ease, transform .15s ease;
-        }
-        .btn-audit-info:hover { color: #3730a3; transform: scale(1.12); }
-        .btn-audit-info:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
-        .audit-filter-chip {
-            border: 1px solid #e2e8f0;
-            background: #fff;
-            color: #475569;
-            border-radius: 999px;
-            padding: 2px 12px;
-            font-size: .75rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .audit-filter-chip.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
-        .audit-filter-chip .audit-chip-count { opacity: .75; font-weight: 500; margin-left: 4px; }
-        .audit-timeline { position: relative; margin: 0; padding: 0 0 0 30px; list-style: none; }
-        .audit-timeline::before {
-            content: ""; position: absolute; left: 11px; top: 4px; bottom: 4px; width: 2px; background: #e2e8f0;
-        }
-        .audit-event { position: relative; margin-bottom: 14px; }
-        .audit-event-dot {
-            position: absolute; left: -30px; top: 0; width: 24px; height: 24px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center; font-size: .72rem;
-            color: #fff; box-shadow: 0 0 0 3px #fff;
-        }
-        .audit-event-card { background: #fff; border: 1px solid #e2e8f0; border-radius: .6rem; padding: 8px 12px; }
-        .audit-event-title { font-weight: 700; font-size: .82rem; color: #0f172a; }
-        .audit-event-meta { font-size: .72rem; color: #64748b; }
-        .audit-event-desc { font-size: .76rem; color: #334155; margin-top: 4px; }
-        .audit-tests-table { font-size: .72rem; margin: 6px 0 0; }
-        .audit-tests-table th { background: #f8fafc; color: #64748b; font-weight: 600; white-space: nowrap; }
-        .audit-tests-table td { vertical-align: middle; }
-        .audit-val-old { color: #94a3b8; text-decoration: line-through; }
-        .audit-legacy-note { font-size: .7rem; color: #94a3b8; font-style: italic; margin-top: 4px; }
         .info-pill {
             background: #ffffff;
             border: 1px solid #e2e8f0;
@@ -705,6 +666,7 @@
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <h6 class="mb-0 fw-bold text-dark text-truncate" style="max-width: 170px;" title="@d.PatientName">@d.PatientName</h6>
                         <button type="button" class="btn-audit-info" id="btnAuditHistory"
+                                data-laborderid="@d.LabOrderId" data-patient="@d.PatientName" data-bill="@(d.BillNo ?? "—")"
                                 data-bs-toggle="tooltip" data-bs-placement="bottom"
                                 title="View audit history for this bill"
                                 aria-label="View audit history for this bill">
@@ -875,12 +837,25 @@
             <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" style="@(showApprove ? "" : "display:none;")">
                 <i class="bi bi-patch-check-fill me-1"></i>Approve Report
             </button>
+            @if (pathologistApprovalRequired && !isAllApproved)
+            {
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1.5 fs-8"
+                      title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch">
+                    <i class="bi bi-shield-lock-fill me-1"></i>Approval by pathologist
+                </span>
+            }
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1.5 fs-8 @(showApprovedBadge ? "" : "d-none")" id="badgeHeaderApproved">
                 <i class="bi bi-patch-check-fill me-1"></i>@(isPartialApproved ? $"Partially Approved ({approvedCount}/{totalCount})" : "Report Approved")
             </span>
             <button type="button" class="btn btn-sm px-3 py-1.5 fs-8 btn-print-report @(printProvisional ? "is-provisional" : "")" id="btnHeaderPrint"
-                    style="@(showPrint ? "" : "display:none;")" title="Preview and print the lab report">
+                    data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(showPrint ? "" : "display:none;")" title="@(printSplit ? "Preview and print the approved tests" : "Preview and print the lab report")">
                 <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">@(printProvisional ? "Print (Not Approved)" : "Print Report")</span>
+            </button>
+            <button type="button" class="btn btn-sm px-3 py-1.5 fs-8 btn-print-report is-provisional btn-print-pending" id="btnHeaderPrintPending"
+                    data-scope="pending" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(printSplit ? "" : "display:none;")" title="Preview and print the validated tests that are not approved yet (watermarked)">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">Print (Not Approved)</span>
             </button>
         </div>
     </div>
@@ -1421,8 +1396,14 @@
                 <i class="bi bi-patch-check-fill me-1"></i>Report Approved
             </span>
             <button type="button" class="btn btn-sm px-3 fw-semibold btn-print-report @(printProvisional ? "is-provisional" : "")" id="btnStickyPrint"
-                    style="@(showPrint ? "" : "display:none;")" title="Preview and print the lab report">
+                    data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(showPrint ? "" : "display:none;")" title="@(printSplit ? "Preview and print the approved tests" : "Preview and print the lab report")">
                 <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">@(printProvisional ? "Print (Not Approved)" : "Print Report")</span>
+            </button>
+            <button type="button" class="btn btn-sm px-3 fw-semibold btn-print-report is-provisional btn-print-pending" id="btnStickyPrintPending"
+                    data-scope="pending" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(printSplit ? "" : "display:none;")" title="Preview and print the validated tests that are not approved yet (watermarked)">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">Print (Not Approved)</span>
             </button>
         </div>
     </div>
@@ -1486,79 +1467,9 @@
     </div>
 </div>
 
-<!-- Audit History Modal (Bill / Order activity trail) -->
-<div class="modal fade" id="modalAuditHistory" tabindex="-1" aria-labelledby="modalAuditHistoryLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header border-bottom py-2.5 px-3 bg-light">
-                <div class="flex-grow-1">
-                    <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalAuditHistoryLabel">
-                        <i class="bi bi-clock-history text-primary"></i>
-                        Audit History
-                    </h6>
-                    <div class="text-muted fs-9 mt-0.5">
-                        <span class="fw-semibold text-dark">@d.PatientName</span>
-                        <span class="mx-1">&bull;</span> Bill / Order No:
-                        <span class="font-monospace fw-semibold text-dark">@(d.BillNo ?? "—")</span>
-                        <span class="mx-1">&bull;</span> Newest first
-                    </div>
-                </div>
-                <button type="button" class="btn btn-outline-secondary btn-sm fs-9 me-2" id="btnAuditRefresh" title="Reload history">
-                    <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
-                <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="px-3 pt-2 pb-1 border-bottom bg-white">
-                <div class="d-flex flex-wrap gap-1.5" id="auditFilterChips"></div>
-            </div>
-            <div class="modal-body p-3" style="background:#f8fafc; min-height: 260px;">
-                <div id="auditLoading" class="text-center text-muted py-5 d-none">
-                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading audit history…
-                </div>
-                <div id="auditError" class="alert alert-danger fs-8 d-none mb-0"></div>
-                <div id="auditEmpty" class="text-center text-muted py-5 d-none">
-                    <i class="bi bi-inbox fs-3 d-block mb-2"></i>No activity recorded for this bill yet.
-                </div>
-                <ul class="audit-timeline" id="auditTimeline"></ul>
-            </div>
-            <div class="modal-footer border-top py-2 px-3 bg-light">
-                <span class="me-auto text-muted fs-9" id="auditFooterCount"></span>
-                <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
+<partial name="_LabAuditHistoryModal" />
 
-<!-- Report Print Modal (PDF preview) -->
-<div class="modal fade" id="modalReportPrint" tabindex="-1" aria-labelledby="modalReportPrintLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header border-bottom py-2 px-3 bg-light flex-wrap gap-2">
-                <div class="flex-grow-1">
-                    <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalReportPrintLabel">
-                        <i class="bi bi-printer-fill text-primary"></i>Lab Report
-                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9" id="printBillChip">@(d.BillNo ?? "—")</span>
-                        <span class="badge fs-9 d-none" id="printStatusChip"></span>
-                    </h6>
-                    <div class="text-muted fs-9 mt-0.5" id="printSubtitle">Preparing report&hellip;</div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-primary btn-sm fs-8 px-3" id="btnReportPrintNow" disabled><i class="bi bi-printer me-1"></i>Print</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportDownload" disabled><i class="bi bi-download me-1"></i>Download PDF</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportNewTab" disabled><i class="bi bi-box-arrow-up-right me-1"></i>New Tab</button>
-                    <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-            </div>
-            <div class="modal-body p-0 position-relative" style="height: 78vh; background:#525659;">
-                <div id="printLoading" class="position-absolute top-50 start-50 translate-middle text-center text-white">
-                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Generating report&hellip;
-                </div>
-                <div id="printError" class="alert alert-warning fs-8 m-4 d-none"></div>
-                <iframe id="reportPrintFrame" title="Lab report preview" class="d-none"></iframe>
-            </div>
-        </div>
-    </div>
-</div>
+<partial name="_LabReportPrintModal" />
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -1573,6 +1484,7 @@
             };
 
             const labOrderId = @d.LabOrderId;
+            const PATHOLOGIST_APPROVAL_REQUIRED = @(pathologistApprovalRequired ? "true" : "false");
 
             // Initialize Bootstrap Tooltips for Special Remarks (i) icon
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -1647,11 +1559,16 @@
             // Print Report is available once any test is Validated/Approved; amber "Not Approved" while a printed test is unapproved.
             function syncPrintButtons(counts) {
                 const printable = counts.validated + counts.approved;
-                const provisional = counts.validated > 0;
+                // Part approved / part validated => two prints: approved tests (clean) + not-approved tests (watermarked)
+                const split = counts.approved > 0 && counts.validated > 0;
+                const provisional = counts.validated > 0 && !split;
                 const $btns = $('#btnHeaderPrint, #btnStickyPrint');
                 $btns.toggle(printable > 0)
                      .toggleClass('is-provisional', provisional)
+                     .attr('data-scope', split ? 'approved' : 'all')
+                     .attr('title', split ? 'Preview and print the approved tests' : 'Preview and print the lab report')
                      .find('.print-btn-label').text(provisional ? 'Print (Not Approved)' : 'Print Report');
+                $('#btnHeaderPrintPending, #btnStickyPrintPending').toggle(split);
             }
 
             function refreshWorkflowProgress() {
@@ -2055,7 +1972,8 @@
                 // 3. Approve button:
                 // Visible whenever order is not fully approved AND there is at least one validated test awaiting approval!
                 // Allows partial approval of validated tests even if other tests are unentered or submitted.
-                const canApprove = !isAllApproved && (validatedCount > 0);
+                // PATHOLOGIST_APPROVAL_REQUIRED: approval is done on the Pathologist Dashboard, never here.
+                const canApprove = !isAllApproved && (validatedCount > 0) && !PATHOLOGIST_APPROVAL_REQUIRED;
                 if (canApprove) {
                     $('.btn-action-approve').show();
                 } else {
@@ -2723,330 +2641,7 @@
             updateActionButtonsVisibility();
         });
     </script>
-    <script>
-        // Audit history for this Lab Order / Bill (loaded on demand when the "i" icon is clicked)
-        (function () {
-            const labOrderId = @d.LabOrderId;
-            const historyUrl = '@Url.Action("GetAuditHistoryJson", "LabReporting")';
-            let allEvents = [];
-            let activeFilter = 'All';
+    <partial name="_LabAuditHistoryScripts" />
 
-            const esc = function (v) {
-                return String(v ?? '').replace(/[&<>"']/g, function (c) {
-                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-                });
-            };
-            const pick = function (o, a, b) { return o ? (o[a] !== undefined ? o[a] : o[b]) : undefined; };
-
-            // Maps a stored ActionName to a label / icon / colour / filter category.
-            function describe(e) {
-                const a = e.actionName || '';
-                const md = e.metadata || {};
-                const statusName = pick(md, 'StatusName', 'statusName');
-                const map = {
-                    'LAB.OrderBooked':            ['Order Booked',              'bi-receipt',            '#4f46e5', 'Billing'],
-                    'LAB.B2BOrderBooked':         ['B2B Order Booked',          'bi-building',           '#4f46e5', 'Billing'],
-                    'LAB.PaymentReceived':        ['Payment Received',          'bi-cash-coin',          '#16a34a', 'Billing'],
-                    'LAB.SampleCollected':        ['Sample Collected',          'bi-eyedropper',         '#16a34a', 'Sample'],
-                    'LAB.ProfileSamplesCollected':['Profile Samples Collected', 'bi-eyedropper',         '#16a34a', 'Sample'],
-                    'LAB.AllSamplesCollected':    ['All Samples Collected',     'bi-eyedropper',         '#16a34a', 'Sample'],
-                    'LAB.SampleRejected':         ['Sample Rejected',           'bi-x-octagon-fill',     '#dc2626', 'Sample'],
-                    'LAB.SampleStatusUpdated':    ['Sample Status Updated',     'bi-eyedropper',         '#0891b2', 'Sample'],
-                    'LAB.ProfileStatusUpdated':   ['Profile Sample Status Updated', 'bi-eyedropper',     '#0891b2', 'Sample'],
-                    'LAB.SampleTransferred':      ['Sample Transferred',        'bi-arrow-left-right',   '#d97706', 'Transfer'],
-                    'LAB.SampleReceived':         ['Sample Received',           'bi-box-arrow-in-down',  '#0d9488', 'Transfer'],
-                    'LAB.ReportDraftSaved':       ['Draft Saved',               'bi-floppy',             '#64748b', 'Reporting'],
-                    'LAB.ReportEntryCompleted':   ['Results Submitted',         'bi-send-check-fill',    '#2563eb', 'Reporting'],
-                    'LAB.ReportValidated':        ['Results Validated',         'bi-patch-check-fill',   '#0891b2', 'Reporting'],
-                    'LAB.ReportApproved':         ['Results Approved',          'bi-check2-circle',      '#16a34a', 'Reporting'],
-                    'LAB.ReportReCollected':      ['Marked for Re-collection',  'bi-arrow-repeat',       '#dc2626', 'Reporting'],
-                    'LAB.ReportSaved':            ['Report Saved',              'bi-floppy',             '#64748b', 'Reporting'],
-                    'LAB.ReportPrinted':          ['Report Printed',            'bi-printer-fill',       '#0891b2', 'Reporting']
-                };
-                if (map[a]) return { label: map[a][0], icon: map[a][1], color: map[a][2], cat: map[a][3] };
-                if (a === 'LAB.SampleStatusChanged') {
-                    const st = statusName || (/Re-Collect/i.test(e.description || '') ? 'Re-Collect'
-                             : /Rejected/i.test(e.description || '') ? 'Rejected'
-                             : /Collected/i.test(e.description || '') ? 'Collected' : 'Updated');
-                    const color = /reject/i.test(st) ? '#dc2626' : /re-?collect/i.test(st) ? '#d97706' : /collected/i.test(st) ? '#16a34a' : '#64748b';
-                    return { label: 'Sample ' + st + ' (Reporting)', icon: 'bi-arrow-repeat', color: color, cat: 'Sample' };
-                }
-                return { label: (a || 'Activity').replace(/^LAB\./, ''), icon: 'bi-dot', color: '#64748b', cat: 'Other' };
-            }
-
-            function fmtDate(v) {
-                const d = new Date(v);
-                if (isNaN(d)) return esc(v);
-                return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-            }
-
-            function statusBadge(text, tone) {
-                return '<span class="badge bg-' + tone + '-subtle text-' + tone + ' border border-' + tone + '-subtle">' + esc(text) + '</span>';
-            }
-
-            function testsTable(e) {
-                const md = e.metadata || {};
-                const tests = pick(md, 'Tests', 'tests');
-                if (!Array.isArray(tests)) return '';
-                const isTransfer = e.source === 'TRANSFER';
-                const isReport = /^LAB\.Report/.test(e.actionName || '');
-
-                if (tests.length === 0) {
-                    return isReport ? '<div class="audit-legacy-note">No test result was changed by this action.</div>' : '';
-                }
-
-                let head, rows;
-                if (isTransfer) {
-                    head = '<th>Test</th><th>Barcode</th>';
-                    rows = tests.map(function (t) {
-                        return '<tr><td>' + esc(pick(t, 'TestName', 'testName')) + '</td><td class="font-monospace">' + esc(pick(t, 'BarcodeNo', 'barcodeNo') || '—') + '</td></tr>';
-                    }).join('');
-                } else {
-                    head = '<th>Test</th><th>Status</th><th>Result</th><th>Remarks / Reason</th>';
-                    rows = tests.map(function (t) {
-                        const name = esc(pick(t, 'TestName', 'testName'));
-                        const prof = pick(t, 'ProfileName', 'profileName');
-                        const from = pick(t, 'FromStatus', 'fromStatus');
-                        const to = pick(t, 'ToStatus', 'toStatus');
-                        const change = pick(t, 'Change', 'change');
-                        const oldV = pick(t, 'OldValue', 'oldValue');
-                        const newV = pick(t, 'NewValue', 'newValue');
-                        const cleared = pick(t, 'ClearedValue', 'clearedValue');
-                        const clearedSt = pick(t, 'ClearedReportStatus', 'clearedReportStatus');
-                        const oldR = pick(t, 'OldRemarks', 'oldRemarks');
-                        const newR = pick(t, 'NewRemarks', 'newRemarks');
-                        const reason = pick(t, 'Reason', 'reason');
-                        const flag = pick(t, 'Flag', 'flag');
-
-                        const tone = /approv/i.test(change) ? 'success' : /valid/i.test(change) ? 'info'
-                                   : /submit/i.test(change) ? 'primary' : /clear|reject|re-?collect/i.test(change) ? 'danger'
-                                   : /draft/i.test(change) ? 'secondary' : 'warning';
-                        const statusHtml = (from && to && from !== to)
-                            ? esc(from) + ' <i class="bi bi-arrow-right mx-1 text-muted"></i> ' + statusBadge(to, tone)
-                            : statusBadge(change || to || '—', tone);
-
-                        let resultHtml = '—';
-                        if (cleared) {
-                            resultHtml = '<span class="audit-val-old">' + esc(cleared) + '</span> <span class="text-danger">cleared</span>'
-                                       + (clearedSt ? ' <span class="text-muted">(was ' + esc(clearedSt) + ')</span>' : '');
-                        } else if (newV || oldV) {
-                            const changed = (oldV || '') !== (newV || '');
-                            resultHtml = (changed && oldV ? '<span class="audit-val-old">' + esc(oldV) + '</span> <i class="bi bi-arrow-right text-muted"></i> ' : '')
-                                       + '<span class="fw-semibold">' + esc(newV || '(empty)') + '</span>'
-                                       + (flag ? ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle">' + esc(flag) + '</span>' : '');
-                        }
-
-                        let noteHtml = '';
-                        if (reason) noteHtml = esc(reason);
-                        else if (oldR || newR) noteHtml = (oldR ? '<span class="audit-val-old">' + esc(oldR) + '</span> <i class="bi bi-arrow-right text-muted"></i> ' : '') + esc(newR || '(cleared)');
-
-                        return '<tr><td>' + name + (prof ? '<div class="text-muted">' + esc(prof) + '</div>' : '') + '</td>'
-                             + '<td>' + statusHtml + '</td><td>' + resultHtml + '</td><td>' + (noteHtml || '—') + '</td></tr>';
-                    }).join('');
-                }
-                return '<div class="table-responsive"><table class="table table-sm table-bordered align-middle audit-tests-table mb-0"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-            }
-
-            function legacyNote(e) {
-                const md = e.metadata || {};
-                const isReport = /^LAB\.Report/.test(e.actionName || '');
-                if (isReport && !Array.isArray(pick(md, 'Tests', 'tests'))) {
-                    return '<div class="audit-legacy-note">Test-level detail was not recorded for this older entry.</div>';
-                }
-                return '';
-            }
-
-            function render() {
-                const $tl = $('#auditTimeline').empty();
-                const visible = allEvents.filter(function (e) { return activeFilter === 'All' || e._d.cat === activeFilter; });
-
-                $('#auditEmpty').toggleClass('d-none', allEvents.length !== 0);
-                $('#auditFooterCount').text(allEvents.length ? ('Showing ' + visible.length + ' of ' + allEvents.length + ' activities') : '');
-
-                visible.forEach(function (e) {
-                    const d = e._d;
-                    const branch = e.branchName ? ' &bull; <i class="bi bi-geo-alt"></i> ' + esc(e.branchName) : '';
-                    const ip = e.ipAddress ? ' &bull; IP ' + esc(e.ipAddress) : '';
-                    const tbl = testsTable(e);
-                    $tl.append(
-                        '<li class="audit-event">'
-                        + '<span class="audit-event-dot" style="background:' + d.color + '"><i class="bi ' + d.icon + '"></i></span>'
-                        + '<div class="audit-event-card">'
-                        +   '<div class="d-flex flex-wrap justify-content-between gap-2">'
-                        +     '<span class="audit-event-title">' + esc(d.label) + '</span>'
-                        +     '<span class="audit-event-meta"><i class="bi bi-calendar-event"></i> ' + fmtDate(e.eventDate) + '</span>'
-                        +   '</div>'
-                        +   '<div class="audit-event-meta"><i class="bi bi-person-fill"></i> ' + esc(e.userName) + branch + ip + '</div>'
-                        +   (e.description ? '<div class="audit-event-desc">' + esc(e.description) + '</div>' : '')
-                        +   tbl + (tbl ? '' : legacyNote(e))
-                        + '</div></li>'
-                    );
-                });
-            }
-
-            function renderChips() {
-                const cats = ['All', 'Reporting', 'Sample', 'Transfer', 'Billing'];
-                const counts = { All: allEvents.length };
-                allEvents.forEach(function (e) { counts[e._d.cat] = (counts[e._d.cat] || 0) + 1; });
-                const html = cats
-                    .filter(function (c) { return c === 'All' || counts[c]; })
-                    .map(function (c) {
-                        return '<button type="button" class="audit-filter-chip' + (c === activeFilter ? ' active' : '') + '" data-cat="' + c + '">'
-                             + c + '<span class="audit-chip-count">' + (counts[c] || 0) + '</span></button>';
-                    }).join('');
-                $('#auditFilterChips').html(html);
-            }
-
-            function load() {
-                $('#auditError').addClass('d-none');
-                $('#auditEmpty').addClass('d-none');
-                $('#auditTimeline').empty();
-                $('#auditFilterChips').empty();
-                $('#auditFooterCount').text('');
-                $('#auditLoading').removeClass('d-none');
-                $('#btnAuditRefresh').prop('disabled', true);
-
-                $.getJSON(historyUrl, { labOrderId: labOrderId })
-                    .done(function (res) {
-                        if (!res || !res.success) {
-                            $('#auditError').text((res && res.message) || 'Unable to load audit history.').removeClass('d-none');
-                            return;
-                        }
-                        allEvents = (res.events || []).map(function (e) { e._d = describe(e); return e; });
-                        if (activeFilter !== 'All' && !allEvents.some(function (e) { return e._d.cat === activeFilter; })) activeFilter = 'All';
-                        renderChips();
-                        render();
-                    })
-                    .fail(function () {
-                        $('#auditError').text('Server error while loading audit history. Please try again.').removeClass('d-none');
-                    })
-                    .always(function () {
-                        $('#auditLoading').addClass('d-none');
-                        $('#btnAuditRefresh').prop('disabled', false);
-                    });
-            }
-
-            $(function () {
-                const modalEl = document.getElementById('modalAuditHistory');
-                if (!modalEl) return;
-
-                $('#btnAuditHistory').on('click', function () {
-                    // hide the hover tooltip so it doesn't linger behind the modal
-                    const tip = bootstrap.Tooltip.getInstance(this);
-                    if (tip) tip.hide();
-                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                });
-                $(modalEl).on('shown.bs.modal', load);
-                $('#btnAuditRefresh').on('click', load);
-                $('#auditFilterChips').on('click', '.audit-filter-chip', function () {
-                    activeFilter = $(this).data('cat');
-                    renderChips();
-                    render();
-                });
-            });
-        })();
-    </script>
-
-    <script>
-        // Report PDF preview / print (QuestPDF report streamed by LabReporting/PrintReportPdf)
-        (function () {
-            const labOrderId = @d.LabOrderId;
-            const pdfUrl = '@Url.Action("PrintReportPdf", "LabReporting")';
-            const logUrl = '@Url.Action("LogReportPrintedJson", "LabReporting")';
-            let blobUrl = null;
-            let fileName = 'LabReport.pdf';
-
-            const $frame = $('#reportPrintFrame'), $loading = $('#printLoading'), $error = $('#printError');
-            const $actions = $('#btnReportPrintNow, #btnReportDownload, #btnReportNewTab');
-
-            function reset() {
-                if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
-                $frame.addClass('d-none').attr('src', 'about:blank');
-                $error.addClass('d-none').text('');
-                $('#printStatusChip').addClass('d-none');
-                $('#printSubtitle').text('Preparing report\u2026');
-                $actions.prop('disabled', true);
-                $loading.removeClass('d-none');
-            }
-
-            function fail(message) {
-                $loading.addClass('d-none');
-                $error.text(message).removeClass('d-none');
-                $('#printSubtitle').text('Report unavailable');
-            }
-
-            async function load() {
-                reset();
-                try {
-                    const res = await fetch(pdfUrl + '?labOrderId=' + labOrderId + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' });
-                    const type = res.headers.get('content-type') || '';
-
-                    if (!res.ok) {
-                        let msg = 'Unable to generate the report.';
-                        try { msg = (await res.json()).message || msg; } catch (e) { /* keep default */ }
-                        return fail(msg);
-                    }
-                    if (res.redirected || type.indexOf('pdf') === -1) {
-                        return fail('Your session may have expired. Please refresh the page and sign in again.');
-                    }
-
-                    const watermark = res.headers.get('X-Report-Watermark') === '1';
-                    const status = res.headers.get('X-Report-Status');
-                    const tests = res.headers.get('X-Report-Tests');
-                    const disp = res.headers.get('Content-Disposition') || '';
-                    const m = /filename="?([^";]+)"?/i.exec(disp);
-                    if (m) fileName = m[1];
-
-                    blobUrl = URL.createObjectURL(await res.blob());
-                    $frame.attr('src', blobUrl + '#toolbar=1&navpanes=0').removeClass('d-none');
-                    $loading.addClass('d-none');
-                    $actions.prop('disabled', false);
-
-                    $('#printStatusChip')
-                        .attr('class', 'badge fs-9 ' + (watermark
-                            ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle'
-                            : (status === 'final' ? 'bg-success-subtle text-success border border-success-subtle'
-                                                  : 'bg-primary-subtle text-primary border border-primary-subtle')))
-                        .text(watermark ? 'NOT APPROVED copy' : (status === 'final' ? 'Final Report' : 'Provisional Report'));
-                    $('#printSubtitle').text(tests + ' validated/approved test(s) on this report'
-                        + (watermark ? ' \u2022 watermarked until every printed test is approved' : ''));
-                } catch (e) {
-                    fail('Server error while generating the report. Please try again.');
-                }
-            }
-
-            function logPrinted() { $.post(logUrl + '?labOrderId=' + labOrderId); }
-
-            $(function () {
-                const modalEl = document.getElementById('modalReportPrint');
-                if (!modalEl) return;
-
-                $('#btnHeaderPrint, #btnStickyPrint').on('click', function () {
-                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                });
-                $(modalEl).on('shown.bs.modal', load);
-                $(modalEl).on('hidden.bs.modal', reset);
-
-                $('#btnReportPrintNow').on('click', function () {
-                    if (!blobUrl) return;
-                    try {
-                        const w = $frame[0].contentWindow;
-                        w.focus();
-                        w.print();
-                    } catch (e) {
-                        window.open(blobUrl, '_blank'); // viewer refused: open it so the browser's own Print works
-                    }
-                    logPrinted();
-                });
-                $('#btnReportDownload').on('click', function () {
-                    if (!blobUrl) return;
-                    const a = document.createElement('a');
-                    a.href = blobUrl; a.download = fileName;
-                    document.body.appendChild(a); a.click(); a.remove();
-                    logPrinted();
-                });
-                $('#btnReportNewTab').on('click', function () { if (blobUrl) window.open(blobUrl, '_blank'); });
-            });
-        })();
-    </script>
+    <partial name="_LabReportPrintScripts" />
 }

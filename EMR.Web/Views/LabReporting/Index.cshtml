@@ -7,240 +7,312 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
     <style>
         .reporting-wrapper {
-            background-color: #f8f9fa;
+            --lr-bg: #f1f5f9;
+            --lr-line: #e2e8f0;
+            --lr-ink: #0f172a;
+            --lr-muted: #64748b;
+            background: var(--lr-bg);
             min-height: calc(100vh - 60px);
         }
+        .reporting-wrapper .fs-7 { font-size: 0.85rem !important; }
+        .reporting-wrapper .fs-8 { font-size: 0.78rem !important; }
+        .reporting-wrapper .fs-9 { font-size: 0.70rem !important; }
+        .py-0\.5 { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; }
+        .pt-1\.5 { padding-top: 0.45rem !important; }
+        .mt-1\.5 { margin-top: 0.45rem !important; }
+        .mb-1\.5 { margin-bottom: 0.45rem !important; }
+        .mb-0\.5 { margin-bottom: 0.15rem !important; }
+
+        /* ── page header ── */
+        .lr-head { background: #fff; border: 1px solid var(--lr-line); border-radius: .75rem; }
+        .lr-head-icon {
+            width: 38px; height: 38px; border-radius: .6rem; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4338ca; font-size: 1.05rem;
+        }
+        .lr-head h5 { letter-spacing: -.01em; }
+
+        /* ── KPI cards ── */
         .stat-card {
-            transition: all 0.2s ease-in-out;
-            cursor: pointer;
+            --c: #4f46e5; --bg: #eef2ff;
+            position: relative; overflow: hidden; cursor: pointer; background: #fff;
+            border: 1px solid var(--lr-line) !important; border-radius: .7rem;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
         }
-        .stat-card:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 .25rem .5rem rgba(0,0,0,.06)!important;
+        .stat-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); }
+        .stat-card::after {
+            content: ""; position: absolute; right: -22px; top: -22px; width: 72px; height: 72px;
+            border-radius: 50%; background: var(--bg); opacity: .5;
         }
-        .stat-card.active-card {
-            outline: 2px solid var(--bs-primary);
-            background-color: #f1f5f9;
-        }
-        .stat-icon {
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.9rem;
-        }
-        .fs-7 { font-size: 0.85rem !important; }
-        .fs-8 { font-size: 0.78rem !important; }
-        .fs-9 { font-size: 0.70rem !important; }
-        .py-0.5 { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; }
-        .pt-1.5 { padding-top: 0.45rem !important; }
-        .mt-1.5 { margin-top: 0.45rem !important; }
-        .mb-1.5 { margin-bottom: 0.45rem !important; }
-        .mb-0.5 { margin-bottom: 0.15rem !important; }
-        .table-responsive-custom {
-            max-height: calc(100vh - 270px);
-            overflow-y: auto;
-        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 .45rem .9rem rgba(15,23,42,.10) !important; border-color: var(--c) !important; }
+        .stat-card.active-card { border-color: var(--c) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent) !important; background: linear-gradient(135deg, #fff 55%, var(--bg)); outline: none; }
+        .stat-card .stat-label { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--lr-muted); }
+        .stat-card .stat-value { font-size: 1.45rem; font-weight: 800; line-height: 1.1; color: var(--c); letter-spacing: -.02em; }
+        .stat-icon { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .95rem; background: var(--bg); color: var(--c); position: relative; z-index: 1; }
+        .k-total { --c: #1d4ed8; --bg: #dbeafe; }
+        .k-pending { --c: #64748b; --bg: #e2e8f0; }
+        .k-draft { --c: #b45309; --bg: #fef3c7; }
+        .k-entered { --c: #0369a1; --bg: #e0f2fe; }
+        .k-validated { --c: #0f766e; --bg: #ccfbf1; }
+
+        /* ── filter card ── */
+        .lr-card { background: #fff; border: 1px solid var(--lr-line) !important; border-radius: .7rem; }
+        .lr-label { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--lr-muted); margin-bottom: .2rem; display: block; }
+        .reporting-wrapper .form-control, .reporting-wrapper .form-select { border-color: #dbe2ea; font-size: .78rem; }
+        .reporting-wrapper .form-control:focus, .reporting-wrapper .form-select:focus { border-color: #818cf8; box-shadow: 0 0 0 .18rem rgba(99,102,241,.14); }
+        .lr-quick .btn { font-size: .7rem; font-weight: 600; color: var(--lr-muted); border-color: #dbe2ea; background: #fff; }
+        .lr-quick .btn:hover { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+        .lr-quick .btn.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+        .lr-filter-strip { background: #f8fafc; border-top: 1px dashed var(--lr-line); border-radius: 0 0 .7rem .7rem; }
+
+        /* ── table ── */
+        .table-responsive-custom { max-height: calc(100vh - 330px); min-height: 220px; overflow-y: auto; }
         .table-sticky-header thead th {
-            position: sticky;
-            top: 0;
-            background: #f8f9fa;
-            z-index: 10;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            position: sticky; top: 0; z-index: 10; background: #f8fafc; color: var(--lr-muted);
+            font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+            border-bottom: 1px solid var(--lr-line); box-shadow: 0 1px 0 var(--lr-line); white-space: nowrap;
         }
-        .test-val-input:focus {
-            border-color: #0d6efd;
-            box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
+        #tblReportingOrders tbody td { border-top: 1px solid #eef2f6; border-bottom: 0; padding-top: .6rem; padding-bottom: .6rem; vertical-align: middle; }
+
+        /* ── row colour code by report status (same palette as the Report Entry screen) ── */
+        .st-pending   { --st: #64748b; --st-bg: #f8fafc; --st-hover: #eef2f6; --st-bd: #cbd5e1; }
+        .st-draft     { --st: #b45309; --st-bg: #fffbeb; --st-hover: #fef3c7; --st-bd: #fcd34d; }
+        .st-entered   { --st: #1d4ed8; --st-bg: #eff6ff; --st-hover: #dbeafe; --st-bd: #93c5fd; }
+        .st-validated { --st: #15803d; --st-bg: #f0fdf4; --st-hover: #dcfce7; --st-bd: #86efac; }
+        .st-approved  { --st: #0f766e; --st-bg: #f0fdfa; --st-hover: #ccfbf1; --st-bd: #5eead4; }
+        .st-recollect { --st: #c2410c; --st-bg: #fff7ed; --st-hover: #ffedd5; --st-bd: #fdba74; }
+        .st-rejected  { --st: #b91c1c; --st-bg: #fef2f2; --st-hover: #fee2e2; --st-bd: #fca5a5; }
+
+        #tblReportingOrders tbody tr { --bs-table-bg: var(--st-bg, #fff); transition: background .12s ease; }
+        #tblReportingOrders tbody tr:hover > * { --bs-table-bg-state: var(--st-hover, #f8fafc); }
+        #tblReportingOrders tbody tr > td:first-child { box-shadow: inset 3px 0 0 var(--st, transparent); }
+        /* status badge takes the row's own colour, so badge and row always agree */
+        .st-badge { color: var(--st); background: var(--st-hover); border: 1px solid var(--st-bd); font-weight: 600; }
+
+        /* ── legend ── */
+        .lr-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+        .lr-legend .lg-item {
+            display: inline-flex; align-items: center; gap: .32rem; font-size: .68rem; font-weight: 600; color: var(--lr-muted);
+            background: transparent; border: 1px solid transparent; border-radius: 999px; padding: .15rem .5rem;
+            cursor: pointer; user-select: none; transition: background .12s ease, border-color .12s ease, color .12s ease;
         }
+        .lr-legend .lg-item:hover { background: var(--st-bg); border-color: var(--st-bd); color: var(--st); }
+        .lr-legend .lg-item:focus-visible { outline: 2px solid var(--st); outline-offset: 1px; }
+        .lr-legend .lg-item.active { background: var(--st-hover); border-color: var(--st-bd); color: var(--st); }
+        .lr-legend .lg-item.is-empty { opacity: .4; }
+        .lr-legend .lg-dot { width: 9px; height: 9px; border-radius: 3px; background: var(--st); border: 1px solid var(--st-bd); flex: 0 0 9px; }
+        .lr-legend .lg-count { font-weight: 700; opacity: .8; }
+        .lr-legend .lg-clear { color: #64748b; border-color: #e2e8f0; }
+        .lr-legend .lg-clear:hover { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
+        .lr-avatar {
+            width: 30px; height: 30px; border-radius: 50%; flex: 0 0 30px; display: flex; align-items: center; justify-content: center;
+            font-size: .68rem; font-weight: 700; color: #4338ca; background: #eef2ff; border: 1px solid #e0e7ff;
+        }
+        .lr-avatar.female { color: #be185d; background: #fce7f3; border-color: #fbcfe8; }
+        .lr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .lr-count-chip { background: #eef2ff; color: #4338ca; border: 1px solid #e0e7ff; border-radius: 999px; padding: .12rem .55rem; font-size: .68rem; font-weight: 700; }
+        .btn-entry {
+            background: #4f46e5; border: 1px solid #4f46e5; color: #fff; font-weight: 600; border-radius: .45rem;
+            transition: background .12s ease, box-shadow .12s ease;
+        }
+        .btn-entry:hover { background: #4338ca; border-color: #4338ca; color: #fff; box-shadow: 0 .25rem .6rem rgba(79,70,229,.3); }
+        .btn-icon { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: .5rem; }
+        .test-val-input:focus { border-color: #0d6efd; box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15); }
     </style>
 }
 
 <div class="container-fluid px-3 py-1.5 reporting-wrapper">
-    <!-- Top Header -->
-    <div class="d-flex justify-content-between align-items-center mb-1.5">
+    <!-- Page header -->
+    <div class="lr-head shadow-sm px-3 py-2 mb-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div class="d-flex align-items-center gap-2">
-            <h5 class="mb-0 fw-bold text-dark d-flex align-items-center">
-                <i class="bi bi-file-earmark-medical text-primary me-2"></i>Lab Reporting Entry
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 fs-9 fw-semibold">Collected In-House Samples</span>
-            </h5>
-            <span class="text-muted fs-9 d-none d-md-inline border-start ps-2">Enter and validate test results for collected lab specimens</span>
+            <div class="lr-head-icon"><i class="bi bi-file-earmark-medical"></i></div>
+            <div>
+                <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                    Lab Reporting Entry
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-9 fw-semibold">Collected In-House Samples</span>
+                </h5>
+                <div class="text-muted fs-9 mt-0.5">Enter and validate test results for collected lab specimens</div>
+            </div>
         </div>
         <div class="d-flex gap-2 align-items-center">
-            <button type="button" class="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-center shadow-sm" id="btnRefreshList" style="width: 30px; height: 30px;" title="Refresh List">
+            <span class="lr-count-chip" id="lblRowCount">&mdash;</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-icon shadow-xs" id="btnRefreshList" title="Refresh list">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>
     </div>
 
-    <!-- Summary KPI Cards (Compact) -->
-    <div class="row g-1.5 mb-1.5">
+    <!-- Summary KPI cards -->
+    <div class="row g-2 mb-2">
         <div class="col-6 col-md">
-            <div class="card shadow-sm border-0 border-start border-primary border-4 rounded-3 h-100 stat-card active-card" data-status="All">
-                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+            <div class="card stat-card k-total shadow-sm h-100" data-status="All">
+                <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Total Orders</span>
-                        <h5 class="mb-0 fw-bold text-dark mt-0.5" id="statTotalOrders">@Model.Stats.TotalOrders</h5>
+                        <span class="stat-label d-block">Total Orders</span>
+                        <div class="stat-value mt-0.5" id="statTotalOrders">@Model.Stats.TotalOrders</div>
                     </div>
-                    <div class="stat-icon bg-primary-subtle text-primary rounded-circle">
-                        <i class="bi bi-journal-medical"></i>
-                    </div>
+                    <div class="stat-icon"><i class="bi bi-journal-medical"></i></div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md">
-            <div class="card shadow-sm border-0 border-start border-secondary border-4 rounded-3 h-100 stat-card" data-status="Pending Entry">
-                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+            <div class="card stat-card k-pending shadow-sm h-100" data-status="Pending Entry">
+                <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Pending Entry</span>
-                        <h5 class="mb-0 fw-bold text-secondary mt-0.5" id="statPendingOrders">@Model.Stats.PendingOrders</h5>
+                        <span class="stat-label d-block">Pending Entry</span>
+                        <div class="stat-value mt-0.5" id="statPendingOrders">@Model.Stats.PendingOrders</div>
                     </div>
-                    <div class="stat-icon bg-secondary-subtle text-secondary rounded-circle">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
+                    <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md">
-            <div class="card shadow-sm border-0 border-start border-warning border-4 rounded-3 h-100 stat-card" data-status="Draft">
-                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+            <div class="card stat-card k-draft shadow-sm h-100" data-status="Draft">
+                <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Draft</span>
-                        <h5 class="mb-0 fw-bold text-warning mt-0.5" id="statDraftOrders">@Model.Stats.DraftOrders</h5>
+                        <span class="stat-label d-block">Draft</span>
+                        <div class="stat-value mt-0.5" id="statDraftOrders">@Model.Stats.DraftOrders</div>
                     </div>
-                    <div class="stat-icon bg-warning-subtle text-warning rounded-circle">
-                        <i class="bi bi-pencil-square"></i>
-                    </div>
+                    <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md">
-            <div class="card shadow-sm border-0 border-start border-info border-4 rounded-3 h-100 stat-card" data-status="Report Entry">
-                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+            <div class="card stat-card k-entered shadow-sm h-100" data-status="Report Entry">
+                <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Report Entered</span>
-                        <h5 class="mb-0 fw-bold text-info mt-0.5" id="statEnteredOrders">@Model.Stats.EnteredOrders</h5>
+                        <span class="stat-label d-block">Report Entered</span>
+                        <div class="stat-value mt-0.5" id="statEnteredOrders">@Model.Stats.EnteredOrders</div>
                     </div>
-                    <div class="stat-icon bg-info-subtle text-info rounded-circle">
-                        <i class="bi bi-file-earmark-check"></i>
-                    </div>
+                    <div class="stat-icon"><i class="bi bi-file-earmark-check"></i></div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md">
-            <div class="card shadow-sm border-0 border-start border-success border-4 rounded-3 h-100 stat-card" data-status="Report Validated">
-                <div class="card-body py-1.5 px-2.5 d-flex align-items-center justify-content-between">
+            <div class="card stat-card k-validated shadow-sm h-100" data-status="Report Validated">
+                <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="text-muted fs-9 fw-bold text-uppercase d-block" style="font-size: 0.68rem !important; letter-spacing: 0.3px;">Validated</span>
-                        <h5 class="mb-0 fw-bold text-success mt-0.5" id="statValidatedOrders">@Model.Stats.ValidatedOrders</h5>
+                        <span class="stat-label d-block">Validated</span>
+                        <div class="stat-value mt-0.5" id="statValidatedOrders">@Model.Stats.ValidatedOrders</div>
                     </div>
-                    <div class="stat-icon bg-success-subtle text-success rounded-circle">
-                        <i class="bi bi-patch-check-fill"></i>
-                    </div>
+                    <div class="stat-icon"><i class="bi bi-patch-check-fill"></i></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Unified Compact Filter Card -->
-    <div class="card shadow-sm border-0 rounded-3 mb-2">
+    <!-- Filters -->
+    <div class="card lr-card shadow-sm mb-2">
         <div class="card-body p-2 px-3">
-            <!-- Row 1: Date & Search Filters -->
-            <div class="row g-2 align-items-center">
+            <div class="row g-2 align-items-end">
                 <div class="col-6 col-md-2">
-                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Filter By Date</label>
-                    <select id="selDateFilterType" class="form-select form-select-sm fs-8 py-0.5">
+                    <label class="lr-label" for="selDateFilterType">Filter By Date</label>
+                    <select id="selDateFilterType" class="form-select form-select-sm">
                         <option value="BookingDate" selected="@(Model.DateFilterType == "BookingDate")">Booking Date Time</option>
                         <option value="OrderDate" selected="@(Model.DateFilterType == "OrderDate")">Order / Bill Date</option>
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
-                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">From Date</label>
-                    <input type="date" id="txtFromDate" class="form-control form-control-sm fs-8 py-0.5" value="@Model.FromDate.ToString("yyyy-MM-dd")" />
+                    <label class="lr-label" for="txtFromDate">From Date</label>
+                    <input type="date" id="txtFromDate" class="form-control form-control-sm" value="@Model.FromDate.ToString("yyyy-MM-dd")" />
                 </div>
                 <div class="col-6 col-md-2">
-                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">To Date</label>
-                    <input type="date" id="txtToDate" class="form-control form-control-sm fs-8 py-0.5" value="@Model.ToDate.ToString("yyyy-MM-dd")" />
+                    <label class="lr-label" for="txtToDate">To Date</label>
+                    <input type="date" id="txtToDate" class="form-control form-control-sm" value="@Model.ToDate.ToString("yyyy-MM-dd")" />
                 </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Quick Select</label>
-                    <div class="btn-group btn-group-sm w-100" role="group">
-                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="today">Today</button>
-                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="yesterday">Yesterday</button>
-                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="week">7 Days</button>
-                        <button type="button" class="btn btn-outline-secondary btn-quick-date py-0.5 fs-9" data-range="month">This Month</button>
+                <div class="col-6 col-md-3">
+                    <label class="lr-label">Quick Select</label>
+                    <div class="btn-group btn-group-sm w-100 lr-quick" role="group" aria-label="Quick date range">
+                        <button type="button" class="btn btn-quick-date" data-range="today">Today</button>
+                        <button type="button" class="btn btn-quick-date" data-range="yesterday">Yesterday</button>
+                        <button type="button" class="btn btn-quick-date" data-range="week">7 Days</button>
+                        <button type="button" class="btn btn-quick-date" data-range="month">This Month</button>
                     </div>
                 </div>
                 <div class="col-12 col-md-3">
-                    <label class="form-label fs-9 text-muted mb-0.5 fw-bold text-uppercase">Search Patient / Order</label>
+                    <label class="lr-label" for="txtSearch">Search Patient / Order</label>
                     <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-light border-end-0 py-0.5"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" id="txtSearch" class="form-control border-start-0 fs-8 py-0.5" placeholder="Name, Code, Token, Bill, Phone..." value="@Model.Search" />
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="txtSearch" class="form-control border-start-0 ps-0" placeholder="Name, code, token, bill, phone&hellip;" value="@Model.Search" />
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Row 2: Investigation Cascading Filters (Compact) -->
-            <div class="pt-1.5 mt-1.5 border-top">
-                <div class="d-flex align-items-center justify-content-between mb-1">
-                    <span class="fw-semibold text-secondary fs-9 d-flex align-items-center gap-1">
-                        <i class="bi bi-funnel-fill text-primary"></i> Filter Investigations:
+        <div class="lr-filter-strip px-3 py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-auto d-flex align-items-center pb-1">
+                    <span class="fw-semibold fs-9 text-secondary d-flex align-items-center gap-1 text-uppercase" style="letter-spacing:.4px;">
+                        <i class="bi bi-funnel-fill text-primary"></i>Filter Investigations
                     </span>
-                    <button type="button" class="btn btn-link btn-sm text-decoration-none text-danger p-0 fs-9" id="btnResetFilters" style="display:none;">
-                        <i class="bi bi-x-circle me-1"></i>Clear Filters
-                    </button>
                 </div>
-                <div class="row g-2">
-                    <div class="col-12 col-md-4">
-                        <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-hospital me-1"></i>Department</label>
-                        <select id="ddlDepartment" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Departments --">
-                            <option value="">-- All Departments --</option>
+                <div class="col-12 col-md">
+                    <label class="lr-label" for="ddlDepartment"><i class="bi bi-hospital me-1"></i>Department</label>
+                    <select id="ddlDepartment" class="form-select form-select-sm" data-placeholder="-- All Departments --">
+                        <option value="">-- All Departments --</option>
                             @foreach (var d in Model.DepartmentOptions)
                             {
                                 <option value="@d.Value" selected="@(d.Value == Model.DepartmentId?.ToString() ? "selected" : null)">@d.Text</option>
                             }
                         </select>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-tag me-1"></i>Category</label>
-                        <select id="ddlCategory" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Categories --">
-                            <option value="">-- All Categories --</option>
+                </div>
+                <div class="col-12 col-md">
+                    <label class="lr-label" for="ddlCategory"><i class="bi bi-tag me-1"></i>Category</label>
+                    <select id="ddlCategory" class="form-select form-select-sm" data-placeholder="-- All Categories --">
+                        <option value="">-- All Categories --</option>
                             @foreach (var c in Model.CategoryOptions)
                             {
                                 <option value="@c.Value" selected="@(c.Value == Model.CategoryId?.ToString() ? "selected" : null)">@c.Text</option>
                             }
                         </select>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label text-muted fs-9 mb-0.5 fw-semibold"><i class="bi bi-diagram-3 me-1"></i>Sub Category</label>
-                        <select id="ddlSubCategory" class="form-select form-select-sm fs-8 py-0.5" data-placeholder="-- All Sub Categories --">
-                            <option value="">-- All Sub Categories --</option>
+                </div>
+                <div class="col-12 col-md">
+                    <label class="lr-label" for="ddlSubCategory"><i class="bi bi-diagram-3 me-1"></i>Sub Category</label>
+                    <select id="ddlSubCategory" class="form-select form-select-sm" data-placeholder="-- All Sub Categories --">
+                        <option value="">-- All Sub Categories --</option>
                             @foreach (var s in Model.SubCategoryOptions)
                             {
                                 <option value="@s.Value" selected="@(s.Value == Model.SubCategoryId?.ToString() ? "selected" : null)">@s.Text</option>
                             }
                         </select>
-                    </div>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <button type="button" class="btn btn-link btn-sm text-decoration-none text-danger p-0 fs-9" id="btnResetFilters" style="display:none;">
+                        <i class="bi bi-x-circle me-1"></i>Clear Filters
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Orders Table Card -->
-    <div class="card shadow-sm border-0 rounded-3">
+    <!-- Orders -->
+    <div class="card lr-card shadow-sm">
+        <div class="px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
+                <i class="bi bi-list-ul me-1 text-primary"></i>Orders
+            </span>
+            <div class="lr-legend" id="statusLegend" role="group" aria-label="Filter rows by report status">
+                <button type="button" class="lg-item st-pending"   data-st="st-pending"   title="Show only Pending Entry rows"><span class="lg-dot"></span>Pending Entry<span class="lg-count"></span></button>
+                <button type="button" class="lg-item st-entered"   data-st="st-entered"   title="Show only Report Entry rows"><span class="lg-dot"></span>Report Entry<span class="lg-count"></span></button>
+                <button type="button" class="lg-item st-validated" data-st="st-validated" title="Show only Validated rows"><span class="lg-dot"></span>Validated<span class="lg-count"></span></button>
+                <button type="button" class="lg-item st-approved"  data-st="st-approved"  title="Show only Approved rows"><span class="lg-dot"></span>Approved<span class="lg-count"></span></button>
+                <button type="button" class="lg-item st-recollect" data-st="st-recollect" title="Show only Re-Collect rows"><span class="lg-dot"></span>Re-Collect<span class="lg-count"></span></button>
+                <button type="button" class="lg-item st-rejected"  data-st="st-rejected"  title="Show only Rejected rows"><span class="lg-dot"></span>Rejected<span class="lg-count"></span></button>
+                <button type="button" class="lg-item lg-clear d-none" id="btnClearLegend" title="Show every status again"><i class="bi bi-x-lg"></i>Clear</button>
+            </div>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive table-responsive-custom">
                 <table class="table table-hover table-sticky-header align-middle mb-0" id="tblReportingOrders">
-                    <thead class="table-light">
-                        <tr class="fs-9 text-muted text-uppercase fw-bold">
-                            <th class="ps-3" style="width: 40px;">#</th>
-                            <th style="width: 140px;">Order / Token</th>
-                            <th>Patient Details</th>
+                    <thead>
+                        <tr>
+                            <th class="ps-3" style="width: 44px;">#</th>
+                            <th style="width: 170px;">Order / Token</th>
+                            <th style="width: 260px;">Patient Details</th>
                             <th>Contact</th>
-                            <th>Booking Date</th>
-                            <th class="text-center">Collection Status</th>
-                            <th class="text-center">Report Status</th>
-                            <th class="text-end pe-3" style="width: 130px;">Action</th>
+                            <th style="width: 140px;">Booking Date</th>
+                            <th class="text-center" style="width: 150px;">Collection Status</th>
+                            <th class="text-center" style="width: 150px;">Report Status</th>
+                            <th class="text-end pe-3" style="width: 140px;">Action</th>
                         </tr>
                     </thead>
                     <tbody id="tblReportingOrdersBody" class="fs-8">
@@ -248,26 +320,40 @@
                     </tbody>
                 </table>
             </div>
+            <!-- No row matches the picked status colour -->
+            <div id="legendEmptyState" class="text-center py-4 d-none">
+                <div class="text-muted fs-8">
+                    <i class="bi bi-funnel me-1"></i>No order in this status for the current filters.
+                    <button type="button" class="btn btn-link btn-sm p-0 fs-8 text-decoration-none align-baseline" id="btnClearLegendInline">Show all statuses</button>
+                </div>
+            </div>
+
             <!-- Empty state -->
             <div id="emptyOrdersState" class="text-center py-5 d-none">
-                <i class="bi bi-journal-x text-muted" style="font-size: 3rem;"></i>
-                <div class="fw-bold text-dark fs-6 mt-2">No Collected Orders Found</div>
-                <div class="text-muted fs-8">There are no in-house collected patient samples matching your filters.</div>
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-2"
+                     style="width:64px;height:64px;background:#eef2f6;color:#94a3b8;">
+                    <i class="bi bi-journal-x" style="font-size: 1.8rem;"></i>
+                </div>
+                <div class="fw-bold text-dark fs-7">No collected orders found</div>
+                <div class="text-muted fs-8 mt-1">No in-house collected samples match the current filters. Try a wider date range or clear the filters.</div>
             </div>
             <!-- Loading state -->
             <div id="loadingOrdersState" class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading&hellip;</span>
                 </div>
-                <div class="text-muted fs-8 mt-2">Fetching lab orders for reporting...</div>
+                <div class="text-muted fs-8 mt-2">Fetching lab orders for reporting&hellip;</div>
             </div>
         </div>
     </div>
 </div>
 </div>
 
+<partial name="_LabAuditHistoryModal" />
+
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <partial name="_LabAuditHistoryScripts" />
     <script>
         $(document).ready(function () {
             toastr.options = {
@@ -278,6 +364,8 @@
             };
 
             let currentOrders = [];
+            // Legend colour-code filter: narrows the rows already on screen (display only, no re-query).
+            let legendStatus = null;
             let activeOrderId = null;
             let currentDetailData = null;
             let currentStatusFilter = '@Model.StatusFilter' || 'All';
@@ -332,10 +420,15 @@
 
                 if (!orders || orders.length === 0) {
                     $('#emptyOrdersState').removeClass('d-none');
+                    $('#legendEmptyState').addClass('d-none');
+                    $('#lblRowCount').text('0 orders');
+                    $('#statusLegend .lg-item[data-st]').addClass('is-empty').removeClass('active').find('.lg-count').text('');
+                    $('#btnClearLegend').addClass('d-none');
                     return;
                 }
 
                 $('#emptyOrdersState').addClass('d-none');
+                $('#lblRowCount').text(orders.length + (orders.length === 1 ? ' order' : ' orders'));
 
                 let html = '';
                 orders.forEach((o, index) => {
@@ -351,31 +444,70 @@
                         ? `<div class="mt-1"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-9" title="Sample transferred from ${escapeHtml(o.sourceBranchName || 'External Branch')}"><i class="bi bi-arrow-left-right me-1"></i>From: ${escapeHtml(o.sourceBranchName || 'Branch')}</span></div>`
                         : '';
 
+                    // B2B-billed order (Franchise / Company): badge with the partner in the tooltip
+                    const b2bBadge = o.isB2B
+                        ? `<span class="badge fs-9 fw-semibold" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;" title="B2B billing${o.clientName ? ' - ' + escapeHtml((o.clientType === 'FRANCHISE' ? 'Franchise: ' : 'Company: ') + (o.clientCode ? o.clientCode + ' · ' : '') + o.clientName) : ''}"><i class="bi ${o.clientType === 'FRANCHISE' ? 'bi-shop' : 'bi-building'} me-1"></i>B2B</span>`
+                        : '';
+
+                    // presentation helpers only - initials, gender tint and the left status rail
+                    const initials = (o.patientName || '?').trim().split(/\s+/).filter(w => /[A-Za-z]/.test(w))
+                        .slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
+                    const genderCls = (o.gender || '').toLowerCase().startsWith('f') ? ' female' : '';
+                    // one status token drives the row tint, the left rail and the status badge
+                    const st = (o.reportStatusName || '').toLowerCase();
+                    const stCls = st.includes('approve')  ? 'st-approved'
+                                : st.includes('validat')  ? 'st-validated'
+                                : st.includes('reject')   ? 'st-rejected'
+                                : st.includes('collect')  ? 'st-recollect'
+                                : st.includes('draft')    ? 'st-draft'
+                                // "Pending Entry" must not fall into the "Report Entry" bucket
+                                : st.includes('pending')  ? 'st-pending'
+                                : st.includes('entry') || st.includes('entered') || st.includes('submit') ? 'st-entered'
+                                : 'st-pending';
+
                     html += `
-                        <tr id="orderRow_${o.labOrderId}">
-                            <td class="ps-3 text-muted fw-bold">${index + 1}</td>
+                        <tr id="orderRow_${o.labOrderId}" class="${stCls}">
+                            <td class="ps-3 text-muted fw-semibold fs-9">${index + 1}</td>
                             <td>
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="badge bg-primary text-white font-monospace fs-9">${escapeHtml(o.tokenNo || 'LAB')}</span>
+                                <div class="d-flex align-items-center flex-wrap gap-1">
+                                    <span class="badge bg-primary text-white lr-mono fs-9">${escapeHtml(o.tokenNo || 'LAB')}</span>
+                                    ${b2bBadge}
                                     ${urgentBadge}
                                 </div>
-                                <div class="fs-9 text-muted font-monospace mt-1">${escapeHtml(o.billNo || '—')}</div>
+                                <div class="fs-9 text-muted lr-mono mt-1">${escapeHtml(o.billNo || '—')}</div>
                                 ${transferredBadge}
                             </td>
                             <td>
-                                <div class="fw-bold text-dark fs-8">${escapeHtml(o.patientName)}</div>
-                                <div class="fs-9 text-muted">
-                                    <span class="badge bg-light text-dark border me-1">${escapeHtml(o.patientCode)}</span>
-                                    ${o.age ? o.age + ' Y / ' : ''}${escapeHtml(o.gender || '—')}
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="lr-avatar${genderCls}">${escapeHtml(initials)}</span>
+                                    <div class="min-w-0">
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="fw-semibold text-dark fs-8 text-truncate" title="${escapeHtml(o.patientName)}">${escapeHtml(o.patientName)}</span>
+                                            <button type="button" class="btn-audit-info"
+                                                    data-laborderid="${o.labOrderId}"
+                                                    data-patient="${escapeHtml(o.patientName)}"
+                                                    data-bill="${escapeHtml(o.billNo || '—')}"
+                                                    title="View audit history for this bill"
+                                                    aria-label="View audit history for this bill">
+                                                <i class="bi bi-info-circle-fill"></i>
+                                            </button>
+                                        </div>
+                                        <div class="fs-9 text-muted d-flex align-items-center gap-1 mt-0.5">
+                                            <span class="badge bg-light text-secondary border lr-mono fw-normal">${escapeHtml(o.patientCode)}</span>
+                                            <span>${o.age ? o.age + ' Y' : ''}${o.age && o.gender ? ' · ' : ''}${escapeHtml(o.gender || '')}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                             <td>
-                                <div class="text-dark">${escapeHtml(o.phoneNumber || '—')}</div>
-                                <div class="fs-9 text-muted">${escapeHtml(o.emailId || '—')}</div>
+                                <div class="text-dark fs-8"><i class="bi bi-telephone text-muted me-1"></i>${escapeHtml(o.phoneNumber || '—')}</div>
+                                <div class="fs-9 text-muted text-truncate" style="max-width: 210px;" title="${escapeHtml(o.emailId || '')}">
+                                    <i class="bi bi-envelope me-1"></i>${escapeHtml(o.emailId || '—')}
+                                </div>
                             </td>
                             <td>
-                                <div class="text-dark">${formatDate(o.bookingDateTime || o.orderDate)}</div>
-                                <div class="fs-9 text-muted">${formatTime(o.bookingDateTime || o.orderDate)}</div>
+                                <div class="text-dark fs-8">${formatDate(o.bookingDateTime || o.orderDate)}</div>
+                                <div class="fs-9 text-muted"><i class="bi bi-clock me-1"></i>${formatTime(o.bookingDateTime || o.orderDate)}</div>
                             </td>
                             <td class="text-center">
                                 <span class="badge ${sampleBadgeClass} fs-9">
@@ -384,15 +516,15 @@
                                 <div class="fs-9 text-muted mt-1">${o.collectedInHouseTests} / ${o.totalInHouseTests} Tests</div>
                             </td>
                             <td class="text-center">
-                                <span class="badge ${o.reportBadgeClass} fs-9">
+                                <span class="badge st-badge fs-9">
                                     ${escapeHtml(o.reportStatusName)}
                                 </span>
                             </td>
                             <td class="text-end pe-3">
                                 <a href="@Url.Action("Entry", "LabReporting")?labOrderId=${o.labOrderId}"
                                    target="_blank"
-                                   class="btn btn-primary btn-sm py-1 px-2.5 fs-8 shadow-xs d-inline-flex align-items-center"
-                                   title="Open Report Entry in new tab">
+                                   class="btn btn-entry btn-sm py-1 px-2.5 fs-8 d-inline-flex align-items-center"
+                                   title="Open Report Entry in a new tab">
                                     <i class="bi bi-pencil-square me-1"></i>Report Entry
                                     <i class="bi bi-box-arrow-up-right ms-1.5 fs-9 text-white-50"></i>
                                 </a>
@@ -402,7 +534,54 @@
                 });
 
                 $tbody.html(html);
+                applyLegendFilter();
             }
+
+            // ── Status colour-code filter (legend) ─────────────────────────
+            function applyLegendFilter() {
+                const $rows = $('#tblReportingOrdersBody tr');
+                const total = $rows.length;
+
+                // per-status counts of the rows currently loaded
+                $('#statusLegend .lg-item[data-st]').each(function () {
+                    const st = $(this).data('st');
+                    const n = $rows.filter('.' + st).length;
+                    $(this).find('.lg-count').text(n ? ' ' + n : '');
+                    $(this).toggleClass('is-empty', n === 0);
+                });
+
+                if (legendStatus) {
+                    $rows.addClass('d-none').filter('.' + legendStatus).removeClass('d-none');
+                } else {
+                    $rows.removeClass('d-none');
+                }
+
+                $('#statusLegend .lg-item[data-st]').removeClass('active')
+                    .filter('[data-st="' + legendStatus + '"]').addClass('active');
+                $('#btnClearLegend').toggleClass('d-none', !legendStatus);
+
+                // keep the # column sequential over the rows actually on screen
+                let n = 0;
+                $rows.not('.d-none').each(function () { $(this).children('td').first().text(++n); });
+
+                const shown = $rows.not('.d-none').length;
+                $('#legendEmptyState').toggleClass('d-none', !(legendStatus && shown === 0 && total > 0));
+                $('#lblRowCount').text(
+                    legendStatus && total > 0
+                        ? shown + ' of ' + total + (total === 1 ? ' order' : ' orders')
+                        : total + (total === 1 ? ' order' : ' orders'));
+            }
+
+            $('#statusLegend').on('click', '.lg-item[data-st]', function () {
+                const st = $(this).data('st');
+                legendStatus = (legendStatus === st) ? null : st;   // click the active one again to clear
+                applyLegendFilter();
+            });
+
+            $('#btnClearLegend, #btnClearLegendInline').on('click', function () {
+                legendStatus = null;
+                applyLegendFilter();
+            });
 
             // ── 2. Filter & Date Handlers ──────────────────────────────────
             $('.stat-card').on('click', function () {
@@ -417,6 +596,7 @@
             });
 
             $('#txtFromDate, #txtToDate, #selDateFilterType').on('change', function () {
+                $('.btn-quick-date').removeClass('active');
                 loadOrders();
             });
 
@@ -426,6 +606,8 @@
             });
 
             $('.btn-quick-date').on('click', function () {
+                $('.btn-quick-date').removeClass('active');
+                $(this).addClass('active');
                 const range = $(this).data('range');
                 const today = new Date();
                 let from = new Date();

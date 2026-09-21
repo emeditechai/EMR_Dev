@@ -39,6 +39,12 @@ namespace EMR.Web.Models.DTOs
         public int? SourceBranchId { get; set; }
         public string? SourceBranchName { get; set; }
         public DateTime? TransferredDate { get; set; }
+        /// <summary>True when the order was billed to a Franchise / Company (B2B).</summary>
+        public bool IsB2B { get; set; }
+        /// <summary>"FRANCHISE" or "COMPANY" for B2B orders; null for B2C.</summary>
+        public string? ClientType { get; set; }
+        public string? ClientCode { get; set; }
+        public string? ClientName { get; set; }
     }
 
     public class LabReportingHeaderListResult
@@ -355,6 +361,11 @@ namespace EMR.Web.Models.DTOs
         public string? SourceBranchName { get; set; }
         public int? TargetBranchId { get; set; }
         public string? TargetBranchName { get; set; }
+        /// <summary>
+        /// The sample was transferred out of the branch currently viewing: the result was produced and approved at
+        /// the target branch, so it is shown here (to be seen and printed) but nothing on it may be changed.
+        /// </summary>
+        public bool IsReadOnlyForBranch { get; set; }
         public DateTime? TransferredDate { get; set; }
         public string? TransferRemarks { get; set; }
         public int CollectionstatusID { get; set; } = 2;

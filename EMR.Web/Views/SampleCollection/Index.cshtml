@@ -457,17 +457,6 @@
                             </div>
                         </div>
 
-                        <!-- Booking Date Restriction Alert Banner -->
-                        <div id="alertDateRestriction" class="alert alert-warning py-2 px-3 mb-3 d-flex align-items-center rounded-3 fs-8 border-warning-subtle shadow-xs d-none">
-                            <i class="bi bi-exclamation-triangle-fill text-warning fs-5 me-2 flex-shrink-0"></i>
-                            <div>
-                                <strong>Sample Collection Restricted:</strong> 
-                                Sample collection is only permitted when the <strong>Booking Date</strong> equals the <strong>Current Date</strong>. 
-                                This order is booked for <span id="alertRestrictedDate" class="fw-bold"></span> (Today is <span id="alertTodayDate" class="fw-bold"></span>). 
-                                Save buttons are disabled for these records.
-                            </div>
-                        </div>
-
                         <!-- INVESTIGATIONS TABLE (CONTAINER IN DETAILS BASED ON INVESTIGATION) -->
                         <div class="card border rounded-3 overflow-hidden shadow-xs">
                             <div class="table-responsive">
@@ -944,18 +933,8 @@
                 $('#workspaceActionButtons').removeClass('d-none');
 
                 const rawBookingDate = detail.bookingDateTime || detail.orderDate;
-                const isAllowedToday = isDateToday(rawBookingDate);
-
-                // Date Restriction Banner
-                if (!isAllowedToday) {
-                    const bookingDateFormatted = formatDate(rawBookingDate);
-                    const todayFormatted = formatDate(new Date().toISOString());
-                    $('#alertRestrictedDate').text(bookingDateFormatted);
-                    $('#alertTodayDate').text(todayFormatted);
-                    $('#alertDateRestriction').removeClass('d-none');
-                } else {
-                    $('#alertDateRestriction').addClass('d-none');
-                }
+                // Minimum allowed collection date-time (yyyy-MM-ddTHH:mm) = the booking date-time
+                const minCollectionDt = toInputDateTime(rawBookingDate);
 
                 // Header Subtitle
                 $('#lblWorkspaceSubtitle').text(`${detail.tokenNo || ''} — ${detail.patientName || ''}`);
@@ -1053,14 +1032,7 @@
                 }
 
                 // Collect All Button State based on Date & Pending items
-                if (!isAllowedToday) {
-                    const bookingDateFormatted = formatDate(rawBookingDate);
-                    $('#btnCollectAll')
-                        .prop('disabled', true)
-                        .removeClass('btn-success')
-                        .addClass('btn-secondary')
-                        .attr('title', `Sample collection is only permitted on the booking date (${bookingDateFormatted})`);
-                } else if (!hasPending) {
+                if (!hasPending) {
                     $('#btnCollectAll')
                         .prop('disabled', true)
                         .removeClass('btn-success')
@@ -1154,7 +1126,7 @@
                     const msClass = parentPkgGrpId ? 'ms-4' : '';
 
                     const grpReason = profGrp.items.find(x => x.rejectionReason)?.rejectionReason;
-                    const canEditProfile = isAllowedToday || profGrp.items.every(x => x.collectionstatusID === 3);
+                    const canEditProfile = true;
 
                     return {
                         grpId: grpId,
@@ -1194,14 +1166,14 @@
                                             <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!canEditProfile ? 'disabled' : ''}>
                                                 ${profileStatusOptionsHtml}
                                             </select>
-                                            <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
+                                            <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
                                                    data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
                                             <button type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                     data-grpid="${grpId}"
                                                     data-profileid="${profGrp.profileId || ''}"
                                                     data-profilename="${escapeHtml(profGrp.name)}"
                                                     ${!canEditProfile ? 'disabled' : ''}
-                                                    title="${canEditProfile ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                                    title="Save collection status for all tests in this Profile">
                                                 <i class="bi ${canEditProfile ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
                                             </button>
                                         </div>
@@ -1212,14 +1184,14 @@
                                         <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!canEditProfile ? 'disabled' : ''}>
                                             ${profileStatusOptionsHtml}
                                         </select>
-                                        <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;"
+                                        <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
                                                data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
                                         <button type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                 data-grpid="${grpId}"
                                                 data-profileid="${profGrp.profileId || ''}"
                                                 data-profilename="${escapeHtml(profGrp.name)}"
                                                 ${!canEditProfile ? 'disabled' : ''}
-                                                title="${canEditProfile ? 'Save collection status for all tests in this Profile' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                                title="Save collection status for all tests in this Profile">
                                             <i class="bi ${canEditProfile ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
                                         </button>
                                     </div>
@@ -1349,7 +1321,7 @@
                         let statusCellHtml = '';
                         let actionCellHtml = '';
 
-                        const canEditTest = isAllowedToday || test.collectionstatusID === 3;
+                        const canEditTest = true;
 
                         if (isCollected) {
                             statusCellHtml = `
@@ -1377,14 +1349,14 @@
                                 </div>
                                 <div class="row-edit-action d-none mt-1">
                                     <div class="d-flex flex-column gap-1">
-                                        <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" 
+                                        <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" min="${minCollectionDt}"
                                                data-id="${test.samplecollectionID}" 
                                                value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                                ${!canEditTest ? 'disabled' : ''} />
                                         <button type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
                                                 data-id="${test.samplecollectionID}"
                                                 ${!canEditTest ? 'disabled' : ''}
-                                                title="${canEditTest ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                                title="Save sample status">
                                             <i class="bi ${canEditTest ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
                                         </button>
                                     </div>
@@ -1400,14 +1372,14 @@
 
                             actionCellHtml = `
                                 <div class="d-flex flex-column gap-1">
-                                    <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" 
+                                    <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" min="${minCollectionDt}"
                                            data-id="${test.samplecollectionID}" 
                                            value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                            ${!canEditTest ? 'disabled' : ''} />
                                     <button type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
                                             data-id="${test.samplecollectionID}"
                                             ${!canEditTest ? 'disabled' : ''}
-                                            title="${canEditTest ? 'Save sample status' : `Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)})`}">
+                                            title="Save sample status">
                                         <i class="bi ${canEditTest ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
                                     </button>
                                 </div>
@@ -1707,12 +1679,6 @@
             $(document).on('click', '.btn-save-profile', function () {
                 if (!activeOrderId || !currentDetailData) return;
 
-                const rawBookingDate = currentDetailData.bookingDateTime || currentDetailData.orderDate;
-                if (!isDateToday(rawBookingDate)) {
-                    showNotify(`Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)}).`, 'warning');
-                    return;
-                }
-
                 const btn = $(this);
                 const grpId = btn.data('grpid');
                 const profileIdRaw = btn.data('profileid');
@@ -1725,6 +1691,11 @@
                 if (statusId <= 0) {
                     showNotify('Please select a valid profile status.', 'warning');
                     return;
+                }
+
+                if (statusId === 2) {
+                    const dtErr = validateCollectionDateTime(dtVal);
+                    if (dtErr) { showNotify(dtErr, 'warning'); return; }
                 }
 
                 let datePart = null;
@@ -1776,12 +1747,6 @@
             $(document).on('click', '.btn-save-sample', function () {
                 if (!activeOrderId || !currentDetailData) return;
 
-                const rawBookingDate = currentDetailData.bookingDateTime || currentDetailData.orderDate;
-                if (!isDateToday(rawBookingDate)) {
-                    showNotify(`Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)}).`, 'warning');
-                    return;
-                }
-
                 const sampleId = parseInt($(this).data('id')) || 0;
                 const row = $(this).closest('tr').length ? $(this).closest('tr') : $(`#row_${sampleId}`);
                 const statusId = parseInt(row.find('.sel-collection-status').val()) || 0;
@@ -1790,6 +1755,11 @@
                 if (sampleId <= 0 || statusId <= 0) {
                     showNotify('Please select a valid sample status.', 'warning');
                     return;
+                }
+
+                if (statusId === 2) {
+                    const dtErr = validateCollectionDateTime(dtVal);
+                    if (dtErr) { showNotify(dtErr, 'warning'); return; }
                 }
 
                 let datePart = null;
@@ -1848,10 +1818,9 @@
                     return;
                 }
 
-                const rawBookingDate = currentDetailData.bookingDateTime || currentDetailData.orderDate;
-                if (!isDateToday(rawBookingDate)) {
-                    showNotify(`Sample collection is only permitted on the booking date (${formatDate(rawBookingDate)}).`, 'warning');
-                    return;
+                {
+                    const dtErr = validateCollectionDateTime(null);
+                    if (dtErr) { showNotify(dtErr, 'warning'); return; }
                 }
 
                 const proceedCollectAll = function () {
@@ -2262,27 +2231,31 @@
                 return `${fDate} ${fTime}`.trim();
             }
 
-            function isDateToday(rawDateStr) {
-                if (!rawDateStr) return false;
-                let bDateYMD = '';
-                if (typeof rawDateStr === 'string' && rawDateStr.length >= 10 && rawDateStr.charAt(4) === '-' && rawDateStr.charAt(7) === '-') {
-                    bDateYMD = rawDateStr.substring(0, 10);
-                } else {
-                    const d = new Date(rawDateStr);
-                    if (isNaN(d.getTime())) return false;
-                    const y = d.getFullYear();
-                    const m = String(d.getMonth() + 1).padStart(2, '0');
-                    const day = String(d.getDate()).padStart(2, '0');
-                    bDateYMD = `${y}-${m}-${day}`;
+            // Any date/date-time value -> 'yyyy-MM-ddTHH:mm' (local wall clock, as stored) for comparison / datetime-local min.
+            function toInputDateTime(raw) {
+                if (!raw) return '';
+                if (typeof raw === 'string' && raw.length >= 10 && raw.charAt(4) === '-' && raw.charAt(7) === '-') {
+                    const t = raw.length >= 16 && (raw.charAt(10) === 'T' || raw.charAt(10) === ' ') ? raw.substring(11, 16) : '00:00';
+                    return raw.substring(0, 10) + 'T' + t;
                 }
+                const d = new Date(raw);
+                if (isNaN(d.getTime())) return '';
+                const p = n => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+            }
 
-                const now = new Date();
-                const curY = now.getFullYear();
-                const curM = String(now.getMonth() + 1).padStart(2, '0');
-                const curD = String(now.getDate()).padStart(2, '0');
-                const todayYMD = `${curY}-${curM}-${curD}`;
-
-                return bDateYMD === todayYMD;
+            // Collection date-time must not be earlier than the booking date-time (to the minute).
+            // A blank value means "now" (the server stamps the current time). Returns an error message or null.
+            function validateCollectionDateTime(dtVal) {
+                if (!currentDetailData) return null;
+                const rawBooking = currentDetailData.bookingDateTime || currentDetailData.orderDate;
+                const booking = toInputDateTime(rawBooking);
+                if (!booking) return null;
+                const collect = dtVal ? toInputDateTime(dtVal) : toInputDateTime(new Date());
+                if (collect && collect < booking) {
+                    return `Sample collection date and time (${collect.replace('T', ' ')}) cannot be earlier than the booking date and time (${booking.replace('T', ' ')}).`;
+                }
+                return null;
             }
 
             function getFormattedDateTimeForInput(dStr, tStr) {

@@ -1,0 +1,283 @@
+@* Script for the shared audit history modal (_LabAuditHistoryModal). Render inside @section Scripts, after jQuery/Bootstrap. *@
+<style>
+    .audit-reason { color: #dc2626; font-weight: 700; }
+    .audit-for { color: #ca8a04; font-weight: 700; }
+</style>
+<script>
+        // Audit history for this Lab Order / Bill (loaded on demand when the "i" icon is clicked)
+        (function () {
+            let labOrderId = 0;
+            const historyUrl = '@Url.Action("GetAuditHistoryJson", "LabReporting")';
+            let allEvents = [];
+            let activeFilter = 'All';
+
+            const esc = function (v) {
+                return String(v ?? '').replace(/[&<>"']/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            };
+            const pick = function (o, a, b) { return o ? (o[a] !== undefined ? o[a] : o[b]) : undefined; };
+
+            // Maps a stored ActionName to a label / icon / colour / filter category.
+            function describe(e) {
+                const a = e.actionName || '';
+                const md = e.metadata || {};
+                const statusName = pick(md, 'StatusName', 'statusName');
+                const map = {
+                    'LAB.OrderBooked':            ['Order Booked',              'bi-receipt',            '#4f46e5', 'Billing'],
+                    'LAB.B2BOrderBooked':         ['B2B Order Booked',          'bi-building',           '#4f46e5', 'Billing'],
+                    'LAB.PaymentReceived':        ['Payment Received',          'bi-cash-coin',          '#16a34a', 'Billing'],
+                    'LAB.SampleCollected':        ['Sample Collected',          'bi-eyedropper',         '#16a34a', 'Sample'],
+                    'LAB.ProfileSamplesCollected':['Profile Samples Collected', 'bi-eyedropper',         '#16a34a', 'Sample'],
+                    'LAB.AllSamplesCollected':    ['All Samples Collected',     'bi-eyedropper',         '#16a34a', 'Sample'],
+                    'LAB.SampleRejected':         ['Sample Rejected',           'bi-x-octagon-fill',     '#dc2626', 'Sample'],
+                    'LAB.SampleStatusUpdated':    ['Sample Status Updated',     'bi-eyedropper',         '#0891b2', 'Sample'],
+                    'LAB.ProfileStatusUpdated':   ['Profile Sample Status Updated', 'bi-eyedropper',     '#0891b2', 'Sample'],
+                    'LAB.SampleTransferred':      ['Sample Transferred',        'bi-arrow-left-right',   '#d97706', 'Transfer'],
+                    'LAB.SampleReceived':         ['Sample Received',           'bi-box-arrow-in-down',  '#0d9488', 'Transfer'],
+                    'LAB.ReportDraftSaved':       ['Draft Saved',               'bi-floppy',             '#64748b', 'Reporting'],
+                    'LAB.ReportEntryCompleted':   ['Results Submitted',         'bi-send-check-fill',    '#2563eb', 'Reporting'],
+                    'LAB.ReportValidated':        ['Results Validated',         'bi-patch-check-fill',   '#0891b2', 'Reporting'],
+                    'LAB.ReportApproved':         ['Results Approved',          'bi-check2-circle',      '#16a34a', 'Reporting'],
+                    'LAB.PathologistLevelSigned': ['Pathologist Sign-off (level)', 'bi-pen-fill',        '#b91c1c', 'Reporting'],
+                    'LAB.ReportUnapproved':       ['Approval Withdrawn (Un-Authorized)', 'bi-unlock-fill', '#d97706', 'Reporting'],
+                    'LAB.ReportReCollected':      ['Marked for Re-collection',  'bi-arrow-repeat',       '#dc2626', 'Reporting'],
+                    'LAB.ReportSaved':            ['Report Saved',              'bi-floppy',             '#64748b', 'Reporting'],
+                    'LAB.ReportPrinted':          ['Report Printed',            'bi-printer-fill',       '#0891b2', 'Reporting']
+                };
+                if (a === 'LAB.ReportUnapproved') {
+                    // Re-Test (back to Submitted) and Re-Collect (sample re-drawn) are told apart by their metadata.
+                    const forLabel = pick(md, 'UnapprovedFor', 'unapprovedFor')
+                                  || (/Re-?Collect/i.test(e.description || '') ? 'Re-Collect' : 'Re-Test');
+                    const isRecollect = /re-?collect/i.test(forLabel);
+                    return {
+                        label: 'Approval Withdrawn (Un-Authorized) \u2022 ' + forLabel,
+                        icon: isRecollect ? 'bi-arrow-repeat' : 'bi-unlock-fill',
+                        color: isRecollect ? '#dc2626' : '#d97706',
+                        cat: 'Reporting'
+                    };
+                }
+                if (map[a]) return { label: map[a][0], icon: map[a][1], color: map[a][2], cat: map[a][3] };
+                if (a === 'LAB.SampleStatusChanged') {
+                    const st = statusName || (/Re-Collect/i.test(e.description || '') ? 'Re-Collect'
+                             : /Rejected/i.test(e.description || '') ? 'Rejected'
+                             : /Collected/i.test(e.description || '') ? 'Collected' : 'Updated');
+                    const color = /reject/i.test(st) ? '#dc2626' : /re-?collect/i.test(st) ? '#d97706' : /collected/i.test(st) ? '#16a34a' : '#64748b';
+                    return { label: 'Sample ' + st + ' (Reporting)', icon: 'bi-arrow-repeat', color: color, cat: 'Sample' };
+                }
+                return { label: (a || 'Activity').replace(/^LAB\./, ''), icon: 'bi-dot', color: '#64748b', cat: 'Other' };
+            }
+
+            function fmtDate(v) {
+                const d = new Date(v);
+                if (isNaN(d)) return esc(v);
+                return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            }
+
+            function statusBadge(text, tone) {
+                return '<span class="badge bg-' + tone + '-subtle text-' + tone + ' border border-' + tone + '-subtle">' + esc(text) + '</span>';
+            }
+
+            function testsTable(e) {
+                const md = e.metadata || {};
+                const tests = pick(md, 'Tests', 'tests');
+                if (!Array.isArray(tests)) return '';
+                const isTransfer = e.source === 'TRANSFER';
+                const isReport = /^LAB\.Report/.test(e.actionName || '');
+
+                if (tests.length === 0) {
+                    return isReport ? '<div class="audit-legacy-note">No test result was changed by this action.</div>' : '';
+                }
+
+                let head, rows;
+                if (isTransfer) {
+                    head = '<th>Test</th><th>Barcode</th>';
+                    rows = tests.map(function (t) {
+                        return '<tr><td>' + esc(pick(t, 'TestName', 'testName')) + '</td><td class="font-monospace">' + esc(pick(t, 'BarcodeNo', 'barcodeNo') || '—') + '</td></tr>';
+                    }).join('');
+                } else {
+                    head = '<th>Test</th><th>Status</th><th>Result</th><th>Remarks / Reason</th>';
+                    rows = tests.map(function (t) {
+                        const name = esc(pick(t, 'TestName', 'testName'));
+                        const prof = pick(t, 'ProfileName', 'profileName');
+                        const from = pick(t, 'FromStatus', 'fromStatus');
+                        const to = pick(t, 'ToStatus', 'toStatus');
+                        const change = pick(t, 'Change', 'change');
+                        const oldV = pick(t, 'OldValue', 'oldValue');
+                        const newV = pick(t, 'NewValue', 'newValue');
+                        const cleared = pick(t, 'ClearedValue', 'clearedValue');
+                        const clearedSt = pick(t, 'ClearedReportStatus', 'clearedReportStatus');
+                        const oldR = pick(t, 'OldRemarks', 'oldRemarks');
+                        const newR = pick(t, 'NewRemarks', 'newRemarks');
+                        const reason = pick(t, 'Reason', 'reason');
+                        const flag = pick(t, 'Flag', 'flag');
+
+                        const tone = /withdrawn|un-?approv/i.test(change) ? 'warning' : /approv/i.test(change) ? 'success' : /valid/i.test(change) ? 'info'
+                                   : /submit/i.test(change) ? 'primary' : /clear|reject|re-?collect/i.test(change) ? 'danger'
+                                   : /draft/i.test(change) ? 'secondary' : 'warning';
+                        const statusHtml = (from && to && from !== to)
+                            ? esc(from) + ' <i class="bi bi-arrow-right mx-1 text-muted"></i> ' + statusBadge(to, tone)
+                            : statusBadge(change || to || '—', tone);
+
+                        let resultHtml = '—';
+                        if (cleared) {
+                            resultHtml = '<span class="audit-val-old">' + esc(cleared) + '</span> <span class="text-danger">cleared</span>'
+                                       + (clearedSt ? ' <span class="text-muted">(was ' + esc(clearedSt) + ')</span>' : '');
+                        } else if (newV || oldV) {
+                            const changed = (oldV || '') !== (newV || '');
+                            resultHtml = (changed && oldV ? '<span class="audit-val-old">' + esc(oldV) + '</span> <i class="bi bi-arrow-right text-muted"></i> ' : '')
+                                       + '<span class="fw-semibold">' + esc(newV || '(empty)') + '</span>'
+                                       + (flag ? ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle">' + esc(flag) + '</span>' : '');
+                        }
+
+                        let noteHtml = '';
+                        if (reason) noteHtml = e.actionName === 'LAB.ReportUnapproved' ? reasonHtml(reason) : esc(reason);
+                        else if (oldR || newR) noteHtml = (oldR ? '<span class="audit-val-old">' + esc(oldR) + '</span> <i class="bi bi-arrow-right text-muted"></i> ' : '') + esc(newR || '(cleared)');
+
+                        return '<tr><td>' + name + (prof ? '<div class="text-muted">' + esc(prof) + '</div>' : '') + '</td>'
+                             + '<td>' + statusHtml + '</td><td>' + resultHtml + '</td><td>' + (noteHtml || '—') + '</td></tr>';
+                    }).join('');
+                }
+                return '<div class="table-responsive"><table class="table table-sm table-bordered align-middle audit-tests-table mb-0"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+            }
+
+            // Un-authorized entries: the reason is highlighted (bold, red) in the description and in the table.
+            const reasonHtml = function (text) { return '<span class="audit-reason">' + esc(text) + '</span>'; };
+
+            function descriptionHtml(e) {
+                const text = e.description || '';
+                if (e.actionName !== 'LAB.ReportUnapproved') return esc(text);
+                const md = e.metadata || {};
+
+                // "For: <Re-Test|Re-Collect>" in amber and "Reason: <text>" in red, both bold.
+                let forLabel = pick(md, 'UnapprovedFor', 'unapprovedFor');
+                if (!forLabel) { const mf = /For: (Re-?Test|Re-?Collect)/i.exec(text); forLabel = mf ? mf[1] : ''; }
+                let reason = pick(md, 'Reason', 'reason');
+                if (!reason) { const mr = /Reason: (.*?)\.\s/.exec(text); reason = mr ? mr[1] : ''; }
+
+                const parts = [];
+                if (forLabel) parts.push({ marker: 'For: ' + forLabel, cls: 'audit-for' });
+                if (reason) parts.push({ marker: 'Reason: ' + reason, cls: 'audit-reason' });
+
+                let html = '', pos = 0;
+                parts.map(function (x) { return { at: text.indexOf(x.marker, 0), part: x }; })
+                     .filter(function (x) { return x.at >= 0; })
+                     .sort(function (a, b) { return a.at - b.at; })
+                     .forEach(function (x) {
+                         if (x.at < pos) return;   // overlapping match: skip
+                         html += esc(text.substring(pos, x.at)) + '<strong class="' + x.part.cls + '">' + esc(x.part.marker) + '</strong>';
+                         pos = x.at + x.part.marker.length;
+                     });
+                return html ? html + esc(text.substring(pos)) : esc(text);
+            }
+
+            function legacyNote(e) {
+                const md = e.metadata || {};
+                const isReport = /^LAB\.Report/.test(e.actionName || '');
+                if (isReport && !Array.isArray(pick(md, 'Tests', 'tests'))) {
+                    return '<div class="audit-legacy-note">Test-level detail was not recorded for this older entry.</div>';
+                }
+                return '';
+            }
+
+            function render() {
+                const $tl = $('#auditTimeline').empty();
+                const visible = allEvents.filter(function (e) { return activeFilter === 'All' || e._d.cat === activeFilter; });
+
+                $('#auditEmpty').toggleClass('d-none', allEvents.length !== 0);
+                $('#auditFooterCount').text(allEvents.length ? ('Showing ' + visible.length + ' of ' + allEvents.length + ' activities') : '');
+
+                visible.forEach(function (e) {
+                    const d = e._d;
+                    const branch = e.branchName ? ' &bull; <i class="bi bi-geo-alt"></i> ' + esc(e.branchName) : '';
+                    const ip = e.ipAddress ? ' &bull; IP ' + esc(e.ipAddress) : '';
+                    const tbl = testsTable(e);
+                    $tl.append(
+                        '<li class="audit-event">'
+                        + '<span class="audit-event-dot" style="background:' + d.color + '"><i class="bi ' + d.icon + '"></i></span>'
+                        + '<div class="audit-event-card">'
+                        +   '<div class="d-flex flex-wrap justify-content-between gap-2">'
+                        +     '<span class="audit-event-title">' + esc(d.label) + '</span>'
+                        +     '<span class="audit-event-meta"><i class="bi bi-calendar-event"></i> ' + fmtDate(e.eventDate) + '</span>'
+                        +   '</div>'
+                        +   '<div class="audit-event-meta"><i class="bi bi-person-fill"></i> ' + esc(e.userName) + branch + ip + '</div>'
+                        +   (e.description ? '<div class="audit-event-desc">' + descriptionHtml(e) + '</div>' : '')
+                        +   tbl + (tbl ? '' : legacyNote(e))
+                        + '</div></li>'
+                    );
+                });
+            }
+
+            function renderChips() {
+                const cats = ['All', 'Reporting', 'Sample', 'Transfer', 'Billing'];
+                const counts = { All: allEvents.length };
+                allEvents.forEach(function (e) { counts[e._d.cat] = (counts[e._d.cat] || 0) + 1; });
+                const html = cats
+                    .filter(function (c) { return c === 'All' || counts[c]; })
+                    .map(function (c) {
+                        return '<button type="button" class="audit-filter-chip' + (c === activeFilter ? ' active' : '') + '" data-cat="' + c + '">'
+                             + c + '<span class="audit-chip-count">' + (counts[c] || 0) + '</span></button>';
+                    }).join('');
+                $('#auditFilterChips').html(html);
+            }
+
+            function load() {
+                $('#auditError').addClass('d-none');
+                $('#auditEmpty').addClass('d-none');
+                $('#auditTimeline').empty();
+                $('#auditFilterChips').empty();
+                $('#auditFooterCount').text('');
+                $('#auditLoading').removeClass('d-none');
+                $('#btnAuditRefresh').prop('disabled', true);
+
+                $.getJSON(historyUrl, { labOrderId: labOrderId })
+                    .done(function (res) {
+                        if (!res || !res.success) {
+                            $('#auditError').text((res && res.message) || 'Unable to load audit history.').removeClass('d-none');
+                            return;
+                        }
+                        allEvents = (res.events || []).map(function (e) { e._d = describe(e); return e; });
+                        if (activeFilter !== 'All' && !allEvents.some(function (e) { return e._d.cat === activeFilter; })) activeFilter = 'All';
+                        renderChips();
+                        render();
+                    })
+                    .fail(function () {
+                        $('#auditError').text('Server error while loading audit history. Please try again.').removeClass('d-none');
+                    })
+                    .always(function () {
+                        $('#auditLoading').addClass('d-none');
+                        $('#btnAuditRefresh').prop('disabled', false);
+                    });
+            }
+
+            $(function () {
+                const modalEl = document.getElementById('modalAuditHistory');
+                if (!modalEl) return;
+
+                $(document).on('click', '.btn-audit-info', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    const $b = $(this);
+                    const id = parseInt($b.data('laborderid')) || 0;
+                    if (id <= 0) return;
+                    if (id !== labOrderId) { allEvents = []; activeFilter = 'All'; }
+                    labOrderId = id;
+                    $('#auditPatientName').text($b.data('patient') || '—');
+                    $('#auditBillNo').text($b.data('bill') || '—');
+                    // hide the hover tooltip so it doesn't linger behind the modal
+                    if (window.bootstrap && bootstrap.Tooltip) {
+                        const tip = bootstrap.Tooltip.getInstance(this);
+                        if (tip) tip.hide();
+                    }
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                });
+                $(modalEl).on('shown.bs.modal', load);
+                $('#btnAuditRefresh').on('click', load);
+                $('#auditFilterChips').on('click', '.audit-filter-chip', function () {
+                    activeFilter = $(this).data('cat');
+                    renderChips();
+                    render();
+                });
+            });
+        })();
+    </script>

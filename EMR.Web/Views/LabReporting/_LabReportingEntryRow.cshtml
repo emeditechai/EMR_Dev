@@ -36,8 +36,11 @@
     bool noRefRange = !item.RefRangeId.HasValue && !hasValue && !isRejectedOrReCollect;
     bool isOrderFullyApproved = (ViewData["IsOrderApproved"] as bool? ?? false);
     bool isApproved = (isOrderFullyApproved || item.ReportStatusId == 5) && hasValue;
-    bool isLocked = isApproved || (hasValue && item.ReportStatusId >= 2) || isRejectedOrReCollect;
-    bool canEditRow = hasValue && !isApproved && !isRejectedOrReCollect && (item.ReportStatusId == 2 || item.ReportStatusId == 3);
+    // Transferred out of this branch and approved at the target branch: shown here for viewing / printing only.
+    // 'disabled' also keeps the row out of every Submit / Validate / Approve payload the page builds.
+    bool isOtherBranch = item.IsReadOnlyForBranch;
+    bool isLocked = isOtherBranch || isApproved || (hasValue && item.ReportStatusId >= 2) || isRejectedOrReCollect;
+    bool canEditRow = !isOtherBranch && hasValue && !isApproved && !isRejectedOrReCollect && (item.ReportStatusId == 2 || item.ReportStatusId == 3);
     string currentFlag = isRejectedOrReCollect ? "" : (item.AbnormalFlag ?? "");
     string lowValStr = item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
     string highValStr = item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
@@ -129,7 +132,8 @@
                placeholder="@(isRejectedOrReCollect ? "Pending" : (noRefRange ? "N/A" : "Value"))"
                tabindex="@globalRowIndex"
                autocomplete="off"
-               @(isRejectedOrReCollect || noRefRange ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
+               title="@(isOtherBranch ? $"Processed at {item.TargetBranchName ?? "the target branch"} - this branch cannot change it" : "")"
+               @(isOtherBranch || isRejectedOrReCollect || noRefRange ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
         
         <button type="button" 
                 class="btn btn-outline-secondary btn-sm btn-edit-row py-1 px-1.5 shadow-2xs @(canEditRow ? "" : "d-none")" 
@@ -204,12 +208,12 @@
 <!-- Clinical Remarks / Notes Column -->
 <td class="align-top pt-2">
     <input type="text"
-           class="form-control form-control-sm fs-8 txt-test-remarks @(isApproved || isRejectedOrReCollect ? "bg-light-subtle text-muted" : "")"
+           class="form-control form-control-sm fs-8 txt-test-remarks @(isOtherBranch || isApproved || isRejectedOrReCollect ? "bg-light-subtle text-muted" : "")"
            value="@(isRejectedOrReCollect ? "" : (item.Remarks ?? item.SpecialRemarks ?? ""))"
            placeholder="@(isRejectedOrReCollect ? (item.CollectionstatusID == 3 ? "Re-Collect pending" : "Sample Rejected") : "Optional note")"
            title="@(item.SpecialRemarks ?? "Optional interpretation / notes")"
            autocomplete="off"
-           @(isApproved ? "readonly=\"readonly\"" : (isRejectedOrReCollect ? "disabled=\"disabled\"" : "")) />
+           @(isOtherBranch || isRejectedOrReCollect ? "disabled=\"disabled\"" : (isApproved ? "readonly=\"readonly\"" : "")) />
 </td>
 
 <!-- Status Column -->
@@ -255,6 +259,15 @@
     @{
         // Stage timestamps (same "dd MMM yyyy, hh:mm tt" format as the banner date pills); null => attribute omitted
         string? StageTime(DateTime? dt) => dt.HasValue ? dt.Value.ToString("dd MMM yyyy, hh:mm tt") : null;
+    }
+    @if (isOtherBranch)
+    {
+        <div class="mb-1">
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fs-9"
+                  title="The sample was transferred to @(item.TargetBranchName ?? "another branch"), which entered and approved this result. It is read-only here.">
+                <i class="bi bi-lock-fill me-1"></i>@(item.TargetBranchName ?? "Other branch")
+            </span>
+        </div>
     }
     <span class="badge fs-9 row-status-badge @statusClass"
           data-time-drafted="@StageTime(item.DraftedDate)"

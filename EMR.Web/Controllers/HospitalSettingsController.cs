@@ -1,4 +1,6 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
+using EMR.Web.Models.DTOs;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
@@ -14,8 +16,141 @@ namespace EMR.Web.Controllers;
 public class HospitalSettingsController(
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
-    IWebHostEnvironment webHostEnvironment) : Controller
+    IWebHostEnvironment webHostEnvironment,
+    ILabDefaultSignatoryApiClient signatoryApiClient) : Controller
 {
+    // ── Default report signatories (Level 1..3) ──────────────────────────────
+    // Configured when "Pathologist Approval Required" is switched off, so a released report still has named
+    // signatories. Stored server-side only for now; no report or approval behaviour is changed by them yet.
+
+    private const long MaxSignatureBytes = 2 * 1024 * 1024;
+
+    private string SignatureRoot => Path.Combine(webHostEnvironment.ContentRootPath, "App_Data", "signatures");
+
+    /// <summary>"png" / "jpg" from the file's first bytes (never from its name or the browser's content type).</summary>
+    private static async Task<string?> DetectSignatureTypeAsync(IFormFile file)
+    {
+        var header = new byte[8];
+        await using var stream = file.OpenReadStream();
+        var read = await stream.ReadAsync(header.AsMemory(0, header.Length));
+        if (read >= 8 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47
+            && header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A) return "png";
+        if (read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF) return "jpg";
+        return null;
+    }
+
+    /// <summary>Saves an uploaded signature and returns its stored file name, or null when there is nothing to save.</summary>
+    private async Task<string?> SaveSignatureAsync(IFormFile? file)
+    {
+        if (file is null || file.Length == 0) return null;
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext is not (".png" or ".jpg" or ".jpeg"))
+            throw new InvalidOperationException("Signature must be a .png, .jpg or .jpeg file.");
+        if (file.Length > MaxSignatureBytes)
+            throw new InvalidOperationException("Signature image size must be up to 2 MB.");
+
+        var type = await DetectSignatureTypeAsync(file)
+                   ?? throw new InvalidOperationException("The selected file is not a valid PNG or JPEG image.");
+
+        Directory.CreateDirectory(SignatureRoot);
+        var name = $"sig_{Guid.NewGuid():N}.{type}";
+        await using var target = System.IO.File.Create(Path.Combine(SignatureRoot, name));
+        await file.CopyToAsync(target);
+        return name;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetSignatoriesJson()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch found." });
+
+        try
+        {
+            var result = await signatoryApiClient.GetListAsync(branchId.Value, User.GetCompanyId());
+            return Json(new { success = true, signatories = result.Signatories, candidates = result.Candidates });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The service is unreachable. Please try again." });
+        }
+    }
+
+    /// <summary>
+    /// Saves the Level 1..3 signatories. Sent as a form so a signature image can come with each level;
+    /// a level with no new file keeps whatever signature it already had.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(8 * 1024 * 1024)]
+    public async Task<IActionResult> SaveSignatoriesJson()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch found." });
+
+        var items = new List<LabDefaultSignatoryItem>();
+
+        try
+        {
+            for (var level = 1; level <= 3; level++)
+            {
+                var raw = Request.Form[$"userId_{level}"].ToString();
+                if (!int.TryParse(raw, out var userId) || userId <= 0) continue;   // level left empty
+
+                items.Add(new LabDefaultSignatoryItem
+                {
+                    LevelNo = level,
+                    UserId = userId,
+                    SignaturePath = await SaveSignatureAsync(Request.Form.Files[$"signature_{level}"])
+                });
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+
+        try
+        {
+            var (saved, error) = await signatoryApiClient.SaveAsync(new LabDefaultSignatorySaveRequest
+            {
+                BranchId = branchId.Value,
+                CompanyId = User.GetCompanyId(),
+                UserId = User.GetUserId(),
+                Items = items
+            });
+
+            if (error != null) return Json(new { success = false, message = error });
+
+            try
+            {
+                await auditLogService.LogActivityAsync(
+                    eventType: "Hospital Settings",
+                    actionName: "LAB.ReportSignatoriesSaved",
+                    description: $"Default lab report signatories configured ({saved} level(s)) for the branch.",
+                    userId: User.GetUserId(),
+                    branchId: branchId,
+                    moduleCode: "LAB",
+                    metadata: new { BranchId = branchId, Items = items });
+            }
+            catch { /* audit only */ }
+
+            return Json(new
+            {
+                success = true,
+                savedCount = saved,
+                message = saved == 0
+                    ? "No signatory configured. The report will fall back to the approval signatures."
+                    : $"{saved} signatory level(s) saved."
+            });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The service is unreachable. Please try again." });
+        }
+    }
+
     [HttpGet]
     public async Task<IActionResult> Index()
     {
@@ -132,6 +267,9 @@ public class HospitalSettingsController(
             existing.LabEmailNotificationRequired = model.LabEmailNotificationRequired;
             existing.IsSampleCollectionMandatory = model.IsSampleCollectionMandatory;
             existing.BarcodeGenerateAtBilling = model.BarcodeGenerateAtBilling;
+            existing.TokenGenerateOnDuePayment = model.TokenGenerateOnDuePayment;
+            existing.LabReportEmailNotificationRequired = model.LabReportEmailNotificationRequired;
+            existing.PathologistApprovalRequired = model.PathologistApprovalRequired;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -179,6 +317,9 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = s.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = s.BarcodeGenerateAtBilling,
+            TokenGenerateOnDuePayment = s.TokenGenerateOnDuePayment,
+            LabReportEmailNotificationRequired = s.LabReportEmailNotificationRequired,
+            PathologistApprovalRequired = s.PathologistApprovalRequired,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -213,6 +354,9 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = m.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = m.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = m.BarcodeGenerateAtBilling,
+            TokenGenerateOnDuePayment = m.TokenGenerateOnDuePayment,
+            LabReportEmailNotificationRequired = m.LabReportEmailNotificationRequired,
+            PathologistApprovalRequired = m.PathologistApprovalRequired,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

@@ -1,0 +1,45 @@
+@model EMR.Web.Models.ViewModels.LabApprovalFlowFormViewModel
+
+@{
+    ViewData["Title"] = "Add Pathologist Approval Flow";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Settings</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Pathologist Approval Flow</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Add New</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-plus-circle me-2"></i>Add Pathologist Approval Flow</h4>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary px-3"><i class="bi bi-arrow-left me-1"></i> Back to List</a>
+    </div>
+
+    <form asp-action="Create" method="post">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+        <input type="hidden" asp-for="CompanyId" />
+
+        <partial name="_FlowForm" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "IsEdit", false } })" />
+
+        <div class="d-flex justify-content-end gap-2 mb-5">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4"><i class="bi bi-x-lg me-1"></i> Cancel</a>
+            <button type="submit" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-save me-1"></i> Save Approval Flow</button>
+        </div>
+    </form>
+</div>
+
+@section HeadStyles {
+    <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
+}
+
+@section Scripts {
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+    <partial name="_FlowFormScripts" />
+}

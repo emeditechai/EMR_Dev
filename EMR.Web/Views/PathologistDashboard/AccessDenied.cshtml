@@ -1,0 +1,43 @@
+@model EMR.Web.Controllers.PathologistDeniedViewModel
+@{
+    ViewData["Title"] = "Pathologist Dashboard";
+}
+<div class="container-fluid px-3 py-4" style="background:#f1f5f9; min-height: calc(100vh - 60px);">
+    <div class="card border-0 shadow-sm rounded-3 mx-auto" style="max-width: 640px;">
+        <div class="card-body text-center p-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                 style="width:70px;height:70px;background:#fef3c7;color:#b45309;">
+                <i class="bi bi-shield-lock-fill" style="font-size:1.9rem;"></i>
+            </div>
+            <h5 class="fw-bold text-dark mb-2">Pathologist Dashboard is not available to you</h5>
+            <p class="text-muted fs-8 mb-3">
+                @if (!Model.ApprovalRequiredForBranch)
+                {
+                    <text>
+                        <strong>Pathologist approval is switched off</strong> for this branch, so reports are approved
+                        directly on the Lab Reporting Entry screen and this dashboard is disabled.
+                        Switch on <em>Pathologist approval required</em> in Hospital Settings &rsaquo; LAB to use it.
+                    </text>
+                }
+                else if (!Model.IsPathologist)
+                {
+                    <text>
+                        This dashboard is only for users marked as a <strong>Pathologist</strong> in the User Master.
+                        Ask an administrator to enable <em>Is Pathologist</em> on your user and assign your
+                        Department Access and Test Categories.
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        You are a pathologist, but your user is not assigned to the branch you are currently working in.
+                        Switch to a branch you are assigned to, or ask an administrator to add this branch to your user.
+                    </text>
+                }
+            </p>
+            <a class="btn btn-outline-secondary btn-sm px-3" asp-controller="Home" asp-action="Index">
+                <i class="bi bi-arrow-left me-1"></i>Back to Home
+            </a>
+        </div>
+    </div>
+</div>

@@ -102,6 +102,15 @@ public class HospitalSettingsViewModel
     [Display(Name = "Barcode Generate at Billing")]
     public bool BarcodeGenerateAtBilling { get; set; } = false;
 
+    [Display(Name = "Token No Generate in Due Payment")]
+    public bool TokenGenerateOnDuePayment { get; set; } = false;
+
+    [Display(Name = "Email Notification to Patient (LAB Reports)")]
+    public bool LabReportEmailNotificationRequired { get; set; } = false;
+
+    [Display(Name = "Pathologist Approval Required")]
+    public bool PathologistApprovalRequired { get; set; } = false;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

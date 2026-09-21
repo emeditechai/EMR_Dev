@@ -19,6 +19,9 @@ public class UserListItemViewModel
     public bool IsLogisticsBoy { get; set; }
     public string Branches { get; set; } = string.Empty;
     public string DepartmentNames { get; set; } = string.Empty;
+    public string? ProfilePicturePath { get; set; }
+    /// <summary>True when a pathologist signature image has been uploaded.</summary>
+    public bool HasSignature { get; set; }
 }
 
 public class UserFormViewModel
@@ -64,6 +67,16 @@ public class UserFormViewModel
     public IFormFile? ProfilePictureFile { get; set; }
 
     public string? ExistingProfilePicturePath { get; set; }
+
+    /// <summary>Pathologist signature upload (.png / .jpg / .jpeg, up to 2 MB).</summary>
+    [Display(Name = "Signature")]
+    public IFormFile? SignatureFile { get; set; }
+
+    /// <summary>The stored signature file name (empty = none). Never posted back as a path the user controls.</summary>
+    public string? ExistingSignaturePath { get; set; }
+
+    /// <summary>Tick to delete the stored signature.</summary>
+    public bool RemoveSignature { get; set; }
 
     public bool IsActive { get; set; } = true;
 
@@ -229,6 +242,7 @@ public class UserDetailsViewModel
     public DateTime CreatedDate { get; set; }
     public DateTime? LastModifiedDate { get; set; }
     public string? ProfilePicturePath { get; set; }
+    public bool HasSignature { get; set; }
     public List<string> Branches { get; set; } = new();
     public List<string> DepartmentNames { get; set; } = new();
     public List<BranchRoleDetailItem> BranchRoleMappings { get; set; } = new();

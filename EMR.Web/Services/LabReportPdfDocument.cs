@@ -92,7 +92,8 @@ public class LabReportPdfDocument : IDocument
         ConfigurePage(page);
         page.Header().Element(ComposeHeader);
         page.Content().Element(c => ComposeSection(c, section, isLast));
-        page.Footer().Element(ComposeFooter);
+        // The signature panel lives in the footer so it repeats on EVERY page of the report.
+        page.Footer().Element(c => ComposeFooter(c, withSignatures: true));
 
         if (vm.ShowNotApprovedWatermark)
             page.Foreground().Element(ComposeWatermark);
@@ -327,15 +328,39 @@ public class LabReportPdfDocument : IDocument
                     .Bold().FontSize(8.5f).FontColor(Amber);
 
             col.Item().PaddingVertical(6).AlignCenter().Text("*** End Of Report ***").Bold().FontSize(9.5f);
+            // the signatures are drawn by the page footer, so they appear on every page of the report
+        });
+    }
 
-            col.Item().Row(row =>
+    /// <summary>
+    /// One approval level of the Pathologist Approval Flow: the uploaded signature above the rule, then the
+    /// signatory's name, designation, registration number and when they signed - as a lab report is expected to read.
+    /// </summary>
+    private void LevelSignatory(IContainer container, LabReportLevelSignatory p)
+    {
+        container.PaddingRight(14).Column(col =>
+        {
+            // the signature image sits on the rule; the height is fixed so every block lines up
+            col.Item().Height(26).AlignBottom().AlignLeft().Element(sig =>
             {
-                row.RelativeItem().Row(sign =>
-                {
-                    sign.RelativeItem().Element(c => Signatories(c, "Validated by", vm.ValidatedBy, "—"));
-                    sign.RelativeItem().Element(c => Signatories(c, "Approved by", vm.ApprovedBy, "Approval pending"));
-                });
+                if (p.SignatureImage is { Length: > 0 })
+                    sig.MaxHeight(26).MaxWidth(110).Image(p.SignatureImage).FitArea();
+                else
+                    sig.Text(string.Empty);
             });
+
+            col.Item().PaddingTop(1).BorderBottom(0.7f).BorderColor("#999999")
+                .PaddingBottom(2).Text(txt =>
+                {
+                    txt.Span((p.LevelTitle ?? $"Signatory {p.LevelNo}").ToUpperInvariant()).FontSize(7).FontColor(Grey).LetterSpacing(0.06f);
+                    txt.Span($"  ({p.LevelNo}/{p.TotalLevels})").FontSize(6.5f).FontColor(Grey);
+                });
+
+            col.Item().PaddingTop(2).Text(p.Name).Bold().FontSize(9);
+            if (!string.IsNullOrWhiteSpace(p.Qualification)) col.Item().Text(p.Qualification).FontSize(8);
+            if (!string.IsNullOrWhiteSpace(p.RegistrationNo)) col.Item().Text($"Reg. No.: {p.RegistrationNo}").FontSize(8);
+            if (p.SignedOn.HasValue)
+                col.Item().Text($"Signed: {p.SignedOn.Value:dd/MMM/yyyy HH:mm}").FontSize(7).FontColor(Grey);
         });
     }
 
@@ -343,8 +368,9 @@ public class LabReportPdfDocument : IDocument
     {
         container.PaddingRight(14).Column(col =>
         {
-            col.Item().PaddingBottom(14).BorderBottom(0.7f).BorderColor("#999999")
-                .Text(role.ToUpperInvariant()).FontSize(7).FontColor(Grey).LetterSpacing(0.06f);
+            col.Item().Height(26).Text(string.Empty);
+            col.Item().PaddingTop(1).BorderBottom(0.7f).BorderColor("#999999")
+                .PaddingBottom(2).Text(role.ToUpperInvariant()).FontSize(7).FontColor(Grey).LetterSpacing(0.06f);
 
             if (people.Count == 0)
             {
@@ -354,7 +380,7 @@ public class LabReportPdfDocument : IDocument
 
             foreach (var p in people)
             {
-                col.Item().Text(p.Name).Bold().FontSize(9);
+                col.Item().PaddingTop(2).Text(p.Name).Bold().FontSize(9);
                 if (!string.IsNullOrWhiteSpace(p.Qualification)) col.Item().Text(p.Qualification).FontSize(8);
                 if (!string.IsNullOrWhiteSpace(p.RegistrationNo)) col.Item().Text($"Reg. No.: {p.RegistrationNo}").FontSize(8);
             }
@@ -363,10 +389,36 @@ public class LabReportPdfDocument : IDocument
 
     // ═════════════════════════════ footer (repeats on every page) ═════════════════════════════
 
-    private void ComposeFooter(IContainer container)
+    /// <summary>
+    /// The repeating page footer. On report pages it carries the signature panel, so a signature appears on every
+    /// page; the Conditions of Reporting page passes <paramref name="withSignatures"/> = false.
+    /// </summary>
+    private void ComposeFooter(IContainer container, bool withSignatures = false)
     {
         container.Column(col =>
         {
+            if (withSignatures)
+            {
+                col.Item().PaddingBottom(4).Row(row =>
+                {
+                    if (vm.LevelSignatories.Count > 0)
+                    {
+                        foreach (var level in vm.LevelSignatories)
+                            row.RelativeItem().Element(c => LevelSignatory(c, level));
+
+                        // keep the blocks at their natural width when only one or two levels signed
+                        for (var i = vm.LevelSignatories.Count; i < 3; i++)
+                            row.RelativeItem().Text(string.Empty);
+                    }
+                    else
+                    {
+                        row.RelativeItem().Element(c => Signatories(c, "Approved by", vm.ApprovedBy, "Approval pending"));
+                        row.RelativeItem().Text(string.Empty);
+                        row.RelativeItem().Text(string.Empty);
+                    }
+                });
+            }
+
             var lab = vm.ProcessingLabName ?? vm.HospitalName;
             var address = string.IsNullOrWhiteSpace(vm.ProcessingLabAddress) ? string.Empty : $", {vm.ProcessingLabAddress}";
 
@@ -423,7 +475,7 @@ public class LabReportPdfDocument : IDocument
     private void ComposeConditionsPage(PageDescriptor page, List<string> conditions)
     {
         ConfigurePage(page);
-        page.Footer().Element(ComposeFooter);
+        page.Footer().Element(c => ComposeFooter(c, withSignatures: false));
         if (vm.ShowNotApprovedWatermark)
             page.Foreground().Element(ComposeWatermark);
 

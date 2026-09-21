@@ -37,6 +37,10 @@ public class User
     [MaxLength(300)]
     public string? ProfilePicturePath { get; set; }
 
+    /// <summary>File name of the pathologist's signature image, stored in App_Data/signatures (not a public path).</summary>
+    [MaxLength(300)]
+    public string? SignaturePath { get; set; }
+
     [MaxLength(100)]
     public string? Role { get; set; }
 

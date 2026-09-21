@@ -101,16 +101,20 @@ public class LabReportDispatchController(
     /// Every copy after the first carries a DUPLICATE marker.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> PrintReportPdf(int labOrderId, string mode = "preview")
+    public async Task<IActionResult> PrintReportPdf(int labOrderId, string mode = "preview", string? scope = null)
     {
         if (labOrderId <= 0) return BadRequest(new { message = "Valid LabOrderId is required." });
+
+        // "approved" prints only the approved tests of a partly approved bill (a clean, final-looking copy);
+        // "pending" prints the validated-but-unapproved ones; the default keeps the whole printable report.
+        scope = LabReportPrintBuilder.NormalizeScope(scope);
 
         var isPreview = string.Equals(mode, "preview", StringComparison.OrdinalIgnoreCase);
         var isDownload = string.Equals(mode, "download", StringComparison.OrdinalIgnoreCase);
 
         try
         {
-            var vm = await reportPdfService.BuildAsync(labOrderId, User);
+            var vm = await reportPdfService.BuildAsync(labOrderId, User, scope);
             if (vm == null)
                 return NotFound(new { message = "Lab report details not found." });
 
@@ -128,14 +132,25 @@ public class LabReportDispatchController(
             }
 
             if (vm.IncludedTestCount == 0)
-                return Conflict(new { message = "Nothing to print yet. Validate at least one test to print a report." });
+                return Conflict(new
+                {
+                    message = scope switch
+                    {
+                        LabReportPrintBuilder.ScopeApproved => "No test of this bill is approved yet.",
+                        LabReportPrintBuilder.ScopePending => "There is no validated (not yet approved) test to print.",
+                        _ => "Nothing to print yet. Validate at least one test to print a report."
+                    }
+                });
 
             var pdf = LabReportPdfDocument.Generate(vm, reportPdfService.LoadLogo(vm.HospitalLogoPath));
 
             // Recorded only once the document exists, so a failed render is never counted as a print.
             if (!isPreview)
                 await LogPrintAsync(labOrderId, LabReportPdfService.PrintedAction,
-                    $"Lab report printed from the Report Dispatch dashboard ({(vm.IsDuplicate ? $"duplicate copy, print #{vm.PrintSequence}" : "original copy")}).",
+                    $"Lab report printed from the Report Dispatch dashboard "
+                    + $"({(vm.IsDuplicate ? $"duplicate copy, print #{vm.PrintSequence}" : "original copy")}"
+                    + $"{(scope == LabReportPrintBuilder.ScopeApproved ? ", approved tests only" : "")}"
+                    + $"{(scope == LabReportPrintBuilder.ScopePending ? $", {LabReportPdfService.PendingCopyMarker}" : "")}).",
                     vm.PrintSequence);
 
             var safeBill = new string((vm.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
@@ -147,8 +162,9 @@ public class LabReportDispatchController(
             Response.Headers["X-Report-Tests"] = vm.IncludedTestCount.ToString();
             Response.Headers["X-Report-Duplicate"] = vm.IsDuplicate ? "1" : "0";
             Response.Headers["X-Report-Print-Sequence"] = vm.PrintSequence.ToString();
+            Response.Headers["X-Report-Scope"] = scope;
             Response.Headers["Access-Control-Expose-Headers"] =
-                "X-Report-Status, X-Report-Watermark, X-Report-Tests, X-Report-Duplicate, X-Report-Print-Sequence";
+                "X-Report-Status, X-Report-Watermark, X-Report-Tests, X-Report-Duplicate, X-Report-Print-Sequence, X-Report-Scope";
 
             if (isDownload)
                 return File(pdf, "application/pdf", fileName);
