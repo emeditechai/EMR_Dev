@@ -615,6 +615,7 @@
                     <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search" asp-items="Model.ReferralDoctorOptions">
                         <option value="">-- Self / Direct --</option>
                     </select>
+                    <div class="form-text">Doctors of a LAB-type department (Doctor Master)</div>
                 </div>
                 <div class="col-12 col-md-6">
                     <label asp-for="Address" class="form-label fw-semibold small">Residential Address</label>
@@ -2034,7 +2035,6 @@
             if (p.gender) $('#ddlGender').val(p.gender).trigger('change.select2');
             if (p.relationId) $('#ddlRelation').val(p.relationId).trigger('change.select2');
             if (p.bloodGroup) $('#ddlBloodGroup').val(p.bloodGroup).trigger('change.select2');
-            if (p.referralDoctorId) $('#ddlReferralDoctor').val(p.referralDoctorId).trigger('change.select2');
 
             // Date of birth & Age
             if (p.dateOfBirth) {

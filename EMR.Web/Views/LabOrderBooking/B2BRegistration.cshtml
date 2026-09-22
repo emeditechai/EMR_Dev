@@ -30,6 +30,12 @@
 }
 <partial name="_PaymentModal" />
 
+@{ bool showLabReportPrint = ViewBag.ShowLabReportPrintOnList as bool? ?? false; }
+@if (showLabReportPrint)
+{
+    <partial name="_LabReportPrintModal" />
+}
+
 @* ── Page header ── *@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
@@ -254,6 +260,13 @@
                                 <a href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = item.LabOrderId })" target="_blank" class="btn btn-outline-success" title="Print Bill">
                                     <i class="bi bi-printer"></i>
                                 </a>
+                                @if (showLabReportPrint && item.ApprovedTestCount > 0)
+                                {
+                                    <button type="button" class="btn btn-outline-info btn-print-report" title="Print Lab Report"
+                                            data-scope="approved" data-laborderid="@item.LabOrderId" data-bill="@(item.BillNo ?? "—")">
+                                        <i class="bi bi-file-earmark-medical"></i>
+                                    </button>
+                                }
                                 @if (item.PaymentStatus != "P")
                                 {
                                     <button type="button" class="btn btn-outline-primary btn-collect-pay"
@@ -391,6 +404,7 @@
                                 <div class="text-muted small">B2B Partner</div>
                                 <div>${partnerBadge} <strong class="ms-1">${partnerName}</strong></div>
                                 <div class="text-muted small">Collection: ${data.collectionType || 'B2BCollector'}</div>
+                                <div class="text-muted small">Referred By: <span class="fw-semibold text-dark">${data.referralDoctorName || 'Self'}</span></div>
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -450,4 +464,9 @@
             }
         });
     </script>
+
+    @if (showLabReportPrint)
+    {
+        <partial name="_LabReportPrintScripts" />
+    }
 }

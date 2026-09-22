@@ -134,12 +134,45 @@
             </div>
         </div>
         <div class="d-flex gap-2 align-items-center">
+            <span id="arMount"></span>
             <span class="lr-count-chip" id="lblRowCount">&mdash;</span>
             <button type="button" class="btn btn-outline-secondary btn-sm btn-icon shadow-xs" id="btnRefreshList" title="Refresh list">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>
     </div>
+
+    @if (TempData["ErrorMessage"] is string lrErr && !string.IsNullOrWhiteSpace(lrErr))
+    {
+        <div class="alert alert-danger alert-dismissible fade show py-2 fs-8 mb-2" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>@lrErr
+            <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @* Department Access (User Master): which test departments this user reports on *@
+    @if (Model.DepartmentScopeRestricted)
+    {
+        if (Model.DepartmentScopeNames.Count == 0)
+        {
+            <div class="alert alert-warning py-2 fs-8 mb-2 d-flex align-items-center gap-2" role="alert">
+                <i class="bi bi-shield-exclamation fs-6"></i>
+                <div><strong>No LAB department assigned to you.</strong> Orders are listed by the department of each test &mdash;
+                    ask an administrator to add your department(s) in <strong>User Master &rsaquo; Access &amp; Roles &rsaquo; Department Access</strong>.</div>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap align-items-center gap-1 fs-9 mb-2 text-muted">
+                <i class="bi bi-shield-lock text-primary"></i>
+                <span>Showing tests of your departments:</span>
+                @foreach (var dn in Model.DepartmentScopeNames)
+                {
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold">@dn</span>
+                }
+                <span class="ms-1">(User Master &rsaquo; Department Access)</span>
+            </div>
+        }
+    }
 
     <!-- Summary KPI cards -->
     <div class="row g-2 mb-2">
@@ -354,6 +387,7 @@
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <partial name="_LabAuditHistoryScripts" />
+    <script src="~/js/auto-refresh.js" asp-append-version="true"></script>
     <script>
         $(document).ready(function () {
             toastr.options = {
@@ -372,10 +406,15 @@
             let searchTimeout = null;
 
             // ── 1. Fetch and Render Orders ──────────────────────────────────
-            function loadOrders() {
-                $('#loadingOrdersState').removeClass('d-none');
-                $('#emptyOrdersState').addClass('d-none');
-                $('#tblReportingOrdersBody').empty();
+            // silent = auto refresh: keep the current rows on screen (no spinner / blank table / error toast)
+            // and resolve to the number of orders that were not in the list before.
+            function loadOrders(silent) {
+                const prevIds = silent ? new Set(currentOrders.map(o => o.labOrderId)) : null;
+                if (!silent) {
+                    $('#loadingOrdersState').removeClass('d-none');
+                    $('#emptyOrdersState').addClass('d-none');
+                    $('#tblReportingOrdersBody').empty();
+                }
 
                 const params = {
                     fromDate: $('#txtFromDate').val(),
@@ -388,21 +427,29 @@
                     subCategoryId: $('#ddlSubCategory').val() || null
                 };
 
-                $.get('@Url.Action("GetHeadersJson", "LabReporting")', params)
-                    .done(function (res) {
-                        $('#loadingOrdersState').addClass('d-none');
-                        if (res.success) {
-                            currentOrders = res.headers || [];
-                            updateStats(res.stats);
-                            renderOrdersTable(currentOrders);
-                        } else {
-                            toastr.error('Failed to load reporting headers.');
-                        }
-                    })
-                    .fail(function () {
-                        $('#loadingOrdersState').addClass('d-none');
-                        toastr.error('Server error while loading reporting list.');
-                    });
+                const request = new Promise(function (resolve, reject) {
+                    $.get('@Url.Action("GetHeadersJson", "LabReporting")', params)
+                        .done(function (res) {
+                            $('#loadingOrdersState').addClass('d-none');
+                            if (res.success) {
+                                currentOrders = res.headers || [];
+                                updateStats(res.stats);
+                                renderOrdersTable(currentOrders);
+                                if (!silent && autoRefresh) autoRefresh.touch();
+                                resolve(AutoRefresh.markNewRows(prevIds, currentOrders, o => o.labOrderId, id => '#orderRow_' + id));
+                            } else {
+                                if (!silent) toastr.error(res.message || 'Failed to load reporting headers.');
+                                reject();
+                            }
+                        })
+                        .fail(function () {
+                            $('#loadingOrdersState').addClass('d-none');
+                            if (!silent) toastr.error('Server error while loading reporting list.');
+                            reject();
+                        });
+                });
+                if (!silent) request.catch(function () { /* already reported */ });
+                return request;
             }
 
             function updateStats(stats) {
@@ -738,6 +785,12 @@
             });
 
             checkFilterResetVisibility();
+
+            // Auto refresh (interval remembered per browser); pauses while the tab is hidden or a window is open
+            const autoRefresh = AutoRefresh.init({
+                mount: '#arMount', key: 'lab-reporting-entry', defaultSeconds: 60,
+                refresh: () => loadOrders(true)
+            });
 
             // Initial load
             loadOrders();

@@ -21,7 +21,8 @@ namespace EMR.Api.Services
             string? search,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null)
+            int? subCategoryId = null,
+            string? allowedDepartmentIds = null)
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -36,7 +37,8 @@ namespace EMR.Api.Services
                     Search = search,
                     DepartmentId = departmentId,
                     CategoryId = categoryId,
-                    SubCategoryId = subCategoryId
+                    SubCategoryId = subCategoryId,
+                    AllowedDepartmentIds = allowedDepartmentIds   // null = unrestricted, "" = no department
                 },
                 commandType: CommandType.StoredProcedure
             );

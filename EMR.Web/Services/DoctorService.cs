@@ -43,7 +43,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             OUTER APPLY
             (
                 SELECT STUFF((
-                    SELECT ', ' + s.ItemName + ' (₹' + CAST(CAST(s.ItemCharges AS DECIMAL(18,0)) AS NVARCHAR) + ')'
+                    SELECT N', ' + s.ItemName + N' (₹' + CAST(CAST(s.ItemCharges AS DECIMAL(18,0)) AS NVARCHAR) + N')'
                     FROM DoctorConsultingFeeMap m
                     INNER JOIN ServiceMaster s ON s.ServiceId = m.ServiceId
                     WHERE m.DoctorId = d.DoctorId

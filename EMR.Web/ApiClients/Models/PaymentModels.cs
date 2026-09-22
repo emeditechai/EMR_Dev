@@ -26,6 +26,9 @@ public class PaymentSummaryResult
     public char?   ExistingHeaderDiscountType    { get; set; }
     public decimal? ExistingHeaderDiscountValue  { get; set; }
     public decimal ExistingHeaderDiscountAmount  { get; set; }
+    public string? ExistingDiscountReason { get; set; }
+    public int? ExistingDiscountApprovedBy { get; set; }
+    public string? ExistingDiscountApprovedByName { get; set; }
     public decimal NetAmount    { get; set; }
     public decimal TotalPaid    { get; set; }
     public decimal BalanceDue   { get; set; }

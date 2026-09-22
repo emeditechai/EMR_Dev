@@ -69,6 +69,8 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
             p.Add("@Reason",           request.Reason);
             p.Add("@DiscountAdjusted", request.DiscountAdjusted);
             p.Add("@UserId",           userId);
+            if (string.Equals(request.ModuleCode, "LAB", StringComparison.OrdinalIgnoreCase))
+                p.Add("@AcknowledgeLabWarnings", request.AcknowledgeLabWarnings);
             p.Add("@CancellationId",   dbType: DbType.Int32, direction: ParameterDirection.Output);
             p.Add("@CancellationNo",   dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
 
@@ -100,6 +102,14 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
                 CancelledAmount  = totalCancelled,
                 CancellationType = isFull ? "Full" : "Partial"
             };
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50003)
+        {
+            return new BillCancellationResponseDto { Success = false, ErrorCode = "LAB_BLOCKED", Error = ex.Message };
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50004)
+        {
+            return new BillCancellationResponseDto { Success = false, ErrorCode = "LAB_ACK_REQUIRED", Error = ex.Message };
         }
         catch (Exception ex) when (ex.Message.Contains("already cancelled"))
         {

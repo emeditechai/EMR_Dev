@@ -48,7 +48,10 @@
         tr.t-wait > td:first-child { box-shadow:inset 3px 0 0 #b45309; }
         tr.picked { background:#fef2f2 !important; }
         .val { font-weight:800;font-size:.9rem;color:#0f172a; }
-        .flag-H { color:#b91c1c; } .flag-L { color:#1d4ed8; } .flag-Critical { color:#fff;background:#b91c1c;padding:0 .35rem;border-radius:.25rem; }
+        .flag-H { color:#b91c1c; } .flag-L { color:#1d4ed8; } .flag-Critical { color:#b91c1c; } .flag-Panic { color:#7f1d1d;text-decoration:underline;text-decoration-thickness:2px; }
+        .pa-flag-critical { background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;font-weight:800; }
+        .pa-flag-panic { background:#7f1d1d;color:#fff;border:1px solid #7f1d1d;font-weight:800; }
+        tr.t-critical > td { background:#fff5f5; } tr.t-panic > td { background:#fef2f2; }
         .pa-level { display:inline-flex;align-items:center;gap:.25rem; }
         .pa-level .dot { width:9px;height:9px;border-radius:50%;background:#e2e8f0;border:1px solid #cbd5e1; }
         .pa-level .dot.done { background:#0f766e;border-color:#0f766e; }
@@ -172,6 +175,24 @@
         </div>
     }
 
+    @{
+        var panicCount = Model.Tests.Count(t => t.AbnormalFlag == "Panic");
+        var criticalCount = Model.Tests.Count(t => t.AbnormalFlag == "Critical");
+    }
+    @if (panicCount + criticalCount > 0)
+    {
+        <div class="alert @(panicCount > 0 ? "alert-danger" : "alert-warning") py-2 px-3 fs-8 d-flex align-items-start gap-2">
+            <i class="bi @(panicCount > 0 ? "bi-exclamation-octagon-fill" : "bi-exclamation-triangle-fill") mt-1"></i>
+            <div>
+                This bill has
+                @if (panicCount > 0) { <strong>@panicCount Panic</strong> }
+                @if (panicCount > 0 && criticalCount > 0) { <text>and</text> }
+                @if (criticalCount > 0) { <strong>@criticalCount Critical</strong> }
+                value(s) &mdash; beyond the threshold set on the reference range. Review before signing.
+            </div>
+        </div>
+    }
+
     <!-- Tests -->
     <div class="card pa-card shadow-sm">
         <div class="px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -216,8 +237,9 @@
                         <tr class="grp-row"><td colspan="7"><i class="bi bi-folder2-open me-1"></i>@grp</td></tr>
                     }
                     var rowCls = t.CanApproveNow ? "t-mine" : (t.IsApproved ? "t-done" : "t-wait");
-                    var flagCls = t.AbnormalFlag switch { "H" => "flag-H", "L" => "flag-L", "Critical" => "flag-Critical", _ => "" };
-                    <tr class="@rowCls" data-id="@t.SamplecollectionID">
+                    var flagCls = t.AbnormalFlag switch { "H" => "flag-H", "L" => "flag-L", "Critical" => "flag-Critical", "Panic" => "flag-Panic", _ => "" };
+                    var sevCls = t.AbnormalFlag switch { "Critical" => " t-critical", "Panic" => " t-panic", _ => "" };
+                    <tr class="@rowCls@sevCls" data-id="@t.SamplecollectionID">
                         <td class="ps-3">
                             @if (t.CanApproveNow)
                             {
@@ -241,7 +263,18 @@
                             <span class="val @flagCls">@t.TestValue</span>
                             @if (!string.IsNullOrWhiteSpace(t.AbnormalFlag) && t.AbnormalFlag != "Normal")
                             {
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-1">@t.AbnormalFlag</span>
+                                if (t.AbnormalFlag == "Panic")
+                                {
+                                    <span class="badge pa-flag-panic fs-9 ms-1" title="Beyond the Panic threshold of the reference range"><i class="bi bi-exclamation-octagon-fill me-1"></i>Panic</span>
+                                }
+                                else if (t.AbnormalFlag == "Critical")
+                                {
+                                    <span class="badge pa-flag-critical fs-9 ms-1" title="Beyond the Critical threshold of the reference range"><i class="bi bi-exclamation-triangle-fill me-1"></i>Critical</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-1">@t.AbnormalFlag</span>
+                                }
                             }
                             @if (!string.IsNullOrWhiteSpace(t.PreviousTestValue))
                             {

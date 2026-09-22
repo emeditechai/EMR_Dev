@@ -1,0 +1,112 @@
+@* Shared layout of the Reports > LAB registers (wwwroot/js/lab-report.js fills it).
+   ViewData: Title, ReportSubtitle, ReportIcon, ReportAccent, DateLabel. ViewBag.CanSeeAllCollections decides the visibility badge. *@
+@{
+    var branchName = User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? "";
+    bool seeAll = ViewBag.CanSeeAllCollections as bool? ?? false;
+    var me = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "You";
+    var accent = ViewData["ReportAccent"] as string ?? "#0f766e";
+    bool branchWide = ViewData["BranchWide"] as bool? ?? false;   // partner-account reports: every user of the branch sees all
+}
+<style>
+    .lr-wrap { --lr-line:#e2e8f0; --lr-muted:#64748b; --lr-ink:#0f172a; --lr-accent:@accent; }
+    .lr-wrap .fs-8 { font-size:.78rem !important; } .lr-wrap .fs-9 { font-size:.7rem !important; }
+    .lr-card { background:#fff;border:1px solid var(--lr-line);border-radius:.75rem; }
+    .lr-kpi { padding:.85rem 1rem;border-left:4px solid var(--k, var(--lr-accent));height:100%; }
+    .lr-kpi .k-label { font-size:.66rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--lr-muted); }
+    .lr-kpi .k-val { font-size:1.35rem;font-weight:800;color:var(--lr-ink);line-height:1.2;font-variant-numeric:tabular-nums; }
+    .lr-kpi .k-sub { font-size:.7rem;color:var(--lr-muted); }
+    .lr-wrap .btn-quick.active, .lr-wrap .btn-view.active { background:var(--lr-accent);border-color:var(--lr-accent);color:#fff; }
+    .lr-table thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--lr-muted);font-size:.66rem;font-weight:700;
+                         letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--lr-line); }
+    .lr-table tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6; }
+    .lr-table tfoot td { font-size:.8rem;font-weight:800;background:#f8fafc; }
+    .lr-wrap .amt { font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .lr-scroll { max-height:60vh;overflow:auto; }
+    .lr-table tr.grp-row { cursor:pointer; } .lr-table tr.grp-row:hover td { background:#f0fdfa; }
+    .lr-table tr.row-muted td { background:#fff7f7; }
+    .lr-bar { height:5px;border-radius:3px;background:#f1f5f9;overflow:hidden;margin-top:3px;min-width:70px; }
+    .lr-bar > span { display:block;height:100%;background:var(--lr-accent); }
+    @@media print { .emr-topbar, footer, .no-print { display:none !important; } .lr-scroll { max-height:none;overflow:visible; } }
+</style>
+
+<div class="container-fluid px-3 py-2 lr-wrap">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi @(ViewData["ReportIcon"] ?? "bi-file-earmark-bar-graph") me-2" style="color:@accent"></i>@ViewData["Title"]</h1>
+            <div class="text-muted fs-8">Reports &rsaquo; LAB &middot; @ViewData["ReportSubtitle"]
+                @if (!string.IsNullOrWhiteSpace(branchName)) { <span>&middot; Branch <strong>@branchName</strong></span> }
+                &middot; <span id="lrRange"></span></div>
+            <div class="fs-9 mt-1">
+                @if (branchWide)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-building me-1"></i>Branch-wide partner report &middot; all users' data of this branch</span>
+                }
+                else if (seeAll)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-shield-check me-1"></i>Administrator view &middot; all users' data of this branch</span>
+                }
+                else
+                {
+                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-person-lock me-1"></i>Showing only your own data (@me)</span>
+                }
+            </div>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            <button type="button" class="btn btn-sm btn-outline-success" id="lrExcel" disabled><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="lrPdf" disabled><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="lrPrint" disabled><i class="bi bi-printer me-1"></i>Print</button>
+        </div>
+    </div>
+
+    <div class="lr-card p-2 px-3 mb-2 no-print">
+        <div class="row g-2 align-items-end" id="lrFilterRow">
+            <div class="col-6 col-md-2"><label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0" for="lrFrom">From (@(ViewData["DateLabel"] ?? "date"))</label>
+                <input type="date" id="lrFrom" class="form-control form-control-sm" autocomplete="off" /></div>
+            <div class="col-6 col-md-2"><label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0" for="lrTo">To</label>
+                <input type="date" id="lrTo" class="form-control form-control-sm" autocomplete="off" /></div>
+            <div class="col-12 col-md-4"><label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Quick select</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="today">Today</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="yesterday">Yesterday</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="week">7 Days</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="month">This Month</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="lastmonth">Last Month</button>
+                </div></div>
+            @* report-specific filters are added here by the script *@
+            <div class="col-12 col-md" id="lrSearchCol">
+                <div class="input-group input-group-sm"><span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" id="lrSearch" class="form-control" autocomplete="off" placeholder="Search..." /></div>
+            </div>
+            <div class="col-12 col-md-auto d-flex gap-2 justify-content-md-end">
+                <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none" id="lrReset"><i class="bi bi-x-circle me-1"></i>Reset</button>
+                <button type="button" class="btn btn-sm px-4 text-white" style="background:var(--lr-accent)" id="lrApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="lrError" class="alert alert-danger fs-8 d-none"></div>
+    <div class="row g-2 mb-2" id="lrKpis"></div>
+
+    <div class="lr-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="btn-group btn-group-sm no-print" role="group" aria-label="View">
+                    <button type="button" class="btn btn-outline-secondary btn-view active" data-view="summary">Summary</button>
+                    <button type="button" class="btn btn-outline-secondary btn-view" data-view="detail">Detail</button>
+                </div>
+                <div id="lrGroupBox" class="d-flex align-items-center gap-1 fs-8">
+                    <label for="lrGroup" class="text-muted">Group by</label>
+                    <select id="lrGroup" class="form-select form-select-sm" style="width:auto;"></select>
+                </div>
+                <span id="lrDrill" class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-none"></span>
+            </div>
+            <span class="fs-8 text-muted" id="lrCount"></span>
+        </div>
+        <div class="lr-scroll">
+            <table class="table table-hover mb-0 lr-table" id="lrSummary"><thead></thead><tbody></tbody><tfoot></tfoot></table>
+            <table class="table table-hover mb-0 lr-table d-none" id="lrDetail"><thead></thead><tbody></tbody><tfoot></tfoot></table>
+        </div>
+        <div id="lrEmpty" class="text-center text-muted py-5 d-none"><i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>Nothing found for the selected filters.</div>
+        <div id="lrLoading" class="text-center text-muted py-5 d-none"><span class="spinner-border spinner-border-sm me-2"></span>Loading&hellip;</div>
+    </div>
+</div>

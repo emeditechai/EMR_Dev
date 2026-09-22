@@ -1,0 +1,75 @@
+@{
+    ViewData["Title"] = "B2B Outstanding & Credit Use";
+    ViewData["ReportSubtitle"] = "what each partner owes against its credit limit and credit days";
+    ViewData["ReportIcon"] = "bi-credit-card-2-back";
+    ViewData["ReportAccent"] = "#7c2d12";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["BranchWide"] = true;
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const typePill = (v, h) => v === 'Franchise' ? h.pill('Franchise', 'bg-info-subtle text-info-emphasis border-info-subtle') : h.pill('Corporate', 'bg-primary-subtle text-primary border-primary-subtle');
+    const BUCKET = { '0-30': '0–30 days', '31-60': '31–60 days', '61-90': '61–90 days', '90+': 'Over 90 days' };
+    const dash = '<span class="text-muted">—</span>';
+    const used = (v, h) => {
+        if (v === null || v === undefined) return dash;
+        const n = Number(v), cls = n >= 100 ? 'bg-danger' : n >= 80 ? 'bg-warning' : 'bg-success';
+        return `<div class="d-flex align-items-center gap-2 justify-content-end"><span>${n.toFixed(1)}%</span><div class="progress" style="width:60px;height:5px"><div class="progress-bar ${cls}" style="width:${Math.min(100, n)}%"></div></div></div>`;
+    };
+    LabReport.init({
+        report: 'b2b-outstanding', title: 'B2B Outstanding & Credit Use', defaultRange: 'year', summaryAlways: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, partner or patient...',
+        filters: [
+            { id: 'partnerType', label: 'Partner type', allLabel: 'Franchise & corporate', options: [['F', 'Franchise'], ['C', 'Corporate']] },
+            { id: 'ageBucket', label: 'Age', allLabel: 'Any age', options: Object.keys(BUCKET).map(k => [k, BUCKET[k]]) }
+        ],
+        kpis: [
+            { label: 'Outstanding', color: '#7c2d12', value: (s, h) => h.money(s.DueAmount), sub: (s, h) => `${h.num(s.OpenBills)} open bill(s) · ${h.num(s.PartnersWithDue)} of ${h.num(s.PartnerCount)} partners` },
+            { label: 'Overdue', color: '#b91c1c', value: (s, h) => h.money(s.OverdueAmount), sub: () => 'older than the partner’s credit days' },
+            { label: 'Over / near limit', color: '#d97706', value: (s, h) => `${h.num(s.OverLimitCount)} / ${h.num(s.NearLimitCount)}`, sub: () => 'partners over 100% / at 80%+ of limit' },
+            { label: 'Total credit limit', color: '#475569', value: (s, h) => h.money(s.CreditLimit) },
+            { label: 'Franchise wallets', color: '#047857', value: (s, h) => h.money(s.WalletBalance), sub: () => 'prepaid balance available' }
+        ],
+        groups: [
+            { key: 'byPartner', label: 'Partner', rowField: 'PartnerName', name: (r, h) => `${h.esc(r.GroupName)} <span class="ms-1">${typePill(r.Detail, h)}</span>` },
+            { key: 'byAgeBucket', label: 'Age', rowField: 'AgeBucket', name: (r) => BUCKET[r.GroupName] || r.GroupName },
+            { key: 'byPartnerType', label: 'Partner type', rowField: 'PartnerType', name: (r, h) => typePill(r.GroupName, h) }
+        ],
+        groupCols: [
+            { field: 'OpenBills', label: 'Open bills', num: true },
+            { field: 'DueAmount', label: 'Outstanding', money: true },
+            { field: 'OverdueAmount', label: 'Overdue', money: true },
+            { field: 'CreditLimit', label: 'Credit limit', money: true, total: 'none', fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'CreditUsedPercent', label: 'Limit used', num: true, total: 'none', fmt: used },
+            { field: 'CreditDays', label: 'Credit days', num: true, total: 'none', fmt: (v, h) => v === null || v === undefined ? dash : h.num(v) },
+            { field: 'OldestDays', label: 'Oldest', num: true, total: 'max', fmt: (v, h) => v ? `${h.num(v)} days` : dash },
+            { field: 'WalletBalance', label: 'Wallet', money: true, total: 'none', fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'LastInvoiceDate', label: 'Last invoice', total: 'none', fmt: (v, h) => v ? h.fmtD(v) : dash },
+            { field: 'LastSettlementDate', label: 'Last payment', total: 'none', fmt: (v, h) => v ? h.fmtD(v) : dash }
+        ],
+        cols: [
+            { label: 'Bill No', html: (r, h) => `<span class="fw-semibold font-monospace">${h.esc(r.BillNo)}</span>`, text: r => r.BillNo },
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.BillDate), text: (r, h) => h.fmtD(r.BillDate) },
+            { label: 'Partner', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PartnerName)}</div><div class="fs-9">${typePill(r.PartnerType, h)} <span class="text-muted">${r.CreditDays ? r.CreditDays + ' credit days' : ''}</span></div>`, text: r => r.PartnerName },
+            { label: 'Patient', html: (r, h) => `<div>${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Age', cls: 'text-nowrap', html: (r, h) => `${h.num(r.AgeDays)} days${r.IsOverdue ? `<div>${h.pill('Overdue', 'bg-danger-subtle text-danger border-danger-subtle')}</div>` : ''}`, text: r => r.AgeDays + (r.IsOverdue ? ' (overdue)' : '') },
+            { label: 'Contract', cls: 'text-end amt', html: (r, h) => h.money(r.ContractAmount), text: r => r.ContractAmount, sum: 'ContractAmount' },
+            { label: 'Paid', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Outstanding', cls: 'text-end amt fw-bold text-danger', html: (r, h) => h.money(r.DueAmount), text: r => r.DueAmount, sum: 'DueAmount' },
+            { label: 'Invoice', html: (r, h) => r.InvoiceNo ? `<span class="font-monospace fs-9">${h.esc(r.InvoiceNo)}</span>${r.InvoiceDueDate ? `<div class="text-muted fs-9">due ${h.fmtD(r.InvoiceDueDate)}</div>` : ''}` : '<span class="text-warning-emphasis fs-9">Not invoiced</span>', text: r => r.InvoiceNo || 'Not invoiced' },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
+        ]
+    });
+})();
+</script>
+}

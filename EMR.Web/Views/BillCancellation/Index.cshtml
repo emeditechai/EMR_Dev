@@ -131,6 +131,12 @@
     .cr-items-table tr.item-cancelled .item-name { text-decoration: line-through; }
     .item-check { width: 16px; height: 16px; accent-color: #dc3545; cursor: pointer; }
     .item-name  { font-weight: 600; color: #212529; }
+    .cr-items-table tr.item-blocked td { background: #fafafa; }
+    .cr-items-table tr.item-blocked .item-name { color: #6c757d; }
+    .lab-state { font-size: .7rem; color: #6c757d; margin-top: 3px; line-height: 1.3; }
+    .lab-state .ls-block { color: #b91c1c; font-weight: 600; }
+    .lab-state .ls-warn  { color: #b45309; font-weight: 600; }
+    .lab-lock-hint { font-size: .68rem; color: #b91c1c; margin-top: 3px; line-height: 1.3; }
     .item-sub   { font-size: .75rem; color: #6c757d; }
     .item-amount { font-weight: 700; color: #212529; text-align: right; white-space: nowrap; }
 
@@ -310,6 +316,7 @@
                     <label for="selectAllItems" class="mb-0 fw-semibold small" style="cursor:pointer;">Select All Active Items</label>
                     <span id="selectedCountBadge" class="ms-auto badge text-bg-secondary" style="display:none;"></span>
                 </div>
+                <div id="crLabNotice" class="alert alert-warning py-2 px-3 small d-flex gap-2 align-items-start" style="display:none !important;"></div>
                 <div class="table-responsive">
                     <table class="cr-items-table">
                         <thead>
@@ -567,13 +574,19 @@
             const dept = [item.departmentName, item.categoryName].filter(Boolean).join(' › ');
             const disc = parseFloat(item.discountAmount) || 0;
             const net = parseFloat(item.netAmount) || (item.originalAmount - disc);
-            return `<tr class="${cancelled ? 'item-cancelled' : ''}" data-line-ref="${item.lineRefId}">
+            const stage = cancelled ? 'CANCELLED' : (item.cancelStage || 'ALLOWED');
+            const blocked = stage === 'BLOCKED', warn = stage === 'WARN';
+            return `<tr class="${cancelled ? 'item-cancelled' : ''} ${blocked ? 'item-blocked' : ''}" data-line-ref="${item.lineRefId}">
                 <td><input type="checkbox" class="item-check cr-item-chk"
                            data-line="${item.lineRefId}" 
                            data-amount="${item.originalAmount}"
                            data-discount="${disc}"
                            data-net="${net}"
-                           ${cancelled ? 'disabled' : ''} onchange="onItemCheck()"></td>
+                           data-blocked="${blocked ? 1 : 0}" data-warn="${warn ? 1 : 0}"
+                           data-name="${(item.itemName || item.itemCode || '').replace(/"/g, '&quot;')}"
+                           data-warn-text="${warn ? labWarnText(item) : ''}"
+                           ${cancelled || blocked ? 'disabled' : ''} onchange="onItemCheck()"
+                           ${blocked ? 'title="Result already submitted - the lab must withdraw it before this test can be cancelled"' : ''}></td>
                 <td>
                     <div class="item-name">${item.itemName || item.itemCode || 'Unknown'}</div>
                     ${item.itemCode ? `<div class="item-sub">${item.itemCode}</div>` : ''}
@@ -591,14 +604,59 @@
                 <td style="text-align:center;">
                     ${cancelled
                         ? '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Cancelled</span>'
+                        : blocked
+                        ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-lock-fill me-1"></i>Locked</span>'
+                        : warn
+                        ? '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-exclamation-triangle-fill me-1"></i>Confirm</span>'
                         : '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>'}
+                    ${!cancelled ? labStateHtml(item) : ''}
                 </td>
             </tr>`;
         }).join('');
 
+        const blockedItems = bill.items.filter(i => !i.isCancelled && i.cancelStage === 'BLOCKED');
+        const notice = document.getElementById('crLabNotice');
+        if (blockedItems.length) {
+            notice.innerHTML = `<i class="bi bi-lock-fill mt-1"></i><div><strong>${blockedItems.length} item(s) cannot be cancelled:</strong>
+                their result is already submitted, validated or approved. The lab must withdraw the result first
+                &mdash; reject the sample on <em>Report Entry</em>; an approved report has to be <em>Un-Authorized</em> first.
+                The other items can still be cancelled.</div>`;
+            notice.style.setProperty('display', 'flex', 'important');
+        } else {
+            notice.style.setProperty('display', 'none', 'important');
+        }
+
         onItemCheck();
         switchTab('cancel');
         loadRefundSection();
+    }
+
+    // ─── LAB: progress of a bill line's tests ─────────────────────
+    function labStateHtml(item) {
+        if (!item.cancelStage || !(item.testCount > 0)) return '';
+        const parts = [];
+        const add = (n, label, cls) => { if (n > 0) parts.push(cls ? `<span class="${cls}">${n} ${label}</span>` : `${n} ${label}`); };
+        add(item.approvedCount, 'approved', 'ls-block');
+        add(item.validatedCount, 'validated', 'ls-block');
+        add(item.submittedCount, 'submitted', 'ls-block');
+        add(item.draftCount, item.draftCount > 1 ? 'draft results' : 'draft result', 'ls-warn');
+        add(item.collectedCount, item.collectedCount > 1 ? 'samples collected' : 'sample collected', 'ls-warn');
+        add(item.notCollectedCount, 'not collected');
+        add(item.rejectedCount, 'rejected');
+        let html = `<div class="lab-state">${item.testCount} test${item.testCount > 1 ? 's' : ''}: ${parts.join(', ')}`
+            + (item.transferredCount > 0 ? `<br>${item.transferredCount} transferred to another branch` : '')
+            + (item.outsourcedCount > 0 ? `<br>${item.outsourcedCount} outsourced` : '') + '</div>';
+        if (item.cancelStage === 'BLOCKED')
+            html += `<div class="lab-lock-hint">${item.approvedCount > 0 ? 'Un-Authorize the report, then ' : ''}reject the sample on Report Entry to release it</div>`;
+        return html;
+    }
+
+    function labWarnText(item) {
+        const parts = [];
+        if (item.draftCount > 0) parts.push(`${item.draftCount} draft result${item.draftCount > 1 ? 's' : ''} will be discarded`);
+        if (item.collectedCount > 0) parts.push(`${item.collectedCount} collected sample${item.collectedCount > 1 ? 's' : ''} will be discarded`);
+        if (item.transferredCount > 0) parts.push('sample was transferred to another branch');
+        return parts.join('; ');
     }
 
     // ─── Select All ──────────────────────────────────────────────
@@ -611,6 +669,8 @@
         const all   = document.querySelectorAll('.cr-item-chk:not(:disabled)');
         const checks = document.querySelectorAll('.cr-item-chk:checked:not(:disabled)');
         const allSel = checks.length === all.length && all.length > 0;
+        // locked lines stay on the bill, so selecting every other line is still a partial cancellation
+        const lockedRemain = document.querySelectorAll('.cr-item-chk[data-blocked="1"]').length > 0;
 
         const selAll = document.getElementById('selectAllItems');
         selAll.checked       = allSel;
@@ -636,7 +696,7 @@
         const totalAmount   = currentBill?.totalAmount || 0;
         
         let discAdj = 0;
-        if (allSel) {
+        if (allSel && !lockedRemain) {
             discAdj = totalDiscount;
         } else if (hasLineDiscounts || (currentBill?.items && currentBill.items.some(x => (x.discountAmount || 0) > 0))) {
             discAdj = lineDiscSum;
@@ -668,7 +728,8 @@
         const totalAmount   = currentBill.totalAmount || 0;
         const totalDiscount = currentBill.totalDiscountAmount || 0;
         const allActiveChecks = document.querySelectorAll('.cr-item-chk:not(:disabled)');
-        const isAllSelected = checks.length === allActiveChecks.length;
+        const isAllSelected = checks.length === allActiveChecks.length
+            && document.querySelectorAll('.cr-item-chk[data-blocked="1"]').length === 0;
 
         const items = Array.from(checks).map(c => ({ 
             lineRefId: parseInt(c.dataset.line), 
@@ -689,9 +750,22 @@
         }
         discAdj = Math.min(discAdj, totalDiscount);
 
+        const warnChecks = Array.from(checks).filter(c => c.dataset.warn === '1');
+        const warnHtml = warnChecks.length
+            ? `<div class='alert alert-warning py-2 px-3 small mb-2'><div class='fw-bold mb-1'><i class='bi bi-exclamation-triangle-fill me-1'></i>Lab work already started</div>
+                 <ul class='mb-0 ps-3'>${warnChecks.map(c => `<li><strong>${c.dataset.name}</strong>: ${c.dataset.warnText}</li>`).join('')}</ul></div>`
+            : '';
+
         const confirmCancel = await Swal.fire({
             title: 'Confirm Cancellation',
+            ...(warnChecks.length ? {
+                input: 'checkbox',
+                inputValue: 0,
+                inputPlaceholder: 'I confirm the collected sample(s) / draft result(s) above will be discarded',
+                inputValidator: v => !v && 'Please confirm to cancel tests whose lab work has started.'
+            } : {}),
             html: `<div class='text-start'>
+                    ${warnHtml}
                     <p class='mb-2'>You are about to cancel <strong>${items.length} item(s)</strong>.</p>
                     <table class='table table-sm table-bordered mb-0'>
                         <tr><td class='text-muted'>Items Subtotal</td><td class='fw-bold text-end'>₹${fmt(subTotal)}</td></tr>
@@ -722,11 +796,21 @@
                     moduleRefId: currentBill.moduleRefId,
                     branchId: 0,
                     items, reason,
-                    discountAdjusted: discAdj
+                    discountAdjusted: discAdj,
+                    acknowledgeLabWarnings: warnChecks.length > 0
                 })
             });
             const json = await res.json();
-            if (!json.success) { showToast(json.error, 'error'); return; }
+            if (!json.success) {
+                if (json.errorCode === 'LAB_BLOCKED') {
+                    // the lab moved on since the bill was opened: show why and refresh the lines
+                    await Swal.fire({ icon: 'error', title: 'Cannot cancel', text: json.error, confirmButtonColor: '#dc3545' });
+                    await loadDetail(currentBill.moduleRefId);
+                } else {
+                    showToast(json.error, 'error');
+                }
+                return;
+            }
             showToast(`Cancellation successful! Ref: ${json.cancellationNo} — ₹${fmt(json.cancelledAmount)}`, 'success');
             document.getElementById('crCancelReason').value = '';
             await loadDetail(currentBill.moduleRefId);

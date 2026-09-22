@@ -40,6 +40,10 @@ public class PaymentSummaryViewModel
     public char? ExistingHeaderDiscountType { get; set; }
     public decimal? ExistingHeaderDiscountValue { get; set; }
     public decimal ExistingHeaderDiscountAmount { get; set; }
+    /// <summary>Why the existing discount was given, and who approved it (asked whenever a discount is entered or changed).</summary>
+    public string? ExistingDiscountReason { get; set; }
+    public int? ExistingDiscountApprovedBy { get; set; }
+    public string? ExistingDiscountApprovedByName { get; set; }
     public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TotalPaid { get; set; }
@@ -81,6 +85,9 @@ public class SavePaymentRequest
     public string? HeaderDiscountType { get; set; }         // "P" or "F"
     public decimal HeaderDiscountValue { get; set; }
     public decimal HeaderDiscountAmount { get; set; }
+    /// <summary>Required whenever a discount is given or changed: the reason, and the user who approved it.</summary>
+    public string? DiscountReason { get; set; }
+    public int? DiscountApprovedBy { get; set; }
 
     public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }

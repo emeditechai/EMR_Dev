@@ -28,6 +28,12 @@
 }
 <partial name="_PaymentModal" />
 
+@{ bool showLabReportPrint = ViewBag.ShowLabReportPrintOnList as bool? ?? false; }
+@if (showLabReportPrint)
+{
+    <partial name="_LabReportPrintModal" />
+}
+
 @* ── Page header ── *@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
@@ -266,6 +272,15 @@
                                                     <i class="bi bi-printer-fill me-2 text-dark"></i>Print Bill
                                                 </a>
                                             </li>
+                                            @if (showLabReportPrint && o.ApprovedTestCount > 0)
+                                            {
+                                                <li>
+                                                    <button type="button" class="dropdown-item btn-print-report"
+                                                            data-scope="approved" data-laborderid="@o.LabOrderId" data-bill="@(o.BillNo ?? "—")">
+                                                        <i class="bi bi-file-earmark-medical-fill me-2" style="color:#0f766e"></i>Print Lab Report
+                                                    </button>
+                                                </li>
+                                            }
                                             @if (o.PaymentStatus != "P")
                                             {
                                                 <li>
@@ -605,6 +620,8 @@
                                 <div class="col-8 fw-semibold text-danger">${d.bookingDate ? new Date(d.bookingDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
                                 <div class="col-4 text-muted">Collection:</div>
                                 <div class="col-8">${d.collectionType === 'Home Collection' ? '<span class="badge bg-danger"><i class="bi bi-house-door-fill me-1"></i>Home</span>' : '<span class="badge bg-primary"><i class="bi bi-building me-1"></i>Lab</span>'}</div>
+                                <div class="col-4 text-muted">Referred By:</div>
+                                <div class="col-8 fw-semibold">${d.referralDoctorName ?? 'Self'}</div>
                                 <div class="col-4 text-muted">Branch:</div>
                                 <div class="col-8">${d.branchName ?? '—'}</div>
                                 <div class="col-4 text-muted">Booked By:</div>
@@ -650,6 +667,13 @@
                                 <span>Discount:</span>
                                 <span class="font-monospace">-₹${(d.discountAmount || 0).toFixed(2)}</span>
                             </div>
+                            <div class="mb-2 px-2 py-1 rounded border border-warning-subtle bg-warning-subtle" style="font-size:.74rem;">
+                                ${d.discountReason
+                                    ? `<div><span class="text-muted">Reason:</span> <strong>${escHtml(d.discountReason)}</strong></div>
+                                       <div><span class="text-muted">Approved by:</span> <strong>${escHtml(d.discountApprovedByName || '—')}</strong>${d.discountApprovedDate ? ` <span class="text-muted">· ${new Date(d.discountApprovedDate).toLocaleString('en-IN', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</span>` : ''}</div>
+                                       ${d.discountEnteredByName ? `<div><span class="text-muted">Entered by:</span> ${escHtml(d.discountEnteredByName)}</div>` : ''}`
+                                    : `<span class="text-muted fst-italic">Reason and approver not recorded (discount given before they were required)</span>`}
+                            </div>
                         ` : ''}
                         <div class="d-flex justify-content-between mb-1 small">
                             <span class="text-muted">Net Amount:</span>
@@ -688,8 +712,15 @@
         collectOrderPayment(_currentViewOrderId);
     }
 
+    function escHtml(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
     // Alias for compatibility
     window.openDetailsModal = openDetailsModal;
     window.viewOrderDetail = openDetailsModal;
     </script>
+
+    @if (showLabReportPrint)
+    {
+        <partial name="_LabReportPrintScripts" />
+    }
 }

@@ -251,6 +251,11 @@
             color: #b91c1c !important;
             border: 1px solid #fecaca !important;
         }
+        .flag-panic {
+            background-color: #7f1d1d !important;
+            color: #fff !important;
+            border: 1px solid #7f1d1d !important;
+        }
         .flag-none {
             background-color: #f8fafc !important;
             color: #94a3b8 !important;
@@ -562,6 +567,7 @@
         .reporting-entry-wrapper tr.test-item-row:has(.flag-badge.flag-h)        > td { background-color: #fffaf5; }
         .reporting-entry-wrapper tr.test-item-row:has(.flag-badge.flag-l)        > td { background-color: #f6faff; }
         .reporting-entry-wrapper tr.test-item-row:has(.flag-badge.flag-critical) > td { background-color: #fff5f5; }
+        .reporting-entry-wrapper tr.test-item-row:has(.flag-badge.flag-panic)    > td { background-color: #fef2f2; }
         .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.text-warning-emphasis) > td { background-color: #fffaf3; }
         .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.bg-danger-subtle)      > td { background-color: #fff6f6; }
 
@@ -570,12 +576,14 @@
         .reporting-entry-wrapper tr:has(.flag-badge.flag-h)        .result-val-numeric-input { border-color: #fb923c !important; background-color: #fff7ed !important; color: #9a3412 !important; }
         .reporting-entry-wrapper tr:has(.flag-badge.flag-l)        .result-val-numeric-input { border-color: #60a5fa !important; background-color: #eff6ff !important; color: #1d4ed8 !important; }
         .reporting-entry-wrapper tr:has(.flag-badge.flag-critical) .result-val-numeric-input { border-color: #f87171 !important; background-color: #fef2f2 !important; color: #b91c1c !important; }
+        .reporting-entry-wrapper tr:has(.flag-badge.flag-panic)    .result-val-numeric-input { border-color: #b91c1c !important; background-color: #fee2e2 !important; color: #7f1d1d !important; font-weight: 800; }
 
         /* Clinical flag badges - stronger contrast */
         .reporting-entry-wrapper .flag-badge.flag-normal, .workflow-legend .flag-normal { background-color: #dcfce7 !important; color: #166534 !important; border: 1px solid #86efac !important; }
         .reporting-entry-wrapper .flag-badge.flag-l,      .workflow-legend .flag-l      { background-color: #dbeafe !important; color: #1d4ed8 !important; border: 1px solid #93c5fd !important; }
         .reporting-entry-wrapper .flag-badge.flag-h,      .workflow-legend .flag-h      { background-color: #ffedd5 !important; color: #c2410c !important; border: 1px solid #fdba74 !important; }
         .reporting-entry-wrapper .flag-badge.flag-critical, .workflow-legend .flag-critical { background-color: #fee2e2 !important; color: #b91c1c !important; border: 1px solid #fca5a5 !important; font-weight: 800; }
+        .reporting-entry-wrapper .flag-badge.flag-panic,    .workflow-legend .flag-panic    { background-color: #7f1d1d !important; color: #fff !important; border: 1px solid #7f1d1d !important; font-weight: 800; }
 
         /* Row status badges - one colour per state, with a leading dot */
         .reporting-entry-wrapper .row-status-badge { display: inline-flex; align-items: center; font-weight: 700; border-radius: 999px; padding: 4px 10px; }
@@ -723,6 +731,10 @@
                                 <span class="pill-val text-truncate" style="max-width: 110px;" title="@d.PhlebotomistName">@d.PhlebotomistName</span>
                             </div>
                         }
+                        <div class="info-pill pill-collect">
+                            <span class="pill-label">Referred By</span>
+                            <span class="pill-val text-truncate" style="max-width: 150px;" title="@(d.ReferralDoctorName ?? "Self")">@(string.IsNullOrWhiteSpace(d.ReferralDoctorName) ? "Self" : d.ReferralDoctorName)</span>
+                        </div>
                         <div class="info-pill" id="pillPayment">
                             <span class="pill-label">Payment Status</span>
                             <div>
@@ -806,6 +818,7 @@
             <span class="wf-flag flag-l"        title="Below reference range">L Low</span>
             <span class="wf-flag flag-h"        title="Above reference range">H High</span>
             <span class="wf-flag flag-critical" title="Critical value">Critical</span>
+            <span class="wf-flag flag-panic" title="Panic value">Panic</span>
         </div>
     </div>
 
@@ -1012,6 +1025,9 @@
                                         data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
                                         data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                         data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-tier="@(item.RangeTier ?? "")"
+                                        data-low-thr="@(item.LowThreshold.HasValue ? item.LowThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-high-thr="@(item.HighThreshold.HasValue ? item.HighThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                         data-prev-val="@(item.PreviousTestValue ?? "")"
                                         data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
                                         data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
@@ -1062,6 +1078,9 @@
                                     data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
                                     data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                     data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-tier="@(item.RangeTier ?? "")"
+                                    data-low-thr="@(item.LowThreshold.HasValue ? item.LowThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-high-thr="@(item.HighThreshold.HasValue ? item.HighThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                     data-prev-val="@(item.PreviousTestValue ?? "")"
                                     data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
                                     data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
@@ -1203,6 +1222,9 @@
                                     data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
                                     data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                     data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-tier="@(item.RangeTier ?? "")"
+                                    data-low-thr="@(item.LowThreshold.HasValue ? item.LowThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-high-thr="@(item.HighThreshold.HasValue ? item.HighThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                     data-prev-val="@(item.PreviousTestValue ?? "")"
                                     data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
                                     data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
@@ -1327,6 +1349,9 @@
                                         data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
                                         data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                         data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-tier="@(item.RangeTier ?? "")"
+                                        data-low-thr="@(item.LowThreshold.HasValue ? item.LowThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-high-thr="@(item.HighThreshold.HasValue ? item.HighThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
                                         data-prev-val="@(item.PreviousTestValue ?? "")"
                                         data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
                                         data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
@@ -1611,6 +1636,11 @@
                 const lowVal = parseFloat($row.data('low-val'));
                 const highVal = parseFloat($row.data('high-val'));
                 const prevVal = parseFloat($row.data('prev-val'));
+                // Critical / Panic tier of the matched reference range: beyond these limits the result is
+                // flagged 'Critical' / 'Panic' (checked before the normal L / H range).
+                const tier = $row.attr('data-tier') || '';
+                const lowThr = parseFloat($row.attr('data-low-thr'));
+                const highThr = parseFloat($row.attr('data-high-thr'));
                 const $valInput = $row.find('.txt-test-val');
                 const $flagBadge = $row.find('.flag-badge');
                 const $deltaContainer = $row.find('.delta-check-container');
@@ -1629,7 +1659,17 @@
                 $valInput.removeClass('is-flagged-l is-flagged-h');
 
                 if (isNumeric) {
-                    if (!isNaN(lowVal) && numVal < lowVal) {
+                    const isThresholdTier = tier === 'Critical Value' || tier === 'Panic Value';
+                    const thrDir = !isThresholdTier ? ''
+                        : (!isNaN(lowThr) && numVal < lowThr ? 'L' : (!isNaN(highThr) && numVal > highThr ? 'H' : ''));
+
+                    if (thrDir) {
+                        const isPanic = tier === 'Panic Value';
+                        flag = isPanic ? 'Panic' : 'Critical';
+                        flagText = flag + ' ' + thrDir;
+                        flagClass = isPanic ? 'flag-panic' : 'flag-critical';
+                        $valInput.addClass(thrDir === 'L' ? 'is-flagged-l' : 'is-flagged-h');
+                    } else if (!isNaN(lowVal) && numVal < lowVal) {
                         flag = 'L';
                         flagText = 'L';
                         flagClass = 'flag-l';

@@ -35,6 +35,9 @@ public class PaymentSummaryService(IDbConnectionFactory db) : IPaymentSummarySer
                                                     : ((string)existing.HeaderDiscountType)[0];
             summary.ExistingHeaderDiscountValue  = (decimal?)existing.HeaderDiscountValue;
             summary.ExistingHeaderDiscountAmount = (decimal)existing.HeaderDiscountAmount;
+            summary.ExistingDiscountReason = (string?)existing.DiscountReason;
+            summary.ExistingDiscountApprovedBy = (int?)existing.DiscountApprovedBy;
+            summary.ExistingDiscountApprovedByName = (string?)existing.DiscountApprovedByName;
             summary.NetAmount     = (decimal)existing.NetAmount;
             summary.TotalPaid     = (decimal)existing.TotalPaid;
             summary.BalanceDue    = (decimal)existing.BalanceDue;

@@ -24,6 +24,10 @@ namespace EMR.Web.Models.ViewModels
         public LabReportingStatsDto Stats { get; set; } = new();
         public List<LabReportingHeaderDto> Headers { get; set; } = new();
         public List<LabReportStatusMasterDto> Statuses { get; set; } = new();
+        /// <summary>True when the list is limited to the user's Department Access (User Master).</summary>
+        public bool DepartmentScopeRestricted { get; set; }
+        /// <summary>LAB departments the user may report on (empty + restricted = none assigned).</summary>
+        public List<string> DepartmentScopeNames { get; set; } = new();
     }
 
     public class LabReportingEntryPageViewModel

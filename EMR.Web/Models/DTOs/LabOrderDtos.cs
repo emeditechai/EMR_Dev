@@ -14,6 +14,7 @@ namespace EMR.Web.Models.DTOs
         public int? B2BAgentId { get; set; }
         public string? AgentType { get; set; } // 'F' or 'C'
         public decimal? B2BTotal { get; set; }
+        public int? ReferralDoctorId { get; set; }
         public int? CreatedBy { get; set; }
         public List<LabOrderItemRequestDto> Items { get; set; } = new();
     }
@@ -122,9 +123,11 @@ namespace EMR.Web.Models.DTOs
         public string? AgentName { get; set; }
         public string? AgentCode { get; set; }
         public decimal? B2BTotal { get; set; }
+        public int? ReferralDoctorId { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
+        public string? ReferralDoctorName { get; set; }
         public System.DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public System.DateTime CreatedDate { get; set; }
@@ -144,6 +147,8 @@ namespace EMR.Web.Models.DTOs
         public string? CreatedByUsername { get; set; }
         public int ItemCount { get; set; }
         public string? TestNamesSummary { get; set; }
+        /// <summary>Tests already signed off (Report Approve). &gt;0 means the report can be printed, even partially.</summary>
+        public int ApprovedTestCount { get; set; }
         public int TotalCount { get; set; }
     }
 
@@ -173,9 +178,11 @@ namespace EMR.Web.Models.DTOs
         public string? AgentName { get; set; }
         public string? AgentCode { get; set; }
         public decimal? B2BTotal { get; set; }
+        public int? ReferralDoctorId { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
+        public string? ReferralDoctorName { get; set; }
         public System.DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public System.DateTime CreatedDate { get; set; }
@@ -197,6 +204,11 @@ namespace EMR.Web.Models.DTOs
         public decimal NetAmount { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal RoundOffAmount { get; set; }
+        /// <summary>Why the discount was given, who approved it and who entered it (null for bills discounted before these were recorded).</summary>
+        public string? DiscountReason { get; set; }
+        public string? DiscountApprovedByName { get; set; }
+        public string? DiscountEnteredByName { get; set; }
+        public System.DateTime? DiscountApprovedDate { get; set; }
         public List<LabOrderItemDetailDto> Items { get; set; } = new();
         public List<LabOrderPaymentDetailDto> Payments { get; set; } = new();
     }
@@ -276,6 +288,20 @@ namespace EMR.Web.Models.DTOs
         public string? SampleTypeName { get; set; }
         public string? DepartmentName { get; set; }
         public string? CategoryName { get; set; }
+
+        // ── LAB only: progress of this line's tests, which decides whether it may be cancelled ──
+        public int TestCount { get; set; }
+        public int NotCollectedCount { get; set; }
+        public int RejectedCount { get; set; }
+        public int CollectedCount { get; set; }
+        public int DraftCount { get; set; }
+        public int SubmittedCount { get; set; }
+        public int ValidatedCount { get; set; }
+        public int ApprovedCount { get; set; }
+        public int TransferredCount { get; set; }
+        public int OutsourcedCount { get; set; }
+        /// <summary>ALLOWED | WARN (confirm the sample / draft is discarded) | BLOCKED (result already submitted) | CANCELLED. Null for OPD.</summary>
+        public string? CancelStage { get; set; }
     }
 
     public class BillPaymentSummaryDto
@@ -331,12 +357,16 @@ namespace EMR.Web.Models.DTOs
         public List<BillCancelItemRequest> Items { get; set; } = new();
         public string? Reason { get; set; }
         public decimal DiscountAdjusted { get; set; }
+        /// <summary>LAB: the user confirmed that collected samples / draft results of the selected tests are discarded.</summary>
+        public bool AcknowledgeLabWarnings { get; set; }
     }
 
     public class BillCancellationResponseDto
     {
         public bool Success { get; set; }
         public string? Error { get; set; }
+        /// <summary>LAB_BLOCKED (a result is already submitted) or LAB_ACK_REQUIRED (confirmation missing).</summary>
+        public string? ErrorCode { get; set; }
         public int CancellationId { get; set; }
         public string? CancellationNo { get; set; }
         public decimal CancelledAmount { get; set; }

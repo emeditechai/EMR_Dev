@@ -101,6 +101,15 @@ namespace EMR.Web.Controllers
                 return RedirectToAction("SelectBranch", "Account");
             }
 
+            if (!model.DemographicsOnly && !string.IsNullOrWhiteSpace(model.PaymentDataJson))
+            {
+                SavePaymentRequest? discountCheck = null;
+                try { discountCheck = System.Text.Json.JsonSerializer.Deserialize<SavePaymentRequest>(model.PaymentDataJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }); }
+                catch { /* malformed payment data is reported by the normal flow */ }
+                if (PaymentService.IsDiscountApprovalMissing(discountCheck))
+                    ModelState.AddModelError(string.Empty, PaymentService.DiscountApprovalRequiredMessage);
+            }
+
             if (!model.DemographicsOnly)
             {
                 if (!model.B2BAgentId.HasValue || model.B2BAgentId.Value <= 0)
@@ -283,7 +292,6 @@ namespace EMR.Web.Controllers
                 OccupationId = model.OccupationId,
                 MaritalStatusId = model.MaritalStatusId,
                 LanguageId = model.LanguageId,
-                ReferralDoctorId = model.ReferralDoctorId,
                 BloodGroup = model.BloodGroup,
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
@@ -383,6 +391,7 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "B2BCollector" : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 DueDate = dueDate,
                 IsB2B = true,
                 B2BAgentId = model.B2BAgentId,
@@ -746,7 +755,6 @@ namespace EMR.Web.Controllers
                 OccupationId = model.OccupationId,
                 MaritalStatusId = model.MaritalStatusId,
                 LanguageId = model.LanguageId,
-                ReferralDoctorId = model.ReferralDoctorId,
                 BloodGroup = model.BloodGroup,
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
@@ -787,6 +795,7 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "Lab" : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 CreatedBy = User.GetUserId(),
                 Items = lineItems!
             };
@@ -836,6 +845,16 @@ namespace EMR.Web.Controllers
             if (branchId == null)
             {
                 return Json(new { success = false, error = "Please select a branch first." });
+            }
+
+            // A discount must carry its reason and approver: refuse before anything is saved.
+            if (!string.IsNullOrWhiteSpace(paymentDataJson))
+            {
+                SavePaymentRequest? discountCheck = null;
+                try { discountCheck = System.Text.Json.JsonSerializer.Deserialize<SavePaymentRequest>(paymentDataJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }); }
+                catch { /* malformed payment data is reported by the normal flow */ }
+                if (PaymentService.IsDiscountApprovalMissing(discountCheck))
+                    return Json(new { success = false, error = PaymentService.DiscountApprovalRequiredMessage });
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;
@@ -959,7 +978,6 @@ namespace EMR.Web.Controllers
                 OccupationId = model.OccupationId,
                 MaritalStatusId = model.MaritalStatusId,
                 LanguageId = model.LanguageId,
-                ReferralDoctorId = model.ReferralDoctorId,
                 BloodGroup = model.BloodGroup,
                 SecondaryPhoneNumber = model.SecondaryPhoneNumber,
                 MiddleName = model.MiddleName,
@@ -997,6 +1015,7 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? (model.IsB2B ? "B2BCollector" : "Lab") : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 IsB2B = model.IsB2B,
                 B2BAgentId = model.B2BAgentId,
                 AgentType = model.AgentType,
@@ -1326,11 +1345,19 @@ namespace EMR.Web.Controllers
                 .Select(l => new SelectListItem(l.LanguageName, l.LanguageId.ToString()))
                 .ToListAsync();
 
-            model.ReferralDoctorOptions = await dbContext.ReferralDoctorMasters
-                .Where(r => r.IsActive)
-                .OrderBy(r => r.DoctorName)
-                .Select(r => new SelectListItem(r.DoctorName, r.ReferralDoctorId.ToString()))
-                .ToListAsync();
+            // Referral doctor = Doctor Master doctors assigned to a LAB-type department (script 2127)
+            var refCon = dbContext.Database.GetDbConnection();
+            if (refCon.State != System.Data.ConnectionState.Open)
+                await refCon.OpenAsync();
+            var referralDoctors = await refCon.QueryAsync<(int DoctorId, string DoctorName, string? SpecialityName, string? DepartmentNames)>(
+                "dbo.usp_Lab_GetReferralDoctors",
+                new { CompanyId = User.GetCompanyId(), BranchId = branchId },
+                commandType: System.Data.CommandType.StoredProcedure);
+            model.ReferralDoctorOptions = referralDoctors
+                .Select(r => new SelectListItem(
+                    string.IsNullOrWhiteSpace(r.DepartmentNames) ? r.DoctorName : $"{r.DoctorName} ({r.DepartmentNames})",
+                    r.DoctorId.ToString()))
+                .ToList();
 
             var countries = await countryService.GetActiveAsync();
             model.CountryOptions = countries
@@ -1613,6 +1640,11 @@ namespace EMR.Web.Controllers
 
             var currentBranch = branches.FirstOrDefault(b => b.Selected)?.Text;
 
+            ViewBag.ShowLabReportPrintOnList = await dbContext.HospitalSettings
+                .Where(s => s.BranchId == resolvedBranchId && s.IsActive)
+                .Select(s => s.ShowLabReportPrintOnList)
+                .FirstOrDefaultAsync();
+
             var vm = new LabOrderPagedListViewModel
             {
                 Items = result?.Items ?? new List<LabOrderListItemDto>(),
@@ -1657,6 +1689,11 @@ namespace EMR.Web.Controllers
             ViewBag.Branches = branches;
 
             var currentBranch = branches.FirstOrDefault(b => b.Selected)?.Text;
+
+            ViewBag.ShowLabReportPrintOnList = await dbContext.HospitalSettings
+                .Where(s => s.BranchId == resolvedBranchId && s.IsActive)
+                .Select(s => s.ShowLabReportPrintOnList)
+                .FirstOrDefaultAsync();
 
             var vm = new LabOrderPagedListViewModel
             {
@@ -1762,6 +1799,7 @@ namespace EMR.Web.Controllers
                 BookingDate       = detail.BookingDate,
                 CollectionType    = detail.CollectionType,
                 PhlebotomistName  = detail.PhlebotomistName,
+                ReferralDoctorName = detail.ReferralDoctorName,
                 CreatedByName     = detail.CreatedByName,
                 CreatedByUsername = detail.CreatedByUsername,
                 PrintedByName     = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "Auto",
@@ -2503,6 +2541,7 @@ namespace EMR.Web.Controllers
                 BookingDate       = detail.BookingDate,
                 CollectionType    = detail.CollectionType,
                 PhlebotomistName  = detail.PhlebotomistName,
+                ReferralDoctorName = detail.ReferralDoctorName,
                 CreatedByName     = detail.CreatedByName,
                 CreatedByUsername = detail.CreatedByUsername,
                 PrintedByName     = "Patient Portal",

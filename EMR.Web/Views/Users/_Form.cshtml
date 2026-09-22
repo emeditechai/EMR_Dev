@@ -1,510 +1,569 @@
 @model EMR.Web.Models.ViewModels.UserFormViewModel
+@*
+    User Master form, organised as dependency-ordered steps:
+      1 Account          login identity + password
+      2 Profile          personal details, photo and address
+      3 Access & Roles   Branch Access -> roles of each selected branch (one tab per branch) + Department Access
+      4 Clinical & Status  account status and clinical roles (Pathologist categories depend on Department Access)
+    Every field stays in the one <form>: tabs only hide panes, so everything is posted on Save.
+*@
+@{
+    var isEdit = Model.Id != 0;
+}
 
+<div class="uf-steps mb-3" role="tablist" id="ufSteps">
+    <button type="button" class="uf-step active" data-step="1" role="tab" aria-controls="ufPane1" aria-selected="true">
+        <span class="uf-step-num">1</span>
+        <span class="uf-step-text"><span class="uf-step-title">Account</span><span class="uf-step-sub">Login &amp; password</span></span>
+        <span class="uf-step-err" title="This step has errors"><i class="bi bi-exclamation-circle-fill"></i></span>
+    </button>
+    <button type="button" class="uf-step" data-step="2" role="tab" aria-controls="ufPane2" aria-selected="false">
+        <span class="uf-step-num">2</span>
+        <span class="uf-step-text"><span class="uf-step-title">Profile</span><span class="uf-step-sub">Personal &amp; address</span></span>
+        <span class="uf-step-err" title="This step has errors"><i class="bi bi-exclamation-circle-fill"></i></span>
+    </button>
+    <button type="button" class="uf-step" data-step="3" role="tab" aria-controls="ufPane3" aria-selected="false">
+        <span class="uf-step-num">3</span>
+        <span class="uf-step-text"><span class="uf-step-title">Access &amp; Roles</span><span class="uf-step-sub" id="ufStep3Sub">Branches, roles, departments</span></span>
+        <span class="uf-step-err" title="This step has errors"><i class="bi bi-exclamation-circle-fill"></i></span>
+    </button>
+    <button type="button" class="uf-step" data-step="4" role="tab" aria-controls="ufPane4" aria-selected="false">
+        <span class="uf-step-num">4</span>
+        <span class="uf-step-text"><span class="uf-step-title">Clinical &amp; Status</span><span class="uf-step-sub">Active, clinical roles</span></span>
+        <span class="uf-step-err" title="This step has errors"><i class="bi bi-exclamation-circle-fill"></i></span>
+    </button>
+</div>
 
-<div class="uf-section mb-3">
-    <div class="uf-section-header">
-        <i class="bi bi-shield-lock-fill me-2"></i>Account Information
-    </div>
-    <div class="uf-section-body">
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-person input-icon"></i>
-                    <input asp-for="Username" class="form-control ps-icon" placeholder="Enter username" autocomplete="off" />
-                </div>
-                <span asp-validation-for="Username" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Employee Code</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-upc-scan input-icon"></i>
-                    <input asp-for="EmployeeCode" class="form-control ps-icon text-uppercase" placeholder="Enter employee code" oninput="this.value=this.value.toUpperCase()" />
-                </div>
-                <span asp-validation-for="EmployeeCode" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Email</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-envelope input-icon"></i>
-                    <input asp-for="Email" class="form-control ps-icon" placeholder="user@example.com" />
-                </div>
-                <span asp-validation-for="Email" class="text-danger small"></span>
+@* ─────────────── Step 1: Account ─────────────── *@
+<div class="uf-pane active" id="ufPane1" data-step="1" role="tabpanel">
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-shield-lock-fill me-2"></i>Account Information</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-person input-icon"></i>
+                            <input asp-for="Username" class="form-control ps-icon" placeholder="Enter username" autocomplete="off" />
+                        </div>
+                        <span asp-validation-for="Username" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Employee Code</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-upc-scan input-icon"></i>
+                            <input asp-for="EmployeeCode" class="form-control ps-icon text-uppercase" placeholder="Enter employee code" oninput="this.value=this.value.toUpperCase()" />
+                        </div>
+                        <span asp-validation-for="EmployeeCode" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Email</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-envelope input-icon"></i>
+                            <input asp-for="Email" class="form-control ps-icon" placeholder="user@example.com" />
+                        </div>
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
             </div>
         </div>
     </div>
-</div>
-
-
-<div class="uf-section mb-3">
-    <div class="uf-section-header">
-        <i class="bi bi-person-lines-fill me-2"></i>Personal & Professional Details
-    </div>
-    <div class="uf-section-body">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-layout-text-sidebar input-icon"></i>
-                    <input asp-for="FirstName" class="form-control ps-icon" placeholder="Enter first name" />
-                </div>
-                <span asp-validation-for="FirstName" class="text-danger small"></span>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-layout-text-sidebar input-icon"></i>
-                    <input asp-for="LastName" class="form-control ps-icon" placeholder="Enter last name" />
-                </div>
-                <span asp-validation-for="LastName" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Phone Number</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-telephone input-icon"></i>
-                    <input asp-for="PhoneNumber" class="form-control ps-icon" placeholder="Enter phone number" />
-                </div>
-                <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Date of Birth</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-calendar-heart input-icon"></i>
-                    <input asp-for="DateOfBirth" type="date" class="form-control ps-icon" />
-                </div>
-                <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Date of Joining</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-calendar-check input-icon"></i>
-                    <input asp-for="DateOfJoining" type="date" class="form-control ps-icon" />
-                </div>
-                <span asp-validation-for="DateOfJoining" class="text-danger small"></span>
-            </div>
-            <div class="col-md-12">
-                <label class="form-label fw-semibold">Profile Picture</label>
-                <div class="d-flex align-items-center gap-3 p-2 border rounded-3 bg-light">
-                    <div>
-                        <img id="profilePreview"
-                             src="@(string.IsNullOrWhiteSpace(Model.ExistingProfilePicturePath) ? "/Images/default-avatar.svg" : Model.ExistingProfilePicturePath)"
-                             alt="Profile"
-                             style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #d8e4f5;"
-                             onerror="this.src='/Images/default-avatar.svg'" />
-                    </div>
-                    <div class="flex-grow-1">
-                        <input asp-for="ProfilePictureFile" type="file" accept=".jpg,.jpeg,.png,.webp" class="form-control" onchange="previewProfilePicture(this)" />
-                        <input asp-for="ExistingProfilePicturePath" type="hidden" />
-                        <small class="text-muted">JPG, JPEG, PNG, WEBP (max 2 MB)</small>
-                        <div><span asp-validation-for="ProfilePictureFile" class="text-danger small"></span></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">Branch Access <span class="text-danger">*</span></label>
-                <div class="cms-wrap" id="branchWrap">
-                    <div class="cms-trigger" id="branchTrigger" onclick="toggleCms('branchWrap')">
-                        <span id="branchLabel">Select branches...</span>
-                        <i class="bi bi-chevron-down cms-arrow"></i>
-                    </div>
-                    <div class="cms-dropdown" id="branchDropdown">
-                        <div class="cms-search-box p-2 border-bottom bg-white">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
-                                <input type="text" id="branchSearchInput" class="form-control border-start-0 ps-0" placeholder="Search branches..." autocomplete="off" oninput="filterCmsOptions('branchDropdown', this.value, 'branchNoResults')" onclick="event.stopPropagation()">
-                            </div>
-                        </div>
-                        <div class="cms-options-container">
-                            @foreach (var branch in Model.BranchOptions)
-                            {
-                                <label class="cms-option" data-search-text="@branch.Text.ToLowerInvariant()">
-                                    <input type="checkbox" name="SelectedBranchIds" value="@branch.Value"
-                                        @(Model.SelectedBranchIds.Contains(int.Parse(branch.Value)) ? "checked" : "")
-                                        onchange="onBranchChange()">
-                                    <span>@branch.Text</span>
-                                </label>
-                            }
-                            <div id="branchNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
-                                <i class="bi bi-search me-1"></i>No matching branches found.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <small class="text-muted">Select one or more branches from the dropdown</small>
-                <div><span asp-validation-for="SelectedBranchIds" class="text-danger small"></span></div>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">Department Access</label>
-                <div class="cms-wrap" id="deptWrap">
-                    <div class="cms-trigger" id="deptTrigger" onclick="toggleCms('deptWrap')">
-                        <span id="deptLabel">Select departments...</span>
-                        <i class="bi bi-chevron-down cms-arrow"></i>
-                    </div>
-                    <div class="cms-dropdown" id="deptDropdown">
-                        <div class="cms-search-box p-2 border-bottom bg-white">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
-                                <input type="text" id="deptSearchInput" class="form-control border-start-0 ps-0" placeholder="Type to search department..." autocomplete="off" oninput="filterCmsOptions('deptDropdown', this.value, 'deptNoResults')" onclick="event.stopPropagation()">
-                            </div>
-                        </div>
-                        <div class="cms-options-container">
-                            @foreach (var dept in Model.DepartmentOptions)
-                            {
-                                <label class="cms-option" data-search-text="@dept.Text.ToLowerInvariant()">
-                                    <input type="checkbox" name="SelectedDepartmentIds" value="@dept.Value"
-                                        @(Model.SelectedDepartmentIds.Contains(int.Parse(dept.Value)) ? "checked" : "")
-                                        onchange="updateDeptLabel()">
-                                    <span>@dept.Text</span>
-                                </label>
-                            }
-                            <div id="deptNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
-                                <i class="bi bi-search me-1"></i>No matching departments found.
-                            </div>
-                            @if (!Model.DepartmentOptions.Any())
-                            {
-                                <div class="text-muted small px-3 py-2">No active departments available.</div>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <small class="text-muted">Select one or more hospital departments</small>
-                <div><span asp-validation-for="SelectedDepartmentIds" class="text-danger small"></span></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<div class="uf-section mb-3">
-    <div class="uf-section-header">
-        <i class="bi bi-geo-alt-fill me-2"></i>Address & Geography Details
-    </div>
-    <div class="uf-section-body">
-        <div class="row g-3">
-            <div class="col-md-8">
-                <label class="form-label fw-semibold">Address</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-house-door input-icon"></i>
-                    <input asp-for="Address" class="form-control ps-icon" placeholder="Enter residential / residential address" />
-                </div>
-                <span asp-validation-for="Address" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Pincode</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-geo input-icon"></i>
-                    <input asp-for="Pincode" class="form-control ps-icon" placeholder="e.g. 700001" maxlength="20" />
-                </div>
-                <span asp-validation-for="Pincode" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">Country</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-globe input-icon"></i>
-                    <select asp-for="CountryId" id="ddlCountry" class="form-select ps-icon" asp-items="Model.CountryOptions">
-                        <option value="">-- Select Country --</option>
-                    </select>
-                </div>
-                <span asp-validation-for="CountryId" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">State</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-map input-icon"></i>
-                    <select asp-for="StateId" id="ddlState" class="form-select ps-icon" asp-items="Model.StateOptions">
-                        <option value="">-- Select State --</option>
-                    </select>
-                </div>
-                <span asp-validation-for="StateId" class="text-danger small"></span>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label fw-semibold">City</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-buildings input-icon"></i>
-                    <select asp-for="CityId" id="ddlCity" class="form-select ps-icon" asp-items="Model.CityOptions">
-                        <option value="">-- Select City --</option>
-                    </select>
-                </div>
-                <span asp-validation-for="CityId" class="text-danger small"></span>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<div class="uf-section mb-3">
-    <div class="uf-section-header">
-        <i class="bi bi-diagram-3-fill me-2"></i>Branch-wise Roles
-    </div>
-    <div class="uf-section-body">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">Assign Roles</label>
-                <div class="cms-wrap" id="roleWrap">
-                    <div class="cms-trigger" id="roleTrigger" onclick="toggleCms('roleWrap')">
-                        <span id="roleLabel">Select branch-wise roles</span>
-                        <i class="bi bi-chevron-down cms-arrow"></i>
-                    </div>
-                    <div class="cms-dropdown" id="roleDropdown">
-                        <div class="cms-search-box p-2 border-bottom bg-white">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
-                                <input type="text" id="roleSearchInput" class="form-control border-start-0 ps-0" placeholder="Search roles..." autocomplete="off" oninput="filterRoleOptions(this.value)" onclick="event.stopPropagation()">
-                            </div>
-                        </div>
-                        <div class="cms-options-container">
-                            @foreach (var group in Model.BranchRoleGroups)
-                            {
-                                <div class="cms-group" data-branch-id="@group.BranchId">
-                                    <div class="cms-group-header">@group.BranchName</div>
-                                    @foreach (var role in group.Roles)
-                                    {
-                                        <label class="cms-option ps-3" data-search-text="@role.Name.ToLowerInvariant()">
-                                            <input type="checkbox" name="SelectedRoleIds" value="@role.Id"
-                                                @(Model.SelectedRoleIds.Contains(role.Id) ? "checked" : "")
-                                                onchange="updateRoleLabel()">
-                                            <span>@role.Name</span>
-                                        </label>
-                                    }
-                                </div>
-                            }
-                            <div id="roleNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
-                                <i class="bi bi-search me-1"></i>No matching roles found.
-                            </div>
-                            @if (!Model.BranchRoleGroups.Any())
-                            {
-                                <div class="text-muted small px-3 py-2">No roles available. Add roles in Branch Master first.</div>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <small class="text-muted">Select role(s) for each selected branch</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<div class="uf-section mb-3">
-    <div class="uf-section-header">
-        <i class="bi bi-lock-fill me-2"></i>Security
-    </div>
-    <div class="uf-section-body">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">
-                    Password @(Model.Id == 0 ? Html.Raw("<span class=\"text-danger\">*</span>") : Html.Raw("<small class=\"text-muted fw-normal\">(leave blank to keep current)</small>"))
-                </label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-lock input-icon"></i>
-                    <input asp-for="Password" class="form-control ps-icon pe-eye" id="pwdInput" 
-                           placeholder="Enter password" autocomplete="new-password" />
-                    <button type="button" class="eye-btn" onclick="togglePwd('pwdInput','eyePwd')" tabindex="-1">
-                        <i class="bi bi-eye" id="eyePwd"></i>
-                    </button>
-                </div>
-                <span asp-validation-for="Password" class="text-danger small"></span>
-                @if (Model.Id == 0)
-                {
-                    <small class="text-muted">Min 8 characters</small>
-                }
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">Confirm Password @(Model.Id == 0 ? Html.Raw("<span class=\"text-danger\">*</span>") : "")</label>
-                <div class="input-icon-wrap">
-                    <i class="bi bi-lock input-icon"></i>
-                    <input asp-for="ConfirmPassword" class="form-control ps-icon pe-eye" id="cpwdInput"
-                           placeholder="Re-enter password" autocomplete="new-password" />
-                    <button type="button" class="eye-btn" onclick="togglePwd('cpwdInput','eyeCpwd')" tabindex="-1">
-                        <i class="bi bi-eye" id="eyeCpwd"></i>
-                    </button>
-                </div>
-                <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<div class="uf-section mb-3">
-    <div class="uf-section-header">
-        <i class="bi bi-person-gear me-2"></i>Clinical Roles & Status
-    </div>
-    <div class="uf-section-body">
-        <div class="row g-3">
-            <!-- Row 1: Base & Nursing Status (2-col balanced) -->
-            <div class="col-md-6">
-                <div class="emr-role-card h-100">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="emr-role-icon bg-success bg-opacity-10 text-success">
-                                <i class="bi bi-check-circle-fill"></i>
-                            </div>
-                            <div>
-                                <div class="fw-semibold text-dark">Account Active</div>
-                                <div class="text-muted small" style="font-size:0.78rem;">User system login status & access</div>
-                            </div>
-                        </div>
-                        <div class="form-check form-switch mb-0">
-                            <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="emr-role-card h-100">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="emr-role-icon bg-primary bg-opacity-10 text-primary">
-                                <i class="bi bi-heart-pulse-fill"></i>
-                            </div>
-                            <div>
-                                <div class="fw-semibold text-primary">Is Nursing Staff</div>
-                                <div class="text-muted small" style="font-size:0.78rem;">Clinical nursing & inpatient care personnel</div>
-                            </div>
-                        </div>
-                        <div class="form-check form-switch mb-0">
-                            <input asp-for="IsNursingStaff" class="form-check-input uf-big-toggle" id="isNursingStaffToggle" role="switch">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Row 2: Specialized Diagnostic & Lab Roles (3-col balanced) -->
-            <!-- 1. Pathologist -->
-            <div class="col-md-4">
-                <div class="emr-role-card h-100" id="pathologistCard">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="emr-role-icon bg-purple bg-opacity-10" style="color:#6f42c1;background:#faf5ff;">
-                                <i class="bi bi-microscope"></i>
-                            </div>
-                            <div>
-                                <div class="fw-semibold" style="color:#6f42c1;">Is Pathologist</div>
-                                <div class="text-muted small" style="font-size:0.78rem;">Diagnostic pathologist</div>
-                            </div>
-                        </div>
-                        <div class="form-check form-switch mb-0">
-                            <input asp-for="IsPathologist" class="form-check-input uf-big-toggle" id="isPathologistToggle" role="switch">
-                        </div>
-                    </div>
-
-                    <div id="pathologistBadgeContainer" class="role-config-drawer" style="@(Model.IsPathologist ? "" : "display:none;")">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge" style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;max-width:240px;" id="pathologistBadgeText">
-                                <i class="bi bi-patch-check-fill me-1"></i>Reg: @(string.IsNullOrWhiteSpace(Model.RegistrationNo) ? "Not Set" : Model.RegistrationNo)
-                            </span>
-                            <button type="button" class="btn btn-sm rounded-pill shadow-none" style="font-size:0.75rem;background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;" onclick="openPathologistModal()">
-                                <i class="bi bi-gear-fill me-1"></i>Configure
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-lock-fill me-2"></i>Security</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            Password @(Model.Id == 0 ? Html.Raw("<span class=\"text-danger\">*</span>") : Html.Raw("<small class=\"text-muted fw-normal\">(leave blank to keep current)</small>"))
+                        </label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-lock input-icon"></i>
+                            <input asp-for="Password" class="form-control ps-icon pe-eye" id="pwdInput" 
+                                   placeholder="Enter password" autocomplete="new-password" />
+                            <button type="button" class="eye-btn" onclick="togglePwd('pwdInput','eyePwd')" tabindex="-1">
+                                <i class="bi bi-eye" id="eyePwd"></i>
                             </button>
                         </div>
-                        <div id="pathologistSummaryDetails"></div>
-                        @foreach (var catId in Model.SelectedTestCategoryIds)
+                        <span asp-validation-for="Password" class="text-danger small"></span>
+                        @if (Model.Id == 0)
                         {
-                            <input type="hidden" name="SelectedTestCategoryIds" value="@catId" class="patho-cat-initial" />
+                            <small class="text-muted">Min 8 characters</small>
                         }
                     </div>
-                </div>
-            </div>
-
-            <!-- 2. Phlebotomist -->
-            <div class="col-md-4">
-                <div class="emr-role-card h-100" id="phlebotomistCard">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="emr-role-icon bg-danger bg-opacity-10 text-danger">
-                                <i class="bi bi-droplet-fill"></i>
-                            </div>
-                            <div>
-                                <div class="fw-semibold text-danger">Is Phlebotomist</div>
-                                <div class="text-muted small" style="font-size:0.78rem;">Sample collection specialist</div>
-                            </div>
-                        </div>
-                        <div class="form-check form-switch mb-0">
-                            <input asp-for="IsPhlebotomist" class="form-check-input uf-big-toggle" id="isPhlebotomistToggle" role="switch">
-                        </div>
-                    </div>
-
-                    <div id="phlebotomistBadgeContainer" class="role-config-drawer" style="@(Model.IsPhlebotomist ? "" : "display:none;")">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;max-width:240px;" id="phlebotomistBadgeText">
-                                <i class="bi bi-patch-check-fill me-1"></i>Cert: @(string.IsNullOrWhiteSpace(Model.CertificationNo) ? "Not Set" : Model.CertificationNo)
-                            </span>
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill shadow-none" style="font-size:0.75rem;" onclick="openPhlebotomistModal()">
-                                <i class="bi bi-gear-fill me-1"></i>Configure
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Confirm Password @(Model.Id == 0 ? Html.Raw("<span class=\"text-danger\">*</span>") : "")</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-lock input-icon"></i>
+                            <input asp-for="ConfirmPassword" class="form-control ps-icon pe-eye" id="cpwdInput"
+                                   placeholder="Re-enter password" autocomplete="new-password" />
+                            <button type="button" class="eye-btn" onclick="togglePwd('cpwdInput','eyeCpwd')" tabindex="-1">
+                                <i class="bi bi-eye" id="eyeCpwd"></i>
                             </button>
                         </div>
-                        <div id="phlebotomistSummaryDetails"></div>
+                        <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
                     </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ─────────────── Step 2: Profile ─────────────── *@
+<div class="uf-pane" id="ufPane2" data-step="2" role="tabpanel">
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-person-lines-fill me-2"></i>Personal &amp; Professional Details</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-layout-text-sidebar input-icon"></i>
+                            <input asp-for="FirstName" class="form-control ps-icon" placeholder="Enter first name" />
+                        </div>
+                        <span asp-validation-for="FirstName" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-layout-text-sidebar input-icon"></i>
+                            <input asp-for="LastName" class="form-control ps-icon" placeholder="Enter last name" />
+                        </div>
+                        <span asp-validation-for="LastName" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Phone Number</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-telephone input-icon"></i>
+                            <input asp-for="PhoneNumber" class="form-control ps-icon" placeholder="Enter phone number" />
+                        </div>
+                        <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Date of Birth</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-calendar-heart input-icon"></i>
+                            <input asp-for="DateOfBirth" type="date" class="form-control ps-icon" />
+                        </div>
+                        <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Date of Joining</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-calendar-check input-icon"></i>
+                            <input asp-for="DateOfJoining" type="date" class="form-control ps-icon" />
+                        </div>
+                        <span asp-validation-for="DateOfJoining" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-semibold">Profile Picture</label>
+                        <div class="d-flex align-items-center gap-3 p-2 border rounded-3 bg-light">
+                            <div>
+                                <img id="profilePreview"
+                                     src="@(string.IsNullOrWhiteSpace(Model.ExistingProfilePicturePath) ? "/Images/default-avatar.svg" : Model.ExistingProfilePicturePath)"
+                                     alt="Profile"
+                                     style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #d8e4f5;"
+                                     onerror="this.src='/Images/default-avatar.svg'" />
+                            </div>
+                            <div class="flex-grow-1">
+                                <input asp-for="ProfilePictureFile" type="file" accept=".jpg,.jpeg,.png,.webp" class="form-control" onchange="previewProfilePicture(this)" />
+                                <input asp-for="ExistingProfilePicturePath" type="hidden" />
+                                <small class="text-muted">JPG, JPEG, PNG, WEBP (max 2 MB)</small>
+                                <div><span asp-validation-for="ProfilePictureFile" class="text-danger small"></span></div>
+                            </div>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </div>
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-geo-alt-fill me-2"></i>Address &amp; Geography Details</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">Address</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-house-door input-icon"></i>
+                            <input asp-for="Address" class="form-control ps-icon" placeholder="Enter residential / residential address" />
+                        </div>
+                        <span asp-validation-for="Address" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Pincode</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-geo input-icon"></i>
+                            <input asp-for="Pincode" class="form-control ps-icon" placeholder="e.g. 700001" maxlength="20" />
+                        </div>
+                        <span asp-validation-for="Pincode" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Country</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-globe input-icon"></i>
+                            <select asp-for="CountryId" id="ddlCountry" class="form-select ps-icon" asp-items="Model.CountryOptions">
+                                <option value="">-- Select Country --</option>
+                            </select>
+                        </div>
+                        <span asp-validation-for="CountryId" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">State</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-map input-icon"></i>
+                            <select asp-for="StateId" id="ddlState" class="form-select ps-icon" asp-items="Model.StateOptions">
+                                <option value="">-- Select State --</option>
+                            </select>
+                        </div>
+                        <span asp-validation-for="StateId" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">City</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-buildings input-icon"></i>
+                            <select asp-for="CityId" id="ddlCity" class="form-select ps-icon" asp-items="Model.CityOptions">
+                                <option value="">-- Select City --</option>
+                            </select>
+                        </div>
+                        <span asp-validation-for="CityId" class="text-danger small"></span>
+                    </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ─────────────── Step 3: Access & Roles ─────────────── *@
+<div class="uf-pane" id="ufPane3" data-step="3" role="tabpanel">
+    <div class="uf-section mb-3">
+        <div class="uf-section-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="bi bi-building-check me-2"></i>Branch Access <span class="text-danger">*</span></span>
+            <span class="uf-hint"><span id="branchLabel">No branch selected</span></span>
+        </div>
+        <div class="uf-section-body">
+            <p class="text-muted small mb-2"><span class="uf-dep-no">1</span>Choose the branches this user can log in to. Roles are assigned per branch in the next section.</p>
+            @if (Model.BranchOptions.Count() > 6)
+            {
+                <div class="input-group input-group-sm mb-2" style="max-width:320px;">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="branchSearchInput" class="form-control border-start-0 ps-0" placeholder="Search branches..." autocomplete="off" oninput="filterBranchTiles(this.value)">
+                </div>
+            }
+            <div class="uf-branch-grid" id="branchGrid">
+                @foreach (var branch in Model.BranchOptions)
+                {
+                    var bid = int.Parse(branch.Value);
+                    var roleCount = Model.BranchRoleGroups.FirstOrDefault(g => g.BranchId == bid)?.Roles.Count ?? 0;
+                    <label class="uf-branch-tile" data-search-text="@branch.Text.ToLowerInvariant()">
+                        <input type="checkbox" name="SelectedBranchIds" value="@branch.Value"
+                            @(Model.SelectedBranchIds.Contains(bid) ? "checked" : "")
+                            onchange="onBranchChange()">
+                        <span class="uf-branch-check"><i class="bi bi-check-lg"></i></span>
+                        <span class="uf-branch-body">
+                            <span class="uf-branch-name">@branch.Text</span>
+                            <span class="uf-branch-meta">@roleCount role(s) available</span>
+                        </span>
+                    </label>
+                }
+            </div>
+            <div id="branchNoResults" class="text-muted small py-2" style="display:none;"><i class="bi bi-search me-1"></i>No matching branches found.</div>
+            <div><span asp-validation-for="SelectedBranchIds" class="text-danger small"></span></div>
+        </div>
+    </div>
+
+    <div class="uf-section mb-3">
+        <div class="uf-section-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="bi bi-diagram-3-fill me-2"></i>Branch-wise Roles</span>
+            <span class="uf-hint"><span id="roleLabel">No role selected</span></span>
+        </div>
+        <div class="uf-section-body">
+            <p class="text-muted small mb-2"><span class="uf-dep-no">2</span>Pick the role(s) the user gets in each selected branch. A branch tab shows how many roles are ticked.</p>
+            <div id="roleEmpty" class="uf-empty">
+                <i class="bi bi-building-add"></i>
+                <div class="fw-semibold">Select Branch Access first</div>
+                <div class="small text-muted">A tab for each selected branch appears here with its roles.</div>
+            </div>
+            <div id="roleArea" style="display:none;">
+                <ul class="nav uf-branch-tabs" id="roleBranchTabs" role="tablist">
+                    @foreach (var group in Model.BranchRoleGroups)
+                    {
+                        <li class="nav-item" data-branch-id="@group.BranchId" role="presentation">
+                            <button type="button" class="nav-link" data-branch-tab="@group.BranchId" role="tab">
+                                <i class="bi bi-building me-1"></i>@group.BranchName
+                                <span class="badge rounded-pill uf-role-count" data-count-for="@group.BranchId">0</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+                <div class="uf-role-panel">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <div class="input-group input-group-sm" style="max-width:280px;">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" id="roleSearchInput" class="form-control border-start-0 ps-0" placeholder="Search roles..." autocomplete="off" oninput="filterRoleOptions(this.value)">
+                        </div>
+                        <div class="ms-auto d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0" onclick="setBranchRoles(true)">Select all</button>
+                            <span class="text-muted">|</span>
+                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 text-danger" onclick="setBranchRoles(false)">Clear</button>
+                        </div>
+                    </div>
+                    @foreach (var group in Model.BranchRoleGroups)
+                    {
+                        <div class="cms-group uf-role-group" data-branch-id="@group.BranchId" style="display:none;">
+                            <div class="uf-role-grid">
+                                @foreach (var role in group.Roles)
+                                {
+                                    <label class="uf-role-chip cms-option" data-search-text="@role.Name.ToLowerInvariant()">
+                                        <input type="checkbox" name="SelectedRoleIds" value="@role.Id"
+                                            @(Model.SelectedRoleIds.Contains(role.Id) ? "checked" : "")
+                                            onchange="updateRoleLabel()">
+                                        <span>@role.Name</span>
+                                    </label>
+                                }
+                            </div>
+                            @if (!group.Roles.Any())
+                            {
+                                <div class="text-muted small py-2">No roles defined for this branch. Add roles in Branch Master first.</div>
+                            }
+                        </div>
+                    }
+                    <div id="roleNoResults" class="text-muted small py-2" style="display:none;"><i class="bi bi-search me-1"></i>No matching roles in this branch.</div>
                 </div>
             </div>
+            @if (!Model.BranchRoleGroups.Any())
+            {
+                <div class="text-muted small mt-2">No roles available. Add roles in Branch Master first.</div>
+            }
+        </div>
+    </div>
 
-            <!-- 3. Lab Technician -->
-            <div class="col-md-4">
-                <div class="emr-role-card h-100" id="labTechnicianCard">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="emr-role-icon text-teal" style="background:#f0fdfa;color:#0d9488;">
-                                <i class="bi bi-eyedropper"></i>
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-diagram-2-fill me-2"></i>Department Access</div>
+        <div class="uf-section-body">
+            <p class="text-muted small mb-2"><span class="uf-dep-no">3</span>Departments the user works in. For a pathologist they also decide which test categories can be assigned (step 4).</p>
+            <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="cms-wrap" id="deptWrap">
+                            <div class="cms-trigger" id="deptTrigger" onclick="toggleCms('deptWrap')">
+                                <span id="deptLabel">Select departments...</span>
+                                <i class="bi bi-chevron-down cms-arrow"></i>
                             </div>
-                            <div>
-                                <div class="fw-semibold" style="color:#0d9488;">Is Lab Technician</div>
-                                <div class="text-muted small" style="font-size:0.78rem;">Diagnostics technician</div>
+                            <div class="cms-dropdown" id="deptDropdown">
+                                <div class="cms-search-box p-2 border-bottom bg-white">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                        <input type="text" id="deptSearchInput" class="form-control border-start-0 ps-0" placeholder="Type to search department..." autocomplete="off" oninput="filterCmsOptions('deptDropdown', this.value, 'deptNoResults')" onclick="event.stopPropagation()">
+                                    </div>
+                                </div>
+                                <div class="cms-options-container">
+                                    @foreach (var dept in Model.DepartmentOptions)
+                                    {
+                                        <label class="cms-option" data-search-text="@dept.Text.ToLowerInvariant()">
+                                            <input type="checkbox" name="SelectedDepartmentIds" value="@dept.Value"
+                                                @(Model.SelectedDepartmentIds.Contains(int.Parse(dept.Value)) ? "checked" : "")
+                                                onchange="updateDeptLabel()">
+                                            <span>@dept.Text</span>
+                                        </label>
+                                    }
+                                    <div id="deptNoResults" class="text-muted small px-3 py-2 text-center" style="display:none;">
+                                        <i class="bi bi-search me-1"></i>No matching departments found.
+                                    </div>
+                                    @if (!Model.DepartmentOptions.Any())
+                                    {
+                                        <div class="text-muted small px-3 py-2">No active departments available.</div>
+                                    }
+                                </div>
                             </div>
                         </div>
-                        <div class="form-check form-switch mb-0">
-                            <input asp-for="IsLabTechnician" class="form-check-input uf-big-toggle" id="isLabTechnicianToggle" role="switch">
-                        </div>
+                        <small class="text-muted">Select one or more hospital departments</small>
+                        <div><span asp-validation-for="SelectedDepartmentIds" class="text-danger small"></span></div>
                     </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-                    <div id="labTechnicianBadgeContainer" class="role-config-drawer" style="@(Model.IsLabTechnician ? "" : "display:none;")">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge" style="background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4;max-width:240px;" id="labTechnicianBadgeText">
-                                <i class="bi bi-cpu-fill me-1"></i>@(string.IsNullOrWhiteSpace(Model.AnalyzerTrainedOn) ? "Analyzer Not Configured" : "Configured")
-                            </span>
-                            <button type="button" class="btn btn-sm py-0 px-2 rounded-pill shadow-none" style="font-size:0.75rem;background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4;" onclick="openLabTechnicianModal()">
-                                <i class="bi bi-gear-fill me-1"></i>Configure
-                            </button>
+@* ─────────────── Step 4: Clinical & Status ─────────────── *@
+<div class="uf-pane" id="ufPane4" data-step="4" role="tabpanel">
+    <div class="uf-section mb-3">
+        <div class="uf-section-header"><i class="bi bi-person-gear me-2"></i>Clinical Roles &amp; Status</div>
+        <div class="uf-section-body">
+            <div class="row g-3">
+                <!-- Row 1: Base & Nursing Status (2-col balanced) -->
+                <div class="col-md-6">
+                    <div class="emr-role-card h-100">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emr-role-icon bg-success bg-opacity-10 text-success">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold text-dark">Account Active</div>
+                                    <div class="text-muted small" style="font-size:0.78rem;">User system login status & access</div>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
+                            </div>
                         </div>
-                        <div id="labTechnicianSummaryDetails"></div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 4. Logistics Boy -->
-            <div class="col-md-4">
-                <div class="emr-role-card h-100" id="logisticsBoyCard">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="emr-role-icon" style="background:#fffbeb;color:#d97706;">
-                                <i class="bi bi-truck"></i>
+                <div class="col-md-6">
+                    <div class="emr-role-card h-100">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emr-role-icon bg-primary bg-opacity-10 text-primary">
+                                    <i class="bi bi-heart-pulse-fill"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold text-primary">Is Nursing Staff</div>
+                                    <div class="text-muted small" style="font-size:0.78rem;">Clinical nursing & inpatient care personnel</div>
+                                </div>
                             </div>
-                            <div>
-                                <div class="fw-semibold" style="color:#d97706;">Is Logistics Boy</div>
-                                <div class="text-muted small" style="font-size:0.78rem;">Sample pickup & transport personnel</div>
+                            <div class="form-check form-switch mb-0">
+                                <input asp-for="IsNursingStaff" class="form-check-input uf-big-toggle" id="isNursingStaffToggle" role="switch">
                             </div>
-                        </div>
-                        <div class="form-check form-switch mb-0">
-                            <input asp-for="IsLogisticsBoy" class="form-check-input uf-big-toggle" id="isLogisticsBoyToggle" role="switch">
                         </div>
                     </div>
+                </div>
 
-                    <div id="logisticsBoyBadgeContainer" class="role-config-drawer" style="@(Model.IsLogisticsBoy ? "" : "display:none;")">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;max-width:240px;" id="logisticsBoyBadgeText">
-                                <i class="bi bi-truck me-1"></i>Reg: @(string.IsNullOrWhiteSpace(Model.VehicleRegNo) ? "Not Set" : Model.VehicleRegNo)
-                            </span>
-                            <button type="button" class="btn btn-sm rounded-pill shadow-none" style="font-size:0.75rem;background:#fef3c7;color:#92400e;border:1px solid #fde68a;" onclick="openLogisticsBoyModal()">
-                                <i class="bi bi-gear-fill me-1"></i>Configure
-                            </button>
+                <!-- Row 2: Specialized Diagnostic & Lab Roles (3-col balanced) -->
+                <!-- 1. Pathologist -->
+                <div class="col-md-4">
+                    <div class="emr-role-card h-100" id="pathologistCard">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emr-role-icon bg-purple bg-opacity-10" style="color:#6f42c1;background:#faf5ff;">
+                                    <i class="bi bi-microscope"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold" style="color:#6f42c1;">Is Pathologist</div>
+                                    <div class="text-muted small" style="font-size:0.78rem;">Diagnostic pathologist</div>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input asp-for="IsPathologist" class="form-check-input uf-big-toggle" id="isPathologistToggle" role="switch">
+                            </div>
                         </div>
-                        <div id="logisticsBoySummaryDetails"></div>
+
+                        <div id="pathologistBadgeContainer" class="role-config-drawer" style="@(Model.IsPathologist ? "" : "display:none;")">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge" style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;max-width:240px;" id="pathologistBadgeText">
+                                    <i class="bi bi-patch-check-fill me-1"></i>Reg: @(string.IsNullOrWhiteSpace(Model.RegistrationNo) ? "Not Set" : Model.RegistrationNo)
+                                </span>
+                                <button type="button" class="btn btn-sm rounded-pill shadow-none" style="font-size:0.75rem;background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;" onclick="openPathologistModal()">
+                                    <i class="bi bi-gear-fill me-1"></i>Configure
+                                </button>
+                            </div>
+                            <div id="pathologistSummaryDetails"></div>
+                            @foreach (var catId in Model.SelectedTestCategoryIds)
+                            {
+                                <input type="hidden" name="SelectedTestCategoryIds" value="@catId" class="patho-cat-initial" />
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Phlebotomist -->
+                <div class="col-md-4">
+                    <div class="emr-role-card h-100" id="phlebotomistCard">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emr-role-icon bg-danger bg-opacity-10 text-danger">
+                                    <i class="bi bi-droplet-fill"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold text-danger">Is Phlebotomist</div>
+                                    <div class="text-muted small" style="font-size:0.78rem;">Sample collection specialist</div>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input asp-for="IsPhlebotomist" class="form-check-input uf-big-toggle" id="isPhlebotomistToggle" role="switch">
+                            </div>
+                        </div>
+
+                        <div id="phlebotomistBadgeContainer" class="role-config-drawer" style="@(Model.IsPhlebotomist ? "" : "display:none;")">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;max-width:240px;" id="phlebotomistBadgeText">
+                                    <i class="bi bi-patch-check-fill me-1"></i>Cert: @(string.IsNullOrWhiteSpace(Model.CertificationNo) ? "Not Set" : Model.CertificationNo)
+                                </span>
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill shadow-none" style="font-size:0.75rem;" onclick="openPhlebotomistModal()">
+                                    <i class="bi bi-gear-fill me-1"></i>Configure
+                                </button>
+                            </div>
+                            <div id="phlebotomistSummaryDetails"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Lab Technician -->
+                <div class="col-md-4">
+                    <div class="emr-role-card h-100" id="labTechnicianCard">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emr-role-icon text-teal" style="background:#f0fdfa;color:#0d9488;">
+                                    <i class="bi bi-eyedropper"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold" style="color:#0d9488;">Is Lab Technician</div>
+                                    <div class="text-muted small" style="font-size:0.78rem;">Diagnostics technician</div>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input asp-for="IsLabTechnician" class="form-check-input uf-big-toggle" id="isLabTechnicianToggle" role="switch">
+                            </div>
+                        </div>
+
+                        <div id="labTechnicianBadgeContainer" class="role-config-drawer" style="@(Model.IsLabTechnician ? "" : "display:none;")">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge" style="background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4;max-width:240px;" id="labTechnicianBadgeText">
+                                    <i class="bi bi-cpu-fill me-1"></i>@(string.IsNullOrWhiteSpace(Model.AnalyzerTrainedOn) ? "Analyzer Not Configured" : "Configured")
+                                </span>
+                                <button type="button" class="btn btn-sm py-0 px-2 rounded-pill shadow-none" style="font-size:0.75rem;background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4;" onclick="openLabTechnicianModal()">
+                                    <i class="bi bi-gear-fill me-1"></i>Configure
+                                </button>
+                            </div>
+                            <div id="labTechnicianSummaryDetails"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Logistics Boy -->
+                <div class="col-md-4">
+                    <div class="emr-role-card h-100" id="logisticsBoyCard">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emr-role-icon" style="background:#fffbeb;color:#d97706;">
+                                    <i class="bi bi-truck"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold" style="color:#d97706;">Is Logistics Boy</div>
+                                    <div class="text-muted small" style="font-size:0.78rem;">Sample pickup & transport personnel</div>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input asp-for="IsLogisticsBoy" class="form-check-input uf-big-toggle" id="isLogisticsBoyToggle" role="switch">
+                            </div>
+                        </div>
+
+                        <div id="logisticsBoyBadgeContainer" class="role-config-drawer" style="@(Model.IsLogisticsBoy ? "" : "display:none;")">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;max-width:240px;" id="logisticsBoyBadgeText">
+                                    <i class="bi bi-truck me-1"></i>Reg: @(string.IsNullOrWhiteSpace(Model.VehicleRegNo) ? "Not Set" : Model.VehicleRegNo)
+                                </span>
+                                <button type="button" class="btn btn-sm rounded-pill shadow-none" style="font-size:0.75rem;background:#fef3c7;color:#92400e;border:1px solid #fde68a;" onclick="openLogisticsBoyModal()">
+                                    <i class="bi bi-gear-fill me-1"></i>Configure
+                                </button>
+                            </div>
+                            <div id="logisticsBoySummaryDetails"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+
+<div class="uf-step-nav d-flex justify-content-between align-items-center mb-2">
+    <button type="button" class="btn btn-outline-secondary" id="ufPrev"><i class="bi bi-arrow-left me-1"></i>Previous</button>
+    <span class="text-muted small" id="ufStepInfo">Step 1 of 4</span>
+    <button type="button" class="btn btn-outline-primary" id="ufNext">Next<i class="bi bi-arrow-right ms-1"></i></button>
 </div>
 
 <style>
@@ -848,53 +907,77 @@ function filterCmsOptions(dropdownId, query, noResultsId) {
     }
 }
 
-function filterRoleOptions(query) {
+// ── Branch Access tiles ─────────────────────────────────────
+function filterBranchTiles(query) {
     const term = (query || '').toLowerCase().trim();
-    const dropdown = document.getElementById('roleDropdown');
-    if (!dropdown) return;
-
-    let totalVisible = 0;
-    dropdown.querySelectorAll('.cms-group').forEach(grp => {
-        // if group is hidden by branch selection, keep it hidden
-        if (grp.style.display === 'none') return;
-
-        let groupVisibleCount = 0;
-        grp.querySelectorAll('.cms-option').forEach(opt => {
-            const text = opt.textContent.toLowerCase();
-            if (!term || text.includes(term)) {
-                opt.style.display = 'flex';
-                groupVisibleCount++;
-                totalVisible++;
-            } else {
-                opt.style.display = 'none';
-            }
-        });
-        const header = grp.querySelector('.cms-group-header');
-        if (header) {
-            header.style.display = groupVisibleCount > 0 ? '' : 'none';
-        }
+    let shown = 0;
+    document.querySelectorAll('#branchGrid .uf-branch-tile').forEach(tile => {
+        const ok = !term || tile.dataset.searchText.includes(term);
+        tile.style.display = ok ? '' : 'none';
+        if (ok) shown++;
     });
-
-    const noResults = document.getElementById('roleNoResults');
-    if (noResults) {
-        noResults.style.display = totalVisible === 0 ? 'block' : 'none';
-    }
+    document.getElementById('branchNoResults').style.display = shown === 0 ? 'block' : 'none';
 }
 
-// ── Branch change handler ────────────────────────────────────
-function onBranchChange() {
-    const checkedBranches = [...document.querySelectorAll('input[name="SelectedBranchIds"]:checked')]
-        .map(cb => parseInt(cb.value));
+function selectedBranchIds() {
+    return [...document.querySelectorAll('input[name="SelectedBranchIds"]:checked')].map(cb => parseInt(cb.value));
+}
 
-    // Show/hide role groups
-    document.querySelectorAll('.cms-group[data-branch-id]').forEach(group => {
-        const bid = parseInt(group.dataset.branchId);
-        const visible = checkedBranches.includes(bid);
-        group.style.display = visible ? '' : 'none';
-        if (!visible) {
-            group.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+// ── Branch-wise roles: one tab per selected branch ──────────
+let activeRoleBranch = null;
+
+function showRoleBranch(branchId) {
+    activeRoleBranch = branchId;
+    document.querySelectorAll('#roleBranchTabs [data-branch-tab]').forEach(btn =>
+        btn.classList.toggle('active', parseInt(btn.dataset.branchTab) === branchId));
+    document.querySelectorAll('.uf-role-group[data-branch-id]').forEach(grp =>
+        grp.style.display = parseInt(grp.dataset.branchId) === branchId ? '' : 'none');
+    filterRoleOptions(document.getElementById('roleSearchInput')?.value || '');
+}
+
+function filterRoleOptions(query) {
+    const term = (query || '').toLowerCase().trim();
+    const grp = document.querySelector('.uf-role-group[data-branch-id="' + activeRoleBranch + '"]');
+    let visible = 0, total = 0;
+    if (grp) {
+        grp.querySelectorAll('.uf-role-chip').forEach(opt => {
+            total++;
+            const ok = !term || opt.dataset.searchText.includes(term);
+            opt.style.display = ok ? '' : 'none';
+            if (ok) visible++;
+        });
+    }
+    const noResults = document.getElementById('roleNoResults');
+    if (noResults) noResults.style.display = (total > 0 && visible === 0) ? 'block' : 'none';
+}
+
+function setBranchRoles(checked) {
+    const grp = document.querySelector('.uf-role-group[data-branch-id="' + activeRoleBranch + '"]');
+    if (!grp) return;
+    grp.querySelectorAll('.uf-role-chip').forEach(opt => {
+        if (opt.style.display !== 'none') opt.querySelector('input').checked = checked;
+    });
+    updateRoleLabel();
+}
+
+function onBranchChange() {
+    const branches = selectedBranchIds();
+
+    // Roles only exist for selected branches: a branch that is un-ticked loses its roles
+    document.querySelectorAll('.uf-role-group[data-branch-id]').forEach(grp => {
+        if (!branches.includes(parseInt(grp.dataset.branchId))) {
+            grp.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
         }
     });
+    document.querySelectorAll('#roleBranchTabs li[data-branch-id]').forEach(li =>
+        li.style.display = branches.includes(parseInt(li.dataset.branchId)) ? '' : 'none');
+
+    const tabsShown = [...document.querySelectorAll('#roleBranchTabs li[data-branch-id]')].filter(li => li.style.display !== 'none');
+    document.getElementById('roleEmpty').style.display = tabsShown.length ? 'none' : '';
+    document.getElementById('roleArea').style.display = tabsShown.length ? '' : 'none';
+    if (tabsShown.length && !branches.includes(activeRoleBranch)) {
+        showRoleBranch(parseInt(tabsShown[0].dataset.branchId));
+    }
 
     updateBranchLabel();
     updateRoleLabel();
@@ -902,12 +985,8 @@ function onBranchChange() {
 
 function updateBranchLabel() {
     const checked = [...document.querySelectorAll('input[name="SelectedBranchIds"]:checked')];
-    const lbl = document.getElementById('branchLabel');
-    if (checked.length === 0) {
-        lbl.textContent = 'Select branches...';
-    } else {
-        lbl.textContent = checked.map(cb => cb.nextElementSibling.textContent.trim()).join(', ');
-    }
+    document.getElementById('branchLabel').textContent = checked.length === 0 ? 'No branch selected' : checked.length + ' branch(es) selected';
+    document.querySelectorAll('.uf-branch-tile').forEach(t => t.classList.toggle('checked', t.querySelector('input').checked));
 }
 
 function updateDeptLabel() {
@@ -924,9 +1003,22 @@ function updateDeptLabel() {
 }
 
 function updateRoleLabel() {
-    const checked = [...document.querySelectorAll('input[name="SelectedRoleIds"]:checked')];
-    const lbl = document.getElementById('roleLabel');
-    lbl.textContent = checked.length === 0 ? 'Select branch-wise roles' : checked.length + ' role(s) selected';
+    let totalRoles = 0, branchesWithoutRole = 0;
+    document.querySelectorAll('#roleBranchTabs li[data-branch-id]').forEach(li => {
+        const bid = li.dataset.branchId;
+        const n = document.querySelectorAll('.uf-role-group[data-branch-id="' + bid + '"] input[name="SelectedRoleIds"]:checked').length;
+        const badge = li.querySelector('.uf-role-count');
+        badge.textContent = n;
+        badge.classList.toggle('has-roles', n > 0);
+        if (li.style.display !== 'none') { totalRoles += n; if (n === 0) branchesWithoutRole++; }
+    });
+    document.getElementById('roleLabel').textContent = totalRoles === 0 ? 'No role selected'
+        : totalRoles + ' role(s) selected' + (branchesWithoutRole ? ' · ' + branchesWithoutRole + ' branch(es) without a role' : '');
+    const sub = document.getElementById('ufStep3Sub');
+    if (sub) {
+        const b = selectedBranchIds().length;
+        sub.textContent = b ? b + ' branch(es) · ' + totalRoles + ' role(s)' : 'Branches, roles, departments';
+    }
 }
 
 // ── Password eye toggle ──────────────────────────────────────
@@ -1662,7 +1754,9 @@ if (isLogisticsBoyToggle) {
 
 // ── Init on load ─────────────────────────────────────────────
 (function () {
-    onBranchChange(); // set initial visibility of role groups
+    document.querySelectorAll('#roleBranchTabs [data-branch-tab]').forEach(btn =>
+        btn.addEventListener('click', () => showRoleBranch(parseInt(btn.dataset.branchTab))));
+    onBranchChange(); // set initial visibility of the branch role tabs
     updateBranchLabel();
     updateDeptLabel();
     updateRoleLabel();
@@ -1670,5 +1764,144 @@ if (isLogisticsBoyToggle) {
     updatePhlebotomistSummary();
     updateLabTechnicianSummary();
     updateLogisticsBoySummary();
+})();
+</script>
+
+<style>
+    /* ── Step tabs (User Master form) ── */
+    .uf-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; background: #fff; border: 1px solid #e3e8f3; border-radius: 12px; padding: .5rem; box-shadow: 0 4px 14px rgba(15,33,60,.05); position: sticky; top: .5rem; z-index: 20; }
+    .uf-step { display: flex; align-items: center; gap: .65rem; border: 1px solid transparent; background: transparent; border-radius: 9px; padding: .55rem .75rem; text-align: left; color: #475569; transition: background .15s, border-color .15s; position: relative; min-width: 0; }
+    .uf-step:hover { background: #f5f8ff; }
+    .uf-step-num { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; background: #eef2f9; color: #64748b; border: 1px solid #dbe3f0; }
+    .uf-step-text { display: flex; flex-direction: column; min-width: 0; }
+    .uf-step-title { font-weight: 700; font-size: .88rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .uf-step-sub { font-size: .72rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .uf-step.active { background: linear-gradient(90deg, #f0f4ff 0%, #eaf2ff 100%); border-color: #c7d7f5; }
+    .uf-step.active .uf-step-num { background: var(--emr-primary); color: #fff; border-color: var(--emr-primary); }
+    .uf-step.active .uf-step-title { color: var(--emr-primary); }
+    .uf-step.done .uf-step-num { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+    .uf-step-err { display: none; margin-left: auto; color: #dc2626; }
+    .uf-step.has-error .uf-step-err { display: inline-flex; }
+    .uf-step.has-error .uf-step-num { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+    .uf-actions { position: sticky; bottom: 0; z-index: 20; background: rgba(255,255,255,.96); backdrop-filter: blur(4px); border: 1px solid #e3e8f3; border-radius: 12px; padding: .65rem .85rem; margin-top: .75rem; box-shadow: 0 -4px 14px rgba(15,33,60,.06); }
+    .uf-pane { display: none; }
+    .uf-pane.active { display: block; animation: ufFade .18s ease-out; }
+    @@keyframes ufFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .uf-hint { font-size: .75rem; font-weight: 600; color: #64748b; background: #fff; border: 1px solid #dbe3f0; border-radius: 1rem; padding: .1rem .6rem; letter-spacing: 0; }
+    .uf-dep-no { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; background: var(--emr-primary); color: #fff; font-size: .68rem; font-weight: 700; align-items: center; justify-content: center; margin-right: .4rem; }
+
+    /* Branch Access tiles */
+    .uf-branch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .6rem; }
+    .uf-branch-tile { display: flex; align-items: center; gap: .6rem; border: 1px solid #dbe3f0; border-radius: 10px; padding: .6rem .75rem; cursor: pointer; background: #fff; transition: border-color .15s, background .15s, box-shadow .15s; margin: 0; }
+    .uf-branch-tile:hover { border-color: #93b4f0; }
+    .uf-branch-tile input { position: absolute; opacity: 0; pointer-events: none; }
+    .uf-branch-check { width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid #b8c4d9; display: inline-flex; align-items: center; justify-content: center; color: transparent; flex-shrink: 0; transition: all .15s; }
+    .uf-branch-tile.checked { border-color: var(--emr-primary); background: #f3f7ff; box-shadow: 0 0 0 3px rgba(13,110,253,.08); }
+    .uf-branch-tile.checked .uf-branch-check { background: var(--emr-primary); border-color: var(--emr-primary); color: #fff; }
+    .uf-branch-tile input:focus-visible + .uf-branch-check { outline: 2px solid #86b7fe; outline-offset: 2px; }
+    .uf-branch-body { display: flex; flex-direction: column; min-width: 0; }
+    .uf-branch-name { font-weight: 600; color: #1e293b; font-size: .88rem; }
+    .uf-branch-meta { font-size: .72rem; color: #64748b; }
+
+    /* Branch-wise role tabs */
+    .uf-branch-tabs { border-bottom: 1px solid #e3e8f3; gap: .25rem; flex-wrap: wrap; }
+    .uf-branch-tabs .nav-link { border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; color: #475569; font-weight: 600; font-size: .85rem; padding: .5rem .85rem; margin-bottom: -1px; background: transparent; }
+    .uf-branch-tabs .nav-link:hover { background: #f5f8ff; }
+    .uf-branch-tabs .nav-link.active { color: var(--emr-primary); background: #fff; border-color: #e3e8f3; }
+    .uf-role-count { background: #eef2f9; color: #64748b; font-size: .68rem; margin-left: .35rem; }
+    .uf-role-count.has-roles { background: var(--emr-primary); color: #fff; }
+    .uf-role-panel { border: 1px solid #e3e8f3; border-top: 0; border-radius: 0 0 10px 10px; padding: .85rem; background: #fcfdff; }
+    .uf-role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .45rem; }
+    .uf-role-chip.cms-option { border: 1px solid #dbe3f0; border-radius: 8px; background: #fff; padding: .5rem .7rem; margin: 0; }
+    .uf-role-chip.cms-option:has(input:checked) { border-color: var(--emr-primary); background: #f3f7ff; color: var(--emr-primary); font-weight: 600; }
+    .uf-empty { text-align: center; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 1.5rem 1rem; color: #475569; background: #fafbfd; }
+    .uf-empty > i { font-size: 1.6rem; color: #94a3b8; display: block; margin-bottom: .3rem; }
+
+    @@media (max-width: 767.98px) {
+        .uf-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); position: static; }
+        .uf-step { flex-direction: column; text-align: center; padding: .45rem .25rem; gap: .25rem; }
+        .uf-step-sub { display: none; }
+        .uf-step-title { font-size: .72rem; white-space: normal; }
+        .uf-step-err { position: absolute; top: 2px; right: 4px; }
+    }
+</style>
+
+<script>
+// ── Step tabs: dependency order Account -> Profile -> Access & Roles -> Clinical & Status ──
+(function () {
+    const steps = [...document.querySelectorAll('#ufSteps .uf-step')];
+    const panes = [...document.querySelectorAll('.uf-pane')];
+    const prev = document.getElementById('ufPrev'), next = document.getElementById('ufNext'), info = document.getElementById('ufStepInfo');
+    const form = document.getElementById('ufSteps').closest('form');
+    let current = 1;
+
+    function go(n, scroll) {
+        current = Math.min(Math.max(n, 1), steps.length);
+        steps.forEach(s => {
+            const k = parseInt(s.dataset.step);
+            s.classList.toggle('active', k === current);
+            s.classList.toggle('done', k < current && !s.classList.contains('has-error'));
+            s.setAttribute('aria-selected', k === current ? 'true' : 'false');
+        });
+        panes.forEach(p => p.classList.toggle('active', parseInt(p.dataset.step) === current));
+        prev.disabled = current === 1;
+        next.style.visibility = current === steps.length ? 'hidden' : 'visible';
+        info.textContent = 'Step ' + current + ' of ' + steps.length;
+        document.querySelectorAll('.cms-wrap.cms-open').forEach(w => w.classList.remove('cms-open'));
+        if (scroll) document.getElementById('ufSteps').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Steps that hold an invalid field (client or server) get a red marker; returns the first one
+    function markErrors() {
+        let first = null;
+        panes.forEach(p => {
+            const bad = p.querySelector('.input-validation-error, .field-validation-error:not(:empty)');
+            const k = parseInt(p.dataset.step);
+            steps[k - 1].classList.toggle('has-error', !!bad);
+            if (bad && first === null) first = k;
+        });
+        return first;
+    }
+
+    // "Next" asks for the dependency of the following step: Access & Roles needs at least one branch
+    function canLeave(step) {
+        if (step === 3 && !document.querySelector('input[name="SelectedBranchIds"]:checked')) {
+            const v = document.querySelector('[data-valmsg-for="SelectedBranchIds"]');
+            if (v) { v.textContent = 'Select at least one branch.'; v.classList.add('field-validation-error'); }
+            markErrors();
+            return false;
+        }
+        return true;
+    }
+
+    steps.forEach(s => s.addEventListener('click', () => go(parseInt(s.dataset.step))));
+    prev.addEventListener('click', () => go(current - 1, true));
+    next.addEventListener('click', () => { if (canLeave(current)) go(current + 1, true); });
+
+    document.querySelectorAll('input[name="SelectedBranchIds"]').forEach(cb => cb.addEventListener('change', () => {
+        const v = document.querySelector('[data-valmsg-for="SelectedBranchIds"]');
+        if (v && document.querySelector('input[name="SelectedBranchIds"]:checked') && v.textContent === 'Select at least one branch.') {
+            v.textContent = ''; v.classList.remove('field-validation-error'); markErrors();
+        }
+    }));
+
+    if (form) {
+        // Fields of hidden steps must still be validated on Save
+        window.addEventListener('load', () => {
+            const v = window.jQuery && jQuery(form).data('validator');
+            if (v) v.settings.ignore = ':hidden:not(.uf-pane :input)';
+        });
+        form.addEventListener('submit', e => {
+            if (!document.querySelector('input[name="SelectedBranchIds"]:checked')) {
+                canLeave(3); e.preventDefault(); go(3, true); return;
+            }
+            setTimeout(() => { const bad = markErrors(); if (bad && bad !== current) go(bad, true); }, 0);
+        });
+        form.addEventListener('input', () => setTimeout(markErrors, 0));
+        form.addEventListener('change', () => setTimeout(markErrors, 0));
+    }
+
+    // After a failed post-back open the first step with an error; otherwise start at step 1
+    go(markErrors() || 1);
 })();
 </script>

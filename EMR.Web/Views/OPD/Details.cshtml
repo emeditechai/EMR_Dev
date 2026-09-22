@@ -547,9 +547,27 @@
                                                 }
                                             </td>
                                             <td>
-                                                <a href="/LabOrderBooking/PrintBill?labOrderId=@l.LabOrderId" target="_blank" class="btn btn-sm btn-outline-primary py-1 px-2" title="Print Bill">
-                                                    <i class="bi bi-printer me-1"></i>Print
-                                                </a>
+                                                <div class="d-inline-flex gap-1">
+                                                    <a href="/LabOrderBooking/PrintBill?labOrderId=@l.LabOrderId" target="_blank" class="btn btn-sm btn-outline-primary py-1 px-2" title="Print Bill">
+                                                        <i class="bi bi-printer me-1"></i>Print
+                                                    </a>
+                                                    @if (l.ApprovedTestCount > 0)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 btn-print-report"
+                                                                data-scope="approved" data-laborderid="@l.LabOrderId" data-bill="@l.BillNo"
+                                                                title="Print Lab Report (@l.ApprovedTestCount approved test@(l.ApprovedTestCount == 1 ? "" : "s"))">
+                                                            <i class="bi bi-file-earmark-medical"></i>
+                                                        </button>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="d-inline-block" tabindex="0" title="Lab report not approved yet">
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" disabled style="pointer-events:none;">
+                                                                <i class="bi bi-file-earmark-medical"></i>
+                                                            </button>
+                                                        </span>
+                                                    }
+                                                </div>
                                             </td>
                                         </tr>
                                     }
@@ -602,7 +620,10 @@
     </div>
 </div>
 
+<partial name="_LabReportPrintModal" />
+
 @section Scripts {
+    <partial name="_LabReportPrintScripts" />
     <script src="~/lib/chartjs/chart.umd.min.js"></script>
     <script>
         function openDocModal(path) {

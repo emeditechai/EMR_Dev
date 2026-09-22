@@ -37,7 +37,8 @@ public class OPDController(
     IEmrConsultationApiClient emrConsultationApiClient,
     IVitalApiClient vitalApiClient,
     IDbConnectionFactory db,
-    ILedgerService ledgerService) : Controller
+    ILedgerService ledgerService,
+    ILabReportEmailService labReportEmailService) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -655,6 +656,16 @@ public class OPDController(
             if (branchId is null)
             {
                 return Json(new { success = false, error = "Please select a branch first." });
+            }
+
+            // A discount must carry its reason and approver: refuse before anything is saved.
+            if (!string.IsNullOrWhiteSpace(paymentDataJson))
+            {
+                SavePaymentRequest? discountCheck = null;
+                try { discountCheck = System.Text.Json.JsonSerializer.Deserialize<SavePaymentRequest>(paymentDataJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }); }
+                catch { /* malformed payment data is reported by the normal flow */ }
+                if (PaymentService.IsDiscountApprovalMissing(discountCheck))
+                    return Json(new { success = false, error = PaymentService.DiscountApprovalRequiredMessage });
             }
 
             List<OPDServiceLineItem>? lineItems = null;
@@ -1552,7 +1563,12 @@ public class OPDController(
                     l.TotalAmount,
                     ISNULL(ph.SubTotal - ph.NetAmount, 0) AS DiscountAmount,
                     ISNULL(ph.TotalPaid, 0) AS PaidAmount,
-                    ISNULL(ph.PaymentStatus, 'U') AS PaymentStatus
+                    ISNULL(ph.PaymentStatus, 'U') AS PaymentStatus,
+                    -- tests already signed off (Report Approve); >0 = the approved report can be printed
+                    (SELECT COUNT(1)
+                       FROM SampleCollection sc
+                       INNER JOIN labentrydetails led ON led.SamplecollectionID = sc.samplecollectionID AND led.IsActive = 1
+                      WHERE sc.Laborderid = l.LabOrderId AND led.ReportStatusId = 5) AS ApprovedTestCount
                 FROM LabOrder l
                 LEFT JOIN PaymentHeader ph ON ph.ModuleCode = 'LAB' AND ph.ModuleRefId = l.LabOrderId AND ph.IsActive = 1
                 WHERE l.PatientId = @PatientId AND l.IsActive = 1
@@ -2176,6 +2192,23 @@ public class OPDController(
 
     // ─── Payment endpoints ────────────────────────────────────────────────────
 
+    /// <summary>Active users (User Master) who can be named as the approver of a discount.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetDiscountApprovers()
+    {
+        using var con = db.CreateConnection();
+        var users = await con.QueryAsync(@"
+            SELECT u.Id,
+                   ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) AS Name,
+                   NULLIF(LTRIM(RTRIM(u.Role)), '') AS Role
+            FROM dbo.Users u
+            WHERE u.IsActive = 1 AND ISNULL(u.IsLockedOut, 0) = 0
+              AND (u.CompanyId IS NULL OR u.CompanyId = @CompanyId)
+            ORDER BY Name",
+            new { CompanyId = User.GetCompanyId() });
+        return Json(users.Select(u => new { id = (int)u.Id, name = (string)u.Name, role = (string?)u.Role }));
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetPaymentMethods()
     {
@@ -2244,6 +2277,13 @@ public class OPDController(
         if (request.ModuleCode == "OPD" && result.Success && result.PaymentStatus == "P" && (request.OPDServiceId ?? 0) > 0)
         {
             TriggerVideoOnFullPayment(User.GetCurrentBranchId(), request.OPDServiceId!.Value);
+        }
+
+        // ── LAB: a final report held back for an outstanding due is emailed once the due is cleared ──
+        if (result.Success && result.BalanceDue <= 0 && request.ModuleRefId > 0
+            && string.Equals(request.ModuleCode, "LAB", StringComparison.OrdinalIgnoreCase))
+        {
+            labReportEmailService.QueueIfFinal(request.ModuleRefId, User, LabReportEmailTriggers.PaymentCleared);
         }
 
         return Json(result);

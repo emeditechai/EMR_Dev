@@ -29,7 +29,8 @@ namespace EMR.Web.ApiClients
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null)
+            int? subCategoryId = null,
+            string? allowedDepartmentIds = null)
         {
             string query = $"?branchId={branchId}";
             if (fromDate.HasValue) query += $"&fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}";
@@ -40,6 +41,8 @@ namespace EMR.Web.ApiClients
             if (departmentId.HasValue && departmentId.Value > 0) query += $"&departmentId={departmentId.Value}";
             if (categoryId.HasValue && categoryId.Value > 0) query += $"&categoryId={categoryId.Value}";
             if (subCategoryId.HasValue && subCategoryId.Value > 0) query += $"&subCategoryId={subCategoryId.Value}";
+            // null = unrestricted; otherwise only these departments ("" = none)
+            if (allowedDepartmentIds != null) query += $"&restrictDepartments=true&allowedDepartmentIds={Uri.EscapeDataString(allowedDepartmentIds)}";
 
             var response = await httpClient.GetAsync($"api/LabReporting/headers{query}");
             response.EnsureSuccessStatusCode();

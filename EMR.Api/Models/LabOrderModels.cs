@@ -15,6 +15,7 @@ namespace EMR.Api.Models
         public int? B2BAgentId { get; set; }
         public string? AgentType { get; set; } // 'F' or 'C'
         public decimal? B2BTotal { get; set; }
+        public int? ReferralDoctorId { get; set; }
         public int? CreatedBy { get; set; }
         public List<LabOrderItemRequest> Items { get; set; } = new();
     }
@@ -119,9 +120,11 @@ namespace EMR.Api.Models
         public string? AgentName { get; set; }
         public string? AgentCode { get; set; }
         public decimal? B2BTotal { get; set; }
+        public int? ReferralDoctorId { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
+        public string? ReferralDoctorName { get; set; }
         public DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
@@ -140,6 +143,8 @@ namespace EMR.Api.Models
         public string? CreatedByUsername { get; set; }
         public int ItemCount { get; set; }
         public string? TestNamesSummary { get; set; }
+        /// <summary>Tests already signed off (Report Approve). &gt;0 means the report can be printed, even partially.</summary>
+        public int ApprovedTestCount { get; set; }
         public int TotalCount { get; set; }
     }
 
@@ -169,9 +174,11 @@ namespace EMR.Api.Models
         public string? AgentName { get; set; }
         public string? AgentCode { get; set; }
         public decimal? B2BTotal { get; set; }
+        public int? ReferralDoctorId { get; set; }
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
+        public string? ReferralDoctorName { get; set; }
         public DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
@@ -192,6 +199,11 @@ namespace EMR.Api.Models
         public decimal NetAmount { get; set; }
         public decimal DiscountAmount { get; set; }
         public decimal RoundOffAmount { get; set; }
+        /// <summary>Why the discount was given, who approved it and who entered it (null for bills discounted before these were recorded).</summary>
+        public string? DiscountReason { get; set; }
+        public string? DiscountApprovedByName { get; set; }
+        public string? DiscountEnteredByName { get; set; }
+        public DateTime? DiscountApprovedDate { get; set; }
         public List<LabOrderItemDetailDto> Items { get; set; } = new();
         public List<LabOrderPaymentDetailDto> Payments { get; set; } = new();
     }

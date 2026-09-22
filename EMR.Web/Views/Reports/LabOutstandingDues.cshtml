@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Outstanding Dues & Ageing";
+    ViewData["ReportSubtitle"] = "B2C LAB bills with money still to collect, oldest first";
+    ViewData["ReportIcon"] = "bi-hourglass-split";
+    ViewData["ReportAccent"] = "#b91c1c";
+    ViewData["DateLabel"] = "bill date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const BUCKET = { '0-2': ['0–2 days', 'bg-success-subtle text-success border-success-subtle'], '3-7': ['3–7 days', 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                     '8-30': ['8–30 days', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'], '30+': ['Over 30 days', 'bg-danger-subtle text-danger border-danger-subtle'] };
+    const bucket = (v, h) => { const b = BUCKET[v] || [v, '']; return h.pill(b[0], b[1]); };
+    LabReport.init({
+        report: 'outstanding-dues', title: 'Outstanding Dues & Ageing', defaultRange: 'year',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, Token, Patient ID, name or mobile...',
+        filters: [
+            { id: 'ageBucket', label: 'Age', allLabel: 'Any age', options: Object.keys(BUCKET).map(k => [k, BUCKET[k][0]]) },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Total due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount), sub: (s, h) => `${h.num(s.BillCount)} bills · ${h.num(s.PatientCount)} patients` },
+            { label: '0–2 days', color: '#15803d', value: (s, h) => h.money(s.Due0to2) },
+            { label: '3–7 days', color: '#0891b2', value: (s, h) => h.money(s.Due3to7) },
+            { label: '8–30 days', color: '#d97706', value: (s, h) => h.money(s.Due8to30) },
+            { label: 'Over 30 days', color: '#7f1d1d', value: (s, h) => h.money(s.Due30Plus), sub: (s, h) => s.OldestDays ? `oldest ${h.num(s.OldestDays)} days` : '' },
+            { label: 'Reports held', color: '#7c3aed', value: (s, h) => h.num(s.ReportsHeld), sub: () => 'approved, waiting for payment' }
+        ],
+        groups: [
+            { key: 'byAgeBucket', label: 'Age', rowField: 'AgeBucket', name: (r, h) => bucket(r.GroupName, h) },
+            { key: 'byPatient', label: 'Patient', rowField: 'PatientId', byId: true },
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byCreatedBy', label: 'Billed by', rowField: 'CreatedById', byId: true, adminOnly: true }
+        ],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'NetAmount', label: 'Net', money: true },
+            { field: 'PaidAmount', label: 'Paid', money: true }, { field: 'DueAmount', label: 'Due', money: true },
+            { field: 'OldestDays', label: 'Oldest', num: true, total: 'max', fmt: (v, h) => `${h.num(v)} days` }
+        ],
+        shareOf: 'DueAmount',
+        cols: [
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.BillDate), text: (r, h) => h.fmtD(r.BillDate) },
+            { label: 'Age', cls: 'text-nowrap', html: (r, h) => `${h.num(r.AgeDays)} days<div>${bucket(r.AgeBucket, h)}</div>`, text: r => r.AgeDays },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Mobile', cls: 'text-nowrap', html: (r, h) => r.PhoneNumber ? `<a href="tel:${h.esc(r.PhoneNumber)}">${h.esc(r.PhoneNumber)}</a>` : '—', text: r => r.PhoneNumber || '' },
+            { label: 'Net', cls: 'text-end amt', html: (r, h) => h.money(r.NetAmount), text: r => r.NetAmount, sum: 'NetAmount' },
+            { label: 'Paid', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Due', cls: 'text-end amt fw-bold text-danger', html: (r, h) => h.money(r.DueAmount), text: r => r.DueAmount, sum: 'DueAmount' },
+            { label: 'Last payment', cls: 'text-nowrap', html: (r, h) => r.LastPaymentDate ? h.fmtD(r.LastPaymentDate) : '<span class="text-muted">none</span>', text: (r, h) => h.fmtD(r.LastPaymentDate) },
+            { label: 'Report', html: (r, h) => `${r.ApprovedTests || 0}/${r.TotalTests || 0} approved${r.ReportHeld ? `<div>${h.pill('Held for due', 'bg-primary-subtle text-primary border-primary-subtle')}</div>` : ''}`, text: r => `${r.ApprovedTests || 0}/${r.TotalTests || 0}${r.ReportHeld ? ' (held)' : ''}` },
+            { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
+        ]
+    });
+})();
+</script>
+}

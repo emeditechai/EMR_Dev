@@ -170,6 +170,9 @@ public static class LabReportPrintBuilder
         vm.PatientCode = order?.PatientCode ?? detail.PatientCode;
         vm.PatientPhone = order?.PhoneNumber ?? detail.PhoneNumber;
         vm.PatientAddress = order?.Address ?? detail.Address;
+        // Referring doctor recorded on the bill; "Self" when the patient was not referred.
+        var refDoctor = order?.ReferralDoctorName ?? detail.ReferralDoctorName;
+        vm.RefDoctor = string.IsNullOrWhiteSpace(refDoctor) ? "Self" : refDoctor.Trim();
 
         var gender = order?.Gender ?? detail.Gender;
         var age = order != null && !string.IsNullOrWhiteSpace(order.FormattedAge)
@@ -453,7 +456,9 @@ public static class LabReportPrintBuilder
     internal static (string FlagText, bool IsAbnormal, bool IsCritical) ResolveFlag(LabReportingItemDto item)
     {
         var raw = (item.AbnormalFlag ?? string.Empty).Trim();
-        bool critical = raw.Equals("Critical", StringComparison.OrdinalIgnoreCase);
+        // 'Panic' is the most severe critical value: printed with the same "*" marking.
+        bool critical = raw.Equals("Critical", StringComparison.OrdinalIgnoreCase)
+                     || raw.Equals("Panic", StringComparison.OrdinalIgnoreCase);
 
         string direction = raw.Equals("H", StringComparison.OrdinalIgnoreCase) ? "H"
                          : raw.Equals("L", StringComparison.OrdinalIgnoreCase) ? "L"

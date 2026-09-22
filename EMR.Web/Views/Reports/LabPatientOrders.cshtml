@@ -1,0 +1,70 @@
+@{
+    ViewData["Title"] = "Patient-wise Lab Order Report";
+    ViewData["ReportSubtitle"] = "every LAB order of each patient, with report progress and payment";
+    ViewData["ReportIcon"] = "bi-person-lines-fill";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["DateLabel"] = "bill date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const entryUrl = '@Url.Action("Entry", "LabReporting")';
+    const REPORT = { PENDING: ['Pending', 'bg-secondary-subtle text-secondary border-secondary-subtle'], INPROGRESS: ['In progress', 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                     PARTIAL: ['Partly approved', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'], APPROVED: ['Approved', 'bg-success-subtle text-success border-success-subtle'],
+                     CANCELLED: ['Cancelled', 'bg-danger-subtle text-danger border-danger-subtle'] };
+    const rstatus = (v, h) => { const s = REPORT[v] || [v, '']; return h.pill(s[0], s[1]); };
+    LabReport.init({
+        report: 'patient-orders', title: 'Patient-wise Lab Order Report', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Patient name, Patient ID, mobile, Bill No or Token...',
+        filters: [
+            { id: 'reportStatus', label: 'Report', allLabel: 'Any status', options: Object.keys(REPORT).map(k => [k, REPORT[k][0]]) },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Patients', color: '#0f766e', value: (s, h) => h.num(s.PatientCount), sub: (s, h) => `${h.num(s.OrderCount)} orders` },
+            { label: 'Reports', color: '#15803d', value: (s, h) => `${h.num(s.OrdersApproved)} <span class="fs-8 text-muted">approved</span>`, sub: (s, h) => `${h.num(s.OrdersOpen)} orders still open` },
+            { label: 'Tests', color: '#7c3aed', value: (s, h) => h.num(s.TestCount), sub: (s, h) => `${h.num(s.ApprovedTests)} approved` },
+            { label: 'Billed', color: '#1d4ed8', value: (s, h) => h.money(s.NetAmount) },
+            { label: 'Collected', color: '#15803d', value: (s, h) => h.money(s.PaidAmount) },
+            { label: 'Due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount) }
+        ],
+        groups: [
+            { key: 'byPatient', label: 'Patient', rowField: 'PatientId', byId: true },
+            { key: 'byReportStatus', label: 'Report status', rowField: 'ReportStatus', name: (r, h) => rstatus(r.GroupName, h) },
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'OrderCount', label: 'Orders', num: true }, { field: 'TestCount', label: 'Tests', num: true },
+            { field: 'ApprovedTests', label: 'Approved', num: true }, { field: 'OpenOrders', label: 'Open orders', num: true },
+            { field: 'NetAmount', label: 'Billed', money: true }, { field: 'PaidAmount', label: 'Collected', money: true }, { field: 'DueAmount', label: 'Due', money: true },
+            { field: 'LastVisit', label: 'Last visit', total: 'none', fmt: (v, h) => h.fmtD(v) }
+        ],
+        cols: [
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')} · ${h.esc(r.BillingType)}</div>`, text: r => r.BillNo },
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Tests', html: (r, h) => `<span class="text-muted fs-9 d-inline-block text-truncate" style="max-width:240px" title="${h.esc(r.TestNames)}">${h.esc(r.TestNames)}</span>`, text: r => r.TestNames },
+            { label: 'Report', html: (r, h) => `${rstatus(r.ReportStatus, h)}<div class="text-muted fs-9">${r.ApprovedTests}/${r.TestCount} tests approved</div>`, text: r => `${(REPORT[r.ReportStatus] || [r.ReportStatus])[0]} (${r.ApprovedTests}/${r.TestCount})` },
+            { label: 'Handed over', html: (r, h) => (r.PrintCount > 0 ? `<i class="bi bi-printer text-success me-1"></i>Printed${r.PrintCount > 1 ? ' ×' + r.PrintCount : ''}` : '<span class="text-muted">Not printed</span>') + (r.Emailed ? '<div class="text-success fs-9"><i class="bi bi-envelope-check me-1"></i>Emailed</div>' : ''), text: r => (r.PrintCount > 0 ? 'Printed x' + r.PrintCount : 'Not printed') + (r.Emailed ? ', emailed' : '') },
+            { label: 'Billed', cls: 'text-end amt', html: (r, h) => h.money(r.NetAmount), text: r => r.NetAmount, sum: 'NetAmount' },
+            { label: 'Collected', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Due', cls: 'text-end amt', html: (r, h) => r.DueAmount > 0 ? `<span class="text-danger fw-semibold">${h.money(r.DueAmount)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.DueAmount, sum: 'DueAmount' },
+            { label: 'Referred by', html: (r, h) => h.esc(r.ReferralDoctor || 'Self'), text: r => r.ReferralDoctor || 'Self' },
+            { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
+            { label: 'Open', cls: 'text-center no-print text-nowrap', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a> <a class="btn btn-sm btn-outline-secondary py-0 px-2" target="_blank" title="Open report entry" href="${entryUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-clipboard2-pulse"></i></a>` }
+        ],
+        rowClass: r => r.ReportStatus === 'CANCELLED' ? 'row-muted' : ''
+    });
+})();
+</script>
+}

@@ -117,6 +117,7 @@
                             <span class="text-muted">Eligible for Discount: <strong class="text-dark" id="pmDiscEligibleAmt">₹0.00</strong> <span class="text-secondary" id="pmDiscNonEligibleAmt">(Non-discountable: ₹0.00)</span></span>
                             <span id="pmDiscWarning" class="text-danger small fw-semibold" style="display:none;"></span>
                         </div>
+                        <div class="mt-2 small" id="pmDiscApprovalInfo" style="display:none;"></div>
                         <div class="mt-2 pt-2 d-flex justify-content-between align-items-center">
                             <span class="text-muted small">Total Tax (GST)</span>
                             <span class="fw-semibold text-danger" id="pmTotalTax">₹0.00</span>
@@ -191,6 +192,90 @@ document.addEventListener('DOMContentLoaded', function () {
     var _roundOffAmount = 0, _roundedNetAmount = 0;
 
     var pmModal   = new bootstrap.Modal(document.getElementById('paymentModal'), {backdrop:'static'});
+
+    // ─── Discount approval: every discount records its reason and who approved it ─────────
+    var _discApproval = null;   // { amount, reason, approvedBy, approvedByName } captured in this dialog
+    var _approvers = null;      // active users (User Master), loaded once
+    const DISCOUNT_REASONS = ['Senior citizen', 'Staff / staff family', 'Referred by doctor', 'Health camp',
+                              'Regular patient', 'Financial hardship', 'Management approval'];
+
+    async function loadApprovers() {
+        if (_approvers) return _approvers;
+        try { const r = await fetch('/OPD/GetDiscountApprovers'); _approvers = r.ok ? await r.json() : []; }
+        catch (e) { _approvers = []; }
+        return _approvers;
+    }
+
+    // An unchanged discount that already has its reason on record is not asked again (e.g. collecting a due later).
+    function discountAlreadyApproved(discAmt) {
+        const exAmt = parseFloat(_summary?.existingHeaderDiscountAmount) || 0;
+        return !!(_summary?.hasExistingPayment && _summary?.existingDiscountReason && _summary?.existingDiscountApprovedBy
+                  && Math.abs(discAmt - exAmt) < 0.01);
+    }
+
+    function renderDiscApprovalInfo(discAmt) {
+        const el = document.getElementById('pmDiscApprovalInfo');
+        if (!el) return;
+        if (!(discAmt > 0)) { el.style.display = 'none'; return; }
+        let a = null;
+        if (_discApproval && Math.abs(_discApproval.amount - discAmt) < 0.01) a = _discApproval;
+        else if (discountAlreadyApproved(discAmt)) a = { reason: _summary.existingDiscountReason, approvedByName: _summary.existingDiscountApprovedByName };
+        el.innerHTML = a
+            ? `<span class="text-success"><i class="bi bi-shield-check me-1"></i>Reason: <strong>${esc(a.reason)}</strong> &middot; Approved by <strong>${esc(a.approvedByName || '')}</strong></span>`
+            : `<span class="text-warning-emphasis"><i class="bi bi-info-circle me-1"></i>You'll be asked for the discount reason and who approved it when you save.</span>`;
+        el.style.display = '';
+    }
+
+    // Resolves to { reason, approvedBy } (nulls when there is no discount), or null when the user goes back.
+    async function ensureDiscountApproval(discAmt) {
+        if (!(discAmt > 0)) return { reason: null, approvedBy: null };
+        if (discountAlreadyApproved(discAmt))
+            return { reason: _summary.existingDiscountReason, approvedBy: _summary.existingDiscountApprovedBy };
+        if (_discApproval && Math.abs(_discApproval.amount - discAmt) < 0.01) return _discApproval;
+
+        const approvers = await loadApprovers();
+        const prevReason = _discApproval?.reason ?? _summary?.existingDiscountReason ?? '';
+        const prevBy = _discApproval?.approvedBy ?? _summary?.existingDiscountApprovedBy ?? '';
+        const options = approvers.map(u => `<option value="${u.id}" ${String(u.id) === String(prevBy) ? 'selected' : ''}>${esc(u.name)}${u.role ? ' (' + esc(u.role) + ')' : ''}</option>`).join('');
+        const chips = DISCOUNT_REASONS.map(r => `<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2 pm-reason-chip">${esc(r)}</button>`).join(' ');
+
+        if (typeof Swal === 'undefined') { showError('Discount approval could not be shown. Please reload the page.'); return null; }
+        const res = await Swal.fire({
+            target: document.getElementById('paymentModal'),   // inside the dialog, so its focus trap allows typing
+            title: 'Discount approval',
+            html: `<div class="text-start small">
+                     <div class="alert alert-warning py-2 mb-3">Discount of <strong>&#8377;${fmt(discAmt)}</strong> on this bill.</div>
+                     <label class="form-label fw-semibold mb-1" for="pmDiscReason">Reason <span class="text-danger">*</span></label>
+                     <div class="d-flex flex-wrap gap-1 mb-2">${chips}</div>
+                     <textarea id="pmDiscReason" class="form-control form-control-sm" rows="2" maxlength="250" placeholder="Why is this discount given?">${esc(prevReason)}</textarea>
+                     <label class="form-label fw-semibold mb-1 mt-3" for="pmDiscApprover">Approved by <span class="text-danger">*</span></label>
+                     <select id="pmDiscApprover" class="form-select form-select-sm"><option value="">-- Select the approving person --</option>${options}</select>
+                   </div>`,
+            showCancelButton: true,
+            confirmButtonText: '<i class="bi bi-check2-circle me-1"></i>Confirm discount',
+            cancelButtonText: 'Back',
+            confirmButtonColor: '#198754',
+            reverseButtons: true,
+            focusConfirm: false,
+            didOpen: (popup) => {
+                popup.querySelectorAll('.pm-reason-chip').forEach(b => b.addEventListener('click', () => {
+                    const ta = popup.querySelector('#pmDiscReason'); ta.value = b.textContent; ta.focus();
+                }));
+                if (!prevReason) popup.querySelector('#pmDiscReason').focus();
+            },
+            preConfirm: () => {
+                const reason = (document.getElementById('pmDiscReason').value || '').trim();
+                const sel = document.getElementById('pmDiscApprover');
+                if (reason.length < 3) { Swal.showValidationMessage('Enter the reason for the discount.'); return false; }
+                if (!sel.value) { Swal.showValidationMessage('Select who approved the discount.'); return false; }
+                return { reason, approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '') };
+            }
+        });
+        if (!res.isConfirmed) return null;
+        _discApproval = { amount: discAmt, ...res.value };
+        renderDiscApprovalInfo(discAmt);
+        return _discApproval;
+    }
     var pmLoader  = document.getElementById('pmLoader');
     var pmError   = document.getElementById('pmError');
     var pmForm    = document.getElementById('pmForm');
@@ -258,6 +343,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
             const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace('₹','')) || 0;
             const net       = getNetAmount();
+            const approval  = await ensureDiscountApproval(discAmt);
+            if (!approval) return;   // user went back to the dialog
             const lineItems = (_summary.items || []).map(li => ({
                 moduleLineRefId: li.lineRefId,
                 itemDescription: li.itemName,
@@ -279,6 +366,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 headerDiscountType:   discType,
                 headerDiscountValue:  discVal,
                 headerDiscountAmount: discAmt,
+                discountReason:       approval.reason,
+                discountApprovedBy:   approval.approvedBy,
                 netAmount:            net,
                 payments:             [],
                 lineItems:            lineItems,
@@ -381,6 +470,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ─── Discount recalc ──────────────────────────────────────────────────────
     function recalcDiscount() {
+        setTimeout(() => renderDiscApprovalInfo(parseFloat((document.getElementById('pmDiscAmt').textContent || '').replace(/[^\d.-]/g, '')) || 0), 0);
         const type  = document.querySelector('input[name="pmDiscType"]:checked')?.value;
         const discSym = document.getElementById('pmDiscSymbol');
         if (discSym) discSym.textContent = type === 'F' ? '₹' : '%';
@@ -718,6 +808,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace(/[^\d.-]/g, '')) || 0;
             const net       = getNetAmount();
 
+            const approval = await ensureDiscountApproval(discAmt);
+            if (!approval) return;   // user went back to the dialog
+
             const payments = [];
             if (net > 0) {
                 document.querySelectorAll('.pm-method-row').forEach(row => {
@@ -780,6 +873,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 headerDiscountType:   discType,
                 headerDiscountValue:  discVal,
                 headerDiscountAmount: discAmt,
+                discountReason:       approval.reason,
+                discountApprovedBy:   approval.approvedBy,
                 roundOffAmount:       roundOff,
                 netAmount:            roundedNet,
                 payments,
@@ -872,7 +967,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Trigger this payment modal for any service from other JS contexts
     window.pmOpenFor = function (svcId, onSuccessCb, moduleCode) {
         _isPreSave = false;
-        _summary = null; _methods = []; _rowIdx = 0;
+        _summary = null; _methods = []; _rowIdx = 0; _discApproval = null;
         _moduleRefId = svcId;
         if (moduleCode) {
             _moduleCode = moduleCode;
@@ -895,6 +990,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     window.pmOpenPreSave = function (config) {
         _isPreSave = true;
+        _discApproval = null;
         _summary = {
             patientName: config.patientName,
             patientCode: config.patientCode,

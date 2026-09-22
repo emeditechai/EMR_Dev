@@ -1,372 +1,316 @@
 @model IEnumerable<EMR.Web.Models.ViewModels.DoctorListItemViewModel>
 @{
     ViewData["Title"] = "Doctor Master";
-    var total = ViewBag.TotalCount ?? 0;
-    var active = Model.Count(x => x.IsActive);
-    var inactive = Model.Count() - active;
+    var doctors = Model.ToList();
+    var total = doctors.Count;
+    var active = doctors.Count(x => x.IsActive);
+    var inactive = total - active;
+    var withFees = doctors.Count(x => !string.IsNullOrWhiteSpace(x.ConsultingFeeNames));
+    var opdDoctors = doctors.Count(x => x.HasOPDDept);
+    var avatarColors = new[] { "#2563eb", "#7c3aed", "#0d9488", "#d97706", "#db2777", "#0891b2" };
+    static string[] SplitList(string? s) => (s ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var specialities = doctors.Select(d => d.PrimarySpecialityName).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToList();
+    var deptTypes = ViewBag.DeptTypes as Dictionary<string, string> ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    var departments = doctors.SelectMany(d => SplitList(d.DepartmentNames)).Distinct(StringComparer.OrdinalIgnoreCase)
+        .Select(n => new { Name = n, Type = deptTypes.TryGetValue(n, out var ty) ? ty : string.Empty })
+        .OrderBy(d => d.Type).ThenBy(d => d.Name).ToList();
 }
 @section HeadStyles {
     <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
     <link href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-    <style>
-        /* Premium UI Overrides for Doctor Master */
-        .doctor-master-header {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 20px 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
-            margin-bottom: 24px;
-            border: 1px solid rgba(0,0,0,0.04);
-        }
-        .stat-card-premium {
-            border-radius: 20px;
-            padding: 24px;
-            color: white;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
-            border: none;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .stat-card-premium:hover {
-            transform: translateY(-5px) scale(1.02);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.12);
-        }
-        .stat-card-premium::after {
-            content: '';
-            position: absolute;
-            right: -20px;
-            bottom: -20px;
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.1);
-            z-index: 1;
-        }
-        .stat-card-premium .stat-icon {
-            font-size: 2.5rem;
-            opacity: 0.9;
-            z-index: 2;
-        }
-        .stat-card-premium .stat-content {
-            z-index: 2;
-        }
-        .stat-card-premium .stat-value {
-            font-size: 2.2rem;
-            font-weight: 800;
-            line-height: 1.1;
-            margin-bottom: 4px;
-        }
-        .stat-card-premium .stat-label {
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            opacity: 0.9;
-        }
-        
-        .stat-blue-premium { background: linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%); }
-        .stat-green-premium { background: linear-gradient(135deg, #20c997 0%, #0ca37f 100%); }
-        .stat-red-premium { background: linear-gradient(135deg, #f72585 0%, #b5179e 100%); }
-
-        .premium-table-wrapper {
-            background: #ffffff;
-            border-radius: 20px;
-            padding: 24px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.04);
-            border: 1px solid rgba(0,0,0,0.03);
-        }
-        .premium-table {
-            border-collapse: separate;
-            border-spacing: 0;
-            width: 100%;
-        }
-        .premium-table thead th {
-            background: #f8fafc;
-            color: #64748b;
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 0.8rem;
-            letter-spacing: 0.5px;
-            padding: 16px;
-            border-bottom: 2px solid #e2e8f0;
-            border-top: none;
-        }
-        .premium-table thead th:first-child { border-top-left-radius: 12px; }
-        .premium-table thead th:last-child { border-top-right-radius: 12px; }
-        .premium-table tbody td {
-            padding: 16px;
-            vertical-align: middle;
-            border-bottom: 1px solid #f1f5f9;
-            color: #334155;
-            transition: background 0.2s;
-        }
-        .premium-table tbody tr:hover td {
-            background: #f8fafc;
-        }
-        .premium-table tbody tr:last-child td { border-bottom: none; }
-        
-        /* Modern Select2 */
-        .select2-container--bootstrap-5 .select2-selection {
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            padding: 0.5rem 1rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
-            min-height: 48px;
-        }
-        .select2-container--bootstrap-5 .select2-selection:focus {
-            border-color: #4361ee;
-            box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
-        }
-        
-        .filter-panel {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
-            margin-bottom: 24px;
-            border: 1px solid rgba(0,0,0,0.04);
-            display: flex;
-            align-items: center;
-        }
-    </style>
 }
 
-<div class="doctor-master-header d-flex justify-content-between align-items-center">
-    <div>
-        <h1 class="h3 mb-1 fw-bold" style="color: #1e293b;">Doctor Master</h1>
-        <div class="text-secondary fw-medium" style="font-size: 0.95rem;">
-            <i class="bi bi-building me-1 text-primary"></i> Branch-wise doctors
-            @if (ViewBag.BranchName is string branchName && !string.IsNullOrWhiteSpace(branchName))
-            {
-                <span class="ms-1 badge bg-light text-dark border">- @branchName</span>
-            }
-        </div>
-    </div>
-    <a asp-action="Create" class="btn btn-primary btn-lg rounded-pill px-4 shadow-sm" style="background: linear-gradient(135deg, #4361ee, #3a0ca3); border: none;">
-        <i class="bi bi-plus-circle-fill me-2"></i>Add Doctor
-    </a>
-</div>
+<style>
+    .dm-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .85rem; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
+    .dm-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
+    .dm-sub { font-size: .76rem; color: #64748b; }
+    .dm-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .1rem .55rem; margin: 0 .2rem .2rem 0; white-space: nowrap; }
+    .dm-fee { display: inline-flex; align-items: center; font-size: .74rem; font-weight: 600; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 1rem; padding: .1rem .55rem; white-space: nowrap; }
+    .dm-table thead th { background: #f8fafc; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .dm-table tbody tr { transition: background .12s; }
+    .dm-table tbody tr.dm-inactive td { opacity: .62; }
+    .dm-table tbody tr.dm-inactive td:last-child { opacity: 1; }
+    .dm-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
+    .dm-kpi .dm-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+    .dm-kpi .dm-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
+</style>
 
-<div class="row g-4 mb-4">
-    <div class="col-sm-4">
-        <div class="stat-card-premium stat-blue-premium">
-            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
-            <div class="stat-content">
-                <div class="stat-value">@total</div>
-                <div class="stat-label">Total Doctors</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card-premium stat-green-premium">
-            <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
-            <div class="stat-content">
-                <div class="stat-value">@active</div>
-                <div class="stat-label">Active Doctors</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card-premium stat-red-premium">
-            <div class="stat-icon"><i class="bi bi-x-circle-fill"></i></div>
-            <div class="stat-content">
-                <div class="stat-value">@inactive</div>
-                <div class="stat-label">Inactive</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="filter-panel row g-0">
-    <div class="col-md-8 col-lg-6">
-        <label class="form-label fw-bold text-secondary mb-2"><i class="bi bi-funnel-fill me-1"></i>Search & Filter</label>
-        <div class="d-flex gap-3 align-items-center">
-            <div class="flex-grow-1">
-                <select id="ddlDoctorSearch" class="form-select s2-ajax" style="width: 100%;">
-                    @if (ViewBag.SelectedDoctorId != null)
-                    {
-                        <option value="@ViewBag.SelectedDoctorId" selected="selected">@ViewBag.SelectedDoctorName</option>
-                    }
-                </select>
-            </div>
-            @if (ViewBag.SelectedDoctorId != null)
-            {
-                <a asp-action="Index" class="btn btn-outline-danger rounded-circle p-2" title="Clear Filter" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;">
-                    <i class="bi bi-x-lg"></i>
-                </a>
-            }
-        </div>
-    </div>
-</div>
-<div class="premium-table-wrapper table-responsive mb-4">
-    <table class="premium-table">
-        <thead>
-            <tr>
-                <th width="5%">#</th>
-                <th width="20%">Doctor Name</th>
-                <th width="15%">Speciality</th>
-                <th width="15%">Departments</th>
-                <th width="20%">Consulting Fees</th>
-                <th width="10%">Contact Info</th>
-                <th width="10%">Status</th>
-                <th width="5%" class="text-end">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            @{ int i = 1; }
-            @foreach (var item in Model)
-            {
-                <tr>
-                    <td class="text-muted fw-bold">@(i++)</td>
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
-                                <i class="bi bi-person-fill fs-5"></i>
-                            </div>
-                            <span class="fw-bold" style="color: #1e293b; font-size: 1.05rem;">@item.FullName</span>
-                        </div>
-                    </td>
-                    <td class="fw-medium text-secondary">@item.PrimarySpecialityName</td>
-                    <td>
-                        <div class="text-wrap" style="max-width: 200px;">
-                            <span class="text-secondary" style="font-size: 0.9rem;">@item.DepartmentNames</span>
-                        </div>
-                    </td>
-                    <td>
-                        @{
-                            var cfFees = string.IsNullOrWhiteSpace(item.ConsultingFeeNames)
-                                ? Array.Empty<string>()
-                                : item.ConsultingFeeNames.Split(", ", StringSplitOptions.RemoveEmptyEntries);
-                        }
-                        @if (cfFees.Length == 0)
-                        {
-                            <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill">None</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-info text-white px-3 py-2 rounded-pill shadow-sm">@cfFees[0]</span>
-                            @if (cfFees.Length > 1)
-                            {
-                                <button class="btn btn-sm btn-outline-info rounded-pill ms-1 py-1 px-2 shadow-sm"
-                                        data-doctor="@item.FullName"
-                                        data-fees="@System.Text.Json.JsonSerializer.Serialize(cfFees)"
-                                        onclick="showAllFees(this)"
-                                        title="View all @cfFees.Length fees">+@(cfFees.Length - 1)</button>
-                            }
-                        }
-                    </td>
-                    <td>
-                        <div class="d-flex flex-column gap-1">
-                            <div class="text-nowrap"><i class="bi bi-telephone-fill text-muted me-2"></i><span class="fw-medium">@item.PhoneNumber</span></div>
-                            <div class="text-nowrap text-secondary small"><i class="bi bi-envelope-fill text-muted me-2"></i>@item.EmailId</div>
-                        </div>
-                    </td>
-                    <td>
-                        @if (item.IsActive)
-                        {
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i> Active</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-3 py-2 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i> Inactive</span>
-                        }
-                    </td>
-                    <td class="text-end">
-                        <div class="dropdown doctor-action-dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                                    data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-strategy="fixed" aria-expanded="false">
-                                <i class="bi bi-three-dots-vertical"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                <li>
-                                    <a class="dropdown-item" asp-action="Details" asp-route-id="@item.DoctorId">
-                                        <i class="bi bi-eye me-2"></i>View
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" asp-action="Edit" asp-route-id="@item.DoctorId">
-                                        <i class="bi bi-pencil me-2"></i>Edit
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li>
-                                    <button class="dropdown-item text-primary fw-semibold"
-                                            onclick="openConsultingModal(@item.DoctorId, '@Html.Raw(item.FullName.Replace("'","\\'"))')">
-                                        <i class="bi bi-currency-rupee me-2"></i>Add Consulting Charges
-                                    </button>
-                                </li>
-                                @if (item.HasOPDDept)
-                                {
-                                    <li><hr class="dropdown-divider" /></li>
-                                    <li>
-                                        <a class="dropdown-item fw-semibold text-info" asp-controller="DoctorSchedules" asp-action="Configure" asp-route-doctorId="@item.DoctorId">
-                                            <i class="bi bi-calendar-week me-2"></i>Configure Scheduler
-                                        </a>
-                                    </li>
-                                }
-                            </ul>
-                        </div>
-                    </td>
-                </tr>
-            }
-            @if (!Model.Any())
-            {
-                <tr>
-                    <td colspan="8" class="text-center text-muted py-5">
-                        <div class="py-4">
-                            <i class="bi bi-person-vcard text-muted" style="font-size: 3rem; opacity: 0.3;"></i>
-                            <h5 class="mt-3 text-secondary">No doctors found</h5>
-                            <p class="text-muted small">Add a new doctor or adjust your search filters.</p>
-                        </div>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-    
-    @if (ViewBag.TotalPages > 1)
-    {
-        <div class="d-flex justify-content-between align-items-center mt-4 border-top pt-3">
-            <div class="text-secondary small fw-medium">
-                Showing page @ViewBag.CurrentPage of @ViewBag.TotalPages 
-                <span class="text-muted ms-2">(Total @ViewBag.TotalCount doctors)</span>
-            </div>
-            <nav aria-label="Doctor pagination">
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item @(ViewBag.CurrentPage == 1 ? "disabled" : "")">
-                        <a class="page-link" asp-action="Index" asp-route-page="@(ViewBag.CurrentPage - 1)" asp-route-doctorId="@ViewBag.SelectedDoctorId">
-                            <i class="bi bi-chevron-left"></i> Prev
-                        </a>
-                    </li>
-                    
-                    @for (int p = 1; p <= ViewBag.TotalPages; p++)
-                    {
-                        // Show first, last, current, and adjacent pages
-                        if (p == 1 || p == ViewBag.TotalPages || (p >= ViewBag.CurrentPage - 2 && p <= ViewBag.CurrentPage + 2))
-                        {
-                            <li class="page-item @(p == ViewBag.CurrentPage ? "active" : "")">
-                                <a class="page-link" asp-action="Index" asp-route-page="@p" asp-route-doctorId="@ViewBag.SelectedDoctorId">@p</a>
-                            </li>
-                        }
-                        else if (p == ViewBag.CurrentPage - 3 || p == ViewBag.CurrentPage + 3)
-                        {
-                            <li class="page-item disabled"><span class="page-link">...</span></li>
-                        }
-                    }
-                    
-                    <li class="page-item @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")">
-                        <a class="page-link" asp-action="Index" asp-route-page="@(ViewBag.CurrentPage + 1)" asp-route-doctorId="@ViewBag.SelectedDoctorId">
-                            Next <i class="bi bi-chevron-right"></i>
-                        </a>
-                    </li>
-                </ul>
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">Doctor Master</li>
+                </ol>
             </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-person-vcard-fill me-2"></i>Doctor Master</h4>
+            @if (ViewBag.BranchName is string bn)
+            {
+                <div class="text-muted small mt-1"><i class="bi bi-building me-1"></i>Branch: <strong class="text-dark">@bn</strong></div>
+            }
+        </div>
+        <a asp-action="Create" class="btn btn-primary px-3 shadow-sm"><i class="bi bi-person-plus-fill me-1"></i> Add Doctor</a>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- KPI cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl col-md-4 col-6">
+            <div class="card shadow-sm dm-kpi h-100" style="--k:#2563eb;--kb:#dbeafe;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Total Doctors</span>
+                    <div class="dm-kpi-num">@total</div>
+                </div>
+                <div class="dm-kpi-icon"><i class="bi bi-person-vcard-fill"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-4 col-6">
+            <div class="card shadow-sm dm-kpi h-100" style="--k:#16a34a;--kb:#dcfce7;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Active</span>
+                    <div class="dm-kpi-num">@active</div>
+                </div>
+                <div class="dm-kpi-icon"><i class="bi bi-person-check-fill"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-4 col-6">
+            <div class="card shadow-sm dm-kpi h-100" style="--k:#dc2626;--kb:#fee2e2;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Inactive</span>
+                    <div class="dm-kpi-num">@inactive</div>
+                </div>
+                <div class="dm-kpi-icon"><i class="bi bi-person-x-fill"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-6 col-6">
+            <div class="card shadow-sm dm-kpi h-100" style="--k:#7c3aed;--kb:#ede9fe;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">OPD Doctors</span>
+                    <div class="dm-kpi-num">@opdDoctors</div>
+                    <span class="badge mt-1" style="background:#ede9fe;color:#5b21b6;">schedulable in OPD</span>
+                </div>
+                <div class="dm-kpi-icon"><i class="bi bi-calendar-week"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-6 col-6">
+            <div class="card shadow-sm dm-kpi h-100" style="--k:#0d9488;--kb:#ccfbf1;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Fees Configured</span>
+                    <div class="dm-kpi-num">@withFees</div>
+                    @if (total - withFees > 0)
+                    {
+                        <span class="badge mt-1" style="background:#fff7ed;color:#c2410c;">@(total - withFees) without fees</span>
+                    }
+                </div>
+                <div class="dm-kpi-icon"><i class="bi bi-currency-rupee"></i></div>
+            </div></div>
+        </div>
+    </div>
+
+    <!-- Filters (applied instantly in the browser) -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold text-muted mb-1" for="dmSearch">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="dmSearch" class="form-control border-start-0" placeholder="Name, phone, email, speciality or department..." autocomplete="off" />
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label small fw-semibold text-muted mb-1" for="dmStatus">Status</label>
+                    <select id="dmStatus" class="form-select">
+                        <option value="">All statuses</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label small fw-semibold text-muted mb-1" for="dmSpeciality">Speciality</label>
+                    <select id="dmSpeciality" class="form-select">
+                        <option value="">All specialities</option>
+                        @foreach (var s in specialities)
+                        {
+                            <option value="@s.ToLowerInvariant()">@s</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label small fw-semibold text-muted mb-1" for="dmDept">Department</label>
+                    <select id="dmDept" class="form-select">
+                        <option value="">All departments</option>
+                        @foreach (var d in departments)
+                        {
+                            <option value="@d.Name.ToLowerInvariant()">@(string.IsNullOrEmpty(d.Type) || d.Name.EndsWith($"({d.Type})", StringComparison.OrdinalIgnoreCase) ? d.Name : $"{d.Name} ({d.Type})")</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2 col-6 d-flex gap-2">
+                    <button type="button" id="dmReset" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Doctors table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold text-dark"><i class="bi bi-list-ul text-primary me-2"></i>Doctors</span>
+            <span class="text-muted small" id="dmCount">Showing @total of @total</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 dm-table" id="dmTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Doctor</th>
+                            <th>Department(s)</th>
+                            <th>Consulting Fees</th>
+                            <th>Contact</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-end pe-4" style="width:150px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in doctors)
+                        {
+                            var nameOnly = System.Text.RegularExpressions.Regex.Replace(item.FullName ?? "", @"^(Dr|Mr|Mrs|Ms|Prof)\.?\s+", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            var initials = string.Concat(nameOnly.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+                            if (string.IsNullOrEmpty(initials)) { initials = "?"; }
+                            var color = avatarColors[item.DoctorId % avatarColors.Length];
+                            var depts = SplitList(item.DepartmentNames);
+                            var cfFees = SplitList(item.ConsultingFeeNames);
+                            var searchText = string.Join(' ', new[] { item.FullName, item.PhoneNumber, item.EmailId, item.PrimarySpecialityName, item.DepartmentNames }).ToLowerInvariant();
+
+                            <tr class="@(item.IsActive ? "" : "dm-inactive")" data-search="@searchText" data-status="@(item.IsActive ? "active" : "inactive")"
+                                data-speciality="@((item.PrimarySpecialityName ?? "").ToLowerInvariant())" data-depts="@string.Join('|', depts.Select(d => d.ToLowerInvariant()))">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <span class="dm-avatar" style="background:@color">@initials</span>
+                                        <div style="min-width:0;">
+                                            <div class="dm-name">@item.FullName</div>
+                                            <div class="dm-sub">
+                                                <i class="bi bi-heart-pulse me-1"></i>@(string.IsNullOrWhiteSpace(item.PrimarySpecialityName) ? "—" : item.PrimarySpecialityName)
+                                                @if (item.HasOPDDept)
+                                                {
+                                                    <span class="badge ms-1" style="background:#ede9fe;color:#5b21b6;font-size:.64rem;">OPD</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (depts.Length > 0)
+                                    {
+                                        foreach (var d in depts.Take(2))
+                                        {
+                                            <span class="dm-chip"><i class="bi bi-diagram-2 text-primary"></i>@d</span>
+                                        }
+                                        if (depts.Length > 2)
+                                        {
+                                            <span class="dm-chip" title="@string.Join(", ", depts.Skip(2))">+@(depts.Length - 2)</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (cfFees.Length == 0)
+                                    {
+                                        <span class="text-muted small">Not set</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="dm-fee">@cfFees[0]</span>
+                                        @if (cfFees.Length > 1)
+                                        {
+                                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline text-decoration-none small"
+                                                    data-doctor="@item.FullName"
+                                                    data-fees="@System.Text.Json.JsonSerializer.Serialize(cfFees)"
+                                                    onclick="showAllFees(this)"
+                                                    title="View all @cfFees.Length fees">+@(cfFees.Length - 1) more</button>
+                                        }
+                                    }
+                                </td>
+                                <td class="small">
+                                    <div class="text-nowrap"><i class="bi bi-telephone text-muted me-1"></i>@(string.IsNullOrWhiteSpace(item.PhoneNumber) ? "—" : item.PhoneNumber)</div>
+                                    @if (!string.IsNullOrWhiteSpace(item.EmailId))
+                                    {
+                                        <a href="mailto:@item.EmailId" class="text-decoration-none text-muted text-nowrap"><i class="bi bi-envelope me-1"></i>@item.EmailId</a>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group btn-group-sm shadow-sm doctor-action-dropdown" role="group">
+                                        <a asp-action="Details" asp-route-id="@item.DoctorId" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
+                                        <a asp-action="Edit" asp-route-id="@item.DoctorId" class="btn btn-outline-primary" title="Edit Doctor"><i class="bi bi-pencil"></i></a>
+                                        <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" title="More actions"
+                                                data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-strategy="fixed" aria-expanded="false">
+                                            <span class="visually-hidden">More actions</span>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                        onclick="openConsultingModal(@item.DoctorId, '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(item.FullName ?? ""))')">
+                                                    <i class="bi bi-currency-rupee me-2 text-primary"></i>Consulting Charges
+                                                </button>
+                                            </li>
+                                            @if (item.HasOPDDept)
+                                            {
+                                                <li>
+                                                    <a class="dropdown-item" asp-controller="DoctorSchedules" asp-action="Configure" asp-route-doctorId="@item.DoctorId">
+                                                        <i class="bi bi-calendar-week me-2 text-info"></i>Configure Scheduler
+                                                    </a>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        <tr id="dmEmpty" style="@(doctors.Any() ? "display:none;" : "")">
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-person-vcard display-6 d-block mb-2 text-secondary"></i>
+                                <span>@(doctors.Any() ? "No doctors match your filters." : "No doctors found.")</span>
+                                @if (!doctors.Any())
+                                {
+                                    <a asp-action="Create" class="ms-1">Add one now.</a>
+                                }
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 @* ═══════════════════ VIEW ALL FEES MODAL ═══════════════════ *@
@@ -719,30 +663,44 @@
 </script>
 <script src="~/lib/select2/dist/js/select2.min.js"></script>
 <script>
-    $(document).ready(function() {
-        $('#ddlDoctorSearch').select2({
-            theme: 'bootstrap-5',
-            placeholder: '-- Search by Name, Phone, Email, Speciality --',
-            allowClear: true,
-            ajax: {
-                url: '@Url.Action("SearchDoctors", "Doctors")',
-                dataType: 'json',
-                delay: 250,
-                data: function(params) {
-                    return { q: params.term };
-                },
-                processResults: function(data) {
-                    return { results: data.results };
-                },
-                cache: true
-            },
-            minimumInputLength: 1
-        }).on('select2:select', function(e) {
-            var selectedId = e.params.data.id;
-            window.location.href = '@Url.Action("Index", "Doctors")' + '?doctorId=' + selectedId;
-        }).on('select2:clear', function(e) {
-            window.location.href = '@Url.Action("Index", "Doctors")';
+    // Instant filters (same behaviour as User Master)
+    (function () {
+        const rows = [...document.querySelectorAll('#dmTable tbody tr[data-search]')];
+        const search = document.getElementById('dmSearch');
+        const status = document.getElementById('dmStatus');
+        const spec = document.getElementById('dmSpeciality');
+        const dept = document.getElementById('dmDept');
+        const count = document.getElementById('dmCount');
+        const empty = document.getElementById('dmEmpty');
+
+        function apply() {
+            const term = search.value.toLowerCase().trim();
+            let shown = 0;
+            rows.forEach(r => {
+                const ok = (!term || r.dataset.search.includes(term))
+                    && (!status.value || r.dataset.status === status.value)
+                    && (!spec.value || r.dataset.speciality === spec.value)
+                    && (!dept.value || r.dataset.depts.split('|').includes(dept.value));
+                r.style.display = ok ? '' : 'none';
+                if (ok) shown++;
+            });
+            count.textContent = 'Showing ' + shown + ' of ' + rows.length;
+            empty.style.display = (rows.length > 0 && shown === 0) ? '' : 'none';
+        }
+
+        // Speciality / Department: auto-suggest (type to search) dropdowns
+        $('#dmSpeciality, #dmDept').each(function () {
+            $(this).select2({ theme: 'bootstrap-5', width: '100%', allowClear: true,
+                placeholder: this.id === 'dmDept' ? 'All departments' : 'All specialities' });
         });
-    });
+
+        search.addEventListener('input', apply);
+        $('#dmStatus, #dmSpeciality, #dmDept').on('change', apply);
+        document.getElementById('dmReset').addEventListener('click', () => {
+            search.value = ''; status.value = '';
+            $('#dmSpeciality, #dmDept').val('').trigger('change.select2');
+            apply(); search.focus();
+        });
+    })();
 </script>
 }
