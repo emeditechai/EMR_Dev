@@ -164,6 +164,8 @@ builder.Services.AddScoped<ILabSampleRejectionApiClient, LabSampleRejectionApiCl
 builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectionReasonApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabReferenceRangeApiClient,        LabReferenceRangeApiClient>();
+builder.Services.AddScoped<ILabFormulaParameterApiClient,      LabFormulaParameterApiClient>();
+builder.Services.AddScoped<ILabDescriptiveTestTemplateApiClient, LabDescriptiveTestTemplateApiClient>();
 builder.Services.AddScoped<ILabReportingConditionApiClient,   LabReportingConditionApiClient>();
 builder.Services.AddScoped<ILabReportDispatchApiClient,       LabReportDispatchApiClient>();
 builder.Services.AddScoped<ILabUnapproveApiClient,             LabUnapproveApiClient>();

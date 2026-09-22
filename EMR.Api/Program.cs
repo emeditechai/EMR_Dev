@@ -64,6 +64,8 @@ builder.Services.AddScoped<ILabSampleRejectionService,      LabSampleRejectionSe
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabReferenceRangeService,        LabReferenceRangeService>();
+builder.Services.AddScoped<ILabFormulaParameterService,      LabFormulaParameterService>();
+builder.Services.AddScoped<ILabDescriptiveTestTemplateService, LabDescriptiveTestTemplateService>();
 builder.Services.AddScoped<ILabReportingConditionService,     LabReportingConditionService>();
 builder.Services.AddScoped<ILabReportDispatchService,              LabReportDispatchService>();
 builder.Services.AddScoped<ILabUnapproveService,                  LabUnapproveService>();
