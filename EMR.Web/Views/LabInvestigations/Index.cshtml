@@ -184,6 +184,14 @@
                                         {
                                             <span class="badge bg-warning bg-opacity-10 text-dark border border-warning ms-1 fs-8">Consent Req.</span>
                                         }
+                                        @if (item.Is_OPD_Document_Required)
+                                        {
+                                            <span class="badge bg-info bg-opacity-10 text-info border border-info ms-1 fs-8">OPD Doc Req.</span>
+                                        }
+                                        @if (item.Prescription_Required)
+                                        {
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-1 fs-8">Rx Req.</span>
+                                        }
                                         <div class="small text-muted">
                                             TAT: @(item.TAT_Hours ?? 24) hrs | Gender: @item.Applicable_Gender
                                         </div>

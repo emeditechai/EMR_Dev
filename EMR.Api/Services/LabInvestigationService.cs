@@ -55,6 +55,8 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@Reported_Duration_Value", req.Reported_Duration_Value);
         p.Add("@Reported_Duration_Unit", req.Reported_Duration_Unit);
         p.Add("@Is_Consent_Required", req.Is_Consent_Required);
+        p.Add("@Is_OPD_Document_Required", req.Is_OPD_Document_Required);
+        p.Add("@Prescription_Required", req.Prescription_Required);
         p.Add("@MRP", req.MRP);
         p.Add("@Status", req.Status);
         p.Add("@UserId", req.UserId);
@@ -91,6 +93,8 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@Reported_Duration_Value", req.Reported_Duration_Value);
         p.Add("@Reported_Duration_Unit", req.Reported_Duration_Unit);
         p.Add("@Is_Consent_Required", req.Is_Consent_Required);
+        p.Add("@Is_OPD_Document_Required", req.Is_OPD_Document_Required);
+        p.Add("@Prescription_Required", req.Prescription_Required);
         p.Add("@MRP", req.MRP);
         p.Add("@Status", req.Status);
         p.Add("@UserId", req.UserId);

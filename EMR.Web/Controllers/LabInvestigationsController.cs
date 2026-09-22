@@ -124,6 +124,8 @@ public class LabInvestigationsController(
                 Reported_Duration_Value = model.Reported_Duration_Value,
                 Reported_Duration_Unit = model.Reported_Duration_Unit,
                 Is_Consent_Required = model.Is_Consent_Required,
+                Is_OPD_Document_Required = model.Is_OPD_Document_Required,
+                Prescription_Required = model.Prescription_Required,
                 MRP = model.MRP,
                 Status = model.Status,
                 CompanyId = User.GetCompanyId(),
@@ -196,6 +198,8 @@ public class LabInvestigationsController(
                 Reported_Duration_Value = item.Reported_Duration_Value,
                 Reported_Duration_Unit = item.Reported_Duration_Unit ?? "Days",
                 Is_Consent_Required = item.Is_Consent_Required,
+                Is_OPD_Document_Required = item.Is_OPD_Document_Required,
+                Prescription_Required = item.Prescription_Required,
                 MRP = item.MRP,
                 Status = item.Status,
             };
@@ -261,6 +265,8 @@ public class LabInvestigationsController(
                 Reported_Duration_Value = model.Reported_Duration_Value,
                 Reported_Duration_Unit = model.Reported_Duration_Unit,
                 Is_Consent_Required = model.Is_Consent_Required,
+                Is_OPD_Document_Required = model.Is_OPD_Document_Required,
+                Prescription_Required = model.Prescription_Required,
                 MRP = model.MRP,
                 Status = model.Status,
                 UserId = User.GetUserId()

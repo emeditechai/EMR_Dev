@@ -41,6 +41,8 @@ public class LabInvestigationListItem
     public int? Reported_Duration_Value { get; set; }
     public string? Reported_Duration_Unit { get; set; } = "Days";
     public bool Is_Consent_Required { get; set; }
+    public bool Is_OPD_Document_Required { get; set; }
+    public bool Prescription_Required { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; }
     public int? CreatedBy { get; set; }
@@ -76,6 +78,8 @@ public class LabInvestigationCreateRequest
     public int? Reported_Duration_Value { get; set; }
     public string? Reported_Duration_Unit { get; set; } = "Days";
     public bool Is_Consent_Required { get; set; }
+    public bool Is_OPD_Document_Required { get; set; }
+    public bool Prescription_Required { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }
@@ -108,6 +112,8 @@ public class LabInvestigationUpdateRequest
     public int? Reported_Duration_Value { get; set; }
     public string? Reported_Duration_Unit { get; set; } = "Days";
     public bool Is_Consent_Required { get; set; }
+    public bool Is_OPD_Document_Required { get; set; }
+    public bool Prescription_Required { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }

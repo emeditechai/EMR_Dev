@@ -180,6 +180,20 @@
                     </div>
                 </div>
 
+                <div class="col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">OPD Document Required</small>
+                        <span class="fw-semibold text-dark fs-6">@(Model.Is_OPD_Document_Required ? "Yes" : "No")</span>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <small class="text-muted text-uppercase fw-bold d-block mb-1">Prescription Required</small>
+                        <span class="fw-semibold text-dark fs-6">@(Model.Prescription_Required ? "Yes" : "No")</span>
+                    </div>
+                </div>
+
                 <div class="col-md-4">
                     <div class="p-3 bg-light rounded-3">
                         <small class="text-muted text-uppercase fw-bold d-block mb-1">Sample Quantity</small>

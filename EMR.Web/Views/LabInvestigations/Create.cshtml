@@ -190,6 +190,24 @@
                         <span asp-validation-for="Is_Consent_Required" class="text-danger small"></span>
                     </div>
 
+                    <!-- OPD Document Required -->
+                    <div class="col-md-3">
+                        <label asp-for="Is_OPD_Document_Required" class="form-label fw-semibold">OPD Document Required?</label>
+                        <select asp-for="Is_OPD_Document_Required" class="form-select">
+                            <option value="false">No</option>
+                            <option value="true">Yes</option>
+                        </select>
+                    </div>
+
+                    <!-- Prescription Required -->
+                    <div class="col-md-3">
+                        <label asp-for="Prescription_Required" class="form-label fw-semibold">Prescription Required?</label>
+                        <select asp-for="Prescription_Required" class="form-select">
+                            <option value="false">No</option>
+                            <option value="true">Yes</option>
+                        </select>
+                    </div>
+
                     <!-- Sample Quantity & Quantity Unit -->
                     <div class="col-md-5">
                         <label class="form-label fw-semibold">Sample Quantity & Unit</label>
