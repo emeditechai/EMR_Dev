@@ -16,7 +16,8 @@ namespace EMR.Api.Services
             string? search,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null);
+            int? subCategoryId = null,
+            string? allowedDepartmentIds = null);
 
         /// <param name="branchId">
         /// Show only the samples this branch holds (never-transferred booked here, or transferred here and received).

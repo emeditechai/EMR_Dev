@@ -507,13 +507,15 @@
                 <td class="lbl">Collection Type</td>
                 <td>@(Model.CollectionType ?? "Lab")</td>
             </tr>
-            @if (!string.IsNullOrEmpty(Model.PhlebotomistName))
-            {
-                <tr>
+            <tr>
+                <td class="lbl">Referred By</td>
+                <td @(string.IsNullOrEmpty(Model.PhlebotomistName) ? "colspan=3" : "")><strong>@(string.IsNullOrWhiteSpace(Model.ReferralDoctorName) ? "Self" : Model.ReferralDoctorName)</strong></td>
+                @if (!string.IsNullOrEmpty(Model.PhlebotomistName))
+                {
                     <td class="lbl">Phlebotomist</td>
-                    <td colspan="3">@Model.PhlebotomistName</td>
-                </tr>
-            }
+                    <td>@Model.PhlebotomistName</td>
+                }
+            </tr>
             <tr>
                 <td class="lbl">Booking Centre</td>
                 <td>@(Model.BranchName ?? "—")</td>

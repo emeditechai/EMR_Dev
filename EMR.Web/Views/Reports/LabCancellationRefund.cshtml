@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "Cancellation & Refund Register";
+    ViewData["ReportSubtitle"] = "LAB bill cancellations, why they were made, and what was refunded";
+    ViewData["ReportIcon"] = "bi-x-octagon";
+    ViewData["ReportAccent"] = "#9f1239";
+    ViewData["DateLabel"] = "cancellation date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const typePill = (v, h) => v === 'Full' ? h.pill('Full', 'bg-danger-subtle text-danger border-danger-subtle') : h.pill('Partial', 'bg-warning-subtle text-warning-emphasis border-warning-subtle');
+    LabReport.init({
+        report: 'cancellation-refund', title: 'Cancellation & Refund Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Cancellation No, Bill No, patient, mobile or reason...',
+        filters: [
+            { id: 'cancellationType', label: 'Type', allLabel: 'Full & partial', options: [['F', 'Full'], ['P', 'Partial']] },
+            { id: 'refundStatus', label: 'Refund', allLabel: 'Any', options: [['PENDING', 'Refund pending'], ['REFUNDED', 'Refunded'], ['NOTDUE', 'No refund due']] },
+            { id: 'cancelledBy', label: 'Cancelled by', allLabel: 'All users', fromOptions: 'cancelledBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Cancellations', color: '#9f1239', value: (s, h) => h.num(s.CancellationCount), sub: (s, h) => `${h.num(s.FullCount)} full · ${h.num(s.PartialCount)} partial` },
+            { label: 'Net cancelled', color: '#b45309', value: (s, h) => h.money(s.NetCancelled), sub: (s, h) => `${h.num(s.ItemCount)} items on ${h.num(s.BillCount)} bills` },
+            { label: 'Refunded', color: '#15803d', value: (s, h) => h.money(s.RefundedAmount), sub: () => 'paid back to patients' },
+            { label: 'Refund pending', color: '#b91c1c', value: (s, h) => h.money(s.PendingRefund), sub: (s, h) => `${h.num(s.PendingRefundCount)} cancellation(s) to settle` }
+        ],
+        groups: [
+            { key: 'byReason', label: 'Reason', rowField: 'Reason' },
+            { key: 'byType', label: 'Type', rowField: 'CancellationType', name: (r, h) => typePill(r.GroupName, h) },
+            { key: 'byDate', label: 'Cancellation date', rowField: 'CancellationDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byCancelledBy', label: 'Cancelled by', rowField: 'CancelledById', byId: true, adminOnly: true }
+        ],
+        groupCols: [
+            { field: 'CancellationCount', label: 'Cancellations', num: true }, { field: 'ItemCount', label: 'Items', num: true },
+            { field: 'NetCancelled', label: 'Net cancelled', money: true }, { field: 'RefundedAmount', label: 'Refunded', money: true },
+            { field: 'PendingRefund', label: 'Refund pending', money: true }
+        ],
+        shareOf: 'NetCancelled',
+        cols: [
+            { label: 'Cancellation', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.CancellationNo)}</div><div class="text-muted fs-9">${h.fmtDT(r.CancellationDate)}</div>`, text: r => r.CancellationNo },
+            { label: 'Type', html: (r, h) => typePill(r.CancellationType, h), text: r => r.CancellationType },
+            { label: 'Bill', html: (r, h) => `<div class="font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">billed ${h.fmtD(r.BillDate)}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Items cancelled', html: (r, h) => `<span class="badge bg-light text-dark border">${r.ItemCount}</span> <span class="text-muted fs-9 d-inline-block text-truncate align-middle" style="max-width:200px" title="${h.esc(r.ItemNames)}">${h.esc(r.ItemNames)}</span>`, text: r => r.ItemNames },
+            { label: 'Cancelled', cls: 'text-end amt', html: (r, h) => h.money(r.CancelledAmount) + (r.DiscountAdjusted > 0 ? `<div class="text-muted fs-9">disc. −${h.money(r.DiscountAdjusted)}</div>` : ''), text: r => r.CancelledAmount },
+            { label: 'Net cancelled', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.NetCancelled), text: r => r.NetCancelled, sum: 'NetCancelled' },
+            { label: 'Refunded', cls: 'text-end amt text-success', html: (r, h) => h.money(r.RefundedAmount) + (r.RefundModes ? `<div class="text-muted fs-9">${h.esc(r.RefundModes)}${r.LastRefundDate ? ' · ' + h.fmtD(r.LastRefundDate) : ''}</div>` : ''), text: r => r.RefundedAmount, sum: 'RefundedAmount' },
+            { label: 'Refund pending', cls: 'text-end amt', html: (r, h) => r.PendingRefund > 0 ? `<span class="text-danger fw-bold">${h.money(r.PendingRefund)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.PendingRefund, sum: 'PendingRefund' },
+            { label: 'Reason', html: (r, h) => r.Reason === 'Not recorded' ? '<span class="text-danger fst-italic">Not recorded</span>' : h.esc(r.Reason), text: r => r.Reason },
+            { label: 'Cancelled by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CancelledBy) + (r.RefundedBy ? `<div class="text-muted fs-9">refund: ${h.esc(r.RefundedBy)}</div>` : ''), text: r => r.CancelledBy + (r.RefundedBy ? ' / refund: ' + r.RefundedBy : '') },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
+        ]
+    });
+})();
+</script>
+}

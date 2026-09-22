@@ -28,9 +28,11 @@ namespace EMR.Web.Controllers
         EMR.Web.Data.ApplicationDbContext dbContext,
         Microsoft.AspNetCore.Hosting.IWebHostEnvironment env,
         ILabReportingConditionApiClient conditionApiClient,
-        ILabReportPdfService reportPdfService) : Controller
+        ILabReportPdfService reportPdfService,
+        ILabReportEmailService labReportEmailService) : Controller
     {
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> Index(
             DateTime? fromDate,
             DateTime? toDate,
@@ -49,17 +51,20 @@ namespace EMR.Web.Controllers
                 ? (toDate.Value.TimeOfDay == TimeSpan.Zero ? toDate.Value.Date.AddDays(1).AddSeconds(-1) : toDate.Value)
                 : today.AddDays(1).AddSeconds(-1);
 
+            // Department Access (User Master): only orders / tests of the user's LAB departments
+            var scope = await GetLabDepartmentScopeAsync();
+            if (departmentId.HasValue && !scope.Allows(departmentId)) departmentId = null;
+
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
 
             var statuses = await labReportingApiClient.GetStatusesAsync();
 
-            var departments = await labOrderApiClient.GetDepartmentsAsync();
-            var departmentOptions = departments
-                .Select(x => new SelectListItem { Value = x.DepartmentId.ToString(), Text = x.DepartmentName })
+            var departmentOptions = scope.Departments
+                .Select(x => new SelectListItem { Value = x.Value, Text = x.Text })
                 .ToList();
 
-            var categories = await labOrderApiClient.GetCategoriesAsync(departmentId);
+            var categories = await GetScopedCategoriesAsync(departmentId, scope);
             var categoryOptions = categories
                 .Select(x => new SelectListItem { Value = x.CategoryId.ToString(), Text = x.CategoryName })
                 .ToList();
@@ -85,20 +90,26 @@ namespace EMR.Web.Controllers
                 SubCategoryOptions = subCategoryOptions,
                 Stats = headerResult.Stats,
                 Headers = headerResult.Headers,
-                Statuses = statuses
+                Statuses = statuses,
+                DepartmentScopeRestricted = scope.Restricted,
+                DepartmentScopeNames = scope.Departments.Select(d => d.Text).ToList()
             };
 
             return View(viewModel);
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> GetCategoriesForDropdown(int? departmentId)
         {
-            var categories = await labOrderApiClient.GetCategoriesAsync(departmentId);
+            var scope = await GetLabDepartmentScopeAsync();
+            if (departmentId.HasValue && !scope.Allows(departmentId)) return Json(Array.Empty<object>());
+            var categories = await GetScopedCategoriesAsync(departmentId, scope);
             return Json(categories.Select(c => new { value = c.CategoryId, text = c.CategoryName }));
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> GetSubCategoriesForDropdown(int? categoryId)
         {
             var subCategories = await labOrderApiClient.GetSubCategoriesAsync(categoryId);
@@ -126,7 +137,61 @@ namespace EMR.Web.Controllers
         private int CurrentBranchId()
             => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
 
+        /// <summary>
+        /// LAB departments the logged-in user may report on: User Master > Department Access (Users.DepartmentIds)
+        /// limited to active departments of Type LAB. Super admin is not restricted (Ids = null).
+        /// </summary>
+        private sealed record LabDepartmentScope(bool Restricted, HashSet<int> Ids, List<SelectListItem> Departments)
+        {
+            /// <summary>Value for the list procedure: null = unrestricted, "" = no department.</summary>
+            public string? Csv => Restricted ? string.Join(",", Ids.OrderBy(i => i)) : null;
+            public bool Allows(int? departmentId) => !Restricted || (departmentId.HasValue && Ids.Contains(departmentId.Value));
+        }
+
+        private LabDepartmentScope? _labScope;
+
+        private async Task<LabDepartmentScope> GetLabDepartmentScopeAsync()
+        {
+            if (_labScope != null) return _labScope;
+
+            var labDepartments = (await labOrderApiClient.GetDepartmentsAsync()).ToList();   // active, Type = LAB
+            if (User.IsSuperAdmin())
+            {
+                return _labScope = new LabDepartmentScope(false, labDepartments.Select(d => d.DepartmentId).ToHashSet(),
+                    labDepartments.Select(d => new SelectListItem(d.DepartmentName, d.DepartmentId.ToString())).ToList());
+            }
+
+            var userId = User.GetUserId();
+            var csv = await dbContext.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.DepartmentIds).FirstOrDefaultAsync();
+            var granted = (csv ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => int.TryParse(s, out var id) ? id : 0).Where(id => id > 0).ToHashSet();
+            var allowed = labDepartments.Where(d => granted.Contains(d.DepartmentId)).ToList();
+
+            return _labScope = new LabDepartmentScope(true, allowed.Select(d => d.DepartmentId).ToHashSet(),
+                allowed.Select(d => new SelectListItem(d.DepartmentName, d.DepartmentId.ToString())).ToList());
+        }
+
+        /// <summary>Keeps only the tests of the user's departments on a reporting detail (Entry page / JSON).</summary>
+        private static void ApplyDepartmentScope(LabReportingOrderDetailDto detail, LabDepartmentScope scope)
+        {
+            if (!scope.Restricted || detail.Items == null) return;
+            detail.Items = detail.Items.Where(i => scope.Allows(i.DepartmentID)).ToList();
+        }
+
+        /// <summary>Categories of the chosen department, or of all the user's departments when none is chosen.</summary>
+        private async Task<List<CategoryDto>> GetScopedCategoriesAsync(int? departmentId, LabDepartmentScope scope)
+        {
+            if (!scope.Restricted || departmentId.HasValue)
+                return (await labOrderApiClient.GetCategoriesAsync(departmentId)).ToList();
+
+            var list = new List<CategoryDto>();
+            foreach (var id in scope.Ids)
+                list.AddRange(await labOrderApiClient.GetCategoriesAsync(id));
+            return list.GroupBy(c => c.CategoryId).Select(g => g.First()).OrderBy(c => c.CategoryName).ToList();
+        }
+
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> Entry(int labOrderId)
         {
             if (labOrderId <= 0)
@@ -136,6 +201,15 @@ namespace EMR.Web.Controllers
             if (detail == null)
             {
                 TempData["ErrorMessage"] = "Reporting order details not found or no eligible collected in-house tests.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Department Access: only the tests of the user's LAB departments are shown / editable
+            var scope = await GetLabDepartmentScopeAsync();
+            ApplyDepartmentScope(detail, scope);
+            if (scope.Restricted && detail.Items.Count == 0)
+            {
+                TempData["ErrorMessage"] = "This order has no test in your departments (User Master > Department Access).";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -163,6 +237,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> GetHeadersJson(
             DateTime? fromDate,
             DateTime? toDate,
@@ -181,8 +256,11 @@ namespace EMR.Web.Controllers
                 ? (toDate.Value.TimeOfDay == TimeSpan.Zero ? toDate.Value.Date.AddDays(1).AddSeconds(-1) : toDate.Value)
                 : today.AddDays(1).AddSeconds(-1);
 
+            var scope = await GetLabDepartmentScopeAsync();
+            if (departmentId.HasValue && !scope.Allows(departmentId)) departmentId = null;
+
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
 
             return Json(new
             {
@@ -193,6 +271,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> GetDetailJson(int labOrderId)
         {
             if (labOrderId <= 0)
@@ -201,6 +280,11 @@ namespace EMR.Web.Controllers
             var detail = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId());
             if (detail == null)
                 return Json(new { success = false, message = "Reporting details not found." });
+
+            var scope = await GetLabDepartmentScopeAsync();
+            ApplyDepartmentScope(detail, scope);
+            if (scope.Restricted && detail.Items.Count == 0)
+                return Json(new { success = false, message = "This order has no test in your departments (User Master > Department Access)." });
 
             var statuses = await labReportingApiClient.GetStatusesAsync();
 
@@ -213,6 +297,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpPost]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> SaveEntryJson([FromBody] SaveLabReportingRequestDto request)
         {
             if (request == null || request.LabOrderId <= 0)
@@ -243,6 +328,23 @@ namespace EMR.Web.Controllers
             LabReportingOrderDetailDto? detailBeforeSave = null;
             try { detailBeforeSave = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId()); }
             catch { /* audit-only; must never block the save */ }
+
+            // Department Access: results may be saved only for tests of the user's LAB departments.
+            // The check needs the order's tests, so a restricted user cannot save when they could not be loaded.
+            var saveScope = await GetLabDepartmentScopeAsync();
+            if (saveScope.Restricted)
+            {
+                if (detailBeforeSave?.Items == null)
+                    return Json(new { success = false, message = "Could not verify your department access for this order. Please retry." });
+
+                var inScope = detailBeforeSave.Items.Where(i => saveScope.Allows(i.DepartmentID)).Select(i => i.SamplecollectionID).ToHashSet();
+                if (enteredEntries.Any(e => !inScope.Contains(e.SamplecollectionID)))
+                    return Json(new
+                    {
+                        success = false,
+                        message = "You can save results only for tests of your departments (User Master > Department Access)."
+                    });
+            }
 
             // A test that was transferred to another branch and approved there is shown here read-only:
             // this branch must never write to it, whatever the page posted.
@@ -314,6 +416,9 @@ namespace EMR.Web.Controllers
                         CurrentBranchId());
                 }
                 catch (HttpRequestException) { /* never block the save */ }
+
+                // The whole bill may be final now: email the patient's report (background, when enabled).
+                labReportEmailService.QueueIfFinal(request.LabOrderId, User, LabReportEmailTriggers.EntryApproval);
             }
 
             if (success)
@@ -369,6 +474,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpPost]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> UpdateSampleStatusJson([FromBody] UpdateLabSampleStatusRequestDto request)
         {
             if (request == null || request.LabOrderId <= 0 || request.CollectionStatusId <= 0)
@@ -379,6 +485,26 @@ namespace EMR.Web.Controllers
             LabReportingOrderDetailDto? detailBeforeStatusChange = null;
             try { detailBeforeStatusChange = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId()); }
             catch { /* audit-only; must never block the update */ }
+
+            // Department Access: the sample status may be changed only for tests of the user's LAB departments.
+            var statusScope = await GetLabDepartmentScopeAsync();
+            if (statusScope.Restricted)
+            {
+                if (detailBeforeStatusChange?.Items == null)
+                    return Json(new { success = false, message = "Could not verify your department access for this order. Please retry." });
+
+                var affected = detailBeforeStatusChange.Items.Where(i =>
+                    (request.SampleCollectionId.HasValue && i.SamplecollectionID == request.SampleCollectionId.Value)
+                    || (!request.SampleCollectionId.HasValue && request.ProfileId.HasValue && i.ProfileId == request.ProfileId.Value)
+                    || (!request.SampleCollectionId.HasValue && !request.ProfileId.HasValue
+                        && request.InvestigationId.HasValue && i.InvestigationID == request.InvestigationId.Value)).ToList();
+                if (affected.Count == 0 || affected.Any(i => !statusScope.Allows(i.DepartmentID)))
+                    return Json(new
+                    {
+                        success = false,
+                        message = "You can change the sample status only for tests of your departments (User Master > Department Access)."
+                    });
+            }
 
             // Same rule for the sample status: the branch that only transferred the sample out cannot
             // re-collect or reject a test that the target branch has already produced and approved.

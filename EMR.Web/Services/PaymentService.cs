@@ -72,7 +72,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 SELECT
                     PaymentHeaderId, LineDiscountTotal,
                     HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
-                    RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus
+                    RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
+                    DiscountReason, DiscountApprovedBy,
+                    (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName
                 FROM PaymentHeader
                 WHERE ModuleCode = 'OPD' AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { ModuleRefId = moduleRefId });
@@ -87,6 +89,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                                                         : ((string)existing.HeaderDiscountType)[0];
                 summary.ExistingHeaderDiscountValue  = (decimal?)existing.HeaderDiscountValue;
                 summary.ExistingHeaderDiscountAmount = (decimal)existing.HeaderDiscountAmount;
+                summary.ExistingDiscountReason = (string?)existing.DiscountReason;
+                summary.ExistingDiscountApprovedBy = (int?)existing.DiscountApprovedBy;
+                summary.ExistingDiscountApprovedByName = (string?)existing.DiscountApprovedByName;
                 summary.RoundOffAmount = (decimal)existing.RoundOffAmount;
                 summary.NetAmount    = (decimal)existing.NetAmount;
                 summary.TotalPaid    = (decimal)existing.TotalPaid;
@@ -167,7 +172,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 SELECT
                     PaymentHeaderId, LineDiscountTotal,
                     HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
-                    RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus
+                    RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
+                    DiscountReason, DiscountApprovedBy,
+                    (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName
                 FROM PaymentHeader
                 WHERE ModuleCode = 'LAB' AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { ModuleRefId = moduleRefId });
@@ -182,6 +189,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                                                         : ((string)existing.HeaderDiscountType)[0];
                 summary.ExistingHeaderDiscountValue  = (decimal?)existing.HeaderDiscountValue;
                 summary.ExistingHeaderDiscountAmount = (decimal)existing.HeaderDiscountAmount;
+                summary.ExistingDiscountReason = (string?)existing.DiscountReason;
+                summary.ExistingDiscountApprovedBy = (int?)existing.DiscountApprovedBy;
+                summary.ExistingDiscountApprovedByName = (string?)existing.DiscountApprovedByName;
                 summary.RoundOffAmount = (decimal)existing.RoundOffAmount;
                 summary.NetAmount    = (decimal)existing.NetAmount;
                 summary.TotalPaid    = (decimal)existing.TotalPaid;
@@ -206,6 +216,15 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
     }
 
     // ─── Save payment (new or top-up partial) ────────────────────────────────
+    public const string DiscountApprovalRequiredMessage =
+        "A discount needs a reason and the name of the person who approved it.";
+
+    /// <summary>True when the request carries a discount but no reason / approver (checked before a bill is saved).</summary>
+    public static bool IsDiscountApprovalMissing(SavePaymentRequest? request) =>
+        request != null
+        && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0)
+        && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0);
+
     public async Task<SavePaymentResult> SavePaymentAsync(SavePaymentRequest request, int? userId)
     {
         try
@@ -318,7 +337,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             var existingHeader = await con.QuerySingleOrDefaultAsync(@"
                 SELECT PaymentHeaderId, ModuleCode, ModuleRefId, OPDServiceId, BranchId, PatientId,
                        SubTotal, LineDiscountTotal, HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
-                       TotalCgstAmount, TotalSgstAmount, TotalIgstAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus
+                       TotalCgstAmount, TotalSgstAmount, TotalIgstAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
+                       DiscountReason, DiscountApprovedBy
                 FROM   PaymentHeader WITH (UPDLOCK, HOLDLOCK)
                 WHERE  ModuleCode = @ModuleCode AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { request.ModuleCode, request.ModuleRefId }, tx);
@@ -358,6 +378,12 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     else
                         hDiscAmt = Math.Min(discountableSubTotal, request.HeaderDiscountAmount > 0 ? request.HeaderDiscountAmount : discVal);
 
+                    bool discountChanged = hDiscAmt > 0
+                        && (hDiscAmt != (decimal)existingHeader.HeaderDiscountAmount || string.IsNullOrWhiteSpace((string?)existingHeader.DiscountReason));
+                    bool approvalGiven = !string.IsNullOrWhiteSpace(request.DiscountReason) && request.DiscountApprovedBy is > 0;
+                    if (discountChanged && !approvalGiven)
+                        return new SavePaymentResult { Success = false, Error = DiscountApprovalRequiredMessage };
+
                     decimal totalDisc = Math.Min(dbSubTotal, hDiscAmt > 0 ? hDiscAmt : lineDiscountTotal);
                     decimal unroundedNet = Math.Max(0, dbSubTotal - totalDisc + totalCgst + totalSgst + totalIgst);
                     decimal roundedNet = Math.Round(unroundedNet, 0, MidpointRounding.AwayFromZero);
@@ -372,11 +398,18 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                             LineDiscountTotal    = @LineDiscountTotal,
                             RoundOffAmount       = @RoundOffAmount,
                             NetAmount            = @NetAmount,
+                            DiscountReason       = CASE WHEN @SaveApproval = 1 THEN @DiscountReason ELSE DiscountReason END,
+                            DiscountApprovedBy   = CASE WHEN @SaveApproval = 1 THEN @DiscountApprovedBy ELSE DiscountApprovedBy END,
+                            DiscountApprovedDate = CASE WHEN @SaveApproval = 1 THEN GETDATE() ELSE DiscountApprovedDate END,
+                            DiscountEnteredBy    = CASE WHEN @SaveApproval = 1 THEN @ModifiedBy ELSE DiscountEnteredBy END,
                             LastModifiedDate     = GETDATE(),
                             LastModifiedBy       = @ModifiedBy
                         WHERE PaymentHeaderId = @PaymentHeaderId",
                         new
                         {
+                            SaveApproval = approvalGiven && hDiscAmt > 0 ? 1 : 0,
+                            DiscountReason = request.DiscountReason?.Trim(),
+                            request.DiscountApprovedBy,
                             request.HeaderDiscountType,
                             request.HeaderDiscountValue,
                             HeaderDiscountAmount = hDiscAmt,
@@ -404,6 +437,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 else if (request.HeaderDiscountValue > 0)
                     hDiscAmt = Math.Min(discountableSubTotal, request.HeaderDiscountValue);
 
+                if (hDiscAmt > 0 && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0))
+                    return new SavePaymentResult { Success = false, Error = DiscountApprovalRequiredMessage };
+
                 decimal totalDisc = Math.Min(dbSubTotal, hDiscAmt > 0 ? hDiscAmt : lineDiscountTotal);
                 decimal unroundedNet = Math.Max(0, dbSubTotal - totalDisc + totalCgst + totalSgst + totalIgst);
                 decimal roundedNet = Math.Round(unroundedNet, 0, MidpointRounding.AwayFromZero);
@@ -417,14 +453,17 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                          HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
                          TotalCgstAmount, TotalSgstAmount, TotalIgstAmount,
                          RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
-                         Notes, CreatedDate, CreatedBy, IsActive)
+                         Notes, CreatedDate, CreatedBy, IsActive,
+                         DiscountReason, DiscountApprovedBy, DiscountApprovedDate, DiscountEnteredBy)
                     VALUES
                         (@ModuleCode, @ModuleRefId, @OPDServiceId, @BranchId, @PatientId,
                          @SubTotal, @LineDiscountTotal,
                          @HeaderDiscountType, @HeaderDiscountValue, @HeaderDiscountAmount,
                          @TotalCgstAmount, @TotalSgstAmount, @TotalIgstAmount,
                          @RoundOffAmount, @NetAmount, 0, @NetAmount, 'U',
-                         @Notes, GETDATE(), @CreatedBy, 1);
+                         @Notes, GETDATE(), @CreatedBy, 1,
+                         @DiscountReason, @DiscountApprovedBy, CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE GETDATE() END,
+                         CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE @CreatedBy END);
                     SELECT SCOPE_IDENTITY();",
                     new
                     {
@@ -444,7 +483,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         RoundOffAmount = roundOff,
                         NetAmount = realTimeNetAmount,
                         request.Notes,
-                        CreatedBy = userId
+                        CreatedBy = userId,
+                        DiscountReason = hDiscAmt > 0 ? request.DiscountReason?.Trim() : null,
+                        DiscountApprovedBy = hDiscAmt > 0 ? request.DiscountApprovedBy : null
                     }, tx);
 
                 // Insert line items snapshot

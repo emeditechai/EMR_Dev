@@ -34,7 +34,8 @@ public class DoctorsController(
         try
         {
             // Strictly via EMR.Api — no DB fallback
-            var pagedDoctors = await doctorApiClient.GetListAsync(branchId, pageNumber: page, pageSize: 10, companyId: User.GetCompanyId());
+            // All doctors of the branch in one call: the list filters instantly in the browser (User Master pattern)
+            var pagedDoctors = await doctorApiClient.GetListAsync(branchId, pageNumber: 1, pageSize: 5000, companyId: User.GetCompanyId());
             var apiDoctors = pagedDoctors.Items;
             
             if (doctorId.HasValue && doctorId.Value > 0)
@@ -70,6 +71,12 @@ public class DoctorsController(
             ViewBag.CurrentPage = pagedDoctors.Page;
             ViewBag.TotalPages = pagedDoctors.TotalPages;
             ViewBag.PageSize = pagedDoctors.PageSize;
+
+            // Department name -> Type (Department Master) for the "Pathology (LAB)" filter labels
+            ViewBag.DeptTypes = (await dbContext.DepartmentMasters.AsNoTracking()
+                    .Select(d => new { d.DeptName, d.DeptType }).ToListAsync())
+                .GroupBy(d => d.DeptName.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => (g.First().DeptType ?? string.Empty).Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase);
 
             return View(doctors);
         }

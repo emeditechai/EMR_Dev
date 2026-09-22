@@ -171,6 +171,7 @@ builder.Services.AddScoped<IPathologistDashboardApiClient,    PathologistDashboa
 builder.Services.AddScoped<ILabDefaultSignatoryApiClient,     LabDefaultSignatoryApiClient>();
 builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowApiClient>();
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
+builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();

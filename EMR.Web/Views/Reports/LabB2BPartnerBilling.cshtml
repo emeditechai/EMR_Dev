@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "B2B Partner Billing Register";
+    ViewData["ReportSubtitle"] = "business from each franchise / corporate: MRP, contract price and margin given";
+    ViewData["ReportIcon"] = "bi-buildings";
+    ViewData["ReportAccent"] = "#0369a1";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["BranchWide"] = true;
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const typePill = (v, h) => v === 'Franchise' ? h.pill('Franchise', 'bg-info-subtle text-info-emphasis border-info-subtle') : h.pill('Corporate', 'bg-primary-subtle text-primary border-primary-subtle');
+    const pct = (a, b) => b > 0 ? (a * 100 / b).toFixed(1) + '%' : '—';
+    LabReport.init({
+        report: 'b2b-partner-billing', title: 'B2B Partner Billing Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, Token, patient or partner name...',
+        filters: [
+            { id: 'partnerType', label: 'Partner type', allLabel: 'Franchise & corporate', options: [['F', 'Franchise'], ['C', 'Corporate']] },
+            { id: 'partner', label: 'Partner', allLabel: 'All partners', fromOptions: 'partner' }
+        ],
+        kpis: [
+            { label: 'Bills', color: '#0369a1', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.PartnerCount)} partners · ${h.num(s.TestCount)} tests` },
+            { label: 'MRP value', color: '#475569', value: (s, h) => h.money(s.MrpAmount), sub: () => 'at standard rates' },
+            { label: 'Contract billed', color: '#7c3aed', value: (s, h) => h.money(s.ContractAmount), sub: () => 'at partner rates' },
+            { label: 'Margin given', color: '#b45309', value: (s, h) => h.money(s.MarginAmount), sub: (s) => `${(Number(s.MarginPercent) || 0).toFixed(1)}% of MRP` },
+            { label: 'Collected', color: '#15803d', value: (s, h) => h.money(s.PaidAmount) },
+            { label: 'Due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount), sub: (s, h) => `${h.num(s.NotInvoiced)} bill(s) not invoiced yet` }
+        ],
+        groups: [
+            { key: 'byPartner', label: 'Partner', rowField: 'PartnerName', name: (r, h) => `${h.esc(r.GroupName)} <span class="ms-1">${typePill(r.Detail, h)}</span>` },
+            { key: 'byPartnerType', label: 'Partner type', rowField: 'PartnerType', name: (r, h) => typePill(r.GroupName, h) },
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'TestCount', label: 'Tests', num: true },
+            { field: 'MrpAmount', label: 'MRP', money: true }, { field: 'ContractAmount', label: 'Contract', money: true },
+            { field: 'MarginAmount', label: 'Margin', money: true }, { field: 'PaidAmount', label: 'Collected', money: true }, { field: 'DueAmount', label: 'Due', money: true }
+        ],
+        shareOf: 'ContractAmount',
+        cols: [
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Partner', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PartnerName)}</div><div class="fs-9">${typePill(r.PartnerType, h)} <span class="text-muted">${h.esc(r.PartnerCode || '')}</span></div>`, text: r => `${r.PartnerName} (${r.PartnerType})` },
+            { label: 'Patient', html: (r, h) => `<div>${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Tests', html: (r, h) => `<span class="badge bg-light text-dark border">${r.TestCount}</span> <span class="text-muted fs-9 d-inline-block text-truncate align-middle" style="max-width:200px" title="${h.esc(r.TestNames)}">${h.esc(r.TestNames)}</span>`, text: r => r.TestNames },
+            { label: 'MRP', cls: 'text-end amt', html: (r, h) => h.money(r.MrpAmount), text: r => r.MrpAmount, sum: 'MrpAmount' },
+            { label: 'Contract', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.ContractAmount), text: r => r.ContractAmount, sum: 'ContractAmount' },
+            { label: 'Margin', cls: 'text-end amt', html: (r, h) => `<span class="text-warning-emphasis">${h.money(r.MarginAmount)}</span><div class="text-muted fs-9">${pct(r.MarginAmount, r.MrpAmount)}</div>`, text: r => r.MarginAmount, sum: 'MarginAmount' },
+            { label: 'Collected', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Due', cls: 'text-end amt', html: (r, h) => r.DueAmount > 0 ? `<span class="text-danger fw-semibold">${h.money(r.DueAmount)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.DueAmount, sum: 'DueAmount' },
+            { label: 'Invoice', html: (r, h) => r.InvoiceNo ? `<span class="font-monospace fs-9">${h.esc(r.InvoiceNo)}</span>` : (r.IsCancelled ? '<span class="text-muted">cancelled</span>' : '<span class="text-warning-emphasis fs-9">Not invoiced</span>'), text: r => r.InvoiceNo || (r.IsCancelled ? 'cancelled' : 'Not invoiced') },
+            { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
+        ],
+        rowClass: r => r.IsCancelled ? 'row-muted' : ''
+    });
+})();
+</script>
+}

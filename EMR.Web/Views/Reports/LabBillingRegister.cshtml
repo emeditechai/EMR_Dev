@@ -1,0 +1,72 @@
+@{
+    ViewData["Title"] = "Daily Billing Register";
+    ViewData["ReportSubtitle"] = "LAB bills raised, with discount, collection and due";
+    ViewData["ReportIcon"] = "bi-journal-text";
+    ViewData["ReportAccent"] = "#1d4ed8";
+    ViewData["DateLabel"] = "bill date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const STATUS = { PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'], PARTIAL: ['Partial', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                     UNPAID: ['Unpaid', 'bg-danger-subtle text-danger border-danger-subtle'], CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'] };
+    const status = (v, h) => { const s = STATUS[v] || [v, '']; return h.pill(s[0], s[1]); };
+    LabReport.init({
+        report: 'billing-register', title: 'Daily Billing Register', defaultRange: 'today',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, Token, Patient ID, name or mobile...',
+        filters: [
+            { id: 'billingType', label: 'Billing', allLabel: 'B2C & B2B', options: [['B2C', 'B2C'], ['B2B', 'B2B']] },
+            { id: 'paymentStatus', label: 'Payment', allLabel: 'All', options: [['PAID', 'Paid'], ['PARTIAL', 'Partial'], ['UNPAID', 'Unpaid'], ['CANCELLED', 'Cancelled']] },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Bills', color: '#1d4ed8', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.B2CBills)} B2C · ${h.num(s.B2BBills)} B2B · ${h.num(s.CancelledBills)} cancelled` },
+            { label: 'Gross', color: '#475569', value: (s, h) => h.money(s.GrossAmount), sub: (s, h) => `${h.num(s.TestCount)} tests · ${h.num(s.PatientCount)} patients` },
+            { label: 'Discount', color: '#b45309', value: (s, h) => h.money(s.DiscountAmount), sub: () => 'given on these bills' },
+            { label: 'Net billed', color: '#7c3aed', value: (s, h) => h.money(s.NetAmount), sub: () => 'after discount & cancellation' },
+            { label: 'Collected', color: '#15803d', value: (s, h) => h.money(s.PaidAmount), sub: () => 'paid against these bills' },
+            { label: 'Due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount), sub: () => 'still to collect' }
+        ],
+        groups: [
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byPaymentStatus', label: 'Payment status', rowField: 'PaymentStatus', name: (r, h) => status(r.GroupName, h) },
+            { key: 'byBillingType', label: 'Billing type', rowField: 'BillingType' },
+            { key: 'byCreatedBy', label: 'Billed by', rowField: 'CreatedById', byId: true, adminOnly: true }
+        ],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'TestCount', label: 'Tests', num: true },
+            { field: 'GrossAmount', label: 'Gross', money: true }, { field: 'DiscountAmount', label: 'Discount', money: true },
+            { field: 'NetAmount', label: 'Net', money: true }, { field: 'PaidAmount', label: 'Collected', money: true }, { field: 'DueAmount', label: 'Due', money: true }
+        ],
+        shareOf: 'NetAmount',
+        cols: [
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Billing', html: (r, h) => `${h.esc(r.BillingType)}${r.PartnerName ? `<div class="text-muted fs-9">${h.esc(r.PartnerName)}</div>` : ''}`, text: r => r.BillingType + (r.PartnerName ? ' - ' + r.PartnerName : '') },
+            { label: 'Tests', html: (r, h) => `<span class="badge bg-light text-dark border">${r.TestCount}</span> <span class="text-muted fs-9 d-inline-block text-truncate align-middle" style="max-width:220px" title="${h.esc(r.TestNames)}">${h.esc(r.TestNames)}</span>`, text: r => r.TestNames },
+            { label: 'Gross', cls: 'text-end amt', html: (r, h) => h.money(r.GrossAmount), text: r => r.GrossAmount, sum: 'GrossAmount' },
+            { label: 'Discount', cls: 'text-end amt', html: (r, h) => r.DiscountAmount > 0 ? `<span class="text-warning-emphasis">${h.money(r.DiscountAmount)}</span>` : '<span class="text-muted">—</span>', text: r => r.DiscountAmount, sum: 'DiscountAmount' },
+            { label: 'Net', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.NetAmount), text: r => r.NetAmount, sum: 'NetAmount' },
+            { label: 'Collected', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Due', cls: 'text-end amt', html: (r, h) => r.DueAmount > 0 ? `<span class="text-danger fw-semibold">${h.money(r.DueAmount)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.DueAmount, sum: 'DueAmount' },
+            { label: 'Status', html: (r, h) => status(r.PaymentStatus, h), text: r => (STATUS[r.PaymentStatus] || [r.PaymentStatus])[0] },
+            { label: 'Referred by', html: (r, h) => h.esc(r.ReferralDoctor || 'Self'), text: r => r.ReferralDoctor || 'Self' },
+            { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
+        ],
+        rowClass: r => r.IsCancelled ? 'row-muted' : ''
+    });
+})();
+</script>
+}

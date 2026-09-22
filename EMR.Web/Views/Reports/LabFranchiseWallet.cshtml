@@ -1,0 +1,61 @@
+@{
+    ViewData["Title"] = "Franchise Wallet Statement";
+    ViewData["ReportSubtitle"] = "wallet top-ups and bill deductions of each franchise, with opening and closing balance";
+    ViewData["ReportIcon"] = "bi-wallet2";
+    ViewData["ReportAccent"] = "#047857";
+    ViewData["DateLabel"] = "transaction date";
+    ViewData["BranchWide"] = true;
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const moneyOrDash = (v, h) => v === null || v === undefined ? '<span class="text-muted">—</span>' : h.money(v);
+    LabReport.init({
+        report: 'franchise-wallet', title: 'Franchise Wallet Statement', defaultRange: 'month', summaryAlways: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Receipt No, Bill No or narration...',
+        filters: [
+            { id: 'franchiseId', label: 'Franchise', allLabel: 'All franchises', fromOptions: 'franchiseId' },
+            { id: 'transactionType', label: 'Type', allLabel: 'Credits & debits', options: [['CREDIT', 'Top-ups (credit)'], ['DEBIT', 'Bill deductions (debit)']] }
+        ],
+        kpis: [
+            { label: 'Opening balance', color: '#475569', value: (s, h) => h.money(s.OpeningBalance), sub: (s, h) => `${h.num(s.FranchiseCount)} franchise(s)` },
+            { label: 'Top-ups', color: '#15803d', value: (s, h) => h.money(s.CreditAmount), sub: (s, h) => `${h.num(s.TopUpCount)} top-up(s)` },
+            { label: 'Bill deductions', color: '#b91c1c', value: (s, h) => h.money(s.DebitAmount), sub: (s, h) => `${h.num((s.TransactionCount || 0) - (s.TopUpCount || 0))} bill(s)` },
+            { label: 'Closing balance', color: '#047857', value: (s, h) => h.money(s.ClosingBalance), sub: () => 'at the end of the period' },
+            { label: 'Balance today', color: '#0369a1', value: (s, h) => h.money(s.CurrentBalance), sub: () => 'current wallet balance' }
+        ],
+        groups: [
+            { key: 'byFranchise', label: 'Franchise', rowField: 'FranchiseId', byId: true },
+            { key: 'byType', label: 'Type', rowField: 'TypeLabel' },
+            { key: 'byDate', label: 'Date', rowField: 'TransactionDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'OpeningBalance', label: 'Opening', money: true, fmt: moneyOrDash },
+            { field: 'CreditAmount', label: 'Top-ups', money: true }, { field: 'DebitAmount', label: 'Deductions', money: true },
+            { field: 'ClosingBalance', label: 'Closing', money: true, fmt: moneyOrDash },
+            { field: 'TransactionCount', label: 'Transactions', num: true }
+        ],
+        cols: [
+            { label: 'Date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.TransactionDate), text: (r, h) => h.fmtDT(r.TransactionDate) },
+            { label: 'Franchise', html: (r, h) => `<div class="fw-semibold">${h.esc(r.FranchiseName)}</div><div class="text-muted fs-9">${h.esc(r.FranchiseCode || '')}</div>`, text: r => r.FranchiseName },
+            { label: 'Transaction', html: (r, h) => (r.TransactionType === 'CREDIT' ? h.pill('Top-up', 'bg-success-subtle text-success border-success-subtle') : h.pill('Bill deduction', 'bg-danger-subtle text-danger border-danger-subtle'))
+                                                  + (r.BillNo ? `<div class="font-monospace fs-9 mt-1">${h.esc(r.BillNo)}</div>` : ''), text: r => r.TypeLabel + (r.BillNo ? ' ' + r.BillNo : '') },
+            { label: 'Receipt No', html: (r, h) => `<span class="font-monospace fs-9">${h.esc(r.ReceiptNo || '—')}</span>`, text: r => r.ReceiptNo || '' },
+            { label: 'Credit', cls: 'text-end amt text-success', html: (r, h) => r.CreditAmount > 0 ? h.money(r.CreditAmount) : '', text: r => r.CreditAmount, sum: 'CreditAmount' },
+            { label: 'Debit', cls: 'text-end amt text-danger', html: (r, h) => r.DebitAmount > 0 ? h.money(r.DebitAmount) : '', text: r => r.DebitAmount, sum: 'DebitAmount' },
+            { label: 'Balance', cls: 'text-end amt fw-bold', html: (r, h) => h.money(r.BalanceAfter), text: r => r.BalanceAfter },
+            { label: 'Narration', html: (r, h) => `<span class="text-muted fs-9">${h.esc(r.Narration || '')}</span>`, text: r => r.Narration || '' },
+            { label: 'Recorded by', cls: 'text-nowrap', html: (r, h) => h.esc(r.RecordedBy), text: r => r.RecordedBy }
+        ]
+    });
+})();
+</script>
+}

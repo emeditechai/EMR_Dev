@@ -627,10 +627,12 @@
                                 asp-items="Model.ReferralDoctorOptions">
                             <option value="">-- Select Referral Doctor --</option>
                         </select>
-                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalAddReferralDoctor" title="Add Referral Doctor">
+                        <a class="btn btn-outline-primary" href="@Url.Action("Create", "Doctors")" target="_blank" rel="noopener"
+                           title="Add a doctor in Doctor Master (assign a LAB department to list here)">
                             <i class="bi bi-plus-lg"></i>
-                        </button>
+                        </a>
                     </div>
+                    <div class="form-text">Doctors of a LAB-type department (Doctor Master)</div>
                 </div>
             </div>
 
@@ -1001,52 +1003,6 @@
                         <tbody id="searchResultsBody"></tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-@* ── Referral Doctor Modal ── *@
-<div class="modal fade" id="mdlNewRefDoctor" tabindex="-1" aria-labelledby="mdlNewRefDoctorLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-primary text-white py-2 px-3">
-                <h6 class="modal-title fw-bold" id="mdlNewRefDoctorLabel">
-                    <i class="bi bi-person-plus-fill me-2"></i>Add Referral Doctor
-                </h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-3">
-                <form id="frmNewRefDoctor">
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">Doctor Name <span class="text-danger">*</span></label>
-                        <input type="text" id="txtRefDocName" class="form-control form-control-sm" placeholder="Dr. John Doe" required />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">Hospital / Clinic</label>
-                        <input type="text" id="txtRefDocHospital" class="form-control form-control-sm" placeholder="City Clinic" />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">Phone Number</label>
-                        <input type="text" id="txtRefDocPhone" class="form-control form-control-sm" placeholder="9876543210" maxlength="15" />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">Email ID</label>
-                        <input type="email" id="txtRefDocEmail" class="form-control form-control-sm" placeholder="doctor@example.com" />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">Specialization</label>
-                        <input type="text" id="txtRefDocSpecialization" class="form-control form-control-sm" placeholder="Cardiology, General..." />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">Commission (%)</label>
-                        <input type="number" id="txtRefDocCommission" class="form-control form-control-sm" placeholder="0.00" step="0.01" min="0" max="100" />
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer py-2 px-3">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnSaveRefDoctor">Save Doctor</button>
             </div>
         </div>
     </div>
@@ -3590,43 +3546,6 @@
             }
             video.srcObject = null;
         }
-
-        // ── Quick Add Referral Doctor ──
-        $('#btnSaveRefDoctor').on('click', async function () {
-            const name = $('#txtNewRefDoctorName').val().trim();
-            const phone = $('#txtNewRefDoctorPhone').val().trim();
-            if (!name) {
-                showToast('Doctor name is required', 'danger');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('name', name);
-            formData.append('phone', phone);
-            
-            try {
-                const res = await fetch('@Url.Action("CreateReferralDoctorQuick", "OPD")', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await res.json();
-                if (data.success) {
-                    showToast('Referral Doctor added successfully!');
-                    
-                    const newOption = new Option(data.name, data.id, true, true);
-                    $('#ddlReferralDoctor').append(newOption).trigger('change');
-                    
-                    $('#modalAddReferralDoctor').modal('hide');
-                    $('#txtNewRefDoctorName').val('');
-                    $('#txtNewRefDoctorPhone').val('');
-                } else {
-                    showToast(data.message || 'Failed to add doctor', 'danger');
-                }
-            } catch (err) {
-                showToast('Network error occurred.', 'danger');
-            }
-        });
 
         // ── Auto-Suggest Patient Address with Geolocation Coordinates (Lat/Long) ──
         function escapeHtml(str) {

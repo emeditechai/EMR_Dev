@@ -76,6 +76,8 @@ public class HospitalSettings
     public bool LabReportEmailNotificationRequired { get; set; } = false;
     /// <summary>A pathologist must approve LAB reports (default No).</summary>
     public bool PathologistApprovalRequired { get; set; } = false;
+    /// <summary>Show a "Print" action against each report row in LAB listing screens (default No).</summary>
+    public bool ShowLabReportPrintOnList { get; set; } = false;
 
     public bool IsActive { get; set; } = true;
 

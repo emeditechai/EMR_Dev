@@ -110,6 +110,7 @@
             <span class="pd-scope-chip" title="Your sign-off Test Categories">
                 <i class="bi bi-tags me-1"></i>@(Model.Categories.Count == 0 ? "All categories" : $"{Model.Categories.Count} categories")
             </span>
+            <span id="arMount"></span>
             <span class="pd-scope-chip" id="lblRowCount">&mdash;</span>
             <button type="button" class="btn btn-outline-secondary btn-sm btn-icon shadow-xs" id="btnRefresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
         </div>
@@ -284,6 +285,7 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/auto-refresh.js" asp-append-version="true"></script>
     <script>
         $(function () {
             const urls = {
@@ -308,16 +310,26 @@
                 return h + '<span class="ms-1 text-muted">' + done + '/' + total + '</span></span>';
             }
 
-            function load() {
-                $('#pdLoading').removeClass('d-none');
-                $('#pdEmpty').addClass('d-none');
-                $('#tblPathoBody').empty();
-                $.getJSON(urls.headers, {
+            // silent = auto refresh: keep the rows on screen (no spinner / blank table / error pop-up)
+            // and resolve to the number of reports that were not in the list before.
+            function load(silent) {
+                silent = silent === true;   // also bound directly as a click handler
+                const prevIds = silent ? new Set(currentBills.map(b => b.labOrderId)) : null;
+                if (!silent) {
+                    $('#pdLoading').removeClass('d-none');
+                    $('#pdEmpty').addClass('d-none');
+                    $('#tblPathoBody').empty();
+                }
+                let newCount = 0;
+                const request = $.getJSON(urls.headers, {
                     fromDate: $('#txtFrom').val(), toDate: $('#txtTo').val(), dateBasis: $('#selDateBasis').val(),
                     search: $('#txtSearch').val(), departmentId: $('#ddlDepartment').val() || null,
                     categoryId: $('#ddlCategory').val() || null, statusFilter: statusFilter
                 }).done(function (res) {
-                    if (!res || !res.success) { Swal.fire({ icon:'error', title:'Unable to load', text:(res && res.message) || 'Please try again.' }); return; }
+                    if (!res || !res.success) {
+                        if (!silent) Swal.fire({ icon:'error', title:'Unable to load', text:(res && res.message) || 'Please try again.' });
+                        return;
+                    }
                     const s = res.stats || {};
                     $('#kMine').text(s.awaitingMeBills || 0);
                     $('#kMineTests').text((s.awaitingMeTests || 0) + ' tests');
@@ -328,9 +340,12 @@
                     $('#kUrgent').text((s.urgentAwaitingBills || 0) + ' urgent');
                     currentBills = res.bills || [];
                     render(currentBills);
+                    newCount = AutoRefresh.markNewRows(prevIds, currentBills, b => b.labOrderId, id => '#tblPathoBody tr[data-order-id="' + id + '"]');
+                    if (!silent && autoRefresh) autoRefresh.touch();
                 }).fail(function () {
-                    Swal.fire({ icon:'error', title:'Server error', text:'Unable to load the dashboard. Please try again.' });
+                    if (!silent) Swal.fire({ icon:'error', title:'Server error', text:'Unable to load the dashboard. Please try again.' });
                 }).always(function () { $('#pdLoading').addClass('d-none'); });
+                return request.then(() => newCount);
             }
 
             function render(bills) {
@@ -349,7 +364,7 @@
                         : `<button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 fs-8 btn-open-signoff" data-idx="${i}"><i class="bi bi-eye me-1"></i>View</button>`;
 
                     $tb.append(`
-                        <tr class="${rowCls}">
+                        <tr class="${rowCls}" data-order-id="${b.labOrderId}">
                             <td class="ps-3 text-muted fw-semibold fs-9">${i + 1}</td>
                             <td>
                                 <div class="d-flex align-items-center flex-wrap gap-1">
@@ -394,7 +409,13 @@
                 statusFilter = $(this).data('status');
                 load();
             });
-            $('#btnRefresh').on('click', load);
+            $('#btnRefresh').on('click', () => load());
+
+            // Auto refresh (interval remembered per browser); pauses while the sign-off window is open or the tab is hidden
+            const autoRefresh = AutoRefresh.init({
+                mount: '#arMount', key: 'pathologist-dashboard', defaultSeconds: 60,
+                refresh: () => load(true)
+            });
             $('#txtFrom, #txtTo, #selDateBasis').on('change', function () { $('.btn-quick').removeClass('active'); load(); });
             $('#ddlDepartment, #ddlCategory').on('change', function () {
                 const dept = $('#ddlDepartment').val();

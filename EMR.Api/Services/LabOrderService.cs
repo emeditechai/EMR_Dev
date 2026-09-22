@@ -54,6 +54,7 @@ namespace EMR.Api.Services
             p.Add("@B2BAgentID", request.B2BAgentId);
             p.Add("@AgentType", request.AgentType);
             p.Add("@B2BTotal", request.B2BTotal);
+            p.Add("@ReferralDoctorId", request.ReferralDoctorId is > 0 ? request.ReferralDoctorId : null);
             p.Add("@LabOrderId", dbType: DbType.Int32, direction: ParameterDirection.Output);
             p.Add("@BillNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
             p.Add("@TokenNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);

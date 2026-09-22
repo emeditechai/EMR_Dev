@@ -17,5 +17,11 @@ public interface IReportApiClient
 {
     Task<ReportApiResult<List<DailyCollectionRegisterItem>>> GetDailyCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool isDetailed, int? companyId = null);
     Task<ReportApiResult<List<PatientRegisterItem>>> GetPatientRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool dependentOnly, int? companyId = null);
+    Task<ReportApiResult<B2CCollectionRegisterResult>> GetLabB2CCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, int? paymentMethodId, int? collectedBy, string? search,
+        int userId, bool isAdmin, bool isSuperAdmin);
+    Task<ReportApiResult<DiscountRegisterResult>> GetLabDiscountRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, string? billingType,
+        int? approvedBy, int? enteredBy, string? search, int userId, bool isAdmin, bool isSuperAdmin);
+    /// <summary>Runs a registered LAB report on the API; returns its JSON (summary / groups / rows / options) unchanged.</summary>
+    Task<ReportApiResult<string>> RunLabReportRawAsync(string report, IDictionary<string, string?> query);
 }
 

@@ -20,7 +20,9 @@ namespace EMR.Api.Controllers
             [FromQuery] string? search = null,
             [FromQuery] int? departmentId = null,
             [FromQuery] int? categoryId = null,
-            [FromQuery] int? subCategoryId = null)
+            [FromQuery] int? subCategoryId = null,
+            [FromQuery] bool restrictDepartments = false,
+            [FromQuery] string? allowedDepartmentIds = null)
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
@@ -30,7 +32,9 @@ namespace EMR.Api.Controllers
             }
 
             var result = await labReportingService.GetHeaderListAsync(
-                branchId, fromDate, toDate, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId);
+                branchId, fromDate, toDate, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId,
+                // Department Access of the user: restricted with no ids means "no department" (nothing listed)
+                restrictDepartments ? (allowedDepartmentIds ?? string.Empty) : null);
             return Ok(result);
         }
 

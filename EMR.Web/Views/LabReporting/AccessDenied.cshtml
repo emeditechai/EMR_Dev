@@ -1,0 +1,23 @@
+@model EMR.Web.Filters.LabReportingDeniedViewModel
+@{
+    ViewData["Title"] = "Lab Reporting Entry";
+}
+<div class="container-fluid px-3 py-4" style="background:#f1f5f9; min-height: calc(100vh - 60px);">
+    <div class="card border-0 shadow-sm rounded-3 mx-auto" style="max-width: 640px;">
+        <div class="card-body text-center p-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                 style="width:70px;height:70px;background:#fef3c7;color:#b45309;">
+                <i class="bi bi-shield-lock-fill" style="font-size:1.9rem;"></i>
+            </div>
+            <h5 class="fw-bold text-dark mb-2">Lab Reporting Entry is not available to you</h5>
+            <p class="text-muted fs-8 mb-3">
+                This screen is only for users marked as a <strong>Pathologist</strong> or a <strong>Lab Technician</strong>
+                in the User Master. Ask an administrator to enable <em>Is Pathologist</em> or <em>Is Lab Technician</em>
+                on your user (User Master &rsaquo; Clinical &amp; Status) and assign your Department Access.
+            </p>
+            <a class="btn btn-outline-secondary btn-sm px-3" asp-controller="Home" asp-action="Index">
+                <i class="bi bi-arrow-left me-1"></i>Back to Home
+            </a>
+        </div>
+    </div>
+</div>

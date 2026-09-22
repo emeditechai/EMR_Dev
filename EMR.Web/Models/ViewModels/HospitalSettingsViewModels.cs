@@ -111,6 +111,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Pathologist Approval Required")]
     public bool PathologistApprovalRequired { get; set; } = false;
 
+    [Display(Name = "Show LAB Report Print on List")]
+    public bool ShowLabReportPrintOnList { get; set; } = false;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

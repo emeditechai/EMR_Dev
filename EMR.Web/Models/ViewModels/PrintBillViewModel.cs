@@ -39,6 +39,8 @@ public class PrintBillViewModel
     public DateTime? BookingDate { get; set; }
     public string? CollectionType { get; set; }
     public string? PhlebotomistName { get; set; }
+    /// <summary>Referring doctor recorded on this bill; null = self / not referred.</summary>
+    public string? ReferralDoctorName { get; set; }
     public string? CreatedByName { get; set; }
     public string? CreatedByUsername { get; set; }
     public string? PrintedByName { get; set; }

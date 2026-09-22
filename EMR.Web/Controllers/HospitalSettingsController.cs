@@ -270,6 +270,7 @@ public class HospitalSettingsController(
             existing.TokenGenerateOnDuePayment = model.TokenGenerateOnDuePayment;
             existing.LabReportEmailNotificationRequired = model.LabReportEmailNotificationRequired;
             existing.PathologistApprovalRequired = model.PathologistApprovalRequired;
+            existing.ShowLabReportPrintOnList = model.ShowLabReportPrintOnList;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -320,6 +321,7 @@ public class HospitalSettingsController(
             TokenGenerateOnDuePayment = s.TokenGenerateOnDuePayment,
             LabReportEmailNotificationRequired = s.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = s.PathologistApprovalRequired,
+            ShowLabReportPrintOnList = s.ShowLabReportPrintOnList,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -357,6 +359,7 @@ public class HospitalSettingsController(
             TokenGenerateOnDuePayment = m.TokenGenerateOnDuePayment,
             LabReportEmailNotificationRequired = m.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = m.PathologistApprovalRequired,
+            ShowLabReportPrintOnList = m.ShowLabReportPrintOnList,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

@@ -174,9 +174,18 @@
         string flagText = "—";
         string flagClass = "flag-none";
         string flagVal = (item.AbnormalFlag ?? "").Trim();
+        bool isThresholdTier = item.RangeTier is "Critical Value" or "Panic Value";
+        // Direction of a Critical / Panic threshold breach (L / H), "" when the value is within the thresholds.
+        string thrDir = "";
+        if (hasValue && isThresholdTier && decimal.TryParse(item.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal thrVal))
+        {
+            if (item.LowThreshold.HasValue && thrVal < item.LowThreshold.Value) { thrDir = "L"; }
+            else if (item.HighThreshold.HasValue && thrVal > item.HighThreshold.Value) { thrDir = "H"; }
+        }
         if (string.IsNullOrEmpty(flagVal) && hasValue && decimal.TryParse(item.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal parsedVal))
         {
-            if (item.LowValue.HasValue && parsedVal < item.LowValue.Value) { flagVal = "L"; }
+            if (thrDir.Length > 0) { flagVal = item.RangeTier == "Panic Value" ? "Panic" : "Critical"; }
+            else if (item.LowValue.HasValue && parsedVal < item.LowValue.Value) { flagVal = "L"; }
             else if (item.HighValue.HasValue && parsedVal > item.HighValue.Value) { flagVal = "H"; }
             else if (item.LowValue.HasValue || item.HighValue.HasValue) { flagVal = "Normal"; }
         }
@@ -198,8 +207,13 @@
         }
         else if (flagVal.Equals("Critical", StringComparison.OrdinalIgnoreCase))
         {
-            flagText = "Critical";
+            flagText = thrDir.Length > 0 ? $"Critical {thrDir}" : "Critical";
             flagClass = "flag-critical";
+        }
+        else if (flagVal.Equals("Panic", StringComparison.OrdinalIgnoreCase))
+        {
+            flagText = thrDir.Length > 0 ? $"Panic {thrDir}" : "Panic";
+            flagClass = "flag-panic";
         }
     }
     <span class="badge flag-badge @flagClass fs-8 px-2 py-1">@flagText</span>

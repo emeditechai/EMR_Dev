@@ -16,7 +16,8 @@ namespace EMR.Web.ApiClients
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null);
+            int? subCategoryId = null,
+            string? allowedDepartmentIds = null);
 
         /// <param name="branchId">
         /// Restricts the tests to the samples this branch holds (Report Entry screen). null = the whole bill (printing).

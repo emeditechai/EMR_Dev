@@ -438,6 +438,20 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-printer-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Show LAB Report Print on List</div>
+                            <div class="lp-desc">No: hide the Print action against each report row in LAB listing screens.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="ShowLabReportPrintOnList">
+                                <label class="form-check-label" asp-for="ShowLabReportPrintOnList">Show LAB Report Print on List</label>
+                            </div>
+                            <span asp-validation-for="ShowLabReportPrintOnList" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

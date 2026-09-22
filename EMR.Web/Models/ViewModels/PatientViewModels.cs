@@ -405,5 +405,7 @@ public class PatientLabOrderHistoryItem
     public decimal DiscountAmount { get; set; }
     public decimal PaidAmount { get; set; }
     public string PaymentStatus { get; set; } = null!;
+    /// <summary>Tests already approved; &gt;0 means the approved lab report can be printed.</summary>
+    public int ApprovedTestCount { get; set; }
 }
 

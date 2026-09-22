@@ -1,0 +1,460 @@
+@{
+    ViewData["Title"] = "B2C Collection Register";
+    var branchName = User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? "";
+    bool seeAll = ViewBag.CanSeeAllCollections as bool? ?? false;
+    var me = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "You";
+}
+
+@section HeadStyles {
+<style>
+    .cr-wrap { --cr-line:#e2e8f0; --cr-muted:#64748b; --cr-ink:#0f172a; }
+    .cr-wrap .fs-7 { font-size:.85rem !important; } .cr-wrap .fs-8 { font-size:.78rem !important; } .cr-wrap .fs-9 { font-size:.7rem !important; }
+    .cr-card { background:#fff;border:1px solid var(--cr-line);border-radius:.75rem; }
+    .cr-kpi { position:relative;overflow:hidden;padding:.9rem 1rem;border-left:4px solid var(--k); }
+    .cr-kpi .k-label { font-size:.66rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+    .cr-kpi .k-val { font-size:1.45rem;font-weight:800;color:var(--cr-ink);line-height:1.2; }
+    .cr-kpi .k-sub { font-size:.7rem;color:var(--cr-muted); }
+    .cr-kpi .k-ico { position:absolute;right:.8rem;top:.8rem;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+                     background:var(--kb);color:var(--k);font-size:1.1rem; }
+    .cr-section-title { font-size:.72rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+    .btn-quick.active { background:#0f766e;border-color:#0f766e;color:#fff; }
+    .mode-row { display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px dashed #eef2f6;font-size:.78rem; }
+    .mode-row:last-child { border-bottom:0; }
+    .mode-dot { width:10px;height:10px;border-radius:3px;flex-shrink:0; }
+    .mode-bar { height:5px;border-radius:3px;background:#eef2f6;overflow:hidden;margin-top:3px; }
+    .mode-bar > span { display:block;height:100%; }
+    #tblReceipts thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--cr-muted);font-size:.66rem;font-weight:700;
+                            letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--cr-line);cursor:pointer;user-select:none; }
+    #tblReceipts thead th.no-sort { cursor:default; }
+    #tblReceipts tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6; }
+    #tblReceipts tfoot td { font-size:.8rem;font-weight:800;background:#f8fafc; }
+    .rcpt-no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;color:#0f766e; }
+    .amt { font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .tbl-scroll { max-height:62vh;overflow:auto; }
+    .sort-ind { font-size:.6rem;margin-left:2px;opacity:.5; }
+    tr.row-cancelled td { background:#fff7f7; }
+    @@media print {
+        .emr-topbar, footer, .no-print, .cr-charts { display:none !important; }
+        .tbl-scroll { max-height:none;overflow:visible; }
+        .cr-card { border:0; }
+        body { background:#fff !important; }
+    }
+</style>
+}
+
+<div class="container-fluid px-3 py-2 cr-wrap">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-receipt text-success me-2"></i>B2C Collection Register</h1>
+            <div class="text-muted fs-8">Reports &rsaquo; LAB &middot; money receipts collected on B2C lab bills
+                @if (!string.IsNullOrWhiteSpace(branchName)) { <span>&middot; Branch <strong>@branchName</strong></span> }
+                &middot; <span id="lblRange"></span></div>
+            <div class="fs-9 mt-1">
+                @if (seeAll)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-shield-check me-1"></i>Administrator view &middot; all users' collections of this branch</span>
+                }
+                else
+                {
+                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-person-lock me-1"></i>Showing only the money receipts collected by you (@me)</span>
+                }
+            </div>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            <button type="button" class="btn btn-sm btn-outline-success" id="btnExcel" disabled><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="btnPdf" disabled><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPrint" disabled><i class="bi bi-printer me-1"></i>Print</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="cr-card p-2 px-3 mb-2 no-print">
+        <div class="row g-2 align-items-end">
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">From</label>
+                <input type="date" id="txtFrom" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">To</label>
+                <input type="date" id="txtTo" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Quick select</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="today">Today</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="yesterday">Yesterday</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="week">7 Days</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="month">This Month</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="lastmonth">Last Month</button>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Payment mode</label>
+                <select id="selMode" class="form-select form-select-sm" autocomplete="off"><option value="">All modes</option></select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Collected by</label>
+                @if (seeAll)
+                {
+                    <select id="selCollector" class="form-select form-select-sm" autocomplete="off"><option value="">All users</option></select>
+                }
+                else
+                {
+                    <select id="selCollector" class="form-select form-select-sm" autocomplete="off" disabled title="Only an Administrator can view other users' collections"><option value="">@me</option></select>
+                }
+            </div>
+            <div class="col-12 col-md-8">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" id="txtSearch" class="form-control" autocomplete="off"
+                           placeholder="Receipt No, Bill No, Token, Patient ID, name or mobile..." />
+                </div>
+            </div>
+            <div class="col-12 col-md-4 d-flex gap-2 justify-content-md-end">
+                <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none" id="btnReset"><i class="bi bi-x-circle me-1"></i>Reset</button>
+                <button type="button" class="btn btn-sm btn-success px-4" id="btnApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="stateError" class="alert alert-danger fs-8 d-none"></div>
+
+    <!-- KPIs -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#0f766e;--kb:#ccfbf1;"><div class="k-ico"><i class="bi bi-cash-stack"></i></div>
+            <div class="k-label">Total collection</div><div class="k-val amt" id="kTotal">&mdash;</div><div class="k-sub">amount received</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#2563eb;--kb:#dbeafe;"><div class="k-ico"><i class="bi bi-receipt"></i></div>
+            <div class="k-label">Money receipts</div><div class="k-val" id="kReceipts">&mdash;</div><div class="k-sub">payments collected</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#7c3aed;--kb:#ede9fe;"><div class="k-ico"><i class="bi bi-journal-text"></i></div>
+            <div class="k-label">Bills</div><div class="k-val" id="kBills">&mdash;</div><div class="k-sub">B2C lab bills</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#db2777;--kb:#fce7f3;"><div class="k-ico"><i class="bi bi-people"></i></div>
+            <div class="k-label">Patients</div><div class="k-val" id="kPatients">&mdash;</div><div class="k-sub">distinct patients</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#d97706;--kb:#fef3c7;"><div class="k-ico"><i class="bi bi-graph-up"></i></div>
+            <div class="k-label">Avg per receipt</div><div class="k-val amt" id="kAvg">&mdash;</div><div class="k-sub">highest <span id="kHigh" class="fw-semibold">&mdash;</span></div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#b91c1c;--kb:#fee2e2;"><div class="k-ico"><i class="bi bi-x-octagon"></i></div>
+            <div class="k-label">On cancelled bills</div><div class="k-val amt" id="kCancelled">&mdash;</div><div class="k-sub"><span id="kCancelledCnt">0</span> receipt(s), refund separately</div></div></div>
+    </div>
+
+    <!-- Breakdown -->
+    <div class="row g-2 mb-2 cr-charts">
+        <div class="col-12 col-xl-4">
+            <div class="cr-card p-3 h-100">
+                <div class="cr-section-title mb-2"><i class="bi bi-pie-chart me-1"></i>Collection by payment mode</div>
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:140px;height:140px;flex-shrink:0;"><canvas id="chMode"></canvas></div>
+                    <div class="flex-grow-1" id="modeList"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-5">
+            <div class="cr-card p-3 h-100">
+                <div class="cr-section-title mb-2"><i class="bi bi-bar-chart me-1"></i>Day-wise collection</div>
+                <div style="height:160px;"><canvas id="chDay"></canvas></div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-3">
+            <div class="cr-card p-3 h-100">
+                <div class="cr-section-title mb-2"><i class="bi bi-person-badge me-1"></i>Collector-wise</div>
+                <div id="collectorList" class="fs-8"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Receipts -->
+    <div class="cr-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
+            <div class="fw-semibold"><i class="bi bi-list-ul me-1"></i>Money receipts <span class="badge bg-secondary-subtle text-secondary border ms-1" id="lblCount">0</span></div>
+            <div class="d-flex align-items-center gap-2 no-print fs-8">
+                <span class="text-muted">Rows</span>
+                <select id="selPageSize" class="form-select form-select-sm" style="width:auto;">
+                    <option>25</option><option selected>50</option><option>100</option><option value="0">All</option>
+                </select>
+            </div>
+        </div>
+        <div class="tbl-scroll">
+            <table class="table table-hover mb-0" id="tblReceipts">
+                <thead>
+                    <tr>
+                        <th class="ps-3 no-sort">#</th>
+                        <th data-sort="receiptNo">Receipt No</th>
+                        <th data-sort="receiptDate">Receipt Date &amp; Time</th>
+                        <th data-sort="billNo">Bill No / Token</th>
+                        <th data-sort="patientName">Patient</th>
+                        <th data-sort="paymentMode">Payment Mode</th>
+                        <th data-sort="paidAmount" class="text-end">Amount Collected</th>
+                        <th data-sort="billNetAmount" class="text-end">Bill Net</th>
+                        <th data-sort="billTotalPaid" class="text-end">Bill Paid</th>
+                        <th data-sort="billBalanceDue" class="text-end">Balance</th>
+                        <th data-sort="paymentStatus">Status</th>
+                        <th data-sort="collectedBy">Collected By</th>
+                        <th class="no-sort text-center no-print">Bill</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyReceipts"></tbody>
+                <tfoot><tr>
+                    <td colspan="6" class="ps-3 text-end">Total (<span id="ftCount">0</span> receipts)</td>
+                    <td class="text-end amt text-success" id="ftAmount">&#8377;0.00</td>
+                    <td colspan="6"></td>
+                </tr></tfoot>
+            </table>
+        </div>
+        <div id="stateEmpty" class="text-center text-muted py-5 d-none">
+            <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>No money receipts found for the selected filters.
+        </div>
+        <div id="stateLoading" class="text-center text-muted py-5 d-none">
+            <span class="spinner-border spinner-border-sm me-2"></span>Loading collection register&hellip;
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top no-print">
+            <div class="text-muted fs-8" id="lblShowing"></div>
+            <nav><ul class="pagination pagination-sm mb-0" id="pager"></ul></nav>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script>
+(function () {
+    const dataUrl = '@Url.Action("GetLabB2CCollectionRegisterData", "Reports")';
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const branchName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(branchName))';
+    const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#b91c1c', '#475569'];
+
+    let rows = [], view = [], page = 1, sortKey = 'receiptDate', sortDir = -1, loadSeq = 0;
+    let chMode = null, chDay = null, collectorsKnown = false, modesKnown = false;
+
+    const pad = n => String(n).padStart(2, '0');
+    const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const money = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtDT = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); };
+    const fmtD = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); };
+    const statusText = s => s === 'P' ? 'Paid' : (s === 'R' ? 'Partial' : 'Unpaid');
+
+    function setRange(range) {
+        const t = new Date(); let f = new Date(t), to = new Date(t);
+        if (range === 'yesterday') { f.setDate(t.getDate() - 1); to = new Date(f); }
+        else if (range === 'week') { f.setDate(t.getDate() - 6); }
+        else if (range === 'month') { f = new Date(t.getFullYear(), t.getMonth(), 1); }
+        else if (range === 'lastmonth') { f = new Date(t.getFullYear(), t.getMonth() - 1, 1); to = new Date(t.getFullYear(), t.getMonth(), 0); }
+        $('#txtFrom').val(iso(f)); $('#txtTo').val(iso(to));
+        $('.btn-quick').removeClass('active').filter(`[data-range="${range}"]`).addClass('active');
+    }
+
+    function load() {
+        const seq = ++loadSeq;
+        const from = $('#txtFrom').val(), to = $('#txtTo').val();
+        if (!from || !to) return;
+        $('#stateError').addClass('d-none');
+        $('#stateLoading').removeClass('d-none'); $('#stateEmpty').addClass('d-none');
+        $('#tbodyReceipts').empty(); $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', true);
+        $('#lblRange').text(fmtD(from) + (from === to ? '' : ' – ' + fmtD(to)));
+
+        $.get(dataUrl, { fromDate: from, toDate: to, paymentMethodId: $('#selMode').val() || null,
+                         collectedBy: $('#selCollector').val() || null, search: $('#txtSearch').val() })
+        .done(function (res) {
+            if (seq !== loadSeq) return;
+            $('#stateLoading').addClass('d-none');
+            if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+            const d = res.data || {};
+            fillFilters(d);
+            renderKpis(d.summary || {});
+            renderModes(d.byMode || []);
+            renderDays(d.byDay || []);
+            renderCollectors(d.byCollector || []);
+            rows = d.receipts || [];
+            page = 1; applySort();
+        })
+        .fail(function () {
+            if (seq !== loadSeq) return;
+            $('#stateLoading').addClass('d-none');
+            $('#stateError').text('Server error while loading the report. Please try again.').removeClass('d-none');
+        });
+    }
+
+    // filter lists: payment methods from the master, collectors from the data (kept once seen)
+    function fillFilters(d) {
+        if (!modesKnown && (d.paymentMethods || []).length) {
+            (d.paymentMethods).forEach(m => $('#selMode').append(`<option value="${m.paymentMethodId}">${esc(m.methodName)}</option>`));
+            modesKnown = true;
+        }
+        const $c = $('#selCollector');
+        if ($c.prop('disabled')) return;   // non-administrator: locked to own collections
+        const have = new Set($c.find('option').map((_, o) => o.value).get());
+        (d.byCollector || []).forEach(c => { if (c.collectedById && !have.has(String(c.collectedById))) $c.append(`<option value="${c.collectedById}">${esc(c.collectedBy)}</option>`); });
+    }
+
+    function renderKpis(s) {
+        $('#kTotal').text(money(s.totalCollection));
+        $('#kReceipts').text((s.receiptCount || 0).toLocaleString('en-IN'));
+        $('#kBills').text((s.billCount || 0).toLocaleString('en-IN'));
+        $('#kPatients').text((s.patientCount || 0).toLocaleString('en-IN'));
+        $('#kAvg').text(money(s.avgPerReceipt));
+        $('#kHigh').text(money(s.highestReceipt));
+        $('#kCancelled').text(money(s.cancelledBillCollection));
+        $('#kCancelledCnt').text(s.cancelledBillReceipts || 0);
+    }
+
+    function renderModes(list) {
+        const total = list.reduce((a, m) => a + (m.amount || 0), 0);
+        $('#modeList').html(list.length ? list.map((m, i) => {
+            const pct = total ? (m.amount / total * 100) : 0, c = palette[i % palette.length];
+            return `<div class="mode-row"><span class="mode-dot" style="background:${c}"></span>
+                <div class="flex-grow-1"><div class="d-flex justify-content-between"><span class="fw-semibold">${esc(m.paymentMode)}</span>
+                <span class="amt fw-bold">${money(m.amount)}</span></div>
+                <div class="d-flex justify-content-between text-muted fs-9"><span>${m.receiptCount} receipt(s)</span><span>${pct.toFixed(1)}%</span></div>
+                <div class="mode-bar"><span style="width:${pct}%;background:${c}"></span></div></div></div>`;
+        }).join('') : '<div class="text-muted fs-8">No collection.</div>');
+
+        if (chMode) chMode.destroy();
+        chMode = new Chart(document.getElementById('chMode'), {
+            type: 'doughnut',
+            data: { labels: list.map(m => m.paymentMode), datasets: [{ data: list.map(m => m.amount), backgroundColor: list.map((_, i) => palette[i % palette.length]), borderWidth: 1 }] },
+            options: { cutout: '62%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${money(c.raw)}` } } }, maintainAspectRatio: false }
+        });
+    }
+
+    function renderDays(list) {
+        if (chDay) chDay.destroy();
+        chDay = new Chart(document.getElementById('chDay'), {
+            type: 'bar',
+            data: { labels: list.map(d => new Date(d.collectionDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })),
+                    datasets: [{ data: list.map(d => d.amount), backgroundColor: '#14b8a6', borderRadius: 4, maxBarThickness: 36 }] },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false },
+                       tooltip: { callbacks: { label: c => ` ${money(c.raw)} · ${list[c.dataIndex].receiptCount} receipt(s)` } } },
+                       scales: { y: { beginAtZero: true, ticks: { callback: v => '₹' + Number(v).toLocaleString('en-IN') } }, x: { grid: { display: false } } } }
+        });
+    }
+
+    function renderCollectors(list) {
+        const max = Math.max(1, ...list.map(c => c.amount || 0));
+        $('#collectorList').html(list.length ? list.map(c => `<div class="mb-2">
+            <div class="d-flex justify-content-between"><span class="fw-semibold text-truncate me-2"><i class="bi bi-person-circle me-1 text-muted"></i>${esc(c.collectedBy)}</span>
+            <span class="amt fw-bold">${money(c.amount)}</span></div>
+            <div class="d-flex justify-content-between text-muted fs-9"><span>${c.receiptCount} receipt(s)</span></div>
+            <div class="mode-bar"><span style="width:${(c.amount / max * 100).toFixed(1)}%;background:#6366f1"></span></div></div>`).join('')
+            : '<div class="text-muted">No collection.</div>');
+    }
+
+    function applySort() {
+        view = rows.slice().sort((a, b) => {
+            let x = a[sortKey], y = b[sortKey];
+            if (sortKey === 'receiptDate') { x = new Date(x).getTime(); y = new Date(y).getTime(); }
+            if (typeof x === 'string') return x.localeCompare(y ?? '') * sortDir;
+            return ((x ?? 0) - (y ?? 0)) * sortDir;
+        });
+        $('#tblReceipts thead th[data-sort] .sort-ind').remove();
+        $(`#tblReceipts thead th[data-sort="${sortKey}"]`).append(`<i class="bi ${sortDir > 0 ? 'bi-caret-up-fill' : 'bi-caret-down-fill'} sort-ind"></i>`);
+        renderTable();
+    }
+
+    function renderTable() {
+        const size = parseInt($('#selPageSize').val()) || 0;
+        const pages = size ? Math.max(1, Math.ceil(view.length / size)) : 1;
+        page = Math.min(page, pages);
+        const start = size ? (page - 1) * size : 0;
+        const slice = size ? view.slice(start, start + size) : view;
+
+        $('#lblCount').text(view.length);
+        $('#stateEmpty').toggleClass('d-none', view.length > 0);
+        $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', view.length === 0);
+
+        $('#tbodyReceipts').html(slice.map((r, i) => {
+            const st = statusText(r.paymentStatus);
+            const stCls = r.paymentStatus === 'P' ? 'bg-success-subtle text-success border-success-subtle'
+                        : r.paymentStatus === 'R' ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle' : 'bg-danger-subtle text-danger border-danger-subtle';
+            return `<tr class="${r.isBillActive ? '' : 'row-cancelled'}">
+                <td class="ps-3 text-muted">${start + i + 1}</td>
+                <td><span class="rcpt-no">${esc(r.receiptNo || '—')}</span></td>
+                <td class="text-nowrap">${fmtDT(r.receiptDate)}</td>
+                <td><div class="fw-semibold font-monospace">${esc(r.billNo)}</div><div class="text-muted fs-9">${esc(r.tokenNo || '')} &middot; ${fmtD(r.billDate)}</div></td>
+                <td><div class="fw-semibold">${esc(r.patientName)}</div><div class="text-muted fs-9">${esc(r.patientCode)}${r.phoneNumber ? ' &middot; ' + esc(r.phoneNumber) : ''}</div></td>
+                <td><div>${esc(r.paymentMode)}</div>${r.paymentReference || r.bankName ? `<div class="text-muted fs-9">${esc([r.paymentReference, r.bankName].filter(Boolean).join(' · '))}</div>` : ''}</td>
+                <td class="text-end amt fw-bold text-success">${money(r.paidAmount)}</td>
+                <td class="text-end amt">${money(r.billNetAmount)}</td>
+                <td class="text-end amt">${money(r.billTotalPaid)}</td>
+                <td class="text-end amt ${r.billBalanceDue > 0 ? 'text-danger fw-semibold' : 'text-muted'}">${money(r.billBalanceDue)}</td>
+                <td><span class="badge border ${stCls}">${st}</span>${r.isBillActive ? '' : ' <span class="badge bg-danger">Bill cancelled</span>'}</td>
+                <td class="text-nowrap">${esc(r.collectedBy)}</td>
+                <td class="text-center no-print"><a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill"
+                     href="${billUrl}?labOrderId=${r.labOrderId}"><i class="bi bi-printer"></i></a></td>
+            </tr>`;
+        }).join(''));
+
+        const total = view.reduce((a, r) => a + (r.paidAmount || 0), 0);
+        $('#ftCount').text(view.length); $('#ftAmount').text(money(total));
+        $('#lblShowing').text(view.length ? `Showing ${start + 1}–${start + slice.length} of ${view.length}` : '');
+
+        const $p = $('#pager').empty();
+        if (size && pages > 1) {
+            const add = (label, p, dis, act) => $p.append(`<li class="page-item ${dis ? 'disabled' : ''} ${act ? 'active' : ''}"><a class="page-link" href="#" data-p="${p}">${label}</a></li>`);
+            add('&laquo;', page - 1, page === 1);
+            for (let p = Math.max(1, page - 2); p <= Math.min(pages, page + 2); p++) add(p, p, false, p === page);
+            add('&raquo;', page + 1, page === pages);
+        }
+    }
+
+    // ── export ──
+    function exportRows() {
+        return view.map((r, i) => ({
+            '#': i + 1, 'Receipt No': r.receiptNo, 'Receipt Date': fmtDT(r.receiptDate), 'Bill No': r.billNo, 'Token': r.tokenNo,
+            'Bill Date': fmtD(r.billDate), 'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mobile': r.phoneNumber,
+            'Payment Mode': r.paymentMode, 'Reference': [r.paymentReference, r.bankName].filter(Boolean).join(' / '),
+            'Amount Collected': r.paidAmount, 'Bill Net': r.billNetAmount, 'Bill Paid': r.billTotalPaid, 'Balance': r.billBalanceDue,
+            'Status': statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Bill cancelled)'), 'Collected By': r.collectedBy
+        }));
+    }
+    function fileBase() { return `B2C_Collection_Register_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`; }
+
+    $('#btnExcel').on('click', function () {
+        const data = exportRows();
+        data.push({ 'Payment Mode': 'TOTAL', 'Amount Collected': view.reduce((a, r) => a + (r.paidAmount || 0), 0) });
+        const ws = XLSX.utils.json_to_sheet(data), wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Collection Register');
+        XLSX.writeFile(wb, fileBase() + '.xlsx');
+    });
+
+    $('#btnPdf').on('click', function () {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        doc.setFontSize(13); doc.text('B2C Collection Register', 40, 36);
+        doc.setFontSize(9); doc.text(`${branchName ? 'Branch: ' + branchName + '   ' : ''}Period: ${$('#lblRange').text()}   Total: ${$('#kTotal').text().replace('₹', 'Rs. ')}   Receipts: ${view.length}`, 40, 52);
+        const body = view.map((r, i) => [i + 1, r.receiptNo || '', fmtDT(r.receiptDate), r.billNo || '', r.patientName + '\n' + (r.patientCode || ''),
+            r.paymentMode + (r.paymentReference ? '\n' + r.paymentReference : ''), (r.paidAmount || 0).toFixed(2), (r.billNetAmount || 0).toFixed(2),
+            (r.billBalanceDue || 0).toFixed(2), statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Cancelled)'), r.collectedBy]);
+        doc.autoTable({ startY: 62, head: [['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Mode', 'Collected', 'Bill Net', 'Balance', 'Status', 'Collected By']],
+            body, foot: [['', '', '', '', '', 'TOTAL', view.reduce((a, r) => a + (r.paidAmount || 0), 0).toFixed(2), '', '', '', '']],
+            styles: { fontSize: 7.5, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] }, footStyles: { fillColor: [241, 245, 249], textColor: 20, fontStyle: 'bold' },
+            columnStyles: { 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' } } });
+        doc.save(fileBase() + '.pdf');
+    });
+
+    $('#btnPrint').on('click', function () { $('#selPageSize').val('0'); renderTable(); setTimeout(() => window.print(), 150); });
+
+    // ── events ──
+    $('.btn-quick').on('click', function () { setRange($(this).data('range')); load(); });
+    $('#txtFrom, #txtTo').on('change', function () {
+        $('.btn-quick').removeClass('active');
+        if ($('#txtFrom').val() && $('#txtTo').val() && $('#txtTo').val() < $('#txtFrom').val()) $('#txtTo').val($('#txtFrom').val());
+        load();
+    });
+    $('#selMode, #selCollector').on('change', load);
+    $('#btnApply').on('click', load);
+    $('#txtSearch').on('keydown', e => { if (e.key === 'Enter') load(); });
+    $('#btnReset').on('click', function () { $('#selMode, #selCollector').val(''); $('#txtSearch').val(''); setRange('today'); load(); });
+    $('#selPageSize').on('change', function () { page = 1; renderTable(); });
+    $('#pager').on('click', 'a', function (e) { e.preventDefault(); const p = parseInt($(this).data('p')); if (p) { page = p; renderTable(); } });
+    $('#tblReceipts thead').on('click', 'th[data-sort]', function () {
+        const k = $(this).data('sort'); sortDir = (k === sortKey) ? -sortDir : (k === 'receiptDate' || k.endsWith('Amount') || k.startsWith('bill') && k !== 'billNo' ? -1 : 1);
+        sortKey = k; applySort();
+    });
+    window.addEventListener('pageshow', e => { if (e.persisted) { setRange('today'); load(); } });
+
+    setRange('today');
+    load();
+})();
+</script>
+}

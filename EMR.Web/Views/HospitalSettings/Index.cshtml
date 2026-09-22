@@ -335,7 +335,7 @@ else
         <div class="tab-pane fade module-tab-pane" id="tabLab" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#fd7e14"><i class="bi bi-eyedropper me-1"></i>LAB Configuration</span>
-                <span class="coming-soon-badge">6 active parameters</span>
+                <span class="coming-soon-badge">7 active parameters</span>
             </div>
 
             <div class="lab-section-title">Billing &amp; Sample Collection</div>
@@ -401,6 +401,16 @@ else
                             <div class="lp-label">Pathologist Approval Required</div>
                             <div class="lp-desc">Lab reports need a pathologist's approval before release.</div>
                             <span class="lp-pill @(Model.PathologistApprovalRequired ? "yes" : "no")"><i class="bi @(Model.PathologistApprovalRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.PathologistApprovalRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-printer-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Show LAB Report Print on List</div>
+                            <div class="lp-desc">No: hide the Print action against each report row in LAB listing screens.</div>
+                            <span class="lp-pill @(Model.ShowLabReportPrintOnList ? "yes" : "no")"><i class="bi @(Model.ShowLabReportPrintOnList ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.ShowLabReportPrintOnList ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>

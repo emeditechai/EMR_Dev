@@ -120,7 +120,8 @@ public class BillCancellationController(
                         result.CancellationNo,
                         result.CancelledAmount,
                         result.CancellationType,
-                        request.Reason
+                        request.Reason,
+                        request.AcknowledgeLabWarnings
                     }
                 );
             }

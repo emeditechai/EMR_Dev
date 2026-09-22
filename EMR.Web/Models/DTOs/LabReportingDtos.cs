@@ -124,6 +124,8 @@ namespace EMR.Web.Models.DTOs
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
+        public int? ReferralDoctorId { get; set; }
+        public string? ReferralDoctorName { get; set; }
         public string PaymentStatus { get; set; } = "U";
         public decimal TotalPaid { get; set; }
         public decimal BalanceDue { get; set; }
@@ -342,6 +344,11 @@ namespace EMR.Web.Models.DTOs
         public int? RefRangeId { get; set; }
         public decimal? LowValue { get; set; }
         public decimal? HighValue { get; set; }
+        /// <summary>'Critical Value' / 'Panic Value' when the matched reference range has that tier, else null.</summary>
+        public string? RangeTier { get; set; }
+        /// <summary>Critical / Panic limits: a result beyond them is flagged 'Critical' / 'Panic' (before L / H).</summary>
+        public decimal? LowThreshold { get; set; }
+        public decimal? HighThreshold { get; set; }
         public string? ReferenceRange { get; set; }
         public string? AbnormalFlag { get; set; }
         public int TATHours { get; set; } = 24;
