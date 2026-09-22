@@ -88,6 +88,18 @@
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body py-2 px-3">
         <form method="get" asp-action="B2COrderList" class="row g-2 align-items-end">
+            @if (ViewBag.Branches is IEnumerable<SelectListItem> branchList && branchList.Any())
+            {
+                <div class="col-auto">
+                    <label class="form-label small fw-semibold mb-1">Branch</label>
+                    <select name="branchId" class="form-select form-select-sm" onchange="this.form.submit()">
+                        @foreach (var b in branchList)
+                        {
+                            <option value="@b.Value" selected="@(b.Selected ? "selected" : null)">@b.Text</option>
+                        }
+                    </select>
+                </div>
+            }
             <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">From Date</label>
                 <input type="date" name="fromDate" value="@fromDate" class="form-control form-control-sm" />
@@ -124,6 +136,7 @@
                     <i class="bi bi-funnel-fill me-1"></i>Filter
                 </button>
                 <a asp-action="B2COrderList"
+                   asp-route-branchId="@Model.BranchId"
                    asp-route-fromDate="@DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd")"
                    asp-route-toDate="@DateTime.Today.ToString("yyyy-MM-dd")"
                    asp-route-pageSize="@Model.PageSize"
@@ -295,6 +308,7 @@
                                        asp-action="B2COrderList"
                                        asp-route-page="@(Model.Page - 1)"
                                        asp-route-pageSize="@Model.PageSize"
+                                       asp-route-branchId="@Model.BranchId"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
                                        asp-route-search="@Model.Search">
@@ -309,8 +323,8 @@
                                 {
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="1"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
+                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
                                     </li>
                                     @if (startPage > 2)
                                     {
@@ -321,8 +335,8 @@
                                 {
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@pg"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
+                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
                                     </li>
                                 }
                                 @if (endPage < Model.TotalPages)
@@ -333,8 +347,8 @@
                                     }
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@Model.TotalPages"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
                                     </li>
                                 }
                                 <li class="page-item @(!Model.HasNext ? "disabled" : "")">
@@ -342,6 +356,7 @@
                                        asp-action="B2COrderList"
                                        asp-route-page="@(Model.Page + 1)"
                                        asp-route-pageSize="@Model.PageSize"
+                                       asp-route-branchId="@Model.BranchId"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
                                        asp-route-search="@Model.Search">

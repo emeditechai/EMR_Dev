@@ -20,96 +20,260 @@
     } else if (cTypeLower.Contains("green") || cTypeLower.Contains("heparin")) {
         capBadgeClass = "cap-badge-green";
     }
+
+    bool isAutoCalculated = item.TestCode == "TST0045" || item.TestCode == "TST0046";
+    string formulaHint = item.TestCode switch
+    {
+        "TST0045" => "= Total cholesterol ÷ HDL",
+        "TST0046" => "= LDL cholesterol ÷ HDL",
+        _ => ""
+    };
+
+    bool isRejectedOrReCollect = item.CollectionstatusID == 3 || item.CollectionstatusID == 4;
+    bool hasValue = !isRejectedOrReCollect && !string.IsNullOrWhiteSpace(item.TestValue);
+    // No Reference Range configured for this test/patient => result entry is blocked until the range is configured.
+    // Values saved before this rule existed stay untouched (so those reports can still be validated / approved).
+    bool noRefRange = !item.RefRangeId.HasValue && !hasValue && !isRejectedOrReCollect;
+    bool isOrderFullyApproved = (ViewData["IsOrderApproved"] as bool? ?? false);
+    bool isApproved = (isOrderFullyApproved || item.ReportStatusId == 5) && hasValue;
+    // Transferred out of this branch and approved at the target branch: shown here for viewing / printing only.
+    // 'disabled' also keeps the row out of every Submit / Validate / Approve payload the page builds.
+    bool isOtherBranch = item.IsReadOnlyForBranch;
+    bool isLocked = isOtherBranch || isApproved || (hasValue && item.ReportStatusId >= 2) || isRejectedOrReCollect;
+    bool canEditRow = !isOtherBranch && hasValue && !isApproved && !isRejectedOrReCollect && (item.ReportStatusId == 2 || item.ReportStatusId == 3);
+    string currentFlag = isRejectedOrReCollect ? "" : (item.AbnormalFlag ?? "");
+    string lowValStr = item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+    string highValStr = item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
 }
 
-<td class="ps-3 text-muted fw-bold">@globalRowIndex</td>
-<td class="ps-3 ps-md-4">
-    <!-- Investigation Name -->
-    <div class="fw-bold text-dark fs-7 d-flex align-items-center gap-1.5">
-        <span>@item.TestName</span>
-    </div>
+<td class="ps-3 text-muted fw-bold align-top pt-2.5">@globalRowIndex</td>
 
-    <!-- Metadata details: Test Code, Barcode No, Department -->
+<!-- Investigation Column -->
+<td class="ps-2 ps-md-3 align-top pt-2.5">
+    <div class="fw-bold text-dark fs-7 lh-sm">
+        @item.TestName
+    </div>
     <div class="fs-9 text-muted mt-1 d-flex align-items-center gap-1.5 flex-wrap">
-        <span class="badge bg-light text-secondary border">@item.TestCode</span>
-
-        @if (!string.IsNullOrWhiteSpace(item.BarcodeNo))
+        <span class="font-monospace text-secondary fw-semibold">@item.TestCode</span>
+        <span class="text-secondary">•</span>
+        @if (isAutoCalculated)
         {
-            <span class="badge bg-light text-dark border font-monospace" title="Specimen Barcode No">
-                <i class="bi bi-upc-scan text-primary me-1"></i>Barcode: <strong>@item.BarcodeNo</strong>
-            </span>
+            <span class="badge bg-purple-subtle text-purple border border-purple-subtle fs-9">Auto-calculated</span>
         }
-
-        @if (!string.IsNullOrWhiteSpace(item.DepartmentName))
+        else if (!string.IsNullOrWhiteSpace(item.DepartmentName))
         {
-            <span class="text-muted"><i class="bi bi-building me-1"></i>@item.DepartmentName</span>
+            <span class="text-muted">@item.DepartmentName</span>
         }
     </div>
-</td>
-<td>
-    <span class="badge @capBadgeClass border fs-9">
-        <i class="bi bi-droplet-fill me-1"></i>@(item.ContainerType ?? "Standard Tube")
-    </span>
-    <div class="fs-9 text-muted mt-0.5">@(item.SampleTypeName ?? "Specimen")</div>
-    @if (!string.IsNullOrWhiteSpace(item.BarcodeNo))
+    @if (isRejectedOrReCollect)
     {
-        <div class="fs-9 font-monospace text-muted mt-0.5">
-            <i class="bi bi-upc-scan me-1"></i>@item.BarcodeNo
+        <div class="fs-9 mt-0.5 d-flex align-items-center gap-1">
+            @if (item.CollectionstatusID == 3)
+            {
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-9"><i class="bi bi-arrow-repeat me-1"></i>Re-Collect Pending</span>
+            }
+            else if (item.CollectionstatusID == 4)
+            {
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9"><i class="bi bi-x-circle me-1"></i>Sample Rejected</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(item.RejectionReason))
+            {
+                <span class="text-danger fs-9 text-truncate" style="max-width: 200px;" title="Reason: @item.RejectionReason">(@item.RejectionReason)</span>
+            }
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(item.MethodName))
+    {
+        <div class="fs-9 text-secondary mt-0.5 text-truncate" style="max-width: 250px;" title="Test Method: @item.MethodName">
+            <span class="text-muted">Method:</span> @item.MethodName
         </div>
     }
 </td>
-<td>
-    <span class="badge bg-light text-secondary border fs-9">@(string.IsNullOrWhiteSpace(item.UnitName) ? "—" : item.UnitName)</span>
-</td>
-<td>
-    <input type="text"
-           class="form-control form-control-sm test-val-input txt-test-val @(!string.IsNullOrWhiteSpace(item.TestValue) ? "has-value" : "")"
-           value="@(item.TestValue ?? "")"
-           placeholder="Enter result value..."
-           tabindex="@globalRowIndex"
-           autocomplete="off" />
-</td>
-<td>
-    <input type="text"
-           class="form-control form-control-sm fs-8 txt-test-remarks"
-           value="@(item.Remarks ?? "")"
-           placeholder="Optional interpretation / notes..."
-           autocomplete="off" />
-</td>
-<td class="text-center">
-    <span class="badge @item.ReportBadgeClass fs-9 row-status-badge">
-        @(string.IsNullOrWhiteSpace(item.ReportStatusName) ? "Pending Entry" : item.ReportStatusName)
+
+<!-- Sample / Tube Column -->
+<td class="align-top pt-2.5">
+    <span class="badge @capBadgeClass border fs-9 fw-semibold">
+        <i class="bi bi-droplet-fill me-1"></i>@(item.ContainerType ?? "Standard Tube")
     </span>
-    <div class="row-status-dates mt-1 fs-9">
-        @if (item.ApprovedDate.HasValue)
+    <div class="fs-9 text-muted mt-1 fw-medium">@(item.SampleTypeName ?? "Serum")</div>
+</td>
+
+<!-- Reference Range Column -->
+<td class="align-top pt-2.5">
+    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+        <span class="fw-bold text-dark fs-8 font-monospace">
+            @(string.IsNullOrWhiteSpace(item.ReferenceRange) ? "—" : item.ReferenceRange)
+        </span>
+        @if (!string.IsNullOrWhiteSpace(item.SpecialRemarks))
         {
-            <div class="text-info fw-semibold" title="Approved: @item.ApprovedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
-                <i class="bi bi-patch-check-fill me-0.5"></i>@item.ApprovedDate.Value.ToString("dd/MM hh:mm tt")
-            </div>
-        }
-        else if (item.ValidatedDate.HasValue)
-        {
-            <div class="text-success fw-semibold" title="Validated: @item.ValidatedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
-                <i class="bi bi-check2-circle me-0.5"></i>@item.ValidatedDate.Value.ToString("dd/MM hh:mm tt")
-            </div>
-        }
-        else if (item.SubmittedDate.HasValue)
-        {
-            <div class="text-primary fw-semibold" title="Submitted: @item.SubmittedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
-                <i class="bi bi-send-check me-0.5"></i>@item.SubmittedDate.Value.ToString("dd/MM hh:mm tt")
-            </div>
-        }
-        else if (item.DraftedDate.HasValue)
-        {
-            <div class="text-warning-emphasis fw-semibold" title="Drafted: @item.DraftedDate.Value.ToString("dd MMM yyyy, hh:mm tt")">
-                <i class="bi bi-pencil-square me-0.5"></i>@item.DraftedDate.Value.ToString("dd/MM hh:mm tt")
-            </div>
-        }
-        else if (item.LastSavedDate.HasValue)
-        {
-            <div class="text-muted">
-                Saved: @item.LastSavedDate.Value.ToString("hh:mm tt")
-            </div>
+            <i class="bi bi-info-circle text-primary opacity-75 fs-8" 
+               role="button" 
+               tabindex="0"
+               data-bs-toggle="tooltip" 
+               data-bs-placement="top" 
+               title="@item.SpecialRemarks"></i>
         }
     </div>
+</td>
+
+<!-- Unit Column -->
+<td class="align-top pt-2.5">
+    <span class="fw-semibold text-secondary fs-8">@(string.IsNullOrWhiteSpace(item.UnitName) ? "—" : item.UnitName)</span>
+</td>
+
+<!-- Result Value Column -->
+<td class="align-top pt-2">
+    <div class="d-flex align-items-center gap-1">
+        <input type="number"
+               step="any"
+               data-no-ref-range="@(!item.RefRangeId.HasValue && !hasValue ? "true" : "false")"
+               class="form-control form-control-sm result-val-numeric-input test-val-input txt-test-val @(hasValue ? "has-value" : "") @(noRefRange ? "no-ref-range" : "") @(isAutoCalculated ? "bg-light-subtle" : "") @(isLocked ? "is-locked bg-light text-dark" : "")"
+               value="@(isRejectedOrReCollect ? "" : (item.TestValue ?? ""))"
+               placeholder="@(isRejectedOrReCollect ? "Pending" : (noRefRange ? "N/A" : "Value"))"
+               tabindex="@globalRowIndex"
+               autocomplete="off"
+               title="@(isOtherBranch ? $"Processed at {item.TargetBranchName ?? "the target branch"} - this branch cannot change it" : "")"
+               @(isOtherBranch || isRejectedOrReCollect || noRefRange ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
+        
+        <button type="button" 
+                class="btn btn-outline-secondary btn-sm btn-edit-row py-1 px-1.5 shadow-2xs @(canEditRow ? "" : "d-none")" 
+                title="Edit Result Value">
+            <i class="bi bi-pencil-square text-primary"></i>
+        </button>
+    </div>
+    
+    @if (!item.RefRangeId.HasValue && !isRejectedOrReCollect && !hasValue)
+    {
+        <div class="no-ref-range-msg fs-9 mt-1" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Need to configure Reference Range first
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(formulaHint))
+    {
+        <div class="fs-9 text-muted font-monospace mt-1 formula-text" style="max-width: 140px; line-height: 1.2;">
+            @formulaHint
+        </div>
+    }
+    
+    <div class="delta-check-container mt-1 fs-9" style="max-width: 155px; line-height: 1.25; @(string.IsNullOrWhiteSpace(item.PreviousTestValue) ? "display:none;" : "")">
+        <div class="delta-prev-label text-muted">
+            Previous: <strong>@(item.PreviousTestValue ?? "")</strong> @(item.PreviousUnitSymbol ?? item.UnitName ?? "")
+            @if (item.PreviousOrderDate.HasValue)
+            {
+                <span class="text-secondary">(@item.PreviousOrderDate.Value.ToString("dd MMM"))</span>
+            }
+        </div>
+        <div class="delta-diff-display fw-semibold mt-0.5"></div>
+    </div>
+</td>
+
+<!-- Flag Column -->
+<td class="align-top pt-2.5 text-center">
+    @{
+        string flagText = "—";
+        string flagClass = "flag-none";
+        string flagVal = (item.AbnormalFlag ?? "").Trim();
+        if (string.IsNullOrEmpty(flagVal) && hasValue && decimal.TryParse(item.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal parsedVal))
+        {
+            if (item.LowValue.HasValue && parsedVal < item.LowValue.Value) { flagVal = "L"; }
+            else if (item.HighValue.HasValue && parsedVal > item.HighValue.Value) { flagVal = "H"; }
+            else if (item.LowValue.HasValue || item.HighValue.HasValue) { flagVal = "Normal"; }
+        }
+
+        if (flagVal.Equals("L", StringComparison.OrdinalIgnoreCase))
+        {
+            flagText = "L";
+            flagClass = "flag-l";
+        }
+        else if (flagVal.Equals("H", StringComparison.OrdinalIgnoreCase))
+        {
+            flagText = "H";
+            flagClass = "flag-h";
+        }
+        else if (flagVal.Equals("Normal", StringComparison.OrdinalIgnoreCase))
+        {
+            flagText = "Normal";
+            flagClass = "flag-normal";
+        }
+        else if (flagVal.Equals("Critical", StringComparison.OrdinalIgnoreCase))
+        {
+            flagText = "Critical";
+            flagClass = "flag-critical";
+        }
+    }
+    <span class="badge flag-badge @flagClass fs-8 px-2 py-1">@flagText</span>
+</td>
+
+<!-- Clinical Remarks / Notes Column -->
+<td class="align-top pt-2">
+    <input type="text"
+           class="form-control form-control-sm fs-8 txt-test-remarks @(isOtherBranch || isApproved || isRejectedOrReCollect ? "bg-light-subtle text-muted" : "")"
+           value="@(isRejectedOrReCollect ? "" : (item.Remarks ?? item.SpecialRemarks ?? ""))"
+           placeholder="@(isRejectedOrReCollect ? (item.CollectionstatusID == 3 ? "Re-Collect pending" : "Sample Rejected") : "Optional note")"
+           title="@(item.SpecialRemarks ?? "Optional interpretation / notes")"
+           autocomplete="off"
+           @(isOtherBranch || isRejectedOrReCollect ? "disabled=\"disabled\"" : (isApproved ? "readonly=\"readonly\"" : "")) />
+</td>
+
+<!-- Status Column -->
+<td class="align-top pt-2.5 text-center">
+    @{
+        string statusText = "Pending entry";
+        string statusClass = "bg-secondary-subtle text-secondary border border-secondary-subtle";
+
+        if (item.CollectionstatusID == 3)
+        {
+            statusText = "Pending (Re-Collect)";
+            statusClass = "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
+        }
+        else if (item.CollectionstatusID == 4)
+        {
+            statusText = "Pending (Rejected)";
+            statusClass = "bg-danger-subtle text-danger border border-danger-subtle";
+        }
+        else if (hasValue)
+        {
+            if (item.ReportStatusId == 5)
+            {
+                statusText = "Approved";
+                statusClass = "bg-info-subtle text-info border border-info-subtle";
+            }
+            else if (item.ReportStatusId == 3)
+            {
+                statusText = "Validated";
+                statusClass = "bg-success-subtle text-success border border-success-subtle";
+            }
+            else if (item.ReportStatusId == 1)
+            {
+                statusText = "Draft";
+                statusClass = "bg-warning-subtle text-warning border border-warning-subtle";
+            }
+            else
+            {
+                statusText = "Entered";
+                statusClass = "status-entered";
+            }
+        }
+    }
+    @{
+        // Stage timestamps (same "dd MMM yyyy, hh:mm tt" format as the banner date pills); null => attribute omitted
+        string? StageTime(DateTime? dt) => dt.HasValue ? dt.Value.ToString("dd MMM yyyy, hh:mm tt") : null;
+    }
+    @if (isOtherBranch)
+    {
+        <div class="mb-1">
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fs-9"
+                  title="The sample was transferred to @(item.TargetBranchName ?? "another branch"), which entered and approved this result. It is read-only here.">
+                <i class="bi bi-lock-fill me-1"></i>@(item.TargetBranchName ?? "Other branch")
+            </span>
+        </div>
+    }
+    <span class="badge fs-9 row-status-badge @statusClass"
+          data-time-drafted="@StageTime(item.DraftedDate)"
+          data-time-submitted="@StageTime(item.SubmittedDate)"
+          data-time-validated="@StageTime(item.ValidatedDate)"
+          data-time-approved="@StageTime(item.ApprovedDate)">
+        @statusText
+    </span>
 </td>

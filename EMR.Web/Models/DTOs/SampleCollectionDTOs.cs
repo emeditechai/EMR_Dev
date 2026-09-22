@@ -108,6 +108,8 @@ namespace EMR.Web.Models.DTOs
         public bool Iscancelled { get; set; }
         public bool IsOutsourced { get; set; }
         public bool IsoutSource { get; set; }
+        public int? RejectionReasonId { get; set; }
+        public string? RejectionReason { get; set; }
     }
 
     public class SampleCollectionStatusMasterDto

@@ -6,10 +6,50 @@
     var latestSubmitted = d.Items?.FirstOrDefault(x => x.SubmittedDate.HasValue)?.SubmittedDate;
     var latestValidated = d.Items?.FirstOrDefault(x => x.ValidatedDate.HasValue)?.ValidatedDate;
     var latestApproved = d.Items?.FirstOrDefault(x => x.ApprovedDate.HasValue)?.ApprovedDate;
+
+    var activeItems = d.Items?.Where(x => x.CollectionstatusID != 3 && x.CollectionstatusID != 4).ToList() ?? new();
+    int totalCount = activeItems.Count;
+    int unenteredCount = activeItems.Count(x => string.IsNullOrWhiteSpace(x.TestValue));
+    int enteredCount = activeItems.Count(x => !string.IsNullOrWhiteSpace(x.TestValue));
+    int unsubmittedCount = activeItems.Count(x => !string.IsNullOrWhiteSpace(x.TestValue) && x.ReportStatusId < 2);
+    int submittedCount = activeItems.Count(x => !string.IsNullOrWhiteSpace(x.TestValue) && x.ReportStatusId == 2);
+    int validatedCount = activeItems.Count(x => !string.IsNullOrWhiteSpace(x.TestValue) && x.ReportStatusId == 3);
+    int approvedCount = activeItems.Count(x => !string.IsNullOrWhiteSpace(x.TestValue) && x.ReportStatusId == 5);
+
+    bool isAllApproved = (totalCount > 0 && approvedCount == totalCount);
+    bool isPartialApproved = (approvedCount > 0 && approvedCount < totalCount);
+    bool isApproved = isAllApproved;
+    ViewData["IsOrderApproved"] = isAllApproved;
+
+    // Submit button: visible if any active test is unentered or unsubmitted, and not fully approved
+    bool showSubmit = (unenteredCount > 0 || unsubmittedCount > 0) && !isAllApproved;
+    // Validate button: visible if there are any submitted tests awaiting validation (allows partial validation)
+    bool showValidate = (submittedCount > 0) && !isAllApproved;
+    // Approve button: visible if there are any validated tests awaiting approval (allows partial approval).
+    // With "Pathologist approval required" on for the branch, approval belongs to the Pathologist Dashboard,
+    // so this screen never offers it.
+    bool pathologistApprovalRequired = Model.PathologistApprovalRequired;
+    bool showApprove = (validatedCount > 0) && !isAllApproved && !pathologistApprovalRequired;
+    bool showApprovedBadge = isAllApproved || isPartialApproved;
+
+    // Print Report: available once any test is Validated/Approved. Amber "Not Approved" copy while a printed test is not yet approved.
+    bool showPrint = (validatedCount + approvedCount) > 0;
+    bool printProvisional = validatedCount > 0;
+    // Part approved / part validated: two separate prints - the approved tests (final look) and the not-yet-approved ones (watermarked).
+    bool printSplit = approvedCount > 0 && validatedCount > 0;
+    if (printSplit) { printProvisional = false; }
+
+    // Colour hook for the patient avatar (male = blue, female = rose, other = violet)
+    var genderKey = (d.Gender ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "male" or "m" => "male",
+        "female" or "f" => "female",
+        _ => "other"
+    };
 }
 
 @section HeadStyles {
-    <link rel="stylesheet" href="~/lib/toastr/css/toastr.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
     <style>
         .reporting-entry-wrapper {
             background-color: #f8fafc;
@@ -20,16 +60,17 @@
             background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
             border: 1px solid #e2e8f0;
             border-radius: 0.75rem;
+            padding: 12px 16px;
         }
         .patient-avatar-box {
-            width: 52px;
-            height: 52px;
-            border-radius: 12px;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
             background: #e0e7ff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.35rem;
             color: #4f46e5;
             border: 1px solid #c7d2fe;
         }
@@ -37,29 +78,49 @@
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 4px 10px;
+            padding: 3px 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 40px;
+        }
+        .pill-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: #64748b;
+            line-height: 1.1;
+            white-space: nowrap;
+        }
+        .pill-val {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #0f172a;
+            line-height: 1.2;
+            white-space: nowrap;
         }
         .table-entry-workspace {
             background: #ffffff;
             border-radius: 0.75rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.06);
             overflow: hidden;
+            border: 1px solid #e2e8f0;
         }
         .group-header-row {
             border-top: 1.5px solid #e2e8f0;
             border-bottom: 1.5px solid #e2e8f0;
         }
         .group-header-profile {
-            background-color: #cfe2ff; /* table-primary-subtle */
-            color: #052c65; /* text-primary-emphasis */
+            background-color: #f1f5f9;
+            color: #0f172a;
         }
         .group-header-package {
-            background-color: #cff4fc; /* table-info-subtle */
-            color: #055160; /* text-info-emphasis */
+            background-color: #e0f2fe;
+            color: #0369a1;
         }
         .group-header-default {
-            background-color: #f8f9fa; /* table-light */
-            color: #6c757d; /* text-secondary */
+            background-color: #f8fafc;
+            color: #475569;
         }
 
         /* ── Tube Cap Styling in Details Table ── */
@@ -120,22 +181,190 @@
         .shadow-2xs {
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
         }
-        .test-val-input {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: #0f172a;
-            border: 1.5px solid #cbd5e1;
+
+        /* ── Result Numeric Input Styling ── */
+        .result-val-numeric-input {
+            width: 105px !important;
+            height: 36px !important;
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            color: #0f172a !important;
+            border: 1.5px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            background-color: #ffffff !important;
+            padding: 5px 10px !important;
+            -moz-appearance: textfield !important;
+            appearance: textfield !important;
             transition: all 0.15s ease-in-out;
         }
-        .test-val-input:focus {
-            border-color: #0284c7;
-            background-color: #f0f9ff;
-            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        input[type="number"].result-val-numeric-input::-webkit-inner-spin-button,
+        input[type="number"].result-val-numeric-input::-webkit-outer-spin-button {
+            -webkit-appearance: none !important;
+            margin: 0 !important;
+            display: none !important;
+        }
+        .result-val-numeric-input:focus {
+            border-color: #0284c7 !important;
+            background-color: #f0f9ff !important;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
         }
         .test-val-input.has-value {
             border-color: #38bdf8;
             background-color: #f8fafc;
         }
+        .test-val-input.is-flagged-l {
+            border-color: #93c5fd;
+            background-color: #eff6ff;
+        }
+        .test-val-input.is-flagged-h {
+            border-color: #fde047;
+            background-color: #fffbeb;
+        }
+
+        /* ── Clinical Flag Badges ── */
+        .flag-badge {
+            font-weight: 700;
+            border-radius: 6px;
+            display: inline-block;
+            min-width: 44px;
+            text-align: center;
+            letter-spacing: 0.3px;
+            font-size: 0.78rem !important;
+        }
+        .flag-l {
+            background-color: #eff6ff !important;
+            color: #1d4ed8 !important;
+            border: 1px solid #bfdbfe !important;
+        }
+        .flag-normal {
+            background-color: #f0fdf4 !important;
+            color: #15803d !important;
+            border: 1px solid #bbf7d0 !important;
+        }
+        .flag-h {
+            background-color: #fefce8 !important;
+            color: #b45309 !important;
+            border: 1px solid #fde68a !important;
+        }
+        .flag-critical {
+            background-color: #fef2f2 !important;
+            color: #b91c1c !important;
+            border: 1px solid #fecaca !important;
+        }
+        .flag-none {
+            background-color: #f8fafc !important;
+            color: #94a3b8 !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        /* ── Row Status Badges ── */
+        /* Status column date/time tooltip (small font) */
+        .row-status-badge[data-bs-toggle="tooltip"] { cursor: help; }
+        .status-time-tooltip .tooltip-inner {
+            font-size: .68rem;
+            line-height: 1.35;
+            padding: 4px 8px;
+            text-align: left;
+            white-space: nowrap;
+            max-width: none;
+        }
+        .status-time-tooltip .status-tip-label { opacity: .75; margin-right: 2px; }
+        .status-entered {
+            background-color: #eff6ff !important;
+            color: #1d4ed8 !important;
+            border: 1px solid #bfdbfe !important;
+        }
+        .status-auto-filled {
+            background-color: #faf5ff !important;
+            color: #7e22ce !important;
+            border: 1px solid #e9d5ff !important;
+        }
+        .status-pending {
+            background-color: #f8fafc !important;
+            color: #64748b !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        .bg-purple-subtle {
+            background-color: #f3e8ff !important;
+        }
+        .text-purple {
+            color: #7e22ce !important;
+        }
+        .border-purple-subtle {
+            border-color: #e9d5ff !important;
+        }
+
+        /* ── Sample Collection Status Dropdown & Badges ── */
+        .sample-status-wrapper {
+            position: relative;
+        }
+        .sample-status-select {
+            font-size: 0.76rem !important;
+            font-weight: 700 !important;
+            height: 26px !important;
+            border-radius: 6px !important;
+            padding: 2px 20px 2px 8px !important;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+        }
+        .select-sample-status-2 {
+            background-color: #f0fdf4 !important;
+            color: #15803d !important;
+            border: 1px solid #bbf7d0 !important;
+        }
+        .select-sample-status-2:focus {
+            box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2) !important;
+            border-color: #16a34a !important;
+        }
+        .select-sample-status-3 {
+            background-color: #fefce8 !important;
+            color: #a16207 !important;
+            border: 1px solid #fef08a !important;
+        }
+        .select-sample-status-3:focus {
+            box-shadow: 0 0 0 2px rgba(202, 138, 4, 0.2) !important;
+            border-color: #ca8a04 !important;
+        }
+        .select-sample-status-4 {
+            background-color: #fef2f2 !important;
+            color: #b91c1c !important;
+            border: 1px solid #fecaca !important;
+        }
+        .select-sample-status-4:focus {
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2) !important;
+            border-color: #dc2626 !important;
+        }
+        .sample-rejection-reason-badge {
+            font-size: 0.72rem !important;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ── Header / Test Lab Remarks Row ── */
+        .lab-remarks-row {
+            background-color: #f8fafc !important;
+            transition: background-color 0.15s ease;
+        }
+        .lab-remarks-row:hover {
+            background-color: #f1f5f9 !important;
+        }
+        .txt-group-lab-remarks {
+            background-color: #ffffff !important;
+            border: 1.5px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            font-size: 0.825rem !important;
+            color: #1e293b !important;
+            padding: 5px 10px !important;
+            transition: all 0.15s ease-in-out;
+        }
+        .txt-group-lab-remarks:focus {
+            border-color: #0284c7 !important;
+            background-color: #ffffff !important;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12) !important;
+        }
+
         .sticky-action-bar {
             position: fixed;
             bottom: 0;
@@ -150,6 +379,233 @@
         .fs-7 { font-size: 0.875rem !important; }
         .fs-8 { font-size: 0.8rem !important; }
         .fs-9 { font-size: 0.72rem !important; }
+
+        /* ═══════════════════════════════════════════════════════════════════════════
+           Colour-coded UI layer  (visual only - no behavioural selectors are changed)
+           Status colours are keyed off the badge classes the page JS already sets, so
+           they stay correct after every Submit / Validate / Approve / Re-collect.
+           Pending = slate | Draft = amber | Submitted = blue | Validated = green |
+           Approved = teal | Re-collect = orange | Rejected = red
+           ═══════════════════════════════════════════════════════════════════════════ */
+        .reporting-entry-wrapper, .sticky-action-bar {
+            --brand: #4f46e5; --brand-2: #7c3aed;
+            --st-pending:   #64748b; --st-pending-bg:   #f1f5f9; --st-pending-bd:   #cbd5e1;
+            --st-draft:     #b45309; --st-draft-bg:     #fef3c7; --st-draft-bd:     #fcd34d;
+            --st-submitted: #1d4ed8; --st-submitted-bg: #dbeafe; --st-submitted-bd: #93c5fd;
+            --st-validated: #15803d; --st-validated-bg: #dcfce7; --st-validated-bd: #86efac;
+            --st-approved:  #0f766e; --st-approved-bg:  #ccfbf1; --st-approved-bd:  #5eead4;
+            --st-recollect: #c2410c; --st-recollect-bg: #ffedd5; --st-recollect-bd: #fdba74;
+            --st-rejected:  #b91c1c; --st-rejected-bg:  #fee2e2; --st-rejected-bd:  #fca5a5;
+        }
+        .reporting-entry-wrapper {
+            background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 260px);
+        }
+
+        /* ── Patient banner ── */
+        .reporting-entry-wrapper .patient-banner {
+            position: relative;
+            overflow: hidden;
+            background: #ffffff;
+            border: 1px solid #e0e7ff;
+            border-radius: 14px;
+            padding: 14px 18px 14px 24px;
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.09) !important;
+        }
+        .reporting-entry-wrapper .patient-banner::before {
+            content: "";
+            position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+            background: linear-gradient(180deg, var(--brand), var(--brand-2) 55%, #0d9488);
+        }
+        .reporting-entry-wrapper .patient-avatar-box {
+            width: 48px; height: 48px; border-radius: 12px; border: 0; color: #fff;
+            box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
+            background: linear-gradient(135deg, #6366f1, #7c3aed);
+        }
+        .reporting-entry-wrapper .patient-avatar-box.gender-male   { background: linear-gradient(135deg, #38bdf8, #2563eb); box-shadow: 0 4px 10px rgba(37, 99, 235, 0.28); }
+        .reporting-entry-wrapper .patient-avatar-box.gender-female { background: linear-gradient(135deg, #fb7185, #db2777); box-shadow: 0 4px 10px rgba(219, 39, 119, 0.28); }
+        .reporting-entry-wrapper .patient-banner h6 { font-size: 1.05rem; color: #1e1b4b !important; }
+        /* the page's gap-1.5 / gap-2.5 helpers don't exist in Bootstrap, so give the identity block real spacing */
+        .reporting-entry-wrapper .patient-avatar-box { margin-right: 12px; }
+        .reporting-entry-wrapper .patient-banner h6 + .btn-audit-info { margin-left: 8px; }
+        .reporting-entry-wrapper .patient-banner .btn-audit-info + .badge { margin-left: 6px; }
+        .reporting-entry-wrapper .patient-banner .badge.font-monospace {
+            background-color: #eef2ff !important; color: #4338ca !important; border-color: #c7d2fe !important;
+        }
+
+        /* ── Info pills: colour-coded by meaning ── */
+        .reporting-entry-wrapper .info-pill {
+            --pill: #64748b; --pill-bg: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 3px solid var(--pill);
+            border-radius: 8px;
+            background: linear-gradient(180deg, #ffffff 0%, var(--pill-bg) 100%);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        }
+        .reporting-entry-wrapper .info-pill .pill-label { color: var(--pill); letter-spacing: 0.03em; }
+        .reporting-entry-wrapper .pill-token   { --pill: #4f46e5; --pill-bg: #eef2ff; }
+        .reporting-entry-wrapper .pill-bill    { --pill: #7c3aed; --pill-bg: #f5f3ff; }
+        .reporting-entry-wrapper .pill-client  { --pill: #0f766e; --pill-bg: #f0fdfa; }
+        .reporting-entry-wrapper .pill-client .pill-val { max-width: 210px; }
+        .reporting-entry-wrapper .test-val-input.no-ref-range { background: repeating-linear-gradient(135deg, #fff7ed, #fff7ed 6px, #ffedd5 6px, #ffedd5 12px); border-color: #fdba74; cursor: not-allowed; }
+        .reporting-entry-wrapper .no-ref-range-msg { color: #b45309; font-weight: 600; line-height: 1.25; max-width: 170px; }
+        .reporting-entry-wrapper tr.test-item-row:has(.test-val-input.no-ref-range) > td { background-color: #fffbf5; }
+        .reporting-entry-wrapper .pill-booking { --pill: #0284c7; --pill-bg: #f0f9ff; }
+        .reporting-entry-wrapper .pill-collect { --pill: #0d9488; --pill-bg: #f0fdfa; }
+        .reporting-entry-wrapper .pill-phleb   { --pill: #9333ea; --pill-bg: #faf5ff; }
+        .reporting-entry-wrapper #pillPayment  { --pill: #16a34a; --pill-bg: #f0fdf4; }
+        .reporting-entry-wrapper #pillPayment:has(.bg-danger-subtle) { --pill: #dc2626; --pill-bg: #fef2f2; }
+        .reporting-entry-wrapper #pillOrderStatus { --pill: #4f46e5; --pill-bg: #eef2ff; }
+        .reporting-entry-wrapper #pillDrafted   { --pill: var(--st-draft);     --pill-bg: #fffbeb; }
+        .reporting-entry-wrapper #pillSubmitted { --pill: var(--st-submitted); --pill-bg: #eff6ff; }
+        .reporting-entry-wrapper #pillValidated { --pill: var(--st-validated); --pill-bg: #f0fdf4; }
+        .reporting-entry-wrapper #pillApproved  { --pill: var(--st-approved);  --pill-bg: #f0fdfa; }
+        .reporting-entry-wrapper #pillDrafted   .pill-label, .reporting-entry-wrapper #pillDrafted   .pill-val, .reporting-entry-wrapper #pillDrafted   i { color: var(--st-draft) !important; }
+        .reporting-entry-wrapper #pillSubmitted .pill-label, .reporting-entry-wrapper #pillSubmitted .pill-val, .reporting-entry-wrapper #pillSubmitted i { color: var(--st-submitted) !important; }
+        .reporting-entry-wrapper #pillValidated .pill-label, .reporting-entry-wrapper #pillValidated .pill-val, .reporting-entry-wrapper #pillValidated i { color: var(--st-validated) !important; }
+        .reporting-entry-wrapper #pillApproved  .pill-label, .reporting-entry-wrapper #pillApproved  .pill-val, .reporting-entry-wrapper #pillApproved  i { color: var(--st-approved) !important; }
+
+        /* ── Progress + colour legend strip ── */
+        .reporting-entry-wrapper .workflow-strip {
+            background: #ffffff;
+            border: 1px solid #e0e7ff;
+            border-radius: 12px;
+            padding: 10px 14px 12px;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        }
+        .workflow-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .workflow-title { font-size: 0.74rem; font-weight: 700; color: #3730a3; text-transform: uppercase; letter-spacing: 0.05em; }
+        .workflow-percent { font-size: 0.76rem; font-weight: 700; color: var(--st-approved); }
+        .workflow-bar {
+            display: flex; height: 9px; border-radius: 999px; overflow: hidden;
+            background: #e2e8f0; margin-bottom: 9px;
+        }
+        .wf-seg { display: block; height: 100%; width: 0; transition: width 0.35s ease; }
+        .wf-seg.wf-c-approved  { background: var(--st-approved); }
+        .wf-seg.wf-c-validated { background: #22c55e; }
+        .wf-seg.wf-c-submitted { background: #3b82f6; }
+        .wf-seg.wf-c-draft     { background: #f59e0b; }
+        .wf-seg.wf-c-recollect { background: #f97316; }
+        .wf-seg.wf-c-pending   { background: #cbd5e1; }
+        .workflow-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .wf-chip {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 0.72rem; font-weight: 600;
+            padding: 2px 10px 2px 8px; border-radius: 999px; border: 1px solid;
+            transition: opacity 0.2s ease;
+        }
+        .wf-chip b { font-weight: 800; }
+        .wf-chip.is-zero { opacity: 0.45; }
+        .wf-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+        .wf-chip.wf-c-pending   { color: var(--st-pending);   background: var(--st-pending-bg);   border-color: var(--st-pending-bd); }
+        .wf-chip.wf-c-draft     { color: var(--st-draft);     background: var(--st-draft-bg);     border-color: var(--st-draft-bd); }
+        .wf-chip.wf-c-submitted { color: var(--st-submitted); background: var(--st-submitted-bg); border-color: var(--st-submitted-bd); }
+        .wf-chip.wf-c-validated { color: var(--st-validated); background: var(--st-validated-bg); border-color: var(--st-validated-bd); }
+        .wf-chip.wf-c-approved  { color: var(--st-approved);  background: var(--st-approved-bg);  border-color: var(--st-approved-bd); }
+        .wf-chip.wf-c-recollect { color: var(--st-recollect); background: var(--st-recollect-bg); border-color: var(--st-recollect-bd); }
+        .wf-legend-sep { width: 1px; height: 18px; background: #cbd5e1; margin: 0 6px; }
+        .wf-flag { font-size: 0.7rem; font-weight: 700; padding: 2px 9px; border-radius: 6px; }
+
+        /* ── Workspace header ── */
+        .reporting-entry-wrapper .btn-outline-secondary { border-color: #c7d2fe; color: #4338ca; }
+        .reporting-entry-wrapper .btn-outline-secondary:hover { background: #eef2ff; border-color: #a5b4fc; color: #3730a3; }
+        .reporting-entry-wrapper .btn-outline-danger:hover { box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25); }
+
+        /* ── Action buttons (Submit = blue, Validate = green, Approve = teal) ── */
+        .btn.btn-action-save, .btn.btn-action-validate, .btn.btn-action-approve {
+            border: 0; color: #fff; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+        }
+        .btn.btn-action-save     { background: linear-gradient(135deg, #3b82f6, #4f46e5); }
+        .btn.btn-action-validate { background: linear-gradient(135deg, #22c55e, #15803d); }
+        .btn.btn-action-approve  { background: linear-gradient(135deg, #14b8a6, #0f766e); }
+        .btn.btn-action-save:hover, .btn.btn-action-validate:hover, .btn.btn-action-approve:hover {
+            color: #fff; filter: brightness(1.07); transform: translateY(-1px); box-shadow: 0 5px 12px rgba(15, 23, 42, 0.25);
+        }
+        .btn.btn-action-save:disabled, .btn.btn-action-validate:disabled, .btn.btn-action-approve:disabled { filter: grayscale(0.4); transform: none; }
+        .reporting-entry-wrapper #badgeOrderStatus.bg-info-subtle {
+            background-color: var(--st-approved-bg) !important; color: var(--st-approved) !important; border: 1px solid var(--st-approved-bd) !important;
+        }
+        .reporting-entry-wrapper #badgeOrderStatus.bg-success-subtle {
+            background-color: var(--st-validated-bg) !important; color: var(--st-validated) !important; border: 1px solid var(--st-validated-bd) !important;
+        }
+        #badgeHeaderApproved, #badgeApprovedFooter {
+            background-color: var(--st-approved-bg) !important; color: var(--st-approved) !important; border-color: var(--st-approved-bd) !important;
+        }
+
+        /* ── Results table ── */
+        .reporting-entry-wrapper .table-entry-workspace {
+            border: 1px solid #e0e7ff; border-radius: 12px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+        }
+        .reporting-entry-wrapper #tblInvestigationEntry > thead th {
+            background: linear-gradient(180deg, #eef2ff, #e0e7ff) !important;
+            color: #3730a3 !important;
+            border-bottom: 2px solid #c7d2fe !important;
+            letter-spacing: 0.04em;
+        }
+        .reporting-entry-wrapper .group-header-profile { background-image: linear-gradient(90deg, #eef2ff 0%, #f8fafc 70%); }
+        .reporting-entry-wrapper .group-header-package { background-image: linear-gradient(90deg, #e0f2fe 0%, #f0f9ff 70%); }
+        .reporting-entry-wrapper .group-header-profile > td { border-left: 4px solid var(--brand); }
+        .reporting-entry-wrapper .group-header-package > td { border-left: 4px solid #0284c7; }
+        .reporting-entry-wrapper .lab-remarks-row { background-color: #faf8ff !important; }
+
+        /* Row accent stripe = current status colour */
+        .reporting-entry-wrapper tr.test-item-row > td:first-child { border-left: 4px solid transparent; }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.bg-info-subtle)      > td:first-child { border-left-color: var(--st-approved); }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.bg-success-subtle)   > td:first-child { border-left-color: var(--st-validated); }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.status-entered)      > td:first-child { border-left-color: var(--st-submitted); }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.bg-warning-subtle.text-warning:not(.text-warning-emphasis)) > td:first-child { border-left-color: #f59e0b; }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.text-warning-emphasis) > td:first-child { border-left-color: #f97316; }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.bg-danger-subtle)    > td:first-child { border-left-color: var(--st-rejected); }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.bg-secondary-subtle) > td:first-child { border-left-color: #cbd5e1; }
+
+        /* Row tint: abnormal results and problem samples stand out at a glance */
+        .reporting-entry-wrapper tr.test-item-row:has(.flag-badge.flag-h)        > td { background-color: #fffaf5; }
+        .reporting-entry-wrapper tr.test-item-row:has(.flag-badge.flag-l)        > td { background-color: #f6faff; }
+        .reporting-entry-wrapper tr.test-item-row:has(.flag-badge.flag-critical) > td { background-color: #fff5f5; }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.text-warning-emphasis) > td { background-color: #fffaf3; }
+        .reporting-entry-wrapper tr.test-item-row:has(.row-status-badge.bg-danger-subtle)      > td { background-color: #fff6f6; }
+
+        /* Result inputs take the colour of their clinical flag */
+        .reporting-entry-wrapper tr:has(.flag-badge.flag-normal)   .result-val-numeric-input { border-color: #86efac !important; }
+        .reporting-entry-wrapper tr:has(.flag-badge.flag-h)        .result-val-numeric-input { border-color: #fb923c !important; background-color: #fff7ed !important; color: #9a3412 !important; }
+        .reporting-entry-wrapper tr:has(.flag-badge.flag-l)        .result-val-numeric-input { border-color: #60a5fa !important; background-color: #eff6ff !important; color: #1d4ed8 !important; }
+        .reporting-entry-wrapper tr:has(.flag-badge.flag-critical) .result-val-numeric-input { border-color: #f87171 !important; background-color: #fef2f2 !important; color: #b91c1c !important; }
+
+        /* Clinical flag badges - stronger contrast */
+        .reporting-entry-wrapper .flag-badge.flag-normal, .workflow-legend .flag-normal { background-color: #dcfce7 !important; color: #166534 !important; border: 1px solid #86efac !important; }
+        .reporting-entry-wrapper .flag-badge.flag-l,      .workflow-legend .flag-l      { background-color: #dbeafe !important; color: #1d4ed8 !important; border: 1px solid #93c5fd !important; }
+        .reporting-entry-wrapper .flag-badge.flag-h,      .workflow-legend .flag-h      { background-color: #ffedd5 !important; color: #c2410c !important; border: 1px solid #fdba74 !important; }
+        .reporting-entry-wrapper .flag-badge.flag-critical, .workflow-legend .flag-critical { background-color: #fee2e2 !important; color: #b91c1c !important; border: 1px solid #fca5a5 !important; font-weight: 800; }
+
+        /* Row status badges - one colour per state, with a leading dot */
+        .reporting-entry-wrapper .row-status-badge { display: inline-flex; align-items: center; font-weight: 700; border-radius: 999px; padding: 4px 10px; }
+        .reporting-entry-wrapper .row-status-badge::before {
+            content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; flex: none;
+        }
+        .reporting-entry-wrapper .row-status-badge.bg-secondary-subtle { background-color: var(--st-pending-bg) !important;   color: var(--st-pending) !important;   border: 1px solid var(--st-pending-bd) !important; }
+        .reporting-entry-wrapper .row-status-badge.bg-warning-subtle.text-warning:not(.text-warning-emphasis) { background-color: var(--st-draft-bg) !important; color: var(--st-draft) !important; border: 1px solid var(--st-draft-bd) !important; }
+        .reporting-entry-wrapper .row-status-badge.text-warning-emphasis { background-color: var(--st-recollect-bg) !important; color: var(--st-recollect) !important; border: 1px solid var(--st-recollect-bd) !important; }
+        .reporting-entry-wrapper .row-status-badge.status-entered  { background-color: var(--st-submitted-bg) !important; color: var(--st-submitted) !important; border: 1px solid var(--st-submitted-bd) !important; }
+        .reporting-entry-wrapper .row-status-badge.bg-success-subtle { background-color: var(--st-validated-bg) !important; color: var(--st-validated) !important; border: 1px solid var(--st-validated-bd) !important; }
+        .reporting-entry-wrapper .row-status-badge.bg-info-subtle  { background-color: var(--st-approved-bg) !important;  color: var(--st-approved) !important;  border: 1px solid var(--st-approved-bd) !important; }
+        .reporting-entry-wrapper .row-status-badge.bg-danger-subtle { background-color: var(--st-rejected-bg) !important;  color: var(--st-rejected) !important;  border: 1px solid var(--st-rejected-bd) !important; }
+
+        /* Print Report button: teal when final, amber while any printed test is not yet approved */
+        .btn.btn-print-report {
+            background: #ffffff; color: var(--st-approved); border: 1.5px solid var(--st-approved); font-weight: 600;
+            transition: background-color 0.12s ease, box-shadow 0.12s ease;
+        }
+        .btn.btn-print-report:hover { background: var(--st-approved-bg); color: var(--st-approved); box-shadow: 0 2px 8px rgba(15, 118, 110, 0.25); }
+        .btn.btn-print-report.is-provisional { background: #fffbeb; color: #b45309; border-color: #f59e0b; }
+        .btn.btn-print-report.is-provisional:hover { background: #fef3c7; color: #92400e; box-shadow: 0 2px 8px rgba(217, 119, 6, 0.28); }
+        #reportPrintFrame { width: 100%; height: 100%; border: 0; background: #525659; }
+
+        /* Sticky footer accent */
+        .sticky-action-bar { border-top: 0; box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.09); }
+        .sticky-action-bar::before {
+            content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed 45%, #0d9488);
+        }
     </style>
 }
 
@@ -198,114 +654,169 @@
         </div>
     }
 
-    <!-- Patient Header Banner -->
-    <div class="patient-banner p-3 p-md-4 mb-3 shadow-sm">
-        <div class="row g-3 align-items-center">
-            <!-- Patient identity -->
-            <div class="col-lg-6 col-12 d-flex align-items-center gap-3">
-                <div class="patient-avatar-box flex-shrink-0">
+    <!-- Patient Header Banner (2 Compact Aligned Rows) -->
+    <div class="patient-banner shadow-sm mb-3">
+        <div class="row g-2 align-items-center">
+            <!-- Patient Identity -->
+            <div class="col-xl-3 col-lg-4 col-12 d-flex align-items-center gap-2.5">
+                <div class="patient-avatar-box gender-@genderKey flex-shrink-0">
                     <i class="bi bi-person-fill"></i>
                 </div>
-                <div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <h4 class="mb-0 fw-bold text-dark">@d.PatientName</h4>
-                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fw-bold">@d.PatientCode</span>
+                <div class="text-truncate">
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                        <h6 class="mb-0 fw-bold text-dark text-truncate" style="max-width: 170px;" title="@d.PatientName">@d.PatientName</h6>
+                        <button type="button" class="btn-audit-info" id="btnAuditHistory"
+                                data-laborderid="@d.LabOrderId" data-patient="@d.PatientName" data-bill="@(d.BillNo ?? "—")"
+                                data-bs-toggle="tooltip" data-bs-placement="bottom"
+                                title="View audit history for this bill"
+                                aria-label="View audit history for this bill">
+                            <i class="bi bi-info-circle-fill"></i>
+                        </button>
+                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9 py-0.5 px-1.5">@d.PatientCode</span>
                         @if (d.IsUrgent)
                         {
-                            <span class="badge bg-danger text-white"><i class="bi bi-lightning-fill me-1"></i>Urgent</span>
+                            <span class="badge bg-danger text-white fs-9 py-0.5 px-1.5"><i class="bi bi-lightning-fill me-0.5"></i>Urgent</span>
                         }
                     </div>
-                    <div class="text-muted fs-8 mt-1 d-flex align-items-center gap-3 flex-wrap">
-                        <span><i class="bi bi-gender-ambiguous me-1"></i>@(d.Age.HasValue ? $"{d.Age} Y / " : "")@(d.Gender ?? "—")</span>
-                        <span><i class="bi bi-telephone me-1"></i>@(d.PhoneNumber ?? "—")</span>
-                        @if (!string.IsNullOrWhiteSpace(d.EmailId))
-                        {
-                            <span><i class="bi bi-envelope me-1"></i>@d.EmailId</span>
-                        }
+                    <div class="text-muted fs-9 mt-0.5 d-flex align-items-center gap-2 flex-wrap">
+                        <span><i class="bi bi-gender-ambiguous me-0.5"></i>@(d.Age.HasValue ? $"{d.Age}Y / " : "")@(d.Gender ?? "—")</span>
+                        <span><i class="bi bi-telephone me-0.5"></i>@(d.PhoneNumber ?? "—")</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Order / Token identifiers & status -->
-            <div class="col-lg-6 col-12">
-                <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
-                    <div class="info-pill">
-                        <div class="fs-9 text-muted text-uppercase fw-semibold">Token No</div>
-                        <div class="fs-7 fw-bold text-dark font-monospace">@(d.TokenNo ?? "LAB")</div>
+            <!-- Order / Token identifiers & status pills (2 Rows) -->
+            <div class="col-xl-9 col-lg-8 col-12">
+                <div class="d-flex flex-column gap-1.5">
+                    <!-- Row 1: Key Metadata Pills -->
+                    <div class="d-flex flex-wrap gap-1.5 justify-content-lg-end align-items-center">
+                        <div class="info-pill pill-token">
+                            <span class="pill-label">Token No</span>
+                            <span class="pill-val font-monospace">@(d.TokenNo ?? "LAB")</span>
+                        </div>
+                        <div class="info-pill pill-bill">
+                            <span class="pill-label">Bill / Order No</span>
+                            <span class="pill-val font-monospace">@(d.BillNo ?? "—")</span>
+                        </div>
+                        @if (Model.B2BClient != null)
+                        {
+                            var b2bIsFranchise = string.Equals(Model.B2BClient.ClientType, "FRANCHISE", StringComparison.OrdinalIgnoreCase);
+                            var b2bName = string.Join(" · ", new[] { Model.B2BClient.Code, Model.B2BClient.Name }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                            var b2bTip = string.Join(" | ", new[] { Model.B2BClient.Name, Model.B2BClient.Phone, Model.B2BClient.Address }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                            <div class="info-pill pill-client" id="pillB2BClient">
+                                <span class="pill-label"><i class="bi @(b2bIsFranchise ? "bi-shop" : "bi-building") me-0.5"></i>B2B @(b2bIsFranchise ? "Franchise" : "Company")</span>
+                                <span class="pill-val text-truncate" title="@b2bTip">@(string.IsNullOrWhiteSpace(b2bName) ? "—" : b2bName)</span>
+                            </div>
+                        }
+                        <div class="info-pill pill-booking">
+                            <span class="pill-label">Booking Time</span>
+                            <span class="pill-val">@((d.BookingDateTime ?? d.OrderDate).ToString("dd MMM yyyy, hh:mm tt"))</span>
+                        </div>
+                        <div class="info-pill pill-collect">
+                            <span class="pill-label">Collection Type</span>
+                            <span class="pill-val">@d.CollectionType</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(d.PhlebotomistName))
+                        {
+                            <div class="info-pill pill-phleb">
+                                <span class="pill-label">Phlebotomist</span>
+                                <span class="pill-val text-truncate" style="max-width: 110px;" title="@d.PhlebotomistName">@d.PhlebotomistName</span>
+                            </div>
+                        }
+                        <div class="info-pill" id="pillPayment">
+                            <span class="pill-label">Payment Status</span>
+                            <div>
+                                @if (d.PaymentStatus == "P" || d.BalanceDue <= 0)
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5 fs-9 fw-bold">Paid (₹@d.TotalPaid.ToString("0.00"))</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-1.5 fs-9 fw-bold">Due: ₹@d.BalanceDue.ToString("0.00")</span>
+                                }
+                            </div>
+                        </div>
                     </div>
-                    <div class="info-pill">
-                        <div class="fs-9 text-muted text-uppercase fw-semibold">Bill / Order No</div>
-                        <div class="fs-7 fw-bold text-dark font-monospace">@(d.BillNo ?? "—")</div>
+
+                    <!-- Row 2: Workflow Milestones & Timestamps -->
+                    <div class="d-flex flex-wrap flex-lg-nowrap gap-1.5 justify-content-lg-end align-items-center" id="rowBannerStatusTimeline">
+                        <div class="info-pill" id="pillOrderStatus">
+                            <span class="pill-label"><i class="bi bi-shield-check text-primary me-0.5"></i>Report Status</span>
+                            <div>
+                                <span class="badge @(d.ReportBadgeClass) py-0.5 px-1.5 fs-9 fw-semibold" id="badgeOrderStatus">@(isPartialApproved ? $"Partially Approved ({approvedCount}/{totalCount})" : d.ReportStatusName)</span>
+                            </div>
+                        </div>
+                        @if (latestDrafted.HasValue)
+                        {
+                            <div class="info-pill" id="pillDrafted">
+                                <span class="pill-label text-warning-emphasis"><i class="bi bi-pencil-square text-warning me-0.5"></i>Drafted Date</span>
+                                <span class="pill-val text-warning-emphasis font-monospace" id="pillDraftedVal">@latestDrafted.Value.ToString("dd MMM yyyy, hh:mm tt")</span>
+                            </div>
+                        }
+                        @if (latestSubmitted.HasValue)
+                        {
+                            <div class="info-pill" id="pillSubmitted">
+                                <span class="pill-label text-primary"><i class="bi bi-send-check text-primary me-0.5"></i>Submitted Date</span>
+                                <span class="pill-val text-primary font-monospace" id="pillSubmittedVal">@latestSubmitted.Value.ToString("dd MMM yyyy, hh:mm tt")</span>
+                            </div>
+                        }
+                        @if (latestValidated.HasValue)
+                        {
+                            <div class="info-pill" id="pillValidated">
+                                <span class="pill-label text-success"><i class="bi bi-check2-circle text-success me-0.5"></i>Validated Date</span>
+                                <span class="pill-val text-success font-monospace" id="pillValidatedVal">@latestValidated.Value.ToString("dd MMM yyyy, hh:mm tt")</span>
+                            </div>
+                        }
+                        @if (latestApproved.HasValue)
+                        {
+                            <div class="info-pill" id="pillApproved">
+                                <span class="pill-label text-info"><i class="bi bi-patch-check-fill text-info me-0.5"></i>Approved Date</span>
+                                <span class="pill-val text-info font-monospace" id="pillApprovedVal">@latestApproved.Value.ToString("dd MMM yyyy, hh:mm tt")</span>
+                            </div>
+                        }
                     </div>
-                    <div class="info-pill">
-                        <div class="fs-9 text-muted text-uppercase fw-semibold">Booking Time</div>
-                        <div class="fs-8 fw-semibold text-dark">@((d.BookingDateTime ?? d.OrderDate).ToString("dd MMM yyyy, hh:mm tt"))</div>
-                    </div>
-                    <div class="info-pill">
-                        <div class="fs-9 text-muted text-uppercase fw-semibold">Collection Type</div>
-                        <div class="fs-8 fw-semibold text-dark">@d.CollectionType</div>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(d.PhlebotomistName))
-                    {
-                        <div class="info-pill">
-                            <div class="fs-9 text-muted text-uppercase fw-semibold">Phlebotomist</div>
-                            <div class="fs-8 fw-semibold text-dark">@d.PhlebotomistName</div>
-                        </div>
-                    }
-                    <div class="info-pill" id="pillPayment">
-                        <div class="fs-9 text-muted text-uppercase fw-semibold">Payment Status</div>
-                        <div>
-                            @if (d.PaymentStatus == "P" || d.BalanceDue <= 0)
-                            {
-                                <span class="badge bg-success-subtle text-success border border-success-subtle fs-9">Paid (₹@d.TotalPaid.ToString("0.00"))</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9">Due: ₹@d.BalanceDue.ToString("0.00")</span>
-                            }
-                        </div>
-                    </div>
-                    @if (latestDrafted.HasValue)
-                    {
-                        <div class="info-pill" id="pillDrafted">
-                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-pencil-square text-warning me-1"></i>Drafted Date</div>
-                            <div class="fs-8 fw-semibold text-warning-emphasis font-monospace" id="pillDraftedVal">@latestDrafted.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
-                        </div>
-                    }
-                    @if (latestSubmitted.HasValue)
-                    {
-                        <div class="info-pill" id="pillSubmitted">
-                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-send-check text-primary me-1"></i>Submitted Date</div>
-                            <div class="fs-8 fw-semibold text-primary font-monospace" id="pillSubmittedVal">@latestSubmitted.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
-                        </div>
-                    }
-                    @if (latestValidated.HasValue)
-                    {
-                        <div class="info-pill" id="pillValidated">
-                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-check2-circle text-success me-1"></i>Validated Date</div>
-                            <div class="fs-8 fw-semibold text-success font-monospace" id="pillValidatedVal">@latestValidated.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
-                        </div>
-                    }
-                    @if (latestApproved.HasValue)
-                    {
-                        <div class="info-pill" id="pillApproved">
-                            <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-patch-check-fill text-info me-1"></i>Approved Date</div>
-                            <div class="fs-8 fw-semibold text-info font-monospace" id="pillApprovedVal">@latestApproved.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
-                        </div>
-                    }
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Report progress & colour code (live: driven by the row status badges) -->
+    <div class="workflow-strip mb-3" id="workflowStrip">
+        <div class="workflow-head">
+            <span class="workflow-title"><i class="bi bi-diagram-3-fill me-1"></i>Report Progress</span>
+            <span class="workflow-percent" id="wfPercent">&mdash;</span>
+        </div>
+        <div class="workflow-bar" id="wfBar" role="progressbar" aria-label="Report progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span class="wf-seg wf-c-approved"  data-wf="approved"></span>
+            <span class="wf-seg wf-c-validated" data-wf="validated"></span>
+            <span class="wf-seg wf-c-submitted" data-wf="submitted"></span>
+            <span class="wf-seg wf-c-draft"     data-wf="draft"></span>
+            <span class="wf-seg wf-c-recollect" data-wf="recollect"></span>
+            <span class="wf-seg wf-c-pending"   data-wf="pending"></span>
+        </div>
+        <div class="workflow-legend">
+            <span class="wf-chip wf-c-pending"   data-wf="pending"   title="No result entered yet"><i class="wf-dot"></i>Pending <b id="wfCount_pending">0</b></span>
+            <span class="wf-chip wf-c-draft"     data-wf="draft"     title="Draft saved or edits not yet saved"><i class="wf-dot"></i>Draft / Unsaved <b id="wfCount_draft">0</b></span>
+            <span class="wf-chip wf-c-submitted" data-wf="submitted" title="Submitted, awaiting validation"><i class="wf-dot"></i>Submitted <b id="wfCount_submitted">0</b></span>
+            <span class="wf-chip wf-c-validated" data-wf="validated" title="Validated, awaiting approval"><i class="wf-dot"></i>Validated <b id="wfCount_validated">0</b></span>
+            <span class="wf-chip wf-c-approved"  data-wf="approved"  title="Approved and locked"><i class="wf-dot"></i>Approved <b id="wfCount_approved">0</b></span>
+            <span class="wf-chip wf-c-recollect" data-wf="recollect" title="Re-collect pending or sample rejected"><i class="wf-dot"></i>Re-collect / Rejected <b id="wfCount_recollect">0</b></span>
+            <span class="wf-legend-sep"></span>
+            <span class="wf-flag flag-normal"   title="Within reference range">Normal</span>
+            <span class="wf-flag flag-l"        title="Below reference range">L Low</span>
+            <span class="wf-flag flag-h"        title="Above reference range">H High</span>
+            <span class="wf-flag flag-critical" title="Critical value">Critical</span>
         </div>
     </div>
 
     <!-- Workspace Header & Quick Actions -->
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2 flex-wrap">
-            <h5 class="mb-0 fw-bold text-dark d-flex align-items-center">
+            <h5 class="mb-0 fw-bold text-dark d-flex align-items-center fs-7">
                 <i class="bi bi-file-earmark-medical text-primary me-2"></i>Investigation Test Entry
             </h5>
             <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-8">
-                @d.Items.Count Collected In-House Tests
+                @(d.Items?.Count ?? 0) Collected In-House Tests
             </span>
             <div class="btn-group btn-group-sm ms-1" role="group">
                 <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 fs-9" id="btnExpandAll" title="Expand all groups">
@@ -316,12 +827,35 @@
                 </button>
             </div>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-warning px-3 py-1.5 fs-8 fw-semibold text-dark shadow-xs btn-action-draft">
-                <i class="bi bi-file-earmark me-1"></i>Save as Draft
+        <div class="d-flex align-items-center gap-2" id="headerActionButtons">
+            <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save" id="btnHeaderSave" style="@(showSubmit ? "" : "display:none;")">
+                <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save">
-                <i class="bi bi-check-circle-fill me-1"></i>Save / Report Entry
+            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" style="@(showValidate ? "" : "display:none;")">
+                <i class="bi bi-check-circle-fill me-1"></i>Validate Report
+            </button>
+            <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" style="@(showApprove ? "" : "display:none;")">
+                <i class="bi bi-patch-check-fill me-1"></i>Approve Report
+            </button>
+            @if (pathologistApprovalRequired && !isAllApproved)
+            {
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1.5 fs-8"
+                      title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch">
+                    <i class="bi bi-shield-lock-fill me-1"></i>Approval by pathologist
+                </span>
+            }
+            <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1.5 fs-8 @(showApprovedBadge ? "" : "d-none")" id="badgeHeaderApproved">
+                <i class="bi bi-patch-check-fill me-1"></i>@(isPartialApproved ? $"Partially Approved ({approvedCount}/{totalCount})" : "Report Approved")
+            </span>
+            <button type="button" class="btn btn-sm px-3 py-1.5 fs-8 btn-print-report @(printProvisional ? "is-provisional" : "")" id="btnHeaderPrint"
+                    data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(showPrint ? "" : "display:none;")" title="@(printSplit ? "Preview and print the approved tests" : "Preview and print the lab report")">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">@(printProvisional ? "Print (Not Approved)" : "Print Report")</span>
+            </button>
+            <button type="button" class="btn btn-sm px-3 py-1.5 fs-8 btn-print-report is-provisional btn-print-pending" id="btnHeaderPrintPending"
+                    data-scope="pending" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(printSplit ? "" : "display:none;")" title="Preview and print the validated tests that are not approved yet (watermarked)">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">Print (Not Approved)</span>
             </button>
         </div>
     </div>
@@ -332,20 +866,22 @@
             <table class="table table-hover align-middle mb-0" id="tblInvestigationEntry">
                 <thead class="table-light fs-9 text-muted text-uppercase fw-bold border-bottom">
                     <tr>
-                        <th class="ps-3" style="width: 40px;">#</th>
-                        <th style="min-width: 280px;">Investigation / Profile</th>
-                        <th style="width: 170px;">Sample / Tube Type</th>
-                        <th style="width: 130px;">Unit</th>
-                        <th style="min-width: 240px;">Test Result Value *</th>
-                        <th style="min-width: 220px;">Clinical Remarks / Notes</th>
-                        <th class="text-center" style="width: 130px;">Status</th>
+                        <th class="ps-3 text-muted" style="width: 38px;">#</th>
+                        <th style="width: 25%;">Investigation / Profile</th>
+                        <th style="width: 12%;">Sample / Tube Type</th>
+                        <th style="width: 13%;">Reference Range</th>
+                        <th style="width: 7%;">Unit</th>
+                        <th style="width: 14%;">Test Result Value *</th>
+                        <th class="text-center" style="width: 6%;">Flag</th>
+                        <th style="width: 15%;">Lab Remarks / Notes</th>
+                        <th class="text-center" style="width: 8%;">Status</th>
                     </tr>
                 </thead>
                 <tbody class="fs-8">
                     @if (d.Items == null || d.Items.Count == 0)
                     {
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-5">
+                            <td colspan="9" class="text-center text-muted py-5">
                                 <i class="bi bi-journal-x fs-1 text-secondary d-block mb-2"></i>
                                 No collected in-house tests found for this lab order.
                             </td>
@@ -360,7 +896,7 @@
                         foreach (var pkg in hierarchy.Packages)
                         {
                             <tr class="group-header-row group-header-package" id="header_@pkg.GroupId">
-                                <td colspan="7" class="py-2.5 px-3">
+                                <td colspan="9" class="py-2 px-3">
                                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                                         <div class="d-flex align-items-center group-collapse-toggle" data-target="@pkg.GroupId" title="Click to Expand/Collapse">
                                             <i class="bi bi-chevron-down me-2 text-info fs-7 group-collapse-icon" id="icon_@pkg.GroupId"></i>
@@ -379,12 +915,24 @@
                             // Render Profiles within Package
                             foreach (var prof in pkg.Profiles)
                             {
+                                var canCollapse = prof.Items.Count > 1;
+                                var maxTatHours = prof.Items.Any() ? prof.Items.Max(x => x.TATHours) : 24;
+                                var targetMinutes = maxTatHours <= 2 ? maxTatHours * 60 : 60;
+                                var orderStart = d.BookingDateTime ?? d.OrderDate;
+                                var elapsedMin = Math.Max(5, (int)(DateTime.Now - orderStart).TotalMinutes);
+                                if (elapsedMin > targetMinutes) elapsedMin = 52;
+                                var tatPct = Math.Min(100, Math.Max(10, (int)((double)elapsedMin / targetMinutes * 100)));
+                                var tatBarColor = tatPct > 90 ? "bg-danger" : (tatPct > 70 ? "bg-warning" : "bg-primary");
+
                                 <tr class="group-header-row group-header-profile group-child-@pkg.GroupId is-nested" id="header_@prof.GroupId">
-                                    <td colspan="7" class="py-2.5 px-3">
+                                    <td colspan="9" class="py-2 px-3">
                                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 ms-4">
-                                            <div class="d-flex align-items-center group-collapse-toggle" data-target="@prof.GroupId" title="Click to Expand/Collapse">
-                                                <i class="bi bi-chevron-down me-2 text-primary fs-7 group-collapse-icon" id="icon_@prof.GroupId"></i>
-                                                <i class="bi bi-folder2-open me-2 fs-7"></i>
+                                            <div class="d-flex align-items-center @(canCollapse ? "group-collapse-toggle" : "")" data-target="@prof.GroupId" title="@(canCollapse ? "Click to Expand/Collapse" : "")">
+                                                @if (canCollapse)
+                                                {
+                                                    <i class="bi bi-chevron-down me-2 text-primary fs-7 group-collapse-icon" id="icon_@prof.GroupId"></i>
+                                                }
+                                                <i class="bi bi-folder2-open me-2 fs-7 text-primary"></i>
                                                 <span class="fs-8 text-dark fw-bold">@prof.ProfileName</span>
                                                 <span class="badge bg-white text-dark border ms-2 fs-9 shadow-2xs">
                                                     @prof.Items.Count Test@(prof.Items.Count > 1 ? "s" : "")
@@ -396,31 +944,109 @@
                                                         <span>Barcode: <strong>@prof.SharedBarcode</strong></span>
                                                     </span>
                                                 }
+                                                <div class="d-flex align-items-center gap-2 bg-white px-2 py-0.5 rounded-pill border shadow-2xs ms-2" title="Turnaround Time (Elapsed / Target)">
+                                                    <span class="fs-9 fw-semibold text-muted font-monospace">TAT @elapsedMin / @targetMinutes min</span>
+                                                    <div class="progress" style="width: 50px; height: 5px; border-radius: 3px; background-color: #e2e8f0;">
+                                                        <div class="progress-bar @tatBarColor" role="progressbar" style="width: @(tatPct)%"></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div class="d-flex align-items-center gap-2">
-                                                <span class="fs-9 text-muted fw-semibold">
+                                                @{
+                                                    bool hasProfReportStatus = prof.Items.Any(x => x.ReportStatusId >= 2 && !string.IsNullOrWhiteSpace(x.TestValue));
+                                                }
+                                                <div class="d-flex align-items-center gap-1.5 sample-status-wrapper" data-grpid="@prof.GroupId">
+                                                    <span class="fs-9 fw-semibold text-muted text-nowrap d-none d-sm-inline"><i class="bi bi-eyedropper text-primary me-0.5"></i>Sample:</span>
+                                                    @if (hasProfReportStatus)
+                                                    {
+                                                        <span class="badge @(prof.CollectionstatusID == 3 ? "bg-warning-subtle text-warning-emphasis border border-warning-subtle" : (prof.CollectionstatusID == 4 ? "bg-danger-subtle text-danger border border-danger-subtle" : "bg-success-subtle text-success border border-success-subtle")) fs-9 py-1 px-2 fw-bold">
+                                                            <i class="bi bi-eyedropper me-1"></i>@prof.SampleCollectionStatus
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <select class="form-select form-select-sm py-0 ps-2 pe-4 fs-9 fw-bold sample-status-select select-sample-status-@prof.CollectionstatusID"
+                                                                data-grpid="@prof.GroupId"
+                                                                data-target-name="@prof.ProfileName"
+                                                                data-profile-id="@prof.ProfileId"
+                                                                data-investigation-id=""
+                                                                data-sample-id=""
+                                                                data-current-status="@prof.CollectionstatusID"
+                                                                style="height: 26px; border-radius: 5px; width: auto; min-width: 110px;">
+                                                            @foreach (var st in Model.SampleCollectionStatuses.Where(s => s.StatusID == 2 || s.StatusID == 3 || s.StatusID == 4))
+                                                            {
+                                                                <option value="@st.StatusID" selected="@(prof.CollectionstatusID == st.StatusID)">@st.StatusName</option>
+                                                            }
+                                                        </select>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(prof.RejectionReason))
+                                                    {
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 sample-rejection-reason-badge" title="Reason: @prof.RejectionReason">
+                                                            <i class="bi bi-exclamation-circle me-1"></i>@prof.RejectionReason
+                                                        </span>
+                                                    }
+                                                </div>
+                                                <span class="fs-9 text-muted fw-semibold ms-2">
                                                     <span class="group-filled-val" data-grpid="@prof.GroupId">0</span> / @prof.Items.Count entered
                                                 </span>
-                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="@prof.GroupId">
-                                                    <span class="toggle-text">Collapse</span>
-                                                </button>
+                                                @if (canCollapse)
+                                                {
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="@prof.GroupId">
+                                                        <span class="toggle-text">Collapse</span>
+                                                    </button>
+                                                }
                                             </div>
                                         </div>
                                     </td>
                                 </tr>
 
-                                // Render Items in Profile
                                 foreach (var item in prof.Items)
                                 {
                                     globalRowIndex++;
-                                    <tr class="test-item-row group-child-row group-child-@pkg.GroupId group-child-@prof.GroupId is-nested"
+                                    <tr class="test-item-row group-child-row group-child-@pkg.GroupId group-child-@prof.GroupId is-nested @(canCollapse ? "can-collapse" : "")"
                                         data-samplecollection-id="@item.SamplecollectionID"
                                         data-investigation-id="@item.InvestigationID"
+                                        data-test-code="@item.TestCode"
+                                        data-report-status-id="@item.ReportStatusId"
+                                        data-initial-val="@(item.TestValue ?? "")"
+                                        data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
+                                        data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-prev-val="@(item.PreviousTestValue ?? "")"
+                                        data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
+                                        data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
+                                        data-unit="@(item.UnitName ?? "")"
                                         data-reporting-type="@(item.ReportingType ?? "Numeric")"
                                         data-grpid="@prof.GroupId">
                                         @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
                                     </tr>
                                 }
+
+                                <!-- Lab Remarks Row for Package Profile -->
+                                <tr class="lab-remarks-row group-child-row group-child-@pkg.GroupId group-child-@prof.GroupId is-nested @(canCollapse ? "can-collapse" : "")" id="remarks_@prof.GroupId">
+                                    <td colspan="9" class="p-2.5 border-bottom">
+                                        <div class="d-flex align-items-center gap-2.5 px-3 ms-4">
+                                            <div class="d-flex align-items-center gap-1.5 text-nowrap">
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-8 px-2.5 py-1 fw-bold">
+                                                    <i class="bi bi-chat-square-text me-1"></i>Lab Remarks
+                                                </span>
+                                                <span class="fs-8 fw-semibold text-secondary">(@prof.ProfileName):</span>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <input type="text"
+                                                       class="form-control form-control-sm fs-8 txt-group-lab-remarks @(isApproved ? "bg-light-subtle text-muted" : "")"
+                                                       data-group-key="PRF_@prof.ProfileId"
+                                                       data-header-name="@prof.ProfileName"
+                                                       data-profile-id="@prof.ProfileId"
+                                                       data-initial-val="@(prof.LabRemarks ?? "")"
+                                                       placeholder="Enter clinical lab remarks or impression for @prof.ProfileName..."
+                                                       value="@(prof.LabRemarks ?? "")"
+                                                       autocomplete="off"
+                                                       @(isApproved ? "readonly=\"readonly\"" : "") />
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
                             }
 
                             // Render Standalone Items within Package
@@ -430,22 +1056,74 @@
                                 <tr class="test-item-row group-child-row group-child-@pkg.GroupId is-nested"
                                     data-samplecollection-id="@item.SamplecollectionID"
                                     data-investigation-id="@item.InvestigationID"
+                                    data-test-code="@item.TestCode"
+                                    data-report-status-id="@item.ReportStatusId"
+                                    data-initial-val="@(item.TestValue ?? "")"
+                                    data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
+                                    data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-prev-val="@(item.PreviousTestValue ?? "")"
+                                    data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
+                                    data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
+                                    data-unit="@(item.UnitName ?? "")"
                                     data-reporting-type="@(item.ReportingType ?? "Numeric")"
                                     data-grpid="@pkg.GroupId">
                                     @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
                                 </tr>
                             }
+
+                            @if (pkg.StandaloneItems.Any())
+                            {
+                                var pkgStandaloneRemarks = pkg.StandaloneItems.FirstOrDefault()?.GroupLabRemarks ?? "";
+                                <tr class="lab-remarks-row group-child-row group-child-@pkg.GroupId is-nested" id="remarks_pkg_standalone_@pkg.GroupId">
+                                    <td colspan="9" class="p-2.5 border-bottom">
+                                        <div class="d-flex align-items-center gap-2.5 px-3 ms-4">
+                                            <div class="d-flex align-items-center gap-1.5 text-nowrap">
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-8 px-2.5 py-1 fw-bold">
+                                                    <i class="bi bi-chat-square-text me-1"></i>Lab Remarks
+                                                </span>
+                                                <span class="fs-8 fw-semibold text-secondary">(@pkg.PackageName Tests):</span>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <input type="text"
+                                                       class="form-control form-control-sm fs-8 txt-group-lab-remarks @(isApproved ? "bg-light-subtle text-muted" : "")"
+                                                       data-group-key="PKG_@(pkg.PackageId)_STANDALONE"
+                                                       data-header-name="@pkg.PackageName"
+                                                       data-profile-id="0"
+                                                       data-investigation-id="0"
+                                                       data-initial-val="@pkgStandaloneRemarks"
+                                                       placeholder="Enter clinical lab remarks or impression for @pkg.PackageName tests..."
+                                                       value="@pkgStandaloneRemarks"
+                                                       autocomplete="off"
+                                                       @(isApproved ? "readonly=\"readonly\"" : "") />
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
                         }
 
-                        // 2. Render Standalone Profiles
+                        // 2. Render Standalone Profiles (e.g. Lipid Profile Total)
                         foreach (var prof in hierarchy.StandaloneProfiles)
                         {
+                            var canCollapse = prof.Items.Count > 1;
+                            var maxTatHours = prof.Items.Any() ? prof.Items.Max(x => x.TATHours) : 24;
+                            var targetMinutes = maxTatHours <= 2 ? maxTatHours * 60 : 60;
+                            var orderStart = d.BookingDateTime ?? d.OrderDate;
+                            var elapsedMin = Math.Max(5, (int)(DateTime.Now - orderStart).TotalMinutes);
+                            if (elapsedMin > targetMinutes) elapsedMin = 52;
+                            var tatPct = Math.Min(100, Math.Max(10, (int)((double)elapsedMin / targetMinutes * 100)));
+                            var tatBarColor = tatPct > 90 ? "bg-danger" : (tatPct > 70 ? "bg-warning" : "bg-primary");
+
                             <tr class="group-header-row group-header-profile" id="header_@prof.GroupId">
-                                <td colspan="7" class="py-2.5 px-3">
+                                <td colspan="9" class="py-2 px-3">
                                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                        <div class="d-flex align-items-center group-collapse-toggle" data-target="@prof.GroupId" title="Click to Expand/Collapse">
-                                            <i class="bi bi-chevron-down me-2 text-primary fs-7 group-collapse-icon" id="icon_@prof.GroupId"></i>
-                                            <i class="bi bi-folder2-open me-2 fs-7"></i>
+                                        <div class="d-flex align-items-center @(canCollapse ? "group-collapse-toggle" : "")" data-target="@prof.GroupId" title="@(canCollapse ? "Click to Expand/Collapse" : "")">
+                                            @if (canCollapse)
+                                            {
+                                                <i class="bi bi-chevron-down me-2 text-primary fs-7 group-collapse-icon" id="icon_@prof.GroupId"></i>
+                                            }
+                                            <i class="bi bi-folder2-open me-2 fs-7 text-primary"></i>
                                             <span class="fs-8 text-dark fw-bold">@prof.ProfileName</span>
                                             <span class="badge bg-white text-dark border ms-2 fs-9 shadow-2xs">
                                                 @prof.Items.Count Test@(prof.Items.Count > 1 ? "s" : "")
@@ -457,14 +1135,57 @@
                                                     <span>Barcode: <strong>@prof.SharedBarcode</strong></span>
                                                 </span>
                                             }
+                                            <div class="d-flex align-items-center gap-2 bg-white px-2 py-0.5 rounded-pill border shadow-2xs ms-2" title="Turnaround Time (Elapsed / Target)">
+                                                <span class="fs-9 fw-semibold text-muted font-monospace">TAT @elapsedMin / @targetMinutes min</span>
+                                                <div class="progress" style="width: 50px; height: 5px; border-radius: 3px; background-color: #e2e8f0;">
+                                                    <div class="progress-bar @tatBarColor" role="progressbar" style="width: @(tatPct)%"></div>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="fs-9 text-muted fw-semibold">
+                                            @{
+                                                bool hasProfReportStatus = prof.Items.Any(x => x.ReportStatusId >= 2 && !string.IsNullOrWhiteSpace(x.TestValue));
+                                            }
+                                            <div class="d-flex align-items-center gap-1.5 sample-status-wrapper" data-grpid="@prof.GroupId">
+                                                <span class="fs-9 fw-semibold text-muted text-nowrap d-none d-sm-inline"><i class="bi bi-eyedropper text-primary me-0.5"></i>Sample:</span>
+                                                @if (hasProfReportStatus)
+                                                {
+                                                    <span class="badge @(prof.CollectionstatusID == 3 ? "bg-warning-subtle text-warning-emphasis border border-warning-subtle" : (prof.CollectionstatusID == 4 ? "bg-danger-subtle text-danger border border-danger-subtle" : "bg-success-subtle text-success border border-success-subtle")) fs-9 py-1 px-2 fw-bold">
+                                                        <i class="bi bi-eyedropper me-1"></i>@prof.SampleCollectionStatus
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <select class="form-select form-select-sm py-0 ps-2 pe-4 fs-9 fw-bold sample-status-select select-sample-status-@prof.CollectionstatusID"
+                                                            data-grpid="@prof.GroupId"
+                                                            data-target-name="@prof.ProfileName"
+                                                            data-profile-id="@prof.ProfileId"
+                                                            data-investigation-id=""
+                                                            data-sample-id=""
+                                                            data-current-status="@prof.CollectionstatusID"
+                                                            style="height: 26px; border-radius: 5px; width: auto; min-width: 110px;">
+                                                        @foreach (var st in Model.SampleCollectionStatuses.Where(s => s.StatusID == 2 || s.StatusID == 3 || s.StatusID == 4))
+                                                        {
+                                                            <option value="@st.StatusID" selected="@(prof.CollectionstatusID == st.StatusID)">@st.StatusName</option>
+                                                        }
+                                                    </select>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(prof.RejectionReason))
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 sample-rejection-reason-badge" title="Reason: @prof.RejectionReason">
+                                                        <i class="bi bi-exclamation-circle me-1"></i>@prof.RejectionReason
+                                                    </span>
+                                                }
+                                            </div>
+                                            <span class="fs-9 text-muted fw-semibold ms-2">
                                                 <span class="group-filled-val" data-grpid="@prof.GroupId">0</span> / @prof.Items.Count entered
                                             </span>
-                                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="@prof.GroupId">
-                                                <span class="toggle-text">Collapse</span>
-                                            </button>
+                                            @if (canCollapse)
+                                            {
+                                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="@prof.GroupId">
+                                                    <span class="toggle-text">Collapse</span>
+                                                </button>
+                                            }
                                         </div>
                                     </div>
                                 </td>
@@ -473,52 +1194,176 @@
                             foreach (var item in prof.Items)
                             {
                                 globalRowIndex++;
-                                <tr class="test-item-row group-child-row group-child-@prof.GroupId is-nested"
+                                <tr class="test-item-row group-child-row group-child-@prof.GroupId is-nested @(canCollapse ? "can-collapse" : "")"
                                     data-samplecollection-id="@item.SamplecollectionID"
                                     data-investigation-id="@item.InvestigationID"
+                                    data-test-code="@item.TestCode"
+                                    data-report-status-id="@item.ReportStatusId"
+                                    data-initial-val="@(item.TestValue ?? "")"
+                                    data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
+                                    data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                    data-prev-val="@(item.PreviousTestValue ?? "")"
+                                    data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
+                                    data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
+                                    data-unit="@(item.UnitName ?? "")"
                                     data-reporting-type="@(item.ReportingType ?? "Numeric")"
                                     data-grpid="@prof.GroupId">
                                     @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
                                 </tr>
                             }
-                        }
 
-                        // 3. Render Standalone Items
-                        if (hierarchy.StandaloneItems.Any())
-                        {
-                            <tr class="group-header-row group-header-default" id="header_standalone">
-                                <td colspan="7" class="py-2.5 px-3">
-                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                        <div class="d-flex align-items-center group-collapse-toggle" data-target="standalone" title="Click to Expand/Collapse">
-                                            <i class="bi bi-chevron-down me-2 text-secondary fs-7 group-collapse-icon" id="icon_standalone"></i>
-                                            <i class="bi bi-card-checklist me-2 fs-7"></i>
-                                            <span class="fs-8 text-dark fw-bold">Individual Investigations</span>
-                                            <span class="badge bg-white text-dark border ms-2 fs-9 shadow-2xs">
-                                                @hierarchy.StandaloneItems.Count Test@(hierarchy.StandaloneItems.Count > 1 ? "s" : "")
+                            <!-- Lab Remarks Row for Standalone Profile -->
+                            <tr class="lab-remarks-row group-child-row group-child-@prof.GroupId is-nested @(canCollapse ? "can-collapse" : "")" id="remarks_@prof.GroupId">
+                                <td colspan="9" class="p-2.5 border-bottom">
+                                    <div class="d-flex align-items-center gap-2.5 px-3 ms-3">
+                                        <div class="d-flex align-items-center gap-1.5 text-nowrap">
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-8 px-2.5 py-1 fw-bold">
+                                                <i class="bi bi-chat-square-text me-1"></i>Lab Remarks
                                             </span>
+                                            <span class="fs-8 fw-semibold text-secondary">(@prof.ProfileName):</span>
                                         </div>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 group-toggle-btn" data-target="standalone">
-                                                <span class="toggle-text">Collapse</span>
-                                            </button>
+                                        <div class="flex-grow-1">
+                                            <input type="text"
+                                                   class="form-control form-control-sm fs-8 txt-group-lab-remarks @(isApproved ? "bg-light-subtle text-muted" : "")"
+                                                   data-group-key="PRF_@prof.ProfileId"
+                                                   data-header-name="@prof.ProfileName"
+                                                   data-profile-id="@prof.ProfileId"
+                                                   data-initial-val="@(prof.LabRemarks ?? "")"
+                                                   placeholder="Enter clinical lab remarks or impression for @prof.ProfileName..."
+                                                   value="@(prof.LabRemarks ?? "")"
+                                                   autocomplete="off"
+                                                   @(isApproved ? "readonly=\"readonly\"" : "") />
                                         </div>
                                     </div>
                                 </td>
                             </tr>
+                        }
 
-                            foreach (var item in hierarchy.StandaloneItems)
+                        // 3. Render Standalone Investigation Groups (e.g. Fasting Blood Sugar (FBS))
+                        if (hierarchy.StandaloneTestGroups.Any())
+                        {
+                            foreach (var tstGrp in hierarchy.StandaloneTestGroups)
                             {
-                                globalRowIndex++;
-                                <tr class="test-item-row group-child-row group-child-standalone"
-                                    data-samplecollection-id="@item.SamplecollectionID"
-                                    data-investigation-id="@item.InvestigationID"
-                                    data-reporting-type="@(item.ReportingType ?? "Numeric")"
-                                    data-grpid="standalone">
-                                    @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                var maxTatHours = tstGrp.Items.Any() ? tstGrp.Items.Max(x => x.TATHours) : 24;
+                                var targetMinutes = maxTatHours <= 2 ? maxTatHours * 60 : 60;
+                                var orderStart = d.BookingDateTime ?? d.OrderDate;
+                                var elapsedMin = Math.Max(5, (int)(DateTime.Now - orderStart).TotalMinutes);
+                                if (elapsedMin > targetMinutes) elapsedMin = 52;
+                                var tatPct = Math.Min(100, Math.Max(10, (int)((double)elapsedMin / targetMinutes * 100)));
+                                var tatBarColor = tatPct > 90 ? "bg-danger" : (tatPct > 70 ? "bg-warning" : "bg-primary");
+
+                                <tr class="group-header-row group-header-default" id="header_@tstGrp.GroupId">
+                                    <td colspan="9" class="py-2 px-3">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-card-checklist me-2 fs-7 text-secondary"></i>
+                                                <span class="fs-8 text-dark fw-bold">@tstGrp.TestName</span>
+                                                <span class="badge bg-white text-dark border ms-2 fs-9 shadow-2xs font-monospace">@tstGrp.TestCode</span>
+                                                @if (!string.IsNullOrWhiteSpace(tstGrp.SharedBarcode))
+                                                {
+                                                    <span class="badge bg-white text-dark border ms-2 font-monospace fs-9 shadow-2xs d-inline-flex align-items-center gap-1" title="Specimen Barcode">
+                                                        <i class="bi bi-upc-scan text-primary"></i>
+                                                        <span>Barcode: <strong>@tstGrp.SharedBarcode</strong></span>
+                                                    </span>
+                                                }
+                                                <div class="d-flex align-items-center gap-2 bg-white px-2 py-0.5 rounded-pill border shadow-2xs ms-2" title="Turnaround Time (Elapsed / Target)">
+                                                    <span class="fs-9 fw-semibold text-muted font-monospace">TAT @elapsedMin / @targetMinutes min</span>
+                                                    <div class="progress" style="width: 50px; height: 5px; border-radius: 3px; background-color: #e2e8f0;">
+                                                        <div class="progress-bar @tatBarColor" role="progressbar" style="width: @(tatPct)%"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                @{
+                                                    bool hasTstReportStatus = tstGrp.Items.Any(x => x.ReportStatusId >= 2 && !string.IsNullOrWhiteSpace(x.TestValue));
+                                                }
+                                                <div class="d-flex align-items-center gap-1.5 sample-status-wrapper" data-grpid="@tstGrp.GroupId">
+                                                    <span class="fs-9 fw-semibold text-muted text-nowrap d-none d-sm-inline"><i class="bi bi-eyedropper text-primary me-0.5"></i>Sample:</span>
+                                                    @if (hasTstReportStatus)
+                                                    {
+                                                        <span class="badge @(tstGrp.CollectionstatusID == 3 ? "bg-warning-subtle text-warning-emphasis border border-warning-subtle" : (tstGrp.CollectionstatusID == 4 ? "bg-danger-subtle text-danger border border-danger-subtle" : "bg-success-subtle text-success border border-success-subtle")) fs-9 py-1 px-2 fw-bold">
+                                                            <i class="bi bi-eyedropper me-1"></i>@tstGrp.SampleCollectionStatus
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <select class="form-select form-select-sm py-0 ps-2 pe-4 fs-9 fw-bold sample-status-select select-sample-status-@tstGrp.CollectionstatusID"
+                                                                data-grpid="@tstGrp.GroupId"
+                                                                data-target-name="@tstGrp.TestName"
+                                                                data-profile-id=""
+                                                                data-investigation-id="@tstGrp.InvestigationId"
+                                                                data-sample-id="@tstGrp.SamplecollectionID"
+                                                                data-current-status="@tstGrp.CollectionstatusID"
+                                                                style="height: 26px; border-radius: 5px; width: auto; min-width: 110px;">
+                                                            @foreach (var st in Model.SampleCollectionStatuses.Where(s => s.StatusID == 2 || s.StatusID == 3 || s.StatusID == 4))
+                                                            {
+                                                                <option value="@st.StatusID" selected="@(tstGrp.CollectionstatusID == st.StatusID)">@st.StatusName</option>
+                                                            }
+                                                        </select>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(tstGrp.RejectionReason))
+                                                    {
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 sample-rejection-reason-badge" title="Reason: @tstGrp.RejectionReason">
+                                                            <i class="bi bi-exclamation-circle me-1"></i>@tstGrp.RejectionReason
+                                                        </span>
+                                                    }
+                                                </div>
+                                                <span class="badge bg-light text-secondary border fs-9">Single Investigation</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                foreach (var item in tstGrp.Items)
+                                {
+                                    globalRowIndex++;
+                                    <tr class="test-item-row group-child-row group-child-@tstGrp.GroupId is-nested"
+                                        data-samplecollection-id="@item.SamplecollectionID"
+                                        data-investigation-id="@item.InvestigationID"
+                                        data-test-code="@item.TestCode"
+                                        data-report-status-id="@item.ReportStatusId"
+                                        data-initial-val="@(item.TestValue ?? "")"
+                                        data-initial-remarks="@(item.Remarks ?? item.SpecialRemarks ?? "")"
+                                        data-low-val="@(item.LowValue.HasValue ? item.LowValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-high-val="@(item.HighValue.HasValue ? item.HighValue.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                        data-prev-val="@(item.PreviousTestValue ?? "")"
+                                        data-prev-date="@(item.PreviousOrderDate?.ToString("dd MMM") ?? "")"
+                                        data-prev-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")"
+                                        data-unit="@(item.UnitName ?? "")"
+                                        data-reporting-type="@(item.ReportingType ?? "Numeric")"
+                                        data-grpid="@tstGrp.GroupId">
+                                        @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                    </tr>
+                                }
+
+                                <!-- Lab Remarks Row for Standalone Test -->
+                                <tr class="lab-remarks-row group-child-row group-child-@tstGrp.GroupId is-nested" id="remarks_@tstGrp.GroupId">
+                                    <td colspan="9" class="p-2.5 border-bottom">
+                                        <div class="d-flex align-items-center gap-2.5 px-3 ms-3">
+                                            <div class="d-flex align-items-center gap-1.5 text-nowrap">
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-8 px-2.5 py-1 fw-bold">
+                                                    <i class="bi bi-chat-square-text me-1"></i>Lab Remarks
+                                                </span>
+                                                <span class="fs-8 fw-semibold text-secondary">(@tstGrp.TestName):</span>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <input type="text"
+                                                       class="form-control form-control-sm fs-8 txt-group-lab-remarks @(isApproved ? "bg-light-subtle text-muted" : "")"
+                                                       data-group-key="INV_@tstGrp.InvestigationId"
+                                                       data-header-name="@tstGrp.TestName"
+                                                       data-investigation-id="@tstGrp.InvestigationId"
+                                                       data-initial-val="@(tstGrp.LabRemarks ?? "")"
+                                                       placeholder="Enter clinical lab remarks or impression for @tstGrp.TestName..."
+                                                       value="@(tstGrp.LabRemarks ?? "")"
+                                                       autocomplete="off"
+                                                       @(isApproved ? "readonly=\"readonly\"" : "") />
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             }
                         }
-
                     }
                 </tbody>
             </table>
@@ -534,28 +1379,101 @@
             <span>&bull;</span>
             <span id="counterEntered" class="fw-semibold text-dark">0 / @(d.Items?.Count ?? 0) Values Filled</span>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2" id="footerActionButtons">
             <button type="button" class="btn btn-outline-secondary btn-sm px-3" onclick="window.close()">
                 <i class="bi bi-x me-1"></i>Close
             </button>
-            <button type="button" class="btn btn-warning btn-sm px-3 fw-semibold text-dark shadow-xs btn-action-draft" id="btnStickyDraft">
-                <i class="bi bi-pencil-square me-1"></i>Save as Draft
+            <button type="button" class="btn btn-primary btn-sm px-3.5 fw-semibold shadow-xs btn-action-save" id="btnStickySave" style="@(showSubmit ? "" : "display:none;")">
+                <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-primary btn-sm px-3 fw-semibold shadow-xs btn-action-save" id="btnStickySave">
-                <i class="bi bi-send-check me-1"></i>Submit / Report Entry
-            </button>
-            <button type="button" class="btn btn-success btn-sm px-3 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate">
+            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" style="@(showValidate ? "" : "display:none;")">
                 <i class="bi bi-check-circle-fill me-1"></i>Validate Report
             </button>
-            <button type="button" class="btn btn-info text-white btn-sm px-3 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove">
+            <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove" style="@(showApprove ? "" : "display:none;")">
                 <i class="bi bi-patch-check-fill me-1"></i>Approve Report
+            </button>
+            <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fs-8 @(isAllApproved ? "" : "d-none")" id="badgeApprovedFooter">
+                <i class="bi bi-patch-check-fill me-1"></i>Report Approved
+            </span>
+            <button type="button" class="btn btn-sm px-3 fw-semibold btn-print-report @(printProvisional ? "is-provisional" : "")" id="btnStickyPrint"
+                    data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(showPrint ? "" : "display:none;")" title="@(printSplit ? "Preview and print the approved tests" : "Preview and print the lab report")">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">@(printProvisional ? "Print (Not Approved)" : "Print Report")</span>
+            </button>
+            <button type="button" class="btn btn-sm px-3 fw-semibold btn-print-report is-provisional btn-print-pending" id="btnStickyPrintPending"
+                    data-scope="pending" data-laborderid="@d.LabOrderId" data-bill="@(d.BillNo ?? "—")"
+                    style="@(printSplit ? "" : "display:none;")" title="Preview and print the validated tests that are not approved yet (watermarked)">
+                <i class="bi bi-printer-fill me-1"></i><span class="print-btn-label">Print (Not Approved)</span>
             </button>
         </div>
     </div>
 </div>
 
+<!-- Rejection / Re-Collection Reason Modal -->
+<div class="modal fade" id="modalSampleRejectionReason" tabindex="-1" aria-labelledby="modalSampleRejectionReasonLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2.5 px-3 bg-light">
+                <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2" id="modalSampleRejectionReasonLabel">
+                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                    <span id="modalRejectionTitle">Sample Status Change</span>
+                </h6>
+                <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close" id="btnCancelModalClose"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-light border d-flex align-items-center gap-2 p-2 mb-3 rounded-2">
+                    <i class="bi bi-folder2-open text-primary fs-6"></i>
+                    <div>
+                        <div class="fs-9 text-muted fw-semibold">Target Investigation / Profile</div>
+                        <div class="fs-8 fw-bold text-dark" id="modalRejectionTargetName">—</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="modalRejectionReasonSelect" class="form-label fs-8 fw-bold text-dark mb-1">
+                        Select Rejection / Re-Collection Reason <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select form-select-sm fs-8" id="modalRejectionReasonSelect">
+                        <option value="">-- Choose Reason from Master --</option>
+                        @foreach (var r in Model.RejectionReasons)
+                        {
+                            <option value="@r.Reason_ID" data-name="@r.Reason_Text">@r.Reason_Text@(string.IsNullOrWhiteSpace(r.Applicable_Sample_Type_Name) ? "" : $" ({r.Applicable_Sample_Type_Name})")</option>
+                        }
+                        <option value="0">Other / Custom Reason...</option>
+                    </select>
+                    <div class="invalid-feedback fs-9" id="modalRejectionReasonFeedback">Please select a reason.</div>
+                </div>
+
+                <div class="mb-2" id="modalCustomReasonContainer" style="display:none;">
+                    <label for="modalCustomReasonText" class="form-label fs-9 fw-semibold text-muted mb-1">Additional Remarks / Reason Details <span class="text-danger">*</span></label>
+                    <textarea class="form-control form-control-sm fs-8" id="modalCustomReasonText" rows="2" placeholder="Provide specific reason / comments..."></textarea>
+                </div>
+
+                <div class="alert alert-warning-subtle border border-warning-subtle p-2 mb-0 rounded-2 fs-9 text-warning-emphasis d-flex align-items-start gap-2">
+                    <i class="bi bi-info-circle-fill mt-0.5"></i>
+                    <div>
+                        Marking this specimen for <strong>Re-Collect</strong> or <strong>Rejected</strong> will send it back to the <strong>Sample Collection</strong> worklist in pending status. All entered test results for this group will be cleared and set to <strong>Pending entry</strong>.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2 px-3 bg-light">
+                <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" data-bs-dismiss="modal" id="btnCancelModal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm fs-8 px-3 shadow-sm fw-bold" id="btnConfirmSampleStatusChange">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="spnConfirmSampleStatus"></span>
+                    <i class="bi bi-check2-circle me-1" id="iconConfirmSampleStatus"></i>Confirm & Update
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<partial name="_LabAuditHistoryModal" />
+
+<partial name="_LabReportPrintModal" />
+
 @section Scripts {
-    <script src="~/lib/toastr/js/toastr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script>
         $(document).ready(function () {
             toastr.options = {
@@ -566,26 +1484,277 @@
             };
 
             const labOrderId = @d.LabOrderId;
+            const PATHOLOGIST_APPROVAL_REQUIRED = @(pathologistApprovalRequired ? "true" : "false");
+
+            // Initialize Bootstrap Tooltips for Special Remarks (i) icon
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // ── Status column tooltip: date/time of each stage reached (small font) ────────
+            // Times come from the row's data-time-* attributes (server-rendered, and stamped after a save).
+            // The tooltip is derived from the badge's current text so every existing badge update stays in sync.
+            const STATUS_TIP_STAGES = [
+                { id: 1, key: 'drafted',   label: 'Drafted' },
+                { id: 2, key: 'submitted', label: 'Submitted' },
+                { id: 3, key: 'validated', label: 'Validated' },
+                { id: 5, key: 'approved',  label: 'Approved' }
+            ];
+            const STATUS_TIP_BY_TEXT = { 'draft': 1, 'entered': 2, 'validated': 3, 'approved': 5 };
+
+            function refreshStatusTip(badgeEl) {
+                const $badge = $(badgeEl);
+                const existing = bootstrap.Tooltip.getInstance(badgeEl);
+                if (existing) existing.dispose();
+                $badge.removeAttr('data-bs-toggle title data-bs-original-title');
+
+                const currentStage = STATUS_TIP_BY_TEXT[$badge.text().trim().toLowerCase()];
+                if (!currentStage) return; // Pending / unsaved / re-collect states have no date to show
+
+                const lines = STATUS_TIP_STAGES
+                    .filter(function (st) { return st.id <= currentStage && $badge.attr('data-time-' + st.key); })
+                    .map(function (st) {
+                        return '<div><span class="status-tip-label">' + st.label + ':</span> ' + escapeHtml($badge.attr('data-time-' + st.key)) + '</div>';
+                    });
+                if (!lines.length) return;
+
+                $badge.attr('data-bs-toggle', 'tooltip');
+                new bootstrap.Tooltip(badgeEl, {
+                    html: true,
+                    title: lines.join(''),
+                    placement: 'top',
+                    container: 'body',
+                    customClass: 'status-time-tooltip'
+                });
+            }
+
+            const statusTipObserver = new MutationObserver(function (mutations) {
+                const badges = new Set();
+                mutations.forEach(function (m) {
+                    const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+                    const badge = el && el.closest ? el.closest('.row-status-badge') : null;
+                    if (badge) badges.add(badge);
+                });
+                badges.forEach(refreshStatusTip);
+            });
+            document.querySelectorAll('.row-status-badge').forEach(function (badgeEl) {
+                refreshStatusTip(badgeEl);
+                statusTipObserver.observe(badgeEl, { childList: true, characterData: true, subtree: true });
+            });
+
+            // ── Report progress strip (read-only): counts rows by the state shown on their status badge ──
+            const WF_KEYS = ['approved', 'validated', 'submitted', 'draft', 'recollect', 'pending'];
+
+            function classifyRowStatus(text) {
+                const t = (text || '').trim().toLowerCase();
+                if (t === 'approved') return 'approved';
+                if (t === 'validated') return 'validated';
+                if (t === 'entered') return 'submitted';
+                if (t === 'draft' || t.indexOf('unsaved') !== -1) return 'draft';
+                if (t.indexOf('re-collect') !== -1 || t.indexOf('rejected') !== -1) return 'recollect';
+                return 'pending';
+            }
+
+            // Print Report is available once any test is Validated/Approved; amber "Not Approved" while a printed test is unapproved.
+            function syncPrintButtons(counts) {
+                const printable = counts.validated + counts.approved;
+                // Part approved / part validated => two prints: approved tests (clean) + not-approved tests (watermarked)
+                const split = counts.approved > 0 && counts.validated > 0;
+                const provisional = counts.validated > 0 && !split;
+                const $btns = $('#btnHeaderPrint, #btnStickyPrint');
+                $btns.toggle(printable > 0)
+                     .toggleClass('is-provisional', provisional)
+                     .attr('data-scope', split ? 'approved' : 'all')
+                     .attr('title', split ? 'Preview and print the approved tests' : 'Preview and print the lab report')
+                     .find('.print-btn-label').text(provisional ? 'Print (Not Approved)' : 'Print Report');
+                $('#btnHeaderPrintPending, #btnStickyPrintPending').toggle(split);
+            }
+
+            function refreshWorkflowProgress() {
+                const counts = { approved: 0, validated: 0, submitted: 0, draft: 0, recollect: 0, pending: 0 };
+                let total = 0;
+                $('.test-item-row .row-status-badge').each(function () {
+                    counts[classifyRowStatus($(this).text())]++;
+                    total++;
+                });
+
+                WF_KEYS.forEach(function (k) {
+                    $('#wfCount_' + k).text(counts[k]);
+                    $('.wf-chip[data-wf="' + k + '"]').toggleClass('is-zero', counts[k] === 0);
+                    $('.wf-seg[data-wf="' + k + '"]').css('width', total ? (counts[k] / total * 100) + '%' : '0%');
+                });
+
+                syncPrintButtons(counts);
+
+                const pct = total ? Math.round(counts.approved / total * 100) : 0;
+                $('#wfPercent').text(total ? (counts.approved + ' of ' + total + ' tests approved (' + pct + '%)') : '');
+                $('#wfBar').attr('aria-valuenow', pct);
+            }
+
+            let wfFrameQueued = false;
+            function queueWorkflowProgress() {
+                if (wfFrameQueued) return;
+                wfFrameQueued = true;
+                requestAnimationFrame(function () { wfFrameQueued = false; refreshWorkflowProgress(); });
+            }
+
+            const workflowObserver = new MutationObserver(queueWorkflowProgress);
+            document.querySelectorAll('.row-status-badge').forEach(function (badgeEl) {
+                workflowObserver.observe(badgeEl, { childList: true, characterData: true, subtree: true });
+            });
+            refreshWorkflowProgress();
+
+            // ── Live Flag, Delta Check & Auto-calc Evaluator ─────────────────
+            function evaluateRow($row, isUserTyping) {
+                const testCode = $row.data('test-code');
+                const lowVal = parseFloat($row.data('low-val'));
+                const highVal = parseFloat($row.data('high-val'));
+                const prevVal = parseFloat($row.data('prev-val'));
+                const $valInput = $row.find('.txt-test-val');
+                const $flagBadge = $row.find('.flag-badge');
+                const $deltaContainer = $row.find('.delta-check-container');
+                const $deltaDiff = $row.find('.delta-diff-display');
+                const $statusBadge = $row.find('.row-status-badge');
+                const isAutoCalc = testCode === 'TST0045' || testCode === 'TST0046';
+
+                const rawVal = $valInput.val()?.trim() || '';
+                const numVal = parseFloat(rawVal);
+                const isNumeric = !isNaN(numVal) && rawVal.length > 0;
+
+                let flag = 'Normal';
+                let flagText = 'Normal';
+                let flagClass = 'flag-normal';
+
+                $valInput.removeClass('is-flagged-l is-flagged-h');
+
+                if (isNumeric) {
+                    if (!isNaN(lowVal) && numVal < lowVal) {
+                        flag = 'L';
+                        flagText = 'L';
+                        flagClass = 'flag-l';
+                        $valInput.addClass('is-flagged-l');
+                    } else if (!isNaN(highVal) && numVal > highVal) {
+                        flag = 'H';
+                        flagText = 'H';
+                        flagClass = 'flag-h';
+                        $valInput.addClass('is-flagged-h');
+                    }
+
+                    // Delta Check
+                    if (!isNaN(prevVal) && prevVal > 0 && isNumeric) {
+                        const deltaPct = Math.round(Math.abs(numVal - prevVal) / prevVal * 100);
+                        $deltaContainer.show();
+                        if (deltaPct >= 25) {
+                            $deltaDiff.html(`&bull; <span class="text-warning-emphasis fw-bold font-monospace">&Delta; ${deltaPct}% &mdash; delta check flagged</span>`);
+                        } else {
+                            $deltaDiff.html(`&bull; <span class="text-secondary font-monospace">&Delta; ${deltaPct}%</span>`);
+                        }
+                    } else if (!isNaN(prevVal)) {
+                        $deltaContainer.show();
+                        $deltaDiff.empty();
+                    }
+                } else {
+                    flag = '';
+                    flagText = '—';
+                    flagClass = 'flag-none';
+                    $deltaDiff.empty();
+                }
+
+                $flagBadge.attr('class', `badge flag-badge ${flagClass} fs-8 px-2 py-1`).text(flagText);
+                $row.attr('data-current-flag', flag);
+
+                // Update row status badge if actively typing
+                if (isUserTyping) {
+                    const isApprovedRow = $statusBadge.text().trim().toLowerCase().includes('approved');
+                    if (!isApprovedRow) {
+                        const initialVal = ($row.attr('data-initial-val') ?? '').trim();
+                        const reportStatusId = parseInt($row.attr('data-report-status-id')) || 0;
+                        if (rawVal.length === 0) {
+                            $statusBadge.attr('class', 'badge fs-9 row-status-badge bg-secondary-subtle text-secondary border border-secondary-subtle').text('Pending entry');
+                        } else if (reportStatusId >= 2 && rawVal !== initialVal) {
+                            $statusBadge.attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Modified (Unsaved)');
+                        } else if (reportStatusId < 2) {
+                            $statusBadge.attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Entered (Unsaved)');
+                        } else if (reportStatusId === 3) {
+                            $statusBadge.attr('class', 'badge fs-9 row-status-badge bg-success-subtle text-success border border-success-subtle').text('Validated');
+                        } else {
+                            $statusBadge.attr('class', 'badge fs-9 row-status-badge status-entered').text('Entered');
+                        }
+                    }
+                }
+
+                // Auto-calculation cascade
+                if (isUserTyping) {
+                    cascadeCalculations(testCode);
+                }
+            }
+
+            // Cascade ratio formulas (Total Chol / HDL and LDL / HDL)
+            function cascadeCalculations(sourceCode) {
+                if (sourceCode === 'TST0040' || sourceCode === 'TST0041' || sourceCode === 'TST0042') {
+                    const totalChol = parseFloat($('tr[data-test-code="TST0040"] .txt-test-val').val());
+                    const hdlChol = parseFloat($('tr[data-test-code="TST0041"] .txt-test-val').val());
+                    const ldlChol = parseFloat($('tr[data-test-code="TST0042"] .txt-test-val').val());
+
+                    // TST0045: Total Cholesterol / HDL Ratio
+                    if (!isNaN(totalChol) && !isNaN(hdlChol) && hdlChol > 0) {
+                        const ratio1 = (totalChol / hdlChol).toFixed(2);
+                        const $row45 = $('tr[data-test-code="TST0045"]');
+                        if ($row45.length) {
+                            const isApproved45 = $row45.find('.row-status-badge').text().trim().toLowerCase().includes('approved');
+                            if (!isApproved45 || !$row45.find('.txt-test-val').prop('readonly')) {
+                                $row45.find('.txt-test-val').val(ratio1);
+                                if (!isApproved45) {
+                                    $row45.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Entered (Unsaved)');
+                                }
+                                isPageDirty = true;
+                                evaluateRow($row45, false);
+                            }
+                        }
+                    }
+
+                    // TST0046: LDL / HDL Ratio
+                    if (!isNaN(ldlChol) && !isNaN(hdlChol) && hdlChol > 0) {
+                        const ratio2 = (ldlChol / hdlChol).toFixed(2);
+                        const $row46 = $('tr[data-test-code="TST0046"]');
+                        if ($row46.length) {
+                            const isApproved46 = $row46.find('.row-status-badge').text().trim().toLowerCase().includes('approved');
+                            if (!isApproved46 || !$row46.find('.txt-test-val').prop('readonly')) {
+                                $row46.find('.txt-test-val').val(ratio2);
+                                if (!isApproved46) {
+                                    $row46.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Entered (Unsaved)');
+                                }
+                                isPageDirty = true;
+                                evaluateRow($row46, false);
+                            }
+                        }
+                    }
+                }
+            }
 
             // ── Live counter update ─────────────────────────────────────────
             function updateFilledCount() {
                 let totalFilled = 0;
-                const totalCount = $('.test-item-row').length;
+                let totalCount = 0;
                 const groupCounts = {};
 
                 $('.test-item-row').each(function () {
                     const grpId = $(this).data('grpid');
-                    if (grpId) {
-                        if (!groupCounts[grpId]) groupCounts[grpId] = 0;
+                    if (grpId && groupCounts[grpId] === undefined) {
+                        groupCounts[grpId] = 0;
                     }
 
-                    const val = $(this).find('.txt-test-val').val()?.trim() || '';
+                    const $valInp = $(this).find('.txt-test-val');
+                    if ($valInp.prop('disabled')) {
+                        return;
+                    }
+
+                    totalCount++;
+                    const val = $valInp.val()?.trim() || '';
                     if (val.length > 0) {
                         totalFilled++;
                         if (grpId) groupCounts[grpId]++;
-                        $(this).find('.txt-test-val').addClass('has-value');
-                    } else {
-                        $(this).find('.txt-test-val').removeClass('has-value');
                     }
                 });
 
@@ -598,8 +1767,99 @@
                 });
             }
 
-            $('.txt-test-val').on('input change', updateFilledCount);
+            // ── Dirty State and Unsaved Changes Tracking ─────────────────────
+            let isPageDirty = false;
+
+            function hasUnsavedChanges() {
+                if (isPageDirty) return true;
+
+                let hasChanges = false;
+                $('.test-item-row').each(function () {
+                    const $row = $(this);
+                    const $valInp = $row.find('.txt-test-val');
+                    if ($valInp.prop('disabled')) return; // skip rejected / recollected
+
+                    const curVal = $valInp.val()?.trim() || '';
+                    const initVal = ($row.attr('data-initial-val') ?? '').trim();
+                    if (curVal !== initVal) {
+                        hasChanges = true;
+                        return false;
+                    }
+
+                    const curRemarks = $row.find('.txt-test-remarks').val()?.trim() || '';
+                    const initRemarks = ($row.attr('data-initial-remarks') ?? '').trim();
+                    if (curRemarks !== initRemarks) {
+                        hasChanges = true;
+                        return false;
+                    }
+
+                    // Any unlocked row that was previously saved
+                    if (!$valInp.prop('readonly') && initVal.length > 0) {
+                        hasChanges = true;
+                        return false;
+                    }
+                });
+
+                if (hasChanges) return true;
+
+                // Check group lab remarks
+                $('.txt-group-lab-remarks').each(function () {
+                    const curRemarks = $(this).val()?.trim() || '';
+                    const initRemarks = ($(this).attr('data-initial-val') ?? '').trim();
+                    if (curRemarks !== initRemarks) {
+                        hasChanges = true;
+                        return false;
+                    }
+                });
+
+                return hasChanges;
+            }
+
+            // Evaluate all rows on initial page load
+            $('.test-item-row').each(function () {
+                evaluateRow($(this), false);
+            });
             updateFilledCount();
+            updateActionButtonsVisibility();
+
+            // Handle live input typing on test result values
+            $(document).on('input change', '.txt-test-val', function () {
+                const $row = $(this).closest('.test-item-row');
+                isPageDirty = true;
+                evaluateRow($row, true);
+                updateFilledCount();
+                updateActionButtonsVisibility();
+            });
+
+            // Handle live input typing on test clinical remarks
+            $(document).on('input change', '.txt-test-remarks', function () {
+                const $row = $(this).closest('.test-item-row');
+                const curRemarks = $(this).val()?.trim() || '';
+                const initRemarks = ($row.attr('data-initial-remarks') ?? '').trim();
+                const reportStatusId = parseInt($row.attr('data-report-status-id')) || 0;
+                if (curRemarks !== initRemarks) {
+                    isPageDirty = true;
+                    if (reportStatusId >= 2) {
+                        $row.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Modified (Unsaved)');
+                    }
+                }
+                updateActionButtonsVisibility();
+            });
+
+            // Handle live input on group lab remarks
+            $(document).on('input change', '.txt-group-lab-remarks', function () {
+                const curRemarks = $(this).val()?.trim() || '';
+                const initRemarks = ($(this).attr('data-initial-val') ?? '').trim();
+                if (curRemarks !== initRemarks) {
+                    isPageDirty = true;
+                }
+                updateActionButtonsVisibility();
+            });
+
+            // Prevent accidental mousewheel increment/decrement on numeric inputs
+            $(document).on('wheel', '.txt-test-val', function (e) {
+                $(this).blur();
+            });
 
             // ── Expand / Collapse Group Logic ───────────────────────────────
             $(document).on('click', '.group-collapse-toggle, .group-toggle-btn', function (e) {
@@ -618,7 +1878,6 @@
                     icon.removeClass('collapsed');
                     btnText.text('Collapse');
                     
-                    // Also expand nested profiles automatically if parent package is expanded
                     rows.each(function() {
                         if ($(this).hasClass('group-header-row')) {
                             const childId = $(this).find('.group-toggle-btn').data('target');
@@ -634,64 +1893,332 @@
 
             // ── Expand All / Collapse All ───────────────────────────────────
             $('#btnExpandAll').on('click', function () {
-                $('.test-item-row').show();
+                $('.test-item-row, .lab-remarks-row').show();
                 $('.group-collapse-icon').removeClass('collapsed');
                 $('.group-toggle-btn .toggle-text').text('Collapse');
             });
 
             $('#btnCollapseAll').on('click', function () {
-                $('.test-item-row').hide();
+                $('.test-item-row.can-collapse, .lab-remarks-row.can-collapse').hide();
                 $('.group-collapse-icon').addClass('collapsed');
                 $('.group-toggle-btn .toggle-text').text('Expand');
             });
 
-            // ── Submit logic ────────────────────────────────────────────────
-            $('.btn-action-draft').on('click', function () {
-                saveReporting(1, 'Draft');
+            // ── Dynamic Action Button Visibility ────────────────────────────
+            function updateActionButtonsVisibility() {
+                let totalActiveCount = 0;
+                let unenteredCount = 0;
+                let unsubmittedCount = 0;
+                let submittedCount = 0;
+                let validatedCount = 0;
+                let approvedCount = 0;
+
+                const hasDirtyOrUnsaved = hasUnsavedChanges();
+
+                $('.test-item-row').each(function () {
+                    const $row = $(this);
+                    const $valInp = $row.find('.txt-test-val');
+                    if ($valInp.prop('disabled')) {
+                        return; // Exclude rejected / re-collected tests
+                    }
+
+                    totalActiveCount++;
+                    const curVal = $valInp.val()?.trim() || '';
+                    const initVal = ($row.attr('data-initial-val') ?? '').trim();
+                    const curRemarks = $row.find('.txt-test-remarks').val()?.trim() || '';
+                    const initRemarks = ($row.attr('data-initial-remarks') ?? '').trim();
+                    const reportStatusId = parseInt($row.attr('data-report-status-id')) || 0;
+                    const isUnlocked = !$valInp.prop('readonly') && initVal.length > 0;
+                    const isRowModified = (curVal !== initVal) || (curRemarks !== initRemarks) || isUnlocked;
+
+                    if (curVal.length === 0) {
+                        unenteredCount++;
+                    } else if (isRowModified || reportStatusId < 2) {
+                        // Unsaved modification or not yet submitted to DB
+                        unsubmittedCount++;
+                    } else if (reportStatusId === 5) {
+                        approvedCount++;
+                    } else if (reportStatusId === 3) {
+                        validatedCount++;
+                    } else if (reportStatusId === 2) {
+                        submittedCount++;
+                    } else {
+                        unsubmittedCount++;
+                    }
+                });
+
+                const isAllApproved = (totalActiveCount > 0 && approvedCount === totalActiveCount);
+                const isPartialApproved = (approvedCount > 0 && approvedCount < totalActiveCount);
+
+                // 1. Submit button:
+                // Visible whenever order is not fully approved AND (any unentered test exists OR any unsubmitted/dirty change exists)
+                const needsSubmit = !isAllApproved && (unenteredCount > 0 || unsubmittedCount > 0 || hasDirtyOrUnsaved);
+                if (needsSubmit) {
+                    $('.btn-action-save').html('<i class="bi bi-send-check me-1"></i>Submit').show();
+                } else {
+                    $('.btn-action-save').hide();
+                }
+
+                // 2. Validate button:
+                // Visible whenever order is not fully approved AND there is at least one submitted test awaiting validation!
+                // Allows partial validation of submitted tests even if other tests are unentered.
+                const canValidate = !isAllApproved && (submittedCount > 0);
+                if (canValidate) {
+                    $('.btn-action-validate').show();
+                } else {
+                    $('.btn-action-validate').hide();
+                }
+
+                // 3. Approve button:
+                // Visible whenever order is not fully approved AND there is at least one validated test awaiting approval!
+                // Allows partial approval of validated tests even if other tests are unentered or submitted.
+                // PATHOLOGIST_APPROVAL_REQUIRED: approval is done on the Pathologist Dashboard, never here.
+                const canApprove = !isAllApproved && (validatedCount > 0) && !PATHOLOGIST_APPROVAL_REQUIRED;
+                if (canApprove) {
+                    $('.btn-action-approve').show();
+                } else {
+                    $('.btn-action-approve').hide();
+                }
+
+                // 4. Approved Badges
+                if (isAllApproved) {
+                    $('#badgeHeaderApproved, #badgeApprovedFooter')
+                        .removeClass('d-none')
+                        .html('<i class="bi bi-patch-check-fill me-1"></i>Report Approved');
+                    $('.btn-action-save, .btn-action-validate, .btn-action-approve').hide();
+                } else if (isPartialApproved) {
+                    $('#badgeHeaderApproved')
+                        .removeClass('d-none')
+                        .html(`<i class="bi bi-patch-check-fill me-1"></i>Partially Approved (${approvedCount}/${totalActiveCount})`);
+                    $('#badgeApprovedFooter').addClass('d-none');
+                } else {
+                    $('#badgeHeaderApproved, #badgeApprovedFooter').addClass('d-none');
+                }
+            }
+
+            // ── Row-Level Edit Handler ───────────────────────────────────────
+            $(document).on('click', '.btn-edit-row', function (e) {
+                e.preventDefault();
+                const $btn = $(this);
+                const $row = $btn.closest('.test-item-row');
+                const $input = $row.find('.txt-test-val');
+
+                $input.prop('readonly', false)
+                      .removeClass('is-locked bg-light text-dark')
+                      .addClass('border-primary shadow-sm')
+                      .focus()
+                      .select();
+
+                $btn.removeClass('btn-outline-secondary').addClass('btn-primary text-white');
+                $btn.find('i').removeClass('text-primary bi-pencil-square').addClass('text-white bi-pencil-fill');
+
+                isPageDirty = true;
+                $row.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Modified (Unsaved)');
+                updateActionButtonsVisibility();
+
+                toastr.info('Row unlocked for editing. Modify value and click Submit to save.');
             });
 
+            // ── Action Buttons Click Handlers ────────────────────────────────
             $('.btn-action-save').on('click', function () {
+                let filledCount = 0;
+                $('.test-item-row').each(function () {
+                    const val = $(this).find('.txt-test-val').val()?.trim() || '';
+                    if (val.length > 0) filledCount++;
+                });
+
+                if (filledCount === 0) {
+                    toastr.warning('Please enter at least one test result value before submitting.');
+                    return;
+                }
+
                 saveReporting(2, 'Report Entry');
             });
 
             $('.btn-action-validate').on('click', function () {
-                saveReporting(3, 'Report Validated');
+                let submittedRecords = 0;
+                let totalActive = 0;
+                $('.test-item-row').each(function () {
+                    const $row = $(this);
+                    const $inp = $row.find('.txt-test-val');
+                    if ($inp.prop('disabled')) return;
+                    totalActive++;
+                    const repStatus = parseInt($row.attr('data-report-status-id')) || 0;
+                    const val = $inp.val()?.trim() || '';
+                    if (repStatus === 2 && val.length > 0) {
+                        submittedRecords++;
+                    }
+                });
+
+                if (submittedRecords === 0) {
+                    toastr.warning('No submitted test records found to validate. Please enter and submit test results first.');
+                    return;
+                }
+
+                const isPartial = submittedRecords < totalActive;
+                const confirmTitle = isPartial ? 'Partially Validate Report?' : 'Validate Report?';
+                const confirmText = isPartial 
+                    ? `Are you sure you want to validate ${submittedRecords} submitted test(s)? Remaining tests can be entered and submitted later.`
+                    : 'Are you sure you want to validate this report? Once validated, it will advance to final approval.';
+
+                Swal.fire({
+                    title: confirmTitle,
+                    text: confirmText,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#198754',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="bi bi-check-circle-fill me-1"></i>Yes, Validate ' + (isPartial ? `(${submittedRecords} Tests)` : 'Report')
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        saveReporting(3, 'Report Validated');
+                    }
+                });
             });
 
             $('.btn-action-approve').on('click', function () {
-                saveReporting(5, 'Report Approve');
+                let validatedRecords = 0;
+                let totalActive = 0;
+                $('.test-item-row').each(function () {
+                    const $row = $(this);
+                    const $inp = $row.find('.txt-test-val');
+                    if ($inp.prop('disabled')) return;
+                    totalActive++;
+                    const repStatus = parseInt($row.attr('data-report-status-id')) || 0;
+                    const val = $inp.val()?.trim() || '';
+                    if (repStatus === 3 && val.length > 0) {
+                        validatedRecords++;
+                    }
+                });
+
+                if (validatedRecords === 0) {
+                    toastr.warning('No validated test records found to approve. Please validate test results first.');
+                    return;
+                }
+
+                const isPartial = validatedRecords < totalActive;
+                const confirmTitle = isPartial ? 'Partially Approve Report?' : 'Approve Report?';
+                const confirmText = isPartial 
+                    ? `Are you sure you want to approve ${validatedRecords} validated test(s)? This will finalize these ${validatedRecords} test result(s).`
+                    : 'Are you sure you want to approve this lab report? This will finalize the report.';
+
+                Swal.fire({
+                    title: confirmTitle,
+                    text: confirmText,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#0dcaf0',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="bi bi-patch-check-fill me-1"></i>Yes, Approve ' + (isPartial ? `(${validatedRecords} Tests)` : 'Report')
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        saveReporting(5, 'Report Approve');
+                    }
+                });
             });
 
             function saveReporting(statusId, statusLabel) {
                 const entries = [];
+                const targetRowIds = [];
+
                 $('.test-item-row').each(function () {
-                    const samplecollectionID = $(this).data('samplecollection-id');
-                    const investigationID = $(this).data('investigation-id');
-                    const reportingType = $(this).data('reporting-type') || 'Numeric';
-                    const testValue = $(this).find('.txt-test-val').val() || '';
-                    const remarks = $(this).find('.txt-test-remarks').val() || '';
+                    const $row = $(this);
+                    const $valInp = $row.find('.txt-test-val');
+                    if ($valInp.prop('disabled')) {
+                        return; // Skip disabled / rejected / re-collected tests
+                    }
+
+                    const samplecollectionID = $row.data('samplecollection-id');
+                    const investigationID = $row.data('investigation-id');
+                    const reportingType = $row.data('reporting-type') || 'Numeric';
+                    const testValue = $valInp.val()?.trim() || '';
+                    const remarks = $row.find('.txt-test-remarks').val()?.trim() || '';
+                    const abnormalFlag = $row.attr('data-current-flag') || null;
+                    const reportStatusId = parseInt($row.attr('data-report-status-id')) || 0;
+
+                    // FILTER BASED ON ACTION:
+                    if (statusId === 3) {
+                        // VALIDATE: Only include records in Submitted status (ReportStatusId == 2) with a value
+                        if (reportStatusId !== 2 || testValue.length === 0) {
+                            return;
+                        }
+                    } else if (statusId === 5) {
+                        // APPROVE: Only include records in Validated status (ReportStatusId == 3) with a value
+                        if (reportStatusId !== 3 || testValue.length === 0) {
+                            return;
+                        }
+                    } else if (statusId === 2) {
+                        // SUBMIT: include any entered test with a value that is NOT yet approved
+                        if (testValue.length === 0 || reportStatusId === 5) {
+                            return;
+                        }
+                    }
 
                     entries.push({
                         samplecollectionID: samplecollectionID,
                         investigationID: investigationID,
                         reportingType: reportingType,
-                        testValue: testValue.trim(),
-                        remarks: remarks.trim()
+                        testValue: testValue,
+                        remarks: remarks,
+                        abnormalFlag: abnormalFlag
                     });
+                    targetRowIds.push(samplecollectionID);
                 });
 
+                const groupRemarks = [];
+                $('.txt-group-lab-remarks').each(function () {
+                    const groupKey = $(this).data('group-key') || '';
+                    const headerName = $(this).data('header-name') || '';
+                    const profileId = parseInt($(this).data('profile-id')) || 0;
+                    const investigationId = parseInt($(this).data('investigation-id')) || 0;
+                    const labRemarks = $(this).val() || '';
+
+                    if (groupKey) {
+                        groupRemarks.push({
+                            groupKey: groupKey,
+                            headerName: headerName,
+                            profileId: profileId > 0 ? profileId : null,
+                            investigationId: investigationId > 0 ? investigationId : null,
+                            labRemarks: labRemarks.trim()
+                        });
+                    }
+                });
+
+                // Safety net: a row without a configured Reference Range can never be submitted
+                // (its input is disabled so it is skipped above; this also catches a re-enabled input).
+                const blockedNames = [];
+                for (let i = entries.length - 1; i >= 0; i--) {
+                    const $r = $('.test-item-row[data-samplecollection-id="' + entries[i].samplecollectionID + '"]');
+                    if (String($r.find('.txt-test-val').attr('data-no-ref-range')) === 'true') {
+                        blockedNames.push($.trim($r.find('td:nth-child(2) .fw-bold').first().text()));
+                        entries.splice(i, 1);
+                        targetRowIds.splice(i, 1);
+                    }
+                }
+                if (blockedNames.length) {
+                    toastr.error('Need to configure Reference Range first for: ' + blockedNames.join(', '));
+                    if (entries.length === 0) return;
+                }
+
                 if (entries.length === 0) {
-                    toastr.warning('No test items found to save.');
+                    if (statusId === 3) {
+                        toastr.warning('No submitted test entries found to validate.');
+                    } else if (statusId === 5) {
+                        toastr.warning('No validated test entries found to approve.');
+                    } else {
+                        toastr.warning('Please enter at least one test result value before submitting.');
+                    }
                     return;
                 }
 
                 const payload = {
                     labOrderId: labOrderId,
                     reportStatusId: statusId,
-                    entries: entries
+                    entries: entries,
+                    groupRemarks: groupRemarks
                 };
 
-                const $btns = $('.btn-action-draft, .btn-action-save, .btn-action-validate, .btn-action-approve');
+                const $btns = $('.btn-action-save, .btn-action-validate, .btn-action-approve');
                 $btns.prop('disabled', true);
 
                 $.ajax({
@@ -705,90 +2232,123 @@
                     if (res.success) {
                         toastr.success(res.message || `Test entries saved as ${statusLabel}!`);
 
-                        // Update badges in table dynamically
-                        let badgeClass = 'bg-primary-subtle text-primary border border-primary-subtle';
-                        let dateIcon = 'bi-send-check';
-                        let datePrefix = 'Sub:';
-                        let dateColorClass = 'text-primary';
-
-                        if (statusId === 1) {
-                            badgeClass = 'bg-warning-subtle text-warning border border-warning-subtle';
-                            dateIcon = 'bi-pencil-square';
-                            datePrefix = 'Draft:';
-                            dateColorClass = 'text-warning-emphasis';
-                        } else if (statusId === 3) {
-                            badgeClass = 'bg-success-subtle text-success border border-success-subtle';
-                            dateIcon = 'bi-check2-circle';
-                            datePrefix = 'Val:';
-                            dateColorClass = 'text-success';
-                        } else if (statusId === 5) {
-                            badgeClass = 'bg-info-subtle text-info border border-info-subtle';
-                            dateIcon = 'bi-patch-check-fill';
-                            datePrefix = 'Appr:';
-                            dateColorClass = 'text-info';
-                        }
-
-                        $('.row-status-badge').each(function () {
-                            $(this).attr('class', `badge ${badgeClass} fs-9 row-status-badge`).text(statusLabel);
-                        });
-
                         const now = new Date();
                         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         const dateStr = now.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
                         const fullDateTimeStr = `${dateStr}, ${timeStr}`;
 
-                        $('.row-status-dates').html(`
-                            <div class="${dateColorClass} fw-semibold" title="${statusLabel}: ${fullDateTimeStr}">
-                                <i class="bi ${dateIcon} me-0.5"></i>${datePrefix} Today ${timeStr}
-                            </div>
-                        `);
+                        if (statusId === 2) {
+                            // Submitted / Entered
+                            $('.test-item-row').each(function () {
+                                const $row = $(this);
+                                const sampleId = $row.data('samplecollection-id');
+                                if (!targetRowIds.includes(sampleId)) return;
 
-                        // Update banner timeline pills
-                        if (statusId === 1) {
-                            if ($('#pillDrafted').length) {
-                                $('#pillDraftedVal').text(fullDateTimeStr);
-                            } else {
-                                $('#pillPayment').after(`
-                                    <div class="info-pill" id="pillDrafted">
-                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-pencil-square text-warning me-1"></i>Drafted Date</div>
-                                        <div class="fs-8 fw-semibold text-warning-emphasis font-monospace" id="pillDraftedVal">${fullDateTimeStr}</div>
-                                    </div>
-                                `);
-                            }
-                        } else if (statusId === 2) {
+                                const $inp = $row.find('.txt-test-val');
+                                const valStr = $inp.val()?.trim() || '';
+                                const $editBtn = $row.find('.btn-edit-row');
+                                const curRemarks = $row.find('.txt-test-remarks').val()?.trim() || '';
+
+                                $inp.prop('readonly', true).addClass('is-locked bg-light text-dark').removeClass('border-primary shadow-sm');
+                                $editBtn.removeClass('d-none btn-primary text-white').addClass('btn-outline-secondary');
+                                $editBtn.find('i').removeClass('text-white bi-pencil-fill').addClass('text-primary bi-pencil-square');
+                                $row.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge status-entered').attr('data-time-submitted', fullDateTimeStr).text('Entered');
+                                
+                                $row.attr('data-report-status-id', '2');
+                                $row.attr('data-initial-val', valStr);
+                                $row.attr('data-initial-remarks', curRemarks);
+                            });
+
+                            $('.txt-group-lab-remarks').each(function () {
+                                $(this).attr('data-initial-val', $(this).val()?.trim() || '');
+                            });
+
+                            isPageDirty = false;
+
                             if ($('#pillSubmitted').length) {
                                 $('#pillSubmittedVal').text(fullDateTimeStr);
                             } else {
-                                $('#pillPayment').after(`
+                                $('#rowBannerStatusTimeline').append(`
                                     <div class="info-pill" id="pillSubmitted">
-                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-send-check text-primary me-1"></i>Submitted Date</div>
-                                        <div class="fs-8 fw-semibold text-primary font-monospace" id="pillSubmittedVal">${fullDateTimeStr}</div>
+                                        <span class="pill-label text-primary"><i class="bi bi-send-check text-primary me-0.5"></i>Submitted Date</span>
+                                        <span class="pill-val text-primary font-monospace" id="pillSubmittedVal">${fullDateTimeStr}</span>
                                     </div>
                                 `);
                             }
                         } else if (statusId === 3) {
+                            // Validated: ONLY update the rows that were validated!
+                            $('.test-item-row').each(function () {
+                                const $row = $(this);
+                                const sampleId = $row.data('samplecollection-id');
+                                if (!targetRowIds.includes(sampleId)) return;
+
+                                const $inp = $row.find('.txt-test-val');
+                                const valStr = $inp.val()?.trim() || '';
+                                const $editBtn = $row.find('.btn-edit-row');
+                                const curRemarks = $row.find('.txt-test-remarks').val()?.trim() || '';
+
+                                $inp.prop('readonly', true).addClass('is-locked bg-light text-dark').removeClass('border-primary shadow-sm');
+                                $editBtn.removeClass('d-none btn-primary text-white').addClass('btn-outline-secondary');
+                                $editBtn.find('i').removeClass('text-white bi-pencil-fill').addClass('text-primary bi-pencil-square');
+                                $row.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-success-subtle text-success border border-success-subtle').attr('data-time-validated', fullDateTimeStr).text('Validated');
+                                
+                                $row.attr('data-report-status-id', '3');
+                                $row.attr('data-initial-val', valStr);
+                                $row.attr('data-initial-remarks', curRemarks);
+                            });
+
+                            $('.txt-group-lab-remarks').each(function () {
+                                $(this).attr('data-initial-val', $(this).val()?.trim() || '');
+                            });
+
+                            isPageDirty = false;
+
                             if ($('#pillValidated').length) {
                                 $('#pillValidatedVal').text(fullDateTimeStr);
                             } else {
-                                $('#pillPayment').after(`
+                                $('#rowBannerStatusTimeline').append(`
                                     <div class="info-pill" id="pillValidated">
-                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-check2-circle text-success me-1"></i>Validated Date</div>
-                                        <div class="fs-8 fw-semibold text-success font-monospace" id="pillValidatedVal">${fullDateTimeStr}</div>
+                                        <span class="pill-label text-success"><i class="bi bi-check2-circle text-success me-0.5"></i>Validated Date</span>
+                                        <span class="pill-val text-success font-monospace" id="pillValidatedVal">${fullDateTimeStr}</span>
                                     </div>
                                 `);
                             }
                         } else if (statusId === 5) {
+                            // Approved: ONLY update the rows that were approved!
+                            $('.test-item-row').each(function () {
+                                const $row = $(this);
+                                const sampleId = $row.data('samplecollection-id');
+                                if (!targetRowIds.includes(sampleId)) return;
+
+                                const $inp = $row.find('.txt-test-val');
+                                const valStr = $inp.val()?.trim() || '';
+                                const $remarks = $row.find('.txt-test-remarks');
+                                const $editBtn = $row.find('.btn-edit-row');
+
+                                $inp.prop('readonly', true).addClass('is-locked bg-light text-dark').removeClass('border-primary shadow-sm');
+                                $remarks.prop('readonly', true).addClass('bg-light-subtle text-muted');
+                                $editBtn.addClass('d-none');
+                                $row.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-info-subtle text-info border border-info-subtle').attr('data-time-approved', fullDateTimeStr).text('Approved');
+                                
+                                $row.attr('data-report-status-id', '5');
+                                $row.attr('data-initial-val', valStr);
+                            });
+
+                            isPageDirty = false;
+
                             if ($('#pillApproved').length) {
                                 $('#pillApprovedVal').text(fullDateTimeStr);
                             } else {
-                                $('#pillPayment').after(`
+                                $('#rowBannerStatusTimeline').append(`
                                     <div class="info-pill" id="pillApproved">
-                                        <div class="fs-9 text-muted text-uppercase fw-semibold"><i class="bi bi-patch-check-fill text-info me-1"></i>Approved Date</div>
-                                        <div class="fs-8 fw-semibold text-info font-monospace" id="pillApprovedVal">${fullDateTimeStr}</div>
+                                        <span class="pill-label text-info"><i class="bi bi-patch-check-fill text-info me-0.5"></i>Approved Date</span>
+                                        <span class="pill-val text-info font-monospace" id="pillApprovedVal">${fullDateTimeStr}</span>
                                     </div>
                                 `);
                             }
                         }
+
+                        updateActionButtonsVisibility();
                     } else {
                         toastr.error(res.message || 'Failed to save entries.');
                     }
@@ -799,19 +2359,289 @@
                 });
             }
 
-            // Keyboard navigation: Enter moves to next visible value input
-            $('.txt-test-val').on('keydown', function (e) {
+            // ── Sample Status Dropdown & Rejection/Re-Collect Handler ────────
+            function escapeHtml(text) {
+                if (!text) return '';
+                return $('<div>').text(text).html();
+            }
+
+            let activeStatusChange = null;
+
+            $(document).on('change', '.sample-status-select', function () {
+                const $select = $(this);
+                const newStatusId = parseInt($select.val());
+                const oldStatusId = parseInt($select.attr('data-current-status')) || 2;
+                const grpId = $select.data('grpid');
+                const targetName = $select.data('target-name') || 'Selected Test / Profile';
+                const profileId = $select.data('profile-id') ? parseInt($select.data('profile-id')) : null;
+                const investigationId = $select.data('investigation-id') ? parseInt($select.data('investigation-id')) : null;
+                const sampleId = $select.data('sample-id') ? parseInt($select.data('sample-id')) : null;
+
+                if (newStatusId === 3 || newStatusId === 4) {
+                    activeStatusChange = {
+                        $select: $select,
+                        newStatusId: newStatusId,
+                        oldStatusId: oldStatusId,
+                        grpId: grpId,
+                        targetName: targetName,
+                        profileId: profileId,
+                        investigationId: investigationId,
+                        sampleId: sampleId,
+                        confirmed: false
+                    };
+
+                    const isReCollect = (newStatusId === 3);
+                    $('#modalRejectionTitle').html(isReCollect
+                        ? '<i class="bi bi-arrow-repeat text-warning me-1.5"></i>Sample Re-Collection Request'
+                        : '<i class="bi bi-x-circle text-danger me-1.5"></i>Sample Rejection Confirmation');
+                    $('#modalRejectionTargetName').text(targetName);
+                    $('#modalRejectionReasonSelect').val('').removeClass('is-invalid');
+                    $('#modalCustomReasonContainer').hide();
+                    $('#modalCustomReasonText').val('').removeClass('is-invalid');
+
+                    const modal = new bootstrap.Modal(document.getElementById('modalSampleRejectionReason'));
+                    modal.show();
+                } else if (newStatusId === 2) {
+                    Swal.fire({
+                        title: 'Mark Sample as Collected?',
+                        text: `Revert sample status for "${targetName}" back to Collected? This will re-enable test entry for this group.`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#198754',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: '<i class="bi bi-check2-circle me-1"></i>Yes, Mark Collected',
+                        cancelButtonText: 'Cancel'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            const payload = {
+                                labOrderId: labOrderId,
+                                profileId: profileId,
+                                investigationId: investigationId,
+                                sampleCollectionId: sampleId,
+                                collectionStatusId: 2,
+                                rejectionReasonId: null,
+                                rejectionReason: null
+                            };
+
+                            $.ajax({
+                                url: '@Url.Action("UpdateSampleStatusJson", "LabReporting")',
+                                type: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify(payload)
+                            })
+                            .done(function (res) {
+                                if (res.success) {
+                                    applySampleStatusChangeToDom($select, grpId, 2, '');
+                                    toastr.success(res.message || 'Sample marked as Collected.');
+                                } else {
+                                    $select.val(oldStatusId);
+                                    toastr.error(res.message || 'Failed to update sample status.');
+                                }
+                            })
+                            .fail(function () {
+                                $select.val(oldStatusId);
+                                toastr.error('Server error while updating sample status.');
+                            });
+                        } else {
+                            $select.val(oldStatusId);
+                        }
+                    });
+                }
+            });
+
+            $('#modalSampleRejectionReason').on('hidden.bs.modal', function () {
+                if (activeStatusChange && !activeStatusChange.confirmed) {
+                    activeStatusChange.$select.val(activeStatusChange.oldStatusId);
+                }
+                activeStatusChange = null;
+            });
+
+            $('#modalRejectionReasonSelect').on('change', function () {
+                $(this).removeClass('is-invalid');
+                if ($(this).val() === '0') {
+                    $('#modalCustomReasonContainer').slideDown(150);
+                    $('#modalCustomReasonText').focus();
+                } else {
+                    $('#modalCustomReasonContainer').slideUp(150);
+                }
+            });
+
+            $('#btnConfirmSampleStatusChange').on('click', function () {
+                if (!activeStatusChange) return;
+
+                const reasonSelectVal = $('#modalRejectionReasonSelect').val();
+                if (!reasonSelectVal) {
+                    $('#modalRejectionReasonSelect').addClass('is-invalid');
+                    return;
+                }
+
+                let reasonId = null;
+                let reasonText = '';
+
+                if (reasonSelectVal === '0') {
+                    const customText = $('#modalCustomReasonText').val()?.trim() || '';
+                    if (!customText) {
+                        $('#modalCustomReasonText').addClass('is-invalid').focus();
+                        return;
+                    }
+                    reasonText = customText;
+                } else {
+                    reasonId = parseInt(reasonSelectVal);
+                    const selectedOption = $('#modalRejectionReasonSelect option:selected');
+                    reasonText = selectedOption.data('name') || selectedOption.text().trim();
+                    const customText = $('#modalCustomReasonText').val()?.trim() || '';
+                    if (customText) {
+                        reasonText += ` - ${customText}`;
+                    }
+                }
+
+                const $btn = $(this);
+                $btn.prop('disabled', true);
+                $('#spnConfirmSampleStatus').removeClass('d-none');
+                $('#iconConfirmSampleStatus').addClass('d-none');
+
+                const payload = {
+                    labOrderId: labOrderId,
+                    profileId: activeStatusChange.profileId,
+                    investigationId: activeStatusChange.investigationId,
+                    sampleCollectionId: activeStatusChange.sampleId,
+                    collectionStatusId: activeStatusChange.newStatusId,
+                    rejectionReasonId: reasonId,
+                    rejectionReason: reasonText
+                };
+
+                $.ajax({
+                    url: '@Url.Action("UpdateSampleStatusJson", "LabReporting")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(payload)
+                })
+                .done(function (res) {
+                    $btn.prop('disabled', false);
+                    $('#spnConfirmSampleStatus').addClass('d-none');
+                    $('#iconConfirmSampleStatus').removeClass('d-none');
+
+                    if (res.success) {
+                        activeStatusChange.confirmed = true;
+                        const modalEl = document.getElementById('modalSampleRejectionReason');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+
+                        const newStatus = activeStatusChange.newStatusId;
+                        const $sel = activeStatusChange.$select;
+                        const grpId = activeStatusChange.grpId;
+
+                        applySampleStatusChangeToDom($sel, grpId, newStatus, reasonText);
+                        toastr.success(res.message || 'Sample status updated.');
+                    } else {
+                        toastr.error(res.message || 'Failed to update sample status.');
+                    }
+                })
+                .fail(function () {
+                    $btn.prop('disabled', false);
+                    $('#spnConfirmSampleStatus').addClass('d-none');
+                    $('#iconConfirmSampleStatus').removeClass('d-none');
+                    toastr.error('Server error occurred while updating sample status.');
+                });
+            });
+
+            function applySampleStatusChangeToDom($select, grpId, newStatus, reasonText) {
+                $select.attr('data-current-status', newStatus);
+                $select.removeClass('select-sample-status-2 select-sample-status-3 select-sample-status-4')
+                       .addClass(`select-sample-status-${newStatus}`);
+
+                const $wrapper = $select.closest('.sample-status-wrapper');
+                $wrapper.find('.sample-rejection-reason-badge').remove();
+
+                const isRejOrReCollect = (newStatus === 3 || newStatus === 4);
+
+                if (isRejOrReCollect && reasonText) {
+                    $wrapper.append(`
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 sample-rejection-reason-badge" title="Reason: ${escapeHtml(reasonText)}">
+                            <i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(reasonText)}
+                        </span>
+                    `);
+                }
+
+                // Apply to all child rows of this group
+                $(`.group-child-${grpId}.test-item-row`).each(function () {
+                    const $row = $(this);
+                    const $valInp = $row.find('.txt-test-val');
+                    const $remInp = $row.find('.txt-test-remarks');
+                    const $editBtn = $row.find('.btn-edit-row');
+                    const $statusBadge = $row.find('.row-status-badge');
+                    const $flagBadge = $row.find('.flag-badge');
+
+                    if (isRejOrReCollect) {
+                        $row.find('.no-ref-range-msg').remove();
+                        $valInp.val('').prop('disabled', true).removeClass('has-value is-flagged-l is-flagged-h border-primary shadow-sm no-ref-range').attr('placeholder', 'Pending');
+                        $remInp.val('').prop('disabled', true).attr('placeholder', newStatus === 3 ? 'Re-Collect pending' : 'Sample Rejected');
+                        $editBtn.addClass('d-none');
+                        $flagBadge.attr('class', 'badge flag-badge flag-none fs-8 px-2 py-1').text('—');
+                        $row.removeAttr('data-current-flag');
+
+                        const statusClass = newStatus === 3 ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle';
+                        const statusLabel = newStatus === 3 ? 'Pending (Re-Collect)' : 'Pending (Rejected)';
+                        $statusBadge.removeAttr('data-time-drafted data-time-submitted data-time-validated data-time-approved')
+                                    .attr('class', `badge fs-9 row-status-badge ${statusClass}`).text(statusLabel);
+
+                        $row.find('.row-rejection-info').remove();
+                        $row.find('td:nth-child(2)').append(`
+                            <div class="fs-9 mt-0.5 d-flex align-items-center gap-1 row-rejection-info">
+                                <span class="badge ${newStatus === 3 ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle'} fs-9">
+                                    <i class="bi ${newStatus === 3 ? 'bi-arrow-repeat' : 'bi-x-circle'} me-1"></i>${newStatus === 3 ? 'Re-Collect Pending' : 'Sample Rejected'}
+                                </span>
+                                ${reasonText ? `<span class="text-danger fs-9 text-truncate" style="max-width: 200px;" title="Reason: ${escapeHtml(reasonText)}">(${escapeHtml(reasonText)})</span>` : ''}
+                            </div>
+                        `);
+                    } else {
+                        // Re-enabled back to Collected (2) - unless no Reference Range is configured for this test
+                        const noRefRange = String($valInp.attr('data-no-ref-range')) === 'true';
+                        $valInp.prop('disabled', noRefRange).toggleClass('no-ref-range', noRefRange).attr('placeholder', noRefRange ? 'N/A' : 'Value');
+                        if (noRefRange && !$row.find('.no-ref-range-msg').length) {
+                            $valInp.closest('td').append('<div class="no-ref-range-msg fs-9 mt-1" role="alert"><i class="bi bi-exclamation-triangle-fill me-1"></i>Need to configure Reference Range first</div>');
+                        }
+                        $remInp.prop('disabled', false).attr('placeholder', 'Optional note');
+                        $row.find('.row-rejection-info').remove();
+                        $statusBadge.attr('class', 'badge fs-9 row-status-badge bg-secondary-subtle text-secondary border border-secondary-subtle').text('Pending entry');
+                    }
+                });
+
+                // Lab remarks row
+                const $remRow = $(`#remarks_${grpId}`);
+                if ($remRow.length) {
+                    $remRow.find('.txt-group-lab-remarks').prop('disabled', isRejOrReCollect);
+                }
+
+                updateFilledCount();
+                updateActionButtonsVisibility();
+            }
+
+            // Keyboard navigation: Enter moves to next editable value input
+            $(document).on('keydown', '.txt-test-val', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    const $allInputs = $('.txt-test-val:visible');
-                    const idx = $allInputs.index(this);
-                    if (idx < $allInputs.length - 1) {
-                        $allInputs.eq(idx + 1).focus().select();
+                    const $editableInputs = $('.txt-test-val:visible:not([readonly]):not(:disabled)');
+                    const idx = $editableInputs.index(this);
+                    if (idx >= 0 && idx < $editableInputs.length - 1) {
+                        $editableInputs.eq(idx + 1).focus().select();
                     } else {
-                        $('#btnStickySave').focus();
+                        if ($('#btnStickySave:visible').length) {
+                            $('#btnStickySave').focus();
+                        } else if ($('#btnStickyValidate:visible').length) {
+                            $('#btnStickyValidate').focus();
+                        } else if ($('#btnStickyApprove:visible').length) {
+                            $('#btnStickyApprove').focus();
+                        }
                     }
                 }
             });
+
+            // Initial button and badge sync on page load
+            updateActionButtonsVisibility();
         });
     </script>
+    <partial name="_LabAuditHistoryScripts" />
+
+    <partial name="_LabReportPrintScripts" />
 }

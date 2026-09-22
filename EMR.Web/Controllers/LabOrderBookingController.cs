@@ -341,6 +341,12 @@ namespace EMR.Web.Controllers
                     }
                 }
 
+                // If spot payment data is provided, precedence is given to Spot Payment (bypassing wallet deduction)
+                if (!string.IsNullOrWhiteSpace(model.PaymentDataJson))
+                {
+                    model.DeductFromWallet = false;
+                }
+
                 // 3. Prepaid (Wallet) Facility validation
                 if (creditStatus.CreditFacilityType == 1)
                 {
@@ -382,11 +388,12 @@ namespace EMR.Web.Controllers
                 B2BAgentId = model.B2BAgentId,
                 AgentType = model.AgentType,
                 B2BTotal = b2bTotal,
+                CreatedBy = User.GetUserId(),
                 Items = lineItems!
             };
 
             var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
-            await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId);
+            await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
 
             // Post B2B Bill Ledger (Dr Franchise Receivable or Corporate Receivable, Cr LAB Revenue)
             // NOTE: b2bShowPrintBarcode is resolved after payment processing below (same ordering as B2C).
@@ -430,6 +437,10 @@ namespace EMR.Web.Controllers
                             paymentReq.SubTotal = b2bTotal;
 
                             var payRes = await paymentService.SavePaymentAsync(paymentReq, User.GetUserId());
+                            if (payRes != null && !string.IsNullOrWhiteSpace(payRes.TokenNo))
+                            {
+                                labOrderRes.TokenNo = payRes.TokenNo;
+                            }
                             paymentModeUsed = "Immediate Spot Payment";
                         }
                     }
@@ -776,11 +787,12 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "Lab" : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                CreatedBy = User.GetUserId(),
                 Items = lineItems!
             };
 
             var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
-            await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId);
+            await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
 
             decimal totalAmount = lineItems!.Sum(x => x.Price);
             await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
@@ -989,11 +1001,12 @@ namespace EMR.Web.Controllers
                 B2BAgentId = model.B2BAgentId,
                 AgentType = model.AgentType,
                 B2BTotal = model.B2BTotal ?? (model.IsB2B ? lineItems.Sum(x => x.B2BRate ?? x.Price) : null),
+                CreatedBy = User.GetUserId(),
                 Items = lineItems
             };
 
             var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
-            await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId);
+            await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
 
             decimal totalAmount = lineItems.Sum(x => x.Price);
             await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
@@ -1573,11 +1586,32 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> B2COrderList(string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> B2COrderList(int? branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
         {
-            int branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+            int resolvedBranchId = branchId 
+                ?? User.GetCurrentBranchId() 
+                ?? HttpContext.Session.GetInt32("SelectedBranchId") 
+                ?? HttpContext.Session.GetInt32("BranchId") 
+                ?? 1;
 
-            var result = await labOrderApiClient.GetPagedOrdersAsync(branchId, fromDate, toDate, search, page, pageSize, isB2B: false);
+            var effectiveFromDate = fromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
+            var effectiveToDate = toDate ?? DateTime.Today.ToString("yyyy-MM-dd");
+
+            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: false);
+
+            var branches = await dbContext.BranchMasters
+                .Where(b => b.IsActive)
+                .OrderBy(b => b.BranchName)
+                .Select(b => new SelectListItem
+                {
+                    Value = b.BranchId.ToString(),
+                    Text = b.BranchName,
+                    Selected = b.BranchId == resolvedBranchId
+                })
+                .ToListAsync();
+            ViewBag.Branches = branches;
+
+            var currentBranch = branches.FirstOrDefault(b => b.Selected)?.Text;
 
             var vm = new LabOrderPagedListViewModel
             {
@@ -1586,8 +1620,10 @@ namespace EMR.Web.Controllers
                 TotalCount = result?.TotalCount ?? 0,
                 Page = page,
                 PageSize = pageSize,
-                FromDate = fromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"),
-                ToDate = toDate ?? DateTime.Today.ToString("yyyy-MM-dd"),
+                BranchId = resolvedBranchId,
+                BranchName = currentBranch,
+                FromDate = effectiveFromDate,
+                ToDate = effectiveToDate,
                 Search = search
             };
 
@@ -1595,11 +1631,32 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> B2BRegistration(string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> B2BRegistration(int? branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
         {
-            int branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+            int resolvedBranchId = branchId 
+                ?? User.GetCurrentBranchId() 
+                ?? HttpContext.Session.GetInt32("SelectedBranchId") 
+                ?? HttpContext.Session.GetInt32("BranchId") 
+                ?? 1;
 
-            var result = await labOrderApiClient.GetPagedOrdersAsync(branchId, fromDate, toDate, search, page, pageSize, isB2B: true);
+            var effectiveFromDate = fromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
+            var effectiveToDate = toDate ?? DateTime.Today.ToString("yyyy-MM-dd");
+
+            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: true);
+
+            var branches = await dbContext.BranchMasters
+                .Where(b => b.IsActive)
+                .OrderBy(b => b.BranchName)
+                .Select(b => new SelectListItem
+                {
+                    Value = b.BranchId.ToString(),
+                    Text = b.BranchName,
+                    Selected = b.BranchId == resolvedBranchId
+                })
+                .ToListAsync();
+            ViewBag.Branches = branches;
+
+            var currentBranch = branches.FirstOrDefault(b => b.Selected)?.Text;
 
             var vm = new LabOrderPagedListViewModel
             {
@@ -1608,8 +1665,10 @@ namespace EMR.Web.Controllers
                 TotalCount = result?.TotalCount ?? 0,
                 Page = page,
                 PageSize = pageSize,
-                FromDate = fromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"),
-                ToDate = toDate ?? DateTime.Today.ToString("yyyy-MM-dd"),
+                BranchId = resolvedBranchId,
+                BranchName = currentBranch,
+                FromDate = effectiveFromDate,
+                ToDate = effectiveToDate,
                 Search = search
             };
 
@@ -1704,6 +1763,8 @@ namespace EMR.Web.Controllers
                 CollectionType    = detail.CollectionType,
                 PhlebotomistName  = detail.PhlebotomistName,
                 CreatedByName     = detail.CreatedByName,
+                CreatedByUsername = detail.CreatedByUsername,
+                PrintedByName     = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "Auto",
 
                 // B2B vs B2C Payment & Billing Handling
                 IsB2B           = detail.IsB2B,
@@ -2443,6 +2504,8 @@ namespace EMR.Web.Controllers
                 CollectionType    = detail.CollectionType,
                 PhlebotomistName  = detail.PhlebotomistName,
                 CreatedByName     = detail.CreatedByName,
+                CreatedByUsername = detail.CreatedByUsername,
+                PrintedByName     = "Patient Portal",
 
                 // B2B vs B2C Payment & Billing Handling
                 IsB2B           = detail.IsB2B,

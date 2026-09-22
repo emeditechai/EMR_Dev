@@ -35,20 +35,64 @@ namespace EMR.Api.Controllers
         }
 
         [HttpGet("detail/{labOrderId}")]
-        public async Task<IActionResult> GetDetail(int labOrderId)
+        public async Task<IActionResult> GetDetail(int labOrderId, [FromQuery] int? branchId = null)
         {
             if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
 
-            var result = await labReportingService.GetDetailAsync(labOrderId);
+            var result = await labReportingService.GetDetailAsync(labOrderId, branchId);
             if (result == null) return NotFound("Lab Order reporting details not found.");
 
             return Ok(result);
+        }
+
+        [HttpGet("signoff-panel/{labOrderId:int}")]
+        public async Task<IActionResult> GetSignoffPanel(int labOrderId, [FromQuery] int? branchId = null)
+        {
+            if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
+            return Ok(await labReportingService.GetSignoffPanelAsync(labOrderId, branchId));
+        }
+
+        public class RecordEntryApprovalRequest
+        {
+            public int LabOrderId { get; set; }
+            public List<long> SampleCollectionIds { get; set; } = [];
+            public int UserId { get; set; }
+            public int? BranchId { get; set; }
+        }
+
+        [HttpPost("record-entry-approval")]
+        public async Task<IActionResult> RecordEntryApproval([FromBody] RecordEntryApprovalRequest request)
+        {
+            if (request == null || request.LabOrderId <= 0 || request.UserId <= 0)
+                return BadRequest(new { message = "LabOrderId and UserId are required." });
+
+            var count = await labReportingService.RecordEntryApprovalAsync(
+                request.LabOrderId, request.SampleCollectionIds, request.UserId, request.BranchId);
+            return Ok(new { recordedCount = count });
         }
 
         [HttpGet("statuses")]
         public async Task<IActionResult> GetStatuses()
         {
             var result = await labReportingService.GetStatusesAsync();
+            return Ok(result);
+        }
+
+        [HttpGet("activity-history/{labOrderId}")]
+        public async Task<IActionResult> GetActivityHistory(int labOrderId)
+        {
+            if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
+
+            var result = await labReportingService.GetActivityHistoryAsync(labOrderId);
+            return Ok(result);
+        }
+
+        [HttpGet("print-meta/{labOrderId}")]
+        public async Task<IActionResult> GetPrintMeta(int labOrderId)
+        {
+            if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
+
+            var result = await labReportingService.GetPrintMetaAsync(labOrderId);
             return Ok(result);
         }
 
@@ -66,6 +110,26 @@ namespace EMR.Api.Controllers
             try
             {
                 int count = await labReportingService.SaveEntryAsync(request, userId);
+                return Ok(new { isSuccess = true, count });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { isSuccess = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("update-sample-status")]
+        public async Task<IActionResult> UpdateSampleStatus([FromBody] UpdateLabSampleStatusRequestDto request)
+        {
+            if (request == null || request.LabOrderId <= 0 || request.CollectionStatusId <= 0)
+                return BadRequest("Invalid request parameters.");
+
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+
+            try
+            {
+                int count = await labReportingService.UpdateSampleStatusAsync(request, userId);
                 return Ok(new { isSuccess = true, count });
             }
             catch (Exception ex)

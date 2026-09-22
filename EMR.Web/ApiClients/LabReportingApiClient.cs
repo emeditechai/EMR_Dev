@@ -5,15 +5,19 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using EMR.Web.Models.DTOs;
 
+using Microsoft.Extensions.Logging;
+
 namespace EMR.Web.ApiClients
 {
     public class LabReportingApiClient : ILabReportingApiClient
     {
         private readonly HttpClient httpClient;
+        private readonly ILogger<LabReportingApiClient> logger;
 
-        public LabReportingApiClient(IHttpClientFactory factory)
+        public LabReportingApiClient(IHttpClientFactory factory, ILogger<LabReportingApiClient> logger)
         {
             httpClient = factory.CreateClient("EmrApi");
+            this.logger = logger;
         }
 
         public async Task<LabReportingHeaderListResult> GetHeaderListAsync(
@@ -44,12 +48,31 @@ namespace EMR.Web.ApiClients
                    ?? new LabReportingHeaderListResult();
         }
 
-        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId)
+        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null)
         {
-            var response = await httpClient.GetAsync($"api/LabReporting/detail/{labOrderId}");
+            var url = $"api/LabReporting/detail/{labOrderId}" + (branchId.HasValue ? $"?branchId={branchId.Value}" : string.Empty);
+            var response = await httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode) return null;
 
             return await response.Content.ReadFromJsonAsync<LabReportingOrderDetailDto>();
+        }
+
+        public async Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null)
+        {
+            var url = $"api/LabReporting/signoff-panel/{labOrderId}" + (branchId.HasValue ? $"?branchId={branchId}" : "");
+            var response = await httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return [];
+            return await response.Content.ReadFromJsonAsync<List<LabReportSignoffLevelDto>>() ?? [];
+        }
+
+        public async Task<int> RecordEntryApprovalAsync(int labOrderId, IEnumerable<long> sampleCollectionIds, int userId, int? branchId)
+        {
+            var response = await httpClient.PostAsJsonAsync("api/LabReporting/record-entry-approval",
+                new { LabOrderId = labOrderId, SampleCollectionIds = sampleCollectionIds, UserId = userId, BranchId = branchId });
+            if (!response.IsSuccessStatusCode) return 0;
+
+            using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return doc.RootElement.TryGetProperty("recordedCount", out var c) ? c.GetInt32() : 0;
         }
 
         public async Task<List<LabReportStatusMasterDto>> GetStatusesAsync()
@@ -64,10 +87,46 @@ namespace EMR.Web.ApiClients
         public async Task<bool> SaveEntryAsync(SaveLabReportingRequestDto request)
         {
             var response = await httpClient.PostAsJsonAsync("api/LabReporting/save-entry", request);
-            if (!response.IsSuccessStatusCode) return false;
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                logger.LogError("Error in SaveEntryAsync (status {StatusCode}): {ErrorBody}", response.StatusCode, errorBody);
+                return false;
+            }
 
             var res = await response.Content.ReadFromJsonAsync<SaveEntryResponse>();
             return res?.isSuccess ?? false;
+        }
+
+        public async Task<bool> UpdateSampleStatusAsync(UpdateLabSampleStatusRequestDto request)
+        {
+            var response = await httpClient.PostAsJsonAsync("api/LabReporting/update-sample-status", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                logger.LogError("Error in UpdateSampleStatusAsync (status {StatusCode}): {ErrorBody}", response.StatusCode, errorBody);
+                return false;
+            }
+
+            var res = await response.Content.ReadFromJsonAsync<SaveEntryResponse>();
+            return res?.isSuccess ?? false;
+        }
+
+        public async Task<List<LabOrderActivityDto>> GetActivityHistoryAsync(int labOrderId)
+        {
+            var response = await httpClient.GetAsync($"api/LabReporting/activity-history/{labOrderId}");
+            response.EnsureSuccessStatusCode();
+
+            return await response.Content.ReadFromJsonAsync<List<LabOrderActivityDto>>()
+                   ?? new List<LabOrderActivityDto>();
+        }
+
+        public async Task<LabReportPrintMetaDto?> GetPrintMetaAsync(int labOrderId)
+        {
+            var response = await httpClient.GetAsync($"api/LabReporting/print-meta/{labOrderId}");
+            if (!response.IsSuccessStatusCode) return null;
+
+            return await response.Content.ReadFromJsonAsync<LabReportPrintMetaDto>();
         }
 
         private class SaveEntryResponse

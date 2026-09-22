@@ -1,0 +1,477 @@
+@model EMR.Web.Models.DTOs.PathologistAccessResult
+@{
+    ViewData["Title"] = "Pathologist Dashboard";
+    var p = Model.Profile!;
+}
+
+@section HeadStyles {
+    <style>
+        /* Sign-off modal: near full-screen, the iframe fills the body and carries the actual sign-off page */
+        #modalSignOff .modal-dialog { max-width: 1400px; width: 96vw; height: 92vh; margin: 4vh auto; }
+        #modalSignOff .modal-content { height: 100%; border: 0; border-radius: .9rem; overflow: hidden; }
+        #modalSignOff .modal-header { background: linear-gradient(135deg,#fef2f2,#fff); border-bottom: 1px solid #e2e8f0; padding: .6rem 1rem; }
+        #modalSignOff .modal-body { padding: 0; position: relative; background: #f1f5f9; }
+        #modalSignOff iframe { width: 100%; height: 100%; border: 0; display: block; }
+        #modalSignOff .so-nav-btn { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+                                     border: 1px solid #e2e8f0; background: #fff; color: #334155; transition: background .12s ease, color .12s ease; }
+        #modalSignOff .so-nav-btn:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+        #modalSignOff .so-nav-btn:disabled { opacity: .35; cursor: not-allowed; }
+        #modalSignOff .so-pos { font-size: .72rem; font-weight: 700; color: #64748b; min-width: 62px; text-align: center; }
+        #modalSignOff .so-title { font-size: .82rem; font-weight: 700; color: #0f172a; }
+        #modalSignOff .so-sub { font-size: .72rem; color: #64748b; }
+        #modalSignOff .so-loading { position: absolute; inset: 0; background: #f1f5f9; display: flex; align-items: center; justify-content: center; z-index: 2; }
+    </style>
+    <style>
+        .pd-wrapper { --pd-line:#e2e8f0; --pd-muted:#64748b; background:#f1f5f9; min-height:calc(100vh - 60px); }
+        .pd-wrapper .fs-7 { font-size:.85rem !important; }
+        .pd-wrapper .fs-8 { font-size:.78rem !important; }
+        .pd-wrapper .fs-9 { font-size:.70rem !important; }
+
+        .pd-head { background:#fff; border:1px solid var(--pd-line); border-radius:.75rem; }
+        .pd-head-icon { width:38px;height:38px;border-radius:.6rem;display:flex;align-items:center;justify-content:center;
+                        background:linear-gradient(135deg,#fee2e2,#fecaca);color:#b91c1c;font-size:1.05rem; }
+        .pd-scope-chip { background:#f8fafc;border:1px solid var(--pd-line);border-radius:999px;padding:.1rem .55rem;
+                         font-size:.68rem;font-weight:600;color:#475569; }
+
+        .pd-card { --c:#4f46e5; --bg:#eef2ff; position:relative;overflow:hidden;cursor:pointer;background:#fff;
+                   border:1px solid var(--pd-line) !important;border-radius:.7rem;
+                   transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease; }
+        .pd-card::before { content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c); }
+        .pd-card::after { content:"";position:absolute;right:-22px;top:-22px;width:72px;height:72px;border-radius:50%;background:var(--bg);opacity:.5; }
+        .pd-card:hover { transform:translateY(-2px);box-shadow:0 .45rem .9rem rgba(15,23,42,.10) !important;border-color:var(--c) !important; }
+        .pd-card.active-card { border-color:var(--c) !important;box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 22%,transparent) !important;
+                               background:linear-gradient(135deg,#fff 55%,var(--bg)); }
+        .pd-card .pd-label { font-size:.66rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--pd-muted); }
+        .pd-card .pd-value { font-size:1.45rem;font-weight:800;line-height:1.1;color:var(--c);letter-spacing:-.02em; }
+        .pd-icon { width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+                   background:var(--bg);color:var(--c);position:relative;z-index:1; }
+        .k-mine { --c:#b91c1c; --bg:#fee2e2; }
+        .k-other { --c:#b45309; --bg:#fef3c7; }
+        .k-done { --c:#0f766e; --bg:#ccfbf1; }
+        .k-all { --c:#1d4ed8; --bg:#dbeafe; }
+
+        .pd-panel { background:#fff;border:1px solid var(--pd-line) !important;border-radius:.7rem; }
+        .pd-label-sm { font-size:.66rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--pd-muted);margin-bottom:.2rem;display:block; }
+        .pd-wrapper .form-control, .pd-wrapper .form-select { border-color:#dbe2ea;font-size:.78rem; }
+        .pd-wrapper .form-control:focus, .pd-wrapper .form-select:focus { border-color:#fca5a5;box-shadow:0 0 0 .18rem rgba(239,68,68,.12); }
+        .pd-quick .btn { font-size:.7rem;font-weight:600;color:var(--pd-muted);border-color:#dbe2ea;background:#fff; }
+        .pd-quick .btn:hover { background:#fef2f2;color:#b91c1c;border-color:#fecaca; }
+        .pd-quick .btn.active { background:#b91c1c;border-color:#b91c1c;color:#fff; }
+
+        .pd-table-wrap { max-height:calc(100vh - 360px);min-height:220px;overflow-y:auto; }
+        #tblPathoBody tr { --bs-table-bg:var(--row-bg,#fff); }
+        #tblPathoBody tr:hover > * { --bs-table-bg-state:var(--row-hover,#f8fafc); }
+        #tblPathoBody tr > td:first-child { box-shadow:inset 3px 0 0 var(--row-accent,transparent); }
+        .row-mine { --row-accent:#b91c1c; --row-bg:#fef2f2; --row-hover:#fee2e2; }
+        .row-other { --row-accent:#b45309; --row-bg:#fffbeb; --row-hover:#fef3c7; }
+        .row-done { --row-accent:#0f766e; --row-bg:#f0fdfa; --row-hover:#ccfbf1; }
+        #tblPatho thead th { position:sticky;top:0;z-index:10;background:#f8fafc;color:var(--pd-muted);
+                             font-size:.66rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+                             border-bottom:1px solid var(--pd-line);white-space:nowrap; }
+        #tblPatho tbody td { border-top:1px solid #eef2f6;border-bottom:0;padding-top:.6rem;padding-bottom:.6rem;vertical-align:middle; }
+        .pd-avatar { width:30px;height:30px;border-radius:50%;flex:0 0 30px;display:flex;align-items:center;justify-content:center;
+                     font-size:.68rem;font-weight:700;color:#4338ca;background:#eef2ff;border:1px solid #e0e7ff; }
+        .pd-avatar.female { color:#be185d;background:#fce7f3;border-color:#fbcfe8; }
+        .pd-mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+        .pd-level { display:inline-flex;align-items:center;gap:.25rem;font-size:.66rem;font-weight:700; }
+        .pd-level .dot { width:8px;height:8px;border-radius:50%;background:#e2e8f0;border:1px solid #cbd5e1; }
+        .pd-level .dot.done { background:#0f766e;border-color:#0f766e; }
+        .pd-level .dot.next { background:#fff;border-color:#b91c1c;box-shadow:0 0 0 2px rgba(185,28,28,.18); }
+        .btn-sign { background:#b91c1c;border:1px solid #b91c1c;color:#fff;font-weight:600;border-radius:.45rem; }
+        .btn-sign:hover { background:#991b1b;border-color:#991b1b;color:#fff;box-shadow:0 .25rem .6rem rgba(185,28,28,.3); }
+        .btn-icon { width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem; }
+    </style>
+}
+
+<div class="container-fluid px-3 py-1.5 pd-wrapper">
+    <!-- Header -->
+    <div class="pd-head shadow-sm px-3 py-2 mb-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <div class="pd-head-icon"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+            <div>
+                <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                    Pathologist Dashboard
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 fw-semibold">Sign-off</span>
+                </h5>
+                <div class="text-muted fs-9 mt-0.5">
+                    <i class="bi bi-person-badge me-1"></i><strong>@p.FullName</strong>
+                    @if (!string.IsNullOrWhiteSpace(p.RegistrationNo))
+                    {
+                        <span class="ms-1">Reg. @p.RegistrationNo</span>
+                    }
+                    <span class="mx-1">&bull;</span>@p.BranchName
+                </div>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="pd-scope-chip" title="Your Department Access">
+                <i class="bi bi-hospital me-1"></i>@(Model.Departments.Count == 0 ? "All departments" : string.Join(", ", Model.Departments.Select(d => d.DepartmentName)))
+            </span>
+            <span class="pd-scope-chip" title="Your sign-off Test Categories">
+                <i class="bi bi-tags me-1"></i>@(Model.Categories.Count == 0 ? "All categories" : $"{Model.Categories.Count} categories")
+            </span>
+            <span class="pd-scope-chip" id="lblRowCount">&mdash;</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-icon shadow-xs" id="btnRefresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-md-3"><div class="card pd-card k-mine shadow-sm h-100 active-card" data-status="PENDING">
+            <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
+                <div><span class="pd-label d-block">Awaiting My Sign-off</span><div class="pd-value mt-0.5" id="kMine">0</div>
+                     <div class="fs-9 text-muted" id="kMineTests">0 tests</div></div>
+                <div class="pd-icon"><i class="bi bi-pen-fill"></i></div>
+            </div></div></div>
+        <div class="col-6 col-md-3"><div class="card pd-card k-other shadow-sm h-100" data-status="ALL">
+            <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
+                <div><span class="pd-label d-block">Awaiting Other Level</span><div class="pd-value mt-0.5" id="kOther">0</div>
+                     <div class="fs-9 text-muted">next signatory</div></div>
+                <div class="pd-icon"><i class="bi bi-hourglass-split"></i></div>
+            </div></div></div>
+        <div class="col-6 col-md-3"><div class="card pd-card k-done shadow-sm h-100" data-status="APPROVED">
+            <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
+                <div><span class="pd-label d-block">Approved</span><div class="pd-value mt-0.5" id="kDone">0</div>
+                     <div class="fs-9 text-muted" id="kDoneTests">0 tests</div></div>
+                <div class="pd-icon"><i class="bi bi-patch-check-fill"></i></div>
+            </div></div></div>
+        <div class="col-6 col-md-3"><div class="card pd-card k-all shadow-sm h-100" data-status="ALL">
+            <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
+                <div><span class="pd-label d-block">All In My Scope</span><div class="pd-value mt-0.5" id="kAll">0</div>
+                     <div class="fs-9 text-muted" id="kUrgent">0 urgent</div></div>
+                <div class="pd-icon"><i class="bi bi-collection-fill"></i></div>
+            </div></div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card pd-panel shadow-sm mb-2">
+        <div class="card-body p-2 px-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="pd-label-sm" for="selDateBasis">Filter By Date</label>
+                    <select id="selDateBasis" class="form-select form-select-sm">
+                        <option value="BookingDate">Booking Date Time</option>
+                        <option value="ValidatedDate">Validated Date</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="pd-label-sm" for="txtFrom">From Date</label>
+                    <input type="date" id="txtFrom" class="form-control form-control-sm" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="pd-label-sm" for="txtTo">To Date</label>
+                    <input type="date" id="txtTo" class="form-control form-control-sm" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="pd-label-sm">Quick Select</label>
+                    <div class="btn-group btn-group-sm w-100 pd-quick" role="group">
+                        <button type="button" class="btn btn-quick" data-range="today">Today</button>
+                        <button type="button" class="btn btn-quick" data-range="yesterday">Yesterday</button>
+                        <button type="button" class="btn btn-quick" data-range="week">7 Days</button>
+                        <button type="button" class="btn btn-quick" data-range="month">This Month</button>
+                    </div>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="pd-label-sm" for="txtSearch">Search Patient / Order</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="txtSearch" class="form-control border-start-0 ps-0" placeholder="Name, code, token, bill, phone&hellip;" />
+                    </div>
+                </div>
+            </div>
+            <div class="row g-2 align-items-end pt-2 mt-1 border-top">
+                <div class="col-12 col-md-auto d-flex align-items-center pb-1">
+                    <span class="fw-semibold fs-9 text-secondary d-flex align-items-center gap-1 text-uppercase" style="letter-spacing:.4px;">
+                        <i class="bi bi-funnel-fill text-danger"></i>My Sign-off Scope
+                    </span>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="pd-label-sm" for="ddlDepartment"><i class="bi bi-hospital me-1"></i>Department</label>
+                    <select id="ddlDepartment" class="form-select form-select-sm">
+                        <option value="">-- All my departments --</option>
+                        @foreach (var d in Model.Departments)
+                        {
+                            <option value="@d.DepartmentId">@d.DepartmentName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="pd-label-sm" for="ddlCategory"><i class="bi bi-tag me-1"></i>Test Category</label>
+                    <select id="ddlCategory" class="form-select form-select-sm">
+                        <option value="">-- All my categories --</option>
+                        @foreach (var c in Model.Categories)
+                        {
+                            <option value="@c.CategoryId" data-dept="@c.DepartmentId">@c.CategoryName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <button type="button" class="btn btn-link btn-sm text-decoration-none text-danger p-0 fs-9" id="btnClearScope" style="display:none;">
+                        <i class="bi bi-x-circle me-1"></i>Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- List -->
+    <div class="card pd-panel shadow-sm">
+        <div class="px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
+                <i class="bi bi-list-ul me-1 text-danger"></i>Reports
+            </span>
+            <div class="d-flex flex-wrap gap-2 fs-9 text-muted">
+                <span><span class="pd-level"><span class="dot next"></span></span> awaiting my level</span>
+                <span><span class="pd-level"><span class="dot done"></span></span> level signed</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive pd-table-wrap">
+                <table class="table table-hover align-middle mb-0" id="tblPatho">
+                    <thead>
+                        <tr>
+                            <th class="ps-3" style="width:44px;">#</th>
+                            <th style="width:165px;">Order / Token</th>
+                            <th style="width:250px;">Patient</th>
+                            <th>Department / Category</th>
+                            <th style="width:130px;">Validated</th>
+                            <th class="text-center" style="width:130px;">Tests</th>
+                            <th class="text-center" style="width:140px;">Approval Level</th>
+                            <th class="text-end pe-3" style="width:130px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblPathoBody" class="fs-8"></tbody>
+                </table>
+            </div>
+            <div id="pdEmpty" class="text-center py-5 d-none">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-2" style="width:64px;height:64px;background:#eef2f6;color:#94a3b8;">
+                    <i class="bi bi-clipboard2-check" style="font-size:1.8rem;"></i>
+                </div>
+                <div class="fw-bold text-dark fs-7">Nothing awaiting your signature</div>
+                <div class="text-muted fs-8 mt-1">No validated report in your departments and test categories matches these filters.</div>
+            </div>
+            <div id="pdLoading" class="text-center py-5">
+                <div class="spinner-border spinner-border-sm text-danger" role="status"><span class="visually-hidden">Loading…</span></div>
+                <div class="text-muted fs-8 mt-2">Loading reports awaiting sign-off&hellip;</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sign-off modal: opens the same Approve screen in an iframe, with Previous / Next to move between reports
+     without returning to this list first. -->
+<div class="modal fade" id="modalSignOff" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="so-nav-btn" id="btnSignOffPrev" title="Previous report (Alt + ←)"><i class="bi bi-chevron-left"></i></button>
+                <div class="flex-grow-1 text-center">
+                    <div class="so-title" id="soTitle">&nbsp;</div>
+                    <div class="so-sub" id="soSub">&nbsp;</div>
+                </div>
+                <button type="button" class="so-nav-btn" id="btnSignOffNext" title="Next report (Alt + →)"><i class="bi bi-chevron-right"></i></button>
+                <span class="so-pos mx-2" id="soPos">&mdash;</span>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="so-loading" id="soLoading">
+                    <div class="spinner-border spinner-border-sm text-danger" role="status"><span class="visually-hidden">Loading…</span></div>
+                </div>
+                <iframe id="soFrame" title="Sign-off" src="about:blank"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            const urls = {
+                headers: '@Url.Action("GetHeadersJson", "PathologistDashboard")',
+                approve: '@Url.Action("Approve", "PathologistDashboard")'
+            };
+            let statusFilter = 'PENDING';
+            let currentBills = [];   // the list currently on screen, in display order - drives Prev / Next
+            let modalIndex = -1;
+
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+            const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const fmt = v => { if (!v) return '—'; const d = new Date(v); return isNaN(d) ? esc(v)
+                : d.toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true }); };
+
+            function levelDots(done, total, mine) {
+                let h = '<span class="pd-level" title="' + done + ' of ' + total + ' level(s) signed">';
+                for (let i = 1; i <= Math.max(total, 1); i++) {
+                    const cls = i <= done ? 'done' : (i === done + 1 && mine ? 'next' : '');
+                    h += '<span class="dot ' + cls + '"></span>';
+                }
+                return h + '<span class="ms-1 text-muted">' + done + '/' + total + '</span></span>';
+            }
+
+            function load() {
+                $('#pdLoading').removeClass('d-none');
+                $('#pdEmpty').addClass('d-none');
+                $('#tblPathoBody').empty();
+                $.getJSON(urls.headers, {
+                    fromDate: $('#txtFrom').val(), toDate: $('#txtTo').val(), dateBasis: $('#selDateBasis').val(),
+                    search: $('#txtSearch').val(), departmentId: $('#ddlDepartment').val() || null,
+                    categoryId: $('#ddlCategory').val() || null, statusFilter: statusFilter
+                }).done(function (res) {
+                    if (!res || !res.success) { Swal.fire({ icon:'error', title:'Unable to load', text:(res && res.message) || 'Please try again.' }); return; }
+                    const s = res.stats || {};
+                    $('#kMine').text(s.awaitingMeBills || 0);
+                    $('#kMineTests').text((s.awaitingMeTests || 0) + ' tests');
+                    $('#kOther').text(s.awaitingOtherBills || 0);
+                    $('#kDone').text(s.approvedBills || 0);
+                    $('#kDoneTests').text((s.approvedTests || 0) + ' tests');
+                    $('#kAll').text(s.totalBills || 0);
+                    $('#kUrgent').text((s.urgentAwaitingBills || 0) + ' urgent');
+                    currentBills = res.bills || [];
+                    render(currentBills);
+                }).fail(function () {
+                    Swal.fire({ icon:'error', title:'Server error', text:'Unable to load the dashboard. Please try again.' });
+                }).always(function () { $('#pdLoading').addClass('d-none'); });
+            }
+
+            function render(bills) {
+                const $tb = $('#tblPathoBody').empty();
+                $('#lblRowCount').text(bills.length + (bills.length === 1 ? ' report' : ' reports'));
+                $('#pdEmpty').toggleClass('d-none', bills.length !== 0);
+
+                bills.forEach(function (b, i) {
+                    const mine = b.dashboardStatus === 'AWAITING_ME';
+                    const rowCls = mine ? 'row-mine' : (b.dashboardStatus === 'APPROVED' ? 'row-done' : 'row-other');
+                    const initials = (b.patientName || '?').trim().split(/\s+/).filter(w => /[A-Za-z]/.test(w)).slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
+                    const genderCls = (b.gender || '').toLowerCase().startsWith('f') ? ' female' : '';
+                    // Opens the sign-off modal instead of navigating away, so Prev / Next can move between reports.
+                    const action = mine
+                        ? `<button type="button" class="btn btn-sign btn-sm py-1 px-2.5 fs-8 btn-open-signoff" data-idx="${i}"><i class="bi bi-pen me-1"></i>Review &amp; Sign</button>`
+                        : `<button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2.5 fs-8 btn-open-signoff" data-idx="${i}"><i class="bi bi-eye me-1"></i>View</button>`;
+
+                    $tb.append(`
+                        <tr class="${rowCls}">
+                            <td class="ps-3 text-muted fw-semibold fs-9">${i + 1}</td>
+                            <td>
+                                <div class="d-flex align-items-center flex-wrap gap-1">
+                                    <span class="badge bg-primary text-white pd-mono fs-9">${esc(b.tokenNo || 'LAB')}</span>
+                                    ${b.isUrgent ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9"><i class="bi bi-lightning-fill me-1"></i>Urgent</span>' : ''}
+                                    ${b.billingType === 'B2B' ? `<span class="badge fs-9" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;" title="${esc(b.clientName || '')}"><i class="bi bi-building me-1"></i>B2B</span>` : ''}
+                                </div>
+                                <div class="fs-9 text-muted pd-mono mt-1">${esc(b.billNo || '—')}</div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="pd-avatar${genderCls}">${esc(initials)}</span>
+                                    <div>
+                                        <div class="fw-semibold text-dark fs-8">${esc(b.patientName)}</div>
+                                        <div class="fs-9 text-muted">
+                                            <span class="badge bg-light text-secondary border pd-mono fw-normal">${esc(b.patientCode || '')}</span>
+                                            ${b.age ? b.age + ' Y' : ''}${b.age && b.gender ? ' · ' : ''}${esc(b.gender || '')}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fs-8 text-dark"><i class="bi bi-hospital text-muted me-1"></i>${esc(b.departments || '—')}</div>
+                                <div class="fs-9 text-muted"><i class="bi bi-tag me-1"></i>${esc(b.categories || '—')}</div>
+                                ${b.flowName ? `<div class="fs-9 text-muted mt-1"><i class="bi bi-diagram-3 me-1"></i>${esc(b.flowName)}</div>` : ''}
+                            </td>
+                            <td><div class="fs-8 text-dark">${fmt(b.validatedDate)}</div></td>
+                            <td class="text-center">
+                                ${mine ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9">${b.awaitingMeTests} to sign</span>`
+                                       : `<span class="badge bg-secondary-subtle text-secondary border fs-9">${b.scopeTests} in scope</span>`}
+                                <div class="fs-9 text-muted mt-1">${b.approvedTests}/${b.scopeTests} approved</div>
+                            </td>
+                            <td class="text-center">${levelDots(b.levelsDone || 0, b.totalLevels || 1, mine)}</td>
+                            <td class="text-end pe-3">${action}</td>
+                        </tr>`);
+                });
+            }
+
+            $('.pd-card').on('click', function () {
+                $('.pd-card').removeClass('active-card');
+                $(this).addClass('active-card');
+                statusFilter = $(this).data('status');
+                load();
+            });
+            $('#btnRefresh').on('click', load);
+            $('#txtFrom, #txtTo, #selDateBasis').on('change', function () { $('.btn-quick').removeClass('active'); load(); });
+            $('#ddlDepartment, #ddlCategory').on('change', function () {
+                const dept = $('#ddlDepartment').val();
+                // keep the category list inside the chosen department
+                $('#ddlCategory option[data-dept]').each(function () {
+                    const show = !dept || String($(this).data('dept')) === String(dept);
+                    $(this).prop('disabled', !show).toggle(show);
+                });
+                if (dept && $('#ddlCategory option:selected').prop('disabled')) $('#ddlCategory').val('');
+                $('#btnClearScope').toggle(!!(dept || $('#ddlCategory').val()));
+                load();
+            });
+            $('#btnClearScope').on('click', function () {
+                $('#ddlDepartment').val(''); $('#ddlCategory').val('').trigger('change');
+            });
+            let t; $('#txtSearch').on('input', function () { clearTimeout(t); t = setTimeout(load, 400); });
+            $('.btn-quick').on('click', function () {
+                $('.btn-quick').removeClass('active'); $(this).addClass('active');
+                const r = $(this).data('range'); const from = new Date(), to = new Date();
+                if (r === 'yesterday') { from.setDate(from.getDate() - 1); to.setDate(to.getDate() - 1); }
+                else if (r === 'week') { from.setDate(from.getDate() - 7); }
+                else if (r === 'month') { from.setDate(from.getDate() - 30); }
+                $('#txtFrom').val(ymd(from)); $('#txtTo').val(ymd(to));
+                load();
+            });
+
+            // ── Sign-off modal: Review & Sign / View opens it; Previous / Next move within the current list ──
+            const modalEl = document.getElementById('modalSignOff');
+            const signOffModal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static' });
+            const $frame = $('#soFrame');
+            let listDirty = false; // an approval happened while the modal was open -> refresh the list once it closes
+
+            function openSignOffModal(idx) {
+                if (idx < 0 || idx >= currentBills.length) return;
+                modalIndex = idx;
+                const b = currentBills[idx];
+
+                $('#soTitle').text((b.patientName || 'Patient') + ' — ' + (b.tokenNo || b.billNo || ''));
+                $('#soSub').text(b.billNo || '');
+                $('#soPos').text((idx + 1) + ' of ' + currentBills.length);
+                $('#btnSignOffPrev').prop('disabled', idx <= 0);
+                $('#btnSignOffNext').prop('disabled', idx >= currentBills.length - 1);
+
+                $('#soLoading').removeClass('d-none');
+                $frame.attr('src', urls.approve + '?labOrderId=' + b.labOrderId + '&embed=true');
+
+                if (!modalEl.classList.contains('show')) signOffModal.show();
+            }
+
+            $('#tblPathoBody').on('click', '.btn-open-signoff', function () {
+                openSignOffModal(parseInt($(this).data('idx'), 10));
+            });
+            $('#btnSignOffPrev').on('click', function () { openSignOffModal(modalIndex - 1); });
+            $('#btnSignOffNext').on('click', function () { openSignOffModal(modalIndex + 1); });
+
+            $frame.on('load', function () { $('#soLoading').addClass('d-none'); });
+
+            $(document).on('keydown', function (e) {
+                if (!modalEl.classList.contains('show') || !e.altKey) return;
+                if (e.key === 'ArrowLeft') { e.preventDefault(); openSignOffModal(modalIndex - 1); }
+                if (e.key === 'ArrowRight') { e.preventDefault(); openSignOffModal(modalIndex + 1); }
+            });
+
+            // The embedded sign-off page posts a message here after a successful approve; the modal itself is left
+            // exactly as it is (its own iframe reload already shows the updated state) - only the background list
+            // is marked dirty so the KPI cards / table are accurate once the pathologist closes the modal.
+            window.addEventListener('message', function (e) {
+                if (e.data && e.data.type === 'pd-approved') listDirty = true;
+            });
+
+            $(modalEl).on('hidden.bs.modal', function () {
+                $frame.attr('src', 'about:blank');
+                modalIndex = -1;
+                if (listDirty) { listDirty = false; load(); }
+            });
+
+            load();
+        });
+    </script>
+}

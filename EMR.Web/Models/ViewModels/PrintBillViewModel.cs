@@ -40,6 +40,8 @@ public class PrintBillViewModel
     public string? CollectionType { get; set; }
     public string? PhlebotomistName { get; set; }
     public string? CreatedByName { get; set; }
+    public string? CreatedByUsername { get; set; }
+    public string? PrintedByName { get; set; }
     public bool IsB2B { get; set; }
     public string? PartnerName { get; set; }
     public string? PartnerCode { get; set; }

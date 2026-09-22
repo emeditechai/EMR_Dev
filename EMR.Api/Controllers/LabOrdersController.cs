@@ -17,7 +17,9 @@ namespace EMR.Api.Controllers
                 return BadRequest("Invalid request.");
 
             var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var id) ? id : 1;
+            int userId = (request.CreatedBy.HasValue && request.CreatedBy.Value > 0)
+                ? request.CreatedBy.Value
+                : (int.TryParse(userIdClaim, out var id) ? id : 1);
 
             var response = await labOrderService.CreateOrderAsync(request, userId);
             return Ok(new { isSuccess = true, data = response });
@@ -89,14 +91,16 @@ namespace EMR.Api.Controllers
         }
 
         [HttpPost("{id}/sample-collection")]
-        public async Task<IActionResult> CreateSampleCollection(int id, [FromQuery] int branchId, [FromQuery] int companyId = 1)
+        public async Task<IActionResult> CreateSampleCollection(int id, [FromQuery] int branchId, [FromQuery] int companyId = 1, [FromQuery] int? userId = null)
         {
             if (id <= 0) return BadRequest("Valid LabOrderId is required.");
 
             var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+            int effectiveUserId = (userId.HasValue && userId.Value > 0)
+                ? userId.Value
+                : (int.TryParse(userIdClaim, out var uid) ? uid : 1);
 
-            int count = await labOrderService.CreateSampleCollectionAsync(id, branchId, companyId, userId);
+            int count = await labOrderService.CreateSampleCollectionAsync(id, branchId, companyId, effectiveUserId);
             return Ok(new { isSuccess = true, count });
         }
     }

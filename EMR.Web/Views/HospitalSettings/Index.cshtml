@@ -29,6 +29,21 @@
     .param-card .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:700; margin-bottom:.35rem; }
     .param-card .param-value { font-size:.95rem; font-weight:600; color:#1e293b; }
     .param-soon { opacity:.55; }
+
+    /* LAB tab: grouped, evenly sized parameter cards */
+    .lab-section-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:700; display:flex; align-items:center; gap:.6rem; margin:0 0 .85rem; }
+    .lab-section-title::after { content:""; flex:1; height:1px; background:#e2e8f0; }
+    .lab-param { --lp:#2563eb; --lp-bg:#dbeafe; display:flex; gap:.9rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--lp); border-radius:12px; padding:1rem 1.1rem; height:100%; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+    .lab-param .lp-icon { width:42px; height:42px; border-radius:10px; background:var(--lp-bg); color:var(--lp); display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
+    .lab-param .lp-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#475569; font-weight:700; line-height:1.25; }
+    .lab-param .lp-desc { font-size:.74rem; color:#94a3b8; margin-top:.2rem; line-height:1.3; }
+    .lp-pill { display:inline-flex; align-items:center; gap:.3rem; font-weight:700; font-size:.78rem; border-radius:2rem; padding:.15rem .75rem; margin-top:.5rem; }
+    .lp-pill.yes { background:#dcfce7; color:#166534; }
+    .lp-pill.no  { background:#fee2e2; color:#b91c1c; }
+    .lp-pill.val { background:#dbeafe; color:#1d4ed8; }
+    .lp-pill.na  { background:#f1f5f9; color:#64748b; }
+    .lab-soon-row { display:flex; flex-wrap:wrap; gap:.5rem; }
+    .lab-soon-chip { border:1px dashed #cbd5e1; border-radius:2rem; padding:.3rem .85rem; font-size:.76rem; color:#94a3b8; background:#f8fafc; }
     .coming-soon-badge { font-size:.65rem; background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; border:1px solid #e2e8f0; }
 </style>
 }
@@ -205,90 +220,56 @@ else
         <div class="tab-pane fade show active module-tab-pane" id="tabOpd" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#0d6efd"><i class="bi bi-person-plus-fill me-1"></i>OPD Module Settings</span>
-                <span class="coming-soon-badge">More parameters coming soon</span>
+                <span class="coming-soon-badge">3 active parameters</span>
             </div>
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="param-card @(Model.OpdRegistrationValidityDays.HasValue ? "" : "param-soon")">
-                        <div class="param-label"><i class="bi bi-calendar-check me-1"></i>Registration Charges Validity</div>
-                        @if (Model.OpdRegistrationValidityDays.HasValue)
-                        {
-                            <div class="param-value text-primary fw-bold">@Model.OpdRegistrationValidityDays.Value <span class="fs-6 fw-normal text-muted">days</span></div>
-                        }
-                        else
-                        {
-                            <div class="param-value text-muted">—</div>
-                        }
+
+            <div class="lab-section-title">Registration &amp; Notifications</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#2563eb;--lp-bg:#dbeafe;">
+                        <div class="lp-icon"><i class="bi bi-calendar-check-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Registration Charges Validity</div>
+                            <div class="lp-desc">How long a patient's registration charge remains valid.</div>
+                            @if (Model.OpdRegistrationValidityDays.HasValue)
+                            {
+                                <span class="lp-pill val"><i class="bi bi-hourglass-split"></i>@Model.OpdRegistrationValidityDays.Value @(Model.OpdRegistrationValidityDays.Value == 1 ? "DAY" : "DAYS")</span>
+                            }
+                            else
+                            {
+                                <span class="lp-pill na">NOT SET</span>
+                            }
+                        </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card">
-                        <div class="param-label"><i class="bi bi-search me-1"></i>Global Patient Search Required</div>
-                        @if (Model.GlobalPatientSearchRequired)
-                        {
-                            <div class="param-value text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Yes</div>
-                        }
-                        else
-                        {
-                            <div class="param-value text-secondary fw-bold"><i class="bi bi-x-circle-fill me-1"></i>No</div>
-                        }
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-search"></i></div>
+                        <div>
+                            <div class="lp-label">Global Patient Search Required</div>
+                            <div class="lp-desc">Require global search in patient workflows.</div>
+                            <span class="lp-pill @(Model.GlobalPatientSearchRequired ? "yes" : "no")"><i class="bi @(Model.GlobalPatientSearchRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.GlobalPatientSearchRequired ? "YES" : "NO")</span>
+                        </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card">
-                        <div class="param-label"><i class="bi bi-envelope me-1"></i>Email Notification Required</div>
-                        @if (Model.EmailNotificationRequired)
-                        {
-                            <div class="param-value text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Yes</div>
-                        }
-                        else
-                        {
-                            <div class="param-value text-secondary fw-bold"><i class="bi bi-x-circle-fill me-1"></i>No</div>
-                        }
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#4f46e5;--lp-bg:#e0e7ff;">
+                        <div class="lp-icon"><i class="bi bi-envelope-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Email Notification Required</div>
+                            <div class="lp-desc">Send emails for bills and prescriptions.</div>
+                            <span class="lp-pill @(Model.EmailNotificationRequired ? "yes" : "no")"><i class="bi @(Model.EmailNotificationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EmailNotificationRequired ? "YES" : "NO")</span>
+                        </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Token Prefix</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Auto Token Reset</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Default Consulting Fee</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Allow Walk-In</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Max Patients / Day</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Print Bill on Save</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">GST on Services</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
+            </div>
+
+            <div class="lab-section-title">Planned parameters</div>
+            <div class="lab-soon-row">
+                @foreach (var soon in new[] { "Token Prefix", "Auto Token Reset", "Default Consulting Fee", "Allow Walk-In", "Max Patients / Day", "Print Bill on Save", "GST on Services" })
+                {
+                    <span class="lab-soon-chip">@soon</span>
+                }
             </div>
         </div>
 
@@ -354,75 +335,83 @@ else
         <div class="tab-pane fade module-tab-pane" id="tabLab" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#fd7e14"><i class="bi bi-eyedropper me-1"></i>LAB Configuration</span>
-                <span class="coming-soon-badge">Parameters coming soon</span>
+                <span class="coming-soon-badge">6 active parameters</span>
             </div>
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Report Prefix</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Default Sample Type</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card">
-                        <div class="param-label"><i class="bi bi-envelope text-primary me-1"></i>Email Notification (Bill)</div>
-                        <div class="param-value @(Model.LabEmailNotificationRequired ? "text-success fw-bold" : "text-danger fw-bold")">
-                            @(Model.LabEmailNotificationRequired ? "YES" : "NO")
+
+            <div class="lab-section-title">Billing &amp; Sample Collection</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#2563eb;--lp-bg:#dbeafe;">
+                        <div class="lp-icon"><i class="bi bi-envelope-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Email Notification (Bill)</div>
+                            <div class="lp-desc">Email the bill to the patient after billing.</div>
+                            <span class="lp-pill @(Model.LabEmailNotificationRequired ? "yes" : "no")"><i class="bi @(Model.LabEmailNotificationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.LabEmailNotificationRequired ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card">
-                        <div class="param-label"><i class="bi bi-eyedropper text-warning me-1"></i>Is Sample Collection Mandatory</div>
-                        <div class="param-value @(Model.IsSampleCollectionMandatory ? "text-success fw-bold" : "text-danger fw-bold")">
-                            @(Model.IsSampleCollectionMandatory ? "YES" : "NO")
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0891b2;--lp-bg:#cffafe;">
+                        <div class="lp-icon"><i class="bi bi-upc-scan"></i></div>
+                        <div>
+                            <div class="lp-label">Barcode Gen at Billing</div>
+                            <div class="lp-desc">Offer to print the sample barcode right after billing.</div>
+                            <span class="lp-pill @(Model.BarcodeGenerateAtBilling ? "yes" : "no")"><i class="bi @(Model.BarcodeGenerateAtBilling ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.BarcodeGenerateAtBilling ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card">
-                        <div class="param-label"><i class="bi bi-upc-scan text-info me-1"></i>Barcode Gen at Billing</div>
-                        <div class="param-value @(Model.BarcodeGenerateAtBilling ? "text-success fw-bold" : "text-danger fw-bold")">
-                            @(Model.BarcodeGenerateAtBilling ? "YES" : "NO")
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-ticket-perforated-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Token No Generate in Due Payment</div>
+                            <div class="lp-desc">No: token only once the bill is fully paid. Yes: also while a payment is due.</div>
+                            <span class="lp-pill @(Model.TokenGenerateOnDuePayment ? "yes" : "no")"><i class="bi @(Model.TokenGenerateOnDuePayment ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.TokenGenerateOnDuePayment ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Report TAT (Hours)</div>
-                        <div class="param-value text-muted">—</div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#d97706;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-eyedropper"></i></div>
+                        <div>
+                            <div class="lp-label">Is Sample Collection Mandatory</div>
+                            <div class="lp-desc">No: samples are collected automatically at billing / payment.</div>
+                            <span class="lp-pill @(Model.IsSampleCollectionMandatory ? "yes" : "no")"><i class="bi @(Model.IsSampleCollectionMandatory ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.IsSampleCollectionMandatory ? "YES" : "NO")</span>
+                        </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">External Lab Integration</div>
-                        <div class="param-value text-muted">—</div>
+            </div>
+
+            <div class="lab-section-title">Reporting</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-envelope-paper-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Email Notification to Patient (LAB Reports)</div>
+                            <div class="lp-desc">Email the finished lab report to the patient.</div>
+                            <span class="lp-pill @(Model.LabReportEmailNotificationRequired ? "yes" : "no")"><i class="bi @(Model.LabReportEmailNotificationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.LabReportEmailNotificationRequired ? "YES" : "NO")</span>
+                        </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Critical Alert</div>
-                        <div class="param-value text-muted">—</div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Pathologist Approval Required</div>
+                            <div class="lp-desc">Lab reports need a pathologist's approval before release.</div>
+                            <span class="lp-pill @(Model.PathologistApprovalRequired ? "yes" : "no")"><i class="bi @(Model.PathologistApprovalRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.PathologistApprovalRequired ? "YES" : "NO")</span>
+                        </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Print Header on Report</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Barcode on Sample</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
+            </div>
+
+            <div class="lab-section-title">Planned parameters</div>
+            <div class="lab-soon-row">
+                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Critical Alert", "Print Header on Report", "Barcode on Sample" })
+                {
+                    <span class="lab-soon-chip">@soon</span>
+                }
             </div>
         </div>
 

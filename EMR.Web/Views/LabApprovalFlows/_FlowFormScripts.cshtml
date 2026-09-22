@@ -1,0 +1,274 @@
+<script>
+(function () {
+    const eligibleUrl = '@Url.Action("GetEligibleApproversJson", "LabApprovalFlows")';
+    const colors = ['#0f766e', '#0369a1', '#7c3aed'];
+
+    const $branch = document.getElementById('selBranch');
+    const $dept = document.getElementById('selDepartment');
+    const $catOptions = document.getElementById('catOptions');
+    const $allowSame = document.getElementById('allowSameSwitch');
+    const $warn = document.getElementById('scopeWarning');
+    const cols = [...document.querySelectorAll('.level-col')];
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const requiredLevels = () => parseInt(document.querySelector('input[name="Required_Levels"]:checked')?.value || '1', 10);
+    const selectedText = sel => sel && sel.value ? sel.options[sel.selectedIndex].text : '';
+
+    // ── scope text ──────────────────────────────────────────────────────────
+    const catRows = () => [...$catOptions.querySelectorAll('.cms-option')];
+    const selectedCategoryIds = () => catRows().map(l => l.querySelector('input')).filter(i => i.checked).map(i => i.value);
+    const selectedCategoryNames = () => catRows().filter(l => l.querySelector('input').checked).map(l => l.querySelector('span').textContent.trim());
+
+    function updateScopeText() {
+        const parts = [];
+        parts.push($branch.value ? selectedText($branch) : 'all branches');
+        const cats = selectedCategoryNames();
+        if (cats.length === 1) parts.push('test category "' + cats[0] + '"');
+        else if (cats.length > 1) parts.push(cats.length + ' test categories (' + cats.slice(0, 3).join(', ') + (cats.length > 3 ? ', …' : '') + ')');
+        else parts.push($dept.value ? 'department "' + selectedText($dept) + '"' : 'all departments and test categories');
+        document.getElementById('scopeText').textContent = parts.join(' · ');
+    }
+
+    // ── the shared multi-select dropdown (cms-*: same look and behaviour as User Master > Department Access) ────────
+    function closeAllCms(except) {
+        document.querySelectorAll('.cms-wrap.cms-open').forEach(w => { if (w !== except) w.classList.remove('cms-open'); });
+    }
+    function toggleCms(wrap) {
+        const open = wrap.classList.contains('cms-open');
+        closeAllCms();
+        if (!open) {
+            wrap.classList.add('cms-open');
+            const input = wrap.querySelector('.cms-search-input');
+            if (input) setTimeout(() => input.focus(), 60);
+        }
+    }
+    document.addEventListener('click', e => {
+        const trigger = e.target.closest('.cms-trigger');
+        if (trigger && trigger.closest('.flow-cms')) { toggleCms(trigger.closest('.cms-wrap')); return; }
+        if (!e.target.closest('.cms-wrap')) closeAllCms();
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeAllCms();
+        const trigger = e.target.closest && e.target.closest('.cms-trigger');
+        if (trigger && trigger.closest('.flow-cms') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCms(trigger.closest('.cms-wrap')); }
+    });
+    // type-ahead inside any of these dropdowns
+    document.addEventListener('input', e => {
+        if (!e.target.classList || !e.target.classList.contains('cms-search-input')) return;
+        const wrap = e.target.closest('.cms-wrap');
+        const term = e.target.value.toLowerCase().trim();
+        let visible = 0;
+        wrap.querySelectorAll('.cms-option').forEach(o => {
+            const hay = o.dataset.searchText || o.dataset.search || o.textContent.toLowerCase();
+            const show = !term || hay.includes(term);
+            o.style.display = show ? 'flex' : 'none';
+            if (show) visible++;
+        });
+        const none = wrap.querySelector('.cms-noresult');
+        if (none) none.style.display = (term && visible === 0) ? 'block' : 'none';
+    });
+    function resetCmsSearch(wrap) {
+        const input = wrap.querySelector('.cms-search-input');
+        if (input) input.value = '';
+        wrap.querySelectorAll('.cms-option').forEach(o => { o.style.display = 'flex'; });
+        const none = wrap.querySelector('.cms-noresult'); if (none) none.style.display = 'none';
+    }
+    function setLabel(labelEl, names, placeholder, noun) {
+        labelEl.classList.toggle('is-placeholder', names.length === 0);
+        labelEl.textContent = names.length === 0 ? placeholder
+            : names.length <= 2 ? names.join(', ')
+            : names.length + ' ' + noun + ' selected';
+        labelEl.title = names.join(', ');
+    }
+    const updateCatLabel = () => setLabel(document.getElementById('catLabel'), selectedCategoryNames(), 'All test categories', 'test categories');
+
+    // ── single-choice dropdowns (Select2, the library already used by other screens) ────────────
+    const ph = { selBranch: 'All Branches (company-wide)', selDepartment: 'All Departments' };
+    [$branch, $dept].forEach(el => {
+        $(el).select2({
+            width: '100%',
+            minimumResultsForSearch: 0,                   // always show the search box
+            placeholder: ph[el.id],
+            allowClear: true,                             // the x resets a choice back to "All ..."
+            language: { noResults: () => 'No match found', searching: () => 'Searching…' }
+        })
+        // clearing with the x should not pop the list open again
+        .on('select2:unselecting', function () { $(this).data('cleared', true); })
+        .on('select2:opening', function (e) { if ($(this).data('cleared')) { $(this).removeData('cleared'); e.preventDefault(); } });
+    });
+    // focus the search box as soon as a dropdown opens, so the user can just start typing
+    $(document).on('select2:open', () => setTimeout(() => { const f = document.querySelector('.select2-container--open .select2-search__field'); if (f) f.focus(); }, 0));
+
+    // ── test categories follow the department ───────────────────────────────────────
+    const allCategories = catRows().map(l => ({ id: l.dataset.id, text: l.querySelector('span').textContent.trim(), dept: l.dataset.dept, checked: l.querySelector('input').checked }));
+
+    function rebuildCategories() {
+        const d = $dept.value;
+        const keep = new Set(selectedCategoryIds().length ? selectedCategoryIds() : allCategories.filter(c => c.checked).map(c => c.id));
+        const noResult = $catOptions.querySelector('.cms-noresult');
+
+        catRows().forEach(r => r.remove());
+        allCategories.filter(c => !d || c.dept === d).forEach(c => {
+            const lbl = document.createElement('label');
+            lbl.className = 'cms-option';
+            lbl.dataset.id = c.id; lbl.dataset.dept = c.dept; lbl.dataset.searchText = c.text.toLowerCase();
+            lbl.innerHTML = '<input type="checkbox" name="Category_IDs" value="' + c.id + '"' + (keep.has(c.id) ? ' checked' : '') + ' /><span>' + esc(c.text) + '</span>';
+            $catOptions.insertBefore(lbl, noResult);
+        });
+        allCategories.forEach(c => { c.checked = false; });   // the DOM is the source of truth from now on
+        resetCmsSearch(document.getElementById('catWrap'));
+        updateCatLabel();
+    }
+
+    // ── level cards ─────────────────────────────────────────────────────────
+    function applyLevelVisibility() {
+        const n = requiredLevels();
+        cols.forEach(col => {
+            const lvl = parseInt(col.dataset.level, 10);
+            const on = lvl <= n;
+            col.style.display = on ? '' : 'none';
+            col.querySelectorAll('input').forEach(i => { i.disabled = !on; });   // hidden levels are not posted
+        });
+        applyLocks();
+        refresh();
+    }
+
+    function checkedIds(col) {
+        return [...col.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+    }
+
+    // when the same approver is not allowed on several levels, lock a person already used on another level
+    function applyLocks() {
+        const allow = $allowSame.checked;
+        const n = requiredLevels();
+        cols.forEach(col => {
+            const lvl = parseInt(col.dataset.level, 10);
+            col.querySelectorAll('.approver-row').forEach(row => {
+                const cb = row.querySelector('input');
+                const id = cb.value;
+                let usedAt = null;
+                if (!allow && lvl <= n) {
+                    cols.forEach(other => {
+                        const ol = parseInt(other.dataset.level, 10);
+                        if (ol !== lvl && ol <= n && other.querySelector('input[value="' + id + '"]:checked')) usedAt = ol;
+                    });
+                }
+                const lock = usedAt !== null && !cb.checked;
+                row.classList.toggle('is-locked', lock);
+                cb.disabled = lock || cb.closest('.level-col').style.display === 'none';
+                row.title = lock ? 'Already an approver on Level ' + usedAt : '';
+            });
+        });
+    }
+
+    function refresh() {
+        cols.forEach(col => {
+            const names = [...col.querySelectorAll('.approver-row')].filter(r => r.querySelector('input').checked).map(r => r.querySelector('.ap-name').textContent.trim());
+            setLabel(col.querySelector('.level-label'), names, 'Select approvers...', 'approvers');
+            const picked = col.querySelector('.level-picked');
+            if (picked) picked.textContent = names.length > 2 ? names.join(', ') : '';
+            const list = col.querySelector('.lc-list');
+            const empty = list.querySelector('.approvers-empty');
+            if (empty) empty.style.display = list.querySelectorAll('.approver-row').length ? 'none' : '';
+        });
+        renderPreview();
+    }
+
+    function renderPreview() {
+        const n = requiredLevels();
+        const steps = [];
+        cols.forEach((col, i) => {
+            const lvl = i + 1;
+            if (lvl > n) return;
+            const names = [...col.querySelectorAll('input[type=checkbox]:checked')].map(c => c.closest('.approver-row').querySelector('.ap-name').textContent.trim());
+            const title = col.querySelector('.level-title').value.trim() || ('Level ' + lvl);
+            steps.push('<span class="step"><b style="background:' + colors[i] + '">' + lvl + '</b><span><strong>' + esc(title) + '</strong> · ' +
+                (names.length ? esc(names.join(', ')) : '<span class="text-danger">no approver selected</span>') + '</span></span>');
+        });
+        document.getElementById('flowPreview').innerHTML = steps.join('<span class="arrow"><i class="bi bi-arrow-right"></i></span>')
+            + '<span class="arrow"><i class="bi bi-arrow-right"></i></span><span class="step"><b style="background:#166534"><i class="bi bi-check2"></i></b><span><strong>Report final</strong></span></span>';
+    }
+
+    document.getElementById('levelCards').addEventListener('change', e => {
+        if (e.target.matches('input[type=checkbox]')) { applyLocks(); refresh(); }
+    });
+    document.getElementById('levelCards').addEventListener('input', e => {
+        if (e.target.matches('.level-title')) renderPreview();
+    });
+    document.querySelectorAll('input[name="Required_Levels"]').forEach(r => r.addEventListener('change', applyLevelVisibility));
+    $allowSame.addEventListener('change', () => { applyLocks(); refresh(); });
+
+    // ── approvers follow the scope (branch / department / category) ──────────
+    function rowHtml(i, a) {
+        const dept = a.departments ? a.departments : 'No department assigned';
+        const sub = dept + ' · ' + (a.categories || '');
+        return '<label class="cms-option approver-row" data-user="' + a.userId + '" data-search="' + esc((a.fullName + ' ' + (a.registrationNo || '') + ' ' + dept + ' ' + (a.categories || '')).toLowerCase()) + '">'
+            + '<input type="checkbox" name="Levels[' + i + '].ApproverIds" value="' + a.userId + '" />'
+            + '<span class="ap-main"><span class="ap-name">' + esc(a.fullName) + '</span>'
+            + '<span class="ap-sub" title="' + esc('Departments: ' + dept + ' | Categories: ' + (a.categories || '')) + '">' + esc(sub) + '</span></span>'
+            + '<span class="ap-reg">' + (a.registrationNo ? 'Reg: ' + esc(a.registrationNo) : '') + '</span></label>';
+    }
+
+    // "why are N not listed?" - who was left out and the User Master reason
+    function renderMatch(eligibleCount, notListed) {
+        document.getElementById('eligibleCount').textContent = eligibleCount;
+        document.getElementById('notListedCount').textContent = notListed.length;
+        document.getElementById('notListedBox').innerHTML = notListed.map(n =>
+            '<div class="nl-row"><span class="nl-name">' + esc(n.fullName) + '</span><span class="nl-reason">' + esc(n.reason || '') + '</span></div>').join('');
+        document.getElementById('toggleNotListed').classList.toggle('d-none', notListed.length === 0);
+        if (notListed.length === 0) document.getElementById('notListedBox').classList.add('d-none');
+    }
+    document.getElementById('toggleNotListed').addEventListener('click', e => {
+        e.preventDefault();
+        document.getElementById('notListedBox').classList.toggle('d-none');
+    });
+
+    let scopeSeq = 0;
+    function reloadApprovers() {
+        const seq = ++scopeSeq;
+        const q = new URLSearchParams({ branchId: $branch.value || '', departmentId: $dept.value || '', categoryIds: selectedCategoryIds().join(',') });
+
+        fetch(eligibleUrl + '?' + q.toString(), { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(res => {
+                if (seq !== scopeSeq) return;
+                if (!res || !res.success) { $warn.textContent = (res && res.message) || 'Unable to refresh the approvers.'; $warn.classList.remove('d-none'); return; }
+
+                const allowed = new Set(res.approvers.map(a => String(a.userId)));
+                let dropped = 0;
+                renderMatch(res.approvers.length, res.notListed || []);
+
+                cols.forEach((col, i) => {
+                    const keep = new Set(checkedIds(col));
+                    const list = col.querySelector('.lc-list');
+                    const empty = list.querySelector('.approvers-empty');
+                    list.querySelectorAll('.approver-row').forEach(r => r.remove());
+                    res.approvers.forEach(a => list.insertBefore(document.createRange().createContextualFragment(rowHtml(i, a)), empty));
+                    list.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = keep.has(cb.value); });
+                    keep.forEach(id => { if (!allowed.has(id)) dropped++; });
+                    resetCmsSearch(col.querySelector('.cms-wrap'));
+                });
+
+                if (dropped > 0) {
+                    $warn.textContent = dropped + ' selected approver(s) do not match the chosen branch / department / test categories in User Master and were removed.';
+                    $warn.classList.remove('d-none');
+                } else {
+                    $warn.classList.add('d-none');
+                }
+                applyLocks(); refresh();
+            })
+            .catch(() => { $warn.textContent = 'Unable to refresh the approvers. Please try again.'; $warn.classList.remove('d-none'); });
+    }
+
+    $($branch).on('change', () => { updateScopeText(); reloadApprovers(); });
+    $($dept).on('change', () => { rebuildCategories(); updateScopeText(); reloadApprovers(); });
+    $catOptions.addEventListener('change', e => {
+        if (!e.target.matches('input[type=checkbox]')) return;
+        updateCatLabel(); updateScopeText(); reloadApprovers();
+    });
+
+    // ── first paint ─────────────────────────────────────────────────────────
+    rebuildCategories();
+    updateScopeText();
+    applyLevelVisibility();
+})();
+</script>

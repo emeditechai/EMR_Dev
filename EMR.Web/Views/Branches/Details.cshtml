@@ -99,6 +99,21 @@
             </div>
             <div class="col-md-4">
                 <div class="detail-field">
+                    <div class="detail-label">Is Lab</div>
+                    <div class="detail-value">
+                        @if (Model.IsLab)
+                        {
+                            <span class="badge" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;"><i class="bi bi-droplet-half me-1"></i>Yes</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">No</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
                     <div class="detail-label">Status</div>
                     <div class="detail-value">
                         <span class="badge @(Model.IsActive ? "text-bg-success" : "text-bg-secondary") fs-6">

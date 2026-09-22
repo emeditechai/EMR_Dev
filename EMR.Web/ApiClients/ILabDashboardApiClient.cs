@@ -5,5 +5,5 @@ namespace EMR.Web.ApiClients;
 
 public interface ILabDashboardApiClient
 {
-    Task<LabDashboardData?> GetDashboardStatsAsync(int branchId, string date);
+    Task<LabDashboardData?> GetDashboardStatsAsync(int branchId, string date, string? clientType = null);
 }

@@ -1,0 +1,93 @@
+@* Bill / Order audit history: the "i" icon modal. Buttons opt in with class btn-audit-info + data-laborderid / data-patient / data-bill
+   (script: _LabAuditHistoryScripts). Shared by the Lab Reporting Entry and Un-Authorize Report pages. *@
+<style>
+        /* ── Audit history (i icon + modal timeline) ── */
+        .btn-audit-info {
+            border: 0;
+            background: transparent;
+            color: #4f46e5;
+            padding: 0 2px;
+            line-height: 1;
+            font-size: 1.05rem;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: color .15s ease, transform .15s ease;
+        }
+        .btn-audit-info:hover { color: #3730a3; transform: scale(1.12); }
+        .btn-audit-info:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
+        .audit-filter-chip {
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #475569;
+            border-radius: 999px;
+            padding: 2px 12px;
+            font-size: .75rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .audit-filter-chip.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+        .audit-filter-chip .audit-chip-count { opacity: .75; font-weight: 500; margin-left: 4px; }
+        .audit-timeline { position: relative; margin: 0; padding: 0 0 0 30px; list-style: none; }
+        .audit-timeline::before {
+            content: ""; position: absolute; left: 11px; top: 4px; bottom: 4px; width: 2px; background: #e2e8f0;
+        }
+        .audit-event { position: relative; margin-bottom: 14px; }
+        .audit-event-dot {
+            position: absolute; left: -30px; top: 0; width: 24px; height: 24px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: .72rem;
+            color: #fff; box-shadow: 0 0 0 3px #fff;
+        }
+        .audit-event-card { background: #fff; border: 1px solid #e2e8f0; border-radius: .6rem; padding: 8px 12px; }
+        .audit-event-title { font-weight: 700; font-size: .82rem; color: #0f172a; }
+        .audit-event-meta { font-size: .72rem; color: #64748b; }
+        .audit-event-desc { font-size: .76rem; color: #334155; margin-top: 4px; }
+        .audit-tests-table { font-size: .72rem; margin: 6px 0 0; }
+        .audit-tests-table th { background: #f8fafc; color: #64748b; font-weight: 600; white-space: nowrap; }
+        .audit-tests-table td { vertical-align: middle; }
+        .audit-val-old { color: #94a3b8; text-decoration: line-through; }
+        .audit-legacy-note { font-size: .7rem; color: #94a3b8; font-style: italic; margin-top: 4px; }
+</style>
+
+<!-- Audit History Modal (Bill / Order activity trail) -->
+<div class="modal fade" id="modalAuditHistory" tabindex="-1" aria-labelledby="modalAuditHistoryLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2.5 px-3 bg-light">
+                <div class="flex-grow-1">
+                    <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalAuditHistoryLabel">
+                        <i class="bi bi-clock-history text-primary"></i>
+                        Audit History
+                    </h6>
+                    <div class="text-muted fs-9 mt-0.5">
+                        <span class="fw-semibold text-dark" id="auditPatientName">—</span>
+                        <span class="mx-1">&bull;</span> Bill / Order No:
+                        <span class="font-monospace fw-semibold text-dark" id="auditBillNo">—</span>
+                        <span class="mx-1">&bull;</span> Newest first
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm fs-9 me-2" id="btnAuditRefresh" title="Reload history">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="px-3 pt-2 pb-1 border-bottom bg-white">
+                <div class="d-flex flex-wrap gap-1.5" id="auditFilterChips"></div>
+            </div>
+            <div class="modal-body p-3" style="background:#f8fafc; min-height: 260px;">
+                <div id="auditLoading" class="text-center text-muted py-5 d-none">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading audit history…
+                </div>
+                <div id="auditError" class="alert alert-danger fs-8 d-none mb-0"></div>
+                <div id="auditEmpty" class="text-center text-muted py-5 d-none">
+                    <i class="bi bi-inbox fs-3 d-block mb-2"></i>No activity recorded for this bill yet.
+                </div>
+                <ul class="audit-timeline" id="auditTimeline"></ul>
+            </div>
+            <div class="modal-footer border-top py-2 px-3 bg-light">
+                <span class="me-auto text-muted fs-9" id="auditFooterCount"></span>
+                <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+

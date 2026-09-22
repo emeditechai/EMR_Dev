@@ -13,8 +13,10 @@ public class LabDashboardApiClient : ILabDashboardApiClient
         _http = factory.CreateClient("EmrApi");
     }
 
-    public async Task<LabDashboardData?> GetDashboardStatsAsync(int branchId, string date)
+    public async Task<LabDashboardData?> GetDashboardStatsAsync(int branchId, string date, string? clientType = null)
     {
-        return await _http.GetFromJsonAsync<LabDashboardData>($"api/labdashboard/stats?branchId={branchId}&date={date}");
+        var ct = string.IsNullOrWhiteSpace(clientType) ? "ALL" : clientType;
+        return await _http.GetFromJsonAsync<LabDashboardData>(
+            $"api/labdashboard/stats?branchId={branchId}&date={date}&clientType={Uri.EscapeDataString(ct)}");
     }
 }

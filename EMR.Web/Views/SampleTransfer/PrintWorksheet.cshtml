@@ -1,235 +1,594 @@
 @model List<EMR.Web.Models.DTOs.SampleTransferEligibleItemDto>
 @{
-    Layout = null; // Standalone printable view
+    Layout = null; // Standalone printable view matching PrintBill structure
+    var settings = ViewBag.Settings as EMR.Web.Models.Entities.HospitalSettings;
+    var branchName = ViewBag.BranchName as string;
     string printMode = ViewBag.PrintMode ?? "Transfer";
-    string printDate = ViewBag.PrintDate ?? DateTime.Now.ToString("dd MMM yyyy, hh:mm tt");
-    string printedBy = ViewBag.PrintedBy ?? "Unknown";
+    string printDate = ViewBag.PrintDate ?? DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt");
+    string printedBy = ViewBag.PrintedBy ?? "System";
 
     string title = printMode == "Receive" ? "Sample Receipt Worksheet" : "Sample Transfer Worksheet";
+
+    // Extract transferred by name
+    var distinctTransferredBy = Model
+        .Where(x => !string.IsNullOrWhiteSpace(x.TransferredByName))
+        .Select(x => x.TransferredByName!)
+        .Distinct()
+        .ToList();
+    string transferredByName = distinctTransferredBy.Count > 0 
+        ? string.Join(", ", distinctTransferredBy) 
+        : (printMode == "Transfer" ? printedBy : "—");
+
+    // Extract received by name
+    var distinctReceivedBy = Model
+        .Where(x => !string.IsNullOrWhiteSpace(x.ReceivedByName))
+        .Select(x => x.ReceivedByName!)
+        .Distinct()
+        .ToList();
+    string receivedByName = distinctReceivedBy.Count > 0 
+        ? string.Join(", ", distinctReceivedBy) 
+        : (printMode == "Receive" ? printedBy : "—");
+
+    // Source and Target Branch names
+    var sourceBranches = Model
+        .Where(x => !string.IsNullOrWhiteSpace(x.SourceBranchName))
+        .Select(x => x.SourceBranchName!)
+        .Distinct()
+        .ToList();
+    string sourceBranch = sourceBranches.Count > 0 ? string.Join(", ", sourceBranches) : (branchName ?? "—");
+
+    var targetBranches = Model
+        .Where(x => !string.IsNullOrWhiteSpace(x.TargetBranchName))
+        .Select(x => x.TargetBranchName!)
+        .Distinct()
+        .ToList();
+    string targetBranch = targetBranches.Count > 0 ? string.Join(", ", targetBranches) : "—";
+
+    var latestTransferDate = Model
+        .Where(x => x.TransferredDate.HasValue)
+        .Select(x => x.TransferredDate!.Value)
+        .OrderByDescending(x => x)
+        .FirstOrDefault();
+    string transferDateStr = latestTransferDate != default 
+        ? latestTransferDate.ToString("dd-MMM-yyyy hh:mm tt") 
+        : printDate;
+
+    var hospName = settings?.HospitalName ?? "eMeditech Healthcare";
+    var hospLogo = settings?.LogoPath;
+    var hospType = settings?.HospitalType;
+    var hospReg = settings?.RegistrationNumber;
+    var hospNabh = settings?.NabhStatus;
+    var hospAddress = settings?.Address;
+    var hospPhone = settings?.ContactNumber1;
+    var hospEmergency = settings?.EmergencyNumber;
+    var hospEmail = settings?.EmailAddress;
+    var hospGSTIN = settings?.GSTCode;
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@title - eClinicPlus+</title>
+    <title>@title - @hospName</title>
     <style>
-        @@import url('/css/fonts.css');
-        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10.5px;
+            color: #111;
+            background: #f1f5f9;
+        }
+
+        /* ── Consistent A4 Sheet: exactly identical on screen and in print ── */
+        .page-wrap {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 15px auto;
+            padding: 10mm 12mm 12mm 12mm;
+            position: relative;
+            background: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+            border: 1px solid #cbd5e1;
+        }
+
+        /* ── Print Actions (hidden on print) ── */
+        .print-actions {
+            position: fixed;
+            top: 10px;
+            right: 16px;
+            z-index: 999;
+            display: flex;
+            gap: 8px;
+        }
+        .btn-print {
+            background: #1a56db;
+            color: #fff;
+            border: none;
+            padding: 7px 18px;
+            border-radius: 4px;
+            cursor: pointer;
             font-size: 12px;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            background-color: #f8f9fa;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
         }
-
-        .print-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background-color: #fff;
-            padding: 30px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        .btn-print:hover { background: #1648b8; }
+        .btn-close-tab {
+            background: #374151;
+            color: #fff;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
         }
+        .btn-close-tab:hover { background: #1f2937; }
 
-        .header {
+        /* ── Standard Hospital Header ── */
+        .bill-header {
+            margin-bottom: 3.5mm;
+            padding-bottom: 2.5mm;
+            border-bottom: 1.5px solid #222;
+        }
+        .header-top {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            border-bottom: 2px solid #0056b3;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            gap: 12px;
         }
-
-        .header h1 {
-            font-size: 24px;
-            margin: 0 0 5px 0;
-            color: #0056b3;
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        .hosp-logo {
+            height: 48px;
+            max-width: 115px;
+            object-fit: contain;
+        }
+        .hosp-info-main .hosp-name {
+            font-size: 18px;
+            font-weight: 900;
+            color: #1a3a6b;
+            letter-spacing: 0.4px;
+            margin-bottom: 3px;
+        }
+        .hosp-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            align-items: center;
+        }
+        .badge-pill {
+            display: inline-block;
+            padding: 1.5px 6px;
+            font-size: 8.5px;
+            font-weight: bold;
+            border-radius: 3px;
+        }
+        .badge-type { background: #e0edff; color: #0b57d0; border: 1px solid #c2dbff; }
+        .badge-reg { background: #f1f3f4; color: #3c4043; border: 1px solid #dadce0; }
+        .badge-nabh { background: #e6f4ea; color: #137333; border: 1px solid #ceead6; }
+        .header-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 3px;
+        }
+        .emergency-box {
+            background: #fce8e6;
+            color: #c5221f;
+            border: 1px solid #fad2cf;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .header-details-strip {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-top: 5px;
+            padding-top: 4px;
+            border-top: 1px dashed #ccc;
+            font-size: 8.5px;
+            color: #333;
+            gap: 8px;
+        }
+        .header-details-strip .item { display: flex; gap: 4px; }
+        .header-details-strip .item-title {
+            font-weight: bold;
             text-transform: uppercase;
-        }
-
-        .header p {
-            margin: 0;
             color: #555;
-            font-size: 11px;
+            font-size: 8px;
         }
 
-        table {
+        /* ── Section Title ── */
+        .section-title {
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            border-top: 1.5px solid #111;
+            border-bottom: 1.5px solid #111;
+            padding: 3px 0;
+            margin-bottom: 3.5mm;
+            position: relative;
+            letter-spacing: 0.5px;
+        }
+        .section-title .original-label {
+            position: absolute;
+            right: 0;
+            top: 3px;
+            font-size: 9.5px;
+            font-weight: bold;
+            color: #1a56db;
+        }
+
+        /* ── Info Grid ── */
+        .info-grid {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            border: 1px solid #111;
+            margin-bottom: 3.5mm;
+        }
+        .info-grid th, .info-grid td {
+            border: 1px solid #111;
+            padding: 2.5px 6px;
+            vertical-align: middle;
+            font-size: 10px;
+        }
+        .info-grid .col-header {
+            background: #f0f0f0;
+            font-weight: bold;
+            font-size: 9.5px;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .info-grid .lbl {
+            font-weight: bold;
+            width: 20%;
+            white-space: nowrap;
+            background: #fafafa;
+            color: #444;
         }
 
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
+        /* ── Table (inv-table) ── */
+        .inv-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 2mm;
+            margin-bottom: 4mm;
+        }
+        .inv-table thead tr { background: #f0f0f0; }
+        .inv-table th, .inv-table td {
+            border: 1px solid #333;
+            padding: 3.5px 5px;
+            font-size: 9.5px;
             vertical-align: middle;
         }
+        .inv-table th {
+            font-weight: bold;
+            text-align: left;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.3px;
+        }
+        .inv-table td.num { text-align: center; }
+        .barcode-txt {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 10px;
+            color: #0b57d0;
+            white-space: nowrap;
+        }
 
-        th {
-            background-color: #f4f6f9;
-            font-weight: 600;
-            color: #333;
+        /* ── Signatures ── */
+        .signature-box {
+            margin-top: 8mm;
+            display: flex;
+            justify-content: space-between;
+            page-break-inside: avoid;
+        }
+        .signature-line {
+            width: 220px;
+            text-align: center;
+        }
+        .sig-name {
             font-size: 11px;
+            font-weight: 700;
+            color: #111;
+            min-height: 18px;
+            margin-bottom: 4px;
+        }
+        .sig-divider {
+            border-top: 1.5px solid #111;
+            margin-bottom: 4px;
+        }
+        .sig-title {
+            font-weight: 700;
+            color: #111;
+            font-size: 9.5px;
             text-transform: uppercase;
         }
-
-        td {
-            font-size: 11px;
+        .sig-sub {
+            color: #666;
+            font-size: 8.5px;
         }
 
-        .barcode {
-            font-weight: 600;
-            color: #0056b3;
+        /* ── Footer Notes ── */
+        .footer-notes {
+            margin-top: 6mm;
+            font-size: 8.5px;
+            color: #444;
+            line-height: 1.4;
+            page-break-inside: avoid;
         }
 
-        .footer {
-            margin-top: 30px;
+        /* ── Fixed Page Footer ── */
+        .page-footer {
+            position: fixed;
+            bottom: 8mm;
+            left: 12mm;
+            right: 12mm;
             display: flex;
             justify-content: space-between;
-            font-size: 11px;
-            color: #777;
-            border-top: 1px solid #ddd;
-            padding-top: 15px;
+            font-size: 9px;
+            color: #555;
+            border-top: 1px solid #ccc;
+            padding-top: 3px;
         }
 
-        .signature-box {
-            margin-top: 50px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .signature-line {
-            width: 200px;
-            border-top: 1px solid #333;
-            text-align: center;
-            padding-top: 5px;
-            font-size: 11px;
-        }
-
-        .no-print-bar {
-            background: #333;
-            color: #fff;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-
-        .btn-print {
-            background: #0d6efd;
-            color: #fff;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-            font-family: inherit;
-        }
-        .btn-print:hover { background: #0b5ed7; }
-
+        /* ── Print Media Query: exact 1:1 match with screen ── */
         @@media print {
-            body {
-                background-color: #fff;
-                padding: 0;
+            @@page {
+                size: A4 portrait;
+                margin: 0;
             }
-            .print-container {
-                box-shadow: none;
-                padding: 0;
-                max-width: 100%;
-            }
-            .no-print-bar {
+            .print-actions {
                 display: none !important;
+            }
+            body {
+                background: #fff;
+                margin: 0;
+                padding: 0;
+            }
+            .page-wrap {
+                width: 210mm !important;
+                max-width: 210mm !important;
+                margin: 0 auto !important;
+                padding: 8mm 10mm !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+            .page-footer {
+                position: fixed;
+                bottom: 5mm;
             }
             th {
                 background-color: #eee !important;
                 -webkit-print-color-adjust: exact;
-                color-adjust: exact;
+                print-color-adjust: exact;
             }
         }
     </style>
 </head>
 <body>
-    <div class="no-print-bar">
-        <span><i class="bi bi-info-circle"></i> Please ensure printer settings are set to A4 or Letter, Landscape recommended for wider tables.</span>
-        <button class="btn-print" onclick="window.print()">Print Now</button>
+    <div class="print-actions">
+        <button class="btn-print" onclick="window.print()">🖨 Print</button>
+        <button class="btn-close-tab" onclick="closeWorksheetWindow()">✕ Close</button>
     </div>
 
-    <div class="print-container">
-        <div class="header">
-            <div>
-                <h1>@title</h1>
-                <p>Printed on: @printDate</p>
-                <p>Printed by: @printedBy</p>
+    <div class="page-wrap">
+        <!-- ══ HOSPITAL HEADER ══ -->
+        <div class="bill-header">
+            <div class="header-top">
+                <div class="header-left">
+                    @if (!string.IsNullOrWhiteSpace(hospLogo))
+                    {
+                        <img src="@hospLogo" class="hosp-logo" alt="Hospital Logo" />
+                    }
+                    <div class="hosp-info-main">
+                        <div class="hosp-name">@hospName</div>
+                        <div class="hosp-badges">
+                            @if (!string.IsNullOrWhiteSpace(hospType))
+                            {
+                                <span class="badge-pill badge-type">🏷 @hospType</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(hospReg))
+                            {
+                                <span class="badge-pill badge-reg">📋 Reg: @hospReg</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(hospNabh))
+                            {
+                                <span class="badge-pill badge-nabh">✔ NABH: @hospNabh</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="header-right">
+                    @if (!string.IsNullOrWhiteSpace(hospEmergency))
+                    {
+                        <div class="emergency-box">
+                            <span>📞 Emergency Helpline: @hospEmergency</span>
+                        </div>
+                    }
+                    <div style="font-size: 10px; color: #444; margin-top: 3px;">
+                        <strong>Branch:</strong> @(branchName ?? sourceBranch)
+                    </div>
+                </div>
             </div>
-            <div style="text-align: right;">
-                <h2 style="margin: 0; font-size: 18px; color: #333;">eClinicPlus+ EMR</h2>
-                <p>Total Samples: @Model.Count</p>
+
+            <div class="header-details-strip">
+                @if (!string.IsNullOrWhiteSpace(hospAddress))
+                {
+                    <div class="item">
+                        <span class="item-title">📍 Address:</span>
+                        <span>@hospAddress</span>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(hospPhone))
+                {
+                    <div class="item">
+                        <span class="item-title">📞 Contact:</span>
+                        <span>@hospPhone</span>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(hospEmail))
+                {
+                    <div class="item">
+                        <span class="item-title">✉ Email:</span>
+                        <span>@hospEmail</span>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(hospGSTIN))
+                {
+                    <div class="item">
+                        <span class="item-title">GST:</span>
+                        <span>@hospGSTIN</span>
+                    </div>
+                }
             </div>
         </div>
 
+        <!-- ══ SECTION TITLE ══ -->
+        <div class="section-title">
+            @title.ToUpper()
+            <span class="original-label">Official Record</span>
+        </div>
+
+        <!-- ══ BATCH INFO GRID ══ -->
+        <table class="info-grid">
+            <colgroup>
+                <col style="width:16%"><col style="width:34%">
+                <col style="width:16%"><col style="width:34%">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th class="col-header" colspan="2">Worksheet Information</th>
+                    <th class="col-header" colspan="2">Routing &amp; Transfer Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="lbl">Document Type</td>
+                    <td><strong>@title</strong></td>
+                    <td class="lbl">Source Branch</td>
+                    <td><strong>@sourceBranch</strong></td>
+                </tr>
+                <tr>
+                    <td class="lbl">Transfer Date</td>
+                    <td>@transferDateStr</td>
+                    <td class="lbl">Destination</td>
+                    <td><strong>@targetBranch</strong></td>
+                </tr>
+                <tr>
+                    <td class="lbl">Total Samples</td>
+                    <td><strong style="color: #0b57d0; font-size: 10.5px;">@Model.Count Sample(s)</strong></td>
+                    <td class="lbl">Transferred By</td>
+                    <td><strong>@transferredByName</strong></td>
+                </tr>
+                <tr>
+                    <td class="lbl">Printed At / By</td>
+                    <td>@printDate &bull; @printedBy</td>
+                    <td class="lbl">@(printMode == "Receive" ? "Received By" : "Status")</td>
+                    <td>@(printMode == "Receive" ? receivedByName : (Model.All(x => x.IsTransferred) ? "Transferred" : "In Transit / Ready"))</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ══ SAMPLES TABLE ══ -->
         @if (!Model.Any())
         {
-            <div style="padding: 20px; text-align: center; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;">
+            <div style="padding: 16px; text-align: center; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 4px; margin-bottom: 15px;">
                 No samples provided for printing.
             </div>
         }
         else
         {
-            <table>
+            <table class="inv-table">
+                <colgroup>
+                    <col style="width: 25px;">  <!-- # -->
+                    <col style="width: 85px;">  <!-- Barcode -->
+                    <col style="width: 125px;"> <!-- Patient Details -->
+                    <col style="width: 55px;">  <!-- Age/Sex -->
+                    <col style="width: 165px;"> <!-- Test / Specimen -->
+                    <col style="width: 70px;">  <!-- From -->
+                    <col style="width: 70px;">  <!-- To -->
+                    <col style="width: 55px;">  <!-- Status -->
+                    <col style="width: 65px;">  <!-- Date -->
+                </colgroup>
                 <thead>
                     <tr>
-                        <th width="3%">#</th>
-                        <th width="12%">Barcode</th>
-                        <th width="15%">Patient Name</th>
-                        <th width="10%">Age/Sex</th>
-                        <th width="18%">Test Name</th>
-                        <th width="12%">From Branch</th>
-                        <th width="12%">To Branch</th>
-                        <th width="10%">Status</th>
-                        <th width="8%">Date</th>
+                        <th style="text-align: center;">#</th>
+                        <th>Barcode</th>
+                        <th>Patient Details</th>
+                        <th>Age / Sex</th>
+                        <th>Test / Specimen</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Status</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
                     @{ int sl = 1; }
                     @foreach (var item in Model)
                     {
+                        var genderAge = (item.Age.HasValue ? $"{item.Age.Value}Y" : "-") + " / " + (item.Gender ?? "-");
                         <tr>
-                            <td>@(sl++)</td>
-                            <td class="barcode">@item.BarcodeNo</td>
+                            <td class="num">@(sl++)</td>
+                            <td>
+                                <span class="barcode-txt">@item.BarcodeNo</span>
+                            </td>
                             <td>
                                 <strong>@item.PatientName</strong>
                                 @if (!string.IsNullOrEmpty(item.PatientCode))
                                 {
-                                    <br /><span style="color:#777">@item.PatientCode</span>
+                                    <br /><span style="color:#555; font-size: 8.5px;">@item.PatientCode</span>
                                 }
                             </td>
-                            <td>@(item.Age.HasValue ? item.Age.Value.ToString() : "-") / @(item.Gender ?? "-")</td>
-                            <td>@item.TestName</td>
-                            <td>@item.SourceBranchName</td>
-                            <td>@item.TargetBranchName</td>
+                            <td>@genderAge</td>
+                            <td>
+                                <strong>@item.TestName</strong>
+                                @if (!string.IsNullOrEmpty(item.TestCode))
+                                {
+                                    <span style="font-size: 8.5px; color: #555;">(@item.TestCode)</span>
+                                }
+                                @if (!string.IsNullOrEmpty(item.SampleTypeName))
+                                {
+                                    <br /><span style="font-size: 8.5px; color: #0b57d0;">@item.SampleTypeName @(!string.IsNullOrEmpty(item.ContainerType) ? $"• {item.ContainerType}" : "")</span>
+                                }
+                            </td>
+                            <td>@(item.SourceBranchName ?? "—")</td>
+                            <td>@(item.TargetBranchName ?? "—")</td>
                             <td>
                                 @if (printMode == "Receive")
                                 {
-                                    <span>@(item.IsReceived ? "Received" : "Pending Receive")</span>
+                                    <span>@(item.IsReceived ? "Received" : "Pending")</span>
                                 }
                                 else
                                 {
                                     <span>@(item.IsTransferred ? "Transferred" : "Ready")</span>
                                 }
                             </td>
-                            <td>
+                            <td style="font-size: 8.5px;">
                                 @if (printMode == "Receive")
                                 {
-                                    @(item.ReceivedDate?.ToString("dd/MM/yyyy HH:mm") ?? "-")
+                                    @(item.ReceivedDate?.ToString("dd/MM/yy HH:mm") ?? "—")
                                 }
                                 else
                                 {
-                                    @(item.TransferredDate?.ToString("dd/MM/yyyy HH:mm") ?? "-")
+                                    @(item.TransferredDate?.ToString("dd/MM/yy HH:mm") ?? "—")
                                 }
                             </td>
                         </tr>
@@ -237,30 +596,73 @@
                 </tbody>
             </table>
 
-            <div class="signature-box">
-                <div class="signature-line">
-                    <strong>Handed Over By</strong><br />
-                    (Signature & Date)
+            <!-- ══ SIGNATURES ══ -->
+            @if (printMode == "Receive")
+            {
+                <div class="signature-box">
+                    <div class="signature-line">
+                        <div class="sig-name">@transferredByName</div>
+                        <div class="sig-divider"></div>
+                        <div class="sig-title">Transferred / Dispatched By</div>
+                        <div class="sig-sub">(Signature &amp; Date)</div>
+                    </div>
+                    <div class="signature-line">
+                        <div class="sig-name">@receivedByName</div>
+                        <div class="sig-divider"></div>
+                        <div class="sig-title">Received &amp; Verified By</div>
+                        <div class="sig-sub">(Signature &amp; Date)</div>
+                    </div>
                 </div>
-                <div class="signature-line">
-                    <strong>Received By</strong><br />
-                    (Signature & Date)
+            }
+            else
+            {
+                <div class="signature-box">
+                    <div class="signature-line">
+                        <div class="sig-name">@transferredByName</div>
+                        <div class="sig-divider"></div>
+                        <div class="sig-title">Transferred / Dispatched By</div>
+                        <div class="sig-sub">(Signature &amp; Date)</div>
+                    </div>
+                    <div class="signature-line">
+                        <div class="sig-name">&nbsp;</div>
+                        <div class="sig-divider"></div>
+                        <div class="sig-title">Courier / Acknowledged By</div>
+                        <div class="sig-sub">(Signature &amp; Date)</div>
+                    </div>
                 </div>
-            </div>
+            }
         }
 
-        <div class="footer">
-            <span>Powered by eClinicPlus+</span>
-            <span>Page 1 of 1</span>
+        <!-- ══ FOOTER NOTES ══ -->
+        <div class="footer-notes">
+            <p><strong>Verification Notice:</strong> This is a computer-generated sample transfer worksheet issued by @(hospName). All manifests and biological specimens must be physically verified against barcode numbers, container seal integrity, and storage/transport temperature criteria upon handover and destination reception.</p>
         </div>
     </div>
 
+    <!-- ══ PAGE FOOTER ══ -->
+    <div class="page-footer">
+        <span>Printed on: @printDate</span>
+        <span>Generated by: @printedBy</span>
+        <span>Powered by eClinicPlus+</span>
+        <span>Page 1 of 1</span>
+    </div>
+
     <script>
-        // Automatically trigger print dialog when page loads
+        function closeWorksheetWindow() {
+            try {
+                if (window.parent && window.parent.$ && window.parent.$('#modalPrintWorksheet').length) {
+                    window.parent.$('#modalPrintWorksheet').modal('hide');
+                    return;
+                }
+            } catch (e) { }
+            window.close();
+        }
+
+        // Trigger print after rendering
         window.onload = function() {
             setTimeout(function() {
                 window.print();
-            }, 500);
+            }, 400);
         };
     </script>
 </body>

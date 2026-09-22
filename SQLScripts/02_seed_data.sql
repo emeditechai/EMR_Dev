@@ -31,12 +31,17 @@ SET IDENTITY_INSERT dbo.Users OFF;
 GO
 
 SET IDENTITY_INSERT dbo.roles ON;
-INSERT INTO dbo.roles (Id, Name, Description, IsSystemRole, CreatedDate, LastModifiedDate, BranchID, IconClass)
+INSERT INTO dbo.roles (Id, Name, Description, IsSystemRole, CreatedDate, LastModifiedDate, CompanyId, IconClass)
 VALUES
 (1, 'Administrator', 'Full system access', 1, '2025-09-03 20:56:42.3700000', '2025-09-03 20:56:42.3700000', 1, 'fas fa-user-shield'),
 (2, 'Doctor', 'Doctor-level access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-user-md'),
 (3, 'Nurse', 'Nurse-level access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-user-nurse'),
-(4, 'Receptionist', 'Front desk access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 2, 'fas fa-id-card');
+(4, 'Receptionist', 'Front desk access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-id-card'),
+(5, 'User', 'Standard user access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-user'),
+(6, 'Senior Technician', 'Senior laboratory technician access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-microscope'),
+(7, 'Junior Technician', 'Junior laboratory technician access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-vial'),
+(8, 'Finance', 'Financial operations, billing and settlement access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-file-invoice-dollar'),
+(9, 'Manager', 'Branch and operations management access', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 'fas fa-user-tie');
 SET IDENTITY_INSERT dbo.roles OFF;
 GO
 

@@ -8,10 +8,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using EMR.Web.ApiClients;
+using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers
 {
@@ -19,7 +21,8 @@ namespace EMR.Web.Controllers
     public class SampleTransferController(
         ISampleTransferApiClient sampleTransferApiClient,
         ILabOrderApiClient labOrderApiClient,
-        IAuditLogService auditLogService) : Controller
+        IAuditLogService auditLogService,
+        ApplicationDbContext dbContext) : Controller
     {
         [HttpGet]
         public async Task<IActionResult> Index(
@@ -140,6 +143,7 @@ namespace EMR.Web.Controllers
 
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
             request.SourceBranchId = branchId;
+            request.UserId = User.GetUserId();
 
             if (request.SourceBranchId == request.TargetBranchId)
                 return Json(new { success = false, message = "Source and target branch cannot be the same." });
@@ -224,6 +228,7 @@ namespace EMR.Web.Controllers
 
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
             request.TargetBranchId = branchId;
+            request.UserId = User.GetUserId();
 
             try
             {
@@ -261,10 +266,18 @@ namespace EMR.Web.Controllers
                 return Content("No samples provided for printing.");
 
             var items = await sampleTransferApiClient.GetWorksheetDataAsync(ids);
+
+            int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+            var settings = await dbContext.HospitalSettings
+                .Where(s => s.BranchId == branchId && s.IsActive)
+                .FirstOrDefaultAsync()
+                ?? await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.IsActive);
             
             ViewBag.PrintMode = mode; // "Transfer" or "Receive"
-            ViewBag.PrintDate = DateTime.Now.ToString("dd MMM yyyy, hh:mm tt");
-            ViewBag.PrintedBy = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "Unknown User";
+            ViewBag.PrintDate = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt");
+            ViewBag.PrintedBy = User.GetDisplayName();
+            ViewBag.Settings = settings;
+            ViewBag.BranchName = User.FindFirstValue("BranchName");
 
             return View(items);
         }

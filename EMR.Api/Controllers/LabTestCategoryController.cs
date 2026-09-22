@@ -21,6 +21,15 @@ public class LabTestCategoryController(ILabTestCategoryService service) : Contro
         return Ok(ApiResponse<IEnumerable<LabTestCategoryListItem>>.Ok(data));
     }
 
+    /// <summary>Categories of the given departments, for assigning a pathologist's sign-off scope.</summary>
+    [HttpGet("by-departments")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabTestCategoryOption>>), 200)]
+    public async Task<IActionResult> GetByDepartments([FromQuery] string? departmentIds, [FromQuery] int? companyId)
+    {
+        var data = await service.GetByDepartmentsAsync(departmentIds, companyId);
+        return Ok(ApiResponse<IEnumerable<LabTestCategoryOption>>.Ok(data));
+    }
+
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ApiResponse<LabTestCategoryListItem>), 200)]
     [ProducesResponseType(typeof(ApiResponse<object>), 404)]

@@ -1,138 +1,356 @@
 @model IEnumerable<EMR.Web.Models.ViewModels.UserListItemViewModel>
 @{
     ViewData["Title"] = "User Master";
-    var total    = Model.Count();
-    var active   = Model.Count(x => x.IsActive);
+    var users = Model.ToList();
+    var total = users.Count;
+    var active = users.Count(x => x.IsActive);
     var inactive = total - active;
+    var pathologists = users.Count(x => x.IsPathologist);
+    var signed = users.Count(x => x.IsPathologist && x.HasSignature);
+    var labTechs = users.Count(x => x.IsLabTechnician);
+    var avatarColors = new[] { "#2563eb", "#7c3aed", "#0d9488", "#d97706", "#db2777", "#0891b2" };
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="h3 mb-0 fw-bold">User Master</h1>
-        @if (ViewBag.BranchName is string bn)
-        {
-            <small class="text-muted"><i class="bi bi-building me-1"></i>Branch: <strong>@bn</strong></small>
-        }
-        else
-        {
-            <small class="text-muted">Manage system users and their accounts</small>
-        }
+<style>
+    .um-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .85rem; object-fit: cover; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
+    .um-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
+    .um-sub { font-size: .76rem; color: #64748b; }
+    .um-role { font-size: .7rem; font-weight: 600; border: 1px solid transparent; }
+    .um-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .1rem .55rem; margin: 0 .2rem .2rem 0; white-space: nowrap; }
+    .um-table thead th { background: #f8fafc; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .um-table tbody tr { transition: background .12s; }
+    .um-table tbody tr.um-inactive td { opacity: .62; }
+    .um-table tbody tr.um-inactive td:last-child { opacity: 1; }
+    .um-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
+    .um-kpi .um-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+    .um-kpi .um-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Settings</li>
+                    <li class="breadcrumb-item active" aria-current="page">User Master</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-people-fill me-2"></i>User Master</h4>
+            @if (ViewBag.BranchName is string bn)
+            {
+                <div class="text-muted small mt-1"><i class="bi bi-building me-1"></i>Branch: <strong class="text-dark">@bn</strong></div>
+            }
+        </div>
+        <a asp-action="Create" class="btn btn-primary px-3 shadow-sm"><i class="bi bi-person-plus-fill me-1"></i> Add User</a>
     </div>
-    <a asp-action="Create" class="btn btn-primary"><i class="bi bi-person-plus-fill me-1"></i>Add User</a>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- KPI cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl col-md-4 col-6">
+            <div class="card shadow-sm um-kpi h-100" style="--k:#2563eb;--kb:#dbeafe;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Total Users</span>
+                    <div class="um-kpi-num">@total</div>
+                </div>
+                <div class="um-kpi-icon"><i class="bi bi-people-fill"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-4 col-6">
+            <div class="card shadow-sm um-kpi h-100" style="--k:#16a34a;--kb:#dcfce7;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Active</span>
+                    <div class="um-kpi-num">@active</div>
+                </div>
+                <div class="um-kpi-icon"><i class="bi bi-person-check-fill"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-4 col-6">
+            <div class="card shadow-sm um-kpi h-100" style="--k:#dc2626;--kb:#fee2e2;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Inactive</span>
+                    <div class="um-kpi-num">@inactive</div>
+                </div>
+                <div class="um-kpi-icon"><i class="bi bi-person-x-fill"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-6 col-6">
+            <div class="card shadow-sm um-kpi h-100" style="--k:#7c3aed;--kb:#ede9fe;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Pathologists</span>
+                    <div class="um-kpi-num">@pathologists</div>
+                    <span class="badge mt-1" style="background:#ede9fe;color:#5b21b6;">@signed with signature</span>
+                </div>
+                <div class="um-kpi-icon"><i class="bi bi-file-earmark-medical-fill"></i></div>
+            </div></div>
+        </div>
+        <div class="col-xl col-md-6 col-6">
+            <div class="card shadow-sm um-kpi h-100" style="--k:#0d9488;--kb:#ccfbf1;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Lab Technicians</span>
+                    <div class="um-kpi-num">@labTechs</div>
+                </div>
+                <div class="um-kpi-icon"><i class="bi bi-eyedropper"></i></div>
+            </div></div>
+        </div>
+    </div>
+
+    <!-- Filters (applied instantly in the browser) -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small fw-semibold text-muted mb-1">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="umSearch" class="form-control border-start-0" placeholder="Name, username, email, employee code, department or branch..." autocomplete="off" />
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label small fw-semibold text-muted mb-1">Status</label>
+                    <select id="umStatus" class="form-select">
+                        <option value="">All statuses</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-6">
+                    <label class="form-label small fw-semibold text-muted mb-1">Role / Designation</label>
+                    <select id="umRole" class="form-select">
+                        <option value="">All roles</option>
+                        <option value="nurse">Nurse</option>
+                        <option value="phlebotomist">Phlebotomist</option>
+                        <option value="pathologist">Pathologist</option>
+                        <option value="labtech">Lab Technician</option>
+                        <option value="logistics">Logistics Boy</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="button" id="umReset" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold text-dark"><i class="bi bi-list-ul text-primary me-2"></i>Users</span>
+            <span class="text-muted small" id="umCount">Showing @total of @total</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 um-table" id="umTable">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">User</th>
+                            <th>Roles</th>
+                            <th>Email</th>
+                            <th>Department(s)</th>
+                            <th>Branches</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-end pe-4" style="width:120px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in users)
+                        {
+                            var initials = string.Concat((item.FullName ?? item.Username).Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+                            if (string.IsNullOrEmpty(initials)) { initials = "?"; }
+                            var color = avatarColors[item.Id % avatarColors.Length];
+                            var roles = new List<string>();
+                            if (item.IsNursingStaff) { roles.Add("nurse"); }
+                            if (item.IsPhlebotomist) { roles.Add("phlebotomist"); }
+                            if (item.IsPathologist) { roles.Add("pathologist"); }
+                            if (item.IsLabTechnician) { roles.Add("labtech"); }
+                            if (item.IsLogisticsBoy) { roles.Add("logistics"); }
+                            var searchText = string.Join(' ', new[] { item.Username, item.FullName, item.Email, item.EmployeeCode, item.DepartmentNames, item.Branches }).ToLowerInvariant();
+                            var depts = (item.DepartmentNames ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries);
+                            var branches = (item.Branches ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries);
+
+                            <tr class="@(item.IsActive ? "" : "um-inactive")" data-search="@searchText" data-status="@(item.IsActive ? "active" : "inactive")" data-roles="@string.Join(' ', roles)">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center gap-3">
+                                        @if (!string.IsNullOrWhiteSpace(item.ProfilePicturePath))
+                                        {
+                                            <img class="um-avatar" src="@item.ProfilePicturePath" alt="@item.FullName" />
+                                        }
+                                        else
+                                        {
+                                            <span class="um-avatar" style="background:@color">@initials</span>
+                                        }
+                                        <div style="min-width:0;">
+                                            <div class="um-name">@item.FullName</div>
+                                            <div class="um-sub">
+                                                <span class="font-monospace">@item.Username</span>
+                                                @if (!string.IsNullOrWhiteSpace(item.EmployeeCode))
+                                                {
+                                                    <span class="mx-1">&middot;</span><span class="font-monospace">@item.EmployeeCode</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @if (item.IsNursingStaff)
+                                        {
+                                            <span class="badge um-role" style="background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe;"><i class="bi bi-heart-pulse-fill me-1"></i>Nurse</span>
+                                        }
+                                        @if (item.IsPhlebotomist)
+                                        {
+                                            <span class="badge um-role" style="background:#fee2e2;color:#b91c1c;border-color:#fecaca;"><i class="bi bi-droplet-fill me-1"></i>Phlebotomist</span>
+                                        }
+                                        @if (item.IsPathologist)
+                                        {
+                                            <span class="badge um-role" style="background:#f3e8ff;color:#6b21a8;border-color:#d8b4fe;"><i class="bi bi-file-earmark-medical-fill me-1"></i>Pathologist</span>
+                                            if (item.HasSignature)
+                                            {
+                                                <span class="badge um-role" style="background:#ede9fe;color:#5b21b6;border-color:#ddd6fe;" title="Signature uploaded"><i class="bi bi-pen-fill me-1"></i>Signed</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge um-role" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa;" title="No signature uploaded yet"><i class="bi bi-pen me-1"></i>No signature</span>
+                                            }
+                                        }
+                                        @if (item.IsLabTechnician)
+                                        {
+                                            <span class="badge um-role" style="background:#ccfbf1;color:#0f766e;border-color:#99f6e4;"><i class="bi bi-eyedropper me-1"></i>Lab Tech</span>
+                                        }
+                                        @if (item.IsLogisticsBoy)
+                                        {
+                                            <span class="badge um-role" style="background:#fef3c7;color:#92400e;border-color:#fde68a;"><i class="bi bi-truck me-1"></i>Logistics</span>
+                                        }
+                                        @if (roles.Count == 0)
+                                        {
+                                            <span class="text-muted small">—</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.Email))
+                                    {
+                                        <a href="mailto:@item.Email" class="text-decoration-none text-dark small">@item.Email</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (depts.Length > 0)
+                                    {
+                                        foreach (var d in depts.Take(2))
+                                        {
+                                            <span class="um-chip"><i class="bi bi-diagram-2 text-primary"></i>@d</span>
+                                        }
+                                        if (depts.Length > 2)
+                                        {
+                                            <span class="um-chip" title="@string.Join(", ", depts.Skip(2))">+@(depts.Length - 2)</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (branches.Length > 0)
+                                    {
+                                        foreach (var b in branches.Take(2))
+                                        {
+                                            <span class="um-chip"><i class="bi bi-building text-secondary"></i>@b</span>
+                                        }
+                                        if (branches.Length > 2)
+                                        {
+                                            <span class="um-chip" title="@string.Join(", ", branches.Skip(2))">+@(branches.Length - 2)</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group btn-group-sm shadow-sm" role="group">
+                                        <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
+                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary" title="Edit User"><i class="bi bi-pencil"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        <tr id="umEmpty" style="@(users.Any() ? "display:none;" : "")">
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-people display-6 d-block mb-2 text-secondary"></i>
+                                <span id="umEmptyText">@(users.Any() ? "No users match your filters." : "No users found.")</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-sm-4">
-        <div class="stat-card stat-blue">
-            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
-            <div>
-                <div class="stat-value">@total</div>
-                <div class="stat-label">Total Users</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card stat-green">
-            <div class="stat-icon"><i class="bi bi-person-check-fill"></i></div>
-            <div>
-                <div class="stat-value">@active</div>
-                <div class="stat-label">Active</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card stat-red">
-            <div class="stat-icon"><i class="bi bi-person-x-fill"></i></div>
-            <div>
-                <div class="stat-value">@inactive</div>
-                <div class="stat-label">Inactive</div>
-            </div>
-        </div>
-    </div>
-</div>
+@section Scripts {
+    <script>
+        (function () {
+            const rows = [...document.querySelectorAll('#umTable tbody tr[data-search]')];
+            const $search = document.getElementById('umSearch');
+            const $status = document.getElementById('umStatus');
+            const $role = document.getElementById('umRole');
+            const $count = document.getElementById('umCount');
+            const $empty = document.getElementById('umEmpty');
 
-<div class="dashboard-panel table-responsive">
-    <table class="table table-hover align-middle mb-0">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Employee Code</th>
-                <th>Full Name</th>
-                <th>Email</th>
-                <th>Department(s)</th>
-                <th>Branches</th>
-                <th>Status</th>
-                <th class="text-end">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in Model)
-            {
-                <tr>
-                    <td class="fw-semibold">@item.Username</td>
-                    <td><span class="badge text-bg-light border text-dark">@item.EmployeeCode</span></td>
-                    <td>
-                        <div class="fw-semibold">@item.FullName</div>
-                        <div class="d-flex flex-wrap gap-1 mt-1">
-                            @if (item.IsNursingStaff)
-                            {
-                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size:0.72rem;">
-                                    <i class="bi bi-heart-pulse-fill me-1"></i>Nurse
-                                </span>
-                            }
-                            @if (item.IsPhlebotomist)
-                            {
-                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size:0.72rem;">
-                                    <i class="bi bi-droplet-fill me-1"></i>Phlebotomist
-                                </span>
-                            }
-                            @if (item.IsPathologist)
-                            {
-                                <span class="badge border" style="font-size:0.72rem;background:#f3e8ff;color:#6b21a8;border-color:#d8b4fe !important;">
-                                    <i class="bi bi-microscope me-1"></i>Pathologist
-                                </span>
-                            }
-                            @if (item.IsLabTechnician)
-                            {
-                                <span class="badge border" style="font-size:0.72rem;background:#ccfbf1;color:#0f766e;border-color:#99f6e4 !important;">
-                                    <i class="bi bi-eyedropper me-1"></i>Lab Tech
-                                </span>
-                            }
-                            @if (item.IsLogisticsBoy)
-                            {
-                                <span class="badge border" style="font-size:0.72rem;background:#fef3c7;color:#92400e;border-color:#fde68a !important;">
-                                    <i class="bi bi-truck me-1"></i>Logistics Boy
-                                </span>
-                            }
-                        </div>
-                    </td>
-                    <td>@item.Email</td>
-                    <td>
-                        @if (!string.IsNullOrWhiteSpace(item.DepartmentNames))
-                        {
-                            <span class="text-dark small"><i class="bi bi-diagram-2 text-primary me-1"></i>@item.DepartmentNames</span>
-                        }
-                        else
-                        {
-                            <span class="text-muted small">—</span>
-                        }
-                    </td>
-                    <td>@item.Branches</td>
-                    <td>
-                        <span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">
-                            @(item.IsActive ? "Active" : "Inactive")
-                        </span>
-                    </td>
-                    <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="View"><i class="bi bi-eye-fill"></i></a>
-                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary ms-1">Edit</a>
-                    </td>
-                </tr>
+            function apply() {
+                const term = $search.value.toLowerCase().trim();
+                const status = $status.value;
+                const role = $role.value;
+                let shown = 0;
+
+                rows.forEach(r => {
+                    const ok = (!term || r.dataset.search.includes(term))
+                        && (!status || r.dataset.status === status)
+                        && (!role || r.dataset.roles.split(' ').includes(role));
+                    r.style.display = ok ? '' : 'none';
+                    if (ok) shown++;
+                });
+
+                $count.textContent = 'Showing ' + shown + ' of ' + rows.length;
+                $empty.style.display = (rows.length > 0 && shown === 0) ? '' : 'none';
             }
-            @if (!Model.Any())
-            {
-                <tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-people fs-3 d-block mb-2"></i>No users found.</td></tr>
-            }
-        </tbody>
-    </table>
-</div>
+
+            $search.addEventListener('input', apply);
+            $status.addEventListener('change', apply);
+            $role.addEventListener('change', apply);
+            document.getElementById('umReset').addEventListener('click', () => {
+                $search.value = ''; $status.value = ''; $role.value = ''; apply(); $search.focus();
+            });
+        })();
+    </script>
+}

@@ -65,10 +65,15 @@ public class BranchesController(
             .Include(x => x.Company)
             .Include(x => x.UserBranches.Where(ub => ub.IsActive))
                 .ThenInclude(x => x.User)
-            .Include(x => x.Roles.OrderBy(r => r.Name))
             .FirstOrDefaultAsync(x => x.BranchId == id);
 
         if (branch is null) return NotFound();
+
+        var companyRoles = await dbContext.Roles
+            .Where(r => r.CompanyId == branch.CompanyId)
+            .OrderBy(r => r.Name)
+            .Select(r => r.Name)
+            .ToListAsync();
 
         var model = new BranchDetailsViewModel
         {
@@ -83,6 +88,7 @@ public class BranchesController(
             Address = branch.Address,
             Pincode = branch.Pincode,
             IsHOBranch = branch.IsHOBranch,
+            IsLab = branch.IsLab,
             IsActive = branch.IsActive,
             CreatedDate = branch.CreatedDate,
             ModifiedDate = branch.ModifiedDate,
@@ -92,7 +98,7 @@ public class BranchesController(
                 .Select(ub => ub.User.FullName ?? ub.User.Username)
                 .OrderBy(n => n)
                 .ToList(),
-            Roles = branch.Roles.Select(r => r.Name).ToList()
+            Roles = companyRoles
         };
 
         return View(model);
@@ -129,6 +135,9 @@ public class BranchesController(
             ModelState.AddModelError(nameof(model.BranchCode), "Branch code already exists.");
         }
 
+        var companyId = model.CompanyId > 0 ? model.CompanyId : User.GetCompanyId();
+        await ValidateSingleHeadOfficeAsync(model, companyId, excludeBranchId: null);
+
         if (!ModelState.IsValid)
         {
             model.CompanyOptions = await GetActiveCompanyOptionsAsync();
@@ -137,7 +146,7 @@ public class BranchesController(
 
         var branch = new BranchMaster
         {
-            CompanyId = model.CompanyId > 0 ? model.CompanyId : User.GetCompanyId(),
+            CompanyId = companyId,
             BranchName = model.BranchName.Trim(),
             BranchCode = model.BranchCode.Trim(),
             Country = model.Country,
@@ -146,29 +155,43 @@ public class BranchesController(
             Address = model.Address,
             Pincode = model.Pincode,
             IsHOBranch = model.IsHOBranch,
+            IsLab = model.IsLab,
             IsActive = model.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = User.GetUserId(),
         };
 
-        dbContext.BranchMasters.Add(branch);
-        await dbContext.SaveChangesAsync();
-
-        // Auto-create a default HospitalSettings record for the new branch
-        var defaultSettings = new HospitalSettings
+        // The branch and its Hospital Settings are saved together: either both exist or neither does.
+        string settingsSource;
+        await using (var tx = await dbContext.Database.BeginTransactionAsync())
         {
-            CompanyId = branch.CompanyId,
-            BranchId = branch.BranchId,
-            HospitalName = branch.BranchName,
-            IsActive = true,
-            CreatedDate = DateTime.Now,
-            CreatedBy = User.GetUserId()
-        };
-        dbContext.HospitalSettings.Add(defaultSettings);
-        await dbContext.SaveChangesAsync();
+            try
+            {
+                dbContext.BranchMasters.Add(branch);
+                await dbContext.SaveChangesAsync();
 
-        await auditLogService.LogAsync("MasterData", "Branches.Create", $"Created branch: {branch.BranchName} under CompanyId: {branch.CompanyId}", branchId: branch.BranchId);
-        TempData["Success"] = "Branch created successfully.";
+                settingsSource = await CreateHospitalSettingsForBranchAsync(branch);
+                await dbContext.SaveChangesAsync();
+
+                await tx.CommitAsync();
+            }
+            catch (DbUpdateException ex) when (IsHeadOfficeUniqueViolation(ex))
+            {
+                // another save got there first - the database index keeps one HO per company
+                await tx.RollbackAsync();
+                dbContext.ChangeTracker.Clear();
+                ModelState.AddModelError(nameof(model.IsHOBranch), "This company already has a Head Office branch. Only one Head Office is allowed per company.");
+                model.CompanyOptions = await GetActiveCompanyOptionsAsync();
+                return View(model);
+            }
+        }
+
+        await auditLogService.LogAsync("MasterData", "Branches.Create",
+            $"Created branch: {branch.BranchName} under CompanyId: {branch.CompanyId}. Hospital Settings {settingsSource}.",
+            branchId: branch.BranchId);
+        TempData["Success"] = settingsSource.StartsWith("copied")
+            ? $"Branch created successfully. Hospital Settings were copied from the Head Office - review them for {branch.BranchName}."
+            : "Branch created successfully.";
 
         return RedirectToAction(nameof(Index));
     }
@@ -200,6 +223,7 @@ public class BranchesController(
             Address = branch.Address,
             Pincode = branch.Pincode,
             IsHOBranch = branch.IsHOBranch,
+            IsLab = branch.IsLab,
             IsActive = branch.IsActive,
         };
 
@@ -226,6 +250,9 @@ public class BranchesController(
             ModelState.AddModelError(nameof(model.BranchCode), "Branch code already exists.");
         }
 
+        var targetCompanyId = model.CompanyId > 0 ? model.CompanyId : branch.CompanyId;
+        await ValidateSingleHeadOfficeAsync(model, targetCompanyId, excludeBranchId: branch.BranchId);
+
         if (!ModelState.IsValid)
         {
             model.CompanyOptions = await GetActiveCompanyOptionsAsync();
@@ -241,15 +268,92 @@ public class BranchesController(
         branch.Address = model.Address;
         branch.Pincode = model.Pincode;
         branch.IsHOBranch = model.IsHOBranch;
+        branch.IsLab = model.IsLab;
         branch.IsActive = model.IsActive;
         branch.ModifiedBy = User.GetUserId();
         branch.ModifiedDate = DateTime.Now;
 
-        await dbContext.SaveChangesAsync();
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsHeadOfficeUniqueViolation(ex))
+        {
+            ModelState.AddModelError(nameof(model.IsHOBranch), "This company already has a Head Office branch. Only one Head Office is allowed per company.");
+            model.CompanyOptions = await GetActiveCompanyOptionsAsync();
+            return View(model);
+        }
         await auditLogService.LogAsync("MasterData", "Branches.Edit", $"Updated branch: {branch.BranchName}", branchId: branch.BranchId);
         TempData["Success"] = "Branch updated successfully.";
 
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Only one Head Office branch per company (the database index enforces the same rule).</summary>
+    private async Task ValidateSingleHeadOfficeAsync(BranchFormViewModel model, int companyId, int? excludeBranchId)
+    {
+        if (!model.IsHOBranch) return;
+
+        var existing = await dbContext.BranchMasters
+            .Where(x => x.CompanyId == companyId && x.IsHOBranch && (excludeBranchId == null || x.BranchId != excludeBranchId))
+            .Select(x => new { x.BranchName, x.BranchCode })
+            .FirstOrDefaultAsync();
+
+        if (existing != null)
+            ModelState.AddModelError(nameof(model.IsHOBranch),
+                $"This company already has a Head Office branch ({existing.BranchName} - {existing.BranchCode}). Only one Head Office is allowed per company.");
+    }
+
+    private static bool IsHeadOfficeUniqueViolation(DbUpdateException ex)
+        => ex.InnerException?.Message.Contains("UQ_Branchmaster_OneHeadOfficePerCompany", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// A new branch starts with the company's Head Office Hospital Settings, copied in full (letterhead, contacts,
+    /// NABH, OPD / LAB parameters...). Only the identity and audit fields are its own. With no Head Office settings
+    /// to copy (e.g. the company's first branch) it falls back to a default record, as before.
+    /// Returns a short note of what was done, for the audit trail.
+    /// </summary>
+    private async Task<string> CreateHospitalSettingsForBranchAsync(BranchMaster branch)
+    {
+        var source = await dbContext.HospitalSettings
+            .AsNoTracking()
+            .Where(s => s.Branch != null && s.Branch.CompanyId == branch.CompanyId && s.Branch.IsHOBranch
+                        && s.BranchId != branch.BranchId)
+            .OrderByDescending(s => s.IsActive)
+            .ThenBy(s => s.Id)
+            .FirstOrDefaultAsync();
+
+        var now = DateTime.Now;
+        var userId = User.GetUserId();
+
+        if (source is null)
+        {
+            dbContext.HospitalSettings.Add(new HospitalSettings
+            {
+                CompanyId = branch.CompanyId,
+                BranchId = branch.BranchId,
+                HospitalName = branch.BranchName,
+                IsActive = true,
+                CreatedDate = now,
+                CreatedBy = userId
+            });
+            return "created with defaults (no Head Office settings to copy)";
+        }
+
+        // copy every setting, then make the record this branch's own
+        var copy = new HospitalSettings();
+        dbContext.Entry(copy).CurrentValues.SetValues(source);
+        copy.Id = 0;
+        copy.CompanyId = branch.CompanyId;
+        copy.BranchId = branch.BranchId;
+        copy.Branch = null;
+        copy.CreatedDate = now;
+        copy.CreatedBy = userId;
+        copy.LastModifiedDate = null;
+        copy.LastModifiedBy = null;
+
+        dbContext.HospitalSettings.Add(copy);
+        return $"copied from the Head Office settings (Id {source.Id}, branch {source.BranchId})";
     }
 
     private async Task<List<SelectListItem>> GetActiveCompanyOptionsAsync()

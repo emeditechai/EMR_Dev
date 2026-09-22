@@ -13,6 +13,6 @@ namespace EMR.Web.ApiClients
         Task<IEnumerable<SubCategoryDto>> GetSubCategoriesAsync(int? categoryId = null);
         Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null);
         Task<LabOrderDetailDto?> GetOrderDetailAsync(int labOrderId);
-        Task<bool> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId);
+        Task<bool> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId, int? userId = null);
     }
 }

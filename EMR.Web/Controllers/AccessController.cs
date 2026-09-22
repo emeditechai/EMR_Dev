@@ -30,20 +30,17 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
 
         var model = users.Select(user =>
         {
-            var roleLookup = user.UserRoles
-                .Where(x => x.IsActive)
-                .Select(x => x.Role)
-                .GroupBy(x => x.BranchId?.ToString() ?? "Global")
-                .ToDictionary(x => x.Key, x => string.Join(", ", x.Select(y => y.Name)));
+            var userRoleNames = user.UserRoles
+                .Where(x => x.IsActive && x.Role != null)
+                .Select(x => x.Role.Name)
+                .Distinct()
+                .ToList();
+
+            var rolesSummary = userRoleNames.Count > 0 ? string.Join(", ", userRoleNames) : "No roles";
 
             var summary = user.UserBranches
                 .Where(x => x.IsActive)
-                .Select(x =>
-                {
-                    var key = x.BranchId.ToString();
-                    var roles = roleLookup.TryGetValue(key, out var value) ? value : "No roles";
-                    return $"{x.Branch.BranchName}: {roles}";
-                });
+                .Select(x => $"{x.Branch.BranchName}: {rolesSummary}");
 
             return new AccessListItemViewModel
             {
@@ -83,19 +80,20 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
             return RedirectToAction("Index", "Dashboard");
         }
 
-        var userExists = await dbContext.Users.AnyAsync(x => x.Id == model.UserId);
-        if (!userExists)
+        var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == model.UserId);
+        if (user is null)
         {
             return NotFound();
         }
 
-        var selectedBranchRoleIds = await dbContext.Roles
-            .Where(x => x.BranchId == model.BranchId)
+        var companyId = user.CompanyId > 0 ? user.CompanyId : (User.GetCompanyId() > 0 ? User.GetCompanyId() : 1);
+        var companyRoleIds = await dbContext.Roles
+            .Where(x => x.CompanyId == companyId)
             .Select(x => x.Id)
             .ToListAsync();
 
         var mappingsToRemove = await dbContext.UserRoles
-            .Where(x => x.UserId == model.UserId && selectedBranchRoleIds.Contains(x.RoleId))
+            .Where(x => x.UserId == model.UserId && companyRoleIds.Contains(x.RoleId))
             .ToListAsync();
 
         dbContext.UserRoles.RemoveRange(mappingsToRemove);
@@ -155,8 +153,9 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
             .ToList();
 
         var selectedBranchId = branchId ?? user.UserBranches.FirstOrDefault()?.BranchId ?? 0;
-        var branchRoles = await dbContext.Roles
-            .Where(x => x.BranchId == selectedBranchId)
+        var companyId = user.CompanyId > 0 ? user.CompanyId : (User.GetCompanyId() > 0 ? User.GetCompanyId() : 1);
+        var companyRoles = await dbContext.Roles
+            .Where(x => x.CompanyId == companyId)
             .OrderBy(x => x.Name)
             .ToListAsync();
 
@@ -172,13 +171,13 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
             FullName = user.FullName ?? user.Username,
             BranchId = selectedBranchId,
             UserBranchOptions = branchOptions,
-            RoleOptions = branchRoles.Select(role => new RoleOptionViewModel
+            RoleOptions = companyRoles.Select(role => new RoleOptionViewModel
             {
                 RoleId = role.Id,
                 RoleName = role.Name,
                 IsSelected = assignedRoleIds.Contains(role.Id)
             }).ToList(),
-            SelectedRoleIds = branchRoles
+            SelectedRoleIds = companyRoles
                 .Where(role => assignedRoleIds.Contains(role.Id))
                 .Select(role => role.Id)
                 .ToList()

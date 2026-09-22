@@ -1,0 +1,970 @@
+@model EMR.Web.Models.ViewModels.LabReportDispatchPageViewModel
+@{
+    ViewData["Title"] = "Lab Report Dispatch";
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
+    <style>
+        .dispatch-wrapper {
+            --ds-ready: #0f766e;    --ds-ready-bg: #ccfbf1;
+            --ds-partial: #0369a1;  --ds-partial-bg: #e0f2fe;
+            --ds-await: #b45309;    --ds-await-bg: #fef3c7;
+            --ds-prog: #4f46e5;     --ds-prog-bg: #e0e7ff;
+            --ds-printed: #15803d;  --ds-printed-bg: #dcfce7;
+            --ds-total: #1e3a8a;    --ds-total-bg: #dbeafe;
+            background-color: #f8f9fa;
+            min-height: calc(100vh - 60px);
+        }
+        .dispatch-wrapper .fs-7 { font-size: 0.85rem !important; }
+        .dispatch-wrapper .fs-8 { font-size: 0.78rem !important; }
+        .dispatch-wrapper .fs-9 { font-size: 0.70rem !important; }
+
+        /* KPI cards */
+        .dispatch-wrapper .dsp-card { --c: var(--ds-total); --bg: var(--ds-total-bg); border-left: 4px solid var(--c) !important; transition: transform .15s, box-shadow .15s; position: relative; overflow: hidden; }
+        .dispatch-wrapper .dsp-card::after { content: ""; position: absolute; right: -18px; top: -18px; width: 70px; height: 70px; border-radius: 50%; background: var(--bg); opacity: .55; }
+        .dispatch-wrapper .dsp-card.is-clickable { cursor: pointer; }
+        .dispatch-wrapper .dsp-card.is-clickable:hover { transform: translateY(-2px); box-shadow: 0 .4rem .8rem rgba(0,0,0,.09) !important; }
+        .dispatch-wrapper .dsp-card.active-card { outline: 2px solid var(--c); background: linear-gradient(135deg, #fff 40%, var(--bg)); }
+        .dispatch-wrapper .dsp-label { font-size: .68rem; letter-spacing: .3px; color: #6b7280; font-weight: 700; text-transform: uppercase; }
+        .dispatch-wrapper .dsp-value { color: var(--c); font-weight: 800; line-height: 1.1; }
+        .dispatch-wrapper .dsp-sub { font-size: .68rem; color: #6b7280; }
+        .dispatch-wrapper .dsp-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--bg); color: var(--c); display: flex; align-items: center; justify-content: center; font-size: .95rem; position: relative; z-index: 1; }
+        .dispatch-wrapper .k-total   { --c: var(--ds-total);   --bg: var(--ds-total-bg); }
+        .dispatch-wrapper .k-ready   { --c: var(--ds-ready);   --bg: var(--ds-ready-bg); }
+        .dispatch-wrapper .k-partial { --c: var(--ds-partial); --bg: var(--ds-partial-bg); }
+        .dispatch-wrapper .k-await   { --c: var(--ds-await);   --bg: var(--ds-await-bg); }
+        .dispatch-wrapper .k-prog    { --c: var(--ds-prog);    --bg: var(--ds-prog-bg); }
+        .dispatch-wrapper .k-printed { --c: var(--ds-printed); --bg: var(--ds-printed-bg); }
+        .dispatch-wrapper .k-notprt  { --c: #c2410c; --bg: #ffedd5; }
+        .dispatch-wrapper .k-urgent  { --c: #b91c1c; --bg: #fee2e2; }
+        .dispatch-wrapper .k-crit    { --c: #9f1239; --bg: #ffe4e6; }
+        .dispatch-wrapper .k-split   { --c: #7c3aed; --bg: #ede9fe; }
+        .dispatch-wrapper .k-tat     { --c: #0e7490; --bg: #cffafe; }
+        .dispatch-wrapper .k-tests   { --c: #166534; --bg: #dcfce7; }
+        .dispatch-wrapper .mini-bar { height: 6px; border-radius: 4px; background: #e5e7eb; overflow: hidden; display: flex; }
+        .dispatch-wrapper .mini-bar > span { display: block; height: 100%; }
+
+        /* Table */
+        .dispatch-wrapper .table-responsive-custom { max-height: calc(100vh - 430px); min-height: 260px; overflow-y: auto; }
+        .dispatch-wrapper .table-sticky-header thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+        .dispatch-wrapper tbody tr.row-ready > td:first-child    { box-shadow: inset 4px 0 0 var(--ds-ready); }
+        .dispatch-wrapper tbody tr.row-partial > td:first-child  { box-shadow: inset 4px 0 0 var(--ds-partial); }
+        .dispatch-wrapper tbody tr.row-awaiting > td:first-child { box-shadow: inset 4px 0 0 #f59e0b; }
+        .dispatch-wrapper tbody tr.row-inprogress > td:first-child { box-shadow: inset 4px 0 0 var(--ds-prog); }
+        .dispatch-wrapper tbody tr.row-notstarted > td:first-child { box-shadow: inset 4px 0 0 #cbd5e1; }
+        .dispatch-wrapper .badge-ds { font-weight: 600; border: 1px solid transparent; }
+        .dispatch-wrapper .bs-ready      { background: var(--ds-ready-bg);   color: var(--ds-ready);   border-color: #5eead4; }
+        .dispatch-wrapper .bs-partial    { background: var(--ds-partial-bg); color: var(--ds-partial); border-color: #7dd3fc; }
+        .dispatch-wrapper .bs-awaiting   { background: var(--ds-await-bg);   color: var(--ds-await);   border-color: #fcd34d; }
+        .dispatch-wrapper .bs-inprogress { background: var(--ds-prog-bg);    color: var(--ds-prog);    border-color: #a5b4fc; }
+        .dispatch-wrapper .bs-notstarted { background: #f1f5f9;              color: #64748b;           border-color: #cbd5e1; }
+        .dispatch-wrapper .type-b2c { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+        .dispatch-wrapper .type-b2b { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+        .dispatch-wrapper .tests-bar { height: 6px; border-radius: 4px; background: #e5e7eb; overflow: hidden; display: flex; min-width: 90px; }
+        .dispatch-wrapper .tests-bar .seg-approved  { background: #0f766e; }
+        .dispatch-wrapper .tests-bar .seg-validated { background: #4ade80; }
+        .dispatch-wrapper .tests-bar .seg-entered   { background: #a5b4fc; }
+        .dispatch-wrapper .btn-print-ready { background: #0f766e; border-color: #0f766e; color: #fff; }
+        .dispatch-wrapper .btn-print-ready:hover { background: #115e59; color: #fff; }
+        .dispatch-wrapper .btn-print-prov  { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+        .dispatch-wrapper .btn-print-prov:hover { background: #d97706; color: #fff; }
+        .dispatch-wrapper .btn-icon-sm { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+        .dispatch-wrapper .urgent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #dc2626; box-shadow: 0 0 0 3px #fee2e2; }
+        .dispatch-wrapper #tblDispatch > :not(caption) > * > * { padding: .45rem .4rem; }
+        .dispatch-wrapper #tblDispatch th:first-child, .dispatch-wrapper #tblDispatch td:first-child { padding-left: .75rem; }
+        .dispatch-wrapper .cell-client { max-width: 150px; }
+        .dispatch-wrapper .btn-view-tests { border: 0; background: transparent; color: #2563eb; padding: 0 2px; line-height: 1; font-size: .9rem; }
+        .dispatch-wrapper .btn-view-tests:hover { color: #1d4ed8; transform: scale(1.12); }
+        #modalBillTests .t-head th { position: sticky; top: 0; background: #f1f5f9; z-index: 5; font-size: .66rem; text-transform: uppercase; letter-spacing: .2px; color: #64748b; white-space: nowrap; }
+        #modalBillTests td, #modalBillTests th { padding: .35rem .45rem; vertical-align: middle; }
+        #modalBillTests table { table-layout: fixed; width: 100%; }
+        #modalBillTests .c-idx { width: 30px; }
+        #modalBillTests .c-test { width: 19%; }
+        #modalBillTests .c-sample { width: 10%; }
+        #modalBillTests .c-time { width: 10%; }
+        #modalBillTests .c-by { width: 9%; }
+        #modalBillTests .c-status { width: 9%; }
+        #modalBillTests .c-tat { width: 7%; }
+        #modalBillTests .stamp { font-size: .68rem; line-height: 1.2; display: block; white-space: nowrap; }
+        #modalBillTests .stamp .s-t { display: block; color: #64748b; font-size: .64rem; }
+        #modalBillTests .t-name { font-size: .75rem; line-height: 1.2; }
+        #modalBillTests .t-sample { font-size: .68rem; line-height: 1.15; }
+        #modalBillTests .grp-row td { background: #eef2ff; font-weight: 700; color: #3730a3; font-size: .72rem; }
+        #modalBillTests .stamp { font-size: .72rem; white-space: nowrap; }
+        #modalBillTests .stamp .s-none { color: #94a3b8; }
+        #modalBillTests .badge-ds { font-weight: 600; border: 1px solid transparent; }
+        #modalBillTests .bs-ready      { background: #ccfbf1; color: #0f766e; border-color: #5eead4; }
+        #modalBillTests .bs-partial    { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+        #modalBillTests .bs-awaiting   { background: #fef3c7; color: #b45309; border-color: #fcd34d; }
+        #modalBillTests .bs-inprogress { background: #e0e7ff; color: #4f46e5; border-color: #a5b4fc; }
+        #modalBillTests .bs-notstarted { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+        #modalBillTests .t-code { font-size: .66rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #modalBillTests .t-reason { font-size: .64rem; color: #b91c1c; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        #modalBillTests .sum-pill { border: 1px solid #e2e8f0; border-radius: 8px; padding: .25rem .6rem; font-size: .72rem; background: #f8fafc; }
+        #modalBillTests .sum-pill b { display: block; font-size: .95rem; }
+        .dispatch-wrapper .dup-note { font-size: .62rem; color: #b45309; font-weight: 600; margin-top: 2px; }
+        .dispatch-wrapper .tone-bar { height: 3px; background: linear-gradient(90deg, #0f766e, #0369a1, #4f46e5, #7c3aed); border-radius: 3px; }
+
+        /* Print modal */
+        #dispatchPrintFrame { width: 100%; height: 100%; border: 0; background: #525659; }
+    </style>
+}
+
+<div class="container-fluid px-3 py-2 dispatch-wrapper">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h5 class="mb-0 fw-bold text-dark d-flex align-items-center">
+                <i class="bi bi-printer-fill text-primary me-2"></i>Lab Report Dispatch
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 fs-9 fw-semibold">Bill No wise</span>
+            </h5>
+            <span class="text-muted fs-9 d-none d-md-inline border-start ps-2">Track report readiness and print reports for hand-over</span>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <span class="text-muted fs-9" id="lblLastRefreshed"></span>
+            <button type="button" class="btn btn-outline-primary btn-sm btn-icon-sm shadow-sm" id="btnRefresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </div>
+    <div class="tone-bar mb-2"></div>
+
+    <!-- Row 1: dispatch status cards (click to filter the list) -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-total is-clickable active-card" data-status="ALL">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Total Bills</div><h4 class="mb-0 dsp-value" id="kTotal">0</h4><div class="dsp-sub">in selected range</div></div>
+                    <div class="dsp-icon"><i class="bi bi-receipt"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-ready is-clickable" data-status="READY">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Ready to Dispatch</div><h4 class="mb-0 dsp-value" id="kReady">0</h4><div class="dsp-sub">all tests approved</div></div>
+                    <div class="dsp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-partial is-clickable" data-status="PARTIAL">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Partially Approved</div><h4 class="mb-0 dsp-value" id="kPartial">0</h4><div class="dsp-sub">some tests approved</div></div>
+                    <div class="dsp-icon"><i class="bi bi-hourglass-split"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-await is-clickable" data-status="AWAITING">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Awaiting Approval</div><h4 class="mb-0 dsp-value" id="kAwaiting">0</h4><div class="dsp-sub">validated, not approved</div></div>
+                    <div class="dsp-icon"><i class="bi bi-shield-check"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-prog is-clickable" data-status="INPROGRESS">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">In Progress</div><h4 class="mb-0 dsp-value" id="kProgress">0</h4><div class="dsp-sub">entry / validation pending</div></div>
+                    <div class="dsp-icon"><i class="bi bi-pencil-square"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-printed is-clickable" data-status="PRINTED">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Printed</div><h4 class="mb-0 dsp-value" id="kPrinted">0</h4><div class="dsp-sub">final report printed</div></div>
+                    <div class="dsp-icon"><i class="bi bi-printer-fill"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: insight cards -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-notprt is-clickable" data-status="NOTPRINTED">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Ready · Not Printed</div><h4 class="mb-0 dsp-value" id="kNotPrinted">0</h4><div class="dsp-sub" id="kNotPrintedSub">waiting for hand-over</div></div>
+                    <div class="dsp-icon"><i class="bi bi-box-seam"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-urgent">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Urgent Pending</div><h4 class="mb-0 dsp-value" id="kUrgent">0</h4><div class="dsp-sub">urgent bills not yet ready</div></div>
+                    <div class="dsp-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-crit">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Critical Results</div><h4 class="mb-0 dsp-value" id="kCritical">0</h4><div class="dsp-sub">bills with critical values</div></div>
+                    <div class="dsp-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-split">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div><div class="dsp-label">B2C · B2B</div><h4 class="mb-0 dsp-value"><span id="kB2C">0</span> <span class="text-muted fw-normal fs-7">/</span> <span id="kB2B">0</span></h4></div>
+                        <div class="dsp-icon"><i class="bi bi-diagram-2-fill"></i></div>
+                    </div>
+                    <div class="mini-bar mt-1"><span id="barB2C" style="background:#3b82f6;width:0"></span><span id="barB2B" style="background:#7c3aed;width:0"></span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-tat">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div><div class="dsp-label">Avg. Turnaround</div><h4 class="mb-0 dsp-value" id="kTat">—</h4><div class="dsp-sub">billing → final approval</div></div>
+                    <div class="dsp-icon"><i class="bi bi-stopwatch-fill"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card shadow-sm border-0 rounded-3 h-100 dsp-card k-tests">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div><div class="dsp-label">Tests Approved</div><h4 class="mb-0 dsp-value"><span id="kTestsApproved">0</span><span class="text-muted fw-normal fs-7"> / <span id="kTestsTotal">0</span></span></h4></div>
+                        <div class="dsp-icon"><i class="bi bi-clipboard2-check-fill"></i></div>
+                    </div>
+                    <div class="mini-bar mt-1"><span id="barTestsApproved" style="background:#0f766e;width:0"></span><span id="barTestsValidated" style="background:#4ade80;width:0"></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm border-0 rounded-3 mb-2">
+        <div class="card-body p-2 px-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 text-muted mb-0 fw-bold text-uppercase">Filter By Date</label>
+                    <select id="selDateBasis" class="form-select form-select-sm fs-8">
+                        <option value="BillingDate" selected>Billing Date</option>
+                        <option value="ApprovedDate">Approved Date</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 text-muted mb-0 fw-bold text-uppercase">From Date</label>
+                    <input type="date" id="txtFromDate" class="form-control form-control-sm fs-8" value="@Model.FromDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 text-muted mb-0 fw-bold text-uppercase">To Date</label>
+                    <input type="date" id="txtToDate" class="form-control form-control-sm fs-8" value="@Model.ToDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label fs-9 text-muted mb-0 fw-bold text-uppercase">Quick Select</label>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date fs-9 active" data-range="today">Today</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date fs-9" data-range="yesterday">Yesterday</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date fs-9" data-range="week">7 Days</button>
+                        <button type="button" class="btn btn-outline-secondary btn-quick-date fs-9" data-range="month">This Month</button>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label fs-9 text-muted mb-0 fw-bold text-uppercase">Billing Type</label>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-client-type fs-9 active" data-type="ALL">All</button>
+                        <button type="button" class="btn btn-outline-primary btn-client-type fs-9" data-type="B2C">B2C</button>
+                        <button type="button" class="btn btn-outline-primary btn-client-type fs-9" data-type="B2B">B2B</button>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label fs-9 text-muted mb-0 fw-bold text-uppercase">Search</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="txtSearch" class="form-control border-start-0 fs-8" placeholder="Patient ID, Patient name, Bill No, Token, Phone, Franchise / Company..." autocomplete="off" />
+                        <button type="button" class="btn btn-outline-secondary fs-8" id="btnClearSearch" title="Clear search" style="display:none;"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 d-flex align-items-center justify-content-md-end gap-2">
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-9 d-none" id="chipStatusFilter"></span>
+                    <button type="button" class="btn btn-link btn-sm text-decoration-none text-danger p-0 fs-9" id="btnResetFilters"><i class="bi bi-x-circle me-1"></i>Reset Filters</button>
+                    <button type="button" class="btn btn-primary btn-sm fs-8 px-3" id="btnApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- List -->
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-white border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
+            <span class="fw-bold fs-7 text-dark"><i class="bi bi-list-check text-primary me-1"></i>Bills <span class="badge bg-secondary-subtle text-secondary border fs-9 ms-1" id="lblRowCount">0</span></span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted fs-9">Rows per page</span>
+                <select id="selPageSize" class="form-select form-select-sm fs-9" style="width: 70px;">
+                    <option>10</option><option selected>25</option><option>50</option><option>100</option>
+                </select>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive table-responsive-custom">
+                <table class="table table-hover table-sticky-header align-middle mb-0" id="tblDispatch">
+                    <thead>
+                        <tr class="fs-9 text-muted text-uppercase fw-bold">
+                            <th class="ps-3" style="width: 40px;">#</th>
+                            <th>Bill / Token</th>
+                            <th>Patient</th>
+                            <th>Billing</th>
+                            <th class="text-nowrap">Billing Date</th>
+                            <th style="min-width: 150px;">Tests</th>
+                            <th class="text-nowrap">Approved On</th>
+                            <th class="text-center">Report Status</th>
+                            <th class="text-center">Printed</th>
+                            <th class="text-end pe-3" style="width: 170px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblDispatchBody" class="fs-8"></tbody>
+                </table>
+            </div>
+            <div id="stateEmpty" class="text-center py-5 d-none">
+                <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                <div class="fw-bold text-dark fs-6 mt-2">No Bills Found</div>
+                <div class="text-muted fs-8">No bills match the selected date, status and search.</div>
+            </div>
+            <div id="stateError" class="text-center py-5 d-none">
+                <i class="bi bi-cloud-slash text-danger" style="font-size: 3rem;"></i>
+                <div class="fw-bold text-dark fs-6 mt-2">Unable to load bills</div>
+                <div class="text-muted fs-8" id="stateErrorText"></div>
+                <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="btnRetry"><i class="bi bi-arrow-clockwise me-1"></i>Retry</button>
+            </div>
+            <div id="stateLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                <div class="text-muted fs-8 mt-2">Loading lab reports&hellip;</div>
+            </div>
+        </div>
+        <div class="card-footer bg-white border-top py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="text-muted fs-9" id="lblPageInfo"></span>
+            <nav><ul class="pagination pagination-sm mb-0" id="pager"></ul></nav>
+        </div>
+    </div>
+</div>
+
+<!-- Bill test details -->
+<div class="modal fade" id="modalBillTests" tabindex="-1" aria-labelledby="modalBillTestsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2 px-3 bg-light">
+                <div class="flex-grow-1">
+                    <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalBillTestsLabel">
+                        <i class="bi bi-clipboard2-pulse-fill text-primary"></i>Test Details
+                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9" id="testsBillChip">&mdash;</span>
+                    </h6>
+                    <div class="text-muted fs-9 mt-1" id="testsSubtitle">Loading&hellip;</div>
+                </div>
+                <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="d-flex flex-wrap gap-2 px-3 py-2 border-bottom bg-white" id="testsSummary"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0" id="tblBillTests">
+                        <thead class="t-head">
+                            <tr>
+                                <th class="c-idx">#</th>
+                                <th class="c-test">Test</th>
+                                <th class="c-sample">Sample</th>
+                                <th class="c-time">Collected On</th>
+                                <th class="c-time">Received</th>
+                                <th class="c-time">Entered</th>
+                                <th class="c-time">Validated</th>
+                                <th class="c-time">Approved On</th>
+                                <th class="c-by">Approved By</th>
+                                <th class="c-status text-center">Status</th>
+                                <th class="c-tat text-end">TAT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblBillTestsBody" class="fs-8"></tbody>
+                    </table>
+                </div>
+                <div id="testsEmpty" class="text-center py-5 d-none">
+                    <i class="bi bi-clipboard-x text-muted" style="font-size:2.5rem;"></i>
+                    <div class="fw-bold text-dark mt-2">No tests found</div>
+                    <div class="text-muted fs-8">This bill has no in-house tests.</div>
+                </div>
+                <div id="testsError" class="alert alert-warning fs-8 m-3 d-none"></div>
+                <div id="testsLoading" class="text-center py-5">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <div class="text-muted fs-8 mt-2">Loading test details&hellip;</div>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2 px-3">
+                <span class="me-auto text-muted fs-9" id="testsFooterNote"></span>
+                <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Print Modal (PDF preview) -->
+<div class="modal fade" id="modalDispatchPrint" tabindex="-1" aria-labelledby="modalDispatchPrintLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2 px-3 bg-light flex-wrap gap-2">
+                <div class="flex-grow-1">
+                    <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalDispatchPrintLabel">
+                        <i class="bi bi-printer-fill text-primary"></i>Lab Report
+                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9" id="printBillChip">—</span>
+                        <span class="badge fs-9 d-none" id="printStatusChip"></span>
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 d-none" id="printDuplicateChip"></span>
+                    </h6>
+                    <div class="text-muted fs-9 mt-1" id="printSubtitle">Preparing report&hellip;</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-primary btn-sm fs-8 px-3" id="btnReportPrintNow" disabled><i class="bi bi-printer me-1"></i>Print</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportDownload" disabled><i class="bi bi-download me-1"></i>Download PDF</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportNewTab" disabled><i class="bi bi-box-arrow-up-right me-1"></i>New Tab</button>
+                    <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0 position-relative" style="height: 78vh; background:#525659;">
+                <div id="printLoading" class="position-absolute top-50 start-50 translate-middle text-center text-white">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Generating report&hellip;
+                </div>
+                <div id="printError" class="alert alert-warning fs-8 m-4 d-none"></div>
+                <iframe id="dispatchPrintFrame" title="Lab report preview" class="d-none"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        $(function () {
+            toastr.options = { closeButton: true, progressBar: true, positionClass: 'toast-top-right', timeOut: '3500' };
+
+            const dataUrl = '@Url.Action("GetDashboardJson", "LabReportDispatch")';
+            const pdfUrl = '@Url.Action("PrintReportPdf", "LabReportDispatch")';
+            const billUrl = '@Url.Action("PrintBill", "LabReportDispatch")';
+
+            const STATUS_LABEL = { ALL: 'All bills', READY: 'Ready to Dispatch', PARTIAL: 'Partially Approved', AWAITING: 'Awaiting Approval', INPROGRESS: 'In Progress', PRINTED: 'Printed', NOTPRINTED: 'Ready · Not Printed' };
+            const BADGE = {
+                READY:      { cls: 'bs-ready',      icon: 'bi-patch-check-fill', text: 'Ready to Dispatch' },
+                PARTIAL:    { cls: 'bs-partial',    icon: 'bi-hourglass-split',  text: 'Partially Approved' },
+                AWAITING:   { cls: 'bs-awaiting',   icon: 'bi-shield-check',     text: 'Awaiting Approval' },
+                INPROGRESS: { cls: 'bs-inprogress', icon: 'bi-pencil-square',    text: 'In Progress' },
+                NOTSTARTED: { cls: 'bs-notstarted', icon: 'bi-clock-history',    text: 'Not Started' }
+            };
+
+            let rows = [];
+            let page = 1;
+            let statusFilter = 'ALL';
+            let clientType = 'ALL';
+            let searchTimer = null;
+            let loadSeq = 0;
+
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const pad = n => String(n).padStart(2, '0');
+            const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+            const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            function fmt(dt) {
+                if (!dt) return '—';
+                const d = new Date(dt); if (isNaN(d)) return '—';
+                let h = d.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+                return pad(d.getDate()) + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ', ' + pad(h) + ':' + pad(d.getMinutes()) + ' ' + ap;
+            }
+            function fmtDur(min) {
+                if (min == null) return '—';
+                const m = Math.round(min);
+                if (m < 60) return m + ' min';
+                const h = Math.floor(m / 60), r = m % 60;
+                if (h < 48) return h + 'h' + (r ? ' ' + r + 'm' : '');
+                return (h / 24).toFixed(1) + ' d';
+            }
+
+            // ── Load ────────────────────────────────────────────────────────
+            function showState(which) {
+                $('#stateLoading, #stateEmpty, #stateError').addClass('d-none');
+                if (which) $('#' + which).removeClass('d-none');
+            }
+
+            function load() {
+                const seq = ++loadSeq;
+                showState('stateLoading');
+                $('#tblDispatchBody').empty();
+                $('#pager').empty();
+
+                $.get(dataUrl, {
+                    fromDate: $('#txtFromDate').val(),
+                    toDate: $('#txtToDate').val(),
+                    dateBasis: $('#selDateBasis').val(),
+                    search: $('#txtSearch').val(),
+                    dispatchStatus: statusFilter,
+                    clientType: clientType
+                }).done(function (res) {
+                    if (seq !== loadSeq) return; // a newer request superseded this one
+                    if (!res || !res.success) {
+                        $('#stateErrorText').text((res && res.message) || 'Unexpected response from the server.');
+                        return showState('stateError');
+                    }
+                    rows = res.rows || [];
+                    page = 1;
+                    renderStats(res.stats || {});
+                    renderTable();
+                    $('#lblLastRefreshed').text('Updated ' + fmt(new Date()).split(', ')[1]);
+                }).fail(function () {
+                    if (seq !== loadSeq) return;
+                    $('#stateErrorText').text('Server error while loading the dispatch list.');
+                    showState('stateError');
+                });
+            }
+
+            function renderStats(s) {
+                $('#kTotal').text(s.totalBills || 0);
+                $('#kReady').text(s.readyBills || 0);
+                $('#kPartial').text(s.partialBills || 0);
+                $('#kAwaiting').text(s.awaitingBills || 0);
+                $('#kProgress').text(s.inProgressBills || 0);
+                $('#kPrinted').text(s.printedBills || 0);
+                $('#kNotPrinted').text(s.notPrintedBills || 0);
+                $('#kNotPrintedSub').text(s.readyPaymentDueBills ? (s.readyPaymentDueBills + ' with payment due') : 'waiting for hand-over');
+                $('#kUrgent').text(s.urgentPendingBills || 0);
+                $('#kCritical').text(s.criticalBills || 0);
+
+                const b2c = s.b2CBills || 0, b2b = s.b2BBills || 0, tot = b2c + b2b;
+                $('#kB2C').text(b2c); $('#kB2B').text(b2b);
+                $('#barB2C').css('width', tot ? (b2c * 100 / tot) + '%' : 0);
+                $('#barB2B').css('width', tot ? (b2b * 100 / tot) + '%' : 0);
+
+                $('#kTat').text(s.avgTatMinutes != null ? fmtDur(s.avgTatMinutes) : '—');
+
+                const tt = s.totalTests || 0, ta = s.approvedTests || 0, tv = s.validatedTests || 0;
+                $('#kTestsApproved').text(ta); $('#kTestsTotal').text(tt);
+                $('#barTestsApproved').css('width', tt ? (ta * 100 / tt) + '%' : 0);
+                $('#barTestsValidated').css('width', tt ? (tv * 100 / tt) + '%' : 0);
+            }
+
+            // ── Table + pager ───────────────────────────────────────────────
+            function rowHtml(r, idx) {
+                const b = BADGE[r.dispatchStatus] || BADGE.NOTSTARTED;
+                const total = r.totalTests || 0;
+                const pApp = total ? r.approvedTests * 100 / total : 0;
+                const pVal = total ? r.validatedTests * 100 / total : 0;
+                const pEnt = total ? Math.max(0, r.enteredTests - r.validatedTests - r.approvedTests) * 100 / total : 0;
+                const isReady = r.dispatchStatus === 'READY';
+                const isB2B = r.billingType === 'B2B';
+
+                const paid = r.paymentStatus === 'P' || r.balanceDue <= 0;
+                const payHtml = paid
+                    ? '<span class="badge badge-ds bg-success-subtle text-success border-success-subtle fs-9">Paid</span>'
+                    : '<span class="badge badge-ds bg-danger-subtle text-danger border-danger-subtle fs-9" title="Balance due">Due ₹' + Number(r.balanceDue).toFixed(2) + '</span>';
+
+                let printedHtml;
+                if (r.printedAfterApproval) {
+                    printedHtml = '<span class="badge badge-ds bg-success-subtle text-success border-success-subtle fs-9" title="Final report printed on ' + esc(fmt(r.lastPrintedDate)) + '"><i class="bi bi-check2-all me-1"></i>Printed' + (r.printCount > 1 ? ' ×' + r.printCount : '') + '</span>'
+                        + '<div class="dup-note">Next print = duplicate</div>';
+                } else if (r.printCount > 0) {
+                    printedHtml = '<span class="badge badge-ds bg-warning-subtle text-warning-emphasis border-warning-subtle fs-9" title="Provisional copy printed ' + esc(fmt(r.lastPrintedDate)) + '"><i class="bi bi-printer me-1"></i>Provisional ×' + r.printCount + '</span>'
+                        + '<div class="dup-note">Next print = duplicate</div>';
+                } else {
+                    printedHtml = '<span class="text-muted fs-9">—</span>';
+                }
+
+                const hasDue = !paid;
+                let printBtn;
+                if (!r.canPrint) {
+                    printBtn = '<button type="button" class="btn btn-outline-secondary btn-sm fs-9 px-2 py-1" disabled title="Validate at least one test to print"><i class="bi bi-printer me-1"></i>Print</button>';
+                } else if (hasDue) {
+                    // Kept clickable on purpose: the click explains why the report is held back.
+                    printBtn = '<button type="button" class="btn btn-outline-danger btn-sm fs-9 px-2 py-1 btn-print-due" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '" title="Payment pending - the report cannot be printed"><i class="bi bi-lock-fill me-1"></i>Print</button>';
+                } else if (r.dispatchStatus === 'PARTIAL') {
+                    // Part approved, part still awaiting approval: the approved tests can go out as a clean report,
+                    // and the rest as the usual NOT APPROVED copy. Dues are already cleared at this point.
+                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-ready" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="approved" title="Print the approved test(s) of this bill - ' + r.approvedTests + ' of ' + total + '"><i class="bi bi-printer-fill me-1"></i>Print Approved</button>'
+                        + ' <button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-prov" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="pending" title="Print a NOT APPROVED copy of the tests still awaiting approval"><i class="bi bi-printer-fill me-1"></i>Not Approved</button>';
+                } else {
+                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print ' + (isReady ? 'btn-print-ready' : 'btn-print-prov') + '" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="all" title="' + (isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)') + '"><i class="bi bi-printer-fill me-1"></i>' + (isReady ? 'Print' : 'Print (Not Approved)') + '</button>';
+                }
+
+                const client = isB2B
+                    ? '<div class="fs-9 text-muted text-truncate mt-1" style="max-width:150px" title="' + esc((r.clientType === 'FRANCHISE' ? 'Franchise: ' : 'Company: ') + (r.clientName || '')) + '"><i class="bi ' + (r.clientType === 'FRANCHISE' ? 'bi-shop' : 'bi-building') + ' me-1"></i>' + esc([r.clientCode, r.clientName].filter(Boolean).join(' · ') || '—') + '</div>'
+                    : '';
+
+                const sample = (r.recollectTests > 0 ? '<span class="badge badge-ds bg-warning-subtle text-warning-emphasis border-warning-subtle fs-9 ms-1" title="Tests marked for re-collect / rejected">' + r.recollectTests + ' re-collect</span>' : '')
+                    + (r.collectedTests + r.recollectTests < total ? '<span class="badge badge-ds bg-secondary-subtle text-secondary border-secondary-subtle fs-9 ms-1" title="Tests not collected yet">' + (total - r.collectedTests - r.recollectTests) + ' uncollected</span>' : '');
+
+                return '<tr class="row-' + esc((r.dispatchStatus || '').toLowerCase()) + '">'
+                    + '<td class="ps-3 text-muted fw-bold">' + idx + '</td>'
+                    + '<td><div class="fw-bold text-dark font-monospace text-nowrap">' + esc(r.billNo || '—') + (r.isUrgent ? ' <span class="urgent-dot ms-1" title="Urgent"></span>' : '') + '</div>'
+                    +     '<div class="fs-9 text-muted font-monospace">' + esc(r.tokenNo || '') + '</div></td>'
+                    + '<td><div class="fw-semibold text-dark text-truncate" style="max-width:170px" title="' + esc(r.patientName) + '">' + esc(r.patientName) + '</div>'
+                    +     '<div class="fs-9 text-muted text-nowrap"><span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9">' + esc(r.patientCode || '—') + '</span> '
+                    +     esc((r.age != null ? r.age + 'Y / ' : '') + (r.gender || '')) + '</div>'
+                    +     (r.phoneNumber ? '<div class="fs-9 text-muted text-nowrap"><i class="bi bi-telephone me-1"></i>' + esc(r.phoneNumber) + '</div>' : '') + '</td>'
+                    + '<td><div class="d-flex align-items-center gap-1"><span class="badge badge-ds fs-9 ' + (isB2B ? 'type-b2b' : 'type-b2c') + '">' + esc(r.billingType) + '</span>' + payHtml + '</div>' + client + '</td>'
+                    + '<td class="text-nowrap fs-9">' + esc(fmt(r.billingDate)) + '</td>'
+                    + '<td><div class="d-flex align-items-center gap-2"><div class="tests-bar flex-grow-1" title="' + r.approvedTests + ' approved, ' + r.validatedTests + ' validated of ' + total + '">'
+                    +     '<span class="seg-approved" style="width:' + pApp + '%"></span><span class="seg-validated" style="width:' + pVal + '%"></span><span class="seg-entered" style="width:' + pEnt + '%"></span></div>'
+                    +     '<span class="fs-9 fw-semibold text-nowrap">' + r.approvedTests + ' / ' + total + '</span>'
+                    +     '<button type="button" class="btn-view-tests" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-patient="' + esc(r.patientName) + '" title="View all test details for this bill" aria-label="View test details"><i class="bi bi-eye-fill"></i></button></div>'
+                    +     '<div class="fs-9 text-muted mt-1">' + (r.validatedTests ? r.validatedTests + ' validated' : '') + sample + (r.criticalTests ? ' <span class="badge badge-ds bg-danger-subtle text-danger border-danger-subtle fs-9" title="Critical result(s)"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + r.criticalTests + '</span>' : '') + '</div></td>'
+                    + '<td class="text-nowrap fs-9">' + (r.approvedDate ? esc(fmt(r.approvedDate)) : '<span class="text-muted">—</span>') + '</td>'
+                    + '<td class="text-center"><span class="badge badge-ds fs-9 ' + b.cls + '"><i class="bi ' + b.icon + ' me-1"></i>' + b.text + '</span></td>'
+                    + '<td class="text-center">' + printedHtml + '</td>'
+                    + '<td class="text-end pe-3 text-nowrap">' + printBtn
+                    +     ' <button type="button" class="btn btn-outline-secondary btn-sm fs-9 px-2 py-1 btn-print-bill" data-id="' + r.labOrderId + '" title="Print the bill for ' + esc(r.billNo || 'this order') + '"><i class="bi bi-receipt me-1"></i>Bill</button></td>'
+                    + '</tr>';
+            }
+
+            function renderTable() {
+                const size = parseInt($('#selPageSize').val(), 10) || 25;
+                const totalRows = rows.length;
+                const pages = Math.max(1, Math.ceil(totalRows / size));
+                if (page > pages) page = pages;
+
+                $('#lblRowCount').text(totalRows);
+                $('#tblDispatchBody').empty();
+
+                if (totalRows === 0) {
+                    $('#lblPageInfo').text('');
+                    $('#pager').empty();
+                    return showState('stateEmpty');
+                }
+                showState(null);
+
+                const start = (page - 1) * size;
+                const slice = rows.slice(start, start + size);
+                $('#tblDispatchBody').html(slice.map((r, i) => rowHtml(r, start + i + 1)).join(''));
+                $('#lblPageInfo').text('Showing ' + (start + 1) + '–' + (start + slice.length) + ' of ' + totalRows);
+
+                // compact pager: first, prev, window, next, last
+                const items = [];
+                const add = (label, p, disabled, active) => items.push('<li class="page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '') + '"><a class="page-link" href="#" data-page="' + p + '">' + label + '</a></li>');
+                add('&laquo;', 1, page === 1);
+                add('&lsaquo;', page - 1, page === 1);
+                const lo = Math.max(1, page - 2), hi = Math.min(pages, page + 2);
+                for (let p = lo; p <= hi; p++) add(p, p, false, p === page);
+                add('&rsaquo;', page + 1, page === pages);
+                add('&raquo;', pages, page === pages);
+                $('#pager').html(items.join(''));
+            }
+
+            $('#pager').on('click', '.page-link', function (e) {
+                e.preventDefault();
+                if ($(this).parent().hasClass('disabled')) return;
+                page = parseInt($(this).data('page'), 10);
+                renderTable();
+            });
+            $('#selPageSize').on('change', function () { page = 1; renderTable(); });
+
+            // ── Filters ─────────────────────────────────────────────────────
+            function syncStatusChip() {
+                if (statusFilter === 'ALL') $('#chipStatusFilter').addClass('d-none');
+                else $('#chipStatusFilter').removeClass('d-none').html('<i class="bi bi-funnel-fill me-1"></i>' + esc(STATUS_LABEL[statusFilter]));
+                $('.dsp-card.is-clickable').each(function () { $(this).toggleClass('active-card', $(this).data('status') === statusFilter); });
+            }
+
+            $('.dsp-card.is-clickable').on('click', function () {
+                const s = $(this).data('status');
+                statusFilter = (statusFilter === s && s !== 'ALL') ? 'ALL' : s; // clicking the active card clears it
+                syncStatusChip();
+                load();
+            });
+
+            $('.btn-quick-date').on('click', function () {
+                const t = new Date(); let from = new Date(t), to = new Date(t);
+                switch ($(this).data('range')) {
+                    case 'yesterday': from.setDate(t.getDate() - 1); to = new Date(from); break;
+                    case 'week': from.setDate(t.getDate() - 6); break;
+                    case 'month': from = new Date(t.getFullYear(), t.getMonth(), 1); break;
+                }
+                $('#txtFromDate').val(iso(from)); $('#txtToDate').val(iso(to));
+                $('.btn-quick-date').removeClass('active'); $(this).addClass('active');
+                load();
+            });
+
+            $('#txtFromDate, #txtToDate').on('change', function () {
+                $('.btn-quick-date').removeClass('active');
+                const f = $('#txtFromDate').val(), t = $('#txtToDate').val();
+                if (f && t && t < f) { $('#txtToDate').val(f); }
+                load();
+            });
+            $('#selDateBasis').on('change', load);
+
+            $('.btn-client-type').on('click', function () {
+                clientType = $(this).data('type');
+                $('.btn-client-type').removeClass('active'); $(this).addClass('active');
+                load();
+            });
+
+            $('#txtSearch').on('input', function () {
+                $('#btnClearSearch').toggle($(this).val().length > 0);
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(load, 350);
+            }).on('keydown', function (e) { if (e.key === 'Enter') { clearTimeout(searchTimer); load(); } });
+            $('#btnClearSearch').on('click', function () { $('#txtSearch').val('').trigger('input').focus(); });
+
+            $('#btnApply, #btnRefresh, #btnRetry').on('click', load);
+
+            $('#btnResetFilters').on('click', function () {
+                const today = iso(new Date());
+                $('#txtFromDate, #txtToDate').val(today);
+                $('#selDateBasis').val('BillingDate');
+                $('#txtSearch').val(''); $('#btnClearSearch').hide();
+                statusFilter = 'ALL'; clientType = 'ALL';
+                $('.btn-client-type').removeClass('active').filter('[data-type="ALL"]').addClass('active');
+                $('.btn-quick-date').removeClass('active').filter('[data-range="today"]').addClass('active');
+                syncStatusChip();
+                load();
+            });
+
+            // ── Print modal (same PDF as the Entry page) ─────────────────────
+            let printOrderId = 0, blobUrl = null, fileName = 'LabReport.pdf', printLogged = false, printScope = 'all';
+            const reportUrl = (id, mode) => pdfUrl + '?labOrderId=' + id + '&mode=' + mode + '&scope=' + printScope + '&_=' + Date.now();
+            const $frame = $('#dispatchPrintFrame'), $loading = $('#printLoading'), $error = $('#printError');
+            const $actions = $('#btnReportPrintNow, #btnReportDownload, #btnReportNewTab');
+
+            function resetModal() {
+                if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+                $frame.addClass('d-none').attr('src', 'about:blank');
+                $error.addClass('d-none').text('');
+                $('#printStatusChip, #printDuplicateChip').addClass('d-none');
+                $('#printSubtitle').text('Preparing report…');
+                $actions.prop('disabled', true);
+                $loading.removeClass('d-none');
+            }
+            function failModal(msg) {
+                $loading.addClass('d-none');
+                $error.text(msg).removeClass('d-none');
+                $('#printSubtitle').text('Report unavailable');
+            }
+            async function loadPdf() {
+                resetModal();
+                const id = printOrderId;
+                try {
+                    const res = await fetch(reportUrl(id, 'preview'), { credentials: 'same-origin', cache: 'no-store' });
+                    if (id !== printOrderId) return;
+                    const type = res.headers.get('content-type') || '';
+                    if (!res.ok) {
+                        let msg = 'Unable to generate the report.', body = null;
+                        try { body = await res.json(); msg = body.message || msg; } catch (e) { /* keep default */ }
+                        if (res.status === 402) {                 // payment pending - the server holds the report back
+                            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                            dueAlert(body && body.billNo, body && body.balanceDue);
+                            load();
+                            return;
+                        }
+                        return failModal(msg);
+                    }
+                    if (type.indexOf('pdf') === -1) return failModal('Your session may have expired. Please refresh the page and sign in again.');
+
+                    const watermark = res.headers.get('X-Report-Watermark') === '1';
+                    const status = res.headers.get('X-Report-Status');
+                    const tests = res.headers.get('X-Report-Tests');
+                    const m = /filename="?([^";]+)"?/i.exec(res.headers.get('Content-Disposition') || '');
+                    if (m) fileName = m[1];
+
+                    blobUrl = URL.createObjectURL(await res.blob());
+                    $frame.attr('src', blobUrl + '#toolbar=1&navpanes=0').removeClass('d-none');
+                    $loading.addClass('d-none');
+                    $actions.prop('disabled', false);
+                    $('#printStatusChip')
+                        .attr('class', 'badge fs-9 ' + (watermark ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle'
+                            : (status === 'final' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-primary-subtle text-primary border border-primary-subtle')))
+                        .text(watermark ? 'NOT APPROVED copy' : (status === 'final' ? (printScope === 'approved' ? 'Approved tests (final)' : 'Final Report') : 'Provisional Report'));
+                    const isDup = res.headers.get('X-Report-Duplicate') === '1';
+                    const seq = res.headers.get('X-Report-Print-Sequence');
+                    $('#printDuplicateChip').toggleClass('d-none', !isDup).text(isDup ? 'DUPLICATE · Print #' + seq : '');
+                    $('#printSubtitle').text(tests + ' ' + (printScope === 'approved' ? 'approved' : printScope === 'pending' ? 'validated (not approved)' : 'validated/approved') + ' test(s) on this report'
+                        + (watermark ? ' • watermarked until every printed test is approved' : '')
+                        + (isDup ? ' • this bill was printed before, so the copy is marked DUPLICATE' : ''));
+                } catch (e) {
+                    failModal('Server error while generating the report. Please try again.');
+                }
+            }
+            /// Fetches the report again in print / download mode; the server records the print before streaming it.
+            async function fetchForPrint(mode) {
+                const res = await fetch(reportUrl(printOrderId, mode), { credentials: 'same-origin', cache: 'no-store' });
+                if (res.status === 402) {
+                    let body = null; try { body = await res.json(); } catch (e) { /* ignore */ }
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                    dueAlert(body && body.billNo, body && body.balanceDue);
+                    load();
+                    throw new Error('due');
+                }
+                if (!res.ok || (res.headers.get('content-type') || '').indexOf('pdf') === -1) throw new Error('print');
+                printLogged = true;
+                const m = /filename="?([^";]+)"?/i.exec(res.headers.get('Content-Disposition') || '');
+                if (m) fileName = m[1];
+                return URL.createObjectURL(await res.blob());
+            }
+
+            // ── Test details of one bill ─────────────────────────────────────
+            const testsUrl = '@Url.Action("GetBillTestsJson", "LabReportDispatch")';
+            const testsModalEl = document.getElementById('modalBillTests');
+            const SAMPLE_BADGE = { 2: ['bg-success-subtle text-success border-success-subtle', 'Collected'], 3: ['bg-warning-subtle text-warning-emphasis border-warning-subtle', 'Re-Collect'], 4: ['bg-danger-subtle text-danger border-danger-subtle', 'Rejected'], 1: ['bg-secondary-subtle text-secondary border-secondary-subtle', 'Pending'] };
+            const REPORT_BADGE = { 5: ['bs-ready', 'Approved'], 3: ['bs-partial', 'Validated'], 2: ['bs-inprogress', 'Entered'], 1: ['bs-awaiting', 'Draft'], 0: ['bs-notstarted', 'Pending Entry'] };
+
+            function stamp(dt) {
+                if (!dt) return '<span class="stamp s-none">&mdash;</span>';
+                const parts = fmt(dt).split(', ');   // "20 Sep 2026, 01:45 PM"
+                return '<span class="stamp" title="' + esc(fmt(dt)) + '">' + esc(parts[0]) + '<span class="s-t">' + esc(parts[1] || '') + '</span></span>';
+            }
+
+            $('#tblDispatchBody').on('click', '.btn-view-tests', function () {
+                const $b = $(this);
+                $('#testsBillChip').text($b.data('bill') || '—');
+                $('#testsSubtitle').text($b.data('patient') || '');
+                bootstrap.Modal.getOrCreateInstance(testsModalEl).show();
+                loadTests($b.data('id'));
+            });
+
+            function loadTests(labOrderId) {
+                $('#tblBillTestsBody').empty();
+                $('#testsSummary').empty();
+                $('#testsFooterNote').text('');
+                $('#testsEmpty, #testsError').addClass('d-none');
+                $('#testsLoading').removeClass('d-none');
+
+                $.get(testsUrl, { labOrderId: labOrderId })
+                    .done(function (res) {
+                        $('#testsLoading').addClass('d-none');
+                        if (!res || !res.success) {
+                            return $('#testsError').text((res && res.message) || 'Unable to load the test details.').removeClass('d-none');
+                        }
+                        renderTests(res.tests || []);
+                    })
+                    .fail(function () {
+                        $('#testsLoading').addClass('d-none');
+                        $('#testsError').text('Server error while loading the test details.').removeClass('d-none');
+                    });
+            }
+
+            function renderTests(tests) {
+                if (tests.length === 0) return $('#testsEmpty').removeClass('d-none');
+
+                const approved = tests.filter(t => t.reportStatusId === 5).length;
+                const validated = tests.filter(t => t.reportStatusId === 3).length;
+                const pending = tests.length - approved - validated;
+                const tats = tests.map(t => t.tatMinutes).filter(v => v != null && v >= 0);
+                const avgTat = tats.length ? tats.reduce((a, b) => a + b, 0) / tats.length : null;
+                const firstCollected = tests.map(t => t.collectedOn).filter(Boolean).sort()[0];
+                const lastApproved = tests.map(t => t.approvedDate).filter(Boolean).sort().slice(-1)[0];
+
+                const pill = (label, value) => '<span class="sum-pill"><b>' + value + '</b>' + label + '</span>';
+                $('#testsSummary').html(
+                    pill('Total tests', tests.length)
+                    + pill('Approved', approved)
+                    + pill('Validated', validated)
+                    + pill('Pending', pending)
+                    + pill('First collected', firstCollected ? esc(fmt(firstCollected)) : '—')
+                    + pill('Last approved', lastApproved ? esc(fmt(lastApproved)) : '—')
+                    + pill('Avg. TAT', avgTat != null ? esc(fmtDur(avgTat)) : '—')
+                );
+
+                let html = '', lastGroup = null, i = 0;
+                tests.forEach(function (t) {
+                    const groupKey = [t.departmentName, t.categoryName, t.groupName].filter(Boolean).join(' \u203a ');
+                    if (groupKey && groupKey !== lastGroup) {
+                        html += '<tr class="grp-row"><td colspan="11">' + esc(groupKey) + '</td></tr>';
+                        lastGroup = groupKey;
+                    }
+                    i++;
+
+                    const sb = SAMPLE_BADGE[t.collectionstatusID] || SAMPLE_BADGE[1];
+                    const rb = REPORT_BADGE[t.reportStatusId] || REPORT_BADGE[0];
+
+                    html += '<tr>'
+                        + '<td class="text-muted">' + i + '</td>'
+                        + '<td><div class="fw-semibold text-dark t-name">' + esc(t.testName) + '</div>'
+                        +     '<div class="text-muted font-monospace t-code">' + esc(t.testCode || '') + '</div>'
+                    +     (t.barcodeNo ? '<div class="text-muted font-monospace t-code">' + esc(t.barcodeNo) + '</div>' : '') + '</td>'
+                        + '<td><div class="t-sample">' + esc(t.sampleTypeName || '—') + '</div>'
+                        +     '<span class="badge badge-ds fs-9 ' + sb[0] + '">' + sb[1] + '</span>'
+                        +     (t.rejectionReason ? '<div class="t-reason" title="' + esc(t.rejectionReason) + '">' + esc(t.rejectionReason) + '</div>' : '')
+                        +     (t.isTransferred ? '<div class="fs-9 text-primary"><i class="bi bi-arrow-left-right me-1"></i>' + esc(t.targetBranchName || 'Transferred') + '</div>' : '') + '</td>'
+                        + '<td>' + stamp(t.collectedOn) + '</td>'
+                        + '<td>' + stamp(t.receivedDate) + '</td>'
+                        + '<td>' + stamp(t.submittedDate || t.draftedDate) + '</td>'
+                        + '<td>' + stamp(t.validatedDate) + '</td>'
+                        + '<td>' + stamp(t.approvedDate) + '</td>'
+                        + '<td class="fs-9">' + (t.approvedByName ? esc(t.approvedByName) : '<span class="s-none">&mdash;</span>') + '</td>'
+                        + '<td class="text-center"><span class="badge badge-ds fs-9 ' + rb[0] + '">' + rb[1] + '</span></td>'
+                        + '<td class="text-end fs-9">' + (t.tatMinutes != null ? esc(fmtDur(t.tatMinutes)) : '<span class="s-none">&mdash;</span>') + '</td>'
+                        + '</tr>';
+                });
+                $('#tblBillTestsBody').html(html);
+                $('#testsFooterNote').text(tests.length + ' test(s) \u00b7 TAT is measured from sample collection to report approval');
+            }
+
+            function dueAlert(billNo, due) {
+                const amount = due != null ? '₹' + Number(due).toFixed(2) : '';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Unable to Print Report',
+                    html: '<div class="fs-8">Clear the due first.</div>'
+                        + (billNo ? '<div class="fs-9 text-muted mt-2">Bill No: <span class="font-monospace">' + esc(billNo) + '</span></div>' : '')
+                        + (amount ? '<div class="fw-bold text-danger mt-1">Outstanding: ' + amount + '</div>' : ''),
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: 'OK'
+                });
+            }
+
+            $('#tblDispatchBody').on('click', '.btn-print-due', function () {
+                dueAlert($(this).data('bill'), $(this).data('due'));
+            });
+
+            const modalEl = document.getElementById('modalDispatchPrint');
+            $('#tblDispatchBody').on('click', '.btn-print', function () {
+                printOrderId = parseInt($(this).data('id'), 10);
+                printScope = $(this).attr('data-scope') || 'all';
+                printLogged = false;
+                $('#printBillChip').text($(this).data('bill') || '—');
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+            $('#tblDispatchBody').on('click', '.btn-print-bill', function () {
+                const id = $(this).data('id');
+                window.open(billUrl + '?labOrderId=' + id, '_blank'); // logged server-side, then the existing bill print page
+            });
+
+            $(modalEl).on('shown.bs.modal', loadPdf);
+            $(modalEl).on('hidden.bs.modal', function () {
+                resetModal();
+                if (printLogged) { printLogged = false; setTimeout(load, 600); } // refresh the Printed column / cards
+            });
+            $('#btnReportPrintNow').on('click', async function () {
+                if (!blobUrl) return;
+                const $btn = $(this).prop('disabled', true);
+                try {
+                    const printable = await fetchForPrint('print');   // recorded server-side
+                    $frame.one('load', function () {
+                        try { const w = $frame[0].contentWindow; w.focus(); w.print(); }
+                        catch (e) { window.open(printable, '_blank'); }
+                    }).attr('src', printable + '#toolbar=1&navpanes=0');
+                    if (blobUrl) URL.revokeObjectURL(blobUrl);
+                    blobUrl = printable;
+                } catch (e) {
+                    if (e.message !== 'due') toastr.error('Unable to print the report. Please try again.');
+                } finally {
+                    $btn.prop('disabled', false);
+                }
+            });
+            $('#btnReportDownload').on('click', async function () {
+                const $btn = $(this).prop('disabled', true);
+                try {
+                    const file = await fetchForPrint('download');     // recorded server-side
+                    const a = document.createElement('a'); a.href = file; a.download = fileName;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(() => URL.revokeObjectURL(file), 30000);
+                } catch (e) {
+                    if (e.message !== 'due') toastr.error('Unable to download the report. Please try again.');
+                } finally {
+                    $btn.prop('disabled', false);
+                }
+            });
+            $('#btnReportNewTab').on('click', function () { if (blobUrl) window.open(blobUrl, '_blank'); });
+
+            // Refresh when returning from a Report Entry tab (statuses may have changed)
+            document.addEventListener('visibilitychange', function () { if (!document.hidden && rows.length) load(); });
+
+            syncStatusChip();
+            load();
+        });
+    </script>
+}

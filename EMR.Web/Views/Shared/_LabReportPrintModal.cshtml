@@ -1,0 +1,32 @@
+@* Lab report PDF preview / print. Buttons opt in with class btn-print-report + data-laborderid / data-scope / data-bill.
+   Script partial: _LabReportPrintScripts. Shared by the Report Entry and Pathologist sign-off screens. *@
+<!-- Report Print Modal (PDF preview) -->
+<div class="modal fade" id="modalReportPrint" tabindex="-1" aria-labelledby="modalReportPrintLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2 px-3 bg-light flex-wrap gap-2">
+                <div class="flex-grow-1">
+                    <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalReportPrintLabel">
+                        <i class="bi bi-printer-fill text-primary"></i>Lab Report
+                        <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9" id="printBillChip">&mdash;</span>
+                        <span class="badge fs-9 d-none" id="printStatusChip"></span>
+                    </h6>
+                    <div class="text-muted fs-9 mt-0.5" id="printSubtitle">Preparing report&hellip;</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-primary btn-sm fs-8 px-3" id="btnReportPrintNow" disabled><i class="bi bi-printer me-1"></i>Print</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportDownload" disabled><i class="bi bi-download me-1"></i>Download PDF</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" id="btnReportNewTab" disabled><i class="bi bi-box-arrow-up-right me-1"></i>New Tab</button>
+                    <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0 position-relative" style="height: 78vh; background:#525659;">
+                <div id="printLoading" class="position-absolute top-50 start-50 translate-middle text-center text-white">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Generating report&hellip;
+                </div>
+                <div id="printError" class="alert alert-warning fs-8 m-4 d-none"></div>
+                <iframe id="reportPrintFrame" title="Lab report preview" class="d-none"></iframe>
+            </div>
+        </div>
+    </div>
+</div>

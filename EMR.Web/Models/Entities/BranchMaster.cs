@@ -30,6 +30,7 @@ public class BranchMaster
     public string? Pincode { get; set; }
 
     public bool IsHOBranch { get; set; }
+    public bool IsLab { get; set; }
     public bool IsActive { get; set; } = true;
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; } = DateTime.Now;
@@ -40,6 +41,5 @@ public class BranchMaster
     public CompanyMaster? Company { get; set; }
 
     public ICollection<UserBranch> UserBranches { get; set; } = new List<UserBranch>();
-    public ICollection<Role> Roles { get; set; } = new List<Role>();
 }
 

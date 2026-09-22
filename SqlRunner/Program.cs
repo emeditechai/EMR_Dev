@@ -7,15 +7,24 @@ class Program
     static void Main(string[] args)
     {
         string cs = "Server=103.178.113.61,1232;Database=Dev_EMR;User Id=sa;Password=Ehospit@lity@#1926;TrustServerCertificate=True;";
-        // Support --file argument to specify which SQL file to run
-        string scriptPath = "/Users/abhikporel/dev/EMR_Web/SQLScripts/2019_add_lab_order_collection_type_and_phlebotomist.sql";
-        for (int i = 0; i < args.Length - 1; i++)
+        string? scriptPath = null;
+        for (int i = 0; i < args.Length; i++)
         {
-            if (args[i] == "--file")
+            if (args[i] == "--file" && i + 1 < args.Length)
             {
                 scriptPath = args[i + 1];
                 break;
             }
+            else if (!args[i].StartsWith("-") && scriptPath == null)
+            {
+                scriptPath = args[i];
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(scriptPath))
+        {
+            Console.WriteLine("ERROR: Please specify a SQL script path via --file <path> or positional argument.");
+            Environment.Exit(1);
         }
 
 

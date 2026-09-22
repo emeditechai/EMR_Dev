@@ -1,0 +1,467 @@
+@model EMR.Web.Models.DTOs.PathologistDetailResult
+@{
+    // embed=true: loaded inside the dashboard's sign-off modal (iframe) - same page, chrome-less layout,
+    // so the top navbar / footer are not duplicated inside the modal.
+    bool embed = ViewData["Embed"] as bool? ?? false;
+    Layout = embed ? "_EmbedLayout" : "_Layout";
+
+    ViewData["Title"] = "Sign-off: " + (Model.Bill?.BillNo ?? "Report");
+    var b = Model.Bill!;
+    var profile = ViewData["Profile"] as EMR.Web.Models.DTOs.PathologistProfileDto;
+    var mine = Model.Tests.Where(t => t.CanApproveNow).ToList();
+    var doneTests = Model.Tests.Where(t => t.IsApproved).ToList();
+    var waiting = Model.Tests.Where(t => !t.CanApproveNow && !t.IsApproved).ToList();
+    var genderKey = (b.Gender ?? "").ToLowerInvariant().StartsWith("f") ? "female" : "male";
+    // Most recent validation timestamp among this bill's tests - when the report became ready for sign-off.
+    var validatedOn = Model.Tests.Where(t => t.ValidatedDate.HasValue).Select(t => t.ValidatedDate!.Value).DefaultIfEmpty().Max();
+
+    // Print, exactly as on the Report Entry screen: a report can be printed once a test is validated or approved.
+    // Part approved / part still awaiting a signature => two prints, the approved copy and the NOT APPROVED copy.
+    var approvedCount = doneTests.Count;
+    var pendingCount = Model.Tests.Count - approvedCount;
+    var showPrint = Model.Tests.Count > 0;
+    var printSplit = approvedCount > 0 && pendingCount > 0;
+    var printProvisional = pendingCount > 0 && !printSplit;
+}
+
+@section HeadStyles {
+    <style>
+        .pa-wrapper { --pa-line:#e2e8f0; --pa-muted:#64748b; background:#f1f5f9; min-height:calc(100vh - 60px); padding-bottom:70px; }
+        .pa-wrapper .fs-7 { font-size:.85rem !important; }
+        .pa-wrapper .fs-8 { font-size:.78rem !important; }
+        .pa-wrapper .fs-9 { font-size:.70rem !important; }
+        .pa-card { background:#fff;border:1px solid var(--pa-line) !important;border-radius:.7rem; }
+        .pa-hero { background:linear-gradient(135deg,#fff 55%,#fef2f2); }
+        .pa-avatar { width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+                     font-size:1.1rem;color:#fff;background:#4f46e5; }
+        .pa-avatar.female { background:#db2777; }
+        .pa-chip { background:#f8fafc;border:1px solid var(--pa-line);border-radius:.5rem;padding:.25rem .6rem; }
+        .pa-chip .k { font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--pa-muted);display:block; }
+        .pa-chip .v { font-size:.78rem;font-weight:700;color:#0f172a; }
+        .pa-mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+        #tblSign thead th { background:#f8fafc;color:var(--pa-muted);font-size:.66rem;font-weight:700;
+                            letter-spacing:.4px;text-transform:uppercase;border-bottom:1px solid var(--pa-line);white-space:nowrap; }
+        #tblSign tbody td { border-top:1px solid #eef2f6;border-bottom:0;vertical-align:middle;padding-top:.55rem;padding-bottom:.55rem; }
+        .grp-row td { background:#f1f5f9;font-weight:700;font-size:.72rem;color:#334155; }
+        tr.t-mine > td:first-child { box-shadow:inset 3px 0 0 #b91c1c; }
+        tr.t-done > td:first-child { box-shadow:inset 3px 0 0 #0f766e; }
+        tr.t-wait > td:first-child { box-shadow:inset 3px 0 0 #b45309; }
+        tr.picked { background:#fef2f2 !important; }
+        .val { font-weight:800;font-size:.9rem;color:#0f172a; }
+        .flag-H { color:#b91c1c; } .flag-L { color:#1d4ed8; } .flag-Critical { color:#fff;background:#b91c1c;padding:0 .35rem;border-radius:.25rem; }
+        .pa-level { display:inline-flex;align-items:center;gap:.25rem; }
+        .pa-level .dot { width:9px;height:9px;border-radius:50%;background:#e2e8f0;border:1px solid #cbd5e1; }
+        .pa-level .dot.done { background:#0f766e;border-color:#0f766e; }
+        .pa-level .dot.next { background:#fff;border-color:#b91c1c;box-shadow:0 0 0 2px rgba(185,28,28,.18); }
+        .pa-sticky { position:fixed;left:0;right:0;bottom:0;z-index:1030;background:#fff;border-top:1px solid var(--pa-line);
+                     box-shadow:0 -.25rem .8rem rgba(15,23,42,.08); }
+        .btn-sign { background:#b91c1c;border:1px solid #b91c1c;color:#fff;font-weight:600; }
+        .btn-sign:hover { background:#991b1b;border-color:#991b1b;color:#fff; }
+        .btn-sign:disabled { background:#e2e8f0;border-color:#e2e8f0;color:#94a3b8; }
+        .btn.btn-print-report { background:#fff;color:#0f766e;border:1.5px solid #0f766e;font-weight:600;
+                                transition:background-color .12s ease, box-shadow .12s ease; }
+        .btn.btn-print-report:hover { background:#f0fdfa;color:#0f766e;box-shadow:0 2px 8px rgba(15,118,110,.25); }
+        .btn.btn-print-report.is-provisional { background:#fffbeb;color:#b45309;border-color:#f59e0b; }
+        .btn.btn-print-report.is-provisional:hover { background:#fef3c7;color:#92400e;box-shadow:0 2px 8px rgba(217,119,6,.28); }
+        #reportPrintFrame { width:100%;height:100%;border:0;background:#525659; }
+        .sig-box { max-height:46px; }
+    </style>
+}
+
+<div class="container-fluid px-3 py-1.5 pa-wrapper">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+        @if (embed)
+        {
+            <nav class="fs-8"><span class="fw-semibold text-dark"><i class="bi bi-pen-fill text-danger me-1"></i>Sign-off: @b.BillNo</span></nav>
+        }
+        else
+        {
+            <nav class="fs-8"><a asp-action="Index" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Pathologist Dashboard</a>
+                <span class="text-muted mx-1">/</span><span class="fw-semibold text-dark">Sign-off: @b.BillNo</span></nav>
+        }
+        <div class="d-flex gap-2 flex-wrap">
+            @* A pathologist who needs to correct a value opens the same bill on the Report Entry screen. *@
+            <a asp-controller="LabReporting" asp-action="Entry" asp-route-labOrderId="@b.LabOrderId"
+               target="_blank" rel="noopener"
+               class="btn btn-outline-primary btn-sm fs-8"
+               title="Open this bill on the Lab Reporting Entry screen to correct a result (opens in a new tab)">
+                <i class="bi bi-pencil-square me-1"></i>Open Report Entry
+                <i class="bi bi-box-arrow-up-right ms-1 fs-9 opacity-75"></i>
+            </a>
+            @if (showPrint)
+            {
+                <button type="button" class="btn btn-sm fs-8 px-3 btn-print-report @(printProvisional ? "is-provisional" : "")"
+                        data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")"
+                        title="@(printSplit ? "Preview and print the approved tests" : "Preview and print the lab report")">
+                    <i class="bi bi-printer-fill me-1"></i>@(printProvisional ? "Print (Not Approved)" : "Print Report")
+                </button>
+                @if (printSplit)
+                {
+                    <button type="button" class="btn btn-sm fs-8 px-3 btn-print-report is-provisional"
+                            data-scope="pending" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")"
+                            title="Preview and print the tests that are not approved yet (watermarked)">
+                        <i class="bi bi-printer-fill me-1"></i>Print (Not Approved)
+                    </button>
+                }
+            }
+            @if (!embed)
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary btn-sm fs-8"><i class="bi bi-x-lg me-1"></i>Close</a>
+            }
+        </div>
+    </div>
+
+    <!-- Patient / bill header -->
+    <div class="card pa-card pa-hero shadow-sm mb-2">
+        <div class="card-body p-3">
+            <div class="row g-2 align-items-center">
+                <div class="col-lg-4 d-flex align-items-center gap-2">
+                    <div class="pa-avatar @genderKey"><i class="bi bi-person-fill"></i></div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <h6 class="mb-0 fw-bold text-dark">@b.PatientName</h6>
+                            <button type="button" class="btn-audit-info" data-laborderid="@b.LabOrderId" data-patient="@b.PatientName"
+                                    data-bill="@(b.BillNo ?? "—")" title="View audit history for this bill"><i class="bi bi-info-circle-fill"></i></button>
+                            <span class="badge bg-secondary-subtle text-secondary border pa-mono fs-9">@b.PatientCode</span>
+                            @if (b.IsUrgent)
+                            {
+                                <span class="badge bg-danger text-white fs-9"><i class="bi bi-lightning-fill me-1"></i>Urgent</span>
+                            }
+                        </div>
+                        <div class="fs-9 text-muted mt-1">
+                            @(b.Age.HasValue ? b.Age + " Y" : "") @(b.Gender) <span class="mx-1">&bull;</span>
+                            <i class="bi bi-telephone me-1"></i>@b.PhoneNumber
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                        <div class="pa-chip"><span class="k">Token</span><span class="v pa-mono">@b.TokenNo</span></div>
+                        <div class="pa-chip"><span class="k">Bill / Order</span><span class="v pa-mono">@b.BillNo</span></div>
+                        <div class="pa-chip"><span class="k">Booked</span><span class="v">@b.BookingDateTime.ToString("dd MMM yyyy, hh:mm tt")</span></div>
+                        @if (validatedOn != default)
+                        {
+                            <div class="pa-chip"><span class="k">Validated</span><span class="v">@validatedOn.ToString("dd MMM yyyy, hh:mm tt")</span></div>
+                        }
+                        @if (b.BillingType == "B2B")
+                        {
+                            <div class="pa-chip"><span class="k">B2B Client</span><span class="v">@b.ClientName</span></div>
+                        }
+                        <div class="pa-chip"><span class="k">Awaiting me</span><span class="v text-danger">@mine.Count</span></div>
+                        <div class="pa-chip"><span class="k">Approved</span><span class="v text-success">@doneTests.Count / @Model.Tests.Count</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (mine.Count == 0)
+    {
+        <div class="alert @(doneTests.Count == Model.Tests.Count ? "alert-success" : "alert-warning") py-2 px-3 fs-8 d-flex align-items-start gap-2">
+            <i class="bi @(doneTests.Count == Model.Tests.Count ? "bi-patch-check-fill" : "bi-hourglass-split") mt-1"></i>
+            <div>
+                @if (doneTests.Count == Model.Tests.Count)
+                {
+                    <text>Every test of this bill in your scope is fully approved. Nothing is waiting for your signature.</text>
+                }
+                else
+                {
+                    <text>Nothing here is waiting for <strong>your</strong> level right now &mdash; these tests are with another signatory of the approval flow.</text>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Tests -->
+    <div class="card pa-card shadow-sm">
+        <div class="px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
+                <i class="bi bi-clipboard2-pulse me-1 text-danger"></i>Results for sign-off
+                <a asp-controller="LabReporting" asp-action="Entry" asp-route-labOrderId="@b.LabOrderId"
+                   target="_blank" rel="noopener" class="ms-2 text-decoration-none fw-normal"
+                   style="letter-spacing:0;text-transform:none;" title="Correct a result on the Lab Reporting Entry screen (opens in a new tab)">
+                    <i class="bi bi-pencil-square me-1"></i>Need to correct a value?
+                </a>
+            </span>
+            <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-check-sm mb-0">
+                    <input class="form-check-input" type="checkbox" id="chkAll" @(mine.Count == 0 ? "disabled" : "") />
+                    <label class="form-check-label fs-9 fw-semibold" for="chkAll">Select all awaiting me (@mine.Count)</label>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="tblSign">
+                <thead>
+                    <tr>
+                        <th style="width:44px;" class="ps-3"><i class="bi bi-check2-square"></i></th>
+                        <th>Investigation</th>
+                        <th style="width:140px;">Result</th>
+                        <th style="width:130px;">Unit</th>
+                        <th>Validated</th>
+                        <th style="width:190px;">Approval level</th>
+                        <th class="text-center" style="width:120px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="fs-8">
+                @{
+                    string? lastGroup = null;
+                }
+                @foreach (var t in Model.Tests)
+                {
+                    var grp = t.GroupName ?? t.DepartmentName ?? "Investigations";
+                    if (grp != lastGroup)
+                    {
+                        lastGroup = grp;
+                        <tr class="grp-row"><td colspan="7"><i class="bi bi-folder2-open me-1"></i>@grp</td></tr>
+                    }
+                    var rowCls = t.CanApproveNow ? "t-mine" : (t.IsApproved ? "t-done" : "t-wait");
+                    var flagCls = t.AbnormalFlag switch { "H" => "flag-H", "L" => "flag-L", "Critical" => "flag-Critical", _ => "" };
+                    <tr class="@rowCls" data-id="@t.SamplecollectionID">
+                        <td class="ps-3">
+                            @if (t.CanApproveNow)
+                            {
+                                <input type="checkbox" class="form-check-input chk-test" value="@t.SamplecollectionID" />
+                            }
+                            else
+                            {
+                                <i class="bi @(t.IsApproved ? "bi-check-circle-fill text-success" : "bi-lock-fill text-warning") fs-8"
+                                   title="@(t.IsApproved ? "Fully approved" : "Waiting for another signatory")"></i>
+                            }
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">@t.TestName</div>
+                            <div class="fs-9 text-muted">
+                                <span class="pa-mono">@t.TestCode</span>
+                                <span class="mx-1">&bull;</span>@t.DepartmentName
+                                <span class="mx-1">&bull;</span>@t.CategoryName
+                            </div>
+                        </td>
+                        <td>
+                            <span class="val @flagCls">@t.TestValue</span>
+                            @if (!string.IsNullOrWhiteSpace(t.AbnormalFlag) && t.AbnormalFlag != "Normal")
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-1">@t.AbnormalFlag</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(t.PreviousTestValue))
+                            {
+                                double.TryParse(t.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var curNum);
+                                double.TryParse(t.PreviousTestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var prevNum);
+                                bool bothNumeric = !string.IsNullOrWhiteSpace(t.TestValue) && double.TryParse(t.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _)
+                                                   && double.TryParse(t.PreviousTestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _) && prevNum != 0;
+                                <div class="delta-check-container mt-1 fs-9" style="max-width:155px;line-height:1.25;">
+                                    <div class="text-muted">
+                                        Previous: <strong>@t.PreviousTestValue</strong> @(t.PreviousUnitSymbol ?? t.UnitName)
+                                        @if (t.PreviousOrderDate.HasValue)
+                                        {
+                                            <span class="text-secondary">(@t.PreviousOrderDate.Value.ToString("dd MMM"))</span>
+                                        }
+                                    </div>
+                                    @if (bothNumeric)
+                                    {
+                                        var deltaPct = (int)Math.Round(Math.Abs(curNum - prevNum) / prevNum * 100);
+                                        if (deltaPct >= 25)
+                                        {
+                                            <div class="fw-semibold mt-0.5"><span class="text-warning-emphasis fw-bold font-monospace">&Delta; @(deltaPct)% &mdash; delta check flagged</span></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="fw-semibold mt-0.5"><span class="text-secondary font-monospace">&Delta; @(deltaPct)%</span></div>
+                                        }
+                                    }
+                                </div>
+                            }
+                        </td>
+                        <td class="text-muted">@t.UnitName</td>
+                        <td class="fs-9">
+                            <div class="text-dark">@(t.ValidatedDate?.ToString("dd MMM yyyy, hh:mm tt") ?? "—")</div>
+                            <div class="text-muted">@t.ValidatedByName</div>
+                        </td>
+                        <td class="fs-9">
+                            <span class="pa-level" title="@t.LevelsDone of @t.TotalLevels signed">
+                                @for (int i = 1; i <= Math.Max(t.TotalLevels, 1); i++)
+                                {
+                                    var cls = i <= t.LevelsDone ? "done" : (i == t.LevelsDone + 1 && t.CanApproveNow ? "next" : "");
+                                    <span class="dot @cls"></span>
+                                }
+                                <span class="ms-1 fw-bold text-muted">@t.LevelsDone/@t.TotalLevels</span>
+                            </span>
+                            <div class="text-muted mt-1">
+                                @if (t.IsApproved)
+                                {
+                                    <text>Completed</text>
+                                }
+                                else if (t.CanApproveNow)
+                                {
+                                    <text><span class="text-danger fw-semibold">You sign @(t.NextLevelTitle ?? $"Level {t.NextLevelNo}")</span></text>
+                                }
+                                else
+                                {
+                                    <text>Waiting: @(t.NextLevelApprovers ?? "next signatory")</text>
+                                }
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            @if (t.IsApproved)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle fs-9">Approved</span>
+                            }
+                            else if (t.CanApproveNow)
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9">Awaiting you</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-9">Awaiting L@(t.NextLevelNo)</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (Model.History.Any())
+    {
+        <div class="card pa-card shadow-sm mt-2">
+            <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
+                <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
+                    <i class="bi bi-clock-history me-1 text-danger"></i>Sign-off history
+                </span>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle p-0 d-flex align-items-center justify-content-center"
+                        style="width:22px;height:22px;" title="Show sign-off history" data-bs-toggle="collapse"
+                        data-bs-target="#signOffHistoryBody" aria-expanded="false" aria-controls="signOffHistoryBody">
+                    <i class="bi bi-info-lg" style="font-size:.75rem;"></i>
+                </button>
+            </div>
+            <div class="collapse" id="signOffHistoryBody">
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 fs-8">
+                        <thead><tr class="fs-9 text-muted text-uppercase"><th class="ps-3">Test</th><th>Level</th><th>Signed by</th><th>When</th><th>Remarks</th></tr></thead>
+                        <tbody>
+                        @foreach (var h in Model.History)
+                        {
+                            <tr>
+                                <td class="ps-3">@h.TestName</td>
+                                <td><span class="badge bg-secondary-subtle text-secondary border fs-9">@(h.LevelTitle ?? $"Level {h.Level_No}") (@h.Level_No/@h.TotalLevels)</span>
+                                    @if (h.IsFinalLevel)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle fs-9 ms-1">Final</span>
+                                    }
+                                </td>
+                                <td>@h.ApprovedByName</td>
+                                <td class="text-muted">@h.ApprovedDate.ToString("dd MMM yyyy, hh:mm tt")</td>
+                                <td class="text-muted">@(string.IsNullOrWhiteSpace(h.Remarks) ? "—" : h.Remarks)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Sticky sign-off bar -->
+<div class="pa-sticky py-2 px-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="d-flex align-items-center gap-2">
+            @if (!string.IsNullOrWhiteSpace(profile?.SignaturePath))
+            {
+                <img src="@Url.Action("Signature", "Users", new { id = profile!.UserId })" alt="Signature" class="sig-box border rounded bg-white p-1" />
+            }
+            <div class="fs-9 text-muted">
+                Signing as <strong class="text-dark">@profile?.FullName</strong>
+                @if (!string.IsNullOrWhiteSpace(profile?.RegistrationNo))
+                {
+                    <span>&bull; Reg. @profile!.RegistrationNo</span>
+                }
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end" style="max-width:640px;">
+            <input type="text" id="txtRemarks" class="form-control form-control-sm fs-8" maxlength="500"
+                   placeholder="Optional sign-off remark…" @(mine.Count == 0 ? "disabled" : "") />
+            @if (showPrint)
+            {
+                <button type="button" class="btn btn-sm fs-8 px-3 text-nowrap btn-print-report @(printProvisional ? "is-provisional" : "")"
+                        data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")">
+                    <i class="bi bi-printer-fill me-1"></i>@(printProvisional ? "Print (Not Approved)" : "Print Report")
+                </button>
+            }
+            <button type="button" class="btn btn-sign btn-sm px-3 fs-8 text-nowrap" id="btnSign" disabled>
+                <i class="bi bi-pen-fill me-1"></i>Approve <span class="badge bg-white text-danger ms-1" id="selCount">0</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<partial name="_LabAuditHistoryModal" />
+<partial name="_LabReportPrintModal" />
+
+@section Scripts {
+    <partial name="_LabAuditHistoryScripts" />
+    <partial name="_LabReportPrintScripts" />
+    <script>
+        $(function () {
+            const url = '@Url.Action("ApproveJson", "PathologistDashboard")';
+            const labOrderId = @b.LabOrderId;
+            // When embedded in the dashboard's sign-off modal, tell the parent so it can refresh its list /
+            // KPI counts in the background once the modal is closed - the modal itself stays exactly as is.
+            const isEmbedded = window.self !== window.top;
+            function notifyParent(type) { if (isEmbedded) { try { window.parent.postMessage({ type: type, labOrderId: labOrderId }, '*'); } catch (e) { /* ignore */ } } }
+
+            function selected() { return $('.chk-test:checked').map(function () { return parseInt(this.value); }).get(); }
+            function sync() {
+                const n = selected().length;
+                $('#selCount').text(n);
+                $('#btnSign').prop('disabled', n === 0);
+                $('.chk-test').each(function () { $(this).closest('tr').toggleClass('picked', this.checked); });
+                const total = $('.chk-test').length;
+                $('#chkAll').prop('checked', total > 0 && n === total);
+            }
+
+            $('#tblSign').on('change', '.chk-test', sync);
+            $('#chkAll').on('change', function () { $('.chk-test').prop('checked', this.checked); sync(); });
+
+            $('#btnSign').on('click', async function () {
+                const ids = selected();
+                if (!ids.length) return;
+                const names = $('.chk-test:checked').map(function () {
+                    return $(this).closest('tr').find('td:nth-child(2) .fw-semibold').text().trim();
+                }).get();
+
+                const r = await Swal.fire({
+                    icon: 'question',
+                    title: 'Approve ' + ids.length + ' test' + (ids.length === 1 ? '' : 's') + '?',
+                    html: '<ul class="text-start fs-8 mb-2" style="max-height:150px;overflow:auto;">'
+                        + names.map(n => '<li>' + $('<div>').text(n).html() + '</li>').join('') + '</ul>'
+                        + '<div class="text-start fs-8 text-muted">Your signature is recorded for your level of the approval flow. '
+                        + 'A test only becomes <b>Approved</b> once the last level has signed.</div>',
+                    showCancelButton: true, confirmButtonText: 'Approve', confirmButtonColor: '#b91c1c'
+                });
+                if (!r.isConfirmed) return;
+
+                const $btn = $(this).prop('disabled', true);
+                $.ajax({
+                    url: url, type: 'POST', contentType: 'application/json',
+                    data: JSON.stringify({ labOrderId: labOrderId, samplecollectionIds: ids, remarks: $('#txtRemarks').val() })
+                }).done(function (res) {
+                    if (res && res.success) {
+                        notifyParent('pd-approved');
+                        Swal.fire({ icon: 'success', title: 'Signed', text: res.message, timer: 2600, showConfirmButton: false })
+                            .then(() => window.location.reload());
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Not approved', text: (res && res.message) || 'Please try again.' });
+                        $btn.prop('disabled', false);
+                    }
+                }).fail(function () {
+                    Swal.fire({ icon: 'error', title: 'Server error', text: 'Unable to approve right now. Please try again.' });
+                    $btn.prop('disabled', false);
+                });
+            });
+
+            sync();
+        });
+    </script>
+}

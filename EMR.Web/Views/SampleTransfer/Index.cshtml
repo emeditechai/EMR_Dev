@@ -704,11 +704,19 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-0">
-                <iframe id="printWorksheetFrame" style="width: 100%; height: 75vh; border: none;"></iframe>
+            <div class="modal-body p-0" style="background-color: #64748b;">
+                <iframe id="printWorksheetFrame" style="width: 100%; height: 78vh; border: none; display: block;"></iframe>
             </div>
-            <div class="modal-footer border-0 bg-light p-2 px-3">
-                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer border-0 bg-light p-2 px-3 justify-content-between">
+                <div class="small text-muted">
+                    <i class="bi bi-info-circle me-1"></i> Standard A4 portrait worksheet layout
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary btn-sm px-3" onclick="triggerFramePrint()">
+                        <i class="bi bi-printer me-1"></i> Print
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Close</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1734,6 +1742,14 @@
                 $('#printWorksheetFrame').attr('src', url);
                 new bootstrap.Modal(document.getElementById('modalPrintWorksheet')).show();
             }
+
+            window.triggerFramePrint = function() {
+                const frame = document.getElementById('printWorksheetFrame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.focus();
+                    frame.contentWindow.print();
+                }
+            };
 
             $('#btnPrintTransferSelected').on('click', function () {
                 const transferStatus = $('#selTransferStatus').val() || 'Pending';

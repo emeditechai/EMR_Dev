@@ -1,3 +1,4 @@
+using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
@@ -21,7 +22,8 @@ public class UsersController(
     ICountryService countryService,
     IStateService stateService,
     ICityService cityService,
-    IAreaService areaService) : Controller
+    IAreaService areaService,
+    ILabTestCategoryApiClient labTestCategoryApiClient) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -70,6 +72,8 @@ public class UsersController(
                 x.IsLabTechnician,
                 x.IsLogisticsBoy,
                 x.DepartmentIds,
+                x.ProfilePicturePath,
+                HasSignature = x.SignaturePath != null && x.SignaturePath != "",
                 Branches = string.Join(", ", x.UserBranches.Where(b => b.IsActive).Select(b => b.Branch.BranchName))
             })
             .ToListAsync();
@@ -100,7 +104,9 @@ public class UsersController(
                 IsLabTechnician = x.IsLabTechnician,
                 IsLogisticsBoy = x.IsLogisticsBoy,
                 Branches = x.Branches,
-                DepartmentNames = deptNames
+                DepartmentNames = deptNames,
+                ProfilePicturePath = x.ProfilePicturePath,
+                HasSignature = x.HasSignature
             };
         }).ToList();
 
@@ -192,6 +198,7 @@ public class UsersController(
             VehicleRegNo = user.VehicleRegNo,
             CertificationNo = user.CertificationNo,
             RegistrationNo = user.RegistrationNo,
+            PathologistCategoryNames = await GetCategoryNamesAsync(user.PathologistCategoryIds),
             ShiftSlotId = user.ShiftSlotId,
             ShiftSlotName = shiftSlotName,
             AssignedZoneId = user.AssignedZoneId,
@@ -205,6 +212,7 @@ public class UsersController(
             CreatedDate = user.CreatedDate,
             LastModifiedDate = user.LastModifiedDate,
             ProfilePicturePath = user.ProfilePicturePath,
+            HasSignature = !string.IsNullOrWhiteSpace(user.SignaturePath),
             Branches = user.UserBranches.Select(b => b.Branch.BranchName).ToList(),
             DepartmentNames = departmentNames,
             BranchRoleMappings = branchRoleMappings
@@ -260,6 +268,8 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
         }
 
+        await ValidatePathologistCategoriesAsync(model);
+
         if (model.IsLogisticsBoy && string.IsNullOrWhiteSpace(model.VehicleRegNo))
         {
             ModelState.AddModelError(nameof(model.VehicleRegNo), "Vehicle Reg No is mandatory when designated as Logistics Boy.");
@@ -267,6 +277,7 @@ public class UsersController(
 
         await ValidateEmployeeCodeUniquenessAsync(model);
         ValidateProfilePicture(model);
+        await ValidateSignatureAsync(model);
 
         if (!ModelState.IsValid)
         {
@@ -278,6 +289,7 @@ public class UsersController(
             ? null
             : model.EmployeeCode.Trim().ToUpperInvariant();
         var profilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, null);
+        var signaturePath = await ApplySignatureAsync(model, null);
 
         var (hash, salt) = passwordHasherService.HashPassword(model.Password!);
         var deptIds = (model.SelectedDepartmentIds != null && model.SelectedDepartmentIds.Any())
@@ -304,6 +316,7 @@ public class UsersController(
             StateId = model.StateId > 0 ? model.StateId : null,
             CityId = model.CityId > 0 ? model.CityId : null,
             ProfilePicturePath = profilePicturePath,
+            SignaturePath = signaturePath,
             DepartmentIds = deptIds,
             IsActive = model.IsActive,
             IsNursingStaff = model.IsNursingStaff,
@@ -315,6 +328,7 @@ public class UsersController(
             VehicleRegNo = model.IsLogisticsBoy ? model.VehicleRegNo?.Trim() : null,
             CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null,
             RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null,
+            PathologistCategoryIds = PathologistCategoryCsv(model),
             ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null,
             AssignedZoneId = model.IsPhlebotomist && model.AssignedZoneId > 0 ? model.AssignedZoneId : null,
             DailyCollectionTarget = model.IsPhlebotomist ? model.DailyCollectionTarget : null,
@@ -372,6 +386,7 @@ public class UsersController(
             PhoneNumber = user.PhoneNumber,
             EmployeeCode = user.UserBranches.Where(x => x.IsActive).Select(x => x.EmployeeCode).FirstOrDefault() ?? string.Empty,
             ExistingProfilePicturePath = user.ProfilePicturePath,
+            ExistingSignaturePath = user.SignaturePath,
             DateOfJoining = user.DateOfJoining,
             DateOfBirth = user.DateOfBirth,
             Address = user.Address,
@@ -396,7 +411,8 @@ public class UsersController(
             AnalyzerTrainedOn = user.AnalyzerTrainedOn,
             SelectedBranchIds = user.UserBranches.Where(x => x.IsActive).Select(x => x.BranchId).ToList(),
             SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList(),
-            SelectedDepartmentIds = selectedDeptIds
+            SelectedDepartmentIds = selectedDeptIds,
+            SelectedTestCategoryIds = ParseIdCsv(user.PathologistCategoryIds)
         };
 
         await PopulateSelections(model);
@@ -438,6 +454,8 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.RegistrationNo), "Registration No is mandatory when designated as Pathologist.");
         }
 
+        await ValidatePathologistCategoriesAsync(model);
+
         if (model.IsLogisticsBoy && string.IsNullOrWhiteSpace(model.VehicleRegNo))
         {
             ModelState.AddModelError(nameof(model.VehicleRegNo), "Vehicle Reg No is mandatory when designated as Logistics Boy.");
@@ -445,9 +463,11 @@ public class UsersController(
 
         await ValidateEmployeeCodeUniquenessAsync(model);
         ValidateProfilePicture(model);
+        await ValidateSignatureAsync(model);
 
         if (!ModelState.IsValid)
         {
+            model.ExistingSignaturePath = user.SignaturePath;   // the stored file is unchanged; keep showing it
             await PopulateSelections(model);
             return View(model);
         }
@@ -483,6 +503,7 @@ public class UsersController(
         user.VehicleRegNo = model.IsLogisticsBoy ? model.VehicleRegNo?.Trim() : null;
         user.CertificationNo = model.IsPhlebotomist ? model.CertificationNo?.Trim() : null;
         user.RegistrationNo = model.IsPathologist ? model.RegistrationNo?.Trim() : null;
+        user.PathologistCategoryIds = PathologistCategoryCsv(model);
         user.ShiftSlotId = model.IsPhlebotomist && model.ShiftSlotId > 0 ? model.ShiftSlotId : null;
         user.AssignedZoneId = model.IsPhlebotomist && model.AssignedZoneId > 0 ? model.AssignedZoneId : null;
         user.DailyCollectionTarget = model.IsPhlebotomist ? model.DailyCollectionTarget : null;
@@ -491,6 +512,7 @@ public class UsersController(
         user.LastModifiedDate = DateTime.Now;
 
         user.ProfilePicturePath = await SaveProfilePictureAsync(model.ProfilePictureFile, user.ProfilePicturePath);
+        user.SignaturePath = await ApplySignatureAsync(model, user.SignaturePath);
 
         if (!string.IsNullOrWhiteSpace(model.Password))
         {
@@ -552,6 +574,116 @@ public class UsersController(
     {
         var areas = await areaService.GetByCityAsync(cityId);
         return Json(areas.Where(a => a.IsActive).OrderBy(a => a.AreaName).Select(a => new { a.AreaId, a.AreaName, a.AreaCode }));
+    }
+
+    /// <summary>Splits a stored CSV of ids ("3,7,11") into a list, ignoring anything unparseable.</summary>
+    private static List<int> ParseIdCsv(string? csv) =>
+        string.IsNullOrWhiteSpace(csv)
+            ? new List<int>()
+            : csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                 .Select(x => int.TryParse(x, out var id) ? id : 0)
+                 .Where(id => id > 0)
+                 .Distinct()
+                 .ToList();
+
+    /// <summary>Categories are kept only while the user is a pathologist.</summary>
+    private static string? PathologistCategoryCsv(UserFormViewModel model)
+    {
+        if (!model.IsPathologist || model.SelectedTestCategoryIds == null || model.SelectedTestCategoryIds.Count == 0)
+            return null;
+
+        return string.Join(",", model.SelectedTestCategoryIds.Distinct().OrderBy(id => id));
+    }
+
+    /// <summary>
+    /// The posted categories must exist and must belong to a department the user has access to.
+    /// Checked on the server so the rule holds regardless of what the browser sent.
+    /// </summary>
+    private async Task ValidatePathologistCategoriesAsync(UserFormViewModel model)
+    {
+        if (!model.IsPathologist || model.SelectedTestCategoryIds == null || model.SelectedTestCategoryIds.Count == 0)
+            return;
+
+        // The field error sits inside the Pathologist popup (closed after a post-back), so the same message
+        // is also added at model level to reach the summary at the top of the page.
+        void Fail(string message)
+        {
+            ModelState.AddModelError(nameof(model.SelectedTestCategoryIds), message);
+            ModelState.AddModelError(string.Empty, message);
+        }
+
+        if (model.SelectedDepartmentIds == null || model.SelectedDepartmentIds.Count == 0)
+        {
+            Fail("Select at least one Department Access before assigning Test Categories to a Pathologist.");
+            return;
+        }
+
+        try
+        {
+            var allowedIds = (await labTestCategoryApiClient.GetByDepartmentsAsync(
+                    string.Join(",", model.SelectedDepartmentIds.Distinct()), User.GetCompanyId()))
+                .Select(x => x.CategoryId)
+                .ToHashSet();
+
+            if (model.SelectedTestCategoryIds.Any(id => !allowedIds.Contains(id)))
+            {
+                Fail("One or more selected Test Categories do not belong to the departments granted to this user. Please re-select.");
+            }
+        }
+        catch (HttpRequestException)
+        {
+            Fail("Test Categories could not be verified because the lab service is unreachable. Please try again.");
+        }
+    }
+
+    /// <summary>Names of the assigned categories, for the read-only Details page.</summary>
+    private async Task<List<string>> GetCategoryNamesAsync(string? categoryIdCsv)
+    {
+        var ids = ParseIdCsv(categoryIdCsv);
+        if (ids.Count == 0) return new List<string>();
+
+        try
+        {
+            var all = await labTestCategoryApiClient.GetByDepartmentsAsync(null, User.GetCompanyId());
+            return all.Where(c => ids.Contains(c.CategoryId))
+                      .Select(c => string.IsNullOrWhiteSpace(c.DepartmentName) ? c.CategoryName : $"{c.CategoryName} ({c.DepartmentName})")
+                      .ToList();
+        }
+        catch (HttpRequestException)
+        {
+            return new List<string>();   // the page still renders without the names
+        }
+    }
+
+    /// <summary>Categories of the given departments - feeds the Pathologist Configuration dropdown.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetTestCategoriesByDepartments(string? departmentIds)
+    {
+        var ids = ParseIdCsv(departmentIds);
+        if (ids.Count == 0)
+            return Json(new { success = true, categories = Array.Empty<object>() });
+
+        try
+        {
+            var categories = await labTestCategoryApiClient.GetByDepartmentsAsync(
+                string.Join(",", ids), User.GetCompanyId());
+
+            return Json(new
+            {
+                success = true,
+                categories = categories.Select(c => new
+                {
+                    categoryId = c.CategoryId,
+                    categoryName = c.CategoryName,
+                    departmentId = c.DepartmentId,
+                    departmentName = c.DepartmentName
+                })
+            });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The lab service is unreachable. Please try again." });
+        }
     }
 
     private async Task PopulateSelections(UserFormViewModel model)
@@ -761,6 +893,128 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.EmployeeCode),
                 $"Employee Code already exists in branch '{conflict.BranchName}' (User: {conflict.Username}).");
         }
+    }
+
+    // ── Pathologist signature ─────────────────────────────────────────────────
+    // Stored under App_Data/signatures (outside wwwroot, so never a public static file) and served only through
+    // the authorised Signature action below.
+
+    private const long MaxSignatureBytes = 2 * 1024 * 1024;
+
+    private string SignatureRoot => Path.Combine(webHostEnvironment.ContentRootPath, "App_Data", "signatures");
+
+    /// <summary>Resolves a stored name to its file. Only the file-name part is used, so a tampered value cannot escape the folder.</summary>
+    private string SignatureFullPath(string storedName) => Path.Combine(SignatureRoot, Path.GetFileName(storedName));
+
+    /// <summary>"png" / "jpg" from the file's first bytes (not from its name or the browser's content type), else null.</summary>
+    private static async Task<string?> DetectSignatureTypeAsync(IFormFile file)
+    {
+        var header = new byte[8];
+        await using var stream = file.OpenReadStream();
+        var read = await stream.ReadAsync(header.AsMemory(0, header.Length));
+        if (read >= 8 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47
+            && header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A) return "png";
+        if (read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF) return "jpg";
+        return null;
+    }
+
+    /// <summary>A signature is only kept for pathologists; when one is uploaded it must be a real PNG / JPG of up to 2 MB.</summary>
+    private async Task ValidateSignatureAsync(UserFormViewModel model)
+    {
+        if (!model.IsPathologist || model.SignatureFile is null || model.SignatureFile.Length == 0)
+            return;
+
+        var ext = Path.GetExtension(model.SignatureFile.FileName).ToLowerInvariant();
+        if (ext is not (".png" or ".jpg" or ".jpeg"))
+        {
+            ModelState.AddModelError(nameof(model.SignatureFile), "Signature must be a .png, .jpg or .jpeg file.");
+            return;
+        }
+
+        if (model.SignatureFile.Length > MaxSignatureBytes)
+        {
+            ModelState.AddModelError(nameof(model.SignatureFile), "Signature image size must be up to 2 MB.");
+            return;
+        }
+
+        if (await DetectSignatureTypeAsync(model.SignatureFile) is null)
+        {
+            ModelState.AddModelError(nameof(model.SignatureFile), "The selected file is not a valid PNG or JPEG image.");
+        }
+    }
+
+    /// <summary>
+    /// Decides what the stored signature becomes: dropped when the user is not (or no longer) a pathologist, replaced when a new
+    /// file was uploaded, deleted when "remove" was ticked, otherwise kept. Returns the new stored name (or null).
+    /// </summary>
+    private async Task<string?> ApplySignatureAsync(UserFormViewModel model, string? existing)
+    {
+        if (!model.IsPathologist)
+        {
+            DeleteSignatureIfExists(existing);
+            return null;
+        }
+
+        if (model.SignatureFile is { Length: > 0 })
+        {
+            var type = await DetectSignatureTypeAsync(model.SignatureFile);   // already validated; re-checked here as well
+            if (type is null) return existing;
+
+            Directory.CreateDirectory(SignatureRoot);
+            var fileName = $"sig_{Guid.NewGuid():N}.{type}";
+            await using (var stream = new FileStream(SignatureFullPath(fileName), FileMode.CreateNew))
+            {
+                await model.SignatureFile.CopyToAsync(stream);
+            }
+
+            DeleteSignatureIfExists(existing);
+            return fileName;
+        }
+
+        if (model.RemoveSignature)
+        {
+            DeleteSignatureIfExists(existing);
+            return null;
+        }
+
+        return existing;
+    }
+
+    private void DeleteSignatureIfExists(string? storedName)
+    {
+        if (string.IsNullOrWhiteSpace(storedName)) return;
+
+        try
+        {
+            var full = SignatureFullPath(storedName);
+            if (System.IO.File.Exists(full)) System.IO.File.Delete(full);
+        }
+        catch
+        {
+            // a leftover file is harmless; never fail the save because of it
+        }
+    }
+
+    /// <summary>The user's signature image (for the Pathologist Configuration preview and the Details page). Signed-in administrators only.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Signature(int id)
+    {
+        if (!CanManage()) return NotFound();
+
+        var companyId = User.GetCompanyId();
+        var stored = await dbContext.Users.AsNoTracking()
+            .Where(x => x.Id == id && (User.IsSuperAdmin() || x.CompanyId == companyId))
+            .Select(x => x.SignaturePath)
+            .FirstOrDefaultAsync();
+
+        if (string.IsNullOrWhiteSpace(stored)) return NotFound();
+
+        var full = SignatureFullPath(stored);
+        if (!System.IO.File.Exists(full)) return NotFound();
+
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return PhysicalFile(full, Path.GetExtension(full).Equals(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg");
     }
 
     private void ValidateProfilePicture(UserFormViewModel model)

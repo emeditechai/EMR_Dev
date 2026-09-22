@@ -1,0 +1,110 @@
+@* Script for _LabReportPrintModal. Render inside @section Scripts, after jQuery/Bootstrap/SweetAlert. *@
+<script>
+        // Report PDF preview / print (QuestPDF report streamed by LabReporting/PrintReportPdf)
+        (function () {
+            let labOrderId = 0;
+            const pdfUrl = '@Url.Action("PrintReportPdf", "LabReporting")';
+            const logUrl = '@Url.Action("LogReportPrintedJson", "LabReporting")';
+            let blobUrl = null;
+            let fileName = 'LabReport.pdf';
+            let printScope = 'all';   // all | approved | pending
+
+            const $frame = $('#reportPrintFrame'), $loading = $('#printLoading'), $error = $('#printError');
+            const $actions = $('#btnReportPrintNow, #btnReportDownload, #btnReportNewTab');
+
+            function reset() {
+                if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+                $frame.addClass('d-none').attr('src', 'about:blank');
+                $error.addClass('d-none').text('');
+                $('#printStatusChip').addClass('d-none');
+                $('#printSubtitle').text('Preparing report\u2026');
+                $actions.prop('disabled', true);
+                $loading.removeClass('d-none');
+            }
+
+            function fail(message) {
+                $loading.addClass('d-none');
+                $error.text(message).removeClass('d-none');
+                $('#printSubtitle').text('Report unavailable');
+            }
+
+            async function load() {
+                reset();
+                try {
+                    const res = await fetch(pdfUrl + '?labOrderId=' + labOrderId + '&scope=' + printScope + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' });
+                    const type = res.headers.get('content-type') || '';
+
+                    if (!res.ok) {
+                        let msg = 'Unable to generate the report.';
+                        try { msg = (await res.json()).message || msg; } catch (e) { /* keep default */ }
+                        return fail(msg);
+                    }
+                    if (res.redirected || type.indexOf('pdf') === -1) {
+                        return fail('Your session may have expired. Please refresh the page and sign in again.');
+                    }
+
+                    const watermark = res.headers.get('X-Report-Watermark') === '1';
+                    const status = res.headers.get('X-Report-Status');
+                    const tests = res.headers.get('X-Report-Tests');
+                    const disp = res.headers.get('Content-Disposition') || '';
+                    const m = /filename="?([^";]+)"?/i.exec(disp);
+                    if (m) fileName = m[1];
+
+                    blobUrl = URL.createObjectURL(await res.blob());
+                    $frame.attr('src', blobUrl + '#toolbar=1&navpanes=0').removeClass('d-none');
+                    $loading.addClass('d-none');
+                    $actions.prop('disabled', false);
+
+                    $('#printStatusChip')
+                        .attr('class', 'badge fs-9 ' + (watermark
+                            ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle'
+                            : (status === 'final' ? 'bg-success-subtle text-success border border-success-subtle'
+                                                  : 'bg-primary-subtle text-primary border border-primary-subtle')))
+                        .text(watermark ? 'NOT APPROVED copy' : (status === 'final' ? 'Final Report' : (printScope === 'approved' ? 'Approved tests' : 'Provisional Report')));
+                    const what = printScope === 'approved' ? 'approved' : (printScope === 'pending' ? 'validated (not approved)' : 'validated/approved');
+                    $('#printSubtitle').text(tests + ' ' + what + ' test(s) on this report'
+                        + (watermark ? ' \u2022 watermarked until every printed test is approved' : ''));
+                } catch (e) {
+                    fail('Server error while generating the report. Please try again.');
+                }
+            }
+
+            function logPrinted() { $.post(logUrl + '?labOrderId=' + labOrderId + '&scope=' + printScope); }
+
+            $(function () {
+                const modalEl = document.getElementById('modalReportPrint');
+                if (!modalEl) return;
+
+                // Any button with .btn-print-report opens the preview for its own bill / scope.
+                $(document).on('click', '.btn-print-report', function () {
+                    printScope = $(this).attr('data-scope') || 'all';
+                    labOrderId = parseInt($(this).attr('data-laborderid')) || labOrderId;
+                    const bill = $(this).attr('data-bill');
+                    if (bill) $('#printBillChip').text(bill);
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                });
+                $(modalEl).on('shown.bs.modal', load);
+                $(modalEl).on('hidden.bs.modal', reset);
+
+                $('#btnReportPrintNow').on('click', function () {
+                    if (!blobUrl) return;
+                    try {
+                        const w = $frame[0].contentWindow;
+                        w.focus();
+                        w.print();
+                    } catch (e) {
+                        window.open(blobUrl, '_blank'); // viewer refused: open it so the browser's own Print works
+                    }
+                    logPrinted();
+                });
+                $('#btnReportDownload').on('click', function () {
+                    if (!blobUrl) return;
+                    const a = document.createElement('a');
+                    a.href = blobUrl; a.download = fileName;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    logPrinted();
+                });
+                $('#btnReportNewTab').on('click', function () { if (blobUrl) window.open(blobUrl, '_blank'); });
+            });
+        })();
+    </script>

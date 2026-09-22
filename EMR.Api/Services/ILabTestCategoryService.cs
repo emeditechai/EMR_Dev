@@ -5,6 +5,9 @@ namespace EMR.Api.Services;
 public interface ILabTestCategoryService
 {
     Task<IEnumerable<LabTestCategoryListItem>> GetListAsync(int? departmentId, bool? status, string? search, int? companyId);
+
+    /// <summary>Active categories of the given departments (CSV of department ids).</summary>
+    Task<IEnumerable<LabTestCategoryOption>> GetByDepartmentsAsync(string? departmentIds, int? companyId);
     Task<LabTestCategoryListItem?> GetByIdAsync(int id);
     Task<int> CreateAsync(LabTestCategoryCreateRequest req);
     Task UpdateAsync(LabTestCategoryUpdateRequest req);

@@ -18,6 +18,36 @@
 
 @section HeadStyles {
     <style>
+        /* client segmented filter */
+        .lab-seg { display:inline-flex; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25);
+                   border-radius:999px; padding:3px; gap:2px; backdrop-filter:blur(4px); }
+        .lab-seg-btn { display:inline-flex; align-items:center; gap:.35rem; padding:.28rem .8rem; border-radius:999px;
+                       font-size:.76rem; font-weight:600; color:#e9eaff; text-decoration:none; white-space:nowrap;
+                       transition:background .15s ease, color .15s ease; }
+        .lab-seg-btn:hover { background:rgba(255,255,255,.18); color:#fff; }
+        .lab-seg-btn.active { background:#fff; color:#4338ca; box-shadow:0 2px 6px rgba(15,23,42,.18); }
+
+        /* analysis panels */
+        .an-card { background:#fff; border:1px solid #e9ecef; border-radius:.9rem; }
+        .an-title { font-size:.68rem; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:#64748b; }
+        .an-kv { display:flex; align-items:baseline; justify-content:space-between; padding:.35rem 0; border-bottom:1px dashed #eef2f6; }
+        .an-kv:last-child { border-bottom:0; }
+        .an-kv .k { font-size:.76rem; color:#475569; }
+        .an-kv .v { font-size:.92rem; font-weight:800; color:#0f172a; letter-spacing:-.01em; }
+        .an-step { flex:1; text-align:center; padding:.5rem .25rem; border-radius:.6rem; background:var(--sb,#f1f5f9); }
+        .an-step .n { font-size:1.15rem; font-weight:800; color:var(--sc,#0f172a); line-height:1.1; }
+        .an-step .l { font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#64748b; }
+        .an-arrow { align-self:center; color:#cbd5e1; font-size:.8rem; }
+        .an-bar { height:7px; border-radius:4px; background:#eef2f6; overflow:hidden; }
+        .an-bar > span { display:block; height:100%; border-radius:4px; background:var(--bc,#6366f1); }
+        .an-spark { display:flex; align-items:flex-end; gap:3px; height:64px; }
+        .an-spark .b { flex:1; background:linear-gradient(180deg,#818cf8,#4f46e5); border-radius:3px 3px 0 0; min-height:2px; position:relative; }
+        .an-spark .b:hover { filter:brightness(1.12); }
+        .an-spark-x { display:flex; gap:3px; margin-top:4px; }
+        .an-spark-x span { flex:1; text-align:center; font-size:.56rem; color:#94a3b8; }
+        .an-chip { font-size:.68rem; font-weight:700; padding:.12rem .5rem; border-radius:999px; }
+    </style>
+    <style>
         .lab-dashboard-page {
             margin-top: 0.25rem;
         }
@@ -408,6 +438,17 @@
                     {
                         <span class="badge bg-success bg-opacity-75 text-white border border-white border-opacity-25 px-2 py-1">LIVE TODAY</span>
                     }
+                    @* Client filter: drives every figure on this page *@
+                    <div class="lab-seg" role="group" aria-label="Client type">
+                        @foreach (var seg in new[] { ("ALL", "All Clients", "bi-people-fill"), ("B2C", "B2C Patients", "bi-person-fill"), ("B2B", "B2B Partners", "bi-building-fill") })
+                        {
+                            <a class="lab-seg-btn @(Model.ClientType == seg.Item1 ? "active" : "")"
+                               href="@Url.Action("Index", new { date = selectedDateStr, clientType = seg.Item1 })"
+                               title="Show @seg.Item2 only">
+                                <i class="bi @seg.Item3"></i>@seg.Item2
+                            </a>
+                        }
+                    </div>
                 </div>
             </div>
 
@@ -424,9 +465,10 @@
                     <div class="input-group input-group-sm rounded bg-white shadow-sm overflow-hidden" style="width: auto;">
                         <input type="date" name="date" value="@selectedDateStr" class="form-control border-0 shadow-none fw-semibold text-dark px-2" style="font-size: 0.9rem;" onchange="document.getElementById('dateFilterForm').submit()" />
                     </div>
+                    <input type="hidden" name="clientType" value="@Model.ClientType" />
                 </form>
 
-                <a href="@Url.Action("Index", new { date = DateTime.Today.ToString("yyyy-MM-dd") })" class="btn btn-outline-light btn-sm fw-semibold px-3 py-2">
+                <a href="@Url.Action("Index", new { date = DateTime.Today.ToString("yyyy-MM-dd"), clientType = Model.ClientType })" class="btn btn-outline-light btn-sm fw-semibold px-3 py-2">
                     Today
                 </a>
                 <button type="button" class="btn btn-outline-light btn-sm rounded-circle p-2" title="Refresh Dashboard" onclick="location.reload();">
@@ -545,6 +587,198 @@
     </div>
 
     @* Analytics & Pipeline Row *@
+    @* ══════════ Analysis row: reporting pipeline, money, workload ══════════ *@
+    @{
+        var pipe = Model.Data.ReportingPipeline;
+        var bill = Model.Data.Billing;
+        var hours = Model.Data.HourlyBookings ?? new List<EMR.Web.ApiClients.Models.LabHourlyBookingDto>();
+        var depts = Model.Data.DepartmentWorkload ?? new List<EMR.Web.ApiClients.Models.LabDepartmentWorkloadDto>();
+        var clients = Model.Data.TopClients ?? new List<EMR.Web.ApiClients.Models.LabTopClientDto>();
+        var peakHour = hours.Count > 0 ? hours.OrderByDescending(h => h.OrderCount).First() : null;
+        var maxHour = hours.Count > 0 ? hours.Max(h => h.OrderCount) : 0;
+        var maxDept = depts.Count > 0 ? depts.Max(d => d.TestCount) : 0;
+        var realisationPct = bill.GrossAmount > 0 ? (double)(bill.CollectedAmount * 100 / bill.GrossAmount) : 0;
+        string Money(decimal v) => "₹ " + v.ToString("N0");
+        string Tat(decimal? m) => m is null or 0 ? "—" : (m >= 60 ? $"{Math.Floor(m.Value / 60)}h {Math.Round(m.Value % 60)}m" : $"{Math.Round(m.Value)}m");
+    }
+    <div class="row g-3 mb-4">
+        @* Reporting pipeline *@
+        <div class="col-12 col-xl-5">
+            <div class="an-card h-100 shadow-sm p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="an-title"><i class="bi bi-diagram-3-fill text-primary me-1"></i>Reporting Pipeline</span>
+                    <span class="an-chip bg-light text-secondary border"><i class="bi bi-stopwatch me-1"></i>Avg TAT @Tat(pipe.AvgTatMinutes)</span>
+                </div>
+                <div class="d-flex gap-1">
+                    <div class="an-step" style="--sb:#f1f5f9;--sc:#64748b;"><div class="n">@pipe.PendingEntry</div><div class="l">Pending</div></div>
+                    <i class="bi bi-chevron-right an-arrow"></i>
+                    <div class="an-step" style="--sb:#eff6ff;--sc:#1d4ed8;"><div class="n">@pipe.Entered</div><div class="l">Entered</div></div>
+                    <i class="bi bi-chevron-right an-arrow"></i>
+                    <div class="an-step" style="--sb:#f0fdf4;--sc:#15803d;"><div class="n">@pipe.Validated</div><div class="l">Validated</div></div>
+                    <i class="bi bi-chevron-right an-arrow"></i>
+                    <div class="an-step" style="--sb:#f0fdfa;--sc:#0f766e;"><div class="n">@pipe.Approved</div><div class="l">Approved</div></div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <div class="flex-fill border rounded-3 p-2 text-center" style="background:#fffbeb;border-color:#fde68a !important;">
+                        <div class="fw-bold" style="color:#b45309;font-size:1.05rem;">@pipe.AbnormalResults</div>
+                        <div class="an-title">Abnormal (H/L)</div>
+                    </div>
+                    <div class="flex-fill border rounded-3 p-2 text-center" style="background:#fef2f2;border-color:#fecaca !important;">
+                        <div class="fw-bold" style="color:#b91c1c;font-size:1.05rem;">@pipe.CriticalResults</div>
+                        <div class="an-title">Critical</div>
+                    </div>
+                    <div class="flex-fill border rounded-3 p-2 text-center" style="background:#f5f3ff;border-color:#ddd6fe !important;">
+                        <div class="fw-bold" style="color:#6d28d9;font-size:1.05rem;">@Model.Data.Summary.TotalTestsBookedToday</div>
+                        <div class="an-title">Tests Booked</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Billing *@
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="an-card h-100 shadow-sm p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="an-title"><i class="bi bi-cash-coin text-success me-1"></i>Billing &amp; Collection</span>
+                    <span class="an-chip bg-light text-secondary border">Avg @Money(bill.AvgBillValue)</span>
+                </div>
+                <div class="an-kv"><span class="k">Gross billed</span><span class="v">@Money(bill.GrossAmount)</span></div>
+                <div class="an-kv"><span class="k">Collected</span><span class="v text-success">@Money(bill.CollectedAmount)</span></div>
+                <div class="an-kv"><span class="k">Outstanding<span class="text-muted"> · @bill.BillsWithDue bill(s)</span></span><span class="v text-danger">@Money(bill.OutstandingAmount)</span></div>
+                <div class="mt-2">
+                    <div class="d-flex justify-content-between fs-9 text-muted mb-1" style="font-size:.68rem;">
+                        <span>Realisation</span><span class="fw-bold text-dark">@realisationPct.ToString("N0")%</span>
+                    </div>
+                    <div class="an-bar" style="--bc:#16a34a;"><span style="width:@(Math.Min(realisationPct, 100).ToString("N0"))%"></span></div>
+                </div>
+                @if (Model.ClientType == "ALL")
+                {
+                    <div class="d-flex gap-2 mt-3">
+                        <div class="flex-fill border rounded-3 p-2" style="background:#eff6ff;border-color:#bfdbfe !important;">
+                            <div class="an-title">B2C</div>
+                            <div class="fw-bold text-dark">@bill.B2COrders <span class="text-muted fw-normal" style="font-size:.7rem;">orders</span></div>
+                            <div style="font-size:.72rem;color:#1d4ed8;">@Money(bill.B2CAmount)</div>
+                        </div>
+                        <div class="flex-fill border rounded-3 p-2" style="background:#f5f3ff;border-color:#ddd6fe !important;">
+                            <div class="an-title">B2B</div>
+                            <div class="fw-bold text-dark">@bill.B2BOrders <span class="text-muted fw-normal" style="font-size:.7rem;">orders</span></div>
+                            <div style="font-size:.72rem;color:#6d28d9;">@Money(bill.B2BAmount)</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* Bookings by hour *@
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="an-card h-100 shadow-sm p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="an-title"><i class="bi bi-bar-chart-fill text-indigo me-1" style="color:#6366f1;"></i>Bookings by Hour</span>
+                    @if (peakHour != null)
+                    {
+                        <span class="an-chip bg-light text-secondary border">Peak @peakHour.HourOfDay.ToString("00"):00</span>
+                    }
+                </div>
+                @if (hours.Count == 0)
+                {
+                    <div class="text-center text-muted py-4" style="font-size:.78rem;">
+                        <i class="bi bi-clock-history d-block mb-1" style="font-size:1.4rem;"></i>No bookings for this selection.
+                    </div>
+                }
+                else
+                {
+                    <div class="an-spark">
+                        @foreach (var h in hours)
+                        {
+                            var pct = maxHour > 0 ? (int)Math.Round(h.OrderCount * 100.0 / maxHour) : 0;
+                            <div class="b" style="height:@(Math.Max(pct, 6))%" title="@h.HourOfDay.ToString("00"):00 — @h.OrderCount order(s), ₹@h.Amount.ToString("N0")"></div>
+                        }
+                    </div>
+                    <div class="an-spark-x">
+                        @foreach (var h in hours)
+                        {
+                            <span>@h.HourOfDay.ToString("00")</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        @* Department workload *@
+        <div class="col-12 col-xl-7">
+            <div class="an-card h-100 shadow-sm p-3">
+                <span class="an-title"><i class="bi bi-hospital-fill text-primary me-1"></i>Department Workload</span>
+                @if (depts.Count == 0)
+                {
+                    <div class="text-center text-muted py-4" style="font-size:.78rem;">No tests for this selection.</div>
+                }
+                else
+                {
+                    <div class="mt-2">
+                        @foreach (var dw in depts)
+                        {
+                            var pct = maxDept > 0 ? (int)Math.Round(dw.TestCount * 100.0 / maxDept) : 0;
+                            var appPct = dw.TestCount > 0 ? (int)Math.Round(dw.ApprovedCount * 100.0 / dw.TestCount) : 0;
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-baseline">
+                                    <span style="font-size:.78rem;font-weight:600;color:#334155;">@dw.DepartmentName</span>
+                                    <span style="font-size:.72rem;color:#64748b;">
+                                        <strong class="text-dark">@dw.TestCount</strong> tests ·
+                                        @dw.CollectedCount collected ·
+                                        <span style="color:#0f766e;">@dw.ApprovedCount approved (@appPct%)</span>
+                                    </span>
+                                </div>
+                                <div class="an-bar mt-1" style="--bc:#6366f1;"><span style="width:@pct%"></span></div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* Top B2B clients *@
+        <div class="col-12 col-xl-5">
+            <div class="an-card h-100 shadow-sm p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="an-title"><i class="bi bi-building-fill text-purple me-1" style="color:#7c3aed;"></i>Top B2B Clients</span>
+                    <span class="an-chip bg-light text-secondary border">@clients.Count listed</span>
+                </div>
+                @if (Model.ClientType == "B2C")
+                {
+                    <div class="text-center text-muted py-4" style="font-size:.78rem;">
+                        <i class="bi bi-person-fill d-block mb-1" style="font-size:1.4rem;"></i>
+                        Showing B2C patients only — switch the filter to see B2B partners.
+                    </div>
+                }
+                else if (clients.Count == 0)
+                {
+                    <div class="text-center text-muted py-4" style="font-size:.78rem;">
+                        <i class="bi bi-building d-block mb-1" style="font-size:1.4rem;"></i>No B2B orders for this selection.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var c in clients)
+                    {
+                        <div class="an-kv">
+                            <span class="k">
+                                <i class="bi @(c.ClientType == "FRANCHISE" ? "bi-shop" : "bi-building") me-1 text-muted"></i>
+                                <strong class="text-dark">@c.ClientName</strong>
+                                @if (!string.IsNullOrWhiteSpace(c.ClientCode))
+                                {
+                                    <span class="text-muted font-monospace" style="font-size:.68rem;"> @c.ClientCode</span>
+                                }
+                            </span>
+                            <span class="v">@c.OrderCount <span class="text-muted fw-normal" style="font-size:.7rem;">· @Money(c.Amount)</span></span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4 mb-4">
         
         <!-- Left: Phlebotomy Pipeline & Mode Breakdown -->

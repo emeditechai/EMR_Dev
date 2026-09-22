@@ -1,0 +1,476 @@
+@model EMR.Web.Controllers.LabUnapprovePageModel
+@{
+    ViewData["Title"] = "Un-Authorize Report";
+}
+
+@section HeadStyles {
+    <style>
+        .unauth-wrapper { background-color: #f8f9fa; min-height: calc(100vh - 60px); }
+        .unauth-wrapper .fs-7 { font-size: 0.85rem !important; }
+        .unauth-wrapper .fs-8 { font-size: 0.78rem !important; }
+        .unauth-wrapper .fs-9 { font-size: 0.70rem !important; }
+
+        .unauth-wrapper .ua-card { border-left: 4px solid var(--c, #4f46e5) !important; position: relative; overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+        .unauth-wrapper .ua-card::after { content: ""; position: absolute; right: -18px; top: -18px; width: 70px; height: 70px; border-radius: 50%; background: var(--bg, #e0e7ff); opacity: .55; }
+        .unauth-wrapper .ua-card:hover { transform: translateY(-2px); box-shadow: 0 .4rem .8rem rgba(0,0,0,.09) !important; }
+        .unauth-wrapper .ua-card.active-card { outline: 2px solid var(--c); background: linear-gradient(135deg, #fff 40%, var(--bg)); }
+        .unauth-wrapper .ua-card.no-click { cursor: default; }
+        .unauth-wrapper .ua-card.no-click:hover { transform: none; box-shadow: none !important; }
+        .unauth-wrapper .ua-label { font-size: .68rem; letter-spacing: .3px; color: #6b7280; font-weight: 700; text-transform: uppercase; }
+        .unauth-wrapper .ua-value { color: var(--c); font-weight: 800; line-height: 1.1; font-size: 1.5rem; }
+        .unauth-wrapper .ua-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--bg); color: var(--c); display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; }
+        .unauth-wrapper .k-total   { --c: #1e3a8a; --bg: #dbeafe; }
+        .unauth-wrapper .k-full    { --c: #0f766e; --bg: #ccfbf1; }
+        .unauth-wrapper .k-partial { --c: #0369a1; --bg: #e0f2fe; }
+        .unauth-wrapper .k-tests   { --c: #b45309; --bg: #fef3c7; }
+
+        .unauth-wrapper .panel-body { height: calc(100vh - 400px); min-height: 380px; overflow-y: auto; }
+        .unauth-wrapper .order-row { cursor: pointer; border-left: 4px solid transparent; }
+        .unauth-wrapper .order-row:hover { background: #f8fafc; }
+        .unauth-wrapper .order-row.selected { background: #eef2ff; border-left-color: #4f46e5; }
+        .unauth-wrapper .order-row.t-full { box-shadow: inset 4px 0 0 #0f766e; }
+        .unauth-wrapper .order-row.t-partial { box-shadow: inset 4px 0 0 #0369a1; }
+        .unauth-wrapper .order-row.selected { box-shadow: inset 4px 0 0 #4f46e5; }
+        .unauth-wrapper .table thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 5; font-size: .68rem; text-transform: uppercase; color: #64748b; }
+
+        .unauth-wrapper .hero { background: linear-gradient(135deg, #fff 55%, #eef2ff); }
+        .unauth-wrapper .avatar-circle { width: 38px; height: 38px; }
+        .unauth-wrapper .group-head { background: #f1f5f9; font-weight: 700; font-size: .72rem; color: #334155; }
+        .unauth-wrapper .test-row.is-approved { background: #fff; }
+        .unauth-wrapper .test-row.not-approved { background: #fafafa; color: #94a3b8; }
+        .unauth-wrapper .test-row.checked, .unauth-wrapper .profile-head.checked { background: #fffbeb; }
+        .unauth-wrapper .profile-head { background: #eef2ff; }
+        .unauth-wrapper .profile-head td { padding-top: .45rem; padding-bottom: .45rem; }
+        .unauth-wrapper .test-row.in-profile > td:first-child { border-left: 3px solid #c7d2fe; }
+        .unauth-wrapper .val-pill { font-weight: 700; }
+        .unauth-wrapper .btn-audit-info { margin-left: 6px; }
+    </style>
+}
+
+<div class="container-fluid px-2 py-1 unauth-wrapper">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+        <h4 class="mb-0 fw-bold text-dark d-flex align-items-center">
+            <i class="bi bi-unlock-fill text-warning me-2"></i>Un-Authorize Report
+        </h4>
+        <span class="text-muted fs-8"><i class="bi bi-info-circle me-1"></i>Withdraw the approval of a test so its result can be corrected on the Lab Reporting Entry page.</span>
+    </div>
+
+    <!-- Cards -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-lg-3"><div class="card ua-card k-total border-0 shadow-sm active-card" data-type="ALL"><div class="card-body p-2 d-flex justify-content-between align-items-center">
+            <div><div class="ua-label">Approved Bills</div><div class="ua-value" id="kTotal">0</div></div><div class="ua-icon"><i class="bi bi-receipt"></i></div></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card ua-card k-full border-0 shadow-sm" data-type="FULL"><div class="card-body p-2 d-flex justify-content-between align-items-center">
+            <div><div class="ua-label">Fully Approved</div><div class="ua-value" id="kFull">0</div></div><div class="ua-icon"><i class="bi bi-patch-check-fill"></i></div></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card ua-card k-partial border-0 shadow-sm" data-type="PARTIAL"><div class="card-body p-2 d-flex justify-content-between align-items-center">
+            <div><div class="ua-label">Partially Approved</div><div class="ua-value" id="kPartial">0</div></div><div class="ua-icon"><i class="bi bi-pie-chart-fill"></i></div></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card ua-card k-tests no-click border-0 shadow-sm"><div class="card-body p-2 d-flex justify-content-between align-items-center">
+            <div><div class="ua-label">Approved Tests</div><div class="ua-value" id="kTests">0</div></div><div class="ua-icon"><i class="bi bi-clipboard2-check-fill"></i></div></div></div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-2">
+        <div class="card-body p-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 fw-bold text-muted mb-1">Filter By Date</label>
+                    <select id="fDateBasis" class="form-select form-select-sm">
+                        <option value="ApprovedDate">Approved Date</option>
+                        <option value="BookingDate">Booking Date Time</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 fw-bold text-muted mb-1">From Date</label>
+                    <input type="date" id="fFrom" class="form-control form-control-sm" value="@Model.FromDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 fw-bold text-muted mb-1">To Date</label>
+                    <input type="date" id="fTo" class="form-control form-control-sm" value="@Model.ToDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label fs-9 fw-bold text-muted mb-1">Quick Select</label>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary quick-btn active" data-days="0">Today</button>
+                        <button type="button" class="btn btn-outline-secondary quick-btn" data-days="1">Yest.</button>
+                        <button type="button" class="btn btn-outline-secondary quick-btn" data-days="7">7D</button>
+                        <button type="button" class="btn btn-outline-secondary quick-btn" data-days="30">30D</button>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label fs-9 fw-bold text-muted mb-1">Search</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" id="fSearch" class="form-control" placeholder="Bill, Token, Patient, Phone…" />
+                        <button type="button" class="btn btn-primary" id="btnFilter">Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-2">
+        <!-- LEFT: approved report headers -->
+        <div class="col-lg-5 col-xl-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-list-check text-primary me-2"></i>Approved Reports</h6>
+                    <span class="fs-9 text-muted" id="lblCount">—</span>
+                </div>
+                <div class="panel-body p-0">
+                    <div id="listLoader" class="text-center py-5 d-none"><div class="spinner-border spinner-border-sm text-primary"></div> <span class="text-muted fs-8">Loading…</span></div>
+                    <div id="listEmpty" class="text-center text-muted py-5 d-none"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No approved reports for the selected filters.</div>
+                    <table class="table table-sm align-middle mb-0" id="tblOrders">
+                        <thead><tr><th>Approved</th><th>Token / Bill</th><th>Patient</th><th>Approval</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: details -->
+        <div class="col-lg-7 col-xl-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-warning rounded-circle p-1 d-inline-flex align-items-center justify-content-center" style="width:22px;height:22px;"><i class="bi bi-unlock-fill text-white fs-8"></i></span>
+                        <div><h6 class="mb-0 fw-bold">Report Details</h6><span class="fs-9 text-muted" id="lblSubtitle">Select a report from the list</span></div>
+                    </div>
+                    <div id="actionBar" class="d-none d-flex gap-2">
+                        <a class="btn btn-outline-primary btn-sm" id="lnkEntry" target="_blank" title="Open the Lab Reporting Entry page"><i class="bi bi-box-arrow-up-right me-1"></i>Open Entry</a>
+                        <button type="button" class="btn btn-warning btn-sm fw-semibold" id="btnUnapproveSelected" disabled><i class="bi bi-unlock me-1"></i>Un-Approve Selected <span class="badge bg-dark ms-1" id="selCount">0</span></button>
+                    </div>
+                </div>
+                <div class="panel-body p-3">
+                    <div id="placeholder" class="text-center py-5">
+                        <div class="bg-light text-warning rounded-circle d-inline-flex p-4 mb-3"><i class="bi bi-unlock-fill fs-1"></i></div>
+                        <h5 class="fw-bold text-dark">No Report Selected</h5>
+                        <p class="text-muted fs-8 mx-auto" style="max-width:340px;">Click an approved report on the left to review its approved tests and withdraw the approval where a value has to be corrected.</p>
+                    </div>
+                    <div id="detailLoader" class="text-center py-5 d-none"><div class="spinner-border text-primary"></div></div>
+                    <div id="detail" class="d-none">
+                        <div class="hero p-3 rounded-3 mb-3 border">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="avatar-circle bg-primary text-white rounded-circle fw-bold d-flex align-items-center justify-content-center" id="dAvatar">PT</div>
+                                    <div>
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                            <h6 class="mb-0 fw-bold text-dark" id="dName">—</h6>
+                                            <button type="button" class="btn-audit-info" id="btnDetailAudit" data-bs-toggle="tooltip" data-bs-placement="bottom" title="View audit history for this bill" aria-label="View audit history for this bill"><i class="bi bi-info-circle-fill"></i></button>
+                                            <span class="badge bg-secondary-subtle text-secondary border fs-9" id="dCode">—</span>
+                                        </div>
+                                        <div class="fs-9 text-muted mt-1"><span id="dAgeGender">—</span> <span class="mx-1">•</span> <i class="bi bi-telephone me-1"></i><span id="dPhone">—</span></div>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-primary fs-7" id="dToken">—</span>
+                                    <div class="fs-9 text-muted mt-1" id="dBill">—</div>
+                                    <div class="mt-1" id="dBadges"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning py-2 px-3 fs-8 d-flex align-items-start gap-2">
+                            <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                            <div>
+                                Choose what the withdrawal is <strong>for</strong>:
+                                <strong>Re-Test</strong> moves the test back to <strong>Submitted</strong> keeping its value, to be corrected on the Lab Reporting Entry page;
+                                <strong>Re-Collect</strong> sends the sample back to the <strong>Sample Collection</strong> page and clears the entered result.
+                                Either way the test has to be validated and approved again, and the report is printed with the <strong>NOT APPROVED</strong> watermark until then.
+                            </div>
+                        </div>
+
+                        <div class="table-responsive border rounded-3">
+                            <table class="table table-sm align-middle mb-0" id="tblTests">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:34px;"><input type="checkbox" class="form-check-input" id="chkAll" title="Select all approved tests" /></th>
+                                        <th>Test</th><th>Result</th><th>Status</th><th>Approved</th><th class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<partial name="_LabAuditHistoryModal" />
+
+@section Scripts {
+    <partial name="_LabAuditHistoryScripts" />
+    <script>
+        $(function () {
+            const urls = {
+                headers: '@Url.Action("GetHeadersJson", "LabUnapprove")',
+                detail: '@Url.Action("GetDetailJson", "LabUnapprove")',
+                unapprove: '@Url.Action("UnapproveJson", "LabUnapprove")',
+                entry: '@Url.Action("Entry", "LabReporting")'
+            };
+            let approvalType = 'ALL';
+            let activeOrderId = 0;
+            let currentBill = null;
+            let currentTests = [];
+
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const fmt = v => {
+                if (!v) return '—';
+                const d = new Date(v);
+                if (isNaN(d)) return esc(v);
+                return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+            };
+            const toast = (msg, icon) => Swal.fire({ toast: true, position: 'top-end', icon: icon || 'success', title: msg, showConfirmButton: false, timer: 3500, timerProgressBar: true });
+            const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+            // ── list ────────────────────────────────────────────────────────
+            function loadList(keepSelection) {
+                $('#listLoader').removeClass('d-none');
+                $('#listEmpty').addClass('d-none');
+                $('#tblOrders tbody').empty();
+                $.getJSON(urls.headers, {
+                    fromDate: $('#fFrom').val(), toDate: $('#fTo').val(), dateBasis: $('#fDateBasis').val(),
+                    search: $('#fSearch').val(), approvalType: approvalType
+                }).done(function (res) {
+                    if (!res || !res.success) { toast((res && res.message) || 'Unable to load the list.', 'error'); return; }
+                    const s = res.stats || {};
+                    $('#kTotal').text(s.totalBills || 0); $('#kFull').text(s.fullyApprovedBills || 0);
+                    $('#kPartial').text(s.partiallyApprovedBills || 0); $('#kTests').text(s.approvedTests || 0);
+                    const rows = res.headers || [];
+                    $('#lblCount').text('Showing ' + rows.length + ' report' + (rows.length === 1 ? '' : 's'));
+                    $('#listEmpty').toggleClass('d-none', rows.length !== 0);
+                    const $tb = $('#tblOrders tbody');
+                    rows.forEach(function (h) {
+                        const full = h.approvalType === 'FULL';
+                        $tb.append(
+                            '<tr class="order-row ' + (full ? 't-full' : 't-partial') + (h.labOrderId === activeOrderId ? ' selected' : '') + '" data-id="' + h.labOrderId + '">'
+                            + '<td class="fs-9"><div class="fw-semibold text-dark">' + fmt(h.approvedDate) + '</div><div class="text-muted">Booked ' + fmt(h.bookingDateTime) + '</div></td>'
+                            + '<td><div class="fw-bold text-primary fs-8">' + esc(h.tokenNo || '—') + '</div><div class="fs-9 text-muted">' + esc(h.billNo || '') + '</div></td>'
+                            + '<td><div class="fw-semibold fs-8">' + esc(h.patientName) + (h.isUrgent ? ' <span class="badge bg-danger fs-9">Urgent</span>' : '') + '</div>'
+                            +   '<div class="fs-9 text-muted">' + esc(h.patientCode || '') + ' · ' + esc(h.age != null ? h.age + 'Y' : '') + ' ' + esc(h.gender || '') + '</div>'
+                            +   (h.billingType === 'B2B' ? '<span class="badge bg-info-subtle text-info border border-info-subtle fs-9" title="' + esc(h.clientName || '') + '"><i class="bi bi-diagram-2 me-1"></i>B2B</span>' : '') + '</td>'
+                            + '<td><span class="badge ' + (full ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-info-subtle text-info border border-info-subtle') + ' fs-9">'
+                            +   (full ? 'Fully Approved' : 'Partial') + '</span><div class="fs-9 text-muted mt-1">' + h.approvedTests + '/' + h.totalTests + ' tests</div>'
+                            +   (h.unapprovalCount > 0 ? '<div class="fs-9 text-warning" title="Approval was withdrawn earlier on this bill"><i class="bi bi-arrow-counterclockwise"></i> ' + h.unapprovalCount + '</div>' : '') + '</td>'
+                            + '</tr>');
+                    });
+                    if (keepSelection && activeOrderId && !rows.some(r => r.labOrderId === activeOrderId)) resetDetail();
+                }).fail(function () { toast('Server error while loading the list.', 'error'); })
+                  .always(function () { $('#listLoader').addClass('d-none'); });
+            }
+
+            // ── detail ──────────────────────────────────────────────────────
+            function resetDetail() {
+                activeOrderId = 0; currentBill = null; currentTests = [];
+                $('#detail, #actionBar, #detailLoader').addClass('d-none');
+                $('#placeholder').removeClass('d-none');
+                $('#lblSubtitle').text('Select a report from the list');
+                $('#tblOrders tbody tr').removeClass('selected');
+            }
+
+            function loadDetail(id) {
+                activeOrderId = id;
+                $('#tblOrders tbody tr').removeClass('selected').filter('[data-id="' + id + '"]').addClass('selected');
+                $('#placeholder, #detail').addClass('d-none');
+                $('#detailLoader').removeClass('d-none');
+                $.getJSON(urls.detail, { labOrderId: id }).done(function (res) {
+                    if (!res || !res.success) { toast((res && res.message) || 'Unable to load the report.', 'error'); resetDetail(); return; }
+                    currentBill = res.bill; currentTests = res.tests || [];
+                    renderDetail();
+                }).fail(function () { toast('Server error while loading the report.', 'error'); resetDetail(); })
+                  .always(function () { $('#detailLoader').addClass('d-none'); });
+            }
+
+            function renderDetail() {
+                const b = currentBill;
+                const initials = (b.patientName || 'PT').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
+                $('#dAvatar').text(initials);
+                $('#dName').text(b.patientName || '—');
+                $('#dCode').text(b.patientCode || '—');
+                $('#dAgeGender').text(((b.age != null ? b.age + ' Y' : '') + ' ' + (b.gender || '')).trim() || '—');
+                $('#dPhone').text(b.phoneNumber || '—');
+                $('#dToken').text(b.tokenNo || '—');
+                $('#dBill').text(b.billNo || '—');
+                $('#dBadges').html((b.isUrgent ? '<span class="badge bg-danger me-1">Urgent</span>' : '')
+                    + (b.billingType === 'B2B' ? '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-diagram-2 me-1"></i>' + esc(b.clientName || 'B2B') + '</span>' : ''));
+                $('#btnDetailAudit').attr({ 'data-laborderid': b.labOrderId, 'data-patient': b.patientName, 'data-bill': b.billNo || '—' })
+                                    .data({ laborderid: b.labOrderId, patient: b.patientName, bill: b.billNo || '—' });
+                $('#lnkEntry').attr('href', urls.entry + '?labOrderId=' + b.labOrderId);
+                $('#lblSubtitle').text((b.tokenNo || '') + ' — ' + (b.billNo || ''));
+
+                const approved = currentTests.filter(t => t.isApproved).length;
+                const $tb = $('#tblTests tbody').empty();
+
+                const testRow = function (t, inProfile) {
+                    const flag = t.abnormalFlag && t.abnormalFlag !== 'Normal' ? ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9">' + esc(t.abnormalFlag) + '</span>' : '';
+                    return '<tr class="test-row ' + (t.isApproved ? 'is-approved' : 'not-approved') + (inProfile ? ' in-profile' : '') + '" data-id="' + t.samplecollectionID + '"' + (inProfile ? ' data-profile="' + inProfile + '"' : '') + '>'
+                        // a profile test has no checkbox / button of its own: the profile is un-approved as a whole
+                        + '<td>' + (t.isApproved && !inProfile ? '<input type="checkbox" class="form-check-input chk-test" value="' + t.samplecollectionID + '" />' : '') + '</td>'
+                        + '<td' + (inProfile ? ' class="ps-4"' : '') + '><div class="fw-semibold fs-8">' + esc(t.testName) + '</div><div class="fs-9 text-muted">' + esc(t.testCode || '') + '</div></td>'
+                        + '<td class="val-pill fs-8">' + (t.testValue ? esc(t.testValue) + flag : '—') + '</td>'
+                        + '<td><span class="badge ' + (t.isApproved ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border') + ' fs-9">' + esc(t.reportStatusName || '—') + '</span></td>'
+                        + '<td class="fs-9">' + (t.isApproved ? fmt(t.approvedDate) + '<div class="text-muted">' + esc(t.approvedByName || '') + '</div>' : '—') + '</td>'
+                        + '<td class="text-end">' + (t.isApproved && !inProfile ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fs-9 btn-unapprove-one" data-id="' + t.samplecollectionID + '"><i class="bi bi-unlock me-1"></i>Un-Approve</button>' : '') + '</td>'
+                        + '</tr>';
+                };
+
+                // Individual (non-profile) investigations first, each with its own checkbox
+                const singles = currentTests.filter(t => !t.profileId);
+                if (singles.length) {
+                    $tb.append('<tr class="group-head"><td colspan="6"><i class="bi bi-list-ul me-1"></i>Individual Investigations</td></tr>');
+                    singles.forEach(t => $tb.append(testRow(t, null)));
+                }
+
+                // Profiles: ONE checkbox / button for the whole profile
+                const profiles = [];
+                currentTests.filter(t => t.profileId).forEach(function (t) {
+                    let g = profiles.find(x => x.id === t.profileId);
+                    if (!g) { g = { id: t.profileId, name: t.profileName || t.groupName || 'Profile', tests: [] }; profiles.push(g); }
+                    g.tests.push(t);
+                });
+                profiles.forEach(function (g) {
+                    const ap = g.tests.filter(t => t.isApproved).length;
+                    $tb.append(
+                        '<tr class="group-head profile-head" data-profile="' + g.id + '">'
+                        + '<td>' + (ap ? '<input type="checkbox" class="form-check-input chk-profile" value="' + g.id + '" title="Select the whole profile" />' : '') + '</td>'
+                        + '<td colspan="4"><i class="bi bi-folder2-open me-1"></i>' + esc(g.name)
+                        +   ' <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-9 ms-1">Profile</span>'
+                        +   ' <span class="fw-normal text-muted fs-9 ms-1">' + ap + '/' + g.tests.length + ' tests approved</span></td>'
+                        + '<td class="text-end">' + (ap ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fs-9 btn-unapprove-profile" data-profile="' + g.id + '"><i class="bi bi-unlock me-1"></i>Un-Approve Profile</button>' : '') + '</td>'
+                        + '</tr>');
+                    g.tests.forEach(t => $tb.append(testRow(t, g.id)));
+                });
+
+                $('#chkAll').prop('checked', false).prop('disabled', approved === 0);
+                updateSelection();
+                $('#placeholder').addClass('d-none');
+                $('#detail, #actionBar').removeClass('d-none');
+            }
+
+            // tests of a profile that are approved (a profile goes back as a whole)
+            function profileApprovedIds(profileId) {
+                return currentTests.filter(t => t.profileId === profileId && t.isApproved).map(t => t.samplecollectionID);
+            }
+
+            // ticked individual tests + every approved test of each ticked profile
+            function selectedIds() {
+                const ids = $('.chk-test:checked').map(function () { return parseInt($(this).val()); }).get();
+                $('.chk-profile:checked').each(function () { ids.push.apply(ids, profileApprovedIds(parseInt($(this).val()))); });
+                return ids;
+            }
+            function updateSelection() {
+                const n = selectedIds().length;
+                $('#selCount').text(n);
+                $('#btnUnapproveSelected').prop('disabled', n === 0);
+                $('.test-row:not(.in-profile)').each(function () { $(this).toggleClass('checked', $(this).find('.chk-test').is(':checked')); });
+                $('.profile-head').each(function () {
+                    const on = $(this).find('.chk-profile').is(':checked');
+                    $(this).toggleClass('checked', on);
+                    $('.test-row[data-profile="' + $(this).data('profile') + '"]').toggleClass('checked', on);
+                });
+                const total = $('.chk-test').length + $('.chk-profile').length;
+                $('#chkAll').prop('checked', total > 0 && ($('.chk-test:checked').length + $('.chk-profile:checked').length) === total);
+            }
+
+            // ── un-approve (reason required) ────────────────────────────────
+            async function unapprove(ids) {
+                if (!ids.length || !currentBill) return;
+                const picked = currentTests.filter(t => ids.includes(t.samplecollectionID));
+                const items = [];
+                picked.filter(t => !t.profileId).forEach(t => items.push('<li>' + esc(t.testName) + '</li>'));
+                const seen = {};
+                picked.filter(t => t.profileId).forEach(function (t) {
+                    if (seen[t.profileId]) return;
+                    seen[t.profileId] = true;
+                    const inP = picked.filter(x => x.profileId === t.profileId);
+                    items.push('<li><b>' + esc(t.profileName || t.groupName || 'Profile') + '</b> (profile, ' + inP.length + ' test' + (inP.length === 1 ? '' : 's') + ')</li>');
+                });
+                const listHtml = '<ul class="text-start fs-8 mb-2" style="max-height:140px;overflow:auto;">' + items.join('') + '</ul>';
+                const r = await Swal.fire({
+                    icon: 'warning',
+                    title: 'Un-approve ' + ids.length + ' test' + (ids.length === 1 ? '' : 's') + '?',
+                    footer: picked.some(t => t.profileId) ? '<span class="fs-8 text-muted">A profile is always un-approved as a whole.</span>' : undefined,
+                    html: listHtml
+                        + '<label class="form-label fs-8 fw-bold text-start d-block mb-1" for="swFor">For <span class="text-danger">*</span></label>'
+                        + '<select id="swFor" class="form-select mb-1">'
+                        +   '<option value="">— Select —</option>'
+                        +   '<option value="RETEST">Re-Test</option>'
+                        +   '<option value="RECOLLECT">Re-Collect</option>'
+                        + '</select>'
+                        + '<div id="swForHint" class="text-start fs-9 text-muted mb-2">Re-Test keeps the result for correction on the Entry page; Re-Collect sends the sample back to Sample Collection.</div>'
+                        + '<label class="form-label fs-8 fw-bold text-start d-block mb-1" for="swReason">Reason <span class="text-danger">*</span></label>'
+                        + '<textarea id="swReason" class="form-control" rows="3" maxlength="500" placeholder="e.g. Wrong value entered, re-run on analyser…"></textarea>',
+                    showCancelButton: true,
+                    confirmButtonText: 'Un-Approve',
+                    confirmButtonColor: '#d97706',
+                    focusConfirm: false,
+                    didOpen: function () {
+                        $('#swFor').on('change', function () {
+                            const v = $(this).val();
+                            $('#swForHint').toggleClass('text-danger', v === 'RECOLLECT').toggleClass('text-muted', v !== 'RECOLLECT')
+                                .html(v === 'RECOLLECT'
+                                    ? '<i class="bi bi-exclamation-triangle-fill me-1"></i>The sample goes back to the Sample Collection page as <b>Re-Collect</b> and the entered result is <b>cleared</b>.'
+                                    : (v === 'RETEST'
+                                        ? 'The test goes back to <b>Submitted</b> keeping its value, and is corrected on the Lab Reporting Entry page.'
+                                        : 'Re-Test keeps the result for correction on the Entry page; Re-Collect sends the sample back to Sample Collection.'));
+                        });
+                    },
+                    preConfirm: function () {
+                        const forVal = $('#swFor').val() || '';
+                        if (!forVal) { Swal.showValidationMessage('Please select what the withdrawal is for.'); return false; }
+                        const v = ($('#swReason').val() || '').trim();
+                        if (v.length < 5) { Swal.showValidationMessage('Please enter a reason (at least 5 characters).'); return false; }
+                        return { unapproveFor: forVal, reason: v };
+                    }
+                });
+                if (!r.isConfirmed) return;
+
+                $('#btnUnapproveSelected, .btn-unapprove-one, .btn-unapprove-profile').prop('disabled', true);
+                $.ajax({
+                    url: urls.unapprove, type: 'POST', contentType: 'application/json',
+                    data: JSON.stringify({ labOrderId: currentBill.labOrderId, samplecollectionIds: ids, reason: r.value.reason, action: r.value.unapproveFor })
+                }).done(function (res) {
+                    if (res && res.success) {
+                        toast(res.message, 'success');
+                        loadList(true);
+                        loadDetail(currentBill.labOrderId);
+                    } else {
+                        toast((res && res.message) || 'Unable to un-approve.', 'error');
+                        loadDetail(currentBill.labOrderId);
+                    }
+                }).fail(function () {
+                    toast('Server error while un-approving. Please try again.', 'error');
+                    loadDetail(currentBill.labOrderId);
+                });
+            }
+
+            // ── events ──────────────────────────────────────────────────────
+            $('#tblOrders').on('click', '.order-row', function () { loadDetail(parseInt($(this).data('id'))); });
+            $('#tblTests').on('change', '.chk-test, .chk-profile', updateSelection);
+            $('#chkAll').on('change', function () { $('.chk-test, .chk-profile').prop('checked', this.checked); updateSelection(); });
+            $('#tblTests').on('click', '.btn-unapprove-profile', function () { unapprove(profileApprovedIds(parseInt($(this).data('profile')))); });
+            $('#tblTests').on('click', '.btn-unapprove-one', function () { unapprove([parseInt($(this).data('id'))]); });
+            $('#btnUnapproveSelected').on('click', function () { unapprove(selectedIds()); });
+
+            $('#btnFilter').on('click', function () { resetDetail(); loadList(false); });
+            $('#fSearch').on('keydown', function (e) { if (e.key === 'Enter') { resetDetail(); loadList(false); } });
+            $('#fDateBasis, #fFrom, #fTo').on('change', function () { $('.quick-btn').removeClass('active'); });
+            $('.quick-btn').on('click', function () {
+                $('.quick-btn').removeClass('active'); $(this).addClass('active');
+                const days = parseInt($(this).data('days'));
+                const to = new Date(), from = new Date();
+                if (days === 1) { from.setDate(from.getDate() - 1); to.setDate(to.getDate() - 1); }
+                else if (days > 1) { from.setDate(from.getDate() - days); }
+                $('#fFrom').val(ymd(from)); $('#fTo').val(ymd(to));
+                resetDetail(); loadList(false);
+            });
+            $('.ua-card:not(.no-click)').on('click', function () {
+                $('.ua-card').removeClass('active-card'); $(this).addClass('active-card');
+                approvalType = $(this).data('type');
+                resetDetail(); loadList(false);
+            });
+
+            loadList(false);
+        });
+    </script>
+}

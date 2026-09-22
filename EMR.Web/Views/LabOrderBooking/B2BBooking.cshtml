@@ -1835,27 +1835,35 @@
                 var $btn = $('#btnSaveB2BSubmit');
                 $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Validating...');
 
+                function restoreBtn() {
+                    $btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Save & Book B2B Order');
+                }
+
+                function doSubmit() {
+                    $('#LineItemsJson').val(JSON.stringify(lineItems));
+                    document.getElementById('frmB2BBooking').submit();
+                }
+
+                // If spot payment data has already been captured, bypass checks and submit immediately
+                if ($('#hdnPaymentDataJson').val()) {
+                    $('#hdnDeductFromWallet').val('false');
+                    $('#chkDeductWallet').prop('checked', false);
+                    doSubmit();
+                    return;
+                }
+
                 $.get('/LabOrderBooking/GetPartnerCreditStatus', {
                     agentType: currentAgentType,
                     agentId: currentAgentId
                 }, function(res) {
                     var credit = (res && res.success && res.data) ? res.data : partnerCreditData;
-                    // Refresh local cache with live data
+                    // Refresh local cache with live data (do not force-reset user's payment choices)
                     if (res && res.success && res.data) {
                         partnerCreditData = res.data;
-                        applyPartnerCreditUI(partnerCreditData);
+                        applyPartnerCreditUI(partnerCreditData, false);
                     }
 
                     var currentB2BTotal = parseFloat($('#B2BTotal').val()) || 0;
-
-                    function restoreBtn() {
-                        $btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Save & Book B2B Order');
-                    }
-
-                    function doSubmit() {
-                        $('#LineItemsJson').val(JSON.stringify(lineItems));
-                        document.getElementById('frmB2BBooking').submit();
-                    }
 
                     if (!credit) {
                         // No credit data — allow server to validate
@@ -1894,6 +1902,14 @@
 
                     // 3. Prepaid (Wallet) Facility: Insufficient Balance Check (runtime)
                     if (credit.creditFacilityType === 1) {
+                        // If spot payment was already captured, proceed to submit
+                        if ($('#hdnPaymentDataJson').val()) {
+                            $('#hdnDeductFromWallet').val('false');
+                            $('#chkDeductWallet').prop('checked', false);
+                            doSubmit();
+                            return;
+                        }
+
                         var isDeductWallet = $('#chkDeductWallet').is(':checked');
                         if (isDeductWallet) {
                             if (credit.walletBalance < currentB2BTotal) {
@@ -1914,7 +1930,9 @@
                                     if (result.isConfirmed) {
                                         openWalletTopUpModal();
                                     } else if (result.dismiss === Swal.DismissReason.cancel) {
-                                        $('#chkDeductWallet').prop('checked', false).trigger('change');
+                                        $('#chkDeductWallet').prop('checked', false);
+                                        $('#hdnDeductFromWallet').val('false');
+                                        validateCreditPolicy();
                                         triggerPrepaidSpotPayment();
                                     }
                                     // result.dismiss === Swal.DismissReason.close (✕ button):
@@ -2255,7 +2273,7 @@
                 $.get(`/LabOrderBooking/GetPartnerCreditStatus?agentType=${currentAgentType}&agentId=${currentAgentId}`, function(res) {
                     if (res && res.success && res.data) {
                         partnerCreditData = res.data;
-                        applyPartnerCreditUI(partnerCreditData);
+                        applyPartnerCreditUI(partnerCreditData, true);
                     } else {
                         partnerCreditData = null;
                         $('#partnerFacilityBadgeContainer').empty();
@@ -2297,7 +2315,7 @@
             }
         }
 
-        function applyPartnerCreditUI(credit) {
+        function applyPartnerCreditUI(credit, isInitial = false) {
             $('#partnerDetailsGrid').show();
 
             // Facility Type Badge
@@ -2310,8 +2328,12 @@
                 $('#sectionPrepaidWallet').show();
                 $('#sectionPostpaidCredit').hide();
                 $('#lblWalletBalance').text(`₹ ${credit.walletBalance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
-                $('#chkDeductWallet').prop('checked', true);
-                $('#hdnDeductFromWallet').val('true');
+
+                // Only default to checked on initial partner selection, NEVER override user's choice during re-fetch
+                if (isInitial || $('#hdnDeductFromWallet').val() === '') {
+                    $('#chkDeductWallet').prop('checked', true);
+                    $('#hdnDeductFromWallet').val('true');
+                }
             } else { // Postpaid (Credit)
                 $('#partnerFacilityBadgeContainer').html(`
                     <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1">
@@ -2510,19 +2532,43 @@
                         };
                     }),
                     onCancel: function () {
-                        // Cancelled
+                        var $btn = $('#btnSaveB2BSubmit');
+                        $btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Save & Book B2B Order');
                     },
                     onSave: function (paymentData) {
                         $('#hdnPaymentDataJson').val(JSON.stringify(paymentData));
-                        $('#frmB2BBooking').submit();
+                        $('#hdnDeductFromWallet').val('false');
+                        $('#chkDeductWallet').prop('checked', false);
+
+                        var pmModalEl = document.getElementById('paymentModal');
+                        if (pmModalEl) {
+                            var pmModalInstance = bootstrap.Modal.getInstance(pmModalEl);
+                            if (pmModalInstance) pmModalInstance.hide();
+                        }
+
+                        $('#LineItemsJson').val(JSON.stringify(lineItems));
+                        document.getElementById('frmB2BBooking').submit();
                     },
                     onSkip: function (paymentData) {
                         $('#hdnPaymentDataJson').val(JSON.stringify(paymentData));
-                        $('#frmB2BBooking').submit();
+                        $('#hdnDeductFromWallet').val('false');
+                        $('#chkDeductWallet').prop('checked', false);
+
+                        var pmModalEl = document.getElementById('paymentModal');
+                        if (pmModalEl) {
+                            var pmModalInstance = bootstrap.Modal.getInstance(pmModalEl);
+                            if (pmModalInstance) pmModalInstance.hide();
+                        }
+
+                        $('#LineItemsJson').val(JSON.stringify(lineItems));
+                        document.getElementById('frmB2BBooking').submit();
                     }
                 });
             } else {
-                $('#frmB2BBooking').submit();
+                $('#hdnDeductFromWallet').val('false');
+                $('#chkDeductWallet').prop('checked', false);
+                $('#LineItemsJson').val(JSON.stringify(lineItems));
+                document.getElementById('frmB2BBooking').submit();
             }
         }
 

@@ -45,3 +45,6 @@ appsettings.Development.json
 wwwroot/uploads/
 
 # EF Core migration snapshots are tracked — no exclusion needed
+
+# Uploaded pathologist signatures (kept outside the public web root)
+EMR.Web/App_Data/

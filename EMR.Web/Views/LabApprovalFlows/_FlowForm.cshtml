@@ -1,0 +1,271 @@
+@model EMR.Web.Models.ViewModels.LabApprovalFlowFormViewModel
+@{
+    bool isEdit = ViewData["IsEdit"] as bool? ?? false;
+    var levelPalette = new[] { "#0f766e", "#0369a1", "#7c3aed" };
+}
+
+<style>
+    /* Searchable (Select2) dropdowns styled like the Bootstrap form-select used elsewhere on the page */
+    .flow-select2 + .select2-container { width: 100% !important; }
+    .flow-select2 + .select2-container .select2-selection--single { height: calc(2.375rem + 2px); border: 1px solid #ced4da; border-radius: .375rem; display: flex; align-items: center; }
+    .flow-select2 + .select2-container .select2-selection__rendered { padding-left: .75rem; padding-right: 2rem; color: #212529; line-height: 1.5; }
+    .flow-select2 + .select2-container .select2-selection__rendered { order: 1; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    .flow-select2 + .select2-container .select2-selection__clear { order: 2; margin: 0 1.9rem 0 .25rem; float: none; color: #94a3b8; font-size: 1.15rem; line-height: 1; }
+    .flow-select2 + .select2-container .select2-selection__clear:hover { color: #dc3545; }
+    .flow-select2 + .select2-container .select2-selection__arrow { height: 100%; right: .5rem; }
+    .flow-select2 + .select2-container--focus .select2-selection--single,
+    .flow-select2 + .select2-container--open .select2-selection--single { border-color: #86b7fe; box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); }
+    .select2-container--default .select2-results__option[aria-selected=true] { background: #eff6ff; color: #1d4ed8; }
+    /* Multi-select dropdowns: the app's shared cms-* component (same look as User Master > Department Access) */
+    .flow-cms .cms-trigger { min-height: calc(2.375rem + 2px); }
+    .flow-cms .cms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-cms .cms-label.is-placeholder { color: #6c757d; }
+    .flow-cms .cms-noresult { display: none; }
+    .flow-cms .cms-option.approver-row { padding: .42rem 1rem; margin: 0; border-radius: 0; }
+    .flow-cms .cms-option.approver-row.is-locked { opacity: .5; cursor: not-allowed; }
+    .flow-cms .cms-option.approver-row.is-ineligible { background: #fff7ed; }
+    .level-card .flow-cms .cms-options-container { max-height: 240px; }
+    .select2-dropdown { border-color: #86b7fe; border-radius: .375rem; z-index: 1056; }
+    .select2-search--dropdown .select2-search__field { border: 1px solid #ced4da; border-radius: .375rem; padding: .35rem .6rem; }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] { background: #0d6efd; }
+    .select2-results__option { padding: .4rem .75rem; }
+
+    .flow-level-pick { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .flow-level-pick .lvl-opt { flex: 1 1 0; min-width: 120px; }
+    .flow-level-pick input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+    .flow-level-pick label { display: block; text-align: center; border: 1.5px solid #dbe2ef; border-radius: .75rem; padding: .6rem .5rem; cursor: pointer; background: #fff; transition: all .15s; }
+    .flow-level-pick label .n { display: block; font-size: 1.4rem; font-weight: 800; line-height: 1; color: #64748b; }
+    .flow-level-pick label .t { font-size: .7rem; text-transform: uppercase; letter-spacing: .3px; color: #94a3b8; font-weight: 600; }
+    .flow-level-pick input:checked + label { border-color: #0d6efd; background: #eff6ff; box-shadow: 0 0 0 3px rgba(13,110,253,.12); }
+    .flow-level-pick input:checked + label .n { color: #0d6efd; }
+    .flow-level-pick input:focus-visible + label { outline: 2px solid #0d6efd; outline-offset: 2px; }
+
+    .level-card { --lc: #0f766e; border: 1px solid #e2e8f0; border-left: 5px solid var(--lc); border-radius: .75rem; background: #fff; }
+    .level-card .lc-head { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid #f1f5f9; }
+    .level-card .lc-badge { width: 34px; height: 34px; border-radius: 50%; background: var(--lc); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .level-card .lc-list { max-height: 210px; overflow-y: auto; padding: .35rem .5rem; }
+    .approver-row { display: flex; align-items: center; gap: .55rem; padding: .35rem .5rem; border-radius: .5rem; cursor: pointer; margin: 0; }
+    .approver-row:hover { background: #f8fafc; }
+    .approver-row input { flex-shrink: 0; }
+    .approver-row .ap-name { font-weight: 600; font-size: .86rem; color: #1e293b; }
+    .approver-row .ap-reg { font-size: .72rem; color: #64748b; margin-left: auto; white-space: nowrap; }
+    .approver-row .ap-main { min-width: 0; flex: 1 1 auto; display: block; }
+    .approver-row .ap-sub { display: block; font-size: .68rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .approver-match { border: 1px solid #dbeafe; background: #f8fbff; border-radius: .75rem; padding: .65rem .9rem; }
+    .approver-match .nl-row { display: flex; gap: .5rem; align-items: baseline; padding: .2rem 0; border-top: 1px dashed #e2e8f0; font-size: .78rem; }
+    .approver-match .nl-row:first-child { border-top: 0; }
+    .approver-match .nl-name { font-weight: 600; color: #334155; white-space: nowrap; }
+    .approver-match .nl-reason { color: #b45309; }
+    .approver-row.is-locked { opacity: .5; cursor: not-allowed; }
+    .approver-row.is-ineligible { background: #fff7ed; }
+    .flow-preview { border: 1px dashed #cbd5e1; border-radius: .75rem; background: #f8fafc; padding: .85rem 1rem; }
+    .flow-preview .step { display: inline-flex; align-items: center; gap: .4rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 2rem; padding: .25rem .75rem .25rem .3rem; font-size: .8rem; }
+    .flow-preview .step b { width: 22px; height: 22px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .72rem; }
+    .flow-preview .arrow { color: #94a3b8; margin: 0 .35rem; }
+</style>
+
+<!-- ── Scope ─────────────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 border-bottom">
+        <h6 class="card-title fw-bold mb-0 text-dark"><i class="bi bi-bullseye me-2 text-primary"></i>Flow &amp; Scope</h6>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-3">
+            <!-- Code: always the first field (auto-generated, read-only) -->
+            <div class="col-md-4">
+                <label asp-for="Flow_Code" class="form-label fw-semibold"></label>
+                @if (isEdit)
+                {
+                    <input asp-for="Flow_Code" class="form-control bg-light fw-bold font-monospace" readonly />
+                }
+                else
+                {
+                    <input type="text" class="form-control bg-light text-muted" value="Auto-generated on save (e.g. LAF0001)" disabled />
+                }
+            </div>
+            <div class="col-md-8">
+                <label asp-for="Flow_Name" class="form-label fw-semibold required-field"></label>
+                <input asp-for="Flow_Name" class="form-control" maxlength="150" placeholder="e.g. Histopathology – 2 pathologist sign-off" />
+                <span asp-validation-for="Flow_Name" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label asp-for="Branch_ID" class="form-label fw-semibold"></label>
+                <select asp-for="Branch_ID" id="selBranch" class="form-select flow-select2" asp-items="Model.BranchOptions">
+                    <option value="">All Branches (company-wide)</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Department_ID" class="form-label fw-semibold"></label>
+                <select asp-for="Department_ID" id="selDepartment" class="form-select flow-select2" asp-items="Model.DepartmentOptions">
+                    <option value="">All Departments</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Category_IDs" class="form-label fw-semibold"></label>
+                <div class="cms-wrap flow-cms" id="catWrap">
+                    <div class="cms-trigger" id="catTrigger" tabindex="0" role="button" aria-haspopup="listbox" aria-label="Test Categories">
+                        <span class="cms-label is-placeholder" id="catLabel">All test categories</span>
+                        <i class="bi bi-chevron-down cms-arrow"></i>
+                    </div>
+                    <div class="cms-dropdown">
+                        <div class="cms-search-box p-2 border-bottom bg-white">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0 ps-0 cms-search-input" placeholder="Type to search test category..." autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="cms-options-container" id="catOptions">
+                            @foreach (var c in Model.CategoryOptions)
+                            {
+                                <label class="cms-option" data-id="@c.CategoryId" data-dept="@c.DepartmentId" data-search-text="@c.CategoryName.ToLowerInvariant()">
+                                    <input type="checkbox" name="Category_IDs" value="@c.CategoryId" checked="@(Model.Category_IDs.Contains(c.CategoryId))" />
+                                    <span>@c.CategoryName</span>
+                                </label>
+                            }
+                            <div class="cms-noresult text-muted small px-3 py-2 text-center"><i class="bi bi-search me-1"></i>No matching test categories found.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-text">Pick one or more. Leave empty for all test categories.</div>
+                <span asp-validation-for="Category_IDs" class="text-danger small"></span>
+            </div>
+
+            <div class="col-12">
+                <div class="alert alert-info border-0 py-2 px-3 mb-0 small d-flex gap-2 align-items-start">
+                    <i class="bi bi-info-circle-fill mt-1"></i>
+                    <div>
+                        This flow applies to: <b id="scopeText">—</b>.
+                        When a report is approved the most specific flow wins:
+                        <b>Test Category</b> &rarr; <b>Department</b> &rarr; <b>Branch default</b> &rarr; <b>Company default</b>.
+                        Only one flow is allowed per exact scope.
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="form-check form-switch">
+                    <input asp-for="Status" class="form-check-input" type="checkbox" role="switch" id="statusSwitch">
+                    <label class="form-check-label fw-semibold" for="statusSwitch">Active Status</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Levels ────────────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h6 class="card-title fw-bold mb-0 text-dark"><i class="bi bi-diagram-3-fill me-2 text-primary"></i>Approval Levels</h6>
+        <span class="text-muted small">Sequential: Level 1 approves first, then Level 2, then Level 3. The report is final after the last level.</span>
+    </div>
+    <div class="card-body p-4">
+        <label class="form-label fw-semibold">How many approvals are required?</label>
+        <div class="flow-level-pick mb-4" role="radiogroup" aria-label="Number of approval levels">
+            @for (int n = 1; n <= 3; n++)
+            {
+                <div class="lvl-opt">
+                    <input type="radio" name="Required_Levels" id="lvl@(n)" value="@n" checked="@(Model.Required_Levels == n)" />
+                    <label for="lvl@(n)"><span class="n">@n</span><span class="t">@(n == 1 ? "Single approval" : n == 2 ? "Two approvals" : "Three approvals")</span></label>
+                </div>
+            }
+        </div>
+        <span asp-validation-for="Required_Levels" class="text-danger small d-block mb-2"></span>
+
+        <div id="scopeWarning" class="alert alert-warning py-2 small d-none"></div>
+
+        <!-- Who can be picked: matched against User Master (Assigned Department(s) + Test Categories sign-off scope) -->
+        <div class="approver-match mb-3" id="approverMatch">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-person-check-fill text-primary mt-1"></i>
+                <div class="flex-grow-1 small">
+                    <span id="approverMatchText">
+                        Showing <b id="eligibleCount">@Model.Approvers.Count(a => !Model.IneligibleSelectedIds.Contains(a.UserId))</b> pathologist(s) whose
+                        <b>Assigned Department(s)</b> and <b>Test Categories (sign-off scope)</b> in User Master match the scope above.
+                    </span>
+                    <a href="#" id="toggleNotListed" class="ms-1 text-decoration-none @(Model.NotListedApprovers.Any() ? "" : "d-none")">
+                        <i class="bi bi-question-circle me-1"></i>Why are <span id="notListedCount">@Model.NotListedApprovers.Count</span> not listed?
+                    </a>
+                    <div id="notListedBox" class="d-none mt-2">
+                        @foreach (var n in Model.NotListedApprovers)
+                        {
+                            <div class="nl-row"><span class="nl-name">@n.FullName</span><span class="nl-reason">@n.IneligibleReason</span></div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3" id="levelCards">
+            @for (int i = 0; i < 3; i++)
+            {
+                var level = Model.Levels[i];
+                var selected = level.ApproverIds.ToHashSet();
+                var color = levelPalette[i];
+                <div class="col-lg-4 level-col" data-level="@(i + 1)">
+                    <div class="level-card h-100" style="--lc: @color">
+                        <div class="lc-head">
+                            <div class="lc-badge">@(i + 1)</div>
+                            <div class="flex-grow-1">
+                                <input type="hidden" name="Levels[@i].LevelNo" value="@(i + 1)" />
+                                <input type="text" name="Levels[@i].Title" value="@level.Title" class="form-control form-control-sm fw-semibold level-title"
+                                       maxlength="100" placeholder="@(i == 0 ? "Level 1 – e.g. Primary Pathologist" : $"Level {i + 1} title")" />
+                            </div>
+                        </div>
+                        <div class="p-3">
+                            <label class="form-label small fw-semibold text-muted mb-1">Approvers</label>
+                            <div class="cms-wrap flow-cms">
+                                <div class="cms-trigger level-trigger" tabindex="0" role="button" aria-haspopup="listbox" aria-label="Level @(i + 1) approvers">
+                                    <span class="cms-label is-placeholder level-label">Select approvers...</span>
+                                    <i class="bi bi-chevron-down cms-arrow"></i>
+                                </div>
+                                <div class="cms-dropdown">
+                                    <div class="cms-search-box p-2 border-bottom bg-white">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="text" class="form-control border-start-0 ps-0 cms-search-input" placeholder="Type to search pathologist..." autocomplete="off">
+                                        </div>
+                                    </div>
+                                    <div class="cms-options-container lc-list" data-list="@i">
+                                        @foreach (var a in Model.Approvers)
+                                        {
+                                            var ineligible = Model.IneligibleSelectedIds.Contains(a.UserId);
+                                            <label class="cms-option approver-row @(ineligible ? "is-ineligible" : "")" data-user="@a.UserId" data-search="@((a.FullName + " " + a.RegistrationNo + " " + a.DepartmentNames + " " + a.CategoryNames).ToLowerInvariant())">
+                                                <input type="checkbox" name="Levels[@i].ApproverIds" value="@a.UserId" checked="@selected.Contains(a.UserId)" />
+                                                <span class="ap-main">
+                                                    <span class="ap-name">@a.FullName</span>
+                                                    <span class="ap-sub" title="Departments: @a.DepartmentNames | Categories: @a.CategoryNames">@(string.IsNullOrWhiteSpace(a.DepartmentNames) ? "No department assigned" : a.DepartmentNames) · @a.CategoryNames</span>
+                                                </span>
+                                                @if (ineligible)
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="@a.IneligibleReason">no match</span>
+                                                }
+                                                <span class="ap-reg">@(string.IsNullOrWhiteSpace(a.RegistrationNo) ? "" : "Reg: " + a.RegistrationNo)</span>
+                                            </label>
+                                        }
+                                        <div class="text-muted small text-center py-3 approvers-empty" style="@(Model.Approvers.Any() ? "display:none;" : "")">
+                                            No pathologist in User Master matches this scope.
+                                        </div>
+                                        <div class="cms-noresult text-muted small px-3 py-2 text-center"><i class="bi bi-search me-1"></i>No matching pathologists found.</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="small text-muted mt-1 level-picked"></div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="form-check form-switch mt-4">
+            <input asp-for="Allow_Same_Approver" class="form-check-input" type="checkbox" role="switch" id="allowSameSwitch">
+            <label class="form-check-label fw-semibold" for="allowSameSwitch">@Html.DisplayNameFor(m => m.Allow_Same_Approver)</label>
+            <div class="form-text">Off (recommended): a pathologist can approve only one level of a report, so every sign-off is by a different person.</div>
+        </div>
+
+        <div class="flow-preview mt-4">
+            <div class="text-muted small fw-semibold text-uppercase mb-2"><i class="bi bi-eye me-1"></i>Flow preview</div>
+            <div id="flowPreview"></div>
+        </div>
+    </div>
+</div>
