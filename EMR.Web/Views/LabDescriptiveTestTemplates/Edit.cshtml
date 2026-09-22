@@ -1,0 +1,184 @@
+@model EMR.Web.Models.ViewModels.LabDescriptiveTestTemplateFormViewModel
+
+@{
+    ViewData["Title"] = "Edit Descriptive Test Template";
+}
+
+@section HeadStyles {
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+<link rel="stylesheet" href="~/lib/quill/quill.snow.css" />
+<style>
+    .ql-editor { min-height: 200px; font-size: 0.95rem; }
+    .ql-toolbar.ql-snow { border-radius: 0.375rem 0.375rem 0 0; }
+    .ql-container.ql-snow { border-radius: 0 0 0.375rem 0.375rem; }
+</style>
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Descriptive Test Template</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-pencil-square me-2"></i>Edit Descriptive Test Template
+            </h4>
+        </div>
+    </div>
+
+    <form asp-action="Edit" asp-route-id="@Model.Template_ID" method="post" id="templateForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Template_ID" />
+        <input type="hidden" asp-for="CompanyId" />
+
+        @if (ViewData.ModelState.ErrorCount > 0)
+        {
+            <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Please correct the following:</strong>
+                <ul class="mb-0 mt-1">
+                    @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                    {
+                        <li>@error.ErrorMessage</li>
+                    }
+                </ul>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="Test_ID" class="form-label small fw-semibold text-muted">Test (Radiology) <span class="text-danger">*</span></label>
+                        <select asp-for="Test_ID" class="form-select form-select-sm" id="testSelect">
+                            @if (Model.Test_ID > 0 && !string.IsNullOrEmpty(Model.Test_Name))
+                            {
+                                <option value="@Model.Test_ID" selected>@Model.Test_Name</option>
+                            }
+                            <option value="">-- Select Test --</option>
+                        </select>
+                        <span asp-validation-message-for="Test_ID" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Section_Name" class="form-label small fw-semibold text-muted">Section Name <span class="text-danger">*</span></label>
+                        <input asp-for="Section_Name" class="form-control form-control-sm" maxlength="200" />
+                        <span asp-validation-message-for="Section_Name" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Section_Sequence" class="form-label small fw-semibold text-muted">Section Sequence <span class="text-danger">*</span></label>
+                        <input asp-for="Section_Sequence" type="number" class="form-control form-control-sm" min="1" max="999" />
+                        <span asp-validation-message-for="Section_Sequence" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check form-switch mb-2">
+                            <input asp-for="Is_Mandatory" class="form-check-input" type="checkbox" />
+                            <label asp-for="Is_Mandatory" class="form-check-label small fw-semibold">Mandatory</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="IsActive" class="form-label small fw-semibold text-muted">Status</label>
+                        <div class="form-check form-switch mt-1">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                            <label asp-for="IsActive" class="form-check-label small fw-semibold">Active</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Placeholder_Tags" class="form-label small fw-semibold text-muted">Placeholder Tags</label>
+                        <input asp-for="Placeholder_Tags" class="form-control form-control-sm" maxlength="500"
+                               placeholder="e.g. {{PatientAge}},{{PatientGender}}" />
+                        <span asp-validation-message-for="Placeholder_Tags" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold text-muted">Default Content (HTML)</label>
+                        <div id="quillEditor"></div>
+                        <input type="hidden" asp-for="Default_Content_Html" id="hiddenContent" />
+                    </div>
+                </div>
+
+                <hr class="my-3" />
+                <div class="d-flex justify-content-end gap-2">
+                    <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary btn-sm px-3" id="btnSave">
+                        <i class="bi bi-check-circle me-1"></i>Update
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js"></script>
+<script src="~/lib/quill/quill.min.js"></script>
+<script>
+$(function () {
+    // Select2 for radiology tests
+    $('#testSelect').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Select Test --',
+        allowClear: true,
+        minimumInputLength: 1,
+        ajax: {
+            url: '@Url.Action("SearchRadiologyTests")',
+            dataType: 'json',
+            delay: 300,
+            data: function (params) { return { term: params.term }; },
+            processResults: function (data) { return { results: data }; }
+        }
+    });
+
+    // Quill rich text editor
+    var quill = new Quill('#quillEditor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'script': 'sub' }, { 'script': 'super' }],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                [{ 'indent': '-1' }, { 'indent': '+1' }],
+                [{ 'align': [] }],
+                ['blockquote', 'code-block'],
+                ['link', 'image'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'font': [] }, { 'size': ['small', false, 'large', 'huge'] }],
+                ['clean']
+            ],
+            clipboard: { matchVisual: false }
+        },
+        placeholder: 'Enter default content for this section...'
+    });
+
+    // Load existing content into Quill
+    var existingHtml = $('#hiddenContent').val();
+    if (existingHtml) {
+        quill.root.innerHTML = existingHtml;
+    }
+
+    // Sync Quill content to hidden input on form submit
+    $('#templateForm').on('submit', function () {
+        var html = quill.root.innerHTML;
+        if (html === '<p><br></p>') html = '';
+        $('#hiddenContent').val(html);
+    });
+
+    // Numeric-only for sequence
+    $('input[name="Section_Sequence"]').on('keydown', function (e) {
+        if ([8, 9, 13, 27, 46, 37, 38, 39, 40].indexOf(e.keyCode) !== -1 ||
+            (e.keyCode >= 48 && e.keyCode <= 57) ||
+            (e.keyCode >= 96 && e.keyCode <= 105)) return;
+        e.preventDefault();
+    });
+});
+</script>
+}

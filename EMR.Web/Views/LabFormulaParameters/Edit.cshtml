@@ -295,8 +295,15 @@ $(function () {
     });
 
     $('#formulaDirectInput').on('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); flushDirectInput(); }
-        if (e.key === 'Backspace' && !$(this).val()) { e.preventDefault(); removeLastToken(); }
+        if (e.key === 'Enter') { e.preventDefault(); flushDirectInput(); return; }
+        if (e.key === 'Backspace' && !$(this).val()) { e.preventDefault(); removeLastToken(); return; }
+        var allowed = '0123456789.+-*/()';
+        if (e.key.length === 1 && allowed.indexOf(e.key) === -1 && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+        }
+    });
+    $('#formulaDirectInput').on('input', function () {
+        $(this).val($(this).val().replace(/[^0-9.+\-*/()]/g, ''));
     });
 
     $('#formulaBuilder').on('click', function () { $('#formulaDirectInput').focus(); });
@@ -310,15 +317,19 @@ $(function () {
     });
 
     function flushDirectInput() {
-        var val = $.trim($('#formulaDirectInput').val());
-        if (val) {
-            if (/^[\d.]+$/.test(val)) {
-                addToken({ type: 'num', value: val });
-            } else {
-                addToken({ type: 'op', value: val });
+        var val = $.trim($('#formulaDirectInput').val()).replace(/[^0-9.+\-*/()]/g, '');
+        if (!val) { $('#formulaDirectInput').val(''); return; }
+        var parts = val.match(/(\d+\.?\d*|[+\-*/()])/g);
+        if (parts) {
+            for (var i = 0; i < parts.length; i++) {
+                if (/^\d/.test(parts[i])) {
+                    addToken({ type: 'num', value: parts[i] });
+                } else {
+                    addToken({ type: 'op', value: parts[i] });
+                }
             }
-            $('#formulaDirectInput').val('');
         }
+        $('#formulaDirectInput').val('');
     }
 
     function addToken(token) { formulaTokens.push(token); renderBuilder(); }
