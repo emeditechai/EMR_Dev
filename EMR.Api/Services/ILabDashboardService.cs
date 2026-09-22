@@ -6,5 +6,5 @@ namespace EMR.Api.Services;
 
 public interface ILabDashboardService
 {
-    Task<LabDashboardData> GetDashboardStatsAsync(int branchId, DateTime date);
+    Task<LabDashboardData> GetDashboardStatsAsync(int branchId, DateTime date, string? clientType = null);
 }

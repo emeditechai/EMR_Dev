@@ -43,6 +43,9 @@ public class BranchFormViewModel
     [Display(Name = "Head Office Branch")]
     public bool IsHOBranch { get; set; }
 
+    [Display(Name = "Is Lab")]
+    public bool IsLab { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 }
@@ -106,6 +109,7 @@ public class BranchDetailsViewModel
     public string? Address { get; set; }
     public string? Pincode { get; set; }
     public bool IsHOBranch { get; set; }
+    public bool IsLab { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedDate { get; set; }
     public DateTime? ModifiedDate { get; set; }

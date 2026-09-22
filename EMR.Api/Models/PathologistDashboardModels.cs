@@ -110,6 +110,10 @@ public class PathologistTestDto
     public bool IsApproved { get; set; }
     public string? NextLevelApprovers { get; set; }
     public string? NextLevelTitle { get; set; }
+    // Prior result for delta check (same patient + investigation, most recent earlier order)
+    public string? PreviousTestValue { get; set; }
+    public DateTime? PreviousOrderDate { get; set; }
+    public string? PreviousUnitSymbol { get; set; }
 }
 
 public class PathologistApprovalHistoryDto

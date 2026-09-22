@@ -97,7 +97,7 @@ public class PathologistDashboardController(
 
     /// <summary>The sign-off screen for one bill (the Report Entry equivalent for a pathologist).</summary>
     [HttpGet]
-    public async Task<IActionResult> Approve(int labOrderId)
+    public async Task<IActionResult> Approve(int labOrderId, bool embed = false)
     {
         var access = await GetAccessAsync();
         if (access == null) return View("AccessDenied", await BuildDeniedAsync());
@@ -112,6 +112,8 @@ public class PathologistDashboardController(
         }
 
         ViewData["Profile"] = access.Profile;
+        // embed=true: rendered inside the dashboard's sign-off modal (iframe) - same content, chrome-less layout.
+        ViewData["Embed"] = embed;
         return View(detail);
     }
 

@@ -11,7 +11,7 @@ namespace EMR.Api.Controllers;
 public class LabDashboardController(ILabDashboardService labDashboardService) : ControllerBase
 {
     [HttpGet("stats")]
-    public async Task<ActionResult<LabDashboardData>> GetStats([FromQuery] int branchId, [FromQuery] string? date)
+    public async Task<ActionResult<LabDashboardData>> GetStats([FromQuery] int branchId, [FromQuery] string? date, [FromQuery] string? clientType = "ALL")
     {
         if (branchId <= 0)
         {
@@ -19,7 +19,7 @@ public class LabDashboardController(ILabDashboardService labDashboardService) : 
         }
 
         var filterDate = DateTime.TryParse(date, out var d) ? d : DateTime.Today;
-        var data = await labDashboardService.GetDashboardStatsAsync(branchId, filterDate);
+        var data = await labDashboardService.GetDashboardStatsAsync(branchId, filterDate, clientType);
         return Ok(data);
     }
 }

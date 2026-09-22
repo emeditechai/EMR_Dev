@@ -90,8 +90,22 @@
             <label asp-for="IsHOBranch" class="form-check-label"></label>
         </div>
         <div class="form-check">
+            <input asp-for="IsLab" class="form-check-input" />
+            <label asp-for="IsLab" class="form-check-label"></label>
+        </div>
+        <div class="form-check">
             <input asp-for="IsActive" class="form-check-input" />
             <label asp-for="IsActive" class="form-check-label"></label>
+        </div>
+    </div>
+    <div class="col-12">
+        <span asp-validation-for="IsHOBranch" class="text-danger small d-block"></span>
+        <div class="form-text">
+            <i class="bi bi-info-circle me-1"></i>Only one Head Office is allowed per company.
+            @if (Model.BranchId == 0)
+            {
+                <text>A new branch starts with a full copy of the company's Head Office <strong>Hospital Settings</strong>, which you can then adjust for this branch.</text>
+            }
         </div>
     </div>
 </div>

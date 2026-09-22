@@ -1,5 +1,10 @@
 @model EMR.Web.Models.DTOs.PathologistDetailResult
 @{
+    // embed=true: loaded inside the dashboard's sign-off modal (iframe) - same page, chrome-less layout,
+    // so the top navbar / footer are not duplicated inside the modal.
+    bool embed = ViewData["Embed"] as bool? ?? false;
+    Layout = embed ? "_EmbedLayout" : "_Layout";
+
     ViewData["Title"] = "Sign-off: " + (Model.Bill?.BillNo ?? "Report");
     var b = Model.Bill!;
     var profile = ViewData["Profile"] as EMR.Web.Models.DTOs.PathologistProfileDto;
@@ -7,6 +12,8 @@
     var doneTests = Model.Tests.Where(t => t.IsApproved).ToList();
     var waiting = Model.Tests.Where(t => !t.CanApproveNow && !t.IsApproved).ToList();
     var genderKey = (b.Gender ?? "").ToLowerInvariant().StartsWith("f") ? "female" : "male";
+    // Most recent validation timestamp among this bill's tests - when the report became ready for sign-off.
+    var validatedOn = Model.Tests.Where(t => t.ValidatedDate.HasValue).Select(t => t.ValidatedDate!.Value).DefaultIfEmpty().Max();
 
     // Print, exactly as on the Report Entry screen: a report can be printed once a test is validated or approved.
     // Part approved / part still awaiting a signature => two prints, the approved copy and the NOT APPROVED copy.
@@ -63,9 +70,24 @@
 
 <div class="container-fluid px-3 py-1.5 pa-wrapper">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-        <nav class="fs-8"><a asp-action="Index" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Pathologist Dashboard</a>
-            <span class="text-muted mx-1">/</span><span class="fw-semibold text-dark">Sign-off: @b.BillNo</span></nav>
+        @if (embed)
+        {
+            <nav class="fs-8"><span class="fw-semibold text-dark"><i class="bi bi-pen-fill text-danger me-1"></i>Sign-off: @b.BillNo</span></nav>
+        }
+        else
+        {
+            <nav class="fs-8"><a asp-action="Index" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Pathologist Dashboard</a>
+                <span class="text-muted mx-1">/</span><span class="fw-semibold text-dark">Sign-off: @b.BillNo</span></nav>
+        }
         <div class="d-flex gap-2 flex-wrap">
+            @* A pathologist who needs to correct a value opens the same bill on the Report Entry screen. *@
+            <a asp-controller="LabReporting" asp-action="Entry" asp-route-labOrderId="@b.LabOrderId"
+               target="_blank" rel="noopener"
+               class="btn btn-outline-primary btn-sm fs-8"
+               title="Open this bill on the Lab Reporting Entry screen to correct a result (opens in a new tab)">
+                <i class="bi bi-pencil-square me-1"></i>Open Report Entry
+                <i class="bi bi-box-arrow-up-right ms-1 fs-9 opacity-75"></i>
+            </a>
             @if (showPrint)
             {
                 <button type="button" class="btn btn-sm fs-8 px-3 btn-print-report @(printProvisional ? "is-provisional" : "")"
@@ -82,7 +104,10 @@
                     </button>
                 }
             }
-            <a asp-action="Index" class="btn btn-outline-secondary btn-sm fs-8"><i class="bi bi-x-lg me-1"></i>Close</a>
+            @if (!embed)
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary btn-sm fs-8"><i class="bi bi-x-lg me-1"></i>Close</a>
+            }
         </div>
     </div>
 
@@ -114,6 +139,10 @@
                         <div class="pa-chip"><span class="k">Token</span><span class="v pa-mono">@b.TokenNo</span></div>
                         <div class="pa-chip"><span class="k">Bill / Order</span><span class="v pa-mono">@b.BillNo</span></div>
                         <div class="pa-chip"><span class="k">Booked</span><span class="v">@b.BookingDateTime.ToString("dd MMM yyyy, hh:mm tt")</span></div>
+                        @if (validatedOn != default)
+                        {
+                            <div class="pa-chip"><span class="k">Validated</span><span class="v">@validatedOn.ToString("dd MMM yyyy, hh:mm tt")</span></div>
+                        }
                         @if (b.BillingType == "B2B")
                         {
                             <div class="pa-chip"><span class="k">B2B Client</span><span class="v">@b.ClientName</span></div>
@@ -148,6 +177,11 @@
         <div class="px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
             <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
                 <i class="bi bi-clipboard2-pulse me-1 text-danger"></i>Results for sign-off
+                <a asp-controller="LabReporting" asp-action="Entry" asp-route-labOrderId="@b.LabOrderId"
+                   target="_blank" rel="noopener" class="ms-2 text-decoration-none fw-normal"
+                   style="letter-spacing:0;text-transform:none;" title="Correct a result on the Lab Reporting Entry screen (opens in a new tab)">
+                    <i class="bi bi-pencil-square me-1"></i>Need to correct a value?
+                </a>
             </span>
             <div class="d-flex align-items-center gap-2">
                 <div class="form-check form-check-sm mb-0">
@@ -203,10 +237,39 @@
                                 <span class="mx-1">&bull;</span>@t.CategoryName
                             </div>
                         </td>
-                        <td><span class="val @flagCls">@t.TestValue</span>
+                        <td>
+                            <span class="val @flagCls">@t.TestValue</span>
                             @if (!string.IsNullOrWhiteSpace(t.AbnormalFlag) && t.AbnormalFlag != "Normal")
                             {
                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-1">@t.AbnormalFlag</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(t.PreviousTestValue))
+                            {
+                                double.TryParse(t.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var curNum);
+                                double.TryParse(t.PreviousTestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var prevNum);
+                                bool bothNumeric = !string.IsNullOrWhiteSpace(t.TestValue) && double.TryParse(t.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _)
+                                                   && double.TryParse(t.PreviousTestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _) && prevNum != 0;
+                                <div class="delta-check-container mt-1 fs-9" style="max-width:155px;line-height:1.25;">
+                                    <div class="text-muted">
+                                        Previous: <strong>@t.PreviousTestValue</strong> @(t.PreviousUnitSymbol ?? t.UnitName)
+                                        @if (t.PreviousOrderDate.HasValue)
+                                        {
+                                            <span class="text-secondary">(@t.PreviousOrderDate.Value.ToString("dd MMM"))</span>
+                                        }
+                                    </div>
+                                    @if (bothNumeric)
+                                    {
+                                        var deltaPct = (int)Math.Round(Math.Abs(curNum - prevNum) / prevNum * 100);
+                                        if (deltaPct >= 25)
+                                        {
+                                            <div class="fw-semibold mt-0.5"><span class="text-warning-emphasis fw-bold font-monospace">&Delta; @(deltaPct)% &mdash; delta check flagged</span></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="fw-semibold mt-0.5"><span class="text-secondary font-monospace">&Delta; @(deltaPct)%</span></div>
+                                        }
+                                    }
+                                </div>
                             }
                         </td>
                         <td class="text-muted">@t.UnitName</td>
@@ -262,32 +325,39 @@
     @if (Model.History.Any())
     {
         <div class="card pa-card shadow-sm mt-2">
-            <div class="px-3 py-2 border-bottom">
+            <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
                 <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
                     <i class="bi bi-clock-history me-1 text-danger"></i>Sign-off history
                 </span>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle p-0 d-flex align-items-center justify-content-center"
+                        style="width:22px;height:22px;" title="Show sign-off history" data-bs-toggle="collapse"
+                        data-bs-target="#signOffHistoryBody" aria-expanded="false" aria-controls="signOffHistoryBody">
+                    <i class="bi bi-info-lg" style="font-size:.75rem;"></i>
+                </button>
             </div>
-            <div class="card-body p-0">
-                <table class="table table-sm mb-0 fs-8">
-                    <thead><tr class="fs-9 text-muted text-uppercase"><th class="ps-3">Test</th><th>Level</th><th>Signed by</th><th>When</th><th>Remarks</th></tr></thead>
-                    <tbody>
-                    @foreach (var h in Model.History)
-                    {
-                        <tr>
-                            <td class="ps-3">@h.TestName</td>
-                            <td><span class="badge bg-secondary-subtle text-secondary border fs-9">@(h.LevelTitle ?? $"Level {h.Level_No}") (@h.Level_No/@h.TotalLevels)</span>
-                                @if (h.IsFinalLevel)
-                                {
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle fs-9 ms-1">Final</span>
-                                }
-                            </td>
-                            <td>@h.ApprovedByName</td>
-                            <td class="text-muted">@h.ApprovedDate.ToString("dd MMM yyyy, hh:mm tt")</td>
-                            <td class="text-muted">@(string.IsNullOrWhiteSpace(h.Remarks) ? "—" : h.Remarks)</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
+            <div class="collapse" id="signOffHistoryBody">
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0 fs-8">
+                        <thead><tr class="fs-9 text-muted text-uppercase"><th class="ps-3">Test</th><th>Level</th><th>Signed by</th><th>When</th><th>Remarks</th></tr></thead>
+                        <tbody>
+                        @foreach (var h in Model.History)
+                        {
+                            <tr>
+                                <td class="ps-3">@h.TestName</td>
+                                <td><span class="badge bg-secondary-subtle text-secondary border fs-9">@(h.LevelTitle ?? $"Level {h.Level_No}") (@h.Level_No/@h.TotalLevels)</span>
+                                    @if (h.IsFinalLevel)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle fs-9 ms-1">Final</span>
+                                    }
+                                </td>
+                                <td>@h.ApprovedByName</td>
+                                <td class="text-muted">@h.ApprovedDate.ToString("dd MMM yyyy, hh:mm tt")</td>
+                                <td class="text-muted">@(string.IsNullOrWhiteSpace(h.Remarks) ? "—" : h.Remarks)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     }
@@ -336,6 +406,10 @@
         $(function () {
             const url = '@Url.Action("ApproveJson", "PathologistDashboard")';
             const labOrderId = @b.LabOrderId;
+            // When embedded in the dashboard's sign-off modal, tell the parent so it can refresh its list /
+            // KPI counts in the background once the modal is closed - the modal itself stays exactly as is.
+            const isEmbedded = window.self !== window.top;
+            function notifyParent(type) { if (isEmbedded) { try { window.parent.postMessage({ type: type, labOrderId: labOrderId }, '*'); } catch (e) { /* ignore */ } } }
 
             function selected() { return $('.chk-test:checked').map(function () { return parseInt(this.value); }).get(); }
             function sync() {
@@ -374,6 +448,7 @@
                     data: JSON.stringify({ labOrderId: labOrderId, samplecollectionIds: ids, remarks: $('#txtRemarks').val() })
                 }).done(function (res) {
                     if (res && res.success) {
+                        notifyParent('pd-approved');
                         Swal.fire({ icon: 'success', title: 'Signed', text: res.message, timer: 2600, showConfirmButton: false })
                             .then(() => window.location.reload());
                     } else {

@@ -10,6 +10,11 @@ public class LabDashboardData
     public List<LabTopTestDto> TopInvestigations { get; set; } = new();
     public List<LabCategoryDistributionDto> CategoryDistribution { get; set; } = new();
     public List<LabDashboardPatientOrderDto> PatientOrders { get; set; } = new();
+    public LabReportingPipelineDto ReportingPipeline { get; set; } = new();
+    public LabBillingSummaryDto Billing { get; set; } = new();
+    public List<LabHourlyBookingDto> HourlyBookings { get; set; } = new();
+    public List<LabDepartmentWorkloadDto> DepartmentWorkload { get; set; } = new();
+    public List<LabTopClientDto> TopClients { get; set; } = new();
 }
 
 public class LabDashboardSummary
@@ -75,4 +80,54 @@ public class LabDashboardPatientOrderDto
     public int AlertCount { get; set; }
     public string OverallSampleStatus { get; set; } = "Pending";
     public string? TestSummary { get; set; }
+}
+
+/// <summary>Entry → validation → approval of today's tests, plus abnormal / critical counts and average TAT.</summary>
+public class LabReportingPipelineDto
+{
+    public int PendingEntry { get; set; }
+    public int Entered { get; set; }
+    public int Validated { get; set; }
+    public int Approved { get; set; }
+    public int AbnormalResults { get; set; }
+    public int CriticalResults { get; set; }
+    public decimal? AvgTatMinutes { get; set; }
+}
+
+/// <summary>What was billed and what was actually collected.</summary>
+public class LabBillingSummaryDto
+{
+    public decimal GrossAmount { get; set; }
+    public decimal CollectedAmount { get; set; }
+    public decimal OutstandingAmount { get; set; }
+    public int BillsWithDue { get; set; }
+    public int B2BOrders { get; set; }
+    public int B2COrders { get; set; }
+    public decimal B2BAmount { get; set; }
+    public decimal B2CAmount { get; set; }
+    public decimal AvgBillValue { get; set; }
+}
+
+public class LabHourlyBookingDto
+{
+    public int HourOfDay { get; set; }
+    public int OrderCount { get; set; }
+    public decimal Amount { get; set; }
+}
+
+public class LabDepartmentWorkloadDto
+{
+    public string DepartmentName { get; set; } = string.Empty;
+    public int TestCount { get; set; }
+    public int CollectedCount { get; set; }
+    public int ApprovedCount { get; set; }
+}
+
+public class LabTopClientDto
+{
+    public string? ClientType { get; set; }
+    public string? ClientName { get; set; }
+    public string? ClientCode { get; set; }
+    public int OrderCount { get; set; }
+    public decimal Amount { get; set; }
 }

@@ -18,7 +18,7 @@ public class LabDashboardController(
     ApplicationDbContext dbContext) : Controller
 {
     [HttpGet]
-    public async Task<IActionResult> Index(string? date)
+    public async Task<IActionResult> Index(string? date, string? clientType)
     {
         var branchId = User.GetCurrentBranchId();
         if (branchId is null)
@@ -36,7 +36,8 @@ public class LabDashboardController(
             .FirstOrDefaultAsync();
 
         var currentBranchName = User.FindFirstValue("BranchName") ?? "N/A";
-        var labData = await labDashboardApiClient.GetDashboardStatsAsync(branchId.Value, dateStr) 
+        var client = clientType?.Trim().ToUpperInvariant() is "B2B" or "B2C" ? clientType!.Trim().ToUpperInvariant() : "ALL";
+        var labData = await labDashboardApiClient.GetDashboardStatsAsync(branchId.Value, dateStr, client)
                       ?? new ApiClients.Models.LabDashboardData();
 
         var model = new LabDashboardViewModel
@@ -48,6 +49,7 @@ public class LabDashboardController(
                 : hospitalSettings.HospitalName!,
             HospitalLogoPath = hospitalSettings?.LogoPath,
             SelectedDate = dateStr,
+            ClientType = client,
             Data = labData
         };
 
