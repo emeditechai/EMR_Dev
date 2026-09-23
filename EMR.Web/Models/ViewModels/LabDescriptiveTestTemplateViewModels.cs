@@ -74,3 +74,65 @@ public class LabDescriptiveTestTemplateFormViewModel
     [Display(Name = "Status")]
     public bool IsActive { get; set; } = true;
 }
+
+public class LabDescriptiveTestTemplateBatchFormViewModel
+{
+    public int CompanyId { get; set; } = 1;
+
+    [Required(ErrorMessage = "Test is required.")]
+    [Display(Name = "Test (Radiology)")]
+    public int Test_ID { get; set; }
+
+    public string? Test_Name { get; set; }
+
+    [StringLength(50)]
+    [Display(Name = "Modality")]
+    public string? Modality { get; set; }
+
+    [StringLength(100)]
+    [Display(Name = "Body Part / Region")]
+    public string? Body_Part { get; set; }
+
+    [StringLength(20)]
+    [Display(Name = "Laterality")]
+    public string? Laterality { get; set; }
+
+    [Display(Name = "Contrast Required")]
+    public bool Contrast_Required { get; set; }
+
+    [StringLength(100)]
+    [Display(Name = "Contrast Agent")]
+    public string? Contrast_Agent { get; set; }
+
+    [StringLength(200)]
+    [Display(Name = "Views / Projections")]
+    public string? Views_Projections { get; set; }
+
+    [StringLength(1000)]
+    [Display(Name = "Preparation Instructions")]
+    public string? Preparation_Instructions { get; set; }
+
+    public List<LabDescriptiveTestTemplateSectionViewModel> Sections { get; set; } = [];
+}
+
+public class LabDescriptiveTestTemplateSectionViewModel
+{
+    [Required(ErrorMessage = "Section Name is required.")]
+    [StringLength(200)]
+    [Display(Name = "Section Name")]
+    public string Section_Name { get; set; } = string.Empty;
+
+    [Range(1, 999)]
+    [Display(Name = "Sequence")]
+    public int Section_Sequence { get; set; } = 1;
+
+    [Display(Name = "Mandatory")]
+    public bool Is_Mandatory { get; set; }
+
+    [Display(Name = "Default Content")]
+    public string? Default_Content_Html { get; set; }
+
+    [StringLength(500)]
+    [Display(Name = "Placeholder Tags")]
+    public string? Placeholder_Tags { get; set; }
+}

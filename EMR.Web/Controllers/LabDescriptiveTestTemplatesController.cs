@@ -114,6 +114,88 @@ public class LabDescriptiveTestTemplatesController(
     }
 
     [HttpGet]
+    public IActionResult BatchCreate()
+    {
+        var model = new LabDescriptiveTestTemplateBatchFormViewModel
+        {
+            CompanyId = User.GetCompanyId(),
+            Sections =
+            [
+                new() { Section_Name = "Clinical History", Section_Sequence = 1, Is_Mandatory = true },
+                new() { Section_Name = "Technique", Section_Sequence = 2, Is_Mandatory = true },
+                new() { Section_Name = "Comparison", Section_Sequence = 3 },
+                new() { Section_Name = "Findings", Section_Sequence = 4, Is_Mandatory = true },
+                new() { Section_Name = "Impression", Section_Sequence = 5, Is_Mandatory = true },
+                new() { Section_Name = "Recommendation", Section_Sequence = 6 }
+            ]
+        };
+
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BatchCreate(LabDescriptiveTestTemplateBatchFormViewModel model)
+    {
+        if (model.Sections == null || model.Sections.Count == 0)
+        {
+            ModelState.AddModelError(string.Empty, "At least one section is required.");
+            return View(model);
+        }
+
+        if (!ModelState.IsValid)
+            return View(model);
+
+        try
+        {
+            var req = new LabDescriptiveTestTemplateBatchCreateRequestModel
+            {
+                Test_ID = model.Test_ID,
+                Modality = model.Modality,
+                Body_Part = model.Body_Part,
+                Laterality = model.Laterality,
+                Contrast_Required = model.Contrast_Required,
+                Contrast_Agent = model.Contrast_Agent,
+                Views_Projections = model.Views_Projections,
+                Preparation_Instructions = model.Preparation_Instructions,
+                CompanyId = User.GetCompanyId(),
+                UserId = User.GetUserId(),
+                Sections = model.Sections.Select(s => new LabDescriptiveTestTemplateSectionRequestModel
+                {
+                    Section_Name = s.Section_Name,
+                    Section_Sequence = s.Section_Sequence,
+                    Is_Mandatory = s.Is_Mandatory,
+                    Default_Content_Html = s.Default_Content_Html,
+                    Placeholder_Tags = s.Placeholder_Tags
+                }).ToList()
+            };
+
+            var ids = await templateApiClient.BatchCreateAsync(req);
+
+            await auditLogService.LogAsync(
+                "Batch Create Descriptive Test Template",
+                "Create",
+                $"Created {ids.Count} template sections for Test ID #{model.Test_ID}",
+                User.GetUserId(),
+                User.GetCurrentBranchId() ?? 1
+            );
+
+            TempData["SuccessMessage"] = $"{ids.Count} template section(s) created successfully.";
+            return RedirectToAction(nameof(Index));
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return View(model);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Create Template (Multi-Section)";
+            return View("ApiDown");
+        }
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Edit(int id)
     {
         try

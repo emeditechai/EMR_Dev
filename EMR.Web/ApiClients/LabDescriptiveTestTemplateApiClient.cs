@@ -38,6 +38,18 @@ public class LabDescriptiveTestTemplateApiClient(IHttpClientFactory factory) : I
         return body?.Data ?? 0;
     }
 
+    public async Task<List<int>> BatchCreateAsync(LabDescriptiveTestTemplateBatchCreateRequestModel req)
+    {
+        var res = await Client.PostAsJsonAsync("api/lab-descriptive-test-templates/batch", req);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadFromJsonAsync<ApiResponse<object>>();
+            throw new InvalidOperationException(err?.Message ?? "Failed to create template sections.");
+        }
+        var body = await res.Content.ReadFromJsonAsync<ApiResponse<List<int>>>();
+        return body?.Data ?? [];
+    }
+
     public async Task<bool> UpdateAsync(LabDescriptiveTestTemplateUpdateRequestModel req)
     {
         var res = await Client.PutAsJsonAsync($"api/lab-descriptive-test-templates/{req.Template_ID}", req);

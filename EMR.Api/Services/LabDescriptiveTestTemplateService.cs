@@ -52,6 +52,41 @@ public class LabDescriptiveTestTemplateService(IDbConnectionFactory db) : ILabDe
         return p.Get<int>("@NewId");
     }
 
+    public async Task<List<int>> BatchCreateAsync(LabDescriptiveTestTemplateBatchCreateRequest req)
+    {
+        using var con = db.CreateConnection();
+        con.Open();
+        using var tx = con.BeginTransaction();
+
+        var ids = new List<int>();
+        foreach (var section in req.Sections)
+        {
+            var p = new DynamicParameters();
+            p.Add("@Test_ID", req.Test_ID);
+            p.Add("@Section_Name", section.Section_Name);
+            p.Add("@Section_Sequence", section.Section_Sequence);
+            p.Add("@Is_Mandatory", section.Is_Mandatory);
+            p.Add("@Default_Content_Html", section.Default_Content_Html);
+            p.Add("@Placeholder_Tags", section.Placeholder_Tags);
+            p.Add("@Modality", req.Modality);
+            p.Add("@Body_Part", req.Body_Part);
+            p.Add("@Laterality", req.Laterality);
+            p.Add("@Contrast_Required", req.Contrast_Required);
+            p.Add("@Contrast_Agent", req.Contrast_Agent);
+            p.Add("@Views_Projections", req.Views_Projections);
+            p.Add("@Preparation_Instructions", req.Preparation_Instructions);
+            p.Add("@CompanyId", req.CompanyId);
+            p.Add("@UserId", req.UserId);
+            p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
+
+            await con.ExecuteAsync("usp_Api_LabDescriptiveTestTemplate_Create", p, transaction: tx, commandType: CommandType.StoredProcedure);
+            ids.Add(p.Get<int>("@NewId"));
+        }
+
+        tx.Commit();
+        return ids;
+    }
+
     public async Task UpdateAsync(LabDescriptiveTestTemplateUpdateRequest req)
     {
         using var con = db.CreateConnection();
