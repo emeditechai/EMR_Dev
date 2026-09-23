@@ -1,6 +1,6 @@
 -- ====================================================================================================
 -- Script: 2129_investigation_opd_doc_prescription_required.sql
--- Description: Adds Is_OPD_Document_Required and Prescription_Required columns to
+-- Description: Adds OVD_Document and Prescription_Required columns to
 --              dbo.LabInvestigationMaster and updates stored procedures.
 -- Database:    Dev_EMR (SQL Server)
 -- ====================================================================================================
@@ -10,12 +10,12 @@ GO
 
 SET NOCOUNT ON;
 
-PRINT 'Adding Is_OPD_Document_Required and Prescription_Required columns to dbo.LabInvestigationMaster...';
+PRINT 'Adding OVD_Document and Prescription_Required columns to dbo.LabInvestigationMaster...';
 
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabInvestigationMaster') AND name = 'Is_OPD_Document_Required')
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabInvestigationMaster') AND name = 'OVD_Document')
 BEGIN
-    ALTER TABLE dbo.LabInvestigationMaster ADD Is_OPD_Document_Required BIT NOT NULL DEFAULT 0;
-    PRINT 'Added Is_OPD_Document_Required column';
+    ALTER TABLE dbo.LabInvestigationMaster ADD OVD_Document BIT NOT NULL DEFAULT 0;
+    PRINT 'Added OVD_Document column';
 END
 
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.LabInvestigationMaster') AND name = 'Prescription_Required')
@@ -75,7 +75,7 @@ BEGIN
         inv.Reported_Duration_Value,
         inv.Reported_Duration_Unit,
         inv.Is_Consent_Required,
-        inv.Is_OPD_Document_Required,
+        inv.OVD_Document,
         inv.Prescription_Required,
         inv.MRP,
         inv.Status,
@@ -147,7 +147,7 @@ BEGIN
         inv.Reported_Duration_Value,
         inv.Reported_Duration_Unit,
         inv.Is_Consent_Required,
-        inv.Is_OPD_Document_Required,
+        inv.OVD_Document,
         inv.Prescription_Required,
         inv.MRP,
         inv.Status,
@@ -193,7 +193,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Api_LabInvestigationMaster_Create
     @Reported_Duration_Value   INT = NULL,
     @Reported_Duration_Unit    VARCHAR(20) = 'Days',
     @Is_Consent_Required       BIT = 0,
-    @Is_OPD_Document_Required  BIT = 0,
+    @OVD_Document  BIT = 0,
     @Prescription_Required     BIT = 0,
     @MRP                       DECIMAL(18,2) = 0.00,
     @Status                    BIT = 1,
@@ -219,7 +219,7 @@ BEGIN
         NABL_Scope_No, Is_Outsourced, Is_Profile_Test, Applicable_Gender, Is_Billable,
         Age_Operator, Applicable_Age, Is_Fasting_Required, Sample_Quantity, Sample_Quantity_Unit_ID,
         Reported_Duration_Value, Reported_Duration_Unit, Is_Consent_Required,
-        Is_OPD_Document_Required, Prescription_Required,
+        OVD_Document, Prescription_Required,
         MRP, Status, IsDeleted, CreatedBy, CreatedDate
     )
     VALUES
@@ -229,7 +229,7 @@ BEGIN
         @NABL_Scope_No, @Is_Outsourced, @Is_Profile_Test, ISNULL(@Applicable_Gender, 'All'), ISNULL(@Is_Billable, 1),
         @Age_Operator, @Applicable_Age, ISNULL(@Is_Fasting_Required, 0), @Sample_Quantity, @Sample_Quantity_Unit_ID,
         @Reported_Duration_Value, ISNULL(@Reported_Duration_Unit, 'Days'), ISNULL(@Is_Consent_Required, 0),
-        ISNULL(@Is_OPD_Document_Required, 0), ISNULL(@Prescription_Required, 0),
+        ISNULL(@OVD_Document, 0), ISNULL(@Prescription_Required, 0),
         @MRP, @Status, 0, @UserId, GETDATE()
     );
 
@@ -263,7 +263,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_Api_LabInvestigationMaster_Update
     @Reported_Duration_Value   INT = NULL,
     @Reported_Duration_Unit    VARCHAR(20) = 'Days',
     @Is_Consent_Required       BIT = 0,
-    @Is_OPD_Document_Required  BIT = 0,
+    @OVD_Document  BIT = 0,
     @Prescription_Required     BIT = 0,
     @MRP                       DECIMAL(18,2) = 0.00,
     @Status                    BIT = 1,
@@ -302,7 +302,7 @@ BEGIN
         Reported_Duration_Value   = @Reported_Duration_Value,
         Reported_Duration_Unit    = ISNULL(@Reported_Duration_Unit, 'Days'),
         Is_Consent_Required       = ISNULL(@Is_Consent_Required, 0),
-        Is_OPD_Document_Required  = ISNULL(@Is_OPD_Document_Required, 0),
+        OVD_Document  = ISNULL(@OVD_Document, 0),
         Prescription_Required     = ISNULL(@Prescription_Required, 0),
         MRP                       = @MRP,
         Status                    = @Status,

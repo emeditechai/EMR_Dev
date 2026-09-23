@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "emr-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "EMR.Api/EMR.Api.csproj", "--launch-profile", "https"],
+      "port": 5125,
+      "url": "https://localhost:5125"
+    },
+    {
+      "name": "emr-web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "EMR.Web/EMR.Web.csproj", "--launch-profile", "http"],
+      "port": 5124
+    }
+  ]
+}

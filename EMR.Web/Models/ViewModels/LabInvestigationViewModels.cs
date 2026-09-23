@@ -98,7 +98,7 @@ public class LabInvestigationFormViewModel
     public bool Is_Consent_Required { get; set; } = false;
 
     [Display(Name = "OVD Document Required")]
-    public bool Is_OPD_Document_Required { get; set; } = false;
+    public bool OVD_Document { get; set; } = false;
 
     [Display(Name = "Prescription Required")]
     public bool Prescription_Required { get; set; } = false;
