@@ -81,6 +81,7 @@ public class LabInvestigationsController(
             IsBillableOptions = GetIsBillableOptions(),
             AgeOperatorOptions = GetAgeOperatorOptions(),
             FastingOptions = GetFastingOptions(),
+            ConsentOptions = GetConsentOptions(),
             DurationUnitOptions = GetDurationUnitOptions()
         };
 
