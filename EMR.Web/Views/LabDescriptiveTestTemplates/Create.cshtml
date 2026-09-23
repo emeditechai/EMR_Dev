@@ -12,6 +12,11 @@
     .ql-editor { min-height: 200px; font-size: 0.95rem; }
     .ql-toolbar.ql-snow { border-radius: 0.375rem 0.375rem 0 0; }
     .ql-container.ql-snow { border-radius: 0 0 0.375rem 0.375rem; }
+    .quick-insert-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.75rem; }
+    .quick-insert-panel .badge { cursor: pointer; font-size: 0.78rem; font-weight: 500; transition: all 0.15s; }
+    .quick-insert-panel .badge:hover { transform: scale(1.05); opacity: 0.85; }
+    .section-divider { border-top: 2px solid #e9ecef; margin: 1rem 0; }
+    .contrast-fields { display: none; }
 </style>
 }
 
@@ -63,7 +68,21 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="Section_Name" class="form-label small fw-semibold text-muted">Section Name <span class="text-danger">*</span></label>
-                        <input asp-for="Section_Name" class="form-control form-control-sm" maxlength="200" placeholder="e.g. Findings, Impression, Technique" />
+                        <select asp-for="Section_Name" class="form-select form-select-sm" id="sectionNameSelect">
+                            <option value="">-- Select Section --</option>
+                            <option value="Clinical History">Clinical History</option>
+                            <option value="Technique">Technique</option>
+                            <option value="Comparison">Comparison</option>
+                            <option value="Findings">Findings</option>
+                            <option value="Impression">Impression</option>
+                            <option value="Recommendation">Recommendation</option>
+                            <option value="Measurements">Measurements</option>
+                            <option value="Conclusion">Conclusion</option>
+                            <option value="Addendum">Addendum</option>
+                            <option value="Other">Other (Custom)</option>
+                        </select>
+                        <input type="text" class="form-control form-control-sm mt-2" id="customSectionName" style="display:none;"
+                               placeholder="Enter custom section name" maxlength="200" />
                         <span asp-validation-message-for="Section_Name" class="text-danger small"></span>
                     </div>
                     <div class="col-md-3">
@@ -84,8 +103,185 @@
                         <span asp-validation-message-for="Placeholder_Tags" class="text-danger small"></span>
                     </div>
 
+                    <!-- Radiology-Specific Fields -->
                     <div class="col-12">
+                        <div class="section-divider"></div>
+                        <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-radioactive me-1"></i>Radiology Details</h6>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="Modality" class="form-label small fw-semibold text-muted">Modality</label>
+                        <select asp-for="Modality" class="form-select form-select-sm" id="modalitySelect">
+                            <option value="">-- Select Modality --</option>
+                            <option value="X-Ray">X-Ray</option>
+                            <option value="CT">CT (Computed Tomography)</option>
+                            <option value="MRI">MRI (Magnetic Resonance Imaging)</option>
+                            <option value="USG">USG (Ultrasonography)</option>
+                            <option value="Mammography">Mammography</option>
+                            <option value="Fluoroscopy">Fluoroscopy</option>
+                            <option value="PET-CT">PET-CT</option>
+                            <option value="DEXA">DEXA (Bone Densitometry)</option>
+                            <option value="Doppler">Doppler</option>
+                            <option value="Angiography">Angiography</option>
+                            <option value="Nuclear Medicine">Nuclear Medicine</option>
+                            <option value="Interventional">Interventional Radiology</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="Body_Part" class="form-label small fw-semibold text-muted">Body Part / Region</label>
+                        <select asp-for="Body_Part" class="form-select form-select-sm" id="bodyPartSelect">
+                            <option value="">-- Select Body Part --</option>
+                            <optgroup label="Head & Neck">
+                                <option value="Brain">Brain</option>
+                                <option value="Head">Head</option>
+                                <option value="Face">Face</option>
+                                <option value="Orbit">Orbit</option>
+                                <option value="PNS">PNS (Paranasal Sinuses)</option>
+                                <option value="Temporal Bone">Temporal Bone</option>
+                                <option value="Neck">Neck</option>
+                                <option value="Thyroid">Thyroid</option>
+                            </optgroup>
+                            <optgroup label="Spine">
+                                <option value="Cervical Spine">Cervical Spine</option>
+                                <option value="Thoracic Spine">Thoracic Spine</option>
+                                <option value="Lumbar Spine">Lumbar Spine</option>
+                                <option value="Sacrum">Sacrum</option>
+                                <option value="Whole Spine">Whole Spine</option>
+                            </optgroup>
+                            <optgroup label="Chest & Thorax">
+                                <option value="Chest">Chest</option>
+                                <option value="HRCT Chest">HRCT Chest</option>
+                                <option value="Mediastinum">Mediastinum</option>
+                                <option value="Breast">Breast</option>
+                            </optgroup>
+                            <optgroup label="Abdomen & Pelvis">
+                                <option value="Abdomen">Abdomen</option>
+                                <option value="Pelvis">Pelvis</option>
+                                <option value="Liver">Liver</option>
+                                <option value="Kidney">Kidney</option>
+                                <option value="KUB">KUB</option>
+                                <option value="Whole Abdomen">Whole Abdomen</option>
+                            </optgroup>
+                            <optgroup label="Musculoskeletal">
+                                <option value="Shoulder">Shoulder</option>
+                                <option value="Elbow">Elbow</option>
+                                <option value="Wrist">Wrist</option>
+                                <option value="Hand">Hand</option>
+                                <option value="Hip">Hip</option>
+                                <option value="Knee">Knee</option>
+                                <option value="Ankle">Ankle</option>
+                                <option value="Foot">Foot</option>
+                            </optgroup>
+                            <optgroup label="Vascular">
+                                <option value="Carotid">Carotid</option>
+                                <option value="Aorta">Aorta</option>
+                                <option value="Peripheral Vessels">Peripheral Vessels</option>
+                                <option value="Renal Vessels">Renal Vessels</option>
+                            </optgroup>
+                            <optgroup label="Special">
+                                <option value="Obstetric">Obstetric</option>
+                                <option value="Gynaecological">Gynaecological</option>
+                                <option value="Paediatric">Paediatric</option>
+                                <option value="Whole Body">Whole Body</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="Laterality" class="form-label small fw-semibold text-muted">Laterality</label>
+                        <select asp-for="Laterality" class="form-select form-select-sm">
+                            <option value="">-- Select --</option>
+                            <option value="Left">Left</option>
+                            <option value="Right">Right</option>
+                            <option value="Bilateral">Bilateral</option>
+                            <option value="N/A">N/A</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check form-switch mb-2">
+                            <input asp-for="Contrast_Required" class="form-check-input" type="checkbox" id="contrastToggle" />
+                            <label asp-for="Contrast_Required" class="form-check-label small fw-semibold">Contrast Required</label>
+                        </div>
+                    </div>
+                    <div class="col-md-5 contrast-fields" id="contrastFields">
+                        <label asp-for="Contrast_Agent" class="form-label small fw-semibold text-muted">Contrast Agent</label>
+                        <select asp-for="Contrast_Agent" class="form-select form-select-sm">
+                            <option value="">-- Select Agent --</option>
+                            <optgroup label="Iodinated (CT/Angiography)">
+                                <option value="Iohexol (Omnipaque)">Iohexol (Omnipaque)</option>
+                                <option value="Iopamidol (Isovue)">Iopamidol (Isovue)</option>
+                                <option value="Iodixanol (Visipaque)">Iodixanol (Visipaque)</option>
+                                <option value="Ioversol (Optiray)">Ioversol (Optiray)</option>
+                            </optgroup>
+                            <optgroup label="Gadolinium (MRI)">
+                                <option value="Gadopentetate (Magnevist)">Gadopentetate (Magnevist)</option>
+                                <option value="Gadobutrol (Gadavist)">Gadobutrol (Gadavist)</option>
+                                <option value="Gadoterate (Dotarem)">Gadoterate (Dotarem)</option>
+                                <option value="Gadodiamide (Omniscan)">Gadodiamide (Omniscan)</option>
+                            </optgroup>
+                            <optgroup label="Barium (Fluoroscopy/GI)">
+                                <option value="Barium Sulfate">Barium Sulfate</option>
+                                <option value="Gastrografin">Gastrografin</option>
+                            </optgroup>
+                            <optgroup label="Ultrasound">
+                                <option value="SonoVue (Sulphur Hexafluoride)">SonoVue (Sulphur Hexafluoride)</option>
+                            </optgroup>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label asp-for="Views_Projections" class="form-label small fw-semibold text-muted">Views / Projections</label>
+                        <input asp-for="Views_Projections" class="form-control form-control-sm" maxlength="200"
+                               placeholder="e.g. AP, Lateral, Oblique" />
+                    </div>
+
+                    <div class="col-md-12">
+                        <label asp-for="Preparation_Instructions" class="form-label small fw-semibold text-muted">Preparation Instructions</label>
+                        <textarea asp-for="Preparation_Instructions" class="form-control form-control-sm" rows="2" maxlength="1000"
+                                  placeholder="e.g. NPO 6 hours, Remove metallic objects, IV access required"></textarea>
+                    </div>
+
+                    <!-- Quill Editor with Quick Insert Panel -->
+                    <div class="col-12">
+                        <div class="section-divider"></div>
                         <label class="form-label small fw-semibold text-muted">Default Content (HTML)</label>
+
+                        <div class="quick-insert-panel mb-2" id="quickInsertPanel">
+                            <div class="d-flex align-items-center mb-2">
+                                <small class="fw-bold text-secondary me-2"><i class="bi bi-lightning-fill"></i> Quick Insert:</small>
+                                <small class="text-muted">Click to insert into editor</small>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted d-block mb-1">Patient Info</small>
+                                <span class="badge bg-primary me-1 mb-1" data-insert="{{PatientName}}">Patient Name</span>
+                                <span class="badge bg-primary me-1 mb-1" data-insert="{{PatientAge}}">Patient Age</span>
+                                <span class="badge bg-primary me-1 mb-1" data-insert="{{PatientGender}}">Patient Gender</span>
+                                <span class="badge bg-primary me-1 mb-1" data-insert="{{PatientId}}">Patient ID</span>
+                                <span class="badge bg-primary me-1 mb-1" data-insert="{{UHID}}">UHID</span>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted d-block mb-1">Study Info</small>
+                                <span class="badge bg-success me-1 mb-1" data-insert="{{StudyDate}}">Study Date</span>
+                                <span class="badge bg-success me-1 mb-1" data-insert="{{Modality}}">Modality</span>
+                                <span class="badge bg-success me-1 mb-1" data-insert="{{BodyPart}}">Body Part</span>
+                                <span class="badge bg-success me-1 mb-1" data-insert="{{Laterality}}">Laterality</span>
+                                <span class="badge bg-success me-1 mb-1" data-insert="{{ViewsProjections}}">Views</span>
+                                <span class="badge bg-success me-1 mb-1" data-insert="{{ContrastAgent}}">Contrast Agent</span>
+                                <span class="badge bg-success me-1 mb-1" data-insert="{{ReferringDoctor}}">Referring Doctor</span>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted d-block mb-1">Report Structure</small>
+                                <span class="badge bg-warning text-dark me-1 mb-1" data-insert-block="clinical-history">Clinical History Block</span>
+                                <span class="badge bg-warning text-dark me-1 mb-1" data-insert-block="technique">Technique Block</span>
+                                <span class="badge bg-warning text-dark me-1 mb-1" data-insert-block="comparison">Comparison Block</span>
+                                <span class="badge bg-warning text-dark me-1 mb-1" data-insert-block="findings">Findings Block</span>
+                                <span class="badge bg-warning text-dark me-1 mb-1" data-insert-block="impression">Impression Block</span>
+                                <span class="badge bg-warning text-dark me-1 mb-1" data-insert-block="recommendation">Recommendation Block</span>
+                            </div>
+                            <div id="modalitySpecificTags"></div>
+                        </div>
+
                         <div id="quillEditor"></div>
                         <input type="hidden" asp-for="Default_Content_Html" id="hiddenContent" />
                     </div>
@@ -125,6 +321,120 @@ $(function () {
         }
     });
 
+    // Section Name - show custom input when "Other" selected
+    $('#sectionNameSelect').on('change', function () {
+        var val = $(this).val();
+        if (val === 'Other') {
+            $('#customSectionName').show().focus();
+            $('input[name="Section_Name"]').val('');
+        } else {
+            $('#customSectionName').hide().val('');
+        }
+    });
+    $('#customSectionName').on('input', function () {
+        $('#sectionNameSelect').val('Other');
+        $('input[name="Section_Name"]').length === 0 && $(this).attr('name', 'Section_Name');
+    });
+
+    // Override form submit to set Section_Name from custom input if "Other"
+    $('#templateForm').data('sectionNameHandler', function () {
+        if ($('#sectionNameSelect').val() === 'Other') {
+            var customVal = $('#customSectionName').val();
+            if (customVal) {
+                $('#sectionNameSelect').append('<option value="' + customVal + '">' + customVal + '</option>');
+                $('#sectionNameSelect').val(customVal);
+            }
+        }
+    });
+
+    // Contrast toggle
+    $('#contrastToggle').on('change', function () {
+        if ($(this).is(':checked')) {
+            $('#contrastFields').slideDown(200);
+        } else {
+            $('#contrastFields').slideUp(200);
+            $('select[name="Contrast_Agent"]').val('');
+        }
+    });
+    if ($('#contrastToggle').is(':checked')) {
+        $('#contrastFields').show();
+    }
+
+    // Modality-specific tags
+    var modalityTags = {
+        'X-Ray': [
+            { tag: '{{KVP}}', label: 'KVP' },
+            { tag: '{{mAs}}', label: 'mAs' },
+            { tag: '{{FilmSize}}', label: 'Film Size' },
+            { tag: '{{SID}}', label: 'SID' }
+        ],
+        'CT': [
+            { tag: '{{SliceThickness}}', label: 'Slice Thickness' },
+            { tag: '{{ContrastVolume}}', label: 'Contrast Volume (ml)' },
+            { tag: '{{ContrastPhase}}', label: 'Contrast Phase' },
+            { tag: '{{DLP}}', label: 'DLP (mGy.cm)' },
+            { tag: '{{CTDIvol}}', label: 'CTDIvol (mGy)' },
+            { tag: '{{ReconstructionAlgorithm}}', label: 'Reconstruction' }
+        ],
+        'MRI': [
+            { tag: '{{FieldStrength}}', label: 'Field Strength (T)' },
+            { tag: '{{Sequences}}', label: 'Sequences' },
+            { tag: '{{CoilUsed}}', label: 'Coil Used' },
+            { tag: '{{ContrastDose}}', label: 'Contrast Dose (ml)' },
+            { tag: '{{DWI_ADC}}', label: 'DWI/ADC Values' }
+        ],
+        'USG': [
+            { tag: '{{TransducerFrequency}}', label: 'Transducer Freq (MHz)' },
+            { tag: '{{TransducerType}}', label: 'Transducer Type' },
+            { tag: '{{DopplerMode}}', label: 'Doppler Mode' },
+            { tag: '{{Measurements}}', label: 'Measurements' },
+            { tag: '{{FetalAge}}', label: 'Fetal Age (Obstetric)' },
+            { tag: '{{EDD}}', label: 'EDD (Obstetric)' }
+        ],
+        'Mammography': [
+            { tag: '{{Compression}}', label: 'Compression' },
+            { tag: '{{BIRADSCategory}}', label: 'BI-RADS Category' },
+            { tag: '{{BreastDensity}}', label: 'Breast Density' },
+            { tag: '{{MGD}}', label: 'Mean Glandular Dose' }
+        ],
+        'Fluoroscopy': [
+            { tag: '{{FluoroTime}}', label: 'Fluoroscopy Time' },
+            { tag: '{{ContrastRoute}}', label: 'Contrast Route' },
+            { tag: '{{DAP}}', label: 'Dose Area Product' }
+        ],
+        'Doppler': [
+            { tag: '{{PeakSystolicVelocity}}', label: 'PSV (cm/s)' },
+            { tag: '{{EndDiastolicVelocity}}', label: 'EDV (cm/s)' },
+            { tag: '{{ResistiveIndex}}', label: 'RI' },
+            { tag: '{{PulsatilityIndex}}', label: 'PI' },
+            { tag: '{{SD_Ratio}}', label: 'S/D Ratio' }
+        ]
+    };
+
+    $('#modalitySelect').on('change', function () {
+        var modality = $(this).val();
+        var container = $('#modalitySpecificTags');
+        container.empty();
+
+        if (modality && modalityTags[modality]) {
+            var html = '<small class="text-muted d-block mb-1"><i class="bi bi-tag-fill"></i> ' + modality + ' Specific</small>';
+            modalityTags[modality].forEach(function (item) {
+                html += '<span class="badge bg-info text-dark me-1 mb-1" data-insert="' + item.tag + '">' + item.label + '</span>';
+            });
+            container.html(html);
+        }
+    });
+
+    // Report structure blocks
+    var reportBlocks = {
+        'clinical-history': '<h3>CLINICAL HISTORY</h3><p>{{ClinicalHistory}}</p><p><em>Indication: </em></p>',
+        'technique': '<h3>TECHNIQUE</h3><p>{{Modality}} of {{BodyPart}} was performed {{ContrastAgent}}.</p>',
+        'comparison': '<h3>COMPARISON</h3><p>No prior study available for comparison. / Compared with previous study dated ___.</p>',
+        'findings': '<h3>FINDINGS</h3><ul><li></li><li></li><li></li></ul>',
+        'impression': '<h3>IMPRESSION</h3><ol><li></li></ol>',
+        'recommendation': '<h3>RECOMMENDATION</h3><p></p>'
+    };
+
     // Quill rich text editor
     var quill = new Quill('#quillEditor', {
         theme: 'snow',
@@ -147,8 +457,30 @@ $(function () {
         placeholder: 'Enter default content for this section...'
     });
 
+    // Quick Insert - placeholder tags
+    $(document).on('click', '[data-insert]', function () {
+        var tag = $(this).data('insert');
+        var range = quill.getSelection(true);
+        quill.insertText(range.index, tag, 'user');
+        quill.setSelection(range.index + tag.length, 0);
+    });
+
+    // Quick Insert - report structure blocks
+    $(document).on('click', '[data-insert-block]', function () {
+        var blockKey = $(this).data('insert-block');
+        var blockHtml = reportBlocks[blockKey];
+        if (blockHtml) {
+            var range = quill.getSelection(true);
+            quill.clipboard.dangerouslyPasteHTML(range.index, blockHtml, 'user');
+        }
+    });
+
     // Sync Quill content to hidden input on form submit
     $('#templateForm').on('submit', function () {
+        // Handle custom section name
+        var handler = $(this).data('sectionNameHandler');
+        if (handler) handler();
+
         var html = quill.root.innerHTML;
         if (html === '<p><br></p>') html = '';
         $('#hiddenContent').val(html);

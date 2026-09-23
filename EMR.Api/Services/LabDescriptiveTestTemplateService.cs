@@ -37,6 +37,13 @@ public class LabDescriptiveTestTemplateService(IDbConnectionFactory db) : ILabDe
         p.Add("@Is_Mandatory", req.Is_Mandatory);
         p.Add("@Default_Content_Html", req.Default_Content_Html);
         p.Add("@Placeholder_Tags", req.Placeholder_Tags);
+        p.Add("@Modality", req.Modality);
+        p.Add("@Body_Part", req.Body_Part);
+        p.Add("@Laterality", req.Laterality);
+        p.Add("@Contrast_Required", req.Contrast_Required);
+        p.Add("@Contrast_Agent", req.Contrast_Agent);
+        p.Add("@Views_Projections", req.Views_Projections);
+        p.Add("@Preparation_Instructions", req.Preparation_Instructions);
         p.Add("@CompanyId", req.CompanyId);
         p.Add("@UserId", req.UserId);
         p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
@@ -59,6 +66,13 @@ public class LabDescriptiveTestTemplateService(IDbConnectionFactory db) : ILabDe
                 Is_Mandatory = req.Is_Mandatory,
                 Default_Content_Html = req.Default_Content_Html,
                 Placeholder_Tags = req.Placeholder_Tags,
+                Modality = req.Modality,
+                Body_Part = req.Body_Part,
+                Laterality = req.Laterality,
+                Contrast_Required = req.Contrast_Required,
+                Contrast_Agent = req.Contrast_Agent,
+                Views_Projections = req.Views_Projections,
+                Preparation_Instructions = req.Preparation_Instructions,
                 IsActive = req.IsActive,
                 UserId = req.UserId
             },

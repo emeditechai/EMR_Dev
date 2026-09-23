@@ -11,6 +11,13 @@ public class LabDescriptiveTestTemplateModel
     public bool Is_Mandatory { get; set; }
     public string? Default_Content_Html { get; set; }
     public string? Placeholder_Tags { get; set; }
+    public string? Modality { get; set; }
+    public string? Body_Part { get; set; }
+    public string? Laterality { get; set; }
+    public bool Contrast_Required { get; set; }
+    public string? Contrast_Agent { get; set; }
+    public string? Views_Projections { get; set; }
+    public string? Preparation_Instructions { get; set; }
     public bool IsActive { get; set; }
     public int CompanyId { get; set; }
     public int? CreatedBy { get; set; }
@@ -27,6 +34,13 @@ public class LabDescriptiveTestTemplateCreateRequestModel
     public bool Is_Mandatory { get; set; }
     public string? Default_Content_Html { get; set; }
     public string? Placeholder_Tags { get; set; }
+    public string? Modality { get; set; }
+    public string? Body_Part { get; set; }
+    public string? Laterality { get; set; }
+    public bool Contrast_Required { get; set; }
+    public string? Contrast_Agent { get; set; }
+    public string? Views_Projections { get; set; }
+    public string? Preparation_Instructions { get; set; }
     public int CompanyId { get; set; } = 1;
     public int? UserId { get; set; }
 }
@@ -40,6 +54,13 @@ public class LabDescriptiveTestTemplateUpdateRequestModel
     public bool Is_Mandatory { get; set; }
     public string? Default_Content_Html { get; set; }
     public string? Placeholder_Tags { get; set; }
+    public string? Modality { get; set; }
+    public string? Body_Part { get; set; }
+    public string? Laterality { get; set; }
+    public bool Contrast_Required { get; set; }
+    public string? Contrast_Agent { get; set; }
+    public string? Views_Projections { get; set; }
+    public string? Preparation_Instructions { get; set; }
     public bool IsActive { get; set; }
     public int? UserId { get; set; }
 }

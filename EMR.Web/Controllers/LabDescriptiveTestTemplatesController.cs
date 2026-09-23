@@ -77,6 +77,13 @@ public class LabDescriptiveTestTemplatesController(
                 Is_Mandatory = model.Is_Mandatory,
                 Default_Content_Html = model.Default_Content_Html,
                 Placeholder_Tags = model.Placeholder_Tags,
+                Modality = model.Modality,
+                Body_Part = model.Body_Part,
+                Laterality = model.Laterality,
+                Contrast_Required = model.Contrast_Required,
+                Contrast_Agent = model.Contrast_Agent,
+                Views_Projections = model.Views_Projections,
+                Preparation_Instructions = model.Preparation_Instructions,
                 CompanyId = User.GetCompanyId(),
                 UserId = User.GetUserId()
             };
@@ -129,6 +136,13 @@ public class LabDescriptiveTestTemplatesController(
                 Is_Mandatory = item.Is_Mandatory,
                 Default_Content_Html = item.Default_Content_Html,
                 Placeholder_Tags = item.Placeholder_Tags,
+                Modality = item.Modality,
+                Body_Part = item.Body_Part,
+                Laterality = item.Laterality,
+                Contrast_Required = item.Contrast_Required,
+                Contrast_Agent = item.Contrast_Agent,
+                Views_Projections = item.Views_Projections,
+                Preparation_Instructions = item.Preparation_Instructions,
                 IsActive = item.IsActive
             };
 
@@ -162,6 +176,13 @@ public class LabDescriptiveTestTemplatesController(
                 Is_Mandatory = model.Is_Mandatory,
                 Default_Content_Html = model.Default_Content_Html,
                 Placeholder_Tags = model.Placeholder_Tags,
+                Modality = model.Modality,
+                Body_Part = model.Body_Part,
+                Laterality = model.Laterality,
+                Contrast_Required = model.Contrast_Required,
+                Contrast_Agent = model.Contrast_Agent,
+                Views_Projections = model.Views_Projections,
+                Preparation_Instructions = model.Preparation_Instructions,
                 IsActive = model.IsActive,
                 UserId = User.GetUserId()
             };

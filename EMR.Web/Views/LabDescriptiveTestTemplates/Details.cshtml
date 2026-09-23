@@ -73,6 +73,52 @@
                             }
                         </dd>
 
+                        @if (!string.IsNullOrEmpty(Model.Modality))
+                        {
+                            <dt class="col-sm-4 text-muted">Modality</dt>
+                            <dd class="col-sm-8"><span class="badge bg-info-subtle text-info rounded-pill px-3">@Model.Modality</span></dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Model.Body_Part))
+                        {
+                            <dt class="col-sm-4 text-muted">Body Part</dt>
+                            <dd class="col-sm-8">@Model.Body_Part</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Model.Laterality))
+                        {
+                            <dt class="col-sm-4 text-muted">Laterality</dt>
+                            <dd class="col-sm-8">@Model.Laterality</dd>
+                        }
+
+                        <dt class="col-sm-4 text-muted">Contrast Required</dt>
+                        <dd class="col-sm-8">
+                            @if (Model.Contrast_Required)
+                            {
+                                <span class="badge bg-warning-subtle text-warning rounded-pill px-3">Yes</span>
+                                @if (!string.IsNullOrEmpty(Model.Contrast_Agent))
+                                {
+                                    <span class="ms-1 text-muted">— @Model.Contrast_Agent</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3">No</span>
+                            }
+                        </dd>
+
+                        @if (!string.IsNullOrEmpty(Model.Views_Projections))
+                        {
+                            <dt class="col-sm-4 text-muted">Views / Projections</dt>
+                            <dd class="col-sm-8">@Model.Views_Projections</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Model.Preparation_Instructions))
+                        {
+                            <dt class="col-sm-4 text-muted">Preparation Instructions</dt>
+                            <dd class="col-sm-8">@Model.Preparation_Instructions</dd>
+                        }
+
                         <dt class="col-sm-4 text-muted">Status</dt>
                         <dd class="col-sm-8">
                             @if (Model.IsActive)

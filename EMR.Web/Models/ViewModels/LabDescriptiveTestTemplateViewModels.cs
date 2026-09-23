@@ -44,6 +44,33 @@ public class LabDescriptiveTestTemplateFormViewModel
     [Display(Name = "Placeholder Tags")]
     public string? Placeholder_Tags { get; set; }
 
+    [StringLength(50)]
+    [Display(Name = "Modality")]
+    public string? Modality { get; set; }
+
+    [StringLength(100)]
+    [Display(Name = "Body Part / Region")]
+    public string? Body_Part { get; set; }
+
+    [StringLength(20)]
+    [Display(Name = "Laterality")]
+    public string? Laterality { get; set; }
+
+    [Display(Name = "Contrast Required")]
+    public bool Contrast_Required { get; set; }
+
+    [StringLength(100)]
+    [Display(Name = "Contrast Agent")]
+    public string? Contrast_Agent { get; set; }
+
+    [StringLength(200)]
+    [Display(Name = "Views / Projections")]
+    public string? Views_Projections { get; set; }
+
+    [StringLength(1000)]
+    [Display(Name = "Preparation Instructions")]
+    public string? Preparation_Instructions { get; set; }
+
     [Display(Name = "Status")]
     public bool IsActive { get; set; } = true;
 }
