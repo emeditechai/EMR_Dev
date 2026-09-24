@@ -141,6 +141,14 @@
                                            class="btn btn-outline-info" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        <form asp-action="DeleteByTestId" method="post" class="d-inline"
+                                              onsubmit="return confirm('Are you sure you want to delete all @item.SectionCount section(s) for this test?')">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="testId" value="@item.Test_ID" />
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete All Sections">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>

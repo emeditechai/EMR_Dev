@@ -384,6 +384,42 @@ public class LabDescriptiveTestTemplatesController(
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteByTestId(int testId)
+    {
+        try
+        {
+            var sections = await templateApiClient.GetByTestIdAsync(testId);
+            var sectionList = sections.ToList();
+
+            if (sectionList.Count == 0)
+            {
+                TempData["ErrorMessage"] = "No template sections found for this test.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            foreach (var section in sectionList)
+                await templateApiClient.DeleteAsync(section.Template_ID);
+
+            await auditLogService.LogAsync(
+                "Delete Descriptive Test Template (All Sections)",
+                "Delete",
+                $"Deleted {sectionList.Count} template sections for Test ID #{testId} ({sectionList.First().Test_Name})",
+                User.GetUserId(),
+                User.GetCurrentBranchId() ?? 1
+            );
+
+            TempData["SuccessMessage"] = $"All {sectionList.Count} template sections deleted successfully.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet]
     public async Task<IActionResult> SearchRadiologyTests(string? term)
     {
