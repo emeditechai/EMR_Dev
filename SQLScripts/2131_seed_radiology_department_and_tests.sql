@@ -2,15 +2,7 @@
 -- Seed Radiology Department, Category, and Investigation Tests
 -- =============================================
 
--- 1. Insert Radiology Department (if not exists)
-IF NOT EXISTS (SELECT 1 FROM DepartmentMaster WHERE DeptName = 'Radiology')
-BEGIN
-    INSERT INTO DepartmentMaster (DeptName, IsActive)
-    VALUES ('Radiology', 1);
-END
-GO
-
--- 2. Insert Radiology Test Category (if not exists)
+-- 1. Insert Radiology Test Category (if not exists)
 IF NOT EXISTS (SELECT 1 FROM LabTestCategoryMaster WHERE Category_Name = 'Radiology')
 BEGIN
     INSERT INTO LabTestCategoryMaster (Category_Name, CompanyId, IsActive, CreatedDate)
