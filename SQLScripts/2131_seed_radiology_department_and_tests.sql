@@ -3,10 +3,12 @@
 -- =============================================
 
 -- 1. Insert Radiology Test Category (if not exists)
+DECLARE @RadDeptId INT = (SELECT TOP 1 DeptId FROM DepartmentMaster WHERE DeptName = 'Radiology');
+
 IF NOT EXISTS (SELECT 1 FROM LabTestCategoryMaster WHERE Category_Name = 'Radiology')
 BEGIN
-    INSERT INTO LabTestCategoryMaster (Category_Name, CompanyId, Status, CreatedDate)
-    VALUES ('Radiology', 1, 1, GETDATE());
+    INSERT INTO LabTestCategoryMaster (Category_Name, Department_ID, CompanyId, Status, CreatedDate)
+    VALUES ('Radiology', @RadDeptId, 1, 1, GETDATE());
 END
 GO
 
