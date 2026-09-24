@@ -11,5 +11,8 @@ public interface ILabDescriptiveTestTemplateService
     Task UpdateAsync(LabDescriptiveTestTemplateUpdateRequest req);
     Task ToggleStatusAsync(LabDescriptiveTestTemplateToggleStatusRequest req);
     Task DeleteAsync(int id);
+    Task<IEnumerable<LabDescriptiveTestTemplateListItem>> GetByTestIdAsync(int testId);
+    Task BatchUpdateAsync(LabDescriptiveTestTemplateBatchUpdateRequest req);
+    Task<IEnumerable<LabDescriptiveTestTemplateGroupedItem>> GetGroupedListAsync(bool? status, string? search, int? companyId);
     Task<IEnumerable<RadiologyTestItem>> GetRadiologyTestsAsync(int? companyId, string? search);
 }

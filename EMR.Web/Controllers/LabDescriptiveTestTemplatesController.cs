@@ -22,7 +22,7 @@ public class LabDescriptiveTestTemplatesController(
 
         try
         {
-            var items = (await templateApiClient.GetListAsync(status, search, null, companyId)).ToList();
+            var items = (await templateApiClient.GetGroupedListAsync(status, search, companyId)).ToList();
             var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabDescriptiveTestTemplates");
 
             var model = new LabDescriptiveTestTemplateIndexViewModel
@@ -200,64 +200,65 @@ public class LabDescriptiveTestTemplatesController(
     {
         try
         {
-            var item = await templateApiClient.GetByIdAsync(id);
-            if (item == null)
+            var sections = (await templateApiClient.GetByTestIdAsync(id)).ToList();
+            if (sections.Count == 0)
             {
-                TempData["ErrorMessage"] = "Template not found.";
+                TempData["ErrorMessage"] = "No template sections found for this test.";
                 return RedirectToAction(nameof(Index));
             }
 
-            var model = new LabDescriptiveTestTemplateFormViewModel
+            var first = sections.First();
+            var model = new LabDescriptiveTestTemplateBatchFormViewModel
             {
-                Template_ID = item.Template_ID,
-                CompanyId = item.CompanyId,
-                Test_ID = item.Test_ID,
-                Test_Name = item.Test_Name,
-                Section_Name = item.Section_Name,
-                Section_Sequence = item.Section_Sequence,
-                Is_Mandatory = item.Is_Mandatory,
-                Default_Content_Html = item.Default_Content_Html,
-                Placeholder_Tags = item.Placeholder_Tags,
-                Modality = item.Modality,
-                Body_Part = item.Body_Part,
-                Laterality = item.Laterality,
-                Contrast_Required = item.Contrast_Required,
-                Contrast_Agent = item.Contrast_Agent,
-                Views_Projections = item.Views_Projections,
-                Preparation_Instructions = item.Preparation_Instructions,
-                IsActive = item.IsActive
+                CompanyId = first.CompanyId,
+                Test_ID = first.Test_ID,
+                Test_Name = first.Test_Name,
+                Modality = first.Modality,
+                Body_Part = first.Body_Part,
+                Laterality = first.Laterality,
+                Contrast_Required = first.Contrast_Required,
+                Contrast_Agent = first.Contrast_Agent,
+                Views_Projections = first.Views_Projections,
+                Preparation_Instructions = first.Preparation_Instructions,
+                Sections = sections.OrderBy(s => s.Section_Sequence).Select(s => new LabDescriptiveTestTemplateSectionViewModel
+                {
+                    Template_ID = s.Template_ID,
+                    Section_Name = s.Section_Name,
+                    Section_Sequence = s.Section_Sequence,
+                    Is_Mandatory = s.Is_Mandatory,
+                    Default_Content_Html = s.Default_Content_Html,
+                    Placeholder_Tags = s.Placeholder_Tags,
+                    IsActive = s.IsActive
+                }).ToList()
             };
 
             return View(model);
         }
         catch (HttpRequestException)
         {
-            ViewData["PageName"] = "Edit Descriptive Test Template";
+            ViewData["PageName"] = "Edit Report Template";
             return View("ApiDown");
         }
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, LabDescriptiveTestTemplateFormViewModel model)
+    public async Task<IActionResult> Edit(int id, LabDescriptiveTestTemplateBatchFormViewModel model)
     {
-        if (id != model.Template_ID)
-            return BadRequest();
+        if (model.Sections == null || model.Sections.Count == 0)
+        {
+            ModelState.AddModelError(string.Empty, "At least one section is required.");
+            return View(model);
+        }
 
         if (!ModelState.IsValid)
             return View(model);
 
         try
         {
-            var req = new LabDescriptiveTestTemplateUpdateRequestModel
+            var req = new LabDescriptiveTestTemplateBatchUpdateRequestModel
             {
-                Template_ID = model.Template_ID,
                 Test_ID = model.Test_ID,
-                Section_Name = model.Section_Name,
-                Section_Sequence = model.Section_Sequence,
-                Is_Mandatory = model.Is_Mandatory,
-                Default_Content_Html = model.Default_Content_Html,
-                Placeholder_Tags = model.Placeholder_Tags,
                 Modality = model.Modality,
                 Body_Part = model.Body_Part,
                 Laterality = model.Laterality,
@@ -265,21 +266,30 @@ public class LabDescriptiveTestTemplatesController(
                 Contrast_Agent = model.Contrast_Agent,
                 Views_Projections = model.Views_Projections,
                 Preparation_Instructions = model.Preparation_Instructions,
-                IsActive = model.IsActive,
-                UserId = User.GetUserId()
+                UserId = User.GetUserId(),
+                Sections = model.Sections.Select(s => new LabDescriptiveTestTemplateSectionUpdateRequestModel
+                {
+                    Template_ID = s.Template_ID,
+                    Section_Name = s.Section_Name,
+                    Section_Sequence = s.Section_Sequence,
+                    Is_Mandatory = s.Is_Mandatory,
+                    Default_Content_Html = s.Default_Content_Html,
+                    Placeholder_Tags = s.Placeholder_Tags,
+                    IsActive = s.IsActive
+                }).ToList()
             };
 
-            await templateApiClient.UpdateAsync(req);
+            await templateApiClient.BatchUpdateAsync(req);
 
             await auditLogService.LogAsync(
-                "Update Descriptive Test Template",
+                "Batch Update Descriptive Test Template",
                 "Edit",
-                $"Updated Descriptive Test Template #{model.Template_ID} ('{model.Section_Name}')",
+                $"Updated {model.Sections.Count} template sections for Test ID #{model.Test_ID}",
                 User.GetUserId(),
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = $"Template section '{model.Section_Name}' updated successfully.";
+            TempData["SuccessMessage"] = $"{model.Sections.Count} template section(s) updated successfully.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -289,7 +299,7 @@ public class LabDescriptiveTestTemplatesController(
         }
         catch (HttpRequestException)
         {
-            ViewData["PageName"] = "Edit Descriptive Test Template";
+            ViewData["PageName"] = "Edit Report Template";
             return View("ApiDown");
         }
     }

@@ -122,6 +122,44 @@ public class LabDescriptiveTestTemplateController(ILabDescriptiveTestTemplateSer
         }
     }
 
+    [HttpGet("by-test/{testId:int}")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabDescriptiveTestTemplateListItem>>), 200)]
+    public async Task<IActionResult> GetByTestId(int testId)
+    {
+        var data = await service.GetByTestIdAsync(testId);
+        return Ok(ApiResponse<IEnumerable<LabDescriptiveTestTemplateListItem>>.Ok(data));
+    }
+
+    [HttpPut("batch")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    public async Task<IActionResult> BatchUpdate([FromBody] LabDescriptiveTestTemplateBatchUpdateRequest req)
+    {
+        try
+        {
+            if (req.Sections == null || req.Sections.Count == 0)
+                return BadRequest(ApiResponse<object>.Fail("At least one section is required."));
+
+            await service.BatchUpdateAsync(req);
+            return Ok(ApiResponse<bool>.Ok(true, $"{req.Sections.Count} template section(s) updated successfully."));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
+    [HttpGet("grouped")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabDescriptiveTestTemplateGroupedItem>>), 200)]
+    public async Task<IActionResult> GetGroupedList(
+        [FromQuery] bool? status,
+        [FromQuery] string? search,
+        [FromQuery] int? companyId)
+    {
+        var data = await service.GetGroupedListAsync(status, search, companyId);
+        return Ok(ApiResponse<IEnumerable<LabDescriptiveTestTemplateGroupedItem>>.Ok(data));
+    }
+
     [HttpGet("radiology-tests")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<RadiologyTestItem>>), 200)]
     public async Task<IActionResult> GetRadiologyTests(

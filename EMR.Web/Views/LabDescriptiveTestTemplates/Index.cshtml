@@ -53,7 +53,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label small fw-semibold text-muted">Search</label>
-                    <input type="text" name="search" class="form-control" placeholder="Search by test name, section name..."
+                    <input type="text" name="search" class="form-control" placeholder="Search by test name..."
                            value="@Model.SearchTerm" />
                 </div>
                 <div class="col-md-4 d-flex gap-2">
@@ -97,12 +97,12 @@
                     <tr>
                         <th style="width:50px">#</th>
                         <th>Test Name</th>
-                        <th>Section Name</th>
-                        <th style="width:80px">Seq</th>
-                        <th style="width:90px">Mandatory</th>
-                        <th>Placeholder Tags</th>
+                        <th>Test Code</th>
+                        <th>Modality</th>
+                        <th>Body Part</th>
+                        <th style="width:100px" class="text-center">Sections</th>
                         <th style="width:90px">Status</th>
-                        <th style="width:160px">Actions</th>
+                        <th style="width:120px">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -114,20 +114,13 @@
                             rowNum++;
                             <tr class="data-row">
                                 <td class="text-muted">@rowNum</td>
-                                <td class="fw-semibold">@item.Test_Name <code class="ms-1">(@item.Test_Code)</code></td>
-                                <td>@item.Section_Name</td>
-                                <td class="text-center">@item.Section_Sequence</td>
+                                <td class="fw-semibold">@item.Test_Name</td>
+                                <td><code>@item.Test_Code</code></td>
+                                <td>@(item.Modality ?? "—")</td>
+                                <td>@(item.Body_Part ?? "—")</td>
                                 <td class="text-center">
-                                    @if (item.Is_Mandatory)
-                                    {
-                                        <span class="badge bg-primary-subtle text-primary rounded-pill px-2">Yes</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary-subtle text-secondary rounded-pill px-2">No</span>
-                                    }
+                                    <span class="badge bg-info-subtle text-info rounded-pill px-2">@item.SectionCount sections</span>
                                 </td>
-                                <td class="text-muted small">@(item.Placeholder_Tags ?? "—")</td>
                                 <td>
                                     @if (item.IsActive)
                                     {
@@ -140,30 +133,14 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="Edit" asp-encrypted-id="@item.Template_ID"
-                                           class="btn btn-outline-primary" title="Edit">
+                                        <a asp-action="Edit" asp-route-id="@item.Test_ID"
+                                           class="btn btn-outline-primary" title="Edit All Sections">
                                             <i class="bi bi-pencil-square"></i>
                                         </a>
-                                        <a asp-action="Details" asp-encrypted-id="@item.Template_ID"
-                                           class="btn btn-outline-info" title="Details">
+                                        <a asp-action="Details" asp-route-id="@item.Test_ID"
+                                           class="btn btn-outline-info" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <form asp-action="ToggleStatus" method="post" class="d-inline">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="id" value="@item.Template_ID" />
-                                            <input type="hidden" name="isActive" value="@((!item.IsActive).ToString().ToLower())" />
-                                            <button type="submit" class="btn btn-outline-warning" title="@(item.IsActive ? "Deactivate" : "Activate")">
-                                                <i class="bi bi-@(item.IsActive ? "toggle-on" : "toggle-off")"></i>
-                                            </button>
-                                        </form>
-                                        <form asp-action="Delete" method="post" class="d-inline"
-                                              onsubmit="return confirm('Are you sure you want to delete this template section?');">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="id" value="@item.Template_ID" />
-                                            <button type="submit" class="btn btn-outline-danger" title="Delete">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
                                     </div>
                                 </td>
                             </tr>

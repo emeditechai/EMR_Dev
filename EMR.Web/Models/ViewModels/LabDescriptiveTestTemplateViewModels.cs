@@ -5,7 +5,7 @@ namespace EMR.Web.Models.ViewModels;
 
 public class LabDescriptiveTestTemplateIndexViewModel
 {
-    public List<ApiClients.Models.LabDescriptiveTestTemplateModel> Templates { get; set; } = [];
+    public List<ApiClients.Models.LabDescriptiveTestTemplateGroupedModel> Templates { get; set; } = [];
     public bool? SelectedStatus { get; set; }
     public string? SearchTerm { get; set; }
     public List<SelectListItem> StatusOptions { get; set; } = [];
@@ -117,6 +117,8 @@ public class LabDescriptiveTestTemplateBatchFormViewModel
 
 public class LabDescriptiveTestTemplateSectionViewModel
 {
+    public int Template_ID { get; set; }
+
     [Required(ErrorMessage = "Section Name is required.")]
     [StringLength(200)]
     [Display(Name = "Section Name")]
@@ -135,4 +137,7 @@ public class LabDescriptiveTestTemplateSectionViewModel
     [StringLength(500)]
     [Display(Name = "Placeholder Tags")]
     public string? Placeholder_Tags { get; set; }
+
+    [Display(Name = "Status")]
+    public bool IsActive { get; set; } = true;
 }

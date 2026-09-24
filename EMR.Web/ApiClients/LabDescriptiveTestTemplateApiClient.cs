@@ -83,6 +83,35 @@ public class LabDescriptiveTestTemplateApiClient(IHttpClientFactory factory) : I
         return true;
     }
 
+    public async Task<IEnumerable<LabDescriptiveTestTemplateModel>> GetByTestIdAsync(int testId)
+    {
+        var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<LabDescriptiveTestTemplateModel>>>($"api/lab-descriptive-test-templates/by-test/{testId}");
+        return res?.Data ?? [];
+    }
+
+    public async Task<bool> BatchUpdateAsync(LabDescriptiveTestTemplateBatchUpdateRequestModel req)
+    {
+        var res = await Client.PutAsJsonAsync("api/lab-descriptive-test-templates/batch", req);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadFromJsonAsync<ApiResponse<object>>();
+            throw new InvalidOperationException(err?.Message ?? "Failed to update template sections.");
+        }
+        return true;
+    }
+
+    public async Task<IEnumerable<LabDescriptiveTestTemplateGroupedModel>> GetGroupedListAsync(bool? status = null, string? search = null, int? companyId = null)
+    {
+        var query = new List<string>();
+        if (status.HasValue) query.Add($"status={status.Value.ToString().ToLower()}");
+        if (!string.IsNullOrWhiteSpace(search)) query.Add($"search={Uri.EscapeDataString(search)}");
+        if (companyId.HasValue) query.Add($"companyId={companyId.Value}");
+
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : "";
+        var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<LabDescriptiveTestTemplateGroupedModel>>>($"api/lab-descriptive-test-templates/grouped{queryString}");
+        return res?.Data ?? [];
+    }
+
     public async Task<IEnumerable<RadiologyTestItemModel>> GetRadiologyTestsAsync(int? companyId = null, string? search = null)
     {
         var query = new List<string>();

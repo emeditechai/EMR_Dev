@@ -96,6 +96,42 @@ public class LabDescriptiveTestTemplateSectionRequestModel
     public string? Placeholder_Tags { get; set; }
 }
 
+public class LabDescriptiveTestTemplateBatchUpdateRequestModel
+{
+    public int Test_ID { get; set; }
+    public string? Modality { get; set; }
+    public string? Body_Part { get; set; }
+    public string? Laterality { get; set; }
+    public bool Contrast_Required { get; set; }
+    public string? Contrast_Agent { get; set; }
+    public string? Views_Projections { get; set; }
+    public string? Preparation_Instructions { get; set; }
+    public int? UserId { get; set; }
+    public List<LabDescriptiveTestTemplateSectionUpdateRequestModel> Sections { get; set; } = [];
+}
+
+public class LabDescriptiveTestTemplateSectionUpdateRequestModel
+{
+    public int Template_ID { get; set; }
+    public string Section_Name { get; set; } = string.Empty;
+    public int Section_Sequence { get; set; } = 1;
+    public bool Is_Mandatory { get; set; }
+    public string? Default_Content_Html { get; set; }
+    public string? Placeholder_Tags { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public class LabDescriptiveTestTemplateGroupedModel
+{
+    public int Test_ID { get; set; }
+    public string Test_Name { get; set; } = string.Empty;
+    public string Test_Code { get; set; } = string.Empty;
+    public string? Modality { get; set; }
+    public string? Body_Part { get; set; }
+    public int SectionCount { get; set; }
+    public bool IsActive { get; set; }
+}
+
 public class RadiologyTestItemModel
 {
     public int Test_ID { get; set; }
