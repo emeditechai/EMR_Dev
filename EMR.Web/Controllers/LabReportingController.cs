@@ -240,6 +240,15 @@ namespace EMR.Web.Controllers
             detail.Items = detail.Items.Where(i => scope.Allows(i.DepartmentID)).ToList();
         }
 
+        /// <summary>Keeps only tests whose LabInvestigationMaster Reporting_Type is Numeric on the Numeric Entry page.</summary>
+        private static void FilterNumericReportingOnly(LabReportingOrderDetailDto? detail)
+        {
+            if (detail?.Items == null) return;
+            detail.Items = detail.Items
+                .Where(i => string.Equals(i.ReportingType?.Trim(), "Numeric", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
         /// <summary>Categories of the chosen department, or of all the user's departments when none is chosen.</summary>
         private async Task<List<CategoryDto>> GetScopedCategoriesAsync(int? departmentId, LabDepartmentScope scope)
         {
@@ -259,7 +268,7 @@ namespace EMR.Web.Controllers
             if (labOrderId <= 0)
                 return RedirectToAction(nameof(Index));
 
-            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId());
+            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), "Numeric");
             if (detail == null)
             {
                 TempData["ErrorMessage"] = "Reporting order details not found or no eligible collected in-house tests.";
@@ -272,6 +281,14 @@ namespace EMR.Web.Controllers
             if (scope.Restricted && detail.Items.Count == 0)
             {
                 TempData["ErrorMessage"] = "This order has no test in your departments (User Master > Department Access).";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Lab Report Entry belongs only to Numeric Report tests
+            FilterNumericReportingOnly(detail);
+            if (detail.Items.Count == 0)
+            {
+                TempData["ErrorMessage"] = "This order does not contain any eligible Numeric report tests.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -341,7 +358,7 @@ namespace EMR.Web.Controllers
             if (labOrderId <= 0)
                 return Json(new { success = false, message = "Valid LabOrderId is required." });
 
-            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId());
+            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), "Numeric");
             if (detail == null)
                 return Json(new { success = false, message = "Reporting details not found." });
 
@@ -349,6 +366,10 @@ namespace EMR.Web.Controllers
             ApplyDepartmentScope(detail, scope);
             if (scope.Restricted && detail.Items.Count == 0)
                 return Json(new { success = false, message = "This order has no test in your departments (User Master > Department Access)." });
+
+            FilterNumericReportingOnly(detail);
+            if (detail.Items.Count == 0)
+                return Json(new { success = false, message = "This order does not contain any eligible Numeric report tests." });
 
             var statuses = await labReportingApiClient.GetStatusesAsync();
 
@@ -390,8 +411,9 @@ namespace EMR.Web.Controllers
 
             // Best-effort "before" snapshot so the audit trail can record exactly which tests changed.
             LabReportingOrderDetailDto? detailBeforeSave = null;
-            try { detailBeforeSave = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId()); }
+            try { detailBeforeSave = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId(), "Numeric"); }
             catch { /* audit-only; must never block the save */ }
+            if (detailBeforeSave != null) FilterNumericReportingOnly(detailBeforeSave);
 
             // Department Access: results may be saved only for tests of the user's LAB departments.
             // The check needs the order's tests, so a restricted user cannot save when they could not be loaded.
@@ -547,8 +569,9 @@ namespace EMR.Web.Controllers
             // Best-effort "before" snapshot: the update clears entered results on re-collect/reject,
             // so this is the only chance to record which tests (and values) were affected.
             LabReportingOrderDetailDto? detailBeforeStatusChange = null;
-            try { detailBeforeStatusChange = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId()); }
+            try { detailBeforeStatusChange = await labReportingApiClient.GetDetailAsync(request.LabOrderId, CurrentBranchId(), "Numeric"); }
             catch { /* audit-only; must never block the update */ }
+            if (detailBeforeStatusChange != null) FilterNumericReportingOnly(detailBeforeStatusChange);
 
             // Department Access: the sample status may be changed only for tests of the user's LAB departments.
             var statusScope = await GetLabDepartmentScopeAsync();

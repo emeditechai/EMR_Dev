@@ -17,16 +17,17 @@ namespace EMR.Api.Services
             int? departmentId = null,
             int? categoryId = null,
             int? subCategoryId = null,
-            string? allowedDepartmentIds = null);
+            string? allowedDepartmentIds = null,
+            string? reportingType = "Numeric");
 
         /// <param name="branchId">
         /// Show only the samples this branch holds (never-transferred booked here, or transferred here and received).
         /// null = every sample of the bill, which is what the printed report and the dispatch dashboard need.
         /// </param>
-        Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null);
+        Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null, string? reportingType = "Numeric");
 
         /// <summary>The per-level pathologist signatures printed at the foot of the report.</summary>
-        Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null);
+        Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null, int? departmentId = null, string? reportingType = null);
 
         /// <summary>Records an approval made on the Lab Reporting Entry screen, so the print knows how it was approved.</summary>
         Task<int> RecordEntryApprovalAsync(int labOrderId, IEnumerable<long> sampleCollectionIds, int userId, int? branchId);

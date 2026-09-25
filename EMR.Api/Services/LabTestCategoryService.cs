@@ -46,6 +46,8 @@ public class LabTestCategoryService(IDbConnectionFactory db) : ILabTestCategoryS
         p.Add("@Display_Order", req.Display_Order);
         p.Add("@CompanyId", req.CompanyId);
         p.Add("@UserId", req.UserId);
+        p.Add("@Is_Barcode_Required", req.Is_Barcode_Required);
+        p.Add("@Is_Sample_Collection_Required", req.Is_Sample_Collection_Required);
         p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
         await con.ExecuteAsync("usp_Api_LabTestCategoryMaster_Create", p, commandType: CommandType.StoredProcedure);
@@ -64,7 +66,9 @@ public class LabTestCategoryService(IDbConnectionFactory db) : ILabTestCategoryS
                 Category_Name = req.Category_Name,
                 Display_Order = req.Display_Order,
                 Status = req.Status,
-                UserId = req.UserId
+                UserId = req.UserId,
+                Is_Barcode_Required = req.Is_Barcode_Required,
+                Is_Sample_Collection_Required = req.Is_Sample_Collection_Required
             },
             commandType: CommandType.StoredProcedure
         );

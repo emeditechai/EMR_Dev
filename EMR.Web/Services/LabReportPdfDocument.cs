@@ -114,7 +114,8 @@ public class LabReportPdfDocument : IDocument
                 row.RelativeItem().Column(name =>
                 {
                     name.Item().Text(vm.HospitalName).FontSize(15).ExtraBold().FontColor(Navy);
-                    name.Item().Text("DEPARTMENT OF LABORATORY MEDICINE").FontSize(7.5f).FontColor(Grey).LetterSpacing(0.06f);
+                    if (!string.IsNullOrWhiteSpace(vm.HospitalType))
+                        name.Item().Text(vm.HospitalType.ToUpperInvariant()).FontSize(7.5f).FontColor(Grey).LetterSpacing(0.06f);
                     if (!string.IsNullOrWhiteSpace(vm.NabhLine))
                         name.Item().PaddingTop(1).Text(vm.NabhLine).FontSize(7).SemiBold().FontColor(Navy);
                 });
@@ -449,8 +450,8 @@ public class LabReportPdfDocument : IDocument
 
         container.AlignCenter().AlignMiddle().Rotate(-32).Border(5).BorderColor(faint).Padding(8).Column(col =>
         {
-            col.Item().AlignCenter().Text("NOT APPROVED").FontSize(58).ExtraBold().FontColor(faint).LetterSpacing(0.08f);
-            col.Item().AlignCenter().Text("DRAFT COPY — PENDING APPROVAL").FontSize(13).Bold().FontColor(faint).LetterSpacing(0.15f);
+            col.Item().AlignCenter().Text("PROVISIONAL").FontSize(64).ExtraBold().FontColor(faint).LetterSpacing(0.08f);
+            col.Item().AlignCenter().Text("NOT FOR MEDICO-LEGAL PURPOSES").FontSize(13).Bold().FontColor(faint).LetterSpacing(0.15f);
         });
     }
 

@@ -122,6 +122,7 @@ namespace EMR.Api.Models
         public string? ProfilePackageName { get; set; }
         public long? LabEntryDetailId { get; set; }
         public string? TestValue { get; set; }
+        public string? TemplateHtml { get; set; }
         public string? Remarks { get; set; }
         public string? SpecialRemarks { get; set; }
         public int? RefRangeId { get; set; }
@@ -198,6 +199,7 @@ namespace EMR.Api.Models
         public long SamplecollectionID { get; set; }
         public int InvestigationID { get; set; }
         public string? TestValue { get; set; }
+        public string? TemplateHtml { get; set; }
         public string? Remarks { get; set; }
         public string? ReportingType { get; set; }
         public string? AbnormalFlag { get; set; }

@@ -146,6 +146,7 @@ public static class LabReportPrintBuilder
     {
         if (s == null) return;
         if (!string.IsNullOrWhiteSpace(s.HospitalName)) vm.HospitalName = s.HospitalName;
+        if (!string.IsNullOrWhiteSpace(s.HospitalType)) vm.HospitalType = s.HospitalType;
         vm.HospitalLogoPath = s.LogoPath;
         vm.HospitalAddress = s.Address;
         vm.HospitalPhone = s.ContactNumber1;

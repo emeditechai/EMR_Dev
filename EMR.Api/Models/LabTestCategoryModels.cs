@@ -11,6 +11,8 @@ public class LabTestCategoryListItem
     public string Category_Code { get; set; } = string.Empty;
     public int Display_Order { get; set; }
     public bool Status { get; set; }
+    public bool Is_Barcode_Required { get; set; } = true;
+    public bool Is_Sample_Collection_Required { get; set; } = true;
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; }
     public int? ModifiedBy { get; set; }
@@ -24,6 +26,8 @@ public class LabTestCategoryCreateRequest
     public int Display_Order { get; set; } = 1;
     public int CompanyId { get; set; } = 1;
     public int? UserId { get; set; }
+    public bool Is_Barcode_Required { get; set; } = true;
+    public bool Is_Sample_Collection_Required { get; set; } = true;
 }
 
 public class LabTestCategoryUpdateRequest
@@ -34,6 +38,8 @@ public class LabTestCategoryUpdateRequest
     public int Display_Order { get; set; } = 1;
     public bool Status { get; set; }
     public int? UserId { get; set; }
+    public bool Is_Barcode_Required { get; set; } = true;
+    public bool Is_Sample_Collection_Required { get; set; } = true;
 }
 
 public class LabTestCategoryToggleStatusRequest

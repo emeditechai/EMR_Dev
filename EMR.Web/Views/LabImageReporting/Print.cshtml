@@ -1,0 +1,386 @@
+@model EMR.Web.Models.DTOs.LabReportingOrderDetailDto
+@{
+    Layout = null;
+    var d = Model;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image Diagnostic Report - @d.PatientName (@d.TokenNo)</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <style>
+        @@page {
+            size: A4;
+            margin: 10mm;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #111111;
+            background: #f8fafc;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .report-page {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #ffffff;
+            padding: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border-radius: 8px;
+        }
+        
+        /* Letterhead */
+        .header-brand {
+            border-bottom: 2px solid #0f3d6b;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .hospital-name {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f3d6b;
+            margin-bottom: 2px;
+        }
+        .department-name {
+            font-size: 10px;
+            font-weight: 600;
+            color: #475569;
+            letter-spacing: 0.06em;
+        }
+        .hospital-contact {
+            font-size: 10px;
+            color: #475569;
+            text-align: right;
+            line-height: 1.4;
+        }
+
+        /* 3 Info Boxes */
+        .info-boxes-container {
+            display: flex;
+            border: 1.5px solid #111111;
+            margin-bottom: 16px;
+        }
+        .info-box {
+            flex: 1;
+            padding: 4px;
+            border-right: 1.5px solid #111111;
+        }
+        .info-box:last-child {
+            border-right: none;
+        }
+        .info-box-title {
+            font-size: 11px;
+            font-weight: 700;
+            border-bottom: 1px solid #999999;
+            padding-bottom: 3px;
+            margin-bottom: 4px;
+        }
+        .info-row {
+            display: flex;
+            font-size: 10px;
+            margin-bottom: 2px;
+        }
+        .info-label {
+            width: 75px;
+            color: #333333;
+        }
+        .info-val {
+            flex: 1;
+            font-weight: 600;
+        }
+        .status-val {
+            color: #b45309; /* Amber for provisional */
+        }
+        .status-val.final {
+            color: #166534; /* Green for final */
+        }
+
+        /* Content */
+        .report-title-bar {
+            background: #eef2f7;
+            border: 1px solid #111111;
+            color: #0f3d6b;
+            padding: 4px 6px;
+            font-weight: 700;
+            font-size: 13px;
+            margin-bottom: 12px;
+            margin-top: 20px;
+        }
+        .report-html-content {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #111111;
+            padding: 0 8px;
+            min-height: 200px;
+        }
+        .report-html-content p {
+            margin-bottom: 8px;
+        }
+
+        /* Footer */
+        .signature-block {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .sig-box {
+            width: 150px;
+        }
+        .sig-line {
+            border-bottom: 1px solid #999999;
+            margin-bottom: 4px;
+            height: 30px; /* Space for signature image */
+        }
+        .sig-title {
+            font-size: 9px;
+            color: #475569;
+            letter-spacing: 0.06em;
+            margin-bottom: 4px;
+        }
+        .sig-name {
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .sig-detail {
+            font-size: 10px;
+            color: #111111;
+        }
+
+        .page-footer {
+            border-top: 1px solid #111111;
+            padding-top: 4px;
+            font-size: 10px;
+        }
+        .footer-note {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .footer-meta {
+            display: flex;
+            justify-content: space-between;
+            color: #475569;
+        }
+
+        @@media print {
+            body {
+                background: #ffffff;
+            }
+            .report-page {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                max-width: 100%;
+                border-radius: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+        .watermark-container {
+            position: relative;
+            z-index: 1;
+        }
+
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-35deg);
+            font-size: 8rem;
+            font-weight: 900;
+            color: rgba(220, 38, 38, 0.08); /* Faint red */
+            z-index: -1;
+            pointer-events: none;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .watermark .sub {
+            font-size: 1.5rem;
+            letter-spacing: 0.15em;
+            display: block;
+            margin-top: -15px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Floating Print Toolbar (Non-printing) -->
+    <div class="no-print bg-dark text-white py-2 px-3 sticky-top shadow-sm d-flex justify-content-between align-items-center">
+        <div>
+            <strong class="me-2"><i class="bi bi-file-earmark-medical me-1"></i>Report Preview</strong>
+            <span class="text-white-50 fs-8">@d.PatientName (@d.TokenNo)</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-primary btn-sm px-3 fw-semibold" onclick="window.print()">
+                <i class="bi bi-printer me-1"></i>Print Report
+            </button>
+            <button type="button" class="btn btn-outline-light btn-sm px-3" onclick="window.close()">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Printable Report Page -->
+    <div class="report-page watermark-container">
+        @if (d.ReportStatusId != 6) // Not Approved
+        {
+            <div class="watermark">
+                <div>PROVISIONAL</div>
+                <div class="sub">NOT FOR MEDICO-LEGAL PURPOSES</div>
+            </div>
+        }
+
+        <!-- Letterhead -->
+        <div class="header-brand">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                @if (!string.IsNullOrWhiteSpace(ViewBag.LogoPath as string))
+                {
+                    <img src="@ViewBag.LogoPath" alt="Logo" style="height: 50px; object-fit: contain;" />
+                }
+                <div>
+                    <div class="hospital-name">@(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.HospitalType as string))
+                    {
+                        <div class="department-name">@(((string)ViewBag.HospitalType).ToUpperInvariant())</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.NabhStatus as string))
+                    {
+                        <div style="font-size: 9px; font-weight: 600; color: #0f3d6b; margin-top: 1px;">
+                            NABH: @ViewBag.NabhStatus @(!string.IsNullOrWhiteSpace(ViewBag.NabhCertificateNo as string) ? $"(Cert. No. {ViewBag.NabhCertificateNo})" : "")
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="hospital-contact">
+                @if (!string.IsNullOrWhiteSpace(ViewBag.Address as string)) { <div>@ViewBag.Address</div> }
+                @if (!string.IsNullOrWhiteSpace(ViewBag.ContactNumber as string)) { <div>Tel: @ViewBag.ContactNumber</div> }
+                @if (!string.IsNullOrWhiteSpace(ViewBag.Email as string)) { <div>@ViewBag.Email</div> }
+                @if (!string.IsNullOrWhiteSpace(ViewBag.Website as string)) { <div>@ViewBag.Website</div> }
+                @if (!string.IsNullOrWhiteSpace(ViewBag.RegistrationNumber as string)) { <div>Reg. No.: @ViewBag.RegistrationNumber</div> }
+            </div>
+        </div>
+
+        <!-- 3 Info Boxes -->
+        <div class="info-boxes-container">
+            <div class="info-box">
+                <div class="info-box-title">Patient Information</div>
+                <div class="info-row"><div class="info-label">Name</div><div class="info-val">: @d.PatientName</div></div>
+                <div class="info-row"><div class="info-label">Age/Gender</div><div class="info-val">: @(d.Age.HasValue ? $"{d.Age} Y" : "—") / @(d.Gender ?? "—")</div></div>
+                <div class="info-row"><div class="info-label">Mobile No</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.PhoneNumber) ? "—" : d.PhoneNumber)</div></div>
+                <div class="info-row"><div class="info-label">Patient ID</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.PatientCode) ? "—" : d.PatientCode)</div></div>
+                <div class="info-row"><div class="info-label">Address</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.Address) ? "—" : d.Address)</div></div>
+            </div>
+            <div class="info-box">
+                <div class="info-box-title">Specimen Information</div>
+                <div class="info-row"><div class="info-label">Bill No</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.BillNo) ? "—" : d.BillNo)</div></div>
+                <div class="info-row"><div class="info-label">Collected</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? d.OrderDate.ToString("dd/MMM/yyyy HH:mm"))</div></div>
+                <div class="info-row"><div class="info-label">Received</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? "—")</div></div>
+                <div class="info-row"><div class="info-label">Reported</div><div class="info-val">: @DateTime.Now.ToString("dd/MMM/yyyy HH:mm")</div></div>
+                @{
+                    bool isFinal = d.ReportStatusId == 5; // Assuming 5 is Approved
+                    string statusClass = isFinal ? "status-val final" : "status-val";
+                }
+                <div class="info-row"><div class="info-label">Report Status</div><div class="info-val @statusClass">: @(d.ReportStatusName ?? "Provisional Report")</div></div>
+            </div>
+            <div class="info-box">
+                <div class="info-box-title">Branch / Doctor Information</div>
+                <div class="info-row"><div class="info-label">Branch Code</div><div class="info-val">: @(d.BranchId)</div></div>
+                <div class="info-row"><div class="info-label">Branch Name</div><div class="info-val">: @(d.BranchName ?? "Main Branch")</div></div>
+                <div class="info-row"><div class="info-label">Ref Doctor</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.ReferralDoctorName) ? "Self" : d.ReferralDoctorName)</div></div>
+            </div>
+        </div>
+
+        <!-- Investigation Reports -->
+        @if (d.Items != null && d.Items.Count > 0)
+        {
+            @foreach (var item in d.Items)
+            {
+                <div class="mb-4">
+                    <div class="report-title-bar">
+                        @item.TestName @(!string.IsNullOrWhiteSpace(item.TestCode) ? $"({item.TestCode})" : "")
+                    </div>
+
+                    <div class="report-html-content">
+                        @if (!string.IsNullOrWhiteSpace(item.TemplateHtml))
+                        {
+                            @Html.Raw(item.TemplateHtml)
+                        }
+                        else
+                        {
+                            <p class="text-muted fst-italic">Report entry pending or empty.</p>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="alert alert-warning">No investigations found for this report.</div>
+        }
+
+        <div class="text-center fw-bold fs-6 my-4">
+            *** End Of Report ***
+        </div>
+
+        <!-- Signatory Footer -->
+        <div class="signature-block" style="display: flex; justify-content: space-between; margin-top: 40px;">
+            @{
+                var signoffLevels = ViewBag.SignoffLevels as List<EMR.Web.Models.DTOs.LabReportSignoffLevelDto>;
+            }
+            @if (signoffLevels != null && signoffLevels.Any())
+            {
+                foreach (var level in signoffLevels.OrderBy(x => x.LevelNo))
+                {
+                    <div class="sig-box" style="text-align: center;">
+                        @if (!string.IsNullOrWhiteSpace(level.SignaturePath))
+                        {
+                            <img src="@level.SignaturePath" alt="Signature" style="height: 40px; object-fit: contain; margin-bottom: 5px;" />
+                        }
+                        else
+                        {
+                            <div class="sig-line" style="margin-top: 30px;"></div>
+                        }
+                        <div class="sig-title" style="font-size: 8px; font-weight: 600; color: #7f8c8d; text-transform: uppercase;">
+                            @level.LevelTitle
+                        </div>
+                        <div class="sig-name" style="font-size: 10px; font-weight: 700;">@level.FullName</div>
+                        @if (level.IsPathologist)
+                        {
+                            <div class="sig-detail" style="font-size: 9px; color: #475569;">Pathologist</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(level.RegistrationNo))
+                        {
+                            <div class="sig-detail" style="font-size: 9px; color: #475569;">Reg. No.: @level.RegistrationNo</div>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="sig-box">
+                    <div class="sig-line"></div>
+                    <div class="sig-title">APPROVED BY</div>
+                </div>
+            }
+        </div>
+
+        <!-- Page Footer -->
+        <div class="page-footer">
+            <div class="footer-note">This test has been performed at @(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
+            <div class="footer-meta">
+                <div>Printed on @DateTime.Now.ToString("dd/MMM/yyyy HH:mm") by @(ViewBag.PrintedBy ?? "System") | Bill @(d.BillNo ?? "—")</div>
+                <div>Page 1 of 1</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

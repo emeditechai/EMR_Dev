@@ -22,7 +22,8 @@ namespace EMR.Api.Services
             int? departmentId = null,
             int? categoryId = null,
             int? subCategoryId = null,
-            string? allowedDepartmentIds = null)
+            string? allowedDepartmentIds = null,
+            string? reportingType = "Numeric")
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -38,7 +39,8 @@ namespace EMR.Api.Services
                     DepartmentId = departmentId,
                     CategoryId = categoryId,
                     SubCategoryId = subCategoryId,
-                    AllowedDepartmentIds = allowedDepartmentIds   // null = unrestricted, "" = no department
+                    AllowedDepartmentIds = allowedDepartmentIds,   // null = unrestricted, "" = no department
+                    ReportingType = reportingType
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -93,12 +95,12 @@ namespace EMR.Api.Services
             public string? ClientName { get; set; }
         }
 
-        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null)
+        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null, string? reportingType = "Numeric")
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
                 "dbo.usp_LabReporting_GetDetail",
-                new { LabOrderId = labOrderId, BranchId = branchId },
+                new { LabOrderId = labOrderId, BranchId = branchId, ReportingType = reportingType },
                 commandType: CommandType.StoredProcedure
             );
 
@@ -171,12 +173,12 @@ namespace EMR.Api.Services
             return count;
         }
 
-        public async Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null)
+        public async Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null, int? departmentId = null, string? reportingType = null)
         {
             using var connection = db.CreateConnection();
             var rows = await connection.QueryAsync<LabReportSignoffLevelDto>(
                 "dbo.usp_Api_LabReport_GetSignoffPanel",
-                new { LabOrderId = labOrderId, BranchId = branchId },
+                new { LabOrderId = labOrderId, BranchId = branchId, DepartmentId = departmentId, ReportingType = reportingType },
                 commandType: CommandType.StoredProcedure);
             return rows.ToList();
         }

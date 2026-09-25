@@ -59,6 +59,8 @@ public class LabTestCategoriesController(
             CompanyId = User.GetCompanyId(),
             Display_Order = 1,
             Status = true,
+            Is_Barcode_Required = true,
+            Is_Sample_Collection_Required = true,
             DepartmentOptions = await GetDepartmentOptionsAsync()
         };
 
@@ -83,7 +85,9 @@ public class LabTestCategoriesController(
                 Category_Name = model.Category_Name,
                 Display_Order = model.Display_Order,
                 CompanyId = User.GetCompanyId(),
-                UserId = User.GetUserId()
+                UserId = User.GetUserId(),
+                Is_Barcode_Required = model.Is_Barcode_Required,
+                Is_Sample_Collection_Required = model.Is_Sample_Collection_Required
             };
 
             var newId = await categoryApiClient.CreateAsync(req);
@@ -133,6 +137,8 @@ public class LabTestCategoriesController(
                 Category_Code = item.Category_Code,
                 Display_Order = item.Display_Order,
                 Status = item.Status,
+                Is_Barcode_Required = item.Is_Barcode_Required,
+                Is_Sample_Collection_Required = item.Is_Sample_Collection_Required,
                 DepartmentOptions = await GetDepartmentOptionsAsync()
             };
 
@@ -167,7 +173,9 @@ public class LabTestCategoriesController(
                 Category_Name = model.Category_Name,
                 Display_Order = model.Display_Order,
                 Status = model.Status,
-                UserId = User.GetUserId()
+                UserId = User.GetUserId(),
+                Is_Barcode_Required = model.Is_Barcode_Required,
+                Is_Sample_Collection_Required = model.Is_Sample_Collection_Required
             };
 
             await categoryApiClient.UpdateAsync(req);

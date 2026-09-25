@@ -21,6 +21,9 @@ public interface ILabReportPdfService
     /// <summary>Hospital logo bytes for the letterhead (png / jpg inside wwwroot only).</summary>
     byte[]? LoadLogo(string? logoPath);
 
+    /// <summary>Reads an uploaded signature from App_Data/signatures (png / jpg only).</summary>
+    byte[]? LoadSignature(string? signaturePath);
+
     /// <summary>How many times the report of this bill has already been printed (audit trail).</summary>
     Task<int> GetPrintCountAsync(string? billNo, string scope = LabReportPrintBuilder.ScopeAll);
 }
@@ -61,7 +64,7 @@ public class LabReportPdfService(
         // level-by-level on the Pathologist Dashboard, or from the Entry screen (then the branch's configured
         // signatories, or the approver). This call never blocks the print.
         List<LabReportSignoffLevelDto> signoffLevels = [];
-        try { signoffLevels = await labReportingApiClient.GetSignoffPanelAsync(labOrderId, detail.BranchId); }
+        try { signoffLevels = await labReportingApiClient.GetSignoffPanelAsync(labOrderId, detail.BranchId, reportingType: "Numeric"); }
         catch (HttpRequestException) { /* the report still prints without the signature panel */ }
 
         var vm = LabReportPrintBuilder.Build(detail, order, meta, settings, branch, printedBy, DateTime.Now, scope, signoffLevels);

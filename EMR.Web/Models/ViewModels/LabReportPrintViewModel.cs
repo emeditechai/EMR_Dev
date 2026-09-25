@@ -5,6 +5,7 @@ public class LabReportPrintViewModel
 {
     // ── Letterhead ────────────────────────────────────────────────────────────
     public string HospitalName { get; set; } = "eMeditech Hospital";
+    public string? HospitalType { get; set; }
     public string? HospitalLogoPath { get; set; }
     public string? HospitalAddress { get; set; }
     public string? HospitalPhone { get; set; }

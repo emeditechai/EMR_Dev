@@ -30,7 +30,8 @@ namespace EMR.Web.ApiClients
             int? departmentId = null,
             int? categoryId = null,
             int? subCategoryId = null,
-            string? allowedDepartmentIds = null)
+            string? allowedDepartmentIds = null,
+            string? reportingType = "Numeric")
         {
             string query = $"?branchId={branchId}";
             if (fromDate.HasValue) query += $"&fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}";
@@ -43,6 +44,7 @@ namespace EMR.Web.ApiClients
             if (subCategoryId.HasValue && subCategoryId.Value > 0) query += $"&subCategoryId={subCategoryId.Value}";
             // null = unrestricted; otherwise only these departments ("" = none)
             if (allowedDepartmentIds != null) query += $"&restrictDepartments=true&allowedDepartmentIds={Uri.EscapeDataString(allowedDepartmentIds)}";
+            if (!string.IsNullOrEmpty(reportingType)) query += $"&reportingType={Uri.EscapeDataString(reportingType)}";
 
             var response = await httpClient.GetAsync($"api/LabReporting/headers{query}");
             response.EnsureSuccessStatusCode();
@@ -51,18 +53,27 @@ namespace EMR.Web.ApiClients
                    ?? new LabReportingHeaderListResult();
         }
 
-        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null)
+        public async Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null, string? reportingType = "Numeric")
         {
-            var url = $"api/LabReporting/detail/{labOrderId}" + (branchId.HasValue ? $"?branchId={branchId.Value}" : string.Empty);
+            var query = new List<string>();
+            if (branchId.HasValue) query.Add($"branchId={branchId.Value}");
+            if (!string.IsNullOrWhiteSpace(reportingType)) query.Add($"reportingType={Uri.EscapeDataString(reportingType)}");
+            var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+
+            var url = $"api/LabReporting/detail/{labOrderId}{queryString}";
             var response = await httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode) return null;
 
             return await response.Content.ReadFromJsonAsync<LabReportingOrderDetailDto>();
         }
 
-        public async Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null)
+        public async Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null, int? departmentId = null, string? reportingType = null)
         {
-            var url = $"api/LabReporting/signoff-panel/{labOrderId}" + (branchId.HasValue ? $"?branchId={branchId}" : "");
+            var q = new List<string>();
+            if (branchId.HasValue) q.Add($"branchId={branchId.Value}");
+            if (departmentId.HasValue) q.Add($"departmentId={departmentId.Value}");
+            if (!string.IsNullOrWhiteSpace(reportingType)) q.Add($"reportingType={Uri.EscapeDataString(reportingType)}");
+            var url = $"api/LabReporting/signoff-panel/{labOrderId}" + (q.Count > 0 ? "?" + string.Join("&", q) : "");
             var response = await httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode) return [];
             return await response.Content.ReadFromJsonAsync<List<LabReportSignoffLevelDto>>() ?? [];

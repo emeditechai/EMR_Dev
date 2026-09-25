@@ -69,7 +69,7 @@ public class HospitalSettingsController(
         try
         {
             var result = await signatoryApiClient.GetListAsync(branchId.Value, User.GetCompanyId());
-            return Json(new { success = true, signatories = result.Signatories, candidates = result.Candidates });
+            return Json(new { success = true, signatories = result.Signatories, candidates = result.Candidates, departments = result.Departments });
         }
         catch (HttpRequestException)
         {
@@ -78,12 +78,12 @@ public class HospitalSettingsController(
     }
 
     /// <summary>
-    /// Saves the Level 1..3 signatories. Sent as a form so a signature image can come with each level;
-    /// a level with no new file keeps whatever signature it already had.
+    /// Saves department-wise signatories (up to 3 slots per department).
+    /// Form keys: userId_&lt;deptId&gt;_&lt;slot&gt;, signature_&lt;deptId&gt;_&lt;slot&gt;
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    [RequestSizeLimit(8 * 1024 * 1024)]
+    [RequestSizeLimit(16 * 1024 * 1024)]
     public async Task<IActionResult> SaveSignatoriesJson()
     {
         var branchId = User.GetCurrentBranchId();
@@ -93,16 +93,27 @@ public class HospitalSettingsController(
 
         try
         {
-            for (var level = 1; level <= 3; level++)
+            // Form keys are: userId_<deptId>_<slot>   e.g.  userId_3_1, userId_3_2
+            foreach (var key in Request.Form.Keys)
             {
-                var raw = Request.Form[$"userId_{level}"].ToString();
-                if (!int.TryParse(raw, out var userId) || userId <= 0) continue;   // level left empty
+                if (!key.StartsWith("userId_")) continue;
+
+                var tail = key["userId_".Length..];                   // "3_1"
+                var parts = tail.Split('_');
+                if (parts.Length != 2) continue;
+                if (!int.TryParse(parts[0], out var deptId) || deptId <= 0) continue;
+                if (!int.TryParse(parts[1], out var slot)   || slot is < 1 or > 3) continue;
+
+                var raw = Request.Form[key].ToString();
+                if (!int.TryParse(raw, out var userId) || userId <= 0) continue;  // slot left empty
 
                 items.Add(new LabDefaultSignatoryItem
                 {
-                    LevelNo = level,
-                    UserId = userId,
-                    SignaturePath = await SaveSignatureAsync(Request.Form.Files[$"signature_{level}"])
+                    DepartmentId  = deptId,
+                    SlotNo        = slot,
+                    UserId        = userId,
+                    SignaturePath = await SaveSignatureAsync(
+                        Request.Form.Files[$"signature_{deptId}_{slot}"])
                 });
             }
         }

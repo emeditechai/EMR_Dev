@@ -22,7 +22,8 @@ namespace EMR.Api.Controllers
             [FromQuery] int? categoryId = null,
             [FromQuery] int? subCategoryId = null,
             [FromQuery] bool restrictDepartments = false,
-            [FromQuery] string? allowedDepartmentIds = null)
+            [FromQuery] string? allowedDepartmentIds = null,
+            [FromQuery] string? reportingType = "Numeric")
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
@@ -34,26 +35,27 @@ namespace EMR.Api.Controllers
             var result = await labReportingService.GetHeaderListAsync(
                 branchId, fromDate, toDate, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId,
                 // Department Access of the user: restricted with no ids means "no department" (nothing listed)
-                restrictDepartments ? (allowedDepartmentIds ?? string.Empty) : null);
+                restrictDepartments ? (allowedDepartmentIds ?? string.Empty) : null,
+                reportingType);
             return Ok(result);
         }
 
         [HttpGet("detail/{labOrderId}")]
-        public async Task<IActionResult> GetDetail(int labOrderId, [FromQuery] int? branchId = null)
+        public async Task<IActionResult> GetDetail(int labOrderId, [FromQuery] int? branchId = null, [FromQuery] string? reportingType = "Numeric")
         {
             if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
 
-            var result = await labReportingService.GetDetailAsync(labOrderId, branchId);
+            var result = await labReportingService.GetDetailAsync(labOrderId, branchId, reportingType);
             if (result == null) return NotFound("Lab Order reporting details not found.");
 
             return Ok(result);
         }
 
         [HttpGet("signoff-panel/{labOrderId:int}")]
-        public async Task<IActionResult> GetSignoffPanel(int labOrderId, [FromQuery] int? branchId = null)
+        public async Task<IActionResult> GetSignoffPanel(int labOrderId, [FromQuery] int? branchId = null, [FromQuery] int? departmentId = null, [FromQuery] string? reportingType = null)
         {
             if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
-            return Ok(await labReportingService.GetSignoffPanelAsync(labOrderId, branchId));
+            return Ok(await labReportingService.GetSignoffPanelAsync(labOrderId, branchId, departmentId, reportingType));
         }
 
         public class RecordEntryApprovalRequest

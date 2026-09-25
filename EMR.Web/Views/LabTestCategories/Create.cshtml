@@ -78,6 +78,42 @@
                                 <span asp-validation-for="Display_Order" class="text-danger small"></span>
                                 <small class="text-muted">Numeric integer for ordering categories in lists and reports.</small>
                             </div>
+
+                            <!-- Is Barcode Required Toggle -->
+                            <div class="col-md-6 mt-3">
+                                <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between h-100">
+                                    <div>
+                                        <label class="form-label fw-semibold text-dark mb-1 d-flex align-items-center gap-2">
+                                            <i class="bi bi-upc-scan text-primary"></i> Is Barcode Required
+                                        </label>
+                                        <p class="text-muted small mb-0">Specify if barcode generation/tracking is required.</p>
+                                    </div>
+                                    <div class="form-check form-switch form-switch-md ms-3">
+                                        <input asp-for="Is_Barcode_Required" class="form-check-input" type="checkbox" id="barcodeSwitch" role="switch" />
+                                        <label class="form-check-label fw-bold ms-2" for="barcodeSwitch" id="barcodeLabel">
+                                            @(Model.Is_Barcode_Required ? "Yes" : "No")
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Is Sample Collection Required Toggle -->
+                            <div class="col-md-6 mt-3">
+                                <div class="p-3 bg-light rounded border d-flex align-items-center justify-content-between h-100">
+                                    <div>
+                                        <label class="form-label fw-semibold text-dark mb-1 d-flex align-items-center gap-2">
+                                            <i class="bi bi-eyedropper text-primary"></i> Is Sample Collection Required
+                                        </label>
+                                        <p class="text-muted small mb-0">Specify if sample collection is required before processing.</p>
+                                    </div>
+                                    <div class="form-check form-switch form-switch-md ms-3">
+                                        <input asp-for="Is_Sample_Collection_Required" class="form-check-input" type="checkbox" id="sampleSwitch" role="switch" />
+                                        <label class="form-check-label fw-bold ms-2" for="sampleSwitch" id="sampleLabel">
+                                            @(Model.Is_Sample_Collection_Required ? "Yes" : "No")
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Form Actions -->
@@ -96,4 +132,12 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('barcodeSwitch')?.addEventListener('change', function () {
+            document.getElementById('barcodeLabel').textContent = this.checked ? 'Yes' : 'No';
+        });
+        document.getElementById('sampleSwitch')?.addEventListener('change', function () {
+            document.getElementById('sampleLabel').textContent = this.checked ? 'Yes' : 'No';
+        });
+    </script>
 }

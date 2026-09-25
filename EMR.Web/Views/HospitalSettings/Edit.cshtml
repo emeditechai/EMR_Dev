@@ -494,7 +494,7 @@
 
 <!-- Default report signatories (used when pathologist approval is switched off) -->
 <div class="modal fade" id="modalSignatories" tabindex="-1" aria-labelledby="modalSignatoriesLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">
             <div class="modal-header border-bottom py-2 px-3 bg-light">
                 <div>
@@ -502,8 +502,8 @@
                         <i class="bi bi-pen-fill text-primary me-1"></i>Report Signatories
                     </h6>
                     <div class="text-muted mt-1" style="font-size:.72rem;">
-                        Pathologist approval is switched off, so name the signatories printed on the report.
-                        Fill any one level or all three.
+                        Pathologist approval is switched off. Configure <strong>up to 3 pathologists</strong> per LAB department.
+                        Choose a department, then assign pathologists and optional signature images.
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -512,13 +512,12 @@
                 <div id="sigAlert" class="alert alert-danger py-2 px-3 d-none" style="font-size:.78rem;"></div>
                 <div id="sigLoading" class="text-center py-4">
                     <div class="spinner-border spinner-border-sm text-primary"></div>
-                    <div class="text-muted mt-2" style="font-size:.78rem;">Loading pathologists&hellip;</div>
+                    <div class="text-muted mt-2" style="font-size:.78rem;">Loading departments &amp; pathologists&hellip;</div>
                 </div>
-                <div id="sigLevels" class="d-none"></div>
+                <div id="sigDepartments" class="d-none"></div>
                 <div class="text-muted mt-2" style="font-size:.7rem;">
-                    <i class="bi bi-info-circle me-1"></i>Only active pathologists of this branch can be chosen, and the
-                    same pathologist cannot hold two levels. A signature is optional: without one, the pathologist's own
-                    uploaded signature is used.
+                    <i class="bi bi-info-circle me-1"></i>Only active pathologists of this branch can be chosen.
+                    A signature is optional: without one, the pathologist's own uploaded signature is used.
                 </div>
             </div>
             <div class="modal-footer border-top py-2 px-3 bg-light">
@@ -542,7 +541,8 @@
             };
             const $toggle = $('#PathologistApprovalRequired');
             const $btn = $('#btnConfigSignatories');
-            let candidates = [], current = [], loaded = false;
+            let candidates = [], current = [], departments = [], loaded = false;
+            const MAX_SLOTS = 3;
 
             const esc = v => $('<div>').text(v == null ? '' : v).html();
 
@@ -553,54 +553,102 @@
                 if (off && !loaded) loadSignatories();
             }
 
-            function levelCard(level) {
-                const saved = current.find(s => s.levelNo === level);
+            function slotLabel(n) {
+                return n === 1 ? '1st Pathologist' : n === 2 ? '2nd Pathologist' : '3rd Pathologist';
+            }
+
+            function buildSlotRow(dept, slot) {
+                // find saved entry for this dept + slot
+                const saved = current.find(s => s.departmentId === dept.departmentId && s.slotNo === slot);
+
                 const opts = ['<option value="">— Not set —</option>'].concat(candidates.map(c =>
                     `<option value="${c.userId}" ${saved && saved.userId === c.userId ? 'selected' : ''}>`
                     + esc(c.fullName) + (c.registrationNo ? ' — ' + esc(c.registrationNo) : '')
                     + (c.hasSignature ? '' : ' (no signature on profile)') + '</option>')).join('');
 
-                const has = saved && (saved.signaturePath || saved.userSignaturePath);
+                const hasSig = saved && (saved.signaturePath || saved.userSignaturePath);
+                const sigBadge = hasSig
+                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size:.62rem;"><i class="bi bi-check2 me-1"></i>Signature on file</span>'
+                    : '';
+
                 return `
-                    <div class="card border-0 shadow-sm mb-2">
-                        <div class="card-body p-2 px-3">
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Level ${level}</span>
-                                <span class="text-muted" style="font-size:.7rem;">${level === 1 ? 'First signatory' : level === 2 ? 'Second signatory' : 'Third signatory'}</span>
-                                ${has ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-auto" style="font-size:.66rem;"><i class="bi bi-check2 me-1"></i>Signature on file</span>' : ''}
+                    <div class="row g-2 align-items-end mb-2 slot-row" data-dept="${dept.departmentId}" data-slot="${slot}">
+                        <div class="col-12 col-md-1 text-center">
+                            <span class="badge rounded-pill ${saved ? 'bg-primary' : 'bg-secondary-subtle text-secondary'}" style="font-size:.65rem;">${slot}</span>
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <label class="form-label text-muted mb-0" style="font-size:.65rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;">
+                                ${slotLabel(slot)}${sigBadge}
+                            </label>
+                            <select class="form-select form-select-sm sig-user" data-dept="${dept.departmentId}" data-slot="${slot}">${opts}</select>
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <label class="form-label text-muted mb-0" style="font-size:.65rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;">Signature (optional)</label>
+                            <input type="file" class="form-control form-control-sm sig-file" data-dept="${dept.departmentId}" data-slot="${slot}" accept=".png,.jpg,.jpeg" />
+                        </div>
+                        <div class="col-12 col-md-1 text-center">
+                            ${saved ? '<i class="bi bi-check-circle-fill text-success" title="Configured"></i>' : '<i class="bi bi-dash-circle text-muted" title="Not configured"></i>'}
+                        </div>
+                    </div>`;
+            }
+
+            function deptCard(dept) {
+                const deptSaved = current.filter(s => s.departmentId === dept.departmentId);
+                const configuredCount = deptSaved.length;
+                const statusBadge = configuredCount > 0
+                    ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-auto" style="font-size:.66rem;"><i class="bi bi-check2 me-1"></i>${configuredCount} configured</span>`
+                    : '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-auto" style="font-size:.66rem;"><i class="bi bi-exclamation-triangle me-1"></i>Not configured</span>';
+
+                let slotsHtml = '';
+                for (let s = 1; s <= MAX_SLOTS; s++) {
+                    slotsHtml += buildSlotRow(dept, s);
+                }
+
+                return `
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white py-2 px-3 border-bottom" style="cursor:pointer;" data-bs-toggle="collapse" data-bs-target="#deptCollapse_${dept.departmentId}">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-chevron-down text-muted dept-chevron" style="transition:transform .2s;"></i>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                    <i class="bi bi-diagram-3 me-1"></i>${esc(dept.departmentName)}
+                                </span>
+                                ${statusBadge}
                             </div>
-                            <div class="row g-2">
-                                <div class="col-12 col-md-7">
-                                    <label class="form-label text-muted mb-1" style="font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;">Pathologist</label>
-                                    <select class="form-select form-select-sm sig-user" data-level="${level}">${opts}</select>
+                        </div>
+                        <div class="collapse show" id="deptCollapse_${dept.departmentId}">
+                            <div class="card-body p-2 px-3">
+                                <div class="text-muted mb-2" style="font-size:.68rem;">
+                                    <i class="bi bi-people me-1"></i>Assign up to ${MAX_SLOTS} pathologists for <strong>${esc(dept.departmentName)}</strong>
                                 </div>
-                                <div class="col-12 col-md-5">
-                                    <label class="form-label text-muted mb-1" style="font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;">Signature (optional)</label>
-                                    <input type="file" class="form-control form-control-sm sig-file" data-level="${level}" accept=".png,.jpg,.jpeg" />
-                                    <div class="form-text" style="font-size:.66rem;">PNG or JPG, up to 2 MB. Replaces this level's signature.</div>
-                                </div>
+                                ${slotsHtml}
+                                <div class="form-text text-end" style="font-size:.62rem;">PNG or JPG, up to 2 MB each. Replaces the slot's signature.</div>
                             </div>
                         </div>
                     </div>`;
             }
 
             function render() {
-                $('#sigLevels').html([1, 2, 3].map(levelCard).join('')).removeClass('d-none');
+                if (departments.length === 0) {
+                    $('#sigDepartments').html('<div class="alert alert-warning py-2 px-3" style="font-size:.78rem;"><i class="bi bi-exclamation-triangle me-1"></i>No LAB departments found. Please add departments with Type = LAB in the Department Master first.</div>').removeClass('d-none');
+                } else {
+                    $('#sigDepartments').html(departments.map(deptCard).join('')).removeClass('d-none');
+                }
                 $('#sigLoading').addClass('d-none');
                 $('#sigCountChip').text(current.length);
             }
 
             function loadSignatories() {
                 $('#sigLoading').removeClass('d-none');
-                $('#sigLevels').addClass('d-none');
+                $('#sigDepartments').addClass('d-none');
                 $.getJSON(urls.list).done(function (res) {
                     if (!res || !res.success) { $('#sigAlert').text((res && res.message) || 'Unable to load.').removeClass('d-none'); return; }
                     candidates = res.candidates || [];
                     current = res.signatories || [];
+                    departments = res.departments || [];
                     loaded = true;
                     render();
                 }).fail(function () {
-                    $('#sigAlert').text('Server error while loading the pathologists.').removeClass('d-none');
+                    $('#sigAlert').text('Server error while loading the data.').removeClass('d-none');
                     $('#sigLoading').addClass('d-none');
                 });
             }
@@ -617,17 +665,15 @@
             });
             $('#modalSignatories').on('shown.bs.modal', function () { if (!loaded) loadSignatories(); });
 
-            // the same pathologist may not hold two levels
-            $('#sigLevels').on('change', '.sig-user', function () {
-                const picked = $('.sig-user').map(function () { return $(this).val(); }).get().filter(Boolean);
-                $('.sig-user').each(function () {
-                    const own = $(this).val();
-                    $(this).find('option').each(function () {
-                        const v = $(this).val();
-                        $(this).prop('disabled', !!v && v !== own && picked.includes(v));
-                    });
-                });
-            }).on('change', '.sig-file', function () {
+            // collapse chevron rotation
+            $('#sigDepartments').on('show.bs.collapse', '.collapse', function () {
+                $(this).closest('.card').find('.dept-chevron').css('transform', 'rotate(0deg)');
+            }).on('hide.bs.collapse', '.collapse', function () {
+                $(this).closest('.card').find('.dept-chevron').css('transform', 'rotate(-90deg)');
+            });
+
+            // file size validation
+            $('#sigDepartments').on('change', '.sig-file', function () {
                 const f = this.files && this.files[0];
                 if (f && f.size > 2 * 1024 * 1024) {
                     $('#sigAlert').text('Signature image size must be up to 2 MB.').removeClass('d-none');
@@ -641,13 +687,19 @@
                 const fd = new FormData();
                 fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').first().val());
                 let any = false;
+
+                // Each sig-user has data-dept and data-slot attributes
                 $('.sig-user').each(function () {
-                    const level = $(this).data('level'), userId = $(this).val();
+                    const deptId = $(this).data('dept');
+                    const slot   = $(this).data('slot');
+                    const userId = $(this).val();
                     if (!userId) return;
                     any = true;
-                    fd.append('userId_' + level, userId);
-                    const file = $('.sig-file[data-level="' + level + '"]')[0].files[0];
-                    if (file) fd.append('signature_' + level, file);
+                    // Form key format expected by server: userId_<deptId>_<slot>
+                    fd.append('userId_' + deptId + '_' + slot, userId);
+                    const fileInput = $(`.sig-file[data-dept="${deptId}"][data-slot="${slot}"]`)[0];
+                    const file = fileInput && fileInput.files && fileInput.files[0];
+                    if (file) fd.append('signature_' + deptId + '_' + slot, file);
                 });
 
                 if (!any && !confirm('No signatory is selected. Save and clear the configured signatories?')) return;

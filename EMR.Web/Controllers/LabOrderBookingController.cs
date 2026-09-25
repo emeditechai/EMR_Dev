@@ -482,7 +482,16 @@ namespace EMR.Web.Controllers
                 var b2bSettings = await dbContext.HospitalSettings
                     .FirstOrDefaultAsync(s => s.BranchId == branchId.Value && s.IsActive);
                 if (b2bSettings != null)
+                {
                     b2bShowPrintBarcode = b2bSettings.BarcodeGenerateAtBilling;
+                    if (b2bShowPrintBarcode)
+                    {
+                        var conn = dbContext.Database.GetDbConnection();
+                        b2bShowPrintBarcode = await conn.ExecuteScalarAsync<bool>(
+                            "SELECT CASE WHEN EXISTS (SELECT 1 FROM dbo.SampleCollection WHERE Laborderid = @LabOrderId AND BarcodeNo IS NOT NULL AND LTRIM(RTRIM(BarcodeNo)) <> '') THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END",
+                            new { LabOrderId = labOrderRes.LabOrderId });
+                    }
+                }
             }
             catch
             {
@@ -1279,6 +1288,13 @@ namespace EMR.Web.Controllers
                 if (settings != null)
                 {
                     showPrintBarcode = settings.BarcodeGenerateAtBilling;
+                    if (showPrintBarcode)
+                    {
+                        var conn = dbContext.Database.GetDbConnection();
+                        showPrintBarcode = await conn.ExecuteScalarAsync<bool>(
+                            "SELECT CASE WHEN EXISTS (SELECT 1 FROM dbo.SampleCollection WHERE Laborderid = @LabOrderId AND BarcodeNo IS NOT NULL AND LTRIM(RTRIM(BarcodeNo)) <> '') THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END",
+                            new { LabOrderId = labOrderRes.LabOrderId });
+                    }
                 }
             }
             // ────────────────────────────────────────────────────────────────────────

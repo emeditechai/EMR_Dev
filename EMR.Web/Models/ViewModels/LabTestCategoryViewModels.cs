@@ -41,5 +41,11 @@ public class LabTestCategoryFormViewModel
     [Display(Name = "Status")]
     public bool Status { get; set; } = true;
 
+    [Display(Name = "Is Barcode Required")]
+    public bool Is_Barcode_Required { get; set; } = true;
+
+    [Display(Name = "Is Sample Collection Required")]
+    public bool Is_Sample_Collection_Required { get; set; } = true;
+
     public List<SelectListItem> DepartmentOptions { get; set; } = [];
 }

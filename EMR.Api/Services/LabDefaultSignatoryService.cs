@@ -21,15 +21,44 @@ public class LabDefaultSignatoryService(IDbConnectionFactory connectionFactory) 
     public async Task<LabDefaultSignatoryListResult> GetListAsync(int branchId, int? companyId)
     {
         using var db = connectionFactory.CreateConnection();
-        using var multi = await db.QueryMultipleAsync(
+
+        // Run signatory list SP (2 or 3 result sets depending on DB migration state)
+        var multi = await db.QueryMultipleAsync(
             "dbo.usp_Api_LabDefaultSignatory_GetList",
             new { BranchId = branchId, CompanyId = companyId },
             commandType: CommandType.StoredProcedure);
 
+        List<LabDefaultSignatoryDto> signatories;
+        List<LabSignatoryCandidateDto> candidates;
+        List<LabDepartmentDto> departments;
+
+        using (multi)
+        {
+            signatories = (await multi.ReadAsync<LabDefaultSignatoryDto>()).ToList();
+            candidates  = (await multi.ReadAsync<LabSignatoryCandidateDto>()).ToList();
+            try
+            {
+                departments = multi.IsConsumed ? [] : (await multi.ReadAsync<LabDepartmentDto>()).ToList();
+            }
+            catch
+            {
+                departments = [];
+            }
+        }
+
+        // If we didn't get departments from SP, fetch them directly (pre-migration fallback)
+        if (departments.Count == 0)
+        {
+            departments = (await db.QueryAsync<LabDepartmentDto>(
+                "SELECT DeptId AS DepartmentId, DeptName AS DepartmentName FROM dbo.DepartmentMaster WHERE DeptType = 'LAB' AND IsActive = 1 ORDER BY DeptName"))
+                .ToList();
+        }
+
         return new LabDefaultSignatoryListResult
         {
-            Signatories = (await multi.ReadAsync<LabDefaultSignatoryDto>()).ToList(),
-            Candidates = (await multi.ReadAsync<LabSignatoryCandidateDto>()).ToList()
+            Signatories = signatories,
+            Candidates  = candidates,
+            Departments = departments
         };
     }
 

@@ -92,6 +92,7 @@
                             <th>Category Name</th>
                             <th>Department</th>
                             <th class="text-center" style="width: 120px;">Display Order</th>
+                            <th class="text-center" style="width: 150px;">Requirements</th>
                             <th class="text-center" style="width: 120px;">Status</th>
                             <th class="text-end pe-4" style="width: 180px;">Actions</th>
                         </tr>
@@ -100,7 +101,7 @@
                         @if (!Model.Categories.Any())
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
+                                <td colspan="8" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>
                                     No Test Categories found matching your search criteria.
                                 </td>
@@ -129,6 +130,16 @@
                                         <span class="badge bg-secondary rounded-pill px-3">
                                             @item.Display_Order
                                         </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-flex flex-column align-items-center gap-1">
+                                            <span class="badge @(item.Is_Barcode_Required ? "bg-primary-subtle text-primary border border-primary-subtle" : "bg-light text-muted border") px-2 py-1" style="font-size: 0.75rem;" title="Barcode Required">
+                                                <i class="bi bi-upc-scan me-1"></i>Barcode: @(item.Is_Barcode_Required ? "Yes" : "No")
+                                            </span>
+                                            <span class="badge @(item.Is_Sample_Collection_Required ? "bg-info-subtle text-info border border-info-subtle" : "bg-light text-muted border") px-2 py-1" style="font-size: 0.75rem;" title="Sample Collection Required">
+                                                <i class="bi bi-eyedropper me-1"></i>Sample: @(item.Is_Sample_Collection_Required ? "Yes" : "No")
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="text-center">
                                         <form asp-action="ToggleStatus" asp-route-id="@item.Category_ID" method="post" class="d-inline">

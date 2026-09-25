@@ -17,15 +17,16 @@ namespace EMR.Web.ApiClients
             int? departmentId = null,
             int? categoryId = null,
             int? subCategoryId = null,
-            string? allowedDepartmentIds = null);
+            string? allowedDepartmentIds = null,
+            string? reportingType = "Numeric");
 
         /// <param name="branchId">
         /// Restricts the tests to the samples this branch holds (Report Entry screen). null = the whole bill (printing).
         /// </param>
-        Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null);
+        Task<LabReportingOrderDetailDto?> GetDetailAsync(int labOrderId, int? branchId = null, string? reportingType = "Numeric");
 
         /// <summary>The per-level pathologist signatures for the report footer.</summary>
-        Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null);
+        Task<List<LabReportSignoffLevelDto>> GetSignoffPanelAsync(int labOrderId, int? branchId = null, int? departmentId = null, string? reportingType = null);
 
         /// <summary>Records an approval made on the Report Entry screen (so the printed signature follows that route).</summary>
         Task<int> RecordEntryApprovalAsync(int labOrderId, IEnumerable<long> sampleCollectionIds, int userId, int? branchId);
