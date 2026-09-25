@@ -30,6 +30,19 @@ namespace EMR.Web.Models.ViewModels
         public List<string> DepartmentScopeNames { get; set; } = new();
     }
 
+    /// <summary>A calculated parameter on the Report Entry screen (Lab Master &gt; Lab Formula Component).</summary>
+    public class LabFormulaTargetInfo
+    {
+        public string TestCode { get; set; } = string.Empty;
+        public string TestName { get; set; } = string.Empty;
+        /// <summary>The configured expression, e.g. <c>[TST0040]/[TST0041]</c>.</summary>
+        public string Expression { get; set; } = string.Empty;
+        /// <summary>The same expression with test names, for the hint under the field.</summary>
+        public string Hint { get; set; } = string.Empty;
+        public int RoundingPrecision { get; set; }
+        public string? ValidityCondition { get; set; }
+    }
+
     public class LabReportingEntryPageViewModel
     {
         public LabReportingOrderDetailDto Detail { get; set; } = new();

@@ -111,4 +111,26 @@ public class LabFormulaParameterController(ILabFormulaParameterService service) 
         var data = await service.GetNumericTestsAsync(companyId, search);
         return Ok(ApiResponse<IEnumerable<NumericTestItem>>.Ok(data));
     }
+
+    /// <summary>Formulas that apply to a lab order (Report Entry screen shows them as calculated parameters).</summary>
+    [HttpGet("for-order/{labOrderId:int}")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabFormulaForOrderItem>>), 200)]
+    public async Task<IActionResult> GetForOrder(int labOrderId, [FromQuery] int? companyId)
+    {
+        var data = await service.GetForOrderAsync(labOrderId, companyId);
+        return Ok(ApiResponse<IEnumerable<LabFormulaForOrderItem>>.Ok(data));
+    }
+
+    /// <summary>Calculates every configured parameter of an order from the values entered so far.</summary>
+    [HttpPost("evaluate")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<LabFormulaEvaluationResult>>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    public async Task<IActionResult> Evaluate([FromBody] LabFormulaEvaluateRequest req)
+    {
+        if (req == null || req.LabOrderId <= 0)
+            return BadRequest(ApiResponse<object>.Fail("A valid LabOrderId is required."));
+
+        var data = await service.EvaluateAsync(req);
+        return Ok(ApiResponse<IEnumerable<LabFormulaEvaluationResult>>.Ok(data));
+    }
 }

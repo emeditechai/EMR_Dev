@@ -1724,53 +1724,92 @@
                     }
                 }
 
-                // Auto-calculation cascade
-                if (isUserTyping) {
-                    cascadeCalculations(testCode);
+                // Calculated parameters are refreshed from the server after a typed change
+                if (isUserTyping && !$row.find('.txt-test-val').hasClass('is-formula')) {
+                    cascadeCalculations();
                 }
             }
 
-            // Cascade ratio formulas (Total Chol / HDL and LDL / HDL)
-            function cascadeCalculations(sourceCode) {
-                if (sourceCode === 'TST0040' || sourceCode === 'TST0041' || sourceCode === 'TST0042') {
-                    const totalChol = parseFloat($('tr[data-test-code="TST0040"] .txt-test-val').val());
-                    const hdlChol = parseFloat($('tr[data-test-code="TST0041"] .txt-test-val').val());
-                    const ldlChol = parseFloat($('tr[data-test-code="TST0042"] .txt-test-val').val());
+            // ── Calculated parameters (Lab Master > Lab Formula Component) ──────────────
+            // The value of every configured target test is worked out on the server from its formula,
+            // so the browser never decides the result. It runs while the technician types, debounced.
+            const formulaUrl = '@Url.Action("CalculateFormulasJson", "LabReporting")';
+            const hasFormulaRows = $('.txt-test-val.is-formula').length > 0;
+            let formulaTimer = null;
+            let formulaInFlight = false;
 
-                    // TST0045: Total Cholesterol / HDL Ratio
-                    if (!isNaN(totalChol) && !isNaN(hdlChol) && hdlChol > 0) {
-                        const ratio1 = (totalChol / hdlChol).toFixed(2);
-                        const $row45 = $('tr[data-test-code="TST0045"]');
-                        if ($row45.length) {
-                            const isApproved45 = $row45.find('.row-status-badge').text().trim().toLowerCase().includes('approved');
-                            if (!isApproved45 || !$row45.find('.txt-test-val').prop('readonly')) {
-                                $row45.find('.txt-test-val').val(ratio1);
-                                if (!isApproved45) {
-                                    $row45.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Entered (Unsaved)');
-                                }
-                                isPageDirty = true;
-                                evaluateRow($row45, false);
-                            }
-                        }
-                    }
+            function currentEntryValues() {
+                const values = [];
+                $('.test-item-row').each(function () {
+                    const code = $(this).data('test-code');
+                    if (!code) return;
+                    const $inp = $(this).find('.txt-test-val');
+                    if (!$inp.length || $inp.hasClass('is-formula')) return;   // only typed values feed a formula
+                    values.push({ testCode: String(code), value: $inp.val() ?? '' });
+                });
+                return values;
+            }
 
-                    // TST0046: LDL / HDL Ratio
-                    if (!isNaN(ldlChol) && !isNaN(hdlChol) && hdlChol > 0) {
-                        const ratio2 = (ldlChol / hdlChol).toFixed(2);
-                        const $row46 = $('tr[data-test-code="TST0046"]');
-                        if ($row46.length) {
-                            const isApproved46 = $row46.find('.row-status-badge').text().trim().toLowerCase().includes('approved');
-                            if (!isApproved46 || !$row46.find('.txt-test-val').prop('readonly')) {
-                                $row46.find('.txt-test-val').val(ratio2);
-                                if (!isApproved46) {
-                                    $row46.find('.row-status-badge').attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle').text('Entered (Unsaved)');
-                                }
-                                isPageDirty = true;
-                                evaluateRow($row46, false);
-                            }
-                        }
+            function applyFormulaResult(r, markDirty) {
+                const $row = $('tr[data-test-code="' + r.targetTestCode + '"]');
+                if (!$row.length) return;
+                const $inp = $row.find('.txt-test-val');
+                if (!$inp.length || $inp.prop('disabled')) return;
+
+                // an approved / validated value is never overwritten
+                const reportStatusId = parseInt($row.attr('data-report-status-id')) || 0;
+                if (reportStatusId >= 3) return;
+
+                const $note = $row.find('.formula-note');
+                const newVal = r.value ?? '';
+                const changed = ($inp.val() ?? '') !== newVal;
+
+                if (changed) {
+                    $inp.val(newVal);
+                    if (markDirty && newVal !== '') {
+                        isPageDirty = true;
+                        $row.find('.row-status-badge')
+                            .attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle')
+                            .text(reportStatusId >= 2 ? 'Modified (Unsaved)' : 'Entered (Unsaved)');
                     }
+                    evaluateRow($row, false);
                 }
+
+                if (r.value == null && r.message) {
+                    // show test names instead of codes in "Waiting for ..."
+                    let msg = r.message;
+                    (r.missingCodes || []).forEach(code => {
+                        const name = $('tr[data-test-code="' + code + '"]').find('.fw-bold.text-dark').first().text().trim();
+                        if (name) msg = msg.replace(code, name);
+                    });
+                    $note.text(msg).show();
+                } else {
+                    $note.hide().text('');
+                }
+            }
+
+            function recalcFormulas(markDirty) {
+                if (!hasFormulaRows || formulaInFlight) return;
+                formulaInFlight = true;
+                $.ajax({
+                    url: formulaUrl,
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ labOrderId: labOrderId, values: currentEntryValues() })
+                })
+                .done(function (res) {
+                    if (!res || !res.success || !res.results) return;
+                    res.results.forEach(r => applyFormulaResult(r, markDirty));
+                    updateFilledCount();
+                    updateActionButtonsVisibility();
+                })
+                .always(function () { formulaInFlight = false; });
+            }
+
+            function cascadeCalculations() {
+                if (!hasFormulaRows) return;
+                clearTimeout(formulaTimer);
+                formulaTimer = setTimeout(() => recalcFormulas(true), 350);
             }
 
             // ── Live counter update ─────────────────────────────────────────
@@ -1861,6 +1900,7 @@
             });
             updateFilledCount();
             updateActionButtonsVisibility();
+            recalcFormulas(false);   // show the calculated parameters for values already saved
 
             // Handle live input typing on test result values
             $(document).on('input change', '.txt-test-val', function () {

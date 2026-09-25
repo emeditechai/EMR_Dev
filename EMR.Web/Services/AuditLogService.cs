@@ -93,11 +93,26 @@ public class AuditLogService(ApplicationDbContext dbContext, IHttpContextAccesso
         return NormalizeIp(ctx.Connection.RemoteIpAddress?.ToString());
     }
 
-    // Map IPv4-in-IPv6 (::ffff:1.2.3.4) back to plain IPv4
+    /// <summary>
+    /// Stores the address in the form people recognise: plain IPv4 where the client is IPv4,
+    /// 127.0.0.1 for a loopback connection (the IPv6 form ::1 means the same thing), and no port.
+    /// </summary>
     private static string? NormalizeIp(string? ip)
     {
-        if (ip is null) return null;
+        if (string.IsNullOrWhiteSpace(ip)) return null;
+        ip = ip.Trim();
+
+        // some proxies append the source port: 203.0.113.9:51514
+        if (ip.Count(c => c == ':') == 1 && ip.Contains('.'))
+            ip = ip[..ip.IndexOf(':')];
+
+        // IPv4 written as IPv6: ::ffff:203.0.113.9
         if (ip.StartsWith("::ffff:", StringComparison.OrdinalIgnoreCase))
-            return ip[7..];
-        return ip;
+            ip = ip[7..];
+
+        // loopback, however it was written
+        if (ip is "::1" or "0:0:0:0:0:0:0:1" or "[::1]")
+            return "127.0.0.1";
+
+        return ip.Trim('[', ']');
     }}

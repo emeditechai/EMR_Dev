@@ -21,13 +21,13 @@
         capBadgeClass = "cap-badge-green";
     }
 
-    bool isAutoCalculated = item.TestCode == "TST0045" || item.TestCode == "TST0046";
-    string formulaHint = item.TestCode switch
-    {
-        "TST0045" => "= Total cholesterol ÷ HDL",
-        "TST0046" => "= LDL cholesterol ÷ HDL",
-        _ => ""
-    };
+    // Calculated parameter (Lab Master > Lab Formula Component): the value is worked out on the server
+    // from the configured formula, so the field is filled in, not typed.
+    var formulaTargets = ViewData["FormulaTargets"] as Dictionary<string, EMR.Web.Models.ViewModels.LabFormulaTargetInfo>
+                         ?? new Dictionary<string, EMR.Web.Models.ViewModels.LabFormulaTargetInfo>(StringComparer.OrdinalIgnoreCase);
+    formulaTargets.TryGetValue(item.TestCode ?? string.Empty, out var formula);
+    bool isAutoCalculated = formula != null;
+    string formulaHint = formula == null ? "" : "= " + formula.Hint;
 
     bool isRejectedOrReCollect = item.CollectionstatusID == 3 || item.CollectionstatusID == 4;
     bool hasValue = !isRejectedOrReCollect && !string.IsNullOrWhiteSpace(item.TestValue);
@@ -127,13 +127,17 @@
         <input type="number"
                step="any"
                data-no-ref-range="@(!item.RefRangeId.HasValue && !hasValue ? "true" : "false")"
-               class="form-control form-control-sm result-val-numeric-input test-val-input txt-test-val @(hasValue ? "has-value" : "") @(noRefRange ? "no-ref-range" : "") @(isAutoCalculated ? "bg-light-subtle" : "") @(isLocked ? "is-locked bg-light text-dark" : "")"
+               @if (isAutoCalculated)
+               {
+                   <text>data-formula="@formula!.Expression" data-formula-precision="@formula!.RoundingPrecision" </text>
+               }
+               class="form-control form-control-sm result-val-numeric-input test-val-input txt-test-val @(hasValue ? "has-value" : "") @(noRefRange ? "no-ref-range" : "") @(isAutoCalculated ? "is-formula bg-light-subtle" : "") @(isLocked ? "is-locked bg-light text-dark" : "")"
                value="@(isRejectedOrReCollect ? "" : (item.TestValue ?? ""))"
-               placeholder="@(isRejectedOrReCollect ? "Pending" : (noRefRange ? "N/A" : "Value"))"
+               placeholder="@(isRejectedOrReCollect ? "Pending" : (noRefRange ? "N/A" : (isAutoCalculated ? "Calculated" : "Value")))"
                tabindex="@globalRowIndex"
                autocomplete="off"
                title="@(isOtherBranch ? $"Processed at {item.TargetBranchName ?? "the target branch"} - this branch cannot change it" : "")"
-               @(isOtherBranch || isRejectedOrReCollect || noRefRange ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
+               @(isOtherBranch || isRejectedOrReCollect || noRefRange ? "disabled=\"disabled\"" : (isLocked || isAutoCalculated ? "readonly=\"readonly\"" : "")) />
         
         <button type="button" 
                 class="btn btn-outline-secondary btn-sm btn-edit-row py-1 px-1.5 shadow-2xs @(canEditRow ? "" : "d-none")" 
@@ -151,9 +155,16 @@
 
     @if (!string.IsNullOrWhiteSpace(formulaHint))
     {
-        <div class="fs-9 text-muted font-monospace mt-1 formula-text" style="max-width: 140px; line-height: 1.2;">
+        <div class="fs-9 text-muted font-monospace mt-1 formula-text" style="max-width: 155px; line-height: 1.2;">
             @formulaHint
         </div>
+        <div class="fs-9 mt-0.5 formula-note text-warning-emphasis" style="max-width: 155px; line-height: 1.2; display:none;"></div>
+        @if (!string.IsNullOrWhiteSpace(formula!.ValidityCondition))
+        {
+            <div class="fs-9 text-muted mt-0.5" style="max-width: 155px; line-height: 1.2;" title="Validity condition from the formula configuration">
+                <i class="bi bi-info-circle me-1"></i>@formula!.ValidityCondition
+            </div>
+        }
     }
     
     <div class="delta-check-container mt-1 fs-9" style="max-width: 155px; line-height: 1.25; @(string.IsNullOrWhiteSpace(item.PreviousTestValue) ? "display:none;" : "")">

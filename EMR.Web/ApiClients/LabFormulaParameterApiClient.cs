@@ -80,4 +80,19 @@ public class LabFormulaParameterApiClient(IHttpClientFactory factory) : ILabForm
         var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<NumericTestItemModel>>>($"api/lab-formula-parameters/numeric-tests{queryString}");
         return res?.Data ?? [];
     }
+
+    public async Task<IEnumerable<LabFormulaForOrderModel>> GetForOrderAsync(int labOrderId, int? companyId = null)
+    {
+        var query = companyId.HasValue ? $"?companyId={companyId.Value}" : string.Empty;
+        var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<LabFormulaForOrderModel>>>($"api/lab-formula-parameters/for-order/{labOrderId}{query}");
+        return res?.Data ?? Enumerable.Empty<LabFormulaForOrderModel>();
+    }
+
+    public async Task<IEnumerable<LabFormulaEvaluationResultModel>> EvaluateAsync(LabFormulaEvaluateRequestModel req)
+    {
+        var res = await Client.PostAsJsonAsync("api/lab-formula-parameters/evaluate", req);
+        if (!res.IsSuccessStatusCode) return Enumerable.Empty<LabFormulaEvaluationResultModel>();
+        var body = await res.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<LabFormulaEvaluationResultModel>>>();
+        return body?.Data ?? Enumerable.Empty<LabFormulaEvaluationResultModel>();
+    }
 }

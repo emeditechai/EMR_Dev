@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Dapper;
 using EMR.Api.Data;
 using EMR.Api.Models;
@@ -95,5 +96,54 @@ public class LabFormulaParameterService(IDbConnectionFactory db) : ILabFormulaPa
             new { CompanyId = companyId, Search = search },
             commandType: CommandType.StoredProcedure
         );
+    }
+
+    public async Task<IEnumerable<LabFormulaForOrderItem>> GetForOrderAsync(int labOrderId, int? companyId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<LabFormulaForOrderItem>(
+            "usp_Api_LabFormula_GetForOrder",
+            new { LabOrderId = labOrderId, CompanyId = companyId },
+            commandType: CommandType.StoredProcedure
+        );
+    }
+
+    public async Task<IEnumerable<LabFormulaEvaluationResult>> EvaluateAsync(LabFormulaEvaluateRequest request)
+    {
+        var formulas = (await GetForOrderAsync(request.LabOrderId, request.CompanyId)).ToList();
+        var results = new List<LabFormulaEvaluationResult>();
+        if (formulas.Count == 0) return results;
+
+        // Only numbers can feed a formula; anything else (text result, blank) counts as not entered yet.
+        var entered = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var v in request.Values ?? new List<LabFormulaEntryValue>())
+        {
+            if (string.IsNullOrWhiteSpace(v.TestCode) || string.IsNullOrWhiteSpace(v.Value)) continue;
+            if (decimal.TryParse(v.Value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
+                entered[v.TestCode.Trim()] = d;
+        }
+
+        foreach (var f in formulas)
+        {
+            var r = LabFormulaEvaluator.Evaluate(f.FormulaExpression, entered);
+            var precision = Math.Clamp(f.RoundingPrecision, 0, 10);
+            results.Add(new LabFormulaEvaluationResult
+            {
+                Parameter_ID = f.Parameter_ID,
+                TargetTestCode = f.TargetTestCode,
+                TargetTestName = f.TargetTestName,
+                FormulaExpression = f.FormulaExpression,
+                RoundingPrecision = precision,
+                ValidityCondition = f.ValidityCondition,
+                Value = r.HasValue
+                    ? Math.Round(r.Value, precision, MidpointRounding.AwayFromZero).ToString("F" + precision, CultureInfo.InvariantCulture)
+                    : null,
+                Message = r.Message ?? (r.MissingCodes.Count > 0 ? "Waiting for " + string.Join(", ", r.MissingCodes) : null),
+                UsedCodes = r.UsedCodes.ToList(),
+                MissingCodes = r.MissingCodes.ToList()
+            });
+        }
+
+        return results;
     }
 }

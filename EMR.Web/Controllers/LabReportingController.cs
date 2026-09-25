@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using EMR.Web.ApiClients;
+using EMR.Web.ApiClients.Models;
 using EMR.Web.Extensions;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
@@ -29,7 +30,8 @@ namespace EMR.Web.Controllers
         Microsoft.AspNetCore.Hosting.IWebHostEnvironment env,
         ILabReportingConditionApiClient conditionApiClient,
         ILabReportPdfService reportPdfService,
-        ILabReportEmailService labReportEmailService) : Controller
+        ILabReportEmailService labReportEmailService,
+        ILabFormulaParameterApiClient labFormulaApiClient) : Controller
     {
         [HttpGet]
         [EMR.Web.Filters.LabReportingAccess]
@@ -171,6 +173,66 @@ namespace EMR.Web.Controllers
                 allowed.Select(d => new SelectListItem(d.DepartmentName, d.DepartmentId.ToString())).ToList());
         }
 
+        /// <summary>
+        /// Calculated parameters of this order (Lab Master &gt; Lab Formula Component), keyed by test code.
+        /// The hint shows the formula with test names instead of codes where the test is on the order.
+        /// </summary>
+        private async Task<Dictionary<string, LabFormulaTargetInfo>> GetFormulaTargetsAsync(int labOrderId, LabReportingOrderDetailDto detail)
+        {
+            var targets = new Dictionary<string, LabFormulaTargetInfo>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var formulas = await labFormulaApiClient.GetForOrderAsync(labOrderId, User.GetCompanyId());
+                var names = detail.Items
+                    .Where(i => !string.IsNullOrWhiteSpace(i.TestCode))
+                    .GroupBy(i => i.TestCode!, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First().TestName, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var f in formulas)
+                {
+                    var hint = System.Text.RegularExpressions.Regex.Replace(f.FormulaExpression ?? "", @"\[([^\]]+)\]",
+                        m => names.TryGetValue(m.Groups[1].Value.Trim(), out var n) ? n : m.Groups[1].Value.Trim());
+                    targets[f.TargetTestCode] = new LabFormulaTargetInfo
+                    {
+                        TestCode = f.TargetTestCode,
+                        TestName = f.TargetTestName,
+                        Expression = f.FormulaExpression ?? string.Empty,
+                        Hint = hint,
+                        RoundingPrecision = f.RoundingPrecision,
+                        ValidityCondition = f.ValidityCondition
+                    };
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // the page still works: without the configuration nothing is auto-calculated
+            }
+            return targets;
+        }
+
+        /// <summary>
+        /// Report Entry calls this while the technician types: every calculated parameter of the order is
+        /// worked out on the server from its configured formula, never in the browser.
+        /// </summary>
+        [HttpPost]
+        [EMR.Web.Filters.LabReportingAccess]
+        public async Task<IActionResult> CalculateFormulasJson([FromBody] LabFormulaEvaluateRequestModel request)
+        {
+            if (request == null || request.LabOrderId <= 0)
+                return Json(new { success = false, message = "A valid lab order is required." });
+
+            try
+            {
+                request.CompanyId = User.GetCompanyId();
+                var results = await labFormulaApiClient.EvaluateAsync(request);
+                return Json(new { success = true, results });
+            }
+            catch (HttpRequestException)
+            {
+                return Json(new { success = false, message = "The calculation service is not reachable. Please retry." });
+            }
+        }
+
         /// <summary>Keeps only the tests of the user's departments on a reporting detail (Entry page / JSON).</summary>
         private static void ApplyDepartmentScope(LabReportingOrderDetailDto detail, LabDepartmentScope scope)
         {
@@ -222,6 +284,8 @@ namespace EMR.Web.Controllers
             LabReportClientDto? b2bClient = null;
             try { b2bClient = (await labReportingApiClient.GetPrintMetaAsync(labOrderId))?.Client; }
             catch { /* banner-only */ }
+
+            ViewData["FormulaTargets"] = await GetFormulaTargetsAsync(labOrderId, detail);
 
             var viewModel = new LabReportingEntryPageViewModel
             {

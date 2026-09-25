@@ -216,19 +216,20 @@ public class AccountController(
             return RedirectToAction(nameof(Login));
         }
 
-        // Sign in immediately, then fire-and-forget the DB write + audit log
-        // so the user is not blocked waiting for non-critical DB operations
+        // Sign in, then record the login. This is awaited on purpose: fired and forgotten it ran after the
+        // request scope (and its DbContext) was disposed, so the last-login stamp and the branch audit row
+        // were silently lost - which is what the dashboard reads.
         if (isSuperAdmin || roleNames.Count <= 1)
         {
             var activeRole = isSuperAdmin ? "Administrator" : (roleNames.Count == 1 ? roleNames[0] : null);
             await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, roleNames, activeRole);
-            _ = FinalizeLoginAsync(user, allowedBranch, userId);
+            await FinalizeLoginAsync(user, allowedBranch, userId);
             return RedirectToAction("Index", "Dashboard");
         }
 
         // Multiple roles — establish session then let user pick role
         await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, roleNames, null);
-        _ = FinalizeLoginAsync(user, allowedBranch, userId);
+        await FinalizeLoginAsync(user, allowedBranch, userId);
         TempData["RememberMe"] = rememberMe;
         return RedirectToAction(nameof(SelectRole));
     }
