@@ -2940,12 +2940,17 @@ namespace EMR.Web.Controllers
                         );
                     }
 
-                    return Json(new { 
-                        success = true, 
-                        invoiceId = result.InvoiceId, 
-                        invoiceNo = result.InvoiceNo, 
+                    return Json(new {
+                        success = true,
+                        invoiceId = result.InvoiceId,
+                        encryptedInvoiceId = encryptionService.EncryptParameters(new Dictionary<string, string?> { ["id"] = result.InvoiceId.ToString() }),
+                        invoiceNo = result.InvoiceNo,
                         message = result.Message,
-                        generatedInvoices = result.GeneratedInvoices
+                        generatedInvoices = result.GeneratedInvoices?.Select(g => new {
+                            g.InvoiceId,
+                            encryptedInvoiceId = encryptionService.EncryptParameters(new Dictionary<string, string?> { ["id"] = g.InvoiceId.ToString() }),
+                            g.InvoiceNo, g.PartnerName, g.PartnerCode, g.OrderCount, g.TotalAmount
+                        })
                     });
                 }
                 return Json(new { success = false, error = result?.Message ?? "Failed to generate invoice." });

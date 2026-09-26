@@ -189,7 +189,7 @@
                                         </a>
                                         @if (inv.Status != "P")
                                         {
-                                            <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@(inv.PartnerType)&amp;agentId=@(inv.PartnerId)" class="btn btn-outline-success" title="Settle in Payment Screen">
+                                            <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@inv.PartnerType,agentId=@inv.PartnerId" class="btn btn-outline-success" title="Settle in Payment Screen">
                                                 <i class="bi bi-wallet2"></i>
                                             </a>
                                         }
@@ -429,7 +429,8 @@
             var agentIdsParam = cleanIds.join(',');
             $('#tblUninvoicedBody').html(`<tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading uninvoiced orders...</td></tr>`);
 
-            $.get(`/LabOrderBooking/GetUninvoicedOrders?agentType=${type}&agentIds=${encodeURIComponent(agentIdsParam)}`, function(res) {
+            encryptedUrl('/LabOrderBooking/GetUninvoicedOrders', { agentType: type, agentIds: agentIdsParam }).then(function(url) {
+            $.get(url, function(res) {
                 if (res && res.success && res.orders && res.orders.length > 0) {
                     var html = '';
                     res.orders.forEach(function(o) {
@@ -462,6 +463,7 @@
                     $('#tblUninvoicedBody').html(`<tr><td colspan="7" class="text-center py-4 text-muted small">No uninvoiced orders available for the selected partner(s).</td></tr>`);
                     recalcModalTotals();
                 }
+            });
             });
         }
 
@@ -564,7 +566,7 @@
                                         <div>
                                             <span class="fw-bold text-dark">${inv.partnerName}</span> 
                                             <span class="badge bg-light text-muted border font-monospace ms-1">${inv.partnerCode}</span><br/>
-                                            <a href="/LabOrderBooking/B2BInvoiceDetail/${inv.invoiceId}" target="_blank" class="font-monospace text-primary fw-semibold small text-decoration-none">
+                                            <a href="/LabOrderBooking/B2BInvoiceDetail?q=${encodeURIComponent(inv.encryptedInvoiceId)}" target="_blank" class="font-monospace text-primary fw-semibold small text-decoration-none">
                                                 <i class="bi bi-file-earmark-text me-1"></i>${inv.invoiceNo}
                                             </a> · <span class="small text-muted">${inv.orderCount} orders</span>
                                         </div>
@@ -586,7 +588,7 @@
                             });
                         } else {
                             var invNo = res.invoiceNo || (res.generatedInvoices && res.generatedInvoices[0] ? res.generatedInvoices[0].invoiceNo : '');
-                            var invId = res.invoiceId || (res.generatedInvoices && res.generatedInvoices[0] ? res.generatedInvoices[0].invoiceId : 0);
+                            var invEncId = res.encryptedInvoiceId || (res.generatedInvoices && res.generatedInvoices[0] ? res.generatedInvoices[0].encryptedInvoiceId : '');
 
                             Swal.fire({
                                 icon: 'success',
@@ -597,8 +599,8 @@
                                 confirmButtonText: 'View Invoice',
                                 cancelButtonText: 'Stay on List'
                             }).then((result) => {
-                                if (result.isConfirmed && invId) {
-                                    window.location.href = `/LabOrderBooking/B2BInvoiceDetail/${invId}`;
+                                if (result.isConfirmed && invEncId) {
+                                    window.location.href = `/LabOrderBooking/B2BInvoiceDetail?q=${encodeURIComponent(invEncId)}`;
                                 } else {
                                     window.location.reload();
                                 }

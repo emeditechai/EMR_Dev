@@ -156,7 +156,7 @@
         <div class="d-flex gap-2">
             @if (Model.Status != "P")
             {
-                <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@(Model.PartnerType)&amp;agentId=@(Model.PartnerId)" class="btn btn-success btn-sm px-3 fw-bold shadow-sm">
+                <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@Model.PartnerType,agentId=@Model.PartnerId" class="btn btn-success btn-sm px-3 fw-bold shadow-sm">
                     <i class="bi bi-wallet2 me-1"></i> Settle Payment
                 </a>
             }

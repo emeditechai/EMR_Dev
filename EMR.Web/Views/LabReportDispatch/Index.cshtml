@@ -453,6 +453,7 @@
             };
 
             let rows = [];
+            let encMap = {};
             let page = 1;
             let statusFilter = 'ALL';
             let clientType = 'ALL';
@@ -504,6 +505,7 @@
                         return showState('stateError');
                     }
                     rows = res.rows || [];
+                    encMap = res.encMap || {};
                     page = 1;
                     renderStats(res.stats || {});
                     renderTable();
@@ -717,7 +719,7 @@
 
             // ── Print modal (same PDF as the Entry page) ─────────────────────
             let printOrderId = 0, blobUrl = null, fileName = 'LabReport.pdf', printLogged = false, printScope = 'all';
-            const reportUrl = (id, mode) => pdfUrl + '?labOrderId=' + id + '&mode=' + mode + '&scope=' + printScope + '&_=' + Date.now();
+            const reportUrl = (id, mode) => pdfUrl + '?q=' + encodeURIComponent(encMap[id] || '') + '&mode=' + mode + '&scope=' + printScope + '&_=' + Date.now();
             const $frame = $('#dispatchPrintFrame'), $loading = $('#printLoading'), $error = $('#printError');
             const $actions = $('#btnReportPrintNow, #btnReportDownload, #btnReportNewTab');
 
@@ -921,7 +923,7 @@
             });
             $('#tblDispatchBody').on('click', '.btn-print-bill', function () {
                 const id = $(this).data('id');
-                window.open(billUrl + '?labOrderId=' + id, '_blank'); // logged server-side, then the existing bill print page
+                window.open(billUrl + '?q=' + encodeURIComponent(encMap[id] || ''), '_blank');
             });
 
             $(modalEl).on('shown.bs.modal', loadPdf);
