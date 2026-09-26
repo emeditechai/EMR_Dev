@@ -20,6 +20,8 @@ public class LabFranchiseModel
     public bool Status { get; set; } // Is Suspended bit: false = No/Active, true = Suspended
     public string? Suspension_Reason { get; set; }
     public bool IsActive { get; set; }
+    public bool IsNotificationRequired { get; set; }
+    public bool PreprintedBarcode { get; set; } = true;
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; }
     public int? ModifiedBy { get; set; }
@@ -54,6 +56,8 @@ public class LabFranchiseCreateRequestModel
     public DateTime? Agreement_Valid_To { get; set; }
     public bool Status { get; set; } = false;
     public bool IsActive { get; set; } = true;
+    public bool IsNotificationRequired { get; set; } = false;
+    public bool PreprintedBarcode { get; set; } = true;
 
     // Credit Limit Details
     public int Credit_Facility_Type { get; set; } = 1;
@@ -84,6 +88,8 @@ public class LabFranchiseUpdateRequestModel
     public DateTime? Agreement_Valid_To { get; set; }
     public bool Status { get; set; }
     public bool IsActive { get; set; }
+    public bool IsNotificationRequired { get; set; }
+    public bool PreprintedBarcode { get; set; }
 
     // Credit Limit Details
     public int Credit_Facility_Type { get; set; }
