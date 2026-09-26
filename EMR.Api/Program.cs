@@ -74,6 +74,18 @@ builder.Services.AddScoped<ILabDefaultSignatoryService,           LabDefaultSign
 builder.Services.AddScoped<ILabApprovalFlowService,                LabApprovalFlowService>();
 builder.Services.AddScoped<IB2BBillingService,              B2BBillingService>();
 
+// Lab master bulk upload (Excel)
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.LabBulkLookups>();
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.TestMethodBulkHandler>();
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.SubCategoryBulkHandler>();
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.InvestigationBulkHandler>();
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.FranchiseBulkHandler>();
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
+    sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.B2C));
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
+    sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.Franchise));
+builder.Services.AddScoped<ILabBulkUploadService,             LabBulkUploadService>();
+
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────
 builder.Services.AddCors(opt =>
     opt.AddPolicy("EmrWebOrigin", p =>
