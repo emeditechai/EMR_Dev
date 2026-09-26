@@ -790,7 +790,12 @@
             <div class="row g-2 align-items-center mb-3">
                 <div class="col-12">
                     <label class="form-label fw-semibold small d-flex justify-content-between align-items-center mb-1">
-                        <span>Select Test / Investigation / Profile <span class="text-danger">*</span></span>
+                        <span>
+                            Select Test / Investigation / Profile <span class="text-danger">*</span>
+                            <button type="button" id="btnComplianceUpload" class="btn btn-sm btn-outline-primary ms-2 py-0 px-2" disabled title="No compliance documents are required for the tests currently added">
+                                <i class="bi bi-file-earmark-arrow-up"></i>
+                            </button>
+                        </span>
                         <span class="badge bg-light text-muted border">
                             Available: <strong id="lblAvailCount" class="text-primary font-monospace">0</strong>
                         </span>
@@ -1114,11 +1119,22 @@
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/leaflet/dist/leaflet.js"></script>
+    <script src="~/js/lab-compliance-docs.js"></script>
     <script>
         const opdBase = '@Url.Content("~/OPD/")';
         var lineItems = [];
         var currentAgentType = '@Model.AgentType' || 'F';
         var currentAgentId = parseInt($('#SelectedB2BAgentId').val()) || 0;
+
+        // Prescription / OVD Document / Consent upload gate for this bill
+        window.LabComplianceDocsController = LabComplianceDocs.create({
+            formSelector: '#frmB2BBooking',
+            saveButtonSelector: '#btnSaveB2BSubmit',
+            iconSelector: '#btnComplianceUpload',
+            modalId: 'labComplianceModal',
+            getLineItems: function () { return lineItems; }
+        });
+        $(function () { window.LabComplianceDocsController.init(); });
 
         // ── Helper functions ──
         async function fetchJson(url) {
@@ -1782,6 +1798,13 @@
                         confirmButtonColor: '#0d6efd'
                     });
                     $('#ddlInvestigations').select2('open');
+                    return false;
+                }
+
+                if (window.LabComplianceDocsController && !window.LabComplianceDocsController.isCompliant()) {
+                    e.preventDefault();
+                    Swal.fire({ icon: 'warning', title: 'Documents Pending', text: 'Please upload the required compliance document(s) (or add a bypass remark) before saving this bill.', confirmButtonColor: '#0d6efd' });
+                    $('#btnComplianceUpload').trigger('click');
                     return false;
                 }
 
@@ -3435,6 +3458,7 @@
                 $('#B2BTotal').val('0.00');
                 $('#badgeSelectedCount').text('0 Tests Selected');
                 validateCreditPolicy();
+                if (window.LabComplianceDocsController) window.LabComplianceDocsController.onLineItemsChanged();
                 return;
             }
 
@@ -3486,6 +3510,7 @@
             $('#badgeSelectedCount').text(lineItems.length + (lineItems.length === 1 ? ' Test Selected' : ' Tests Selected'));
             $('#LineItemsJson').val(JSON.stringify(lineItems));
             validateCreditPolicy();
+            if (window.LabComplianceDocsController) window.LabComplianceDocsController.onLineItemsChanged();
         }
 
         function removeLineItem(idx) {

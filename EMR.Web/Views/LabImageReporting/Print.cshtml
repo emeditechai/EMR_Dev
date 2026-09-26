@@ -12,9 +12,13 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <style>
+        /* A4 portrait: 210 x 297 mm. The page margin is kept at 0 and the real margin is padded onto
+           .report-page instead (see @@media print): a browser's own "Margins" dropdown overrides an
+           @@page margin - picking "None" printed the report hard against the paper edge - but it can
+           never strip padding that belongs to the content. Printable height = 297 - 12 - 12 = 273 mm. */
         @@page {
-            size: A4;
-            margin: 10mm;
+            size: A4 portrait;
+            margin: 0;
         }
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -169,28 +173,75 @@
         }
 
         @@media print {
-            body {
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
                 background: #ffffff;
-            }
-            .report-page {
-                box-shadow: none;
-                margin: 0;
-                padding: 0;
-                max-width: 100%;
-                border-radius: 0;
             }
             .no-print {
                 display: none !important;
             }
+            /* One test starts a fresh A4 sheet. A short report sits on one page; a long one is
+               allowed to run onto a second sheet of the SAME test rather than being squeezed or clipped -
+               that is a real second page, not a stray blank one. */
+            .report-page {
+                box-sizing: border-box;
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                /* the A4 margin itself - see the @@page note above. Bottom is a touch taller than the
+                   other three sides so the footer band (see .sign-off-block below) has clear breathing
+                   room instead of sitting flush against the paper edge. */
+                padding: 12mm 12mm 14mm 12mm;
+                box-shadow: none;
+                border-radius: 0;
+                break-inside: auto;
+            }
+            /* Break BEFORE every test except the first, instead of AFTER every test except the last:
+               "after, except last" leaves a page break queued with nothing behind it whenever the final
+               test's own content already ends exactly on a page boundary, which is what printed the
+               trailing blank sheet. "before, except first" cannot produce a break with nothing after it. */
+            .report-page.page-break {
+                page-break-before: always;
+                break-before: page;
+            }
+            /* Signature block + footer travel as ONE unit (.sign-off-block, wrapping both - see the
+               markup): if they don't fit under the report on the current sheet, the whole unit moves to
+               the next one together, so the footer can never be split off and left alone on a page of
+               its own. Not forced to the bottom of the sheet - that reserved dead space is what used to
+               push content past 275 mm and onto a needless extra page. */
+            .report-page .sign-off-block {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-top: 24px;
+            }
+            /* .signature-block's own top margin would otherwise collapse with the wrapper's above (the
+               larger of the two wins), silently undoing the tighter print spacing - so it is zeroed here
+               and the wrapper is the single source of that gap in print. */
+            .report-page .signature-block {
+                margin-top: 0;
+            }
+            .report-page .page-footer {
+                margin-top: 16px;
+            }
+            .watermark { font-size: 6.5rem; }
+            /* keep the whole letterhead / patient box together, never split across a page */
+            .header-brand, .info-boxes-container { break-inside: avoid; page-break-inside: avoid; }
+            /* trim the on-screen breathing room that print doesn't need, so a normal report fits one sheet */
+            .mb-4 { margin-bottom: 12px !important; }
+            .my-4 { margin-top: 12px !important; margin-bottom: 12px !important; }
+            .report-html-content p { margin: 0 0 6px; }
         }
+        /* The watermark is clipped to its own page so a rotated word can never push out a blank sheet */
+        .report-page { position: relative; overflow: hidden; }
         .watermark-container {
             position: relative;
             z-index: 1;
         }
 
         .watermark {
-            position: fixed;
-            top: 50%;
+            position: absolute;
+            top: 45%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-35deg);
             font-size: 8rem;
@@ -212,6 +263,8 @@
 </head>
 <body>
 
+    @if (!(ViewBag.Embed as bool? ?? false))
+    {
     <!-- Floating Print Toolbar (Non-printing) -->
     <div class="no-print bg-dark text-white py-2 px-3 sticky-top shadow-sm d-flex justify-content-between align-items-center">
         <div>
@@ -227,10 +280,23 @@
             </button>
         </div>
     </div>
+    }
 
-    <!-- Printable Report Page -->
-    <div class="report-page watermark-container">
-        @if (d.ReportStatusId != 6) // Not Approved
+    <!-- Printable Report Pages: every test starts on its own page, with its own header, status and signatures -->
+    @{
+        var printItems = d.Items ?? new List<EMR.Web.Models.DTOs.LabReportingItemDto>();
+        int pageNo = 0;
+    }
+    @if (printItems.Count == 0)
+    {
+        <div class="report-page"><div class="alert alert-warning mb-0">No investigations found for this report.</div></div>
+    }
+    @foreach (var item in printItems)
+    {
+        pageNo++;
+        bool itemFinal = item.ReportStatusId == 5;   // approved = final; validated = provisional
+    <div class="report-page watermark-container @(pageNo > 1 ? "page-break" : "")">
+        @if (!itemFinal)
         {
             <div class="watermark">
                 <div>PROVISIONAL</div>
@@ -285,10 +351,9 @@
                 <div class="info-row"><div class="info-label">Received</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? "—")</div></div>
                 <div class="info-row"><div class="info-label">Reported</div><div class="info-val">: @DateTime.Now.ToString("dd/MMM/yyyy HH:mm")</div></div>
                 @{
-                    bool isFinal = d.ReportStatusId == 5; // Assuming 5 is Approved
-                    string statusClass = isFinal ? "status-val final" : "status-val";
+                    string statusClass = itemFinal ? "status-val final" : "status-val";
                 }
-                <div class="info-row"><div class="info-label">Report Status</div><div class="info-val @statusClass">: @(d.ReportStatusName ?? "Provisional Report")</div></div>
+                <div class="info-row"><div class="info-label">Report Status</div><div class="info-val @statusClass">: @(itemFinal ? "Final Report" : "Provisional Report")</div></div>
             </div>
             <div class="info-box">
                 <div class="info-box-title">Branch / Doctor Information</div>
@@ -298,40 +363,31 @@
             </div>
         </div>
 
-        <!-- Investigation Reports -->
-        @if (d.Items != null && d.Items.Count > 0)
-        {
-            @foreach (var item in d.Items)
-            {
-                <div class="mb-4">
-                    <div class="report-title-bar">
-                        @item.TestName @(!string.IsNullOrWhiteSpace(item.TestCode) ? $"({item.TestCode})" : "")
-                    </div>
-
-                    <div class="report-html-content">
-                        @if (!string.IsNullOrWhiteSpace(item.TemplateHtml))
-                        {
-                            @Html.Raw(item.TemplateHtml)
-                        }
-                        else
-                        {
-                            <p class="text-muted fst-italic">Report entry pending or empty.</p>
-                        }
-                    </div>
-                </div>
-            }
-        }
-        else
-        {
-            <div class="alert alert-warning">No investigations found for this report.</div>
-        }
+        <!-- Investigation Report -->
+        <div class="mb-4">
+            <div class="report-title-bar">
+                @item.TestName @(!string.IsNullOrWhiteSpace(item.TestCode) ? $"({item.TestCode})" : "")
+            </div>
+            <div class="report-html-content">
+                @if (!string.IsNullOrWhiteSpace(item.TemplateHtml))
+                {
+                    @Html.Raw(item.TemplateHtml)
+                }
+                else
+                {
+                    <p class="text-muted fst-italic">Report entry pending or empty.</p>
+                }
+            </div>
+        </div>
 
         <div class="text-center fw-bold fs-6 my-4">
             *** End Of Report ***
         </div>
 
+        <!-- Signature + page footer travel together as one unit - see .sign-off-block in @@media print -->
+        <div class="sign-off-block">
         <!-- Signatory Footer -->
-        <div class="signature-block" style="display: flex; justify-content: space-between; margin-top: 40px;">
+        <div class="signature-block" style="display: flex; justify-content: space-between;">
             @{
                 var signoffLevels = ViewBag.SignoffLevels as List<EMR.Web.Models.DTOs.LabReportSignoffLevelDto>;
             }
@@ -377,10 +433,12 @@
             <div class="footer-note">This test has been performed at @(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
             <div class="footer-meta">
                 <div>Printed on @DateTime.Now.ToString("dd/MMM/yyyy HH:mm") by @(ViewBag.PrintedBy ?? "System") | Bill @(d.BillNo ?? "—")</div>
-                <div>Page 1 of 1</div>
+                <div>Page @pageNo of @printItems.Count</div>
             </div>
         </div>
+        </div>
     </div>
+    }
 
 </body>
 </html>

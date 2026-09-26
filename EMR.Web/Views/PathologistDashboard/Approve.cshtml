@@ -22,6 +22,11 @@
     var showPrint = Model.Tests.Count > 0;
     var printSplit = approvedCount > 0 && pendingCount > 0;
     var printProvisional = pendingCount > 0 && !printSplit;
+
+    // Image (radiology) tests carry a written report, not a value: the pathologist opens it to read before signing.
+    static bool IsImageTest(EMR.Web.Models.DTOs.PathologistTestDto x) =>
+        string.Equals(x.ReportingType?.Trim(), "Image", StringComparison.OrdinalIgnoreCase);
+    var imageOnly = Model.Tests.Count > 0 && Model.Tests.All(IsImageTest);
 }
 
 @section HeadStyles {
@@ -83,6 +88,8 @@
                 <span class="text-muted mx-1">/</span><span class="fw-semibold text-dark">Sign-off: @b.BillNo</span></nav>
         }
         <div class="d-flex gap-2 flex-wrap">
+            @if (!imageOnly)
+            {
             @* A pathologist who needs to correct a value opens the same bill on the Report Entry screen. *@
             <a asp-controller="LabReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
                target="_blank" rel="noopener"
@@ -91,7 +98,17 @@
                 <i class="bi bi-pencil-square me-1"></i>Open Report Entry
                 <i class="bi bi-box-arrow-up-right ms-1 fs-9 opacity-75"></i>
             </a>
-            @if (showPrint)
+            }
+            @if (showPrint && imageOnly)
+            {
+                @* Image reports print from the image report layout (provisional watermark until every test is approved). *@
+                <button type="button" class="btn btn-sm fs-8 px-3 btn-view-image-report @(pendingCount > 0 ? "is-provisional" : "")"
+                        data-laborderid="@b.LabOrderId" data-title="@(b.BillNo ?? "Report") &middot; all image reports"
+                        title="Preview and print the image reports of this bill">
+                    <i class="bi bi-printer-fill me-1"></i>@(pendingCount > 0 ? "Print (Not Approved)" : "Print Report")
+                </button>
+            }
+            else if (showPrint)
             {
                 <button type="button" class="btn btn-sm fs-8 px-3 btn-print-report @(printProvisional ? "is-provisional" : "")"
                         data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")"
@@ -198,11 +215,22 @@
         <div class="px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
             <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
                 <i class="bi bi-clipboard2-pulse me-1 text-danger"></i>Results for sign-off
-                <a asp-controller="LabReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
-                   target="_blank" rel="noopener" class="ms-2 text-decoration-none fw-normal"
-                   style="letter-spacing:0;text-transform:none;" title="Correct a result on the Lab Reporting Entry screen (opens in a new tab)">
-                    <i class="bi bi-pencil-square me-1"></i>Need to correct a value?
-                </a>
+                @if (imageOnly)
+                {
+                    <a asp-controller="LabImageReporting" asp-action="Entry" asp-route-labOrderId="@b.LabOrderId"
+                       target="_blank" rel="noopener" class="ms-2 text-decoration-none fw-normal"
+                       style="letter-spacing:0;text-transform:none;" title="Correct a report on the Image Reporting Entry screen (opens in a new tab)">
+                        <i class="bi bi-pencil-square me-1"></i>Need to correct a report?
+                    </a>
+                }
+                else
+                {
+                    <a asp-controller="LabReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
+                       target="_blank" rel="noopener" class="ms-2 text-decoration-none fw-normal"
+                       style="letter-spacing:0;text-transform:none;" title="Correct a result on the Lab Reporting Entry screen (opens in a new tab)">
+                        <i class="bi bi-pencil-square me-1"></i>Need to correct a value?
+                    </a>
+                }
             </span>
             <div class="d-flex align-items-center gap-2">
                 <div class="form-check form-check-sm mb-0">
@@ -260,6 +288,17 @@
                             </div>
                         </td>
                         <td>
+                            @if (IsImageTest(t))
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-primary fs-8 px-2.5 btn-view-image-report"
+                                        data-laborderid="@b.LabOrderId" data-sampleid="@t.SamplecollectionID" data-title="@t.TestName"
+                                        title="Open the written report to read it before signing">
+                                    <i class="bi bi-eye me-1"></i>View Report
+                                </button>
+                                <div class="fs-9 text-muted mt-1">Image report</div>
+                            }
+                            else
+                            {
                             <span class="val @flagCls">@t.TestValue</span>
                             @if (!string.IsNullOrWhiteSpace(t.AbnormalFlag) && t.AbnormalFlag != "Normal")
                             {
@@ -303,6 +342,7 @@
                                         }
                                     }
                                 </div>
+                            }
                             }
                         </td>
                         <td class="text-muted">@t.UnitName</td>
@@ -415,7 +455,14 @@
         <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end" style="max-width:640px;">
             <input type="text" id="txtRemarks" class="form-control form-control-sm fs-8" maxlength="500"
                    placeholder="Optional sign-off remark…" @(mine.Count == 0 ? "disabled" : "") />
-            @if (showPrint)
+            @if (showPrint && imageOnly)
+            {
+                <button type="button" class="btn btn-sm fs-8 px-3 text-nowrap btn-view-image-report @(pendingCount > 0 ? "is-provisional" : "")"
+                        data-laborderid="@b.LabOrderId" data-title="@(b.BillNo ?? "Report") &middot; all image reports">
+                    <i class="bi bi-printer-fill me-1"></i>@(pendingCount > 0 ? "Print (Not Approved)" : "Print Report")
+                </button>
+            }
+            else if (showPrint)
             {
                 <button type="button" class="btn btn-sm fs-8 px-3 text-nowrap btn-print-report @(printProvisional ? "is-provisional" : "")"
                         data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")">
@@ -432,6 +479,25 @@
 <partial name="_LabAuditHistoryModal" />
 <partial name="_LabReportPrintModal" />
 
+@if (Model.Tests.Any(IsImageTest))
+{
+    <div class="modal fade" id="imageReportViewer" tabindex="-1" aria-labelledby="imageReportViewerTitle" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header py-2 px-3">
+                    <h6 class="modal-title fw-bold mb-0" id="imageReportViewerTitle"><i class="bi bi-file-earmark-image me-2 text-primary"></i><span></span></h6>
+                    <div class="d-flex align-items-center gap-2 ms-auto">
+                        <button type="button" class="btn btn-sm btn-outline-dark fs-8" id="btnImageViewerPrint"><i class="bi bi-printer me-1"></i>Print</button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-0" style="height:75vh;">
+                    <iframe id="imageReportFrame" title="Image report" style="width:100%;height:100%;border:0;background:#f1f5f9;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 @section Scripts {
     <partial name="_LabAuditHistoryScripts" />
     <partial name="_LabReportPrintScripts" />
@@ -442,6 +508,23 @@
             // When embedded in the dashboard's sign-off modal, tell the parent so it can refresh its list /
             // KPI counts in the background once the modal is closed - the modal itself stays exactly as is.
             const isEmbedded = window.self !== window.top;
+
+            // Image reports: open the written report (same layout the patient receives, watermarked until approved)
+            const imageReportUrl = '@Url.Action("Print", "LabImageReporting")';
+            $(document).on('click', '.btn-view-image-report', function () {
+                const $b = $(this);
+                const sampleId = $b.data('sampleid');
+                const src = imageReportUrl + '?labOrderId=' + $b.data('laborderid')
+                          + (sampleId ? '&sampleCollectionId=' + sampleId : '') + '&embed=true';
+                $('#imageReportViewerTitle span').text($b.data('title') || 'Image report');
+                $('#imageReportFrame').attr('src', src);
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('imageReportViewer')).show();
+            });
+            $('#btnImageViewerPrint').on('click', function () {
+                const f = document.getElementById('imageReportFrame');
+                try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(f.src.replace('&embed=true', ''), '_blank'); }
+            });
+            $('#imageReportViewer').on('hidden.bs.modal', function () { $('#imageReportFrame').attr('src', 'about:blank'); });
             function notifyParent(type) { if (isEmbedded) { try { window.parent.postMessage({ type: type, labOrderId: labOrderId }, '*'); } catch (e) { /* ignore */ } } }
 
             function selected() { return $('.chk-test:checked').map(function () { return parseInt(this.value); }).get(); }

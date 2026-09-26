@@ -459,6 +459,9 @@
         .reporting-entry-wrapper .pill-phleb   { --pill: #9333ea; --pill-bg: #faf5ff; }
         .reporting-entry-wrapper #pillPayment  { --pill: #16a34a; --pill-bg: #f0fdf4; }
         .reporting-entry-wrapper #pillPayment:has(.bg-danger-subtle) { --pill: #dc2626; --pill-bg: #fef2f2; }
+        .reporting-entry-wrapper #pillPayment:has(.bg-info-subtle) { --pill: #0284c7; --pill-bg: #f0f9ff; }
+        .reporting-entry-wrapper #pillPayment:has(.bg-warning-subtle) { --pill: #d97706; --pill-bg: #fffbeb; }
+        .reporting-entry-wrapper #pillPayment:has(.bg-secondary-subtle) { --pill: #475569; --pill-bg: #f8fafc; }
         .reporting-entry-wrapper #pillOrderStatus { --pill: #4f46e5; --pill-bg: #eef2ff; }
         .reporting-entry-wrapper #pillDrafted   { --pill: var(--st-draft);     --pill-bg: #fffbeb; }
         .reporting-entry-wrapper #pillSubmitted { --pill: var(--st-submitted); --pill-bg: #eff6ff; }
@@ -736,17 +739,34 @@
                             <span class="pill-val text-truncate" style="max-width: 150px;" title="@(d.ReferralDoctorName ?? "Self")">@(string.IsNullOrWhiteSpace(d.ReferralDoctorName) ? "Self" : d.ReferralDoctorName)</span>
                         </div>
                         <div class="info-pill" id="pillPayment">
-                            <span class="pill-label">Payment Status</span>
-                            <div>
-                                @if (d.PaymentStatus == "P" || d.BalanceDue <= 0)
+                            @if (Model.B2BClient != null)
+                            {
+                                var cftClass = Model.B2BClient.CreditFacilityType switch
                                 {
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5 fs-9 fw-bold">Paid (₹@d.TotalPaid.ToString("0.00"))</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-1.5 fs-9 fw-bold">Due: ₹@d.BalanceDue.ToString("0.00")</span>
-                                }
-                            </div>
+                                    1 => "bg-info-subtle text-info border-info-subtle",
+                                    2 => "bg-warning-subtle text-warning border-warning-subtle",
+                                    3 => "bg-secondary-subtle text-secondary border-secondary-subtle",
+                                    _ => "bg-info-subtle text-info border-info-subtle"
+                                };
+                                <span class="pill-label">Credit Facility Type</span>
+                                <div>
+                                    <span class="badge @cftClass border py-0.5 px-1.5 fs-9 fw-bold">@(string.IsNullOrWhiteSpace(Model.B2BClient.CreditFacilityTypeName) ? "—" : Model.B2BClient.CreditFacilityTypeName)</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="pill-label">Payment Status</span>
+                                <div>
+                                    @if (d.PaymentStatus == "P" || d.BalanceDue <= 0)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5 fs-9 fw-bold">Paid (₹@d.TotalPaid.ToString("0.00"))</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-1.5 fs-9 fw-bold">Due: ₹@d.BalanceDue.ToString("0.00")</span>
+                                    }
+                                </div>
+                            }
                         </div>
                     </div>
 

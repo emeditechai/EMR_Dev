@@ -138,6 +138,7 @@ namespace EMR.Web.Controllers
 
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
                 branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv, reportingType: "Image");
+            RelabelDraftAsInProgress(headerResult);
 
             var statuses = await labReportingApiClient.GetStatusesAsync();
 
@@ -203,6 +204,7 @@ namespace EMR.Web.Controllers
 
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
                 branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv, reportingType: "Image");
+            RelabelDraftAsInProgress(headerResult);
 
             return Json(new
             {
@@ -499,7 +501,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Print(int labOrderId, long? sampleCollectionId = null)
+        public async Task<IActionResult> Print(int labOrderId, long? sampleCollectionId = null, bool embed = false)
         {
             if (labOrderId <= 0)
                 return RedirectToAction(nameof(Index));
@@ -523,6 +525,15 @@ namespace EMR.Web.Controllers
                     .ToList();
             }
 
+            // A report prints once it is validated (provisional, watermarked) or approved (final).
+            // Anything earlier - pending, draft, submitted, re-collect - has nothing reviewed to print.
+            if (detail.Items.Count == 0 || detail.Items.Any(i => i.ReportStatusId != 3 && i.ReportStatusId != 5))
+            {
+                return Content(
+                    "This report cannot be printed yet: a report prints once it is validated (provisional) or approved (final).",
+                    "text/plain");
+            }
+
             var branchId = CurrentBranchId();
             var settings = await dbContext.HospitalSettings
                 .Where(s => s.BranchId == branchId && s.IsActive)
@@ -539,6 +550,8 @@ namespace EMR.Web.Controllers
             ViewBag.Website = settings?.Website;
             ViewBag.RegistrationNumber = settings?.RegistrationNumber;
             ViewBag.PrintedBy = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System";
+            // embed = shown inside the Pathologist Dashboard's report viewer, which has its own Print / Close.
+            ViewBag.Embed = embed;
 
             try
             {
@@ -585,6 +598,25 @@ namespace EMR.Web.Controllers
             public bool?   ValueChanged      { get; init; }
             public string? OldValue          { get; init; }
             public string? NewValue          { get; init; }
+        }
+
+        /// <summary>
+        /// The shared header-list procedure (usp_LabReporting_GetHeaderList) labels a bill "Draft" as its
+        /// fallback bucket for "some tests entered, not uniformly at one stage yet" - a state that comes up
+        /// naturally in the numeric Lab Reporting flow, which has an explicit Save Draft action.
+        /// The Image Reporting editor has no Save Draft (see "Modal Footer ... No Save Draft" in Entry.cshtml):
+        /// every save is a full Submit, so a bill only ever lands in that bucket by having some tests further
+        /// along than others (e.g. one validated, one still pending). Relabelled here, in the image module only,
+        /// so the list never shows a status this workflow does not use. ReportStatusId (1) and the counts are
+        /// left untouched - only the two things a person reads are relabelled: the text and the CSS class hook.
+        /// </summary>
+        private static void RelabelDraftAsInProgress(LabReportingHeaderListResult result)
+        {
+            if (result?.Headers == null) return;
+            foreach (var h in result.Headers)
+            {
+                if (h.ReportStatusName == "Draft") h.ReportStatusName = "In Progress";
+            }
         }
 
         private static string ImageReportStatusLabel(int statusId) => statusId switch

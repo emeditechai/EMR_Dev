@@ -755,6 +755,9 @@
                     <span>
                         <i class="bi bi-search text-primary me-1"></i>Search & Add Investigation / Profile
                         <span class="text-danger">*</span>
+                        <button type="button" id="btnComplianceUpload" class="btn btn-sm btn-outline-primary ms-2 py-0 px-2" disabled title="No compliance documents are required for the tests currently added">
+                            <i class="bi bi-file-earmark-arrow-up"></i>
+                        </button>
                     </span>
                     <span class="badge bg-light text-muted border fw-normal" style="font-size:0.75rem;">
                         Use <kbd class="bg-white border text-dark px-1">↑</kbd> <kbd class="bg-white border text-dark px-1">↓</kbd> & <kbd class="bg-white border text-dark px-1">↵ Enter</kbd> or click to add
@@ -1079,6 +1082,7 @@
 @section Scripts {
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/leaflet/dist/leaflet.js"></script>
+    <script src="~/js/lab-compliance-docs.js"></script>
     <script>
         $(document).ready(function () {
             // Collection Type Change Toggle
@@ -1710,7 +1714,21 @@
                     price: x.price,
                     isUrgent: !!x.isUrgent
                 }))));
+
+                if (window.LabComplianceDocsController) {
+                    window.LabComplianceDocsController.onLineItemsChanged();
+                }
             }
+
+            // Prescription / OVD Document / Consent upload gate for this bill
+            window.LabComplianceDocsController = LabComplianceDocs.create({
+                formSelector: '#labForm',
+                saveButtonSelector: '#btnSaveSubmit',
+                iconSelector: '#btnComplianceUpload',
+                modalId: 'labComplianceModal',
+                getLineItems: function () { return lineItems; }
+            });
+            window.LabComplianceDocsController.init();
 
             // Initial empty table render
             renderTable();
@@ -1834,6 +1852,11 @@
                 if (!lineItems || lineItems.length === 0) {
                     Swal.fire({ icon: 'warning', title: 'Validation Error', text: 'Please select at least one investigation test.', confirmButtonColor: '#0d6efd' });
                     $('#ddlInvestigations').focus();
+                    return;
+                }
+                if (window.LabComplianceDocsController && !window.LabComplianceDocsController.isCompliant()) {
+                    Swal.fire({ icon: 'warning', title: 'Documents Pending', text: 'Please upload the required compliance document(s) (or add a bypass remark) before saving this bill.', confirmButtonColor: '#0d6efd' });
+                    $('#btnComplianceUpload').trigger('click');
                     return;
                 }
 

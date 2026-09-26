@@ -503,6 +503,9 @@ namespace EMR.Web.Models.DTOs
         public string? Name { get; set; }
         public string? Address { get; set; }
         public string? Phone { get; set; }
+        /// <summary>1: Prepaid (Wallet), 2: Postpaid (Credit), 3: Hybrid. Companies are always 2.</summary>
+        public int CreditFacilityType { get; set; }
+        public string CreditFacilityTypeName { get; set; } = string.Empty;
     }
 
     public class LabReportPrintMetaDto

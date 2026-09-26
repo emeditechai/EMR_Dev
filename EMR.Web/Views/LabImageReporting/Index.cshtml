@@ -191,10 +191,10 @@
             </div>
         </div>
         <div class="col-6 col-md">
-            <div class="card stat-card k-draft shadow-sm h-100" data-status="Draft">
+            <div class="card stat-card k-draft shadow-sm h-100" data-status="Draft" title="Some tests further along than others on this bill (the image workflow has no separate Save Draft step)">
                 <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="stat-label d-block">Draft</span>
+                        <span class="stat-label d-block">In Progress</span>
                         <div class="stat-value mt-0.5" id="statDraftOrders">@Model.Stats.DraftOrders</div>
                     </div>
                     <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
@@ -319,8 +319,8 @@
                 <button type="button" class="lg-item st-pending" data-st="st-pending" title="Show only Pending Entry rows">
                     <span class="lg-dot"></span><span>Pending Entry</span><span class="lg-count"></span>
                 </button>
-                <button type="button" class="lg-item st-draft" data-st="st-draft" title="Show only Draft rows">
-                    <span class="lg-dot"></span><span>Draft</span><span class="lg-count"></span>
+                <button type="button" class="lg-item st-draft" data-st="st-draft" title="Show only In Progress rows">
+                    <span class="lg-dot"></span><span>In Progress</span><span class="lg-count"></span>
                 </button>
                 <button type="button" class="lg-item st-entered" data-st="st-entered" title="Show only Report Entry rows">
                     <span class="lg-dot"></span><span>Report Entry</span><span class="lg-count"></span>
@@ -465,7 +465,7 @@
                 if (s.includes('approve')) return 'st-approved';
                 if (s.includes('validat')) return 'st-validated';
                 if (s.includes('entry') || s.includes('entered')) return 'st-entered';
-                if (s.includes('draft')) return 'st-draft';
+                if (s.includes('draft') || s.includes('progress')) return 'st-draft';
                 if (s.includes('re-collect') || s.includes('recollect')) return 'st-recollect';
                 if (s.includes('reject')) return 'st-rejected';
                 return 'st-pending';
@@ -494,8 +494,11 @@
                         ? 'bg-success-subtle text-success border border-success-subtle'
                         : 'bg-warning-subtle text-warning border border-warning-subtle';
 
+                    // B2B-billed order (Franchise / Company): a real background/text colour, since
+                    // "bg-purple-subtle" / "text-purple" are not Bootstrap classes and render with no
+                    // colour at all - the washed-out, barely-readable badge this replaces.
                     const b2bBadge = o.isB2B
-                        ? `<span class="badge bg-purple-subtle text-purple border border-purple-subtle fs-9" title="${escapeHtml(o.clientName || 'B2B Client')}"><i class="bi bi-building me-0.5"></i>${escapeHtml(o.clientCode || 'B2B')}</span>`
+                        ? `<span class="badge fs-9 fw-semibold" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;" title="${escapeHtml(o.clientName || 'B2B Client')}"><i class="bi bi-building me-1"></i>${escapeHtml(o.clientCode || 'B2B')}</span>`
                         : '';
 
                     const urgentBadge = o.isUrgent

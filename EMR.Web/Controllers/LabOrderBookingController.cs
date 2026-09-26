@@ -91,7 +91,11 @@ namespace EMR.Web.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> B2BBooking(LabOrderBookingViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile)
+        public async Task<IActionResult> B2BBooking(
+            LabOrderBookingViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile,
+            IFormFile? prescriptionFile, string? prescriptionRemarks,
+            IFormFile? ovdDocumentFile, string? ovdDocumentRemarks,
+            IFormFile? consentFile, string? consentRemarks)
         {
             model.IsB2B = true;
             var branchId = User.GetCurrentBranchId();
@@ -403,6 +407,8 @@ namespace EMR.Web.Controllers
 
             var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
+            await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
+                prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
 
             // Post B2B Bill Ledger (Dr Franchise Receivable or Corporate Receivable, Cr LAB Revenue)
             // NOTE: b2bShowPrintBarcode is resolved after payment processing below (same ordering as B2C).
@@ -846,7 +852,13 @@ namespace EMR.Web.Controllers
             [FromForm] LabOrderBookingViewModel model,
             [FromForm] IFormFile? profilePictureFile,
             [FromForm] IFormFile? identificationFile,
-            [FromForm] string? paymentDataJson)
+            [FromForm] string? paymentDataJson,
+            [FromForm] IFormFile? prescriptionFile,
+            [FromForm] string? prescriptionRemarks,
+            [FromForm] IFormFile? ovdDocumentFile,
+            [FromForm] string? ovdDocumentRemarks,
+            [FromForm] IFormFile? consentFile,
+            [FromForm] string? consentRemarks)
         {
             try
             {
@@ -1035,6 +1047,8 @@ namespace EMR.Web.Controllers
 
             var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
+            await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
+                prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
 
             decimal totalAmount = lineItems.Sum(x => x.Price);
             await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
@@ -1319,6 +1333,66 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, error = $"An error occurred while saving the booking: {ex.Message}" });
             }
+        }
+
+        /// <summary>
+        /// Saves whichever of the three compliance uploads (prescription / OVD document / consent) or their
+        /// bypass remarks were supplied, against the given order. Called once, right after the order is
+        /// created, from both the B2C and the B2B booking save. A bill that needed none of the three
+        /// conditions calls this with everything null, which does nothing.
+        /// </summary>
+        private async Task SaveComplianceDocumentsAsync(
+            int labOrderId,
+            IFormFile? prescriptionFile, string? prescriptionRemarks,
+            IFormFile? ovdDocumentFile, string? ovdDocumentRemarks,
+            IFormFile? consentFile, string? consentRemarks)
+        {
+            async Task<string?> SaveUploadAsync(IFormFile? file, string subFolder)
+            {
+                if (file == null || file.Length == 0) return null;
+                var uploadsFolder = Path.Combine(env.WebRootPath, "uploads", "lab-compliance", subFolder);
+                Directory.CreateDirectory(uploadsFolder);
+                var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                var fullPath = Path.Combine(uploadsFolder, fileName);
+                await using (var stream = new FileStream(fullPath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+                return $"/uploads/lab-compliance/{subFolder}/{fileName}";
+            }
+
+            var prescriptionPath = await SaveUploadAsync(prescriptionFile, "prescription");
+            var ovdPath = await SaveUploadAsync(ovdDocumentFile, "ovd");
+            var consentPath = await SaveUploadAsync(consentFile, "consent");
+
+            prescriptionRemarks = string.IsNullOrWhiteSpace(prescriptionRemarks) ? null : prescriptionRemarks.Trim();
+            ovdDocumentRemarks = string.IsNullOrWhiteSpace(ovdDocumentRemarks) ? null : ovdDocumentRemarks.Trim();
+            consentRemarks = string.IsNullOrWhiteSpace(consentRemarks) ? null : consentRemarks.Trim();
+
+            if (prescriptionPath == null && prescriptionRemarks == null
+                && ovdPath == null && ovdDocumentRemarks == null
+                && consentPath == null && consentRemarks == null)
+            {
+                return; // this bill needed none of the three conditions - nothing to record
+            }
+
+            var con = dbContext.Database.GetDbConnection();
+            if (con.State != System.Data.ConnectionState.Open)
+                await con.OpenAsync();
+
+            await con.ExecuteAsync(
+                "dbo.usp_LabOrder_SaveComplianceDocuments",
+                new
+                {
+                    LabOrderId = labOrderId,
+                    PrescriptionFilePath = prescriptionPath,
+                    PrescriptionRemarks = prescriptionRemarks,
+                    OVDDocumentFilePath = ovdPath,
+                    OVDDocumentRemarks = ovdDocumentRemarks,
+                    ConsentFilePath = consentPath,
+                    ConsentRemarks = consentRemarks
+                },
+                commandType: System.Data.CommandType.StoredProcedure);
         }
 
         private async Task PopulateSelectLists(LabOrderBookingViewModel model)
@@ -1606,6 +1680,96 @@ namespace EMR.Web.Controllers
                     }),
                     allIncludedTestIds = allIncludedTestIds.ToList(),
                     allIncludedTestNames = allIncludedTestNames.ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Prescription / OVD document / consent flags for the tests currently on the booking grid.
+        /// <paramref name="plainIds"/> are single-investigation line items (Test_ID); <paramref name="groupIds"/>
+        /// are profile / package line items, resolved to their constituent tests server-side (Profile_ID first,
+        /// then Test_ID or a matching Profile_Name - the same fallback GetProfileDetails uses - plus one level
+        /// of nested sub-profiles), so a flagged test inside a profile is caught even though the booking grid
+        /// never fetched its own id. Both lists are the compact "id[,id...]" CSV already used elsewhere on
+        /// this page. B2C and B2B both call this; neither page's own line-item logic is touched.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetInvestigationDocFlags(string? plainIds, string? groupIds)
+        {
+            if (string.IsNullOrWhiteSpace(plainIds) && string.IsNullOrWhiteSpace(groupIds))
+                return Json(new { success = true, rows = Array.Empty<object>() });
+
+            try
+            {
+                var con = dbContext.Database.GetDbConnection();
+                if (con.State != System.Data.ConnectionState.Open)
+                    await con.OpenAsync();
+
+                var rows = await con.QueryAsync<dynamic>(
+                    "dbo.usp_Lab_GetInvestigationDocFlags",
+                    new { PlainTestIds = plainIds, GroupIds = groupIds },
+                    commandType: System.Data.CommandType.StoredProcedure);
+
+                return Json(new
+                {
+                    success = true,
+                    rows = rows.Select(r => new
+                    {
+                        sourceType = (string)r.SourceType,
+                        sourceId = (int)r.SourceId,
+                        testId = (int)r.Test_ID,
+                        testName = (string)r.Test_Name,
+                        prescriptionRequired = (bool)r.PrescriptionRequired,
+                        ovdRequired = (bool)r.OvdRequired,
+                        consentRequired = (bool)r.ConsentRequired
+                    })
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// The prescription / OVD document / consent uploaded for a bill (or the remark recorded instead),
+        /// for the "View Uploaded Documents" action on the B2C and B2B order lists.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetOrderComplianceDocuments(int labOrderId)
+        {
+            if (labOrderId <= 0)
+                return Json(new { success = false, message = "A valid order is required." });
+
+            try
+            {
+                var con = dbContext.Database.GetDbConnection();
+                if (con.State != System.Data.ConnectionState.Open)
+                    await con.OpenAsync();
+
+                var row = await con.QueryFirstOrDefaultAsync<dynamic>(
+                    "dbo.usp_LabOrder_GetComplianceDocuments",
+                    new { LabOrderId = labOrderId },
+                    commandType: System.Data.CommandType.StoredProcedure);
+
+                if (row == null)
+                    return Json(new { success = false, message = "Order not found." });
+
+                return Json(new
+                {
+                    success = true,
+                    billNo = (string)row.BillNo,
+                    patientName = (string)row.PatientName,
+                    prescriptionFilePath = (string?)row.PrescriptionFilePath,
+                    prescriptionRemarks = (string?)row.PrescriptionRemarks,
+                    ovdDocumentFilePath = (string?)row.OVDDocumentFilePath,
+                    ovdDocumentRemarks = (string?)row.OVDDocumentRemarks,
+                    consentFilePath = (string?)row.ConsentFilePath,
+                    consentRemarks = (string?)row.ConsentRemarks
                 });
             }
             catch (Exception ex)

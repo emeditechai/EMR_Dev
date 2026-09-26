@@ -432,6 +432,47 @@
     </div>
 </div>
 
+<!-- Which report(s) to print: only shown when a bill has tests of more than one printable report type -->
+<div class="modal fade" id="modalPrintTypePicker" tabindex="-1" aria-labelledby="modalPrintTypePickerLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom py-2 px-3 bg-light">
+                <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalPrintTypePickerLabel">
+                    <i class="bi bi-printer-fill text-primary"></i>Choose Report to Print
+                    <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9" id="printPickerBillChip">&mdash;</span>
+                </h6>
+                <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-3 px-3">
+                <div class="text-muted fs-9 mb-3" id="printPickerSubtitle">
+                    This bill has tests of more than one report type. Select the report(s) to print.
+                </div>
+                <div class="form-check mb-2 d-none" id="pickerNumericRow">
+                    <input class="form-check-input" type="checkbox" id="chkPrintNumeric" checked>
+                    <label class="form-check-label fs-8" for="chkPrintNumeric">
+                        <span class="fw-semibold text-dark"><i class="bi bi-clipboard-data me-1 text-primary"></i>Numeric Report</span>
+                        <span class="d-block text-muted fs-9">Lab values with reference ranges &middot; opens the PDF report</span>
+                    </label>
+                </div>
+                <div class="form-check mb-2 d-none" id="pickerImageRow">
+                    <input class="form-check-input" type="checkbox" id="chkPrintImage" checked>
+                    <label class="form-check-label fs-8" for="chkPrintImage">
+                        <span class="fw-semibold text-dark"><i class="bi bi-file-earmark-medical me-1 text-info"></i>Image / Descriptive Report</span>
+                        <span class="d-block text-muted fs-9">Radiology findings and impression &middot; opens the Image Report print page</span>
+                    </label>
+                </div>
+                <div class="alert alert-light border fs-9 mb-0 mt-3 d-none" id="pickerOtherNote">
+                    <i class="bi bi-info-circle me-1"></i>Some test(s) of this bill use a report type that has no print format yet, so they are not listed here.
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2 px-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm fs-8 px-3" id="btnPrintPickerConfirm"><i class="bi bi-printer me-1"></i>Print Selected</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
@@ -442,6 +483,9 @@
             const dataUrl = '@Url.Action("GetDashboardJson", "LabReportDispatch")';
             const pdfUrl = '@Url.Action("PrintReportPdf", "LabReportDispatch")';
             const billUrl = '@Url.Action("PrintBill", "LabReportDispatch")';
+            // The Image / Descriptive report has its own existing print page; the PDF above only ever
+            // carries the Numeric tests, so a bill holding both is printed from both.
+            const imagePrintUrl = '@Url.Action("Print", "LabImageReporting")';
 
             const STATUS_LABEL = { ALL: 'All bills', READY: 'Ready to Dispatch', PARTIAL: 'Partially Approved', AWAITING: 'Awaiting Approval', INPROGRESS: 'In Progress', PRINTED: 'Printed', NOTPRINTED: 'Ready · Not Printed' };
             const BADGE = {
@@ -914,12 +958,74 @@
             });
 
             const modalEl = document.getElementById('modalDispatchPrint');
-            $('#tblDispatchBody').on('click', '.btn-print', function () {
-                printOrderId = parseInt($(this).data('id'), 10);
-                printScope = $(this).attr('data-scope') || 'all';
+
+            // ── Print: Numeric (PDF) and Image / Descriptive are two different documents ──────
+            // The PDF report is built from the Numeric tests of a bill, the Image / Descriptive
+            // report from its own print page. A bill can hold both, so when it does the user
+            // picks what to print; with a single report type nothing changes for them.
+            function openNumericPrint(id, scope, bill) {
+                printOrderId = id;
+                printScope = scope;
                 printLogged = false;
-                $('#printBillChip').text($(this).data('bill') || '—');
+                $('#printBillChip').text(bill || '—');
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+
+            function openImagePrint(id) {
+                window.open(imagePrintUrl + '?labOrderId=' + id, '_blank');
+            }
+
+            const pickerEl = document.getElementById('modalPrintTypePicker');
+            let pickerCtx = { id: 0, scope: 'all', bill: '—' };
+
+            function openPrintTypePicker(id, scope, bill, hasUnprintableTypes) {
+                pickerCtx = { id: id, scope: scope, bill: bill };
+                $('#printPickerBillChip').text(bill || '—');
+                $('#pickerNumericRow, #pickerImageRow').removeClass('d-none');
+                $('#chkPrintNumeric, #chkPrintImage').prop('checked', true);
+                $('#pickerOtherNote').toggleClass('d-none', !hasUnprintableTypes);
+                bootstrap.Modal.getOrCreateInstance(pickerEl).show();
+            }
+
+            $('#btnPrintPickerConfirm').on('click', function () {
+                const wantNumeric = $('#chkPrintNumeric').is(':checked');
+                const wantImage = $('#chkPrintImage').is(':checked');
+                if (!wantNumeric && !wantImage) {
+                    toastr.warning('Select at least one report to print.');
+                    return;
+                }
+                bootstrap.Modal.getOrCreateInstance(pickerEl).hide();
+                if (wantImage) openImagePrint(pickerCtx.id);
+                if (wantNumeric) openNumericPrint(pickerCtx.id, pickerCtx.scope, pickerCtx.bill);
+            });
+
+            $('#tblDispatchBody').on('click', '.btn-print', function () {
+                const id = parseInt($(this).data('id'), 10);
+                const scope = $(this).attr('data-scope') || 'all';
+                const bill = $(this).data('bill') || '—';
+
+                // A report prints once it is validated (3) or approved (5) - the same rule both print pages apply.
+                $.get(testsUrl, { labOrderId: id })
+                    .done(function (res) {
+                        const tests = (res && res.success) ? (res.tests || []) : [];
+                        const types = new Set(
+                            tests.filter(function (t) { return t.reportStatusId === 3 || t.reportStatusId === 5; })
+                                 .map(function (t) { return (t.reportingType || 'Numeric').trim(); }));
+
+                        let hasNumeric = false, hasImage = false, hasOther = false;
+                        types.forEach(function (t) {
+                            if (t.toLowerCase() === 'numeric') hasNumeric = true;
+                            else if (t.toLowerCase() === 'image') hasImage = true;
+                            else hasOther = true;
+                        });
+
+                        if (hasNumeric && hasImage) openPrintTypePicker(id, scope, bill, hasOther);
+                        else if (hasImage) openImagePrint(id);
+                        else openNumericPrint(id, scope, bill);
+                    })
+                    .fail(function () {
+                        openNumericPrint(id, scope, bill);   // the type check must never block a print
+                    });
             });
             $('#tblDispatchBody').on('click', '.btn-print-bill', function () {
                 const id = $(this).data('id');
