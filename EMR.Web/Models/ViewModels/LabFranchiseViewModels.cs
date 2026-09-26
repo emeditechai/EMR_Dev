@@ -80,6 +80,12 @@ public class LabFranchiseWizardViewModel
     [Display(Name = "Active Status")]
     public bool IsActive { get; set; } = true; // Default 1 (Toggle button)
 
+    [Display(Name = "Is Notification Required")]
+    public bool IsNotificationRequired { get; set; } = false;
+
+    [Display(Name = "Preprinted Barcode")]
+    public bool PreprintedBarcode { get; set; } = true;
+
     // === Tab 2: Credit Limit ===
     public int Credit_ID { get; set; }
 

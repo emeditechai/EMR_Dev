@@ -154,6 +154,30 @@
                                 </div>
                             </div>
 
+                            <div class="col-md-6">
+                                <div class="card border border-info-subtle bg-info-subtle p-3 rounded-3">
+                                    <div class="form-check form-switch mb-1">
+                                        <input class="form-check-input" type="checkbox" asp-for="IsNotificationRequired" id="isNotificationRequiredSwitch" role="switch">
+                                        <label class="form-check-label fw-bold text-dark" for="isNotificationRequiredSwitch">
+                                            Is Notification Required
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Send SMS &amp; email to the patient.</small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border border-warning-subtle bg-warning-subtle p-3 rounded-3">
+                                    <div class="form-check form-switch mb-1">
+                                        <input class="form-check-input" type="checkbox" asp-for="PreprintedBarcode" id="preprintedBarcodeSwitch" role="switch" checked>
+                                        <label class="form-check-label fw-bold text-dark" for="preprintedBarcodeSwitch">
+                                            Preprinted Barcode
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Franchise uses preprinted barcode labels for samples.</small>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                     <div class="card-footer bg-light p-3 d-flex justify-content-end">

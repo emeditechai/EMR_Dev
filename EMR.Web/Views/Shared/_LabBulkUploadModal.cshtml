@@ -1,0 +1,215 @@
+@model EMR.Web.Models.ViewModels.LabBulkUploadModalModel
+@*
+    Shared Excel bulk upload modal for lab masters.
+    Open it with: data-bs-toggle="modal" data-bs-target="#labBulkUploadModal"
+*@
+
+<div class="modal fade" id="labBulkUploadModal" tabindex="-1" aria-labelledby="labBulkUploadTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="labBulkUploadTitle">
+                    <i class="bi bi-file-earmark-excel text-success me-2"></i>Bulk Upload – @Model.Title
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <!-- Step 1: download -->
+                    <div class="col-lg-6">
+                        <div class="border rounded p-3 h-100">
+                            <div class="fw-semibold mb-1"><span class="badge bg-primary me-2">1</span>Download template</div>
+                            <p class="small text-muted mb-2">
+                                The Excel file has dropdowns and reference sheets for the dependent masters
+                                (<strong>@Model.DependentMasters</strong>). Only existing, active masters can be selected.
+                            </p>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a class="btn btn-outline-success btn-sm" href="@Url.Action("Template", "LabBulkUpload", new { module = Model.Module, withData = false })">
+                                    <i class="bi bi-file-earmark-plus me-1"></i>Blank Template
+                                </a>
+                                <a class="btn btn-outline-primary btn-sm" href="@Url.Action("Template", "LabBulkUpload", new { module = Model.Module, withData = true })">
+                                    <i class="bi bi-file-earmark-arrow-down me-1"></i>Template with Existing Data
+                                </a>
+                            </div>
+                            <ul class="small text-muted mt-2 mb-0 ps-3">
+                                <li>Code column blank → a new record is created.</li>
+                                <li>Code filled → that record is updated; blank cells keep their current value.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: upload -->
+                    <div class="col-lg-6">
+                        <form id="lbuForm" class="border rounded p-3 h-100" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="module" value="@Model.Module" />
+                            <div class="fw-semibold mb-2"><span class="badge bg-primary me-2">2</span>Upload filled file</div>
+                            <input type="file" name="file" id="lbuFile" class="form-control form-control-sm mb-2" accept=".xlsx" required />
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="dryRun" value="true" id="lbuDryRun" />
+                                <label class="form-check-label small" for="lbuDryRun">Validate only (nothing is saved)</label>
+                            </div>
+                            <button type="submit" class="btn btn-success btn-sm" id="lbuSubmit">
+                                <span class="spinner-border spinner-border-sm me-1 d-none" id="lbuSpinner" role="status"></span>
+                                <i class="bi bi-cloud-upload me-1" id="lbuIcon"></i>Upload &amp; Process
+                            </button>
+                            <div class="small text-muted mt-2">Valid rows are saved; invalid rows are skipped and listed below with the reason.</div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Result -->
+                <div id="lbuAlert" class="alert mt-3 mb-0 d-none" role="alert"></div>
+                <div id="lbuResult" class="mt-3 d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="fw-semibold"><span class="badge bg-primary me-2">3</span>Result <span id="lbuMode" class="badge ms-1"></span></div>
+                        <button type="button" class="btn btn-outline-danger btn-sm d-none" id="lbuDownloadErrors">
+                            <i class="bi bi-download me-1"></i>Download failure report (CSV)
+                        </button>
+                    </div>
+                    <div class="row g-2 text-center mb-3" id="lbuTiles"></div>
+
+                    <div id="lbuViolations" class="d-none mb-3">
+                        <div class="fw-semibold small text-uppercase text-muted mb-1">Validation violations summary</div>
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead class="table-light"><tr><th>Rule violated</th><th class="text-end" style="width:140px">Occurrences</th><th class="text-end" style="width:140px">Rows affected</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <div id="lbuErrors" class="d-none">
+                        <div class="fw-semibold small text-uppercase text-muted mb-1">Failed rows – reason for failure</div>
+                        <div class="table-responsive" style="max-height: 320px;">
+                            <table class="table table-sm table-hover table-bordered mb-0">
+                                <thead class="table-light" style="position: sticky; top: 0;">
+                                    <tr><th style="width:70px">Row</th><th>Record</th><th>Column</th><th>Rule</th><th>Reason</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modal = document.getElementById('labBulkUploadModal');
+        const form = document.getElementById('lbuForm');
+        const submit = document.getElementById('lbuSubmit');
+        const spinner = document.getElementById('lbuSpinner');
+        const icon = document.getElementById('lbuIcon');
+        const alertBox = document.getElementById('lbuAlert');
+        const resultBox = document.getElementById('lbuResult');
+        const downloadBtn = document.getElementById('lbuDownloadErrors');
+        const moduleTitle = @Json.Serialize(Model.Title);
+        let lastResult = null;
+        let dataChanged = false;
+
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        function showAlert(kind, html) {
+            alertBox.className = 'alert mt-3 mb-0 alert-' + kind;
+            alertBox.innerHTML = html;
+        }
+
+        function tile(label, value, color) {
+            return `<div class="col"><div class="border rounded py-2 border-${color}">
+                        <div class="fs-4 fw-bold text-${color}">${value}</div>
+                        <div class="small text-muted">${label}</div></div></div>`;
+        }
+
+        function render(r) {
+            lastResult = r;
+            const saved = r.inserted + r.updated;
+            resultBox.classList.remove('d-none');
+            const mode = document.getElementById('lbuMode');
+            mode.className = 'badge ms-1 ' + (r.dryRun ? 'bg-warning text-dark' : 'bg-success');
+            mode.textContent = r.dryRun ? 'Validation only – nothing saved' : 'Saved';
+
+            document.getElementById('lbuTiles').innerHTML =
+                tile('Total rows', r.totalRows, 'secondary') +
+                tile(r.dryRun ? 'Valid – would insert' : 'Inserted', r.inserted, 'success') +
+                tile(r.dryRun ? 'Valid – would update' : 'Updated', r.updated, 'primary') +
+                tile('Unchanged', r.unchanged, 'info') +
+                tile('Failed', r.failed, 'danger');
+
+            const vBox = document.getElementById('lbuViolations');
+            vBox.classList.toggle('d-none', r.violationSummary.length === 0);
+            vBox.querySelector('tbody').innerHTML = r.violationSummary.map(v =>
+                `<tr><td>${esc(v.rule)}</td><td class="text-end">${v.occurrences}</td><td class="text-end">${v.rowsAffected}</td></tr>`).join('');
+
+            const eBox = document.getElementById('lbuErrors');
+            eBox.classList.toggle('d-none', r.errors.length === 0);
+            eBox.querySelector('tbody').innerHTML = r.errors.map(e =>
+                `<tr><td>${e.rowNo}</td><td>${esc(e.recordKey)}</td><td>${esc(e.field)}</td>
+                     <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">${esc(e.rule)}</span></td>
+                     <td>${esc(e.reason)}</td></tr>`).join('');
+            downloadBtn.classList.toggle('d-none', r.errors.length === 0);
+
+            if (r.failed === 0) {
+                showAlert('success', `<i class="bi bi-check-circle-fill me-2"></i>All ${r.totalRows} row(s) are valid.` +
+                    (r.dryRun ? ' Untick "Validate only" and upload again to save them.' : ` ${saved} row(s) saved.`));
+            } else {
+                showAlert(saved > 0 ? 'warning' : 'danger', `<i class="bi bi-exclamation-triangle-fill me-2"></i>${r.failed} of ${r.totalRows} row(s) failed validation` +
+                    (r.dryRun ? '.' : ` and were skipped; ${saved} valid row(s) saved.`) + ' See the reasons below.');
+            }
+            if (!r.dryRun && saved > 0) dataChanged = true;
+        }
+
+        form.addEventListener('submit', async function (ev) {
+            ev.preventDefault();
+            if (!document.getElementById('lbuFile').files.length) {
+                showAlert('danger', 'Please choose the Excel (.xlsx) file to upload.');
+                return;
+            }
+            submit.disabled = true;
+            spinner.classList.remove('d-none');
+            icon.classList.add('d-none');
+            resultBox.classList.add('d-none');
+            showAlert('info', '<i class="bi bi-hourglass-split me-2"></i>Processing the file, please wait…');
+
+            try {
+                const res = await fetch('@Url.Action("Import", "LabBulkUpload")', { method: 'POST', body: new FormData(form) });
+                if (!res.ok) throw new Error('Server returned ' + res.status);
+                const body = await res.json();
+                if (!body.success) {
+                    showAlert('danger', '<i class="bi bi-x-circle-fill me-2"></i>' + esc(body.message || 'Upload failed.'));
+                } else {
+                    render(body.data);
+                }
+            } catch (err) {
+                showAlert('danger', '<i class="bi bi-x-circle-fill me-2"></i>Upload failed: ' + esc(err.message));
+            } finally {
+                submit.disabled = false;
+                spinner.classList.add('d-none');
+                icon.classList.remove('d-none');
+            }
+        });
+
+        downloadBtn.addEventListener('click', function () {
+            if (!lastResult) return;
+            const cell = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+            const lines = [['Row', 'Record', 'Column', 'Rule', 'Reason'].map(cell).join(',')]
+                .concat(lastResult.errors.map(e => [e.rowNo, e.recordKey, e.field, e.rule, e.reason].map(cell).join(',')));
+            const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = moduleTitle.replace(/[^A-Za-z0-9]+/g, '_') + '_BulkUpload_Failures.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(a.href);
+        });
+
+        // Refresh the list after records were saved.
+        modal.addEventListener('hidden.bs.modal', function () {
+            if (dataChanged) window.location.reload();
+        });
+    })();
+</script>
