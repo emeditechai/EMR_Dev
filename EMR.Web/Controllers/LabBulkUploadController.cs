@@ -11,7 +11,7 @@ namespace EMR.Web.Controllers;
 public class LabBulkUploadController(ILabBulkUploadApiClient api, ApplicationDbContext dbContext) : Controller
 {
     private static readonly HashSet<string> Modules =
-        new(["test-method", "sub-category", "investigation", "franchise", "b2c-rate", "b2b-rate"], StringComparer.OrdinalIgnoreCase);
+        new(["test-method", "sub-category", "investigation", "test-profile", "franchise", "b2c-rate", "b2b-rate"], StringComparer.OrdinalIgnoreCase);
 
     private bool CheckIsHOBranch()
     {

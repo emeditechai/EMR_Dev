@@ -285,10 +285,15 @@ public sealed class RowReader(BulkRow row)
     }
 
     /// <summary>Returns the canonical option (case-insensitive match), or null.</summary>
-    public string? Option(string col, string[] options, bool required = false)
+    /// <param name="current">The stored value: accepted unchanged even if it is not an allowed option
+    /// (legacy data), so the row re-uploads; null is returned, meaning "keep current".</param>
+    public string? Option(string col, string[] options, bool required = false, string? current = null)
     {
         var text = Text(col, required);
         if (text == null) return null;
+        if (!string.IsNullOrWhiteSpace(current) && string.Equals(text, current.Trim(), StringComparison.OrdinalIgnoreCase)
+            && !options.Contains(text, StringComparer.OrdinalIgnoreCase))
+            return null;
         var match = options.FirstOrDefault(o => string.Equals(o, text, StringComparison.OrdinalIgnoreCase));
         if (match == null)
             Fail(col, LabBulkUploadRules.InvalidValue, $"{col} '{text}' is not allowed. Allowed: {string.Join(", ", options)}.");

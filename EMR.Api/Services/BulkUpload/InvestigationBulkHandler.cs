@@ -172,21 +172,21 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             var sample = r.Ref(CSample, samples, master: "Sample Type", current: current?.Sample_Type_Name);
             var method = r.Ref(CMethod, methods, master: "Method", current: current?.Method_Name);
             var unit = r.Ref(CUnit, units, master: "Unit", current: current?.Unit_Name);
-            var reporting = r.Option(CReporting, ReportingTypes);
+            var reporting = r.Option(CReporting, ReportingTypes, current: current?.Reporting_Type);
             var tat = r.Int(CTat, min: 0, max: 720);
             var nabl = r.YesNo(CNabl);
             var nablScope = r.Text(CNablScope, maxLength: 100);
             var outsourced = r.YesNo(COutsourced);
             var profile = r.YesNo(CProfile);
-            var gender = r.Option(CGender, Genders);
-            var ageOp = r.Option(CAgeOp, AgeOperators);
+            var gender = r.Option(CGender, Genders, current: current?.Applicable_Gender);
+            var ageOp = r.Option(CAgeOp, AgeOperators, current: current?.Age_Operator);
             var age = r.Int(CAge, min: 0, max: 150);
             var billable = r.YesNo(CBillable);
             var fasting = r.YesNo(CFasting);
             var qty = r.Decimal(CQty, max: 10000);
             var qtyUnit = r.Ref(CQtyUnit, units, master: "Unit", current: current?.Sample_Quantity_Unit_Name);
             var durValue = r.Int(CDurValue, min: 1, max: 365);
-            var durUnit = r.Option(CDurUnit, DurationUnits);
+            var durUnit = r.Option(CDurUnit, DurationUnits, current: current?.Reported_Duration_Unit);
             var consent = r.YesNo(CConsent);
             var ovd = r.YesNo(COvd);
             var prescription = r.YesNo(CPrescription);
@@ -249,11 +249,12 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             if (string.IsNullOrEmpty(req.Age_Operator) != !req.Applicable_Age.HasValue)
                 r.Fail(CAgeOp, LabBulkUploadRules.InvalidValue, "Age Operator and Applicable Age must be given together (or both left blank).");
 
+            // Duplicate checks apply to new and renamed/moved rows, so legacy duplicates re-upload unchanged.
             var key = $"{req.Department_ID}|{req.Test_Name.Trim()}";
-            if (seenNames.TryGetValue(key, out var firstRow))
-                r.Fail(CName, LabBulkUploadRules.DuplicateInFile, $"Test '{req.Test_Name}' for this department is already in row {firstRow}.");
             var nameOrDeptChanged = before == null || before.Department_ID != req.Department_ID
                                     || !string.Equals(before.Test_Name.Trim(), req.Test_Name.Trim(), StringComparison.OrdinalIgnoreCase);
+            if (nameOrDeptChanged && seenNames.TryGetValue(key, out var firstRow))
+                r.Fail(CName, LabBulkUploadRules.DuplicateInFile, $"Test '{req.Test_Name}' for this department is already in row {firstRow}.");
             var clash = !nameOrDeptChanged ? null : existing.FirstOrDefault(i => i.Department_ID == req.Department_ID && i.Test_ID != current?.Test_ID
                 && string.Equals(i.Test_Name.Trim(), req.Test_Name.Trim(), StringComparison.OrdinalIgnoreCase));
             if (clash != null)

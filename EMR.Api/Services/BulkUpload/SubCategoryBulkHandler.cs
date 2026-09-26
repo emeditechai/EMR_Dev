@@ -78,9 +78,11 @@ public class SubCategoryBulkHandler(ILabTestSubCategoryService service, LabBulkL
                 var catId = cat?.Id ?? current!.Category_ID;
                 var finalName = name ?? current!.SubCategory_Name;
                 var key = $"{catId}|{finalName.Trim()}";
-                if (seenNames.TryGetValue(key, out var firstRow))
+                // Duplicate checks apply to new and renamed rows, so legacy duplicates re-upload unchanged.
+                var changed = current == null || current.Category_ID != catId || !string.Equals(current.SubCategory_Name.Trim(), finalName.Trim(), StringComparison.OrdinalIgnoreCase);
+                if (changed && seenNames.TryGetValue(key, out var firstRow))
                     r.Fail(CName, LabBulkUploadRules.DuplicateInFile, $"Sub category '{finalName}' for this category is already in row {firstRow}.");
-                var clash = existing.FirstOrDefault(s => s.Category_ID == catId && s.SubCategory_ID != current?.SubCategory_ID
+                var clash = !changed ? null : existing.FirstOrDefault(s => s.Category_ID == catId && s.SubCategory_ID != current?.SubCategory_ID
                     && string.Equals(s.SubCategory_Name.Trim(), finalName.Trim(), StringComparison.OrdinalIgnoreCase));
                 if (clash != null)
                     r.Fail(CName, LabBulkUploadRules.AlreadyExists, $"Sub category '{finalName}' already exists under {clash.Category_Name} with code {clash.SubCategory_Code}. Put that code in '{CCode}' to update it.");

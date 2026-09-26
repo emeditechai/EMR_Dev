@@ -78,9 +78,11 @@ public class TestMethodBulkHandler(ILabTestMethodService service, LabBulkLookups
                 var deptId = dept?.Id ?? current!.Department_ID;
                 var finalName = name ?? current!.Method_Name;
                 var key = $"{deptId}|{finalName.Trim()}";
-                if (seenNames.TryGetValue(key, out var firstRow))
+                // Duplicate checks apply to new and renamed rows, so legacy duplicates re-upload unchanged.
+                var changed = current == null || current.Department_ID != deptId || !string.Equals(current.Method_Name.Trim(), finalName.Trim(), StringComparison.OrdinalIgnoreCase);
+                if (changed && seenNames.TryGetValue(key, out var firstRow))
                     r.Fail(CName, LabBulkUploadRules.DuplicateInFile, $"Method '{finalName}' for this department is already in row {firstRow}.");
-                var clash = existing.FirstOrDefault(m => m.Department_ID == deptId && m.Method_ID != current?.Method_ID
+                var clash = !changed ? null : existing.FirstOrDefault(m => m.Department_ID == deptId && m.Method_ID != current?.Method_ID
                     && string.Equals(m.Method_Name.Trim(), finalName.Trim(), StringComparison.OrdinalIgnoreCase));
                 if (clash != null)
                     r.Fail(CName, LabBulkUploadRules.AlreadyExists, $"Method '{finalName}' already exists in {clash.Department_Name} with code {clash.Method_Code}. Put that code in '{CCode}' to update it.");

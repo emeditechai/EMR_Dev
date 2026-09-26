@@ -179,9 +179,11 @@ public class FranchiseBulkHandler(ILabFranchiseService service, LabBulkLookups l
                 r.Fail(CAgrTo, LabBulkUploadRules.InvalidValue, "Agreement Valid To must be on or after Agreement Valid From.");
 
             var key = req.Franchise_Name.Trim();
-            if (seenNames.TryGetValue(key, out var firstRow))
+            // Duplicate checks apply to new and renamed rows, so legacy duplicates re-upload unchanged.
+            var changed = current == null || !string.Equals(current.Franchise_Name.Trim(), key, StringComparison.OrdinalIgnoreCase);
+            if (changed && seenNames.TryGetValue(key, out var firstRow))
                 r.Fail(CName, LabBulkUploadRules.DuplicateInFile, $"Franchise '{key}' is already in row {firstRow}.");
-            var clash = existing.FirstOrDefault(f => f.Franchise_ID != current?.Franchise_ID
+            var clash = !changed ? null : existing.FirstOrDefault(f => f.Franchise_ID != current?.Franchise_ID
                 && string.Equals(f.Franchise_Name.Trim(), key, StringComparison.OrdinalIgnoreCase));
             if (clash != null)
                 r.Fail(CName, LabBulkUploadRules.AlreadyExists, $"Franchise '{key}' already exists with code {clash.Franchise_Code}. Put that code in '{CCode}' to update it.");

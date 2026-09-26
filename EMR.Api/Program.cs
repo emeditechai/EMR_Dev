@@ -80,6 +80,7 @@ builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EM
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.SubCategoryBulkHandler>();
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.InvestigationBulkHandler>();
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.FranchiseBulkHandler>();
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.InvestigationProfileBulkHandler>();
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.B2C));
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(

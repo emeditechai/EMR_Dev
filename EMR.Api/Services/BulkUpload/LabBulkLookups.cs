@@ -97,6 +97,18 @@ public class LabBulkLookups(IDbConnectionFactory db)
         WHERE h.IsDeleted = 0 AND h.Test_ID IS NULL AND h.Profile_Type = 2 AND h.CompanyId = @CompanyId
         """, companyId);
 
+    /// <summary>Package effective dates by Profile_ID (the profile GetById / GetList procedures do not return them).</summary>
+    public async Task<Dictionary<int, (DateTime? Start, DateTime? End)>> ProfileDatesAsync(int companyId)
+    {
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync<(int Id, DateTime? Start, DateTime? End)>(
+            @"SELECT Profile_ID, Effective_Start_Date, Effective_End_Date
+              FROM dbo.LabInvestigationProfileHeader
+              WHERE IsDeleted = 0 AND CompanyId = @CompanyId",
+            new { CompanyId = companyId });
+        return rows.ToDictionary(r => r.Id, r => (r.Start, r.End));
+    }
+
     public async Task<BulkLookup<RefFranchise>> FranchisesAsync(int companyId) => new(
         await QueryAsync<RefFranchise>("""
             SELECT f.Franchise_ID AS Id, f.Franchise_Code AS Code, f.Franchise_Name AS Name,
