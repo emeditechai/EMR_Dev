@@ -1898,15 +1898,13 @@
             });
 
             function openBarcodeModal(orderId, barcodeNo, sampleTypeId) {
-                let url = `@Url.Action("PrintBarcode", "SampleCollection")?labOrderId=${orderId}`;
-                if (barcodeNo) {
-                    url += `&barcodeNo=${encodeURIComponent(barcodeNo)}`;
-                }
-                if (sampleTypeId) {
-                    url += `&sampleTypeId=${sampleTypeId}`;
-                }
-                $('#barcodePrintFrame').attr('src', url);
-                $('#barcodePrintModal').modal('show');
+                var params = { labOrderId: String(orderId) };
+                if (barcodeNo) params.barcodeNo = barcodeNo;
+                if (sampleTypeId) params.sampleTypeId = String(sampleTypeId);
+                encryptedUrl('@Url.Action("PrintBarcode", "SampleCollection")', params).then(function (url) {
+                    $('#barcodePrintFrame').attr('src', url);
+                    $('#barcodePrintModal').modal('show');
+                });
             }
 
             $('#btnTriggerPrint').on('click', function () {

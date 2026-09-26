@@ -13,7 +13,8 @@ public class LabReportDispatchController(
     ILabReportDispatchApiClient dispatchApiClient,
     ILabReportingApiClient labReportingApiClient,
     ILabReportPdfService reportPdfService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IQueryStringEncryptionService encryptionService) : Controller
 {
     private static readonly HashSet<string> DispatchStatuses = new(StringComparer.OrdinalIgnoreCase)
         { "ALL", "READY", "PARTIAL", "AWAITING", "INPROGRESS", "NOTSTARTED", "PRINTED", "NOTPRINTED" };
@@ -53,7 +54,10 @@ public class LabReportDispatchController(
         try
         {
             var result = await dispatchApiClient.GetDashboardAsync(branchId, from, to, basis, search, status, client);
-            return Json(new { success = true, stats = result.Stats, rows = result.Rows });
+            var encMap = result.Rows.ToDictionary(
+                r => r.LabOrderId,
+                r => encryptionService.EncryptParameters(new Dictionary<string, string?> { ["labOrderId"] = r.LabOrderId.ToString() }));
+            return Json(new { success = true, stats = result.Stats, rows = result.Rows, encMap });
         }
         catch (HttpRequestException)
         {

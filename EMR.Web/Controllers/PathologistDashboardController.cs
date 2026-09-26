@@ -19,7 +19,8 @@ public class PathologistDashboardController(
     IPathologistDashboardApiClient apiClient,
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
-    ILabReportEmailService labReportEmailService) : Controller
+    ILabReportEmailService labReportEmailService,
+    IQueryStringEncryptionService encryptionService) : Controller
 {
     private static readonly HashSet<string> Statuses = new(StringComparer.OrdinalIgnoreCase) { "PENDING", "MINE", "APPROVED", "ALL" };
 
@@ -88,7 +89,10 @@ public class PathologistDashboardController(
         try
         {
             var result = await apiClient.GetHeadersAsync(User.GetUserId(), CurrentBranchId(), from, to, basis, search, departmentId, categoryId, status);
-            return Json(new { success = true, stats = result.Stats, bills = result.Bills });
+            var encMap = result.Bills.ToDictionary(
+                b => b.LabOrderId,
+                b => encryptionService.EncryptParameters(new Dictionary<string, string?> { ["labOrderId"] = b.LabOrderId.ToString() }));
+            return Json(new { success = true, stats = result.Stats, bills = result.Bills, encMap });
         }
         catch (HttpRequestException)
         {

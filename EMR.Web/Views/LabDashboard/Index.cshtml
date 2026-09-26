@@ -1087,7 +1087,7 @@
                                         <a asp-controller="SampleCollection" asp-action="Index" class="btn btn-outline-primary" title="Go to Sample Collection" data-bs-toggle="tooltip">
                                             <i class="bi bi-eyedropper"></i>
                                         </a>
-                                        <a href="/SampleCollection/PrintBarcodeLabel?labOrderId=@order.LabOrderId" target="_blank" class="btn btn-outline-dark" title="Print Barcode Labels" data-bs-toggle="tooltip">
+                                        <a href="@Html.EncryptedUrl("PrintBarcode", "SampleCollection", new { labOrderId = order.LabOrderId })" target="_blank" class="btn btn-outline-dark" title="Print Barcode Labels" data-bs-toggle="tooltip">
                                             <i class="bi bi-upc-scan"></i>
                                         </a>
                                         <button type="button" class="btn btn-outline-secondary" onclick="viewOrderSummaryModal(@order.LabOrderId, '@order.BillNo', '@order.PatientName', '@order.TestSummary', '@order.OverallSampleStatus', '@order.TotalAmount')" title="Quick View" data-bs-toggle="tooltip">

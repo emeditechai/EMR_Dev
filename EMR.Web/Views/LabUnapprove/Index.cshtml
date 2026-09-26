@@ -210,6 +210,7 @@
             };
             let approvalType = 'ALL';
             let activeOrderId = 0;
+            let encMap = {};
             let currentBill = null;
             let currentTests = [];
 
@@ -237,6 +238,7 @@
                     $('#kTotal').text(s.totalBills || 0); $('#kFull').text(s.fullyApprovedBills || 0);
                     $('#kPartial').text(s.partiallyApprovedBills || 0); $('#kTests').text(s.approvedTests || 0);
                     const rows = res.headers || [];
+                    encMap = res.encMap || {};
                     $('#lblCount').text('Showing ' + rows.length + ' report' + (rows.length === 1 ? '' : 's'));
                     $('#listEmpty').toggleClass('d-none', rows.length !== 0);
                     const $tb = $('#tblOrders tbody');
@@ -295,7 +297,7 @@
                     + (b.billingType === 'B2B' ? '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-diagram-2 me-1"></i>' + esc(b.clientName || 'B2B') + '</span>' : ''));
                 $('#btnDetailAudit').attr({ 'data-laborderid': b.labOrderId, 'data-patient': b.patientName, 'data-bill': b.billNo || '—' })
                                     .data({ laborderid: b.labOrderId, patient: b.patientName, bill: b.billNo || '—' });
-                $('#lnkEntry').attr('href', urls.entry + '?labOrderId=' + b.labOrderId);
+                $('#lnkEntry').attr('href', urls.entry + '?q=' + encodeURIComponent(encMap[b.labOrderId] || ''));
                 $('#lblSubtitle').text((b.tokenNo || '') + ' — ' + (b.billNo || ''));
 
                 const approved = currentTests.filter(t => t.isApproved).length;

@@ -349,7 +349,8 @@
                     </td>
                 </tr>`);
 
-            $.get(`/LabOrderBooking/GetOutstandingBillsForSettlement?agentType=${currentAgentType}&agentId=${currentAgentId}`, function(res) {
+            encryptedUrl('/LabOrderBooking/GetOutstandingBillsForSettlement', { agentType: currentAgentType, agentId: String(currentAgentId) }).then(function(url) {
+            $.get(url, function(res) {
                 if (res && res.success) {
                     updatePartnerUI(res.partner);
                     renderBillsTable(res.bills || []);
@@ -360,6 +361,7 @@
             }).fail(function() {
                 resetPartnerUI();
                 $('#tblBillsBody').html(`<tr><td colspan="10" class="text-center py-4 text-danger">Error connecting to server.</td></tr>`);
+            });
             });
         }
 
