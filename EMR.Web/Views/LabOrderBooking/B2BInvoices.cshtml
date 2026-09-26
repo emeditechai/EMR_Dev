@@ -163,7 +163,7 @@
 
                             <tr>
                                 <td>
-                                    <a asp-action="B2BInvoiceDetail" asp-route-id="@inv.InvoiceId" class="fw-bold font-monospace text-primary text-decoration-none">
+                                    <a asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="fw-bold font-monospace text-primary text-decoration-none">
                                         @inv.InvoiceNo
                                     </a>
                                 </td>
@@ -184,12 +184,12 @@
                                 <td class="text-center">@Html.Raw(statusBadge)</td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="B2BInvoiceDetail" asp-route-id="@inv.InvoiceId" class="btn btn-outline-primary" title="View / Print Invoice">
+                                        <a asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="btn btn-outline-primary" title="View / Print Invoice">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if (inv.Status != "P")
                                         {
-                                            <a asp-action="B2BSettlement" asp-route-agentType="@inv.PartnerType" asp-route-agentId="@inv.PartnerId" class="btn btn-outline-success" title="Settle in Payment Screen">
+                                            <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@(inv.PartnerType)&amp;agentId=@(inv.PartnerId)" class="btn btn-outline-success" title="Settle in Payment Screen">
                                                 <i class="bi bi-wallet2"></i>
                                             </a>
                                         }

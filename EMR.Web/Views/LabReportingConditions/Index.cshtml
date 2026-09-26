@@ -157,7 +157,7 @@
                                     </td>
                                     <td class="text-center"><span class="badge bg-secondary rounded-pill px-3">@item.Display_Order</span></td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-route-id="@item.Condition_ID" method="post" class="d-inline">
+                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Condition_ID" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(!item.Status ? "true" : "false")" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
@@ -192,7 +192,7 @@
                                                     </div>
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-route-id="@item.Condition_ID" method="post">
+                                                        <form asp-action="Delete" asp-encrypted-id="@item.Condition_ID" method="post">
                                                             @Html.AntiForgeryToken()
                                                             <button type="submit" class="btn btn-danger">Delete Condition</button>
                                                         </form>
