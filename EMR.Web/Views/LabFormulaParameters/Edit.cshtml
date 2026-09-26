@@ -118,7 +118,7 @@
                 </div>
             }
 
-            <form asp-action="Edit" asp-route-id="@Model.Parameter_ID" method="post" id="formulaForm">
+            <form asp-action="Edit" asp-encrypted-id="@Model.Parameter_ID" method="post" id="formulaForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="Parameter_ID" />
                 <input type="hidden" asp-for="CompanyId" />

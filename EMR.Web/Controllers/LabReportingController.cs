@@ -31,7 +31,8 @@ namespace EMR.Web.Controllers
         ILabReportingConditionApiClient conditionApiClient,
         ILabReportPdfService reportPdfService,
         ILabReportEmailService labReportEmailService,
-        ILabFormulaParameterApiClient labFormulaApiClient) : Controller
+        ILabFormulaParameterApiClient labFormulaApiClient,
+        IQueryStringEncryptionService encryptionService) : Controller
     {
         [HttpGet]
         [EMR.Web.Filters.LabReportingAccess]
@@ -343,11 +344,16 @@ namespace EMR.Web.Controllers
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
                 branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
 
+            var encMap = headerResult.Headers.ToDictionary(
+                h => h.LabOrderId,
+                h => encryptionService.EncryptParameters(new Dictionary<string, string?> { ["labOrderId"] = h.LabOrderId.ToString() }));
+
             return Json(new
             {
                 success = true,
                 stats = headerResult.Stats,
-                headers = headerResult.Headers
+                headers = headerResult.Headers,
+                encMap
             });
         }
 

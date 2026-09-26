@@ -40,7 +40,7 @@
         </div>
     </div>
 
-    <form asp-action="Edit" asp-route-id="@Model.Test_ID" method="post" id="batchEditForm">
+    <form asp-action="Edit" asp-encrypted-id="@Model.Test_ID" method="post" id="batchEditForm">
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="CompanyId" />
         <input type="hidden" asp-for="Test_ID" />

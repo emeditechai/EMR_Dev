@@ -84,7 +84,7 @@
         }
         <div class="d-flex gap-2 flex-wrap">
             @* A pathologist who needs to correct a value opens the same bill on the Report Entry screen. *@
-            <a asp-controller="LabReporting" asp-action="Entry" asp-route-labOrderId="@b.LabOrderId"
+            <a asp-controller="LabReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
                target="_blank" rel="noopener"
                class="btn btn-outline-primary btn-sm fs-8"
                title="Open this bill on the Lab Reporting Entry screen to correct a result (opens in a new tab)">
@@ -198,7 +198,7 @@
         <div class="px-3 py-2 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
             <span class="fw-semibold fs-9 text-secondary text-uppercase" style="letter-spacing:.4px;">
                 <i class="bi bi-clipboard2-pulse me-1 text-danger"></i>Results for sign-off
-                <a asp-controller="LabReporting" asp-action="Entry" asp-route-labOrderId="@b.LabOrderId"
+                <a asp-controller="LabReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
                    target="_blank" rel="noopener" class="ms-2 text-decoration-none fw-normal"
                    style="letter-spacing:0;text-transform:none;" title="Correct a result on the Lab Reporting Entry screen (opens in a new tab)">
                     <i class="bi bi-pencil-square me-1"></i>Need to correct a value?

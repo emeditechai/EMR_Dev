@@ -36,7 +36,7 @@
                     </h6>
                 </div>
                 <div class="card-body p-4">
-                    <form asp-action="Edit" asp-route-id="@Model.Reason_ID" method="post">
+                    <form asp-action="Edit" asp-encrypted-id="@Model.Reason_ID" method="post">
                         @Html.AntiForgeryToken()
                         <input type="hidden" asp-for="Reason_ID" />
 

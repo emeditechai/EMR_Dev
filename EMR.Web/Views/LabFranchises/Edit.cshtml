@@ -57,7 +57,7 @@
     </div>
 
     <!-- Wizard Form -->
-    <form asp-action="Edit" asp-route-id="@Model.Franchise_ID" method="post" enctype="multipart/form-data" id="franchiseWizardEditForm">
+    <form asp-action="Edit" asp-encrypted-id="@Model.Franchise_ID" method="post" enctype="multipart/form-data" id="franchiseWizardEditForm">
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="Franchise_ID" />
         <input type="hidden" asp-for="CompanyId" />

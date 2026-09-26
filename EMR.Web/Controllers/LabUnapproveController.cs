@@ -15,7 +15,8 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class LabUnapproveController(
     ILabUnapproveApiClient apiClient,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IQueryStringEncryptionService encryptionService) : Controller
 {
     private static readonly HashSet<string> ApprovalTypes = new(StringComparer.OrdinalIgnoreCase) { "ALL", "FULL", "PARTIAL" };
 
@@ -43,7 +44,10 @@ public class LabUnapproveController(
         try
         {
             var result = await apiClient.GetHeadersAsync(branchId, from, to, basis, search, type);
-            return Json(new { success = true, stats = result.Stats, headers = result.Headers });
+            var encMap = result.Headers.ToDictionary(
+                h => h.LabOrderId,
+                h => encryptionService.EncryptParameters(new Dictionary<string, string?> { ["labOrderId"] = h.LabOrderId.ToString() }));
+            return Json(new { success = true, stats = result.Stats, headers = result.Headers, encMap });
         }
         catch (HttpRequestException)
         {

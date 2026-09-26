@@ -1,9 +1,19 @@
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EMR.Web.Controllers;
 
-public class HomeController : Controller
+public class HomeController(IQueryStringEncryptionService encryptionService) : Controller
 {
+    [HttpPost]
+    public IActionResult EncryptQs([FromBody] Dictionary<string, string> parameters)
+    {
+        if (parameters == null || parameters.Count == 0)
+            return BadRequest();
+        var token = encryptionService.EncryptParameters(parameters!);
+        return Json(new { q = token });
+    }
+
     public IActionResult Index()
     {
         if (User.Identity?.IsAuthenticated == true)
