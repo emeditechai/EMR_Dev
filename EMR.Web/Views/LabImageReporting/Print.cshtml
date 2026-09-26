@@ -12,10 +12,13 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <style>
-        /* A4 portrait: 210 x 297 mm. Printable height = 297 - 10 (top) - 12 (bottom) = 275 mm. */
+        /* A4 portrait: 210 x 297 mm. The page margin is kept at 0 and the real margin is padded onto
+           .report-page instead (see @@media print): a browser's own "Margins" dropdown overrides an
+           @@page margin - picking "None" printed the report hard against the paper edge - but it can
+           never strip padding that belongs to the content. Printable height = 297 - 12 - 12 = 273 mm. */
         @@page {
             size: A4 portrait;
-            margin: 10mm 12mm 12mm 12mm;
+            margin: 0;
         }
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -186,7 +189,10 @@
                 width: 100%;
                 max-width: none;
                 margin: 0;
-                padding: 0;
+                /* the A4 margin itself - see the @@page note above. Bottom is a touch taller than the
+                   other three sides so the footer band (see .sign-off-block below) has clear breathing
+                   room instead of sitting flush against the paper edge. */
+                padding: 12mm 12mm 14mm 12mm;
                 box-shadow: none;
                 border-radius: 0;
                 break-inside: auto;
@@ -199,16 +205,25 @@
                 page-break-before: always;
                 break-before: page;
             }
-            /* Keep the signature block and the footer whole, but do not force them to the bottom of the
-               sheet - that reserved dead space is what pushed content past 275 mm and onto a needless
-               extra page. They simply follow the report on the same sheet, breaking together with it. */
-            .report-page .signature-block,
-            .report-page .page-footer {
+            /* Signature block + footer travel as ONE unit (.sign-off-block, wrapping both - see the
+               markup): if they don't fit under the report on the current sheet, the whole unit moves to
+               the next one together, so the footer can never be split off and left alone on a page of
+               its own. Not forced to the bottom of the sheet - that reserved dead space is what used to
+               push content past 275 mm and onto a needless extra page. */
+            .report-page .sign-off-block {
                 break-inside: avoid;
                 page-break-inside: avoid;
+                margin-top: 24px;
             }
-            .report-page .signature-block { margin-top: 24px; }
-            .report-page .page-footer { margin-top: 8px; }
+            /* .signature-block's own top margin would otherwise collapse with the wrapper's above (the
+               larger of the two wins), silently undoing the tighter print spacing - so it is zeroed here
+               and the wrapper is the single source of that gap in print. */
+            .report-page .signature-block {
+                margin-top: 0;
+            }
+            .report-page .page-footer {
+                margin-top: 16px;
+            }
             .watermark { font-size: 6.5rem; }
             /* keep the whole letterhead / patient box together, never split across a page */
             .header-brand, .info-boxes-container { break-inside: avoid; page-break-inside: avoid; }
@@ -369,8 +384,10 @@
             *** End Of Report ***
         </div>
 
+        <!-- Signature + page footer travel together as one unit - see .sign-off-block in @@media print -->
+        <div class="sign-off-block">
         <!-- Signatory Footer -->
-        <div class="signature-block" style="display: flex; justify-content: space-between; margin-top: 40px;">
+        <div class="signature-block" style="display: flex; justify-content: space-between;">
             @{
                 var signoffLevels = ViewBag.SignoffLevels as List<EMR.Web.Models.DTOs.LabReportSignoffLevelDto>;
             }
@@ -418,6 +435,7 @@
                 <div>Printed on @DateTime.Now.ToString("dd/MMM/yyyy HH:mm") by @(ViewBag.PrintedBy ?? "System") | Bill @(d.BillNo ?? "—")</div>
                 <div>Page @pageNo of @printItems.Count</div>
             </div>
+        </div>
         </div>
     </div>
     }

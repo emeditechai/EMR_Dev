@@ -72,6 +72,8 @@ public class LabReportDispatchTestDto
     public long SamplecollectionID { get; set; }
     public string? TestCode { get; set; }
     public string TestName { get; set; } = string.Empty;
+    /// <summary>Numeric / Image / Text / Select / Descriptive - decides which print format applies.</summary>
+    public string? ReportingType { get; set; }
     public string? DepartmentName { get; set; }
     public string? CategoryName { get; set; }
     public string? GroupName { get; set; }
