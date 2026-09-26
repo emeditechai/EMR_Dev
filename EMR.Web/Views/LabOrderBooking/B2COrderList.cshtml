@@ -290,6 +290,12 @@
                                                     </button>
                                                 </li>
                                             }
+                                            <li>
+                                                <button type="button" class="dropdown-item btn-view-compliance-docs"
+                                                        data-laborderid="@o.LabOrderId">
+                                                    <i class="bi bi-file-earmark-arrow-up me-2 text-primary"></i>View Uploaded Documents
+                                                </button>
+                                            </li>
                                         </ul>
                                     </div>
                                 </td>
@@ -416,6 +422,7 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/lab-compliance-docs-viewer.js"></script>
     <script>
     let _currentViewOrderId = 0;
 

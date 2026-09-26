@@ -19,13 +19,11 @@
     bool isAllApproved = (totalCount > 0 && approvedCount == totalCount);
     bool isPartialApproved = (approvedCount > 0 && approvedCount < totalCount);
 
-    // Matching LabReporting/Entry logic:
-    bool showSubmit = (unenteredCount > 0 || activeItems.Any(x => x.ReportStatusId < 2)) && !isAllApproved;
-    bool showValidate = (submittedCount > 0) && !isAllApproved;
+    // Every workflow action (enter, submit, validate, approve, print) is on the test row or in its editor.
     bool pathologistApprovalRequired = Model.PathologistApprovalRequired;
-    bool showApprove = (validatedCount > 0) && !isAllApproved && !pathologistApprovalRequired;
     bool showApprovedBadge = isAllApproved || isPartialApproved;
-    bool showPrint = (validatedCount + approvedCount) > 0;
+    // One print for the whole order, offered only once every image test is approved.
+    bool showPrintAll = isAllApproved;
 
     var genderKey = (d.Gender ?? string.Empty).Trim().ToLowerInvariant() switch
     {
@@ -456,22 +454,14 @@
             </span>
         </div>
         <div class="d-flex align-items-center gap-2" id="headerActionButtons">
-            <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save" id="btnHeaderSave" style="@(showSubmit ? "" : "display:none;")">
-                <i class="bi bi-send-check me-1"></i>Submit
-            </button>
-            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" style="@(showValidate ? "" : "display:none;")">
-                <i class="bi bi-check-circle-fill me-1"></i>Validate Report
-            </button>
-            <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" style="@(showApprove ? "" : "display:none;")">
-                <i class="bi bi-patch-check-fill me-1"></i>Approve Report
-            </button>
-            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1.5 fs-8 badge-pathologist-header @(pathologistApprovalRequired && !isAllApproved && validatedCount > 0 ? "" : "d-none")"
-                  title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch">
-                <i class="bi bi-shield-lock-fill me-1"></i>Approval by pathologist
-            </span>
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1.5 fs-8 @(showApprovedBadge ? "" : "d-none")" id="badgeHeaderApproved">
                 <i class="bi bi-patch-check-fill me-1"></i>@(isPartialApproved ? $"Partially Approved ({approvedCount}/{totalCount})" : "Report Approved")
             </span>
+            <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
+               class="btn btn-dark px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-print-all @(showPrintAll ? "" : "d-none")" id="btnHeaderPrintAll"
+               title="Print every approved image report of this order">
+                <i class="bi bi-printer-fill me-1"></i>Print All Reports
+            </a>
         </div>
     </div>
 
@@ -565,7 +555,16 @@
                                                 <i class="bi bi-patch-check-fill"></i>Approve
                                             </button>
                                         }
+                                        else if (item.ReportStatusId == 3)
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1.5 fs-9"
+                                                  title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch">
+                                                <i class="bi bi-shield-lock-fill me-1"></i>Approval by pathologist
+                                            </span>
+                                        }
 
+                                        @if (hasEntry)
+                                        {
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-secondary px-2.5 d-inline-flex align-items-center gap-1 btn-preview-report"
                                                 data-sample-id="@item.SamplecollectionID"
@@ -573,13 +572,26 @@
                                                 title="Preview report HTML">
                                             <i class="bi bi-eye"></i>Preview
                                         </button>
+                                        }
 
+                                        @if (item.ReportStatusId == 5)
+                                        {
                                         <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-dark px-2.5 d-inline-flex align-items-center gap-1"
                                            title="Print this report">
                                             <i class="bi bi-printer"></i>Print
                                         </a>
+                                        }
+                                        else if (item.ReportStatusId == 3)
+                                        {
+                                        <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
+                                           target="_blank"
+                                           class="btn btn-sm btn-outline-warning text-warning-emphasis px-2.5 d-inline-flex align-items-center gap-1"
+                                           title="Validated, not yet approved: prints with a PROVISIONAL watermark">
+                                            <i class="bi bi-printer"></i>Print (Provisional)
+                                        </a>
+                                        }
                                     </div>
                                 </div>
                             </div>
@@ -721,25 +733,13 @@
             <button type="button" class="btn btn-outline-secondary btn-sm px-3" onclick="window.close()">
                 <i class="bi bi-x me-1"></i>Close
             </button>
-            <button type="button" class="btn btn-primary btn-sm px-3.5 fw-semibold shadow-xs btn-action-save" id="btnStickySave" style="@(showSubmit ? "" : "display:none;")">
-                <i class="bi bi-send-check me-1"></i>Submit
-            </button>
-            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" style="@(showValidate ? "" : "display:none;")">
-                <i class="bi bi-check-circle-fill me-1"></i>Validate Report
-            </button>
-            <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove" style="@(showApprove ? "" : "display:none;")">
-                <i class="bi bi-patch-check-fill me-1"></i>Approve Report
-            </button>
-            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 fs-8 badge-pathologist-footer @(pathologistApprovalRequired && !isAllApproved && validatedCount > 0 ? "" : "d-none")"
-                  title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch">
-                <i class="bi bi-shield-lock-fill me-1"></i>Approval by pathologist
-            </span>
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fs-8 @(isAllApproved ? "" : "d-none")" id="badgeApprovedFooter">
                 <i class="bi bi-patch-check-fill me-1"></i>Report Approved
             </span>
             <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
-               class="btn btn-sm btn-outline-dark px-3 fw-semibold @(showPrint ? "" : "d-none")" id="btnStickyPrint">
-                <i class="bi bi-printer-fill me-1"></i>Print Report
+               class="btn btn-sm btn-dark px-3 fw-semibold btn-print-all @(showPrintAll ? "" : "d-none")" id="btnStickyPrintAll"
+               title="Print every approved image report of this order">
+                <i class="bi bi-printer-fill me-1"></i>Print All Reports
             </a>
         </div>
     </div>
@@ -759,6 +759,7 @@
 
             const labOrderId = @d.LabOrderId;
             const PATHOLOGIST_APPROVAL_REQUIRED = @(pathologistApprovalRequired.ToString().ToLower());
+            const PRINT_URL = '@Url.Action("Print", "LabImageReporting")';
 
             let currentTestId = 0;
             let currentSampleCollectionId = 0;
@@ -846,43 +847,11 @@
                 $('#wfPercent').text(totalActiveCount ? (approvedCount + ' of ' + totalActiveCount + ' tests approved (' + pct + '%)') : '');
                 $('#wfBar').attr('aria-valuenow', pct);
 
-                // 1. Submit Button (Visible if not all approved and any test is unentered or pending submission)
-                const needsSubmit = !isAllApproved && (unenteredCount > 0 || unsubmittedCount > 0);
-                if (needsSubmit) {
-                    $('.btn-action-save').show();
-                } else {
-                    $('.btn-action-save').hide();
-                }
-
-                // 2. Validate Button (Visible if not all approved and there are submitted tests awaiting validation)
-                const canValidate = !isAllApproved && (submittedCount > 0);
-                if (canValidate) {
-                    $('.btn-action-validate').show();
-                } else {
-                    $('.btn-action-validate').hide();
-                }
-
-                // 3. Approve Button (Visible if not all approved, validated tests exist, and pathologist approval not required)
-                const canApprove = !isAllApproved && (validatedCount > 0) && !PATHOLOGIST_APPROVAL_REQUIRED;
-                if (canApprove) {
-                    $('.btn-action-approve').show();
-                } else {
-                    $('.btn-action-approve').hide();
-                }
-
-                // 4. Pathologist Warning Badge
-                if (PATHOLOGIST_APPROVAL_REQUIRED && !isAllApproved && validatedCount > 0) {
-                    $('.badge-pathologist-header, .badge-pathologist-footer').removeClass('d-none');
-                } else {
-                    $('.badge-pathologist-header, .badge-pathologist-footer').addClass('d-none');
-                }
-
-                // 5. Approved Badges
+                // Order-level status only; every action button lives on its test row.
                 if (isAllApproved) {
                     $('#badgeHeaderApproved, #badgeApprovedFooter')
                         .removeClass('d-none')
                         .html('<i class="bi bi-patch-check-fill me-1"></i>Report Approved');
-                    $('.btn-action-save, .btn-action-validate, .btn-action-approve').hide();
                     $('#badgeOrderStatus').attr('class', 'badge bg-info-subtle text-info border border-info-subtle fs-9 fw-semibold').text('Report Approved');
                 } else if (isPartialApproved) {
                     $('#badgeHeaderApproved')
@@ -894,10 +863,58 @@
                     $('#badgeHeaderApproved, #badgeApprovedFooter').addClass('d-none');
                 }
 
-                // Print button in sticky bar
-                if (validatedCount + approvedCount > 0) {
-                    $('#btnStickyPrint').removeClass('d-none');
+                // One "Print All Reports", only once every image test is approved
+                $('.btn-print-all').toggleClass('d-none', !isAllApproved);
+            }
+
+
+            // ── One rule set for a test row's buttons, used on load and after every save ──
+            //   pending / draft : Start Entry (or Edit Report once something is saved)
+            //   submitted  (2)  : Edit Report, Validate
+            //   validated  (3)  : Edit Report, Approve  (or "Approval by pathologist"), Print (Provisional)
+            //   approved   (5)  : View Report, Print
+            //   Preview only once the test has content. Print is provisional (watermarked) while validated,
+            //   and the final report once approved.
+            function rowActionsHtml(sampleId, testId, testName, statusId, hasEntry) {
+                statusId = parseInt(statusId) || 0;
+                const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+                const data = `data-sample-id="${sampleId}" data-test-id="${testId}" data-test-name="${esc(testName)}"`;
+                const approved = statusId === 5;
+                let h = `<button type="button" class="btn btn-sm ${approved ? 'btn-outline-dark' : (hasEntry ? 'btn-outline-primary' : 'btn-primary')} px-3 d-inline-flex align-items-center gap-1.5 btn-start-entry" ${data} data-has-entry="${hasEntry ? 'true' : 'false'}">
+                            <i class="bi ${approved ? 'bi-eye' : 'bi-pencil-square'}"></i><span class="btn-text">${approved ? 'View Report' : (hasEntry ? 'Edit Report' : 'Start Entry')}</span>
+                         </button>`;
+                if (statusId === 2) {
+                    h += `<button type="button" class="btn btn-sm btn-outline-success px-2.5 d-inline-flex align-items-center gap-1 btn-card-validate" ${data} title="Validate this report">
+                              <i class="bi bi-check-circle-fill"></i>Validate
+                          </button>`;
+                } else if (statusId === 3) {
+                    h += PATHOLOGIST_APPROVAL_REQUIRED
+                        ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1.5 fs-9" title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch"><i class="bi bi-shield-lock-fill me-1"></i>Approval by pathologist</span>`
+                        : `<button type="button" class="btn btn-sm btn-outline-info text-info px-2.5 d-inline-flex align-items-center gap-1 btn-card-approve" ${data} title="Approve this report">
+                               <i class="bi bi-patch-check-fill"></i>Approve
+                           </button>`;
                 }
+                if (hasEntry) {
+                    h += `<button type="button" class="btn btn-sm btn-outline-secondary px-2.5 d-inline-flex align-items-center gap-1 btn-preview-report" data-sample-id="${sampleId}" data-test-id="${testId}" title="Preview report">
+                              <i class="bi bi-eye"></i>Preview
+                          </button>`;
+                }
+                if (approved) {
+                    h += `<a href="${PRINT_URL}?labOrderId=${labOrderId}&sampleCollectionId=${sampleId}" target="_blank" class="btn btn-sm btn-outline-dark px-2.5 d-inline-flex align-items-center gap-1" title="Print the final report">
+                              <i class="bi bi-printer"></i>Print
+                          </a>`;
+                } else if (statusId === 3) {
+                    h += `<a href="${PRINT_URL}?labOrderId=${labOrderId}&sampleCollectionId=${sampleId}" target="_blank" class="btn btn-sm btn-outline-warning text-warning-emphasis px-2.5 d-inline-flex align-items-center gap-1" title="Validated, not yet approved: prints with a PROVISIONAL watermark">
+                              <i class="bi bi-printer"></i>Print (Provisional)
+                          </a>`;
+                }
+                return h;
+            }
+
+            function renderRowActions($row) {
+                $row.find('.card-action-buttons').html(rowActionsHtml(
+                    $row.data('samplecollection-id'), $row.data('investigation-id'), $row.data('test-name'),
+                    $row.attr('data-report-status-id'), $row.attr('data-has-entry') === 'true'));
             }
 
             // ── Update Modal Action Buttons Visibility ───────────────────────
@@ -1104,63 +1121,8 @@
                                 $row.find('.status-badge').removeClass().addClass('badge ' + badgeCls + ' fs-8 status-badge').text(statusName);
                                 $row.find('.last-saved-time').html('<span><i class="bi bi-clock me-0.5"></i>Saved just now</span>');
 
-                                // Re-render card action buttons
-                                const $actContainer = $row.find('.card-action-buttons');
-                                const testId = $row.data('investigation-id');
-                                const testName = $row.data('test-name');
-
-                                let btnsHtml = `
-                                    <button type="button"
-                                            class="btn btn-sm ${statusId === 5 ? 'btn-outline-dark' : 'btn-outline-primary'} px-3 d-inline-flex align-items-center gap-1.5 btn-start-entry"
-                                            data-test-id="${testId}"
-                                            data-sample-id="${sampleId}"
-                                            data-test-name="${testName}"
-                                            data-has-entry="true">
-                                        <i class="bi ${statusId === 5 ? 'bi-eye' : 'bi-pencil-square'}"></i>
-                                        <span class="btn-text">${statusId === 5 ? 'View Report' : 'Edit Report'}</span>
-                                    </button>
-                                `;
-
-                                if (statusId === 2) {
-                                    btnsHtml += `
-                                        <button type="button"
-                                                class="btn btn-sm btn-outline-success px-2.5 d-inline-flex align-items-center gap-1 btn-card-validate"
-                                                data-sample-id="${sampleId}"
-                                                data-test-id="${testId}"
-                                                data-test-name="${testName}"
-                                                title="Validate this report">
-                                            <i class="bi bi-check-circle-fill"></i>Validate
-                                        </button>
-                                    `;
-                                } else if (statusId === 3 && !PATHOLOGIST_APPROVAL_REQUIRED) {
-                                    btnsHtml += `
-                                        <button type="button"
-                                                class="btn btn-sm btn-outline-info text-info px-2.5 d-inline-flex align-items-center gap-1 btn-card-approve"
-                                                data-sample-id="${sampleId}"
-                                                data-test-id="${testId}"
-                                                data-test-name="${testName}"
-                                                title="Approve this report">
-                                            <i class="bi bi-patch-check-fill"></i>Approve
-                                        </button>
-                                    `;
-                                }
-
-                                btnsHtml += `
-                                    <button type="button"
-                                            class="btn btn-sm btn-outline-secondary px-2.5 d-inline-flex align-items-center gap-1 btn-preview-report"
-                                            data-sample-id="${sampleId}"
-                                            data-test-id="${testId}"
-                                            title="Preview report HTML">
-                                        <i class="bi bi-eye"></i>Preview
-                                    </button>
-                                    <a href="/LabImageReporting/Print?labOrderId=${labOrderId}&sampleCollectionId=${sampleId}"
-                                       target="_blank"
-                                       class="btn btn-sm btn-outline-dark px-2.5 d-inline-flex align-items-center gap-1"
-                                       title="Print this report">
-                                        <i class="bi bi-printer"></i>Print
-                                    </a>
-                                `;
-                                $actContainer.html(btnsHtml);
+                                // Re-render this test's buttons from the same rules used on load
+                                renderRowActions($row);
 
                                 // Update inline preview if open
                                 if (e.templateHtml) {
@@ -1326,105 +1288,8 @@
                 });
             });
 
-            // ── Page Level Action Buttons (Header & Sticky Bar) ───────────────
-
-            // Page Submit: Prompt to enter first pending test
-            $('.btn-action-save').on('click', function () {
-                const $pendingBtn = $('.btn-start-entry[data-has-entry="false"]').first();
-                if ($pendingBtn.length) {
-                    $pendingBtn.trigger('click');
-                    toastr.info('Opening editor for pending investigation.');
-                } else {
-                    const $firstEntry = $('.btn-start-entry').first();
-                    if ($firstEntry.length) {
-                        $firstEntry.trigger('click');
-                    }
-                }
-            });
-
-            // Page Validate: Validates all submitted tests awaiting validation
-            $('.btn-action-validate').on('click', function () {
-                const submittedRows = $('.investigation-item-row[data-report-status-id="2"]');
-                const count = submittedRows.length;
-                const totalActive = $('.investigation-item-row').length;
-
-                if (count === 0) {
-                    toastr.warning('No submitted test records found to validate. Please enter and submit test results first.');
-                    return;
-                }
-
-                const isPartial = count < totalActive;
-                const confirmTitle = isPartial ? 'Partially Validate Report?' : 'Validate Report?';
-                const confirmText = isPartial
-                    ? `Are you sure you want to validate ${count} submitted report(s)? Remaining reports can be entered and submitted later.`
-                    : 'Are you sure you want to validate this report? Once validated, it will advance to final approval.';
-
-                Swal.fire({
-                    title: confirmTitle,
-                    text: confirmText,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonColor: '#198754',
-                    cancelButtonColor: '#6c757d',
-                    confirmButtonText: '<i class="bi bi-check-circle-fill me-1"></i>Yes, Validate ' + (isPartial ? `(${count} Reports)` : 'Report')
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        const entries = [];
-                        submittedRows.each(function () {
-                            entries.push({
-                                samplecollectionID: $(this).data('samplecollection-id'),
-                                investigationID: $(this).data('investigation-id'),
-                                reportingType: 'Image',
-                                testValue: 'Report Entered'
-                            });
-                        });
-                        saveImageReporting(3, 'Report Validated', entries);
-                    }
-                });
-            });
-
-            // Page Approve: Approves all validated tests awaiting approval
-            $('.btn-action-approve').on('click', function () {
-                const validatedRows = $('.investigation-item-row[data-report-status-id="3"]');
-                const count = validatedRows.length;
-                const totalActive = $('.investigation-item-row').length;
-
-                if (count === 0) {
-                    toastr.warning('No validated test records found to approve. Please validate test results first.');
-                    return;
-                }
-
-                const isPartial = count < totalActive;
-                const confirmTitle = isPartial ? 'Partially Approve Report?' : 'Approve Report?';
-                const confirmText = isPartial
-                    ? `Are you sure you want to approve ${count} validated report(s)? This will finalize these ${count} report(s).`
-                    : 'Are you sure you want to approve this lab report? This will finalize the report.';
-
-                Swal.fire({
-                    title: confirmTitle,
-                    text: confirmText,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonColor: '#0dcaf0',
-                    cancelButtonColor: '#6c757d',
-                    confirmButtonText: '<i class="bi bi-patch-check-fill me-1"></i>Yes, Approve ' + (isPartial ? `(${count} Reports)` : 'Report')
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        const entries = [];
-                        validatedRows.each(function () {
-                            entries.push({
-                                samplecollectionID: $(this).data('samplecollection-id'),
-                                investigationID: $(this).data('investigation-id'),
-                                reportingType: 'Image',
-                                testValue: 'Report Entered'
-                            });
-                        });
-                        saveImageReporting(5, 'Report Approve', entries);
-                    }
-                });
-            });
-
-            // Initial calculation of visibility
+            // Same button rules on load as after a save
+            $('.investigation-item-row').each(function () { renderRowActions($(this)); });
             updateActionButtonsVisibility();
 
             // Initialize tooltips
