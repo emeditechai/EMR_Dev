@@ -481,6 +481,8 @@ public class LabInvestigationsController(
         [
             new SelectListItem { Value = "Numeric", Text = "Numeric" },
             new SelectListItem { Value = "Text", Text = "Text" },
+            new SelectListItem { Value = "Select", Text = "Select (Picklist)" },
+            new SelectListItem { Value = "Culture", Text = "Culture (Organism & Sensitivity)" },
             new SelectListItem { Value = "Descriptive", Text = "Descriptive" },
             new SelectListItem { Value = "Image", Text = "Image" },
             new SelectListItem { Value = "Template", Text = "Template" }

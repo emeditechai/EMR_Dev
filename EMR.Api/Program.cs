@@ -61,6 +61,12 @@ builder.Services.AddScoped<IAnalyzerService,           AnalyzerService>();
 builder.Services.AddScoped<ILabInvestigationService,        LabInvestigationService>();
 builder.Services.AddScoped<ILabInvestigationProfileService, LabInvestigationProfileService>();
 builder.Services.AddScoped<ILabSampleRejectionService,      LabSampleRejectionService>();
+builder.Services.AddScoped<ILabOrganismService, LabOrganismService>();
+builder.Services.AddScoped<ILabAntibioticService, LabAntibioticService>();
+builder.Services.AddScoped<ILabAntibioticPanelService, LabAntibioticPanelService>();
+builder.Services.AddScoped<ILabParameterOptionService, LabParameterOptionService>();
+builder.Services.AddScoped<ILabExpertRuleService, LabExpertRuleService>();
+builder.Services.AddScoped<ILabBreakpointService, LabBreakpointService>();
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();
@@ -81,6 +87,7 @@ builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EM
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.SubCategoryBulkHandler>();
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.InvestigationBulkHandler>();
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.FranchiseBulkHandler>();
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler, EMR.Api.Services.BulkUpload.InvestigationProfileBulkHandler>();
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.B2C));
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
