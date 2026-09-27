@@ -40,7 +40,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
     private const string RefMethod = "REF_Method";
     private const string RefUnit = "REF_Unit";
 
-    private static readonly string[] ReportingTypes = ["Numeric", "Text", "Descriptive", "Image", "Template"];
+    private static readonly string[] ReportingTypes = ["Numeric", "Text", "Select", "Descriptive", "Image", "Culture", "Template"];
     private static readonly string[] Genders = ["All", "Male", "Female", "Transgender"];
     private static readonly string[] AgeOperators = ["Exact", "GreaterEqual", "LessEqual"];
     private static readonly string[] DurationUnits = ["Days", "Hours", "Months"];

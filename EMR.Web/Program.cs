@@ -161,6 +161,12 @@ builder.Services.AddScoped<ILabInvestigationApiClient,        LabInvestigationAp
 builder.Services.AddScoped<ILabInvestigationProfileApiClient, LabInvestigationProfileApiClient>();
 builder.Services.AddScoped<ILabRateCardApiClient, LabRateCardApiClient>();
 builder.Services.AddScoped<ILabSampleRejectionApiClient, LabSampleRejectionApiClient>();
+builder.Services.AddScoped<ILabOrganismApiClient, LabOrganismApiClient>();
+builder.Services.AddScoped<ILabAntibioticApiClient, LabAntibioticApiClient>();
+builder.Services.AddScoped<ILabAntibioticPanelApiClient, LabAntibioticPanelApiClient>();
+builder.Services.AddScoped<ILabParameterOptionApiClient, LabParameterOptionApiClient>();
+builder.Services.AddScoped<ILabExpertRuleApiClient, LabExpertRuleApiClient>();
+builder.Services.AddScoped<ILabBreakpointApiClient, LabBreakpointApiClient>();
 builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectionReasonApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabBulkUploadApiClient,           LabBulkUploadApiClient>();
