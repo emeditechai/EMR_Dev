@@ -38,7 +38,8 @@ public class OPDController(
     IVitalApiClient vitalApiClient,
     IDbConnectionFactory db,
     ILedgerService ledgerService,
-    ILabReportEmailService labReportEmailService) : Controller
+    ILabReportEmailService labReportEmailService,
+    ILabReportWhatsAppService labReportWhatsAppService) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -2279,11 +2280,12 @@ public class OPDController(
             TriggerVideoOnFullPayment(User.GetCurrentBranchId(), request.OPDServiceId!.Value);
         }
 
-        // ── LAB: a final report held back for an outstanding due is emailed once the due is cleared ──
+        // ── LAB: a final report held back for an outstanding due is emailed / WhatsApp'd once the due is cleared ──
         if (result.Success && result.BalanceDue <= 0 && request.ModuleRefId > 0
             && string.Equals(request.ModuleCode, "LAB", StringComparison.OrdinalIgnoreCase))
         {
             labReportEmailService.QueueIfFinal(request.ModuleRefId, User, LabReportEmailTriggers.PaymentCleared);
+            labReportWhatsAppService.QueueIfFinal(request.ModuleRefId, User, LabReportEmailTriggers.PaymentCleared);
         }
 
         return Json(result);

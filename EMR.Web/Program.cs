@@ -182,6 +182,7 @@ builder.Services.AddScoped<ILabDefaultSignatoryApiClient,     LabDefaultSignator
 builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowApiClient>();
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
 builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
+builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();

@@ -20,6 +20,7 @@ public class PathologistDashboardController(
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
     ILabReportEmailService labReportEmailService,
+    ILabReportWhatsAppService labReportWhatsAppService,
     IQueryStringEncryptionService encryptionService) : Controller
 {
     private static readonly HashSet<string> Statuses = new(StringComparer.OrdinalIgnoreCase) { "PENDING", "MINE", "APPROVED", "ALL" };
@@ -183,9 +184,12 @@ public class PathologistDashboardController(
             var final = result?.FinalApprovedCount ?? 0;
             var count = result?.SignedCount ?? 0;
 
-            // A test reached its last level: the whole bill may be final now - email the patient's report.
+            // A test reached its last level: the whole bill may be final now - email / WhatsApp the patient's report.
             if (final > 0)
+            {
                 labReportEmailService.QueueIfFinal(model.LabOrderId, User, LabReportEmailTriggers.PathologistApproval);
+                labReportWhatsAppService.QueueIfFinal(model.LabOrderId, User, LabReportEmailTriggers.PathologistApproval);
+            }
             var message = final == count
                 ? $"{count} test(s) approved. The report is now final."
                 : $"{count} test(s) signed at your level. {(final > 0 ? $"{final} became final; t" : "T")}he remaining test(s) still need the next level's approval.";

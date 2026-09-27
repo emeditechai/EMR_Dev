@@ -31,6 +31,7 @@ namespace EMR.Web.Controllers
         ILabReportingConditionApiClient conditionApiClient,
         ILabReportPdfService reportPdfService,
         ILabReportEmailService labReportEmailService,
+        ILabReportWhatsAppService labReportWhatsAppService,
         ILabFormulaParameterApiClient labFormulaApiClient,
         IQueryStringEncryptionService encryptionService) : Controller
     {
@@ -509,8 +510,9 @@ namespace EMR.Web.Controllers
                 }
                 catch (HttpRequestException) { /* never block the save */ }
 
-                // The whole bill may be final now: email the patient's report (background, when enabled).
+                // The whole bill may be final now: email / WhatsApp the patient's report (background, when enabled).
                 labReportEmailService.QueueIfFinal(request.LabOrderId, User, LabReportEmailTriggers.EntryApproval);
+                labReportWhatsAppService.QueueIfFinal(request.LabOrderId, User, LabReportEmailTriggers.EntryApproval);
             }
 
             if (success)

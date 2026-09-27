@@ -444,7 +444,7 @@ public class WhatsAppService(
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var labOrder = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<dynamic>(
-                "SELECT LabOrderId, BranchId, PatientId, BillNo, TokenNo, TotalAmount FROM dbo.LabOrder WHERE LabOrderId = @Id",
+                "SELECT LabOrderId, BranchId, PatientId, BillNo, TokenNo, TotalAmount, IsB2B, AgentType, B2BAgentID FROM dbo.LabOrder WHERE LabOrderId = @Id",
                 new { Id = labOrderId });
 
         if (labOrder == null)
@@ -463,6 +463,23 @@ public class WhatsAppService(
         {
             logger.LogInformation("[WhatsApp] LAB notification disabled or not configured for branch {BranchId}", branchId);
             return;
+        }
+
+        // B2B Franchise gate: a franchise with "Notification Required" switched off never has its
+        // patients WhatsApp'd the bill - the franchise handles delivery to the patient instead.
+        bool isB2B = labOrder.IsB2B != null && (bool)labOrder.IsB2B;
+        string? agentType = (string?)labOrder.AgentType;
+        if (isB2B && string.Equals(agentType, "F", StringComparison.OrdinalIgnoreCase) && labOrder.B2BAgentID != null)
+        {
+            int franchiseId = (int)labOrder.B2BAgentID;
+            var franchiseAllowsNotification = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<bool?>(
+                "SELECT IsNotificationRequired FROM dbo.LabFranchiseMaster WHERE Franchise_ID = @Id",
+                new { Id = franchiseId });
+            if (franchiseAllowsNotification != true)
+            {
+                logger.LogInformation("[WhatsApp] Franchise notification disabled for FranchiseId {FranchiseId} - skipping LAB bill WhatsApp for LabOrderId {Id}", franchiseId, labOrderId);
+                return;
+            }
         }
 
             int patientId = (int)labOrder.PatientId;

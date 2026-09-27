@@ -80,6 +80,7 @@ namespace EMR.Api.Models
         public decimal TotalPaid { get; set; }
         public decimal BalanceDue { get; set; }
         public decimal TotalAmount { get; set; }
+        public bool IsB2B { get; set; }
         public bool IsTransferred { get; set; }
         public int? SourceBranchId { get; set; }
         public string? SourceBranchName { get; set; }

@@ -506,6 +506,163 @@ namespace EMR.Web.Controllers
             // ─────────────────────────────────────────────────────────────────────────────────────────
 
             string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+
+            // ── TRIGGER BACKGROUND EMAIL/WHATSAPP BILL NOTIFICATION (B2B) ───────────────────
+            // Gated by the booking Franchise's "Notification Required" flag (Master > Franchise Setup):
+            // a franchise with it switched off never has its patients notified - it hands the bill to
+            // the patient itself instead. Corporate (AgentType == "C") bookings are not gated by this flag.
+            {
+                var savedLabOrderId = labOrderRes.LabOrderId;
+                var savedBillNo = labOrderRes.BillNo;
+                var safeBillNo = savedBillNo?.Replace("/", "_").Replace("\\", "_");
+                var patientEmail = patient.EmailId;
+                var patientNameStr = patientFullName;
+                var bId = branchId.Value;
+                var hostUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+                var b2bAgentType = model.AgentType;
+                var b2bFranchiseId = model.B2BAgentId;
+                var serviceScopeFactory = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
+
+                _ = Task.Run(async () =>
+                {
+                    using var scope = serviceScopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                    var logger = scope.ServiceProvider.GetRequiredService<ILogger<LabOrderBookingController>>();
+
+                    string? tempPdfPath = null;
+                    try
+                    {
+                        bool franchiseBlocksNotification = false;
+                        if (string.Equals(b2bAgentType, "F", StringComparison.OrdinalIgnoreCase) && b2bFranchiseId.HasValue)
+                        {
+                            var allow = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<bool?>(
+                                "SELECT IsNotificationRequired FROM dbo.LabFranchiseMaster WHERE Franchise_ID = @Id",
+                                new { Id = b2bFranchiseId.Value });
+                            franchiseBlocksNotification = allow != true;
+                        }
+
+                        if (franchiseBlocksNotification)
+                        {
+                            logger.LogInformation("[LAB-NOTIF] Franchise notification disabled for FranchiseId {Id} - skipping LAB bill Email/WhatsApp for LabOrderId {LabOrderId}", b2bFranchiseId, savedLabOrderId);
+                            return;
+                        }
+
+                        // 1. Generate Lab Bill PDF via headless Chrome so both WhatsApp and Email can use it
+                        if (!string.IsNullOrWhiteSpace(safeBillNo))
+                        {
+                            try
+                            {
+                                tempPdfPath = Path.Combine(Path.GetTempPath(), $"Lab_Bill_{safeBillNo}.pdf");
+                                var secret = "lab_print_" + savedLabOrderId.ToString();
+                                var billUrl = $"{hostUrl}/LabOrderBooking/PrintBillAnonymous?labOrderId={savedLabOrderId}&secret={Uri.EscapeDataString(secret)}";
+                                logger.LogInformation($"[LAB-NOTIF] Generating PDF for lab bill. URL: {billUrl}, Output: {tempPdfPath}");
+                                var chromeArgs = $"--headless --disable-gpu --ignore-certificate-errors --print-to-pdf=\"{tempPdfPath}\" \"{billUrl}\"";
+
+                                using var process = new System.Diagnostics.Process();
+                                process.StartInfo.FileName = OperatingSystem.IsWindows() ? "chrome" : "google-chrome";
+                                if (OperatingSystem.IsMacOS()) process.StartInfo.FileName = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+                                process.StartInfo.Arguments = chromeArgs;
+                                process.StartInfo.UseShellExecute = true;
+                                process.Start();
+                                await process.WaitForExitAsync();
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.LogWarning(ex, "[LAB-NOTIF] Headless chrome PDF generation failed for LabOrderId {Id}", savedLabOrderId);
+                            }
+                        }
+
+                        // 2. Trigger WhatsApp notification (attaches generated bill PDF)
+                        try
+                        {
+                            var whatsAppSvc = scope.ServiceProvider.GetRequiredService<IWhatsAppService>();
+                            await whatsAppSvc.TriggerLabBillWhatsAppAsync(bId, savedLabOrderId, tempPdfPath, hostUrl);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "[WhatsApp] Error sending LAB bill notification for LabOrderId {Id}", savedLabOrderId);
+                        }
+
+                        // 3. Trigger Email notification (if patient has email configured)
+                        if (!string.IsNullOrWhiteSpace(patientEmail))
+                        {
+                            try
+                            {
+                                var hs = await db.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == bId && s.IsActive);
+                                if (hs != null && hs.LabEmailNotificationRequired)
+                                {
+                                    string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
+                                    string body = $@"
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=""utf-8"">
+<title>Your Lab Bill</title>
+<style>
+  body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }}
+  .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }}
+  .header {{ background-color: #4a6ee0; color: #ffffff; padding: 20px; text-align: center; }}
+  .header h1 {{ margin: 0; font-size: 24px; }}
+  .content {{ padding: 30px; color: #333333; line-height: 1.6; }}
+  .greeting {{ font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }}
+  .info-box {{ background-color: #f8f9fa; border-left: 4px solid #4a6ee0; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+  .info-box p {{ margin: 5px 0; }}
+  .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; color: #777777; font-size: 14px; border-top: 1px solid #eeeeee; }}
+</style>
+</head>
+<body>
+<div class=""container"">
+  <div class=""header"">
+    <h1>{hs.HospitalName}</h1>
+  </div>
+  <div class=""content"">
+    <div class=""greeting"">Dear {patientNameStr},</div>
+    <p>Thank you for choosing <strong>{hs.HospitalName}</strong> for your healthcare needs.</p>
+    <div class=""info-box"">
+      <p><strong>Bill No:</strong> {savedBillNo}</p>
+      <p><strong>Date:</strong> {DateTime.Now:dd MMM yyyy}</p>
+    </div>
+    <p>Please find your detailed lab order bill attached to this email as a PDF document.</p>
+    <p>If you have any questions or require further assistance, please do not hesitate to contact us.</p>
+    <p>Wishing you the best of health,<br/><br/><strong>The {hs.HospitalName} Team</strong></p>
+  </div>
+  <div class=""footer"">
+    &copy; {DateTime.Now.Year} {hs.HospitalName}. All rights reserved.<br>
+    {hs.Address}
+  </div>
+</div>
+</body>
+</html>";
+
+                                    if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                                    {
+                                        var attachment = new System.Net.Mail.Attachment(tempPdfPath, "application/pdf");
+                                        await emailSvc.SendEmailAsync(bId, patientEmail, subj, body, new[] { attachment });
+                                    }
+                                    else
+                                    {
+                                        await emailSvc.SendEmailAsync(bId, patientEmail, subj, body);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.LogError(ex, "[DEBUG-LAB-EMAIL] Error sending lab email notification.");
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
+                        {
+                            try { System.IO.File.Delete(tempPdfPath); } catch { }
+                        }
+                    }
+                });
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────────
+
             string agentLabel = model.AgentType == "C" ? "Company" : "Franchise";
             await auditLogService.LogActivityAsync(
                 eventType: "B2B LAB Billing",
@@ -1221,8 +1378,23 @@ namespace EMR.Web.Controllers
                         {
                             try
                             {
-                                var hs = await db.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == bId && s.IsActive);
-                                if (hs != null && hs.LabEmailNotificationRequired)
+                                // B2B Franchise gate: a franchise with "Notification Required" switched off
+                                // never has its patients emailed the bill - the franchise handles delivery instead.
+                                bool franchiseBlocksEmail = false;
+                                if (model.IsB2B && model.AgentType == "F" && model.B2BAgentId.HasValue)
+                                {
+                                    var franchiseAllowsNotification = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<bool?>(
+                                        "SELECT IsNotificationRequired FROM dbo.LabFranchiseMaster WHERE Franchise_ID = @Id",
+                                        new { Id = model.B2BAgentId.Value });
+                                    franchiseBlocksEmail = franchiseAllowsNotification != true;
+                                }
+
+                                var hs = franchiseBlocksEmail ? null : await db.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == bId && s.IsActive);
+                                if (franchiseBlocksEmail)
+                                {
+                                    logger.LogInformation("[LAB-NOTIF] Franchise notification disabled for B2BAgentId {Id} - skipping LAB bill email for LabOrderId {LabOrderId}", model.B2BAgentId, savedLabOrderId);
+                                }
+                                else if (hs != null && hs.LabEmailNotificationRequired)
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
                                     string body = $@"
