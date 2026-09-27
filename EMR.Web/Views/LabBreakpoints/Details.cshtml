@@ -1,0 +1,99 @@
+@model EMR.Web.ApiClients.Models.LabBreakpointModel
+
+@{
+    ViewData["Title"] = "Breakpoint Details";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Breakpoint Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Details</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-eye me-2"></i>Breakpoint Details</h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Edit" asp-encrypted-id="@Model.Breakpoint_ID" class="btn btn-primary px-3 shadow-sm"><i class="bi bi-pencil me-1"></i> Edit</a>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3"><i class="bi bi-arrow-left me-1"></i> Back to List</a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-primary text-white p-3 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 fw-semibold"><i class="bi bi-rulers me-2"></i>@Model.Standard_Version</h5>
+                    <span class="badge bg-light text-dark font-monospace fs-6 px-3 py-1">@Model.Breakpoint_Code</span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Organism Category</label>
+                            <span class="fw-semibold text-dark">@(string.IsNullOrWhiteSpace(Model.Organism_Category) ? "—" : Model.Organism_Category)</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Specific Organism</label>
+                            <span class="fw-semibold text-dark">@(Model.Organism_Name ?? "(Whole category)")</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Antibiotic</label>
+                            <span class="fw-semibold text-dark">@(Model.Antibiotic_Name ?? "—")</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Standard</label>
+                            <span class="fw-semibold text-dark">@(string.IsNullOrWhiteSpace(Model.Standard) ? "—" : Model.Standard)</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Standard Version</label>
+                            <span class="fw-semibold text-dark">@(string.IsNullOrWhiteSpace(Model.Standard_Version) ? "—" : Model.Standard_Version)</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Method</label>
+                            <span class="fw-semibold text-dark">@(string.IsNullOrWhiteSpace(Model.Method) ? "—" : Model.Method)</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Specimen Scope</label>
+                            <span class="fw-semibold text-dark">@(string.IsNullOrWhiteSpace(Model.Specimen_Scope) ? "—" : Model.Specimen_Scope)</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">S Breakpoint</label>
+                            <span class="fw-semibold text-dark font-monospace">@(Model.S_Breakpoint?.ToString("0.####") ?? "—")</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">R Breakpoint</label>
+                            <span class="fw-semibold text-dark font-monospace">@(Model.R_Breakpoint?.ToString("0.####") ?? "—")</span>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Remarks</label>
+                            <span class="fw-semibold text-dark">@(string.IsNullOrWhiteSpace(Model.Remarks) ? "—" : Model.Remarks)</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Status</label>
+                            @if (Model.Status)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Created</label>
+                            <span class="text-secondary">@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                            @if (Model.ModifiedDate.HasValue)
+                            {
+                                <div class="small text-muted">Last modified @Model.ModifiedDate.Value.ToString("dd MMM yyyy, hh:mm tt")</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,111 @@
+@model EMR.Web.Models.ViewModels.LabAntibioticFormViewModel
+
+@{
+    ViewData["Title"] = "Create Antibiotic";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Lab Master</li>
+                <li class="breadcrumb-item"><a asp-action="Index">Antibiotic Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Create</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary">
+            <i class="bi bi-plus-circle me-2"></i>Create Antibiotic
+        </h4>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white p-3">
+                    <h5 class="card-title mb-0 fw-semibold"><i class="bi bi-capsule-pill me-2"></i>Antibiotic Details</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="CompanyId" />
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-muted">Antibiotic Code</label>
+                                <input class="form-control font-monospace bg-light" disabled placeholder="Auto-generated on save (e.g. ABX0001)" />
+                            </div>
+                            <div class="col-md-6"></div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Antibiotic_Name" class="form-label fw-semibold required-field"></label>
+                                <input asp-for="Antibiotic_Name" class="form-control" placeholder="e.g. Ciprofloxacin" maxlength="150" />
+                                <span asp-validation-for="Antibiotic_Name" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Abbreviation" class="form-label fw-semibold"></label>
+                                <input asp-for="Abbreviation" class="form-control" placeholder="e.g. CIP" maxlength="10" />
+                                <small class="text-muted">CLSI/EUCAST short code shown in the sensitivity table.</small>
+                                <span asp-validation-for="Abbreviation" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Antibiotic_Class" class="form-label fw-semibold required-field"></label>
+                                <select asp-for="Antibiotic_Class" class="form-select">
+                                    <option value="">-- Select Antibiotic Class --</option>
+                                    @foreach (var o in EMR.Web.Models.ViewModels.LabAntibioticFormViewModel.Antibiotic_ClassOptions)
+                                    {
+                                        <option value="@o">@o</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="Antibiotic_Class" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Route" class="form-label fw-semibold required-field"></label>
+                                <select asp-for="Route" class="form-select">
+                                    <option value="">-- Select Route --</option>
+                                    @foreach (var o in EMR.Web.Models.ViewModels.LabAntibioticFormViewModel.RouteOptions)
+                                    {
+                                        <option value="@o">@o</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="Route" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="WHONET_Code" class="form-label fw-semibold"></label>
+                                <input asp-for="WHONET_Code" class="form-control" placeholder="From the official WHONET antibiotic list" maxlength="20" />
+                                <small class="text-muted">Optional. Needed only for WHONET / ICMR-AMRSN surveillance export.</small>
+                                <span asp-validation-for="WHONET_Code" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label asp-for="Description" class="form-label fw-semibold"></label>
+                                <textarea asp-for="Description" class="form-control" rows="3" placeholder="Spectrum, restrictions, reporting notes..."></textarea>
+                                <span asp-validation-for="Description" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <hr class="my-4" />
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4">
+                                <i class="bi bi-x-lg me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                <i class="bi bi-save me-1"></i> Save Antibiotic
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

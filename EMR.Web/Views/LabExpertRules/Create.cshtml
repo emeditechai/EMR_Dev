@@ -1,0 +1,173 @@
+@model EMR.Web.Models.ViewModels.LabExpertRuleFormViewModel
+
+@{
+    ViewData["Title"] = "Create Expert Rule";
+}
+@section HeadStyles {
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Lab Master</li>
+                <li class="breadcrumb-item"><a asp-action="Index">Expert Rule Master</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Create</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary">
+            <i class="bi bi-plus-circle me-2"></i>Create Expert Rule
+        </h4>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white p-3">
+                    <h5 class="card-title mb-0 fw-semibold"><i class="bi bi-shield-exclamation me-2"></i>Expert Rule Details</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="CompanyId" />
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold text-muted">Rule Code</label>
+                                <input class="form-control font-monospace bg-light" disabled placeholder="Auto-generated on save (e.g. EXR0001)" />
+                            </div>
+                            <div class="col-md-6"></div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Rule_Type" class="form-label fw-semibold required-field"></label>
+                                <select asp-for="Rule_Type" class="form-select">
+                                    <option value="">-- Select Rule Type --</option>
+                                    @foreach (var o in EMR.Web.Models.ViewModels.LabExpertRuleFormViewModel.Rule_TypeOptions)
+                                    {
+                                        <option value="@o">@o</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="Rule_Type" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Organism_Category" class="form-label fw-semibold"></label>
+                                <select asp-for="Organism_Category" class="form-select">
+                                    <option value="">-- Select Organism Category --</option>
+                                    @foreach (var o in EMR.Web.Models.ViewModels.LabExpertRuleFormViewModel.Organism_CategoryOptions)
+                                    {
+                                        <option value="@o">@o</option>
+                                    }
+                                </select>
+                                <small class="text-muted">Use a category for group-wide rules, or pick a single organism below.</small>
+                                <span asp-validation-for="Organism_Category" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Organism_ID" class="form-label fw-semibold required-field"></label>
+                                <select asp-for="Organism_ID" asp-items="Model.Organism_IDOptions" class="form-select select2-single" data-placeholder="-- Any Organism --">
+                                    <option value=""></option>
+                                </select>
+                                <span asp-validation-for="Organism_ID" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Antibiotic_ID" class="form-label fw-semibold required-field"></label>
+                                <select asp-for="Antibiotic_ID" asp-items="Model.Antibiotic_IDOptions" class="form-select select2-single" data-placeholder="-- Select Antibiotic --">
+                                    <option value="0"></option>
+                                </select>
+                                <span asp-validation-for="Antibiotic_ID" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Trigger_Result" class="form-label fw-semibold required-field"></label>
+                                <select asp-for="Trigger_Result" class="form-select">
+                                    <option value="">-- Select Trigger When Result Is --</option>
+                                    @foreach (var o in EMR.Web.Models.ViewModels.LabExpertRuleFormViewModel.Trigger_ResultOptions)
+                                    {
+                                        <option value="@o">@o</option>
+                                    }
+                                </select>
+                                <small class="text-muted">E.g. intrinsic resistance fires when a technician enters S.</small>
+                                <span asp-validation-for="Trigger_Result" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Rule_Action" class="form-label fw-semibold required-field"></label>
+                                <select asp-for="Rule_Action" class="form-select">
+                                    <option value="">-- Select Action --</option>
+                                    @foreach (var o in EMR.Web.Models.ViewModels.LabExpertRuleFormViewModel.Rule_ActionOptions)
+                                    {
+                                        <option value="@o">@o</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="Rule_Action" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label asp-for="Alert_Message" class="form-label fw-semibold required-field"></label>
+                                <input asp-for="Alert_Message" class="form-control" placeholder="Message shown to the technician / pathologist" maxlength="300" />
+                                <span asp-validation-for="Alert_Message" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <hr class="my-4" />
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4">
+                                <i class="bi bi-x-lg me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                <i class="bi bi-save me-1"></i> Save Expert Rule
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script>
+        $(function () {
+            $('.select2-single').each(function () {
+                $(this).select2({ theme: 'bootstrap-5', width: '100%', placeholder: $(this).data('placeholder'), allowClear: true });
+            });
+            $('.select2-multi').each(function () {
+                $(this).select2({ theme: 'bootstrap-5', width: '100%', placeholder: $(this).data('placeholder'), closeOnSelect: false });
+            });
+            // Keep the order in which items were picked, so it becomes the saved display order.
+            $('.select2-multi').on('select2:select', function (e) {
+                var el = $(e.params.data.element);
+                el.detach();
+                $(this).append(el).trigger('change');
+            });
+            // Tier per selected item. Rows follow the select's option order, which is also the posted order.
+            $('.tier-grid').each(function () {
+                var grid = $(this), sel = $('#' + grid.data('for')), tiers = {};
+                (grid.data('tiers') || []).forEach(function (t) { tiers[t.id] = t.tier; });
+                var labels = { 1: 'Tier 1 - First line', 2: 'Tier 2 - Second line', 3: 'Tier 3 - Restricted', 4: 'Tier 4 - Last resort' };
+                function render() {
+                    var body = grid.find('tbody').empty(), n = 0;
+                    sel.find('option:selected').each(function () {
+                        var id = parseInt(this.value, 10), t = tiers[id] || 1, opts = '';
+                        for (var k = 1; k <= 4; k++) opts += '<option value="' + k + '"' + (k === t ? ' selected' : '') + '>' + labels[k] + '</option>';
+                        body.append($('<tr>').append($('<td class="text-muted">').text(++n), $('<td>').text(this.text),
+                            $('<td>').append($('<select class="form-select form-select-sm">').attr('name', grid.data('tiername')).attr('data-id', id).html(opts))));
+                    });
+                    grid.toggle(n > 0);
+                }
+                grid.on('change', 'select', function () { tiers[$(this).data('id')] = parseInt(this.value, 10); });
+                sel.on('change', render);
+                render();
+            });
+        });
+    </script>
+}
