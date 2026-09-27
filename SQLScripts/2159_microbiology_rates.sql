@@ -1,5 +1,5 @@
 -- =============================================
--- Script : 2151_microbiology_rates.sql
+-- Script : 2159_microbiology_rates.sql
 -- Purpose: Prices for the microbiology tests.
 --          1. MRP for the 5 descriptive stains (seeded at 0).
 --          2. Every microbiology test / profile added to every active rate

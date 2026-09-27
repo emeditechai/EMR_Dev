@@ -32,40 +32,40 @@ DECLARE @SmpSput  INT = (SELECT TOP 1 Sample_Type_ID FROM dbo.LabSampleTypeMaste
 DECLARE @T TABLE (Code NVARCHAR(50), Name NVARCHAR(200), RType NVARCHAR(20), IsProfile BIT, Dept INT, Cat INT, Sub INT, Smp INT, Tat INT, Mrp DECIMAL(10,2), Gender VARCHAR(10), ProfileCode NVARCHAR(50), Seq INT);
 INSERT INTO @T VALUES
  -- Urine Routine
- ('CP-UR-000','Urine Routine & Microscopy','Numeric',1,@Path,@CatCP,@SubUrine,@SmpUrine,4,200,'Both',NULL,0),
- ('CP-UR-001','Urine Colour','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',1),
- ('CP-UR-002','Urine Appearance','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',2),
- ('CP-UR-003','Urine pH','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',3),
- ('CP-UR-004','Urine Specific Gravity','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',4),
- ('CP-UR-005','Urine Protein (Albumin)','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',5),
- ('CP-UR-006','Urine Sugar (Glucose)','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',6),
- ('CP-UR-007','Urine Ketone Bodies','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',7),
- ('CP-UR-008','Urine Bile Salts','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',8),
- ('CP-UR-009','Urine Bile Pigments','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',9),
- ('CP-UR-010','Urine Urobilinogen','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',10),
- ('CP-UR-011','Urine Blood','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',11),
- ('CP-UR-012','Urine Nitrite','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',12),
- ('CP-UR-013','Urine Leukocyte Esterase','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',13),
- ('CP-UR-014','Urine Pus Cells','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',14),
- ('CP-UR-015','Urine RBC','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',15),
- ('CP-UR-016','Urine Epithelial Cells','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',16),
- ('CP-UR-017','Urine Casts','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',17),
- ('CP-UR-018','Urine Crystals','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',18),
- ('CP-UR-019','Urine Bacteria','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',19),
- ('CP-UR-020','Urine Yeast Cells','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'Both','CP-UR-000',20),
+ ('CP-UR-000','Urine Routine & Microscopy','Numeric',1,@Path,@CatCP,@SubUrine,@SmpUrine,4,200,'All',NULL,0),
+ ('CP-UR-001','Urine Colour','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',1),
+ ('CP-UR-002','Urine Appearance','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',2),
+ ('CP-UR-003','Urine pH','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',3),
+ ('CP-UR-004','Urine Specific Gravity','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',4),
+ ('CP-UR-005','Urine Protein (Albumin)','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',5),
+ ('CP-UR-006','Urine Sugar (Glucose)','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',6),
+ ('CP-UR-007','Urine Ketone Bodies','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',7),
+ ('CP-UR-008','Urine Bile Salts','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',8),
+ ('CP-UR-009','Urine Bile Pigments','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',9),
+ ('CP-UR-010','Urine Urobilinogen','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',10),
+ ('CP-UR-011','Urine Blood','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',11),
+ ('CP-UR-012','Urine Nitrite','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',12),
+ ('CP-UR-013','Urine Leukocyte Esterase','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',13),
+ ('CP-UR-014','Urine Pus Cells','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',14),
+ ('CP-UR-015','Urine RBC','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',15),
+ ('CP-UR-016','Urine Epithelial Cells','Numeric',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',16),
+ ('CP-UR-017','Urine Casts','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',17),
+ ('CP-UR-018','Urine Crystals','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',18),
+ ('CP-UR-019','Urine Bacteria','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',19),
+ ('CP-UR-020','Urine Yeast Cells','Select',0,@Path,@CatCP,@SubUrine,@SmpUrine,4,0,'All','CP-UR-000',20),
  -- Stool Routine
- ('CP-ST-000','Stool Routine Examination','Numeric',1,@Path,@CatCP,@SubStool,@SmpStool,6,180,'Both',NULL,0),
- ('CP-ST-001','Stool Colour','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',1),
- ('CP-ST-002','Stool Consistency','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',2),
- ('CP-ST-003','Stool Mucus','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',3),
- ('CP-ST-004','Stool Visible Blood','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',4),
- ('CP-ST-005','Stool Reaction','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',5),
- ('CP-ST-006','Stool Occult Blood','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',6),
- ('CP-ST-007','Stool Pus Cells','Numeric',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',7),
- ('CP-ST-008','Stool RBC','Numeric',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',8),
- ('CP-ST-009','Stool Ova','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',9),
- ('CP-ST-010','Stool Cysts','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',10),
- ('CP-ST-011','Stool Trophozoites','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'Both','CP-ST-000',11),
+ ('CP-ST-000','Stool Routine Examination','Numeric',1,@Path,@CatCP,@SubStool,@SmpStool,6,180,'All',NULL,0),
+ ('CP-ST-001','Stool Colour','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',1),
+ ('CP-ST-002','Stool Consistency','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',2),
+ ('CP-ST-003','Stool Mucus','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',3),
+ ('CP-ST-004','Stool Visible Blood','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',4),
+ ('CP-ST-005','Stool Reaction','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',5),
+ ('CP-ST-006','Stool Occult Blood','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',6),
+ ('CP-ST-007','Stool Pus Cells','Numeric',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',7),
+ ('CP-ST-008','Stool RBC','Numeric',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',8),
+ ('CP-ST-009','Stool Ova','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',9),
+ ('CP-ST-010','Stool Cysts','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',10),
+ ('CP-ST-011','Stool Trophozoites','Select',0,@Path,@CatCP,@SubStool,@SmpStool,6,0,'All','CP-ST-000',11),
  -- Semen Analysis (WHO 6th edition)
  ('CP-SM-000','Semen Analysis','Numeric',1,@Path,@CatCP,@SubSemen,@SmpSemen,6,500,'Male',NULL,0),
  ('CP-SM-001','Semen Appearance','Select',0,@Path,@CatCP,@SubSemen,@SmpSemen,6,0,'Male','CP-SM-000',1),
@@ -84,27 +84,27 @@ INSERT INTO @T VALUES
  ('CP-SM-014','Semen Round Cells','Numeric',0,@Path,@CatCP,@SubSemen,@SmpSemen,6,0,'Male','CP-SM-000',14),
  ('CP-SM-015','Semen WBC (Pus Cells)','Numeric',0,@Path,@CatCP,@SubSemen,@SmpSemen,6,0,'Male','CP-SM-000',15),
  -- CSF Analysis
- ('CP-CF-000','CSF Analysis','Numeric',1,@Path,@CatCP,@SubFluid,@SmpCsf,4,600,'Both',NULL,0),
- ('CP-CF-001','CSF Appearance','Select',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',1),
- ('CP-CF-002','CSF Coagulum','Select',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',2),
- ('CP-CF-003','CSF Protein','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',3),
- ('CP-CF-004','CSF Glucose','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',4),
- ('CP-CF-005','CSF Chloride','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',5),
- ('CP-CF-006','CSF Total Cell Count','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',6),
- ('CP-CF-007','CSF Lymphocytes','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',7),
- ('CP-CF-008','CSF Neutrophils','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'Both','CP-CF-000',8),
+ ('CP-CF-000','CSF Analysis','Numeric',1,@Path,@CatCP,@SubFluid,@SmpCsf,4,600,'All',NULL,0),
+ ('CP-CF-001','CSF Appearance','Select',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',1),
+ ('CP-CF-002','CSF Coagulum','Select',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',2),
+ ('CP-CF-003','CSF Protein','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',3),
+ ('CP-CF-004','CSF Glucose','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',4),
+ ('CP-CF-005','CSF Chloride','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',5),
+ ('CP-CF-006','CSF Total Cell Count','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',6),
+ ('CP-CF-007','CSF Lymphocytes','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',7),
+ ('CP-CF-008','CSF Neutrophils','Numeric',0,@Path,@CatCP,@SubFluid,@SmpCsf,4,0,'All','CP-CF-000',8),
  -- Body Fluid Analysis (Pleural / Ascitic)
- ('CP-BF-000','Body Fluid Analysis (Pleural/Ascitic)','Numeric',1,@Path,@CatCP,@SubFluid,@SmpFluid,6,700,'Both',NULL,0),
- ('CP-BF-001','Body Fluid Appearance','Select',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',1),
- ('CP-BF-002','Body Fluid Protein','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',2),
- ('CP-BF-003','Body Fluid Glucose','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',3),
- ('CP-BF-004','Body Fluid LDH','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',4),
- ('CP-BF-005','Body Fluid ADA','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',5),
- ('CP-BF-006','Body Fluid Total Cell Count','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',6),
- ('CP-BF-007','Body Fluid Lymphocytes','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',7),
- ('CP-BF-008','Body Fluid Neutrophils','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'Both','CP-BF-000',8),
+ ('CP-BF-000','Body Fluid Analysis (Pleural/Ascitic)','Numeric',1,@Path,@CatCP,@SubFluid,@SmpFluid,6,700,'All',NULL,0),
+ ('CP-BF-001','Body Fluid Appearance','Select',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',1),
+ ('CP-BF-002','Body Fluid Protein','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',2),
+ ('CP-BF-003','Body Fluid Glucose','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',3),
+ ('CP-BF-004','Body Fluid LDH','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',4),
+ ('CP-BF-005','Body Fluid ADA','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',5),
+ ('CP-BF-006','Body Fluid Total Cell Count','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',6),
+ ('CP-BF-007','Body Fluid Lymphocytes','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',7),
+ ('CP-BF-008','Body Fluid Neutrophils','Numeric',0,@Path,@CatCP,@SubFluid,@SmpFluid,6,0,'All','CP-BF-000',8),
  -- Standalone: Sputum AFB (Ziehl-Neelsen), graded per RNTCP / WHO
- ('MIC-AF-001','Sputum for AFB (ZN Stain)','Select',0,@Micro,@CatMI,@SubStain,@SmpSput,24,150,'Both',NULL,0);
+ ('MIC-AF-001','Sputum for AFB (ZN Stain)','Select',0,@Micro,@CatMI,@SubStain,@SmpSput,24,150,'All',NULL,0);
 
 INSERT INTO dbo.LabInvestigationMaster
     (Test_Code, Test_Name, Department_ID, Category_ID, SubCategory_ID, Sample_Type_ID, Reporting_Type, TAT_Hours, Is_Billable, NABL_Accredited, Is_Outsourced, MRP, Status, Is_Profile_Test, Applicable_Gender, Is_Fasting_Required, Is_Consent_Required, OVD_Document, Prescription_Required, CompanyId, CreatedDate, IsDeleted)
@@ -190,3 +190,10 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.LabParameterOptionMaster x WHERE x.Test_ID =
 GO
 
 PRINT 'Track A: microbiology parametric tests configured.';
+
+-- Gender 'Both' is not a valid value (booking and the edit form use 'All').
+UPDATE dbo.LabInvestigationMaster SET Applicable_Gender = 'All'
+WHERE Applicable_Gender = 'Both' AND IsDeleted = 0 AND (Test_Code LIKE 'CP-%' OR Test_Code LIKE 'MIC-%');
+UPDATE dbo.LabInvestigationMaster SET Applicable_Gender = 'All'
+WHERE Test_Code = 'CP-UR-000' AND Applicable_Gender = 'Male';
+GO

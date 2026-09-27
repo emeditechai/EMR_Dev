@@ -24,7 +24,7 @@ INSERT INTO @Tests VALUES
 
 INSERT INTO dbo.LabInvestigationMaster
     (Test_Code, Test_Name, Department_ID, Category_ID, SubCategory_ID, Sample_Type_ID, Reporting_Type, TAT_Hours, Is_Billable, NABL_Accredited, Is_Outsourced, MRP, Status, Is_Profile_Test, Applicable_Gender, Is_Fasting_Required, Is_Consent_Required, OVD_Document, Prescription_Required, CompanyId, CreatedDate, IsDeleted)
-SELECT t.Code, t.Name, @Dept, @Cat, @Sub, t.SampleId, 'Descriptive', t.Tat, 1, 0, 0, 0, 1, 0, 'Both', 0, 0, 0, 0, 1, GETDATE(), 0
+SELECT t.Code, t.Name, @Dept, @Cat, @Sub, t.SampleId, 'Descriptive', t.Tat, 1, 0, 0, 0, 1, 0, 'All', 0, 0, 0, 0, 1, GETDATE(), 0
 FROM @Tests t
 WHERE NOT EXISTS (SELECT 1 FROM dbo.LabInvestigationMaster i WHERE i.Test_Code = t.Code);
 GO
