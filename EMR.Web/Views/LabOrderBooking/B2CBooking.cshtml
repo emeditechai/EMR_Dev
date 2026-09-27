@@ -227,7 +227,7 @@
 }
 
 
-<form asp-action="B2CBooking" method="post" enctype="multipart/form-data" id="labForm" novalidate>
+<form asp-action="B2CBooking" method="post" enctype="multipart/form-data" id="labForm" novalidate autocomplete="off">
     @Html.AntiForgeryToken()
     <input asp-for="PatientId" type="hidden" />
     <input asp-for="PatientCode" type="hidden" />
@@ -273,7 +273,7 @@
                         <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
                         <input asp-for="PhoneNumber" id="phoneNumber" class="form-control"
                                maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
-                               placeholder="10-digit mobile" autocomplete="off" />
+                               placeholder="10-digit mobile" autocomplete="off" role="presentation" data-lpignore="true" />
                     </div>
                     <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
                     <div id="phoneError" class="text-danger small" style="display:none"></div>
@@ -355,7 +355,7 @@
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
                         <input asp-for="SecondaryPhoneNumber" class="form-control"
-                               maxlength="15" placeholder="Optional" />
+                               maxlength="15" placeholder="Optional" autocomplete="off" role="presentation" data-lpignore="true" />
                     </div>
                     <span asp-validation-for="SecondaryPhoneNumber" class="text-danger small"></span>
                 </div>

@@ -1,0 +1,560 @@
+@model EMR.Web.Models.ViewModels.LabFranchiseBarcodeIndexViewModel
+
+@{
+    ViewData["Title"] = "Franchise Barcode Assignment";
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+    <style>
+        .barcode-wrapper .summary-card { transition: box-shadow .15s ease, transform .15s ease; }
+        .barcode-wrapper .summary-card:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important; transform: translateY(-1px); }
+        .barcode-wrapper .summary-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0;
+        }
+        .barcode-wrapper .cat-badge { font-size: .72rem; font-weight: 600; padding: .3rem .55rem; border-radius: 6px; white-space: nowrap; }
+        .barcode-wrapper .cat-badge.cat-fasting { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+        .barcode-wrapper .cat-badge.cat-pp { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+        .barcode-wrapper .cat-badge.cat-urine { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
+        .barcode-wrapper .cat-badge.cat-general { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+        .barcode-wrapper .range-code { font-size: .78rem; line-height: 1.5; }
+        .barcode-wrapper .range-code .range-sep { color: #94a3b8; font-size: .68rem; letter-spacing: .05em; margin: 0 .15rem; }
+        .barcode-wrapper .stack-progress { height: 7px; border-radius: 4px; overflow: hidden; background: #f1f5f9; display: flex; }
+        .barcode-wrapper .stack-progress .seg-used { background: #0dcaf0; }
+        .barcode-wrapper .stack-progress .seg-voided { background: #adb5bd; }
+        .barcode-wrapper .empty-state { padding: 3.5rem 1.5rem; text-align: center; }
+        .barcode-wrapper .empty-state .empty-icon {
+            width: 68px; height: 68px; border-radius: 50%; background: #f1f5f9; color: #94a3b8;
+            display: flex; align-items: center; justify-content: center; font-size: 1.75rem; margin: 0 auto 1rem;
+        }
+        .barcode-wrapper .action-btn-group .btn { border-radius: 6px !important; margin-left: 2px; }
+        .barcode-wrapper .action-btn-group .btn:first-child { margin-left: 0; }
+        .barcode-wrapper .modal-header { background: #f8fafc; }
+        .barcode-wrapper .qty-preset.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+        .barcode-wrapper .franchise-select-wrap { max-width: 560px; }
+    </style>
+}
+
+<div class="container-fluid px-4 py-3 barcode-wrapper">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">Franchise Barcode Assignment</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-upc-scan me-2"></i>Franchise Barcode Assignment
+            </h4>
+            <div class="text-muted small mt-1">Allocate and track pre-printed barcode series for franchises that supply their own sample tube labels.</div>
+        </div>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Franchise Picker -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <label class="form-label fw-semibold small text-muted mb-2" for="ddlFranchise">
+                <i class="bi bi-building me-1"></i>Franchise <span class="text-danger">*</span>
+            </label>
+            <div class="franchise-select-wrap">
+                <select id="ddlFranchise" class="form-select s2-search" data-placeholder="-- Select a Franchise with Preprinted Barcode = Yes --">
+                    <option value=""></option>
+                    @foreach (var opt in Model.FranchiseOptions)
+                    {
+                        <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                    }
+                </select>
+            </div>
+            @if (!Model.FranchiseOptions.Any())
+            {
+                <div class="text-muted small mt-2">
+                    <i class="bi bi-info-circle me-1"></i>No franchise currently has <strong>Preprinted Barcode</strong> set to Yes.
+                    Set it on the franchise's <a asp-controller="LabFranchises" asp-action="Index">Franchise Setup</a> page first.
+                </div>
+            }
+            else
+            {
+                <div class="text-muted small mt-2" id="franchiseHint">
+                    <i class="bi bi-arrow-up-short me-1"></i>Only franchises flagged Preprinted Barcode = Yes are listed here. Pick one to see or allocate its barcode series.
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Empty state: shown until a franchise is picked -->
+    <div id="emptyStatePlaceholder" class="card border-0 shadow-sm">
+        <div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-upc-scan"></i></div>
+            <div class="fw-semibold text-dark">No franchise selected yet</div>
+            <div class="text-muted small">Choose a franchise above to view its barcode series history, or allocate a new block of codes.</div>
+        </div>
+    </div>
+
+    <div id="seriesSection" class="d-none">
+        <!-- Franchise header -->
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 class="fw-bold mb-0 d-flex align-items-center gap-2">
+                <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width:36px;height:36px;">
+                    <i class="bi bi-shop"></i>
+                </span>
+                <span id="lblFranchiseName">—</span>
+                <span class="badge bg-light text-muted border font-monospace fw-normal" id="lblFranchiseCode">—</span>
+            </h5>
+            <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalGenerateSeries">
+                <i class="bi bi-plus-lg me-1"></i> Generate New Series
+            </button>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-xl-3 col-md-6">
+                <div class="card summary-card border-0 shadow-sm h-100">
+                    <div class="card-body py-3 d-flex align-items-center gap-3">
+                        <div class="summary-icon bg-primary-subtle text-primary"><i class="bi bi-stack"></i></div>
+                        <div>
+                            <div class="text-muted small fw-semibold">Total Issued</div>
+                            <div class="fs-4 fw-bold text-dark lh-1" id="sumTotal">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="card summary-card border-0 shadow-sm h-100">
+                    <div class="card-body py-3 d-flex align-items-center gap-3">
+                        <div class="summary-icon bg-success-subtle text-success"><i class="bi bi-check2-circle"></i></div>
+                        <div>
+                            <div class="text-muted small fw-semibold">Available</div>
+                            <div class="fs-4 fw-bold text-success lh-1" id="sumAvailable">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="card summary-card border-0 shadow-sm h-100">
+                    <div class="card-body py-3 d-flex align-items-center gap-3">
+                        <div class="summary-icon bg-info-subtle text-info"><i class="bi bi-upc-scan"></i></div>
+                        <div>
+                            <div class="text-muted small fw-semibold">Used</div>
+                            <div class="fs-4 fw-bold text-info lh-1" id="sumUsed">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+                <div class="card summary-card border-0 shadow-sm h-100">
+                    <div class="card-body py-3 d-flex align-items-center gap-3">
+                        <div class="summary-icon bg-secondary-subtle text-secondary"><i class="bi bi-x-octagon"></i></div>
+                        <div>
+                            <div class="text-muted small fw-semibold">Voided</div>
+                            <div class="fs-4 fw-bold text-secondary lh-1" id="sumVoided">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Series history -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-clock-history me-1"></i>Series History</span>
+                <span class="badge bg-light text-muted border fw-normal" id="lblSeriesCount">0 series</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Series Code</th>
+                            <th>Category</th>
+                            <th>Range</th>
+                            <th class="text-center">Qty</th>
+                            <th>Generated</th>
+                            <th style="min-width: 170px;">Available / Used</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblSeriesBody">
+                        <tr><td colspan="8" class="text-center text-muted py-4">Select a franchise above.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate New Series Modal -->
+<div class="modal fade" id="modalGenerateSeries" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h6 class="modal-title fw-bold mb-0"><i class="bi bi-plus-lg text-primary me-1"></i>Generate New Barcode Series</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small" for="ddlGenerateCategory">Sample Category</label>
+                    <select id="ddlGenerateCategory" class="form-select">
+                        <option value="">General (no suffix)</option>
+                        <option value="F">Fasting (-F)</option>
+                        <option value="PP">PP - Post Prandial (-PP)</option>
+                        <option value="U">Urine (-U)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold small d-block">Quantity</label>
+                    <div class="btn-group mb-2" role="group" aria-label="Quantity presets">
+                        <button type="button" class="btn btn-outline-secondary btn-sm qty-preset" data-qty="100">100</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm qty-preset" data-qty="250">250</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm qty-preset" data-qty="500">500</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm qty-preset" data-qty="1000">1000</button>
+                    </div>
+                    <input type="number" class="form-control" id="txtGenerateQty" min="1" max="10000" placeholder="Or enter a custom quantity (1 - 10000)" />
+                    <div class="invalid-feedback" id="qtyFieldError"></div>
+                </div>
+                <div class="form-text mt-2">A block of this many sequential barcodes is allocated to this franchise and cannot be edited afterward - only used or cancelled. A category tags every code in this block with a suffix (e.g. <code>-F</code>) so franchises can order separate rolls per sample type; leave it as General to keep today's plain pattern.</div>
+                <div id="generateError" class="alert alert-danger py-2 mt-3 mb-0 d-none small"></div>
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmGenerate"><i class="bi bi-check2 me-1"></i>Generate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Barcodes Modal -->
+<div class="modal fade" id="modalViewBarcodes" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h6 class="modal-title fw-bold mb-0"><i class="bi bi-upc-scan text-primary me-1"></i>Barcodes - <span id="viewSeriesCode">—</span></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Barcode</th>
+                            <th class="text-center">Status</th>
+                            <th>Bill No</th>
+                            <th>Test</th>
+                            <th class="pe-3">Used On</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblBarcodesBody">
+                        <tr><td colspan="5" class="text-center text-muted py-4">Loading&hellip;</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Remaining Modal -->
+<div class="modal fade" id="modalCancelSeries" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom">
+                <h6 class="modal-title fw-bold text-danger mb-0"><i class="bi bi-x-octagon me-1"></i>Cancel Remaining Barcodes</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">This voids every still-<strong>Available</strong> code of series <strong id="cancelSeriesCode">—</strong>. Codes already <strong>Used</strong> are not affected.</p>
+                <label class="form-label fw-semibold small" for="txtCancelReason">Reason <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="txtCancelReason" rows="2" placeholder="e.g. sticker roll damaged in transit"></textarea>
+                <div id="cancelError" class="alert alert-danger py-2 mt-3 mb-0 d-none small"></div>
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmCancel"><i class="bi bi-x-octagon me-1"></i>Cancel Remaining</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script>
+        $(function () {
+            const selectedFranchiseId = @(Model.SelectedFranchiseId ?? 0);
+
+            $('#ddlFranchise').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: $('#ddlFranchise').data('placeholder')
+            });
+
+            const seriesUrl = '@Url.Action("GetSeriesListJson", "LabFranchiseBarcodes")';
+            const generateUrl = '@Url.Action("GenerateSeries", "LabFranchiseBarcodes")';
+            const cancelUrlBase = '@Url.Action("CancelSeries", "LabFranchiseBarcodes")';
+            const barcodesUrlBase = '@Url.Action("GetSeriesBarcodesJson", "LabFranchiseBarcodes")';
+            const printUrlBase = '@Url.Action("PrintLabels", "LabFranchiseBarcodes")';
+
+            let currentFranchiseId = 0;
+
+            function escapeHtml(s) {
+                return $('<div>').text(s == null ? '' : s).html();
+            }
+
+            function loadSeries(franchiseId) {
+                currentFranchiseId = franchiseId;
+                $('#emptyStatePlaceholder').addClass('d-none');
+                $('#seriesSection').removeClass('d-none');
+                $('#tblSeriesBody').html('<tr><td colspan="8" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading&hellip;</td></tr>');
+
+                $.get(seriesUrl, { franchiseId: franchiseId })
+                    .done(function (res) {
+                        if (!res.success) {
+                            $('#tblSeriesBody').html('<tr><td colspan="8" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle me-1"></i>' + escapeHtml(res.message || 'Unable to load series.') + '</td></tr>');
+                            return;
+                        }
+                        $('#sumTotal').text(res.totalIssued);
+                        $('#sumAvailable').text(res.totalAvailable);
+                        $('#sumUsed').text(res.totalUsed);
+                        $('#sumVoided').text(res.totalVoided);
+                        $('#lblSeriesCount').text(res.series.length + ' series');
+                        renderSeries(res.series);
+                    })
+                    .fail(function () {
+                        $('#tblSeriesBody').html('<tr><td colspan="8" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle me-1"></i>Server error while loading series.</td></tr>');
+                    });
+            }
+
+            function statusBadge(status) {
+                if (status === 'Active') return '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle me-1"></i>Active</span>';
+                if (status === 'Exhausted') return '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-hourglass-bottom me-1"></i>Exhausted</span>';
+                return '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-slash-circle me-1"></i>Cancelled</span>';
+            }
+
+            function categoryBadge(code, name) {
+                if (!code) return '<span class="cat-badge cat-general"><i class="bi bi-dash-circle me-1"></i>General</span>';
+                const map = {
+                    F: ['cat-fasting', 'bi-moon-stars'],
+                    PP: ['cat-pp', 'bi-cup-hot'],
+                    U: ['cat-urine', 'bi-droplet']
+                };
+                const [cls, icon] = map[code] || ['cat-general', 'bi-tag'];
+                return '<span class="cat-badge ' + cls + '"><i class="bi ' + icon + ' me-1"></i>' + escapeHtml(name || code) + '</span>';
+            }
+
+            function renderSeries(series) {
+                if (!series || series.length === 0) {
+                    $('#tblSeriesBody').html(`
+                        <tr>
+                            <td colspan="8" class="p-0 border-0">
+                                <div class="empty-state">
+                                    <div class="empty-icon"><i class="bi bi-upc"></i></div>
+                                    <div class="fw-semibold text-dark">No series yet for this franchise</div>
+                                    <div class="text-muted small">Click "Generate New Series" above to allocate its first block of barcodes.</div>
+                                </div>
+                            </td>
+                        </tr>`);
+                    return;
+                }
+                let html = '';
+                series.forEach(function (s) {
+                    const pad = function (n) { return String(n).padStart(6, '0'); };
+                    const prefix = (s.branchCode || '') + '-' + (s.franchise_Code || '') + '-' + s.financialYear + '-';
+                    const suffix = s.sampleCategoryCode ? '-' + s.sampleCategoryCode : '';
+                    const startCode = prefix + pad(s.startNumber) + suffix;
+                    const endCode = prefix + pad(s.endNumber) + suffix;
+                    const usedPct = s.quantity > 0 ? (s.usedCount / s.quantity) * 100 : 0;
+                    const voidedPct = s.quantity > 0 ? (s.voidedCount / s.quantity) * 100 : 0;
+                    const availPct = Math.max(0, 100 - usedPct - voidedPct);
+                    const canCancel = s.status === 'Active' && s.availableCount > 0;
+
+                    html += '<tr>'
+                        + '<td class="ps-3 fw-semibold">' + escapeHtml(s.seriesCode) + '</td>'
+                        + '<td>' + categoryBadge(s.sampleCategoryCode, s.sampleCategoryName) + '</td>'
+                        + '<td class="range-code font-monospace text-nowrap">' + escapeHtml(startCode) + '<span class="range-sep d-block">&#8595; through</span>' + escapeHtml(endCode) + '</td>'
+                        + '<td class="text-center fw-semibold">' + s.quantity + '</td>'
+                        + '<td class="small">' + escapeHtml(new Date(s.generatedDate).toLocaleDateString('en-GB')) + '<div class="text-muted">' + escapeHtml(s.generatedByName || '') + '</div></td>'
+                        + '<td>'
+                        +     '<div class="stack-progress" title="' + availPct.toFixed(0) + '% available, ' + usedPct.toFixed(0) + '% used' + (s.voidedCount ? ', ' + voidedPct.toFixed(0) + '% voided' : '') + '">'
+                        +         '<div class="seg-used" style="width:' + usedPct + '%"></div>'
+                        +         '<div class="seg-voided" style="width:' + voidedPct + '%"></div>'
+                        +     '</div>'
+                        +     '<div class="small text-muted mt-1">'
+                        +         '<span class="text-success fw-semibold">' + s.availableCount + '</span> available &middot; '
+                        +         '<span class="text-info fw-semibold">' + s.usedCount + '</span> used'
+                        +         (s.voidedCount ? ' &middot; <span class="text-secondary fw-semibold">' + s.voidedCount + '</span> voided' : '')
+                        +     '</div>'
+                        + '</td>'
+                        + '<td class="text-center">' + statusBadge(s.status) + '</td>'
+                        + '<td class="text-center pe-3">'
+                        +     '<div class="btn-group action-btn-group" role="group">'
+                        +         '<button type="button" class="btn btn-sm btn-outline-primary btn-view-barcodes" data-series-id="' + s.seriesId + '" data-series-code="' + escapeHtml(s.seriesCode) + '" title="View Barcodes"><i class="bi bi-list-ul"></i></button>'
+                        +         '<a class="btn btn-sm btn-outline-dark" href="' + printUrlBase + '?seriesId=' + s.seriesId + '" target="_blank" title="Print Labels"><i class="bi bi-printer"></i></a>'
+                        +         (canCancel ? '<button type="button" class="btn btn-sm btn-outline-danger btn-cancel-series" data-series-id="' + s.seriesId + '" data-series-code="' + escapeHtml(s.seriesCode) + '" title="Cancel Remaining"><i class="bi bi-x-octagon"></i></button>' : '')
+                        +     '</div>'
+                        + '</td>'
+                        + '</tr>';
+                });
+                $('#tblSeriesBody').html(html);
+            }
+
+            $('#ddlFranchise').on('change', function () {
+                const id = parseInt($(this).val(), 10);
+                const text = $(this).find(':selected').text();
+                if (!id) {
+                    $('#seriesSection').addClass('d-none');
+                    $('#emptyStatePlaceholder').removeClass('d-none');
+                    return;
+                }
+                const parts = text.split(' - ');
+                $('#lblFranchiseCode').text(parts[0] || '');
+                $('#lblFranchiseName').text(parts.slice(1).join(' - ') || text);
+                loadSeries(id);
+            });
+
+            if (selectedFranchiseId > 0) {
+                $('#ddlFranchise').val(selectedFranchiseId).trigger('change');
+            }
+
+            // Generate
+            $('.qty-preset').on('click', function () {
+                $('.qty-preset').removeClass('active');
+                $(this).addClass('active');
+                $('#txtGenerateQty').val($(this).data('qty')).removeClass('is-invalid');
+            });
+            $('#txtGenerateQty').on('input', function () {
+                $('.qty-preset').removeClass('active');
+                $(this).removeClass('is-invalid');
+            });
+            $('#modalGenerateSeries').on('show.bs.modal', function () {
+                $('#txtGenerateQty').val('').removeClass('is-invalid');
+                $('#ddlGenerateCategory').val('');
+                $('.qty-preset').removeClass('active');
+                $('#generateError').addClass('d-none').text('');
+            });
+            $('#btnConfirmGenerate').on('click', function () {
+                const qty = parseInt($('#txtGenerateQty').val(), 10);
+                if (!currentFranchiseId) return;
+                $('#generateError').addClass('d-none').text('');
+                if (!qty || qty <= 0 || qty > 10000) {
+                    $('#txtGenerateQty').addClass('is-invalid');
+                    $('#qtyFieldError').text('Enter a quantity between 1 and 10000.');
+                    return;
+                }
+                $('#txtGenerateQty').removeClass('is-invalid');
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Generating&hellip;');
+                $.ajax({
+                    url: generateUrl,
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        Franchise_ID: currentFranchiseId,
+                        Quantity: qty,
+                        SampleCategoryCode: $('#ddlGenerateCategory').val() || null
+                    })
+                }).done(function (res) {
+                    $btn.prop('disabled', false).html('<i class="bi bi-check2 me-1"></i>Generate');
+                    if (!res.success) {
+                        $('#generateError').removeClass('d-none').html('<i class="bi bi-exclamation-triangle me-1"></i>' + escapeHtml(res.message || 'Unable to generate the series.'));
+                        return;
+                    }
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGenerateSeries')).hide();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Series Generated',
+                        html: 'Series <strong>' + escapeHtml(res.series.seriesCode) + '</strong><br>'
+                            + escapeHtml(res.series.startBarcode) + ' &nbsp;..&nbsp; ' + escapeHtml(res.series.endBarcode)
+                            + '<br>' + res.series.quantity + ' codes',
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    loadSeries(currentFranchiseId);
+                }).fail(function () {
+                    $btn.prop('disabled', false).html('<i class="bi bi-check2 me-1"></i>Generate');
+                    $('#generateError').removeClass('d-none').html('<i class="bi bi-exclamation-triangle me-1"></i>Server error while generating the series.');
+                });
+            });
+
+            // View barcodes
+            $(document).on('click', '.btn-view-barcodes', function () {
+                const seriesId = $(this).data('series-id');
+                $('#viewSeriesCode').text($(this).data('series-code'));
+                $('#tblBarcodesBody').html('<tr><td colspan="5" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading&hellip;</td></tr>');
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('modalViewBarcodes')).show();
+
+                $.get(barcodesUrlBase, { seriesId: seriesId }).done(function (res) {
+                    if (!res.success || !res.barcodes || res.barcodes.length === 0) {
+                        $('#tblBarcodesBody').html('<tr><td colspan="5" class="text-center text-muted py-4">No barcodes found.</td></tr>');
+                        return;
+                    }
+                    let html = '';
+                    res.barcodes.forEach(function (b) {
+                        const badge = b.status === 1
+                            ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Available</span>'
+                            : (b.status === 2
+                                ? '<span class="badge bg-info-subtle text-info border border-info-subtle">Used</span>'
+                                : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Voided</span>');
+                        html += '<tr>'
+                            + '<td class="ps-3 font-monospace">' + escapeHtml(b.barcodeNo) + '</td>'
+                            + '<td class="text-center">' + badge + '</td>'
+                            + '<td>' + escapeHtml(b.billNo || '—') + '</td>'
+                            + '<td>' + escapeHtml(b.test_Name || '—') + '</td>'
+                            + '<td class="small pe-3">' + (b.usedDate ? escapeHtml(new Date(b.usedDate).toLocaleString()) : '—') + '</td>'
+                            + '</tr>';
+                    });
+                    $('#tblBarcodesBody').html(html);
+                }).fail(function () {
+                    $('#tblBarcodesBody').html('<tr><td colspan="5" class="text-center text-danger py-4">Server error while loading barcodes.</td></tr>');
+                });
+            });
+
+            // Cancel remaining
+            let cancelSeriesId = 0;
+            $(document).on('click', '.btn-cancel-series', function () {
+                cancelSeriesId = $(this).data('series-id');
+                $('#cancelSeriesCode').text($(this).data('series-code'));
+                $('#txtCancelReason').val('').removeClass('is-invalid');
+                $('#cancelError').addClass('d-none').text('');
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCancelSeries')).show();
+            });
+            $('#txtCancelReason').on('input', function () { $(this).removeClass('is-invalid'); });
+            $('#btnConfirmCancel').on('click', function () {
+                const reason = ($('#txtCancelReason').val() || '').trim();
+                $('#cancelError').addClass('d-none').text('');
+                if (!reason) {
+                    $('#txtCancelReason').addClass('is-invalid');
+                    $('#cancelError').removeClass('d-none').html('<i class="bi bi-exclamation-triangle me-1"></i>A reason is required.');
+                    return;
+                }
+                $('#txtCancelReason').removeClass('is-invalid');
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Cancelling&hellip;');
+                $.ajax({
+                    url: cancelUrlBase + '?seriesId=' + cancelSeriesId,
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ Reason: reason })
+                }).done(function (res) {
+                    $btn.prop('disabled', false).html('<i class="bi bi-x-octagon me-1"></i>Cancel Remaining');
+                    if (!res.success) {
+                        $('#cancelError').removeClass('d-none').html('<i class="bi bi-exclamation-triangle me-1"></i>' + escapeHtml(res.message || 'Unable to cancel the series.'));
+                        return;
+                    }
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCancelSeries')).hide();
+                    loadSeries(currentFranchiseId);
+                }).fail(function () {
+                    $btn.prop('disabled', false).html('<i class="bi bi-x-octagon me-1"></i>Cancel Remaining');
+                    $('#cancelError').removeClass('d-none').html('<i class="bi bi-exclamation-triangle me-1"></i>Server error while cancelling the series.');
+                });
+            });
+        });
+    </script>
+}

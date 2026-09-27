@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using EMR.Web.ApiClients;
+using EMR.Web.ApiClients.Models;
 using EMR.Web.Extensions;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
@@ -16,8 +17,54 @@ namespace EMR.Web.Controllers
     [Authorize]
     public class SampleCollectionController(
         ISampleCollectionApiClient sampleCollectionApiClient,
+        ILabFranchiseBarcodeApiClient barcodeApiClient,
         IAuditLogService auditLogService) : Controller
     {
+        /// <summary>
+        /// Franchise (Preprinted Barcode) rows must have their own barcode validated and written
+        /// (see ValidateFranchiseBarcodeJson) before they can be collected - the collection SPs
+        /// themselves are untouched and would otherwise silently fall back to a system barcode.
+        /// Returns an error message, or null if the collection is allowed to proceed.
+        /// </summary>
+        private static string? BlockedByMissingPreprintedBarcode(SampleCollectionOrderDetailDto? detail, long samplecollectionId)
+        {
+            var item = detail?.Items.FirstOrDefault(x => x.SamplecollectionID == samplecollectionId);
+            if (item != null && item.RequiresManualBarcode && string.IsNullOrWhiteSpace(item.BarcodeNo))
+                return $"Enter and validate the pre-printed barcode for '{item.TestName}' before collecting this sample.";
+            return null;
+        }
+
+        private static string? BlockedByMissingPreprintedBarcodeForGroup(SampleCollectionOrderDetailDto? detail, int? profileId, string? profileName)
+        {
+            var missing = detail?.Items.FirstOrDefault(x =>
+                x.RequiresManualBarcode && string.IsNullOrWhiteSpace(x.BarcodeNo)
+                && ((profileId.HasValue && x.ProfileId == profileId) || (!profileId.HasValue && !string.IsNullOrEmpty(profileName) && x.ProfileName == profileName)));
+            if (missing != null)
+                return $"Enter and validate the pre-printed barcode for '{missing.TestName}' before collecting this group.";
+            return null;
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ValidateFranchiseBarcodeJson([FromBody] ValidateConsumeBarcodeRequestModel request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.BarcodeNo) || request.Franchise_ID <= 0
+                || request.LabOrderId <= 0 || request.SamplecollectionID <= 0)
+                return Json(new { success = false, message = "Invalid request parameters." });
+
+            request.UserId = User.GetUserId();
+            var result = await barcodeApiClient.ValidateAndConsumeAsync(request);
+
+            if (result.Success)
+            {
+                await auditLogService.LogAsync(
+                    "LAB",
+                    "LAB.FranchiseBarcodeAssignedToSample",
+                    $"Pre-printed barcode {result.BarcodeNo} assigned to sample #{request.SamplecollectionID} of Order #{request.LabOrderId}.",
+                    User.GetUserId());
+            }
+
+            return Json(new { success = result.Success, message = result.Message, barcodeNo = result.BarcodeNo });
+        }
         [HttpGet]
         public async Task<IActionResult> Index(
             DateTime? fromDate,
@@ -116,6 +163,10 @@ namespace EMR.Web.Controllers
                     var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
                     if (tooEarly != null)
                         return Json(new { success = false, message = tooEarly });
+
+                    var missingBarcode = BlockedByMissingPreprintedBarcode(detail, request.SampleCollectionId);
+                    if (missingBarcode != null)
+                        return Json(new { success = false, message = missingBarcode });
                 }
             }
 
@@ -184,6 +235,10 @@ namespace EMR.Web.Controllers
                     var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
                     if (tooEarly != null)
                         return Json(new { success = false, message = tooEarly });
+
+                    var missingBarcode = BlockedByMissingPreprintedBarcodeForGroup(detail, request.ProfileId, request.ProfileName);
+                    if (missingBarcode != null)
+                        return Json(new { success = false, message = missingBarcode });
                 }
             }
 
@@ -251,6 +306,10 @@ namespace EMR.Web.Controllers
                 var tooEarly = CollectionBeforeBooking(detail, null, null);
                 if (tooEarly != null)
                     return Json(new { success = false, message = tooEarly });
+
+                var missingBarcode = pendingItems.FirstOrDefault(x => x.RequiresManualBarcode && string.IsNullOrWhiteSpace(x.BarcodeNo));
+                if (missingBarcode != null)
+                    return Json(new { success = false, message = $"Enter and validate the pre-printed barcode for '{missingBarcode.TestName}' before collecting all samples." });
             }
 
             int count = await sampleCollectionApiClient.CollectAllAsync(request.LabOrderId);

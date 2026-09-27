@@ -453,7 +453,7 @@
                         <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
                         <input asp-for="PhoneNumber" id="phoneNumber" class="form-control"
                                maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
-                               placeholder="10-digit mobile" autocomplete="off" />
+                               placeholder="10-digit mobile" autocomplete="off" role="presentation" data-lpignore="true" />
                         <button class="btn btn-outline-primary" type="button" id="btnSearchPatient" title="Search existing patient">
                             <i class="bi bi-search"></i>
                         </button>
@@ -541,7 +541,7 @@
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
                         <input asp-for="SecondaryPhoneNumber" id="SecondaryPhoneNumber" class="form-control"
-                               maxlength="15" placeholder="Optional" />
+                               maxlength="15" placeholder="Optional" autocomplete="off" role="presentation" data-lpignore="true" />
                     </div>
                 </div>
                 <div class="col-12 col-sm-6 col-md-2">

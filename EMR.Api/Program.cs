@@ -63,6 +63,7 @@ builder.Services.AddScoped<ILabInvestigationProfileService, LabInvestigationProf
 builder.Services.AddScoped<ILabSampleRejectionService,      LabSampleRejectionService>();
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
+builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();
 builder.Services.AddScoped<ILabReferenceRangeService,        LabReferenceRangeService>();
 builder.Services.AddScoped<ILabFormulaParameterService,      LabFormulaParameterService>();
 builder.Services.AddScoped<ILabDescriptiveTestTemplateService, LabDescriptiveTestTemplateService>();
