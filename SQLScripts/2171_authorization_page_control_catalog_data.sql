@@ -562,6 +562,13 @@ EXEC dbo.usp_Auth_Admin_ApplyControlCatalog @Json = N'{
 "a": 1
 },
 {
+"p": "LAB.LABREPORTING",
+"c": "VALIDATE",
+"t": "Validate",
+"s": 88,
+"a": 1
+},
+{
 "p": "LAB.LABIMAGEREPORTING",
 "c": "VIEW",
 "t": "Open page",
@@ -587,6 +594,13 @@ EXEC dbo.usp_Auth_Admin_ApplyControlCatalog @Json = N'{
 "c": "APPROVE",
 "t": "Approve",
 "s": 90,
+"a": 1
+},
+{
+"p": "LAB.LABIMAGEREPORTING",
+"c": "VALIDATE",
+"t": "Validate",
+"s": 88,
 "a": 1
 },
 {

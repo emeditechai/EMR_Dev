@@ -25,7 +25,9 @@
     // Submit button: visible if any active test is unentered or unsubmitted, and not fully approved
     bool showSubmit = (unenteredCount > 0 || unsubmittedCount > 0) && !isAllApproved;
     // Validate button: visible if there are any submitted tests awaiting validation (allows partial validation)
-    bool showValidate = (submittedCount > 0) && !isAllApproved;
+    // Validating is its own control (Settings > Security): without it the Validate buttons are not offered.
+    bool canValidate = await PermissionGuard.ShowsAsync(Context, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Validate);
+    bool showValidate = (submittedCount > 0) && !isAllApproved && canValidate;
     // Approve button: visible if there are any validated tests awaiting approval (allows partial approval).
     // With "Pathologist approval required" on for the branch, approval belongs to the Pathologist Dashboard,
     // so this screen never offers it.
@@ -867,7 +869,7 @@
             <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save" id="btnHeaderSave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" style="@(showValidate ? "" : "display:none;")">
+            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" asp-permission="LAB.LABREPORTING:VALIDATE" style="@(showValidate ? "" : "display:none;")">
                 <i class="bi bi-check-circle-fill me-1"></i>Validate Report
             </button>
             <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" asp-permission="LAB.LABREPORTING:APPROVE" style="@(showApprove ? "" : "display:none;")">
@@ -1434,7 +1436,7 @@
             <button type="button" class="btn btn-primary btn-sm px-3.5 fw-semibold shadow-xs btn-action-save" id="btnStickySave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" style="@(showValidate ? "" : "display:none;")">
+            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" asp-permission="LAB.LABREPORTING:VALIDATE" style="@(showValidate ? "" : "display:none;")">
                 <i class="bi bi-check-circle-fill me-1"></i>Validate Report
             </button>
             <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove" asp-permission="LAB.LABREPORTING:APPROVE" style="@(showApprove ? "" : "display:none;")">

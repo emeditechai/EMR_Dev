@@ -27,12 +27,13 @@ STANDARD = {
     "STATUS": ("Activate / Deactivate", 50), "DELETE": ("Delete", 60), "PRINT": ("Print", 70), "EXPORT": ("Export", 80),
     "IMPORT": ("Bulk upload", 85), "APPROVE": ("Approve", 90), "UNAUTHORIZE": ("Un-approve", 92), "CANCEL": ("Cancel", 94),
     "REFUND": ("Refund", 96), "SETTLE": ("Settle", 97), "DISCOUNT": ("Discount", 98),
-    "BOOK_SLOT": ("Book slot", 20),
+    "BOOK_SLOT": ("Book slot", 20), "VALIDATE": ("Validate", 88),
 }
 
 # Controls that are not reached through an endpoint of their own (checked inside a save), or declared in code.
 IN_ACTION = {
     ("LAB.LABREPORTING", "APPROVE"), ("LAB.LABIMAGEREPORTING", "APPROVE"),
+    ("LAB.LABREPORTING", "VALIDATE"), ("LAB.LABIMAGEREPORTING", "VALIDATE"),   # a save with status Validated (3)
     ("OPD.PATIENTREGISTRATION", "DISCOUNT"), ("OPD.SERVICEBOOKING", "DISCOUNT"), ("OPD.DASHBOARD", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CBOOKING", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BBOOKING", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CORDERLIST", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BREGISTRATION", "DISCOUNT"),

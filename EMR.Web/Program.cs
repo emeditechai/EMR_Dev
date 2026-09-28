@@ -133,6 +133,7 @@ builder.Services.AddRateLimiter(o =>
 
 // EMR.Api HTTP clients
 builder.Services.AddTransient<EMR.Web.ApiClients.EmrApiTokenHandler>();
+builder.Services.AddScoped<IAdministratorCheck, AdministratorCheck>();
 builder.Services.AddScoped<ILabReportingEligibility, LabReportingEligibility>();
 builder.Services.AddHttpClient("EmrApi", client =>
 {

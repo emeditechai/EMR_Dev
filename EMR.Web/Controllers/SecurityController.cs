@@ -164,9 +164,9 @@ public class SecurityController(
     }
 
     [HttpGet, RequiresPermission(UserPage)]
-    public async Task<IActionResult> GetUserGrantsJson(int userId, int? branchId)
+    public async Task<IActionResult> GetUserGrantsJson(int userId, int? branchId, int? roleId)
     {
-        var bundle = await admin.GetUserGrantsAsync(CompanyId, userId, branchId);
+        var bundle = await admin.GetUserGrantsAsync(CompanyId, userId, branchId, roleId);
         if (bundle.User is null) return Json(new { success = false, message = "User not found." });
         var tree = await admin.GetTreeAsync(CompanyId);
         return Json(new { success = true, bundle, tree });
@@ -179,6 +179,16 @@ public class SecurityController(
         if (result.Status == "OK")
             await Audit("SEC.UserPermissionsSaved", $"User #{req.TargetId}: {result.Changes} permission override(s) saved.",
                 new { userId = req.TargetId, req.BranchId, result.Changes });
+        return result;
+    });
+
+    [HttpPost, ValidateAntiForgeryToken, RequiresPermission(UserPage, PermissionControls.Edit)]
+    public Task<IActionResult> ResetUserGrantsJson(int userId, int expectedVersion) => Write(async () =>
+    {
+        var result = await admin.ResetUserGrantsAsync(CompanyId, userId, expectedVersion, Actor, UserPage);
+        if (result.Status == "OK")
+            await Audit("SEC.UserPermissionsReset", $"User #{userId}: {result.Changes} exception(s) removed - back to role permissions.",
+                new { userId, result.Changes });
         return result;
     });
 

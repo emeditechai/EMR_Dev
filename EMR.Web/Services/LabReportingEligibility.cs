@@ -17,7 +17,7 @@ public interface ILabReportingEligibility
 
 public sealed record LabReportingEligibilityResult(bool Allowed, string? UserName);
 
-public sealed class LabReportingEligibility(ApplicationDbContext db) : ILabReportingEligibility
+public sealed class LabReportingEligibility(ApplicationDbContext db, IAdministratorCheck administrators) : ILabReportingEligibility
 {
     private const string ItemKey = "LabReportingEligibility";
     public static readonly string[] PageCodes = ["LAB.LABREPORTING", "LAB.LABIMAGEREPORTING"];
@@ -28,19 +28,14 @@ public sealed class LabReportingEligibility(ApplicationDbContext db) : ILabRepor
 
         var user = http.User;
         var userId = user.GetUserId();
-        var branchId = user.GetCurrentBranchId();
         var profile = await db.Users.AsNoTracking()
             .Where(u => u.Id == userId)
             .Select(u => new { u.FullName, u.IsActive, u.IsPathologist, u.IsLabTechnician })
             .FirstOrDefaultAsync();
 
         var allowed = profile is { IsActive: true }
-                      && (user.IsSuperAdmin()
-                          || profile.IsLabTechnician || profile.IsPathologist
-                          || await db.UserRoles.AsNoTracking()
-                                 .Where(ur => ur.UserId == userId && ur.IsActive && (ur.Branch_ID == null || ur.Branch_ID == branchId))
-                                 .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
-                                 .AnyAsync(name => name == "Administrator"));
+                      && (profile.IsLabTechnician || profile.IsPathologist
+                          || await administrators.IsSuperAdminOrAdministratorAsync(http));
 
         var result = new LabReportingEligibilityResult(allowed, profile?.FullName ?? user.Identity?.Name);
         http.Items[ItemKey] = result;

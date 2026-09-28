@@ -33,6 +33,7 @@
             <button class="btn btn-outline-secondary btn-sm" id="btnHistory" disabled><i class="bi bi-clock-history me-1"></i>History</button>
             @if (Model.CanEdit)
             {
+                <button class="btn btn-outline-danger btn-sm" id="btnReset" disabled title="Remove all of this user's exceptions (every branch) - the user gets exactly what their roles give"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset to role <span class="badge rounded-pill bg-danger-subtle text-danger ms-1" id="resetCount">0</span></button>
                 <button class="btn btn-outline-secondary btn-sm" id="btnDiscard" disabled>Discard</button>
                 <button class="btn btn-primary btn-sm" id="btnSave" disabled><i class="bi bi-check2-circle me-1"></i>Save all</button>
             }
@@ -53,7 +54,7 @@
                     <div class="form-check form-switch mb-0 small"><input class="form-check-input" type="checkbox" id="onlyOverrides"><label class="form-check-label" for="onlyOverrides">Only rows with an override</label></div>
                     <span class="sec-legend ms-auto"><span><span class="sec-inh A">Allow</span> / <span class="sec-inh D">Deny</span> = what the role gives</span></span>
                 </div>
-                <div class="sec-scroll"><table class="table table-sm sec-matrix mb-0"><thead><tr><th class="name">Nav bar › menu › page</th><th>From role</th><th>Override</th><th>Controls</th><th style="min-width:240px">Reason <span class="text-lowercase fw-normal">(required for a deny)</span></th></tr></thead>
+                <div class="sec-scroll"><table class="table table-sm sec-matrix mb-0"><thead><tr><th class="name">Nav bar › menu › page</th><th id="thFromRole">From role</th><th>Override</th><th>Controls</th><th style="min-width:240px">Reason <span class="text-lowercase fw-normal">(required for a deny)</span></th></tr></thead>
                     <tbody id="t1"></tbody></table></div>
             </div>
             <div class="tab-pane fade" id="tab2">
@@ -84,6 +85,7 @@
     const CAN_EDIT = @Json.Serialize(Model.CanEdit);
     const PRE_BRANCH = @Json.Serialize(Model.PreselectBranchId);
     let T = null, bundle = null, base = new Map(), pend = new Map(), fromRole = new Map(), bypass = false;
+    let roleFilter = null;   // a role chip clicked: "From role" and the list show that role alone
     const $ = id => document.getElementById(id);
     const key = (kind, id) => kind + ':' + id;
     const cur = k => pend.has(k) ? pend.get(k) : (base.get(k) || { v: '', r: '' });
@@ -94,20 +96,20 @@
         const userId = $('user').value;
         pend.clear(); updatePending();
         $('btnHistory').disabled = !userId;
+        if ($('btnReset')) { $('btnReset').disabled = true; $('resetCount').textContent = '0'; }
         if (!userId) { $('work').style.display = 'none'; $('emptyState').style.display = ''; $('branch').disabled = true; return; }
         const branchId = keepBranch ? $('branch').value : (PRE_BRANCH || '');
-        const r = await Sec.get('@Url.Action("GetUserGrantsJson")', { userId, branchId });
+        if (!keepBranch) roleFilter = null;
+        const r = await Sec.get('@Url.Action("GetUserGrantsJson")', { userId, branchId, roleId: roleFilter || '' });
         if (!r.success) return Sec.fail(r.message);
         bundle = r.bundle; T = Sec.buildTree(r.tree, false);
+        if ($('btnReset')) { $('resetCount').textContent = bundle.exceptionCount || 0; $('btnReset').disabled = !bundle.exceptionCount || bundle.user.isSuperAdmin; }
         $('branch').innerHTML = '<option value="">All branches</option>' + bundle.branches.map(b => '<option value="' + b.id + '">' + Sec.esc(b.name) + ' only</option>').join('');
         $('branch').value = branchId || ''; $('branch').disabled = false;
         base = new Map();
         bundle.grants.forEach(g => base.set(g.control_ID ? key('c', g.control_ID) : g.page_ID ? key('p', g.page_ID) : key('m', g.menu_ID), { v: g.permission, r: g.reason || '' }));
-        fromRole = new Map(bundle.fromRole.map(x => [x.page_ID + '|' + x.control_Code, x]));
-        bypass = bundle.user.isSuperAdmin || bundle.fromRole.some(x => x.decided_By === 'BYPASS');
-        $('roleBadges').innerHTML = bundle.roles.length
-            ? bundle.roles.map(x => '<span class="badge bg-light text-dark border me-1">' + Sec.esc(x.roleName) + (x.branch_ID ? '' : '') + '</span>').join('')
-            : '<span class="badge bg-warning-subtle text-warning-emphasis">No role in this branch</span>';
+        applyRoleView(bundle);
+        renderRoleChips();
         const note = $('bypassNote');
         if (bundle.user.isSuperAdmin) { note.style.display = ''; note.innerHTML = '<i class="bi bi-shield-fill-exclamation me-1"></i><b>Super admin</b> is outside the permission model - allowed everything, always. Overrides saved here have no effect. The flag is set only in the database.'; }
         else note.style.display = 'none';
@@ -115,6 +117,32 @@
         $('work').style.display = ''; $('emptyState').style.display = 'none';
         renderAll();
     }
+
+    // ── role chips: one per role; a click shows what that role alone gives, and lists only its pages ──
+    function applyRoleView(b) {
+        roleFilter = b.roleFilterId || null;
+        fromRole = new Map(b.fromRole.map(x => [x.page_ID + '|' + x.control_Code, x]));
+        bypass = bundle.user.isSuperAdmin || b.fromRole.some(x => x.decided_By === 'BYPASS');
+        const role = roleFilter ? bundle.roles.find(x => x.roleId === roleFilter) : null;
+        $('thFromRole').textContent = role ? 'From ' + role.roleName : 'From role';
+    }
+    function renderRoleChips() {
+        const roles = bundle.roles;
+        if (!roles.length) { $('roleBadges').innerHTML = '<span class="badge bg-warning-subtle text-warning-emphasis">No role in this branch</span>'; return; }
+        const chip = (id, label, title, on) => '<button type="button" class="btn btn-sm py-0 px-2 me-1 mb-1 sec-role-chip ' + (on ? 'btn-primary' : 'btn-light border') +
+            '" data-role="' + id + '" title="' + Sec.esc(title) + '" aria-pressed="' + on + '">' + Sec.esc(label) + '</button>';
+        $('roleBadges').innerHTML = (roles.length > 1 ? chip('', 'All roles', 'What all of this user\'s roles give together (deny wins)', !roleFilter) : '') +
+            roles.map(r => chip(r.roleId, r.roleName, 'Held in: ' + (r.branches || 'All branches') + '. Click to see what this role alone gives - only its pages are listed.', roleFilter === r.roleId)).join('');
+    }
+    $('roleBadges').addEventListener('click', async e => {
+        const b = e.target.closest('.sec-role-chip'); if (!b || !bundle) return;
+        const id = +b.dataset.role || null;
+        const next = roleFilter === id ? null : id;
+        const r = await Sec.get('@Url.Action("GetUserGrantsJson")', { userId: $('user').value, branchId: $('branch').value, roleId: next || '' });
+        if (!r.success) return Sec.fail(r.message);
+        bundle.fromRole = r.bundle.fromRole; bundle.roleFilterId = r.bundle.roleFilterId;
+        applyRoleView(r.bundle); renderRoleChips(); renderAll();   // unsaved changes stay as they are
+    });
 
     // ── effective values with the staged overrides ──
     function roleView(page) { return fromRole.get(page.page_ID + '|VIEW') || { permission: 'D', decided_At_Scope: 0, decided_By: 'NONE' }; }
@@ -165,7 +193,9 @@
         const q = $('search').value.trim().toLowerCase(), only = $('onlyOverrides').checked;
         const hasOv = n => n.kind === 'PAGE' ? (cur(key('p', n.page_ID)).v || controlOverrideCount(n)) : (cur(key('m', n.menu_ID)).v || (n.children || []).some(hasOv));
         const match = n => (!q || [n.title, n.page_Code, n.menu_Code].some(v => (v || '').toLowerCase().includes(q)));
-        const visible = n => (match(n) && (!only || hasOv(n))) || (n.children || []).some(visible);
+        // a role chip selected: only the pages that role opens, and anything carrying this user's own exception
+        const inRole = n => !roleFilter || hasOv(n) || (n.kind === 'PAGE' ? roleView(n).permission === 'A' : false);
+        const visible = n => (match(n) && (!only || hasOv(n)) && inRole(n)) || (n.children || []).some(visible);
         let h = '';
         const row = (n, parentKind) => {
             if (!visible(n)) return;
@@ -269,6 +299,26 @@
         row && row.scrollIntoView({ block: 'center' });
     });
     $('search').oninput = renderT1; $('onlyOverrides').onchange = renderT1;
+
+    // Reset to role: every exception of this user goes (all branches) - they get exactly what their roles give.
+    $('btnReset') && ($('btnReset').onclick = async () => {
+        const n = bundle && bundle.exceptionCount;
+        if (!n) return;
+        const who = Sec.esc(bundle.user.displayName || bundle.user.username);
+        const roleCount = new Set(bundle.roles.map(x => x.roleName)).size;
+        const html = '<div class="text-start small"><div>Removes <b>' + n + '</b> exception' + (n === 1 ? '' : 's') + ' of <b>' + who + '</b> in <b>every branch</b> - menus, pages and actions.</div>' +
+            '<div class="mt-2">' + who + ' will then get exactly what their role' + (roleCount === 1 ? '' : 's') + ' give' + (roleCount === 1 ? 's' : '') + '. Each removal is kept in the change history.</div>' +
+            (pend.size ? '<div class="mt-2 text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>Your ' + pend.size + ' unsaved change(s) on this screen will be discarded.</div>' : '') +
+            '<div class="mt-2 text-muted">It applies on their next request - no logout needed.</div></div>';
+        if (!await Sec.confirm('Reset to role permissions?', html, 'Reset to role', 'warning')) return;
+        const r = await Sec.post('@Url.Action("ResetUserGrantsJson")', null, { userId: $('user').value, expectedVersion: bundle.version || 0 });
+        if (!r.success) {
+            if (r.code === 'CONCURRENT') { if (await Sec.confirm('Someone else saved this user', Sec.esc(r.message), 'Reload', 'warning')) { pend.clear(); load(true); } return; }
+            return Sec.fail(r.message);
+        }
+        Sec.ok(r.data.changes + ' exception(s) removed - back to role permissions');
+        pend.clear(); load(true);
+    });
 
     $('btnDiscard') && ($('btnDiscard').onclick = async () => { if (await Sec.confirm('Discard ' + pend.size + ' change(s)?', '', 'Discard', 'warning')) { pend.clear(); renderAll(); } });
     $('btnSave') && ($('btnSave').onclick = () => save(false));

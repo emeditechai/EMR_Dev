@@ -38,8 +38,11 @@ public interface IPermissionAdminService
     Task<SaveGrantsResult> SaveRoleGrantsAsync(int companyId, SaveGrantsRequest request, PermissionSubject actor, string guardPageCode);
     Task CopyRoleGrantsAsync(int companyId, int fromRoleId, int toRoleId, PermissionSubject actor, string guardPageCode);
 
-    Task<UserGrantsBundle> GetUserGrantsAsync(int companyId, int userId, int? branchId);
+    Task<UserGrantsBundle> GetUserGrantsAsync(int companyId, int userId, int? branchId, int? roleId = null);
     Task<SaveGrantsResult> SaveUserGrantsAsync(int companyId, SaveGrantsRequest request, PermissionSubject actor, string guardPageCode);
+
+    /// <summary>Removes every exception of a user (all branches), so the user gets exactly what their roles give.</summary>
+    Task<SaveGrantsResult> ResetUserGrantsAsync(int companyId, int userId, int expectedVersion, PermissionSubject actor, string guardPageCode);
 
     Task<List<EffectivePermissionRow>> GetEffectiveAsync(int companyId, int userId, int branchId, int? roleId, bool ignoreUserRows);
     Task<(List<ExplainRow> Rows, List<ExplainLevel> Levels)> ExplainAsync(int userId, int branchId, int? roleId, int pageId, int? controlId);
@@ -62,6 +65,10 @@ public sealed class UserGrantsBundle
     public List<UserRoleRow> Roles { get; set; } = new();
     /// <summary>What the roles alone give (every page and control), for the "From role" column.</summary>
     public List<EffectivePermissionRow> FromRole { get; set; } = new();
+    /// <summary>All of the user's exceptions, every branch (for "Reset to role").</summary>
+    public int ExceptionCount { get; set; }
+    /// <summary>The role "From role" is shown for; null = all the user's roles together.</summary>
+    public int? RoleFilterId { get; set; }
 }
 
 public sealed class PermissionAdminService(IDbConnectionFactory db, IPermissionService permissions) : IPermissionAdminService
@@ -264,22 +271,44 @@ public sealed class PermissionAdminService(IDbConnectionFactory db, IPermissionS
     });
 
     // ── User Permissions ──────────────────────────────────────────────────
-    public async Task<UserGrantsBundle> GetUserGrantsAsync(int companyId, int userId, int? branchId)
+    public async Task<UserGrantsBundle> GetUserGrantsAsync(int companyId, int userId, int? branchId, int? roleId = null)
     {
         var bundle = new UserGrantsBundle();
+        List<UserRoleRow> roleRows;
         using (var con = db.CreateConnection())
-        using (var multi = await con.QueryMultipleAsync("dbo.usp_Auth_Admin_GetUserGrants",
-                   new { User_ID = userId, CompanyId = companyId, Branch_ID = branchId }, commandType: CommandType.StoredProcedure))
         {
-            bundle.Grants = (await multi.ReadAsync<GrantRow>()).ToList();
-            bundle.Version = await multi.ReadFirstAsync<int>();
-            bundle.Branches = (await multi.ReadAsync<(int BranchId, string BranchName)>()).Select(b => new LookupItem { Id = b.BranchId, Name = b.BranchName }).ToList();
-            bundle.Roles = (await multi.ReadAsync<UserRoleRow>()).ToList();
-            bundle.User = await multi.ReadFirstOrDefaultAsync<UserGrantsHeader>();
+            using (var multi = await con.QueryMultipleAsync("dbo.usp_Auth_Admin_GetUserGrants",
+                       new { User_ID = userId, CompanyId = companyId, Branch_ID = branchId }, commandType: CommandType.StoredProcedure))
+            {
+                bundle.Grants = (await multi.ReadAsync<GrantRow>()).ToList();
+                bundle.Version = await multi.ReadFirstAsync<int>();
+                bundle.Branches = (await multi.ReadAsync<(int BranchId, string BranchName)>()).Select(b => new LookupItem { Id = b.BranchId, Name = b.BranchName }).ToList();
+                roleRows = (await multi.ReadAsync<UserRoleRow>()).ToList();
+                bundle.User = await multi.ReadFirstOrDefaultAsync<UserGrantsHeader>();
+            }
+            bundle.ExceptionCount = await con.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.UserPermission WHERE User_ID = @userId", new { userId });
         }
-        // "From role" for an all-branches override is shown against the user's first branch.
+
+        // One entry per role: a role held in several branches is one role (its branches listed for the tooltip).
+        var branchNames = bundle.Branches.ToDictionary(b => b.Id, b => b.Name);
+        bundle.Roles = roleRows.GroupBy(r => r.RoleId)
+            .Select(g => new UserRoleRow
+            {
+                RoleId = g.Key,
+                RoleName = g.First().RoleName,
+                Branches = g.Any(x => x.Branch_ID is null)
+                    ? "All branches"
+                    : string.Join(", ", g.Select(x => branchNames.TryGetValue(x.Branch_ID!.Value, out var n) ? n : "Branch #" + x.Branch_ID).Distinct())
+            })
+            .OrderBy(r => r.RoleName)
+            .ToList();
+
+        // "From role": all the user's roles together (deny wins), or one role when the screen filters by it.
+        // An all-branches override is shown against the user's first branch.
         var evalBranch = branchId ?? bundle.Branches.FirstOrDefault()?.Id ?? 0;
-        bundle.FromRole = await GetEffectiveAsync(companyId, userId, evalBranch, null, ignoreUserRows: true);
+        var onlyRole = roleId is > 0 && bundle.Roles.Any(r => r.RoleId == roleId) ? roleId : null;
+        bundle.FromRole = await GetEffectiveAsync(companyId, userId, evalBranch, onlyRole, ignoreUserRows: true);
+        bundle.RoleFilterId = onlyRole;
         return bundle;
     }
 
@@ -290,6 +319,17 @@ public sealed class PermissionAdminService(IDbConnectionFactory db, IPermissionS
         {
             User_ID = r.TargetId, CompanyId = companyId, Branch_ID = r.BranchId, Json = ChangesJson(r.Changes),
             r.ExpectedVersion, r.Confirmed, ChangedBy = actor.UserId, ActorBranchId = actor.BranchId, ActorRoleId = actorRole, GuardPageCode = guardPageCode
+        }, commandType: CommandType.StoredProcedure, commandTimeout: 120);
+        return await ReadSaveResult(multi);
+    });
+
+    public Task<SaveGrantsResult> ResetUserGrantsAsync(int companyId, int userId, int expectedVersion, PermissionSubject actor, string guardPageCode) => Run(async con =>
+    {
+        var actorRole = await ResolveRoleIdAsync(companyId, actor.ActiveRoleName);
+        using var multi = await con.QueryMultipleAsync("dbo.usp_Auth_Admin_ResetUserGrants", new
+        {
+            User_ID = userId, CompanyId = companyId, ExpectedVersion = expectedVersion,
+            ChangedBy = actor.UserId, ActorBranchId = actor.BranchId, ActorRoleId = actorRole, GuardPageCode = guardPageCode
         }, commandType: CommandType.StoredProcedure, commandTimeout: 120);
         return await ReadSaveResult(multi);
     });

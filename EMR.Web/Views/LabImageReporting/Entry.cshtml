@@ -24,6 +24,7 @@
     bool pathologistApprovalRequired = Model.PathologistApprovalRequired;
     // Approving is its own control (Settings > Security): without it the Approve buttons are not offered.
     bool canApprove = await PermissionGuard.ShowsAsync(Context, "LAB.LABIMAGEREPORTING", EMR.Shared.Security.PermissionControls.Approve);
+    bool canValidate = await PermissionGuard.ShowsAsync(Context, "LAB.LABIMAGEREPORTING", EMR.Shared.Security.PermissionControls.Validate);
     bool showApprovedBadge = isAllApproved || isPartialApproved;
     // One print for the whole order, offered only once every image test is approved.
     bool showPrintAll = isAllApproved;
@@ -556,7 +557,7 @@
                                             <span class="btn-text">@(item.ReportStatusId == 5 ? "View Report" : (hasEntry ? "Edit Report" : "Start Entry"))</span>
                                         </button>
 
-                                        @if (item.ReportStatusId == 2)
+                                        @if (item.ReportStatusId == 2 && canValidate)
                                         {
                                             <button type="button"
                                                     class="btn btn-sm btn-outline-success px-2.5 d-inline-flex align-items-center gap-1 btn-card-validate"
@@ -715,7 +716,7 @@
                     </button>
 
                     <!-- Validate Report (Status 3) -->
-                    <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate btn-modal-validate" data-status-id="3" style="display:none;">
+                    <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate btn-modal-validate" asp-permission="LAB.LABIMAGEREPORTING:VALIDATE" data-status-id="3" style="display:none;">
                         <i class="bi bi-check-circle-fill me-1"></i>Validate Report
                     </button>
 
@@ -783,6 +784,7 @@
             const labOrderId = @d.LabOrderId;
             const PATHOLOGIST_APPROVAL_REQUIRED = @(pathologistApprovalRequired.ToString().ToLower());
             const CAN_APPROVE = @(canApprove.ToString().ToLower());
+            const CAN_VALIDATE = @(canValidate.ToString().ToLower());
             const PRINT_URL = '@Url.Action("Print", "LabImageReporting")';
 
             let currentTestId = 0;
@@ -907,7 +909,7 @@
                 let h = `<button type="button" class="btn btn-sm ${approved ? 'btn-outline-dark' : (hasEntry ? 'btn-outline-primary' : 'btn-primary')} px-3 d-inline-flex align-items-center gap-1.5 btn-start-entry" ${data} data-has-entry="${hasEntry ? 'true' : 'false'}">
                             <i class="bi ${approved ? 'bi-eye' : 'bi-pencil-square'}"></i><span class="btn-text">${approved ? 'View Report' : (hasEntry ? 'Edit Report' : 'Start Entry')}</span>
                          </button>`;
-                if (statusId === 2) {
+                if (statusId === 2 && CAN_VALIDATE) {
                     h += `<button type="button" class="btn btn-sm btn-outline-success px-2.5 d-inline-flex align-items-center gap-1 btn-card-validate" ${data} title="Validate this report">
                               <i class="bi bi-check-circle-fill"></i>Validate
                           </button>`;

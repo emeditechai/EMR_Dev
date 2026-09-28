@@ -225,6 +225,8 @@ public sealed class UserRoleRow
     public int RoleId { get; set; }
     public string RoleName { get; set; } = string.Empty;
     public int? Branch_ID { get; set; }
+    /// <summary>Where the user holds the role ("All branches" or branch names) - one entry per role on the screens.</summary>
+    public string? Branches { get; set; }
 }
 
 /// <summary>Page shell for all four screens: lists for the pickers, the current mode, and what the viewer may do.</summary>
