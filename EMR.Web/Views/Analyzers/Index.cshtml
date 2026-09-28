@@ -14,7 +14,7 @@
         <p class="text-muted small mb-0">Manage laboratory diagnostic instruments, analyzers, department assignments & interface protocols</p>
     </div>
     <div class="d-flex gap-2">
-        <a asp-action="Create" class="btn btn-primary shadow-sm px-3 rounded-3 d-flex align-items-center gap-2">
+        <a asp-permission="MASTER.ANALYZERS:ADD" asp-action="Create" class="btn btn-primary shadow-sm px-3 rounded-3 d-flex align-items-center gap-2">
             <i class="bi bi-plus-circle-fill"></i>
             <span>Add Analyzer</span>
         </a>
@@ -179,7 +179,7 @@
                                         <i class="bi bi-cpu fs-6"></i>
                                     </div>
                                     <div>
-                                        <a asp-action="Details" asp-route-id="@item.Analyzer_ID" class="fw-bold text-dark text-decoration-none hover-primary">
+                                        <a asp-permission="MASTER.ANALYZERS:DETAILS" asp-action="Details" asp-route-id="@item.Analyzer_ID" class="fw-bold text-dark text-decoration-none hover-primary">
                                             @item.Analyzer_Name
                                         </a>
                                         <div class="text-muted small" style="font-size:0.75rem;">
@@ -219,7 +219,7 @@
                                 }
                             </td>
                             <td class="text-center">
-                                <form asp-action="ToggleStatus" asp-route-id="@item.Analyzer_ID" method="post" class="d-inline">
+                                <form asp-permission="MASTER.ANALYZERS:STATUS" asp-action="ToggleStatus" asp-route-id="@item.Analyzer_ID" method="post" class="d-inline">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-sm py-0 px-2 rounded-pill border-0 @(item.Status ? "btn-success" : "btn-secondary")" style="font-size:0.75rem;">
                                         <i class="bi @(item.Status ? "bi-check-circle-fill" : "bi-dash-circle-fill") me-1"></i>@(item.Status ? "Active" : "Inactive")
@@ -228,13 +228,13 @@
                             </td>
                             <td class="pe-4 text-end">
                                 <div class="btn-group btn-group-sm">
-                                    <a asp-action="Details" asp-route-id="@item.Analyzer_ID" class="btn btn-outline-secondary" title="View Details">
+                                    <a asp-permission="MASTER.ANALYZERS:DETAILS" asp-action="Details" asp-route-id="@item.Analyzer_ID" class="btn btn-outline-secondary" title="View Details">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a asp-action="Edit" asp-route-id="@item.Analyzer_ID" class="btn btn-outline-primary" title="Edit">
+                                    <a asp-permission="MASTER.ANALYZERS:EDIT" asp-action="Edit" asp-route-id="@item.Analyzer_ID" class="btn btn-outline-primary" title="Edit">
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
-                                    <button type="button" class="btn btn-outline-danger" title="Delete" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Analyzer_ID">
+                                    <button asp-permission="MASTER.ANALYZERS:DELETE" type="button" class="btn btn-outline-danger" title="Delete" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Analyzer_ID">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </div>
@@ -249,7 +249,7 @@
                                                 </div>
                                                 <h6 class="fw-bold mb-1">Delete Analyzer?</h6>
                                                 <p class="text-muted small mb-3">Are you sure you want to delete <strong>@item.Analyzer_Name</strong>? This action cannot be undone.</p>
-                                                <form asp-action="Delete" asp-route-id="@item.Analyzer_ID" method="post">
+                                                <form asp-permission="MASTER.ANALYZERS:DELETE" asp-action="Delete" asp-route-id="@item.Analyzer_ID" method="post">
                                                     @Html.AntiForgeryToken()
                                                     <div class="d-flex gap-2">
                                                         <button type="button" class="btn btn-sm btn-outline-secondary w-50" data-bs-dismiss="modal">Cancel</button>
@@ -272,7 +272,7 @@
                                 <i class="bi bi-cpu fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                 <h6 class="fw-semibold">No Analyzers Found</h6>
                                 <p class="small mb-3">No instruments match the selected filter criteria or no analyzers have been registered yet.</p>
-                                <a asp-action="Create" class="btn btn-sm btn-primary rounded-3">
+                                <a asp-permission="MASTER.ANALYZERS:ADD" asp-action="Create" class="btn btn-sm btn-primary rounded-3">
                                     <i class="bi bi-plus-circle me-1"></i>Add First Analyzer
                                 </a>
                             </div>

@@ -642,7 +642,7 @@
             </div>
             <div class="modal-footer border-0 bg-light p-2 px-3">
                 <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success btn-sm px-4 fw-bold shadow-sm" id="btnConfirmReceiveSubmit">
+                <button asp-permission="LAB.SAMPLETRANSFER:RECEIVE" type="button" class="btn btn-success btn-sm px-4 fw-bold shadow-sm" id="btnConfirmReceiveSubmit">
                     <i class="bi bi-check-circle me-1"></i>Confirm Receive
                 </button>
             </div>
@@ -686,7 +686,7 @@
             </div>
             <div class="modal-footer border-0 bg-light p-2 px-3">
                 <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning btn-sm px-4 fw-bold shadow-sm" id="btnConfirmTransferSubmit">
+                <button asp-permission="LAB.SAMPLETRANSFER:TRANSFER" type="button" class="btn btn-warning btn-sm px-4 fw-bold shadow-sm" id="btnConfirmTransferSubmit">
                     <i class="bi bi-send-check me-1"></i>Proceed Transfer
                 </button>
             </div>

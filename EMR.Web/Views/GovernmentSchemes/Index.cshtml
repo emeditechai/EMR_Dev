@@ -15,7 +15,7 @@
         <small class="text-muted">Manage CGHS, ECHS, Ayushman Bharat PM-JAY, State Health Schemes, PSU & Social Security healthcare programs</small>
     </div>
     <div class="d-flex gap-2">
-        <a asp-action="Create" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.GOVERNMENTSCHEMES:ADD" asp-action="Create" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Government Scheme
         </a>
     </div>
@@ -219,15 +219,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.Scheme_ID"
+                        <a asp-permission="MASTER.GOVERNMENTSCHEMES:DETAILS" asp-action="Details" asp-route-id="@item.Scheme_ID"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.Scheme_ID"
+                        <a asp-permission="MASTER.GOVERNMENTSCHEMES:EDIT" asp-action="Edit" asp-route-id="@item.Scheme_ID"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-action="Delete" asp-route-id="@item.Scheme_ID" method="post" class="d-inline"
+                        <form asp-permission="MASTER.GOVERNMENTSCHEMES:DELETE" asp-action="Delete" asp-route-id="@item.Scheme_ID" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.SchemeName?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -242,7 +242,7 @@
                 <tr>
                     <td colspan="10" class="text-center text-muted py-5">
                         <i class="bi bi-bank2 fs-1 d-block mb-2 opacity-50"></i>
-                        No Government Schemes found. <a asp-action="Create" class="fw-bold">Add your first Government Scheme.</a>
+                        No Government Schemes found. <a asp-permission="MASTER.GOVERNMENTSCHEMES:ADD" asp-action="Create" class="fw-bold">Add your first Government Scheme.</a>
                     </td>
                 </tr>
             }

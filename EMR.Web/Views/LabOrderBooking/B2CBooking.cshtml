@@ -627,7 +627,7 @@
                                 asp-items="Model.ReferralDoctorOptions">
                             <option value="">-- Select Referral Doctor --</option>
                         </select>
-                        <a class="btn btn-outline-primary" href="@Url.Action("Create", "Doctors")" target="_blank" rel="noopener"
+                        <a asp-permission="LAB.LABORDERBOOKING.B2CBOOKING:ADD_DOCTOR" class="btn btn-outline-primary" href="@Url.Action("Create", "Doctors")" target="_blank" rel="noopener"
                            title="Add a doctor in Doctor Master (assign a LAB department to list here)">
                             <i class="bi bi-plus-lg"></i>
                         </a>

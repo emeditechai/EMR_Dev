@@ -20,7 +20,7 @@
             </h4>
         </div>
         <div>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABSAMPLETYPES:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add New Sample Type
             </a>
         </div>
@@ -148,7 +148,7 @@
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Sample_Type_ID" method="post" class="d-inline">
+                                        <form asp-permission="MASTER.LABSAMPLETYPES:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.Sample_Type_ID" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(!item.Status ? "true" : "false")" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
@@ -169,13 +169,13 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Sample_Type_ID" class="btn btn-outline-info" title="View Details">
+                                            <a asp-permission="MASTER.LABSAMPLETYPES:DETAILS" asp-action="Details" asp-encrypted-id="@item.Sample_Type_ID" class="btn btn-outline-info" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Sample_Type_ID" class="btn btn-outline-primary" title="Edit Sample Type">
+                                            <a asp-permission="MASTER.LABSAMPLETYPES:EDIT" asp-action="Edit" asp-encrypted-id="@item.Sample_Type_ID" class="btn btn-outline-primary" title="Edit Sample Type">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Sample_Type_ID" title="Delete">
+                                            <button asp-permission="MASTER.LABSAMPLETYPES:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Sample_Type_ID" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -193,7 +193,7 @@
                                                     </div>
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-encrypted-id="@item.Sample_Type_ID" method="post">
+                                                        <form asp-permission="MASTER.LABSAMPLETYPES:DELETE" asp-action="Delete" asp-encrypted-id="@item.Sample_Type_ID" method="post">
                                                             @Html.AntiForgeryToken()
                                                             <button type="submit" class="btn btn-danger">Delete Sample Type</button>
                                                         </form>

@@ -13,8 +13,8 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Lab Rate List (B2C)</h5>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal"><i class="bi bi-file-earmark-excel"></i> Bulk Upload</button>
-            <a asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus"></i> Create New</a>
+            <button asp-permission="MASTER.LABRATELISTB2C:IMPORT" type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal"><i class="bi bi-file-earmark-excel"></i> Bulk Upload</button>
+            <a asp-permission="MASTER.LABRATELISTB2C:ADD" asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus"></i> Create New</a>
         </div>
     </div>
     <div class="card-body">
@@ -88,7 +88,7 @@
                     render: function (data, type, row) {
                         var checked = data ? 'checked' : '';
                         return `<div class="form-check form-switch text-center">
-                                    <input class="form-check-input flexSwitchCheck" type="checkbox" data-id="${row.RateCard_ID}" ${checked}>
+                                    <input class="form-check-input flexSwitchCheck" data-permission="MASTER.LABRATELISTB2C:STATUS" data-permission-mode="disable" type="checkbox" data-id="${row.RateCard_ID}" ${checked}>
                                 </div>`;
                     }
                 },
@@ -98,8 +98,8 @@
                         var id = row.RateCard_ID || row.rateCard_ID;
                         var qToken = row.EncryptedId || row.encryptedId || id;
                         return `<div class="btn-group btn-group-sm shadow-sm" role="group">
-                                    <a href="@Url.Action("Edit")?q=${encodeURIComponent(qToken)}" class="btn btn-outline-primary" title="Edit Rate Card"><i class="bi bi-pencil"></i></a>
-                                    <button type="button" class="btn btn-outline-danger btn-delete" data-id="${id}" title="Delete Rate Card"><i class="bi bi-trash"></i></button>
+                                    <a data-permission="MASTER.LABRATELISTB2C:EDIT" href="@Url.Action("Edit")?q=${encodeURIComponent(qToken)}" class="btn btn-outline-primary" title="Edit Rate Card"><i class="bi bi-pencil"></i></a>
+                                    <button type="button" class="btn btn-outline-danger btn-delete" data-permission="MASTER.LABRATELISTB2C:DELETE" data-id="${id}" title="Delete Rate Card"><i class="bi bi-trash"></i></button>
                                 </div>`;
                     }
                 }

@@ -12,7 +12,7 @@
         <h1 class="h3 mb-0 fw-bold">Building Master</h1>
         <small class="text-muted">Manage hospital buildings, blocks, and multi-story complexes</small>
     </div>
-    <a asp-action="Create" class="btn btn-primary shadow-sm">
+    <a asp-permission="MASTER.BUILDINGS:ADD" asp-action="Create" class="btn btn-primary shadow-sm">
         <i class="bi bi-plus-lg me-1"></i> Add Building
     </a>
 </div>
@@ -111,11 +111,11 @@
                     </td>
                     <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.BuildingId"
+                        <a asp-permission="MASTER.BUILDINGS:DETAILS" asp-action="Details" asp-route-id="@item.BuildingId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.BuildingId"
+                        <a asp-permission="MASTER.BUILDINGS:EDIT" asp-action="Edit" asp-route-id="@item.BuildingId"
                            class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
@@ -127,7 +127,7 @@
                 <tr>
                     <td colspan="8" class="text-center text-muted py-5">
                         <i class="bi bi-building fs-1 d-block mb-2 opacity-50"></i>
-                        No buildings found. <a asp-action="Create" class="fw-bold">Create your first building.</a>
+                        No buildings found. <a asp-permission="MASTER.BUILDINGS:ADD" asp-action="Create" class="fw-bold">Create your first building.</a>
                     </td>
                 </tr>
             }

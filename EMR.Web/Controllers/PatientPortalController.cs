@@ -3,6 +3,7 @@ using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Dapper;
 using EMR.Web.ApiClients;
@@ -13,8 +14,45 @@ namespace EMR.Web.Controllers;
 public class PatientPortalController(
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasher,
-    IPatientPortalApiClient portalApiClient) : Controller
+    IPatientPortalApiClient portalApiClient,
+    IHttpClientFactory httpClientFactory) : Controller
 {
+    private static readonly HashSet<string> PortalParts = new(StringComparer.OrdinalIgnoreCase)
+        { "dashboard", "dependents", "vitals", "bookings", "prescriptions" };
+
+    // EMR.Api serves portal data only for the patient named in the call's token: tell the token handler who that is.
+    public override void OnActionExecuting(ActionExecutingContext context)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId") ?? HttpContext.Session.GetInt32("ChangePasswordPatientId");
+        if (patientId is > 0) HttpContext.Items[EmrApiTokenHandler.PatientIdItem] = patientId.Value;
+        base.OnActionExecuting(context);
+    }
+
+    // GET: /PatientPortal/Data/{part} - the dashboard's tabs, always for the signed-in patient (never an id from the page).
+    [HttpGet("PatientPortal/Data/{part}")]
+    public async Task<IActionResult> Data(string part)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId");
+        if (patientId is not > 0)
+            return StatusCode(StatusCodes.Status401Unauthorized, new { success = false, message = "Your session has ended. Please sign in again." });
+        if (!PortalParts.Contains(part)) return NotFound();
+
+        try
+        {
+            var response = await httpClientFactory.CreateClient("EmrApi").GetAsync($"api/patientportal/{patientId}/{part.ToLowerInvariant()}");
+            return new ContentResult
+            {
+                Content = await response.Content.ReadAsStringAsync(),
+                ContentType = "application/json",
+                StatusCode = (int)response.StatusCode
+            };
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { success = false, message = "The service is unavailable. Please try again." });
+        }
+    }
+
     // GET: /PatientPortal/Login
     [HttpGet]
     public IActionResult Login()
@@ -25,6 +63,7 @@ public class PatientPortalController(
     // POST: /PatientPortal/Login
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(AccountController.SignInRateLimit)]
     public async Task<IActionResult> Login(PatientLoginViewModel model)
     {
         if (!ModelState.IsValid)

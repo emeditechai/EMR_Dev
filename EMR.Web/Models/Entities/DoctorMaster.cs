@@ -35,6 +35,9 @@ public class DoctorMaster
     public DateTime? JoiningDate { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Doctor Master "Is Referral Doctor" (default No).</summary>
+    public bool IsReferralDoctor { get; set; }
     public int CreatedBranchId { get; set; }
 
     /// <summary>Optional FK to Users.Id — set when the doctor is given a login account.</summary>

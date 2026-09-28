@@ -11,7 +11,7 @@
             <p class="text-muted small mb-0">Manage Whereby API settings for video consultations</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-success" id="btnTestConnection">
+            <button asp-permission="SETTINGS.VIDEOCONFIG:TEST" class="btn btn-outline-success" id="btnTestConnection">
                 <i class="bi bi-wifi me-1"></i>Test Connection
             </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addConfigModal">
@@ -42,7 +42,7 @@
                                 <input class="form-check-input cfg-active-toggle" type="checkbox"
                                        data-key="@cfg.ConfigKey" @(cfg.IsActive ? "checked" : "") />
                             </div>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteConfig(@cfg.ConfigId)">
+                            <button asp-permission="SETTINGS.VIDEOCONFIG:DELETE" class="btn btn-sm btn-outline-danger" onclick="deleteConfig(@cfg.ConfigId)">
                                 <i class="bi bi-trash3"></i>
                             </button>
                         </div>
@@ -84,7 +84,7 @@
                                     Updated: @(cfg.ModifiedDate?.ToString("dd-MMM-yyyy HH:mm") ?? cfg.CreatedDate.ToString("dd-MMM-yyyy HH:mm"))
                                     @if (!string.IsNullOrWhiteSpace(cfg.ModifiedBy)) { <span>by @cfg.ModifiedBy</span> }
                                 </small>
-                                <button class="btn btn-sm btn-primary" onclick="saveConfig('@cfg.ConfigKey')">
+                                <button asp-permission="SETTINGS.VIDEOCONFIG:EDIT" class="btn btn-sm btn-primary" onclick="saveConfig('@cfg.ConfigKey')">
                                     <i class="bi bi-check-lg me-1"></i>Save
                                 </button>
                             </div>
@@ -112,7 +112,7 @@
                 <span class="badge bg-white text-danger ms-2" id="failedCount">...</span>
             </div>
             <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-warning fw-bold" id="btnRetryAll" onclick="retryAllFailed()">
+                <button asp-permission="SETTINGS.VIDEOCONFIG:RETRIGGER" class="btn btn-sm btn-warning fw-bold" id="btnRetryAll" onclick="retryAllFailed()">
                     <i class="bi bi-arrow-repeat me-1"></i>Retry All Failed
                 </button>
                 <button class="btn btn-sm btn-outline-light" onclick="loadFailedBookings()">
@@ -157,7 +157,7 @@
             </div>
             <div class="modal-footer border-0 bg-light">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="btnSaveNewConfig">
+                <button asp-permission="SETTINGS.VIDEOCONFIG:ADD" type="button" class="btn btn-primary" id="btnSaveNewConfig">
                     <i class="bi bi-plus-lg me-1"></i>Add
                 </button>
             </div>
@@ -339,7 +339,7 @@
                     <td>${item.visitDate}</td>
                     <td><small class="text-danger">${item.errorMessage || 'Whereby API failed'}</small></td>
                     <td class="text-center pe-3">
-                        <button class="btn btn-sm btn-warning" onclick="retriggerVideoRoom(${item.opdServiceId}, this)" title="Re-trigger video room creation">
+                        <button data-permission="SETTINGS.VIDEOCONFIG:RETRIGGER" class="btn btn-sm btn-warning" onclick="retriggerVideoRoom(${item.opdServiceId}, this)" title="Re-trigger video room creation">
                             <i class="bi bi-arrow-repeat me-1"></i>Retry
                         </button>
                     </td>

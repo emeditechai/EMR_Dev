@@ -374,7 +374,7 @@
                     const usedPct = s.quantity > 0 ? (s.usedCount / s.quantity) * 100 : 0;
                     const voidedPct = s.quantity > 0 ? (s.voidedCount / s.quantity) * 100 : 0;
                     const availPct = Math.max(0, 100 - usedPct - voidedPct);
-                    const canCancel = s.status === 'Active' && s.availableCount > 0;
+                    const canCancel = s.status === 'Active' && s.availableCount > 0 && emrCan('MASTER.LABFRANCHISEBARCODES', 'CANCEL');
 
                     html += '<tr>'
                         + '<td class="ps-3 fw-semibold">' + escapeHtml(s.seriesCode) + '</td>'

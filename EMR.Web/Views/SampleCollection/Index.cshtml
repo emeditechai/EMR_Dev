@@ -1194,7 +1194,7 @@
                                             </select>
                                             <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
                                                    data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
-                                            <button type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                            <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                     data-grpid="${grpId}"
                                                     data-profileid="${profGrp.profileId || ''}"
                                                     data-profilename="${escapeHtml(profGrp.name)}"
@@ -1212,7 +1212,7 @@
                                         </select>
                                         <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
                                                data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
-                                        <button type="button" class="btn btn-sm ${canEditProfile && !profileNeedsManualBarcode ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                        <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditProfile && !profileNeedsManualBarcode ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                 data-grpid="${grpId}"
                                                 data-profileid="${profGrp.profileId || ''}"
                                                 data-profilename="${escapeHtml(profGrp.name)}"
@@ -1397,7 +1397,7 @@
                                                data-id="${test.samplecollectionID}" 
                                                value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                                ${!canEditTest ? 'disabled' : ''} />
-                                        <button type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
+                                        <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
                                                 data-id="${test.samplecollectionID}"
                                                 ${!canEditTest ? 'disabled' : ''}
                                                 title="Save sample status">
@@ -1420,7 +1420,7 @@
                                            data-id="${test.samplecollectionID}" 
                                            value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                            ${!canEditTest ? 'disabled' : ''} />
-                                    <button type="button" class="btn btn-sm ${canEditTest && !needsBarcodeFirst ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample"
+                                    <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditTest && !needsBarcodeFirst ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample"
                                             data-id="${test.samplecollectionID}"
                                             ${!canEditTest || needsBarcodeFirst ? 'disabled' : ''}
                                             title="${needsBarcodeFirst ? 'Validate the pre-printed barcode first' : 'Save sample status'}">

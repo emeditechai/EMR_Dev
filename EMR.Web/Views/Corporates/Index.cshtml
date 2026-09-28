@@ -13,7 +13,7 @@
         <small class="text-muted">Manage corporate tie-ups, institutional billing, rate agreements, credit limits, and terms</small>
     </div>
     <div class="d-flex gap-2">
-        <a asp-action="Create" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.CORPORATES:ADD" asp-action="Create" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Corporate
         </a>
     </div>
@@ -229,15 +229,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.Corporate_ID"
+                        <a asp-permission="MASTER.CORPORATES:DETAILS" asp-action="Details" asp-route-id="@item.Corporate_ID"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.Corporate_ID"
+                        <a asp-permission="MASTER.CORPORATES:EDIT" asp-action="Edit" asp-route-id="@item.Corporate_ID"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit Corporate">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-action="Delete" asp-route-id="@item.Corporate_ID" method="post" class="d-inline"
+                        <form asp-permission="MASTER.CORPORATES:DELETE" asp-action="Delete" asp-route-id="@item.Corporate_ID" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.Corporate_Name?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -252,7 +252,7 @@
                 <tr>
                     <td colspan="12" class="text-center text-muted py-5">
                         <i class="bi bi-briefcase fs-1 d-block mb-2 opacity-50"></i>
-                        No corporate tie-ups found. <a asp-action="Create" class="fw-bold">Add your first corporate tie-up.</a>
+                        No corporate tie-ups found. <a asp-permission="MASTER.CORPORATES:ADD" asp-action="Create" class="fw-bold">Add your first corporate tie-up.</a>
                     </td>
                 </tr>
             }
@@ -650,7 +650,7 @@
                         </td>
                         <td>
                             <div class="form-check form-switch m-0">
-                                <input class="form-check-input" type="checkbox" role="switch" ${r.status ? 'checked' : ''} 
+                                <input data-permission="MASTER.CORPORATES:RATES" class="form-check-input" type="checkbox" role="switch" ${r.status ? 'checked' : ''} 
                                        onchange="handleToggleRateStatus(${r.corpRate_ID})" title="${r.status ? 'Deactivate' : 'Activate'}" />
                             </div>
                         </td>
@@ -658,7 +658,7 @@
                             <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editRateRule(${r.corpRate_ID})" title="Edit Rate Rule">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRateRule(${r.corpRate_ID})" title="Delete Rate Rule">
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-permission="MASTER.CORPORATES:RATES" onclick="deleteRateRule(${r.corpRate_ID})" title="Delete Rate Rule">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>

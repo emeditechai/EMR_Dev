@@ -50,7 +50,7 @@
                     <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
                         <i class="bi bi-printer-fill me-1"></i>Print Form
                     </button>
-                    <a asp-action="Edit" asp-route-id="@Model.Consent_ID" class="btn btn-primary">
+                    <a asp-permission="MASTER.CONSENTMASTERS:EDIT" asp-action="Edit" asp-route-id="@Model.Consent_ID" class="btn btn-primary">
                         <i class="bi bi-pencil-square me-1"></i>Edit Template
                     </a>
                     <a asp-action="Index" class="btn btn-outline-secondary">

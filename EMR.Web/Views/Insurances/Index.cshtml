@@ -15,7 +15,7 @@
         <small class="text-muted">Manage Insurance Companies, Third Party Administrators (TPAs), agreed tariff schedules, cashless terms & claims settings</small>
     </div>
     <div class="d-flex gap-2">
-        <a asp-action="Create" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.INSURANCES:ADD" asp-action="Create" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Insurance / TPA
         </a>
     </div>
@@ -244,15 +244,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.InsuranceTPA_ID"
+                        <a asp-permission="MASTER.INSURANCES:DETAILS" asp-action="Details" asp-route-id="@item.InsuranceTPA_ID"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.InsuranceTPA_ID"
+                        <a asp-permission="MASTER.INSURANCES:EDIT" asp-action="Edit" asp-route-id="@item.InsuranceTPA_ID"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-action="Delete" asp-route-id="@item.InsuranceTPA_ID" method="post" class="d-inline"
+                        <form asp-permission="MASTER.INSURANCES:DELETE" asp-action="Delete" asp-route-id="@item.InsuranceTPA_ID" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.Name?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -267,7 +267,7 @@
                 <tr>
                     <td colspan="12" class="text-center text-muted py-5">
                         <i class="bi bi-shield-slash fs-1 d-block mb-2 opacity-50"></i>
-                        No Insurance Companies or TPAs found. <a asp-action="Create" class="fw-bold">Add your first Insurance / TPA Partner.</a>
+                        No Insurance Companies or TPAs found. <a asp-permission="MASTER.INSURANCES:ADD" asp-action="Create" class="fw-bold">Add your first Insurance / TPA Partner.</a>
                     </td>
                 </tr>
             }
@@ -667,7 +667,7 @@
                         </td>
                         <td>
                             <div class="form-check form-switch m-0">
-                                <input class="form-check-input" type="checkbox" role="switch" ${t.status ? 'checked' : ''} 
+                                <input data-permission="MASTER.INSURANCES:TARIFFS" class="form-check-input" type="checkbox" role="switch" ${t.status ? 'checked' : ''} 
                                        onchange="handleToggleTariffStatus(${t.insTariff_ID})" title="${t.status ? 'Deactivate' : 'Activate'}" />
                             </div>
                         </td>
@@ -675,7 +675,7 @@
                             <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editTariffRule(${t.insTariff_ID})" title="Edit Tariff Rule">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteTariffRule(${t.insTariff_ID})" title="Delete Tariff Rule">
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-permission="MASTER.INSURANCES:TARIFFS" onclick="deleteTariffRule(${t.insTariff_ID})" title="Delete Tariff Rule">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>

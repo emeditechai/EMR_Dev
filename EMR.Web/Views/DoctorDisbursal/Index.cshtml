@@ -29,7 +29,7 @@
                 <i class="bi bi-cpu-fill text-primary"></i>
                 <span>Calculate Commissions</span>
             </button>
-            <button type="button" class="btn btn-success px-3 shadow-sm d-flex align-items-center gap-2" id="bulkApproveBtn" onclick="submitBulkApprove()">
+            <button type="button" class="btn btn-success px-3 shadow-sm d-flex align-items-center gap-2" id="bulkApproveBtn" asp-permission="OPD.DOCTORDISBURSAL:APPROVE" onclick="submitBulkApprove()">
                 <i class="bi bi-check-all"></i>
                 <span>Bulk Approve</span>
             </button>
@@ -251,7 +251,7 @@
                                     </td>
                                     <td class="text-end pe-3">
                                         <div class="btn-group btn-group-sm">
-                                            <a asp-action="Details" asp-route-id="@item.DisbursalId" class="btn btn-outline-secondary" title="View Disbursal Voucher">
+                                            <a asp-permission="OPD.DOCTORDISBURSAL:DETAILS" asp-action="Details" asp-route-id="@item.DisbursalId" class="btn btn-outline-secondary" title="View Disbursal Voucher">
                                                 <i class="bi bi-eye-fill"></i>
                                             </a>
                                             <button type="button" class="btn btn-outline-info" title="Add Adjustment" onclick="openAdjustmentModal(@item.DisbursalId, '@item.DoctorName', @item.NetPayable)">
@@ -295,7 +295,7 @@
 <div class="modal fade" id="calcModal" tabindex="-1" aria-labelledby="calcModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form asp-action="Calculate" method="post">
+            <form asp-permission="OPD.DOCTORDISBURSAL:CALCULATE" asp-action="Calculate" method="post">
                 @Html.AntiForgeryToken()
                 <div class="modal-header">
                     <h5 class="modal-title fw-bold" id="calcModalLabel">
@@ -339,7 +339,7 @@
 <div class="modal fade" id="adjustmentModal" tabindex="-1" aria-labelledby="adjustmentModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form asp-action="AddAdjustment" method="post">
+            <form asp-permission="OPD.DOCTORDISBURSAL:ADJUSTMENT" asp-action="AddAdjustment" method="post">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="disbursalId" id="adjDisbursalId" />
                 <div class="modal-header">
@@ -387,7 +387,7 @@
 <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form asp-action="UpdateStatus" method="post">
+            <form asp-permission="OPD.DOCTORDISBURSAL:PAYOUT" asp-action="UpdateStatus" method="post">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="disbursalId" id="statusDisbursalId" />
                 <div class="modal-header">
@@ -424,7 +424,7 @@
 <div class="modal fade" id="payoutModal" tabindex="-1" aria-labelledby="payoutModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form asp-action="ProcessPayout" method="post">
+            <form asp-permission="OPD.DOCTORDISBURSAL:PAYOUT" asp-action="ProcessPayout" method="post">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="disbursalId" id="payoutDisbursalId" />
                 <div class="modal-header bg-success text-white">
@@ -474,7 +474,7 @@
 </div>
 
 <!-- Hidden Bulk Approve Form -->
-<form asp-action="BulkApprove" method="post" id="bulkApproveForm" style="display:none;">
+<form asp-permission="OPD.DOCTORDISBURSAL:APPROVE" asp-action="BulkApprove" method="post" id="bulkApproveForm" style="display:none;">
     @Html.AntiForgeryToken()
     <input type="hidden" name="disbursalIds" id="bulkDisbursalIds" />
 </form>

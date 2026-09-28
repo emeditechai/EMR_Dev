@@ -166,7 +166,7 @@ else
                                         onclick="editVitalRecord(@v.PatientVitalId, @Model.PatientId)" style="font-size: 0.72rem;">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Delete"
+                                <button asp-permission="OPD.VITALS:DELETE" type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Delete"
                                         onclick="deleteVitalRecord(@v.PatientVitalId, @Model.PatientId)" style="font-size: 0.72rem;">
                                     <i class="bi bi-trash"></i>
                                 </button>

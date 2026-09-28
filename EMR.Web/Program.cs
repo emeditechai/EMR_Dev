@@ -1,3 +1,4 @@
+using EMR.Shared.Security;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Services;
@@ -15,7 +16,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add<EMR.Web.Filters.GlobalAuditLogFilter>();
+    // Server-side authorization: one decision point for every action (mode set in "Authorization").
+    options.Filters.AddService<PermissionFilter>();
 });
+builder.Services.AddEmrAuthorization(builder.Configuration, "DefaultConnection",
+    new EmrAuthorizationApp { Name = "WEB" });
+builder.Services.AddScoped<IPermissionAdminService, PermissionAdminService>();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -110,13 +116,31 @@ builder.Services.AddHttpClient("Whereby", client =>
 builder.Services.AddScoped<IWherebyService, WherebyService>();
 builder.Services.AddScoped<IVideoConsultationService, VideoConsultationService>();
 
+// Sign-in throttling per client address (staff and patient portal sign-in; accounts also lock after repeated wrong passwords)
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(EMR.Web.Controllers.AccountController.SignInRateLimit, http =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.OnRejected = async (ctx, ct) =>
+    {
+        ctx.HttpContext.Response.Headers.RetryAfter = "60";
+        ctx.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
+        await ctx.HttpContext.Response.WriteAsync("Too many sign-in attempts from this network. Wait a minute and try again.", ct);
+    };
+});
+
 // EMR.Api HTTP clients
+builder.Services.AddTransient<EMR.Web.ApiClients.EmrApiTokenHandler>();
+builder.Services.AddScoped<ILabReportingEligibility, LabReportingEligibility>();
 builder.Services.AddHttpClient("EmrApi", client =>
 {
     var baseUrl = builder.Configuration["ApiSettings:BaseUrl"] ?? "https://localhost:5125";
     client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
     client.DefaultRequestHeaders.Add("Accept", "application/json");
 })
+.AddHttpMessageHandler<EMR.Web.ApiClients.EmrApiTokenHandler>()   // every call to EMR.Api carries a signed token
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
     // Allow self-signed dev certs when calling local EMR.Api
@@ -206,7 +230,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
-        options.AccessDeniedPath = "/Account/Login";
+        options.AccessDeniedPath = "/Account/AccessDenied";
         options.SlidingExpiration = true;
         options.ExpireTimeSpan = TimeSpan.FromHours(1); // Auto logout if idle for 1 hour
     });
@@ -237,6 +261,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseMiddleware<EMR.Web.Middleware.QueryStringDecryptionMiddleware>();
 app.UseSession();
 

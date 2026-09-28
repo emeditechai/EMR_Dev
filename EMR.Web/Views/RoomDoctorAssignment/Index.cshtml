@@ -125,7 +125,7 @@
                                                     <div class="fw-semibold text-dark small"><i class="bi bi-person-fill text-info me-1"></i>@doc.FullName</div>
                                                     <div class="text-muted" style="font-size: 0.7rem;">@doc.SpecialityName</div>
                                                 </div>
-                                                <button type="button" class="btn btn-sm text-danger p-0 border-0 lh-1 btn-unassign" onclick="unassignDoctorBtn(@doc.DoctorId)">
+                                                <button asp-permission="MASTER.ROOMDOCTORASSIGNMENT:ASSIGN" type="button" class="btn btn-sm text-danger p-0 border-0 lh-1 btn-unassign" onclick="unassignDoctorBtn(@doc.DoctorId)">
                                                     <i class="bi bi-x-circle-fill fs-6"></i>
                                                 </button>
                                             </div>

@@ -185,7 +185,7 @@
                                         <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editLocation(@item.Location_ID)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="DeleteLocation" asp-route-id="@item.Location_ID" method="post" class="d-inline"
+                                        <form asp-permission="MASTER.HOUSEKEEPING:DELETE" asp-action="DeleteLocation" asp-route-id="@item.Location_ID" method="post" class="d-inline"
                                               onsubmit="return confirm('Delete housekeeping location @item.LocationName?');">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -291,7 +291,7 @@
                                         <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editCleaning(@item.Cleaning_ID)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="DeleteCleaning" asp-route-id="@item.Cleaning_ID" method="post" class="d-inline"
+                                        <form asp-permission="MASTER.HOUSEKEEPING:DELETE" asp-action="DeleteCleaning" asp-route-id="@item.Cleaning_ID" method="post" class="d-inline"
                                               onsubmit="return confirm('Delete cleaning protocol @item.CleaningType?');">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -397,7 +397,7 @@
                                         <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editStaff(@item.HKStaff_ID)" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="DeleteStaff" asp-route-id="@item.HKStaff_ID" method="post" class="d-inline"
+                                        <form asp-permission="MASTER.HOUSEKEEPING:DELETE" asp-action="DeleteStaff" asp-route-id="@item.HKStaff_ID" method="post" class="d-inline"
                                               onsubmit="return confirm('Delete staff allocation for @item.StaffName?');">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -431,7 +431,7 @@
 <div class="modal fade" id="modalLocation" tabindex="-1" aria-labelledby="modalLocationLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow">
-            <form asp-action="SaveLocation" method="post" id="formLocation">
+            <form asp-permission="MASTER.HOUSEKEEPING:EDIT" asp-action="SaveLocation" method="post" id="formLocation">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Location_ID" id="loc_Location_ID" value="0" />
 
@@ -518,7 +518,7 @@
 <div class="modal fade" id="modalCleaning" tabindex="-1" aria-labelledby="modalCleaningLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow">
-            <form asp-action="SaveCleaning" method="post" id="formCleaning">
+            <form asp-permission="MASTER.HOUSEKEEPING:EDIT" asp-action="SaveCleaning" method="post" id="formCleaning">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Cleaning_ID" id="cln_Cleaning_ID" value="0" />
 
@@ -593,7 +593,7 @@
 <div class="modal fade" id="modalStaff" tabindex="-1" aria-labelledby="modalStaffLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow">
-            <form asp-action="SaveStaff" method="post" id="formStaff">
+            <form asp-permission="MASTER.HOUSEKEEPING:EDIT" asp-action="SaveStaff" method="post" id="formStaff">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="HKStaff_ID" id="stf_HKStaff_ID" value="0" />
 

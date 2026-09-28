@@ -62,6 +62,9 @@ public class DoctorFormViewModel
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 
+    [Display(Name = "Is Referral Doctor")]
+    public bool IsReferralDoctor { get; set; }
+
     // ── Login Account Section ─────────────────────────────────────────────────
     /// <summary>Flag: if true, create/update a linked User login account for this doctor.</summary>
     [Display(Name = "Is Login Required")]
@@ -110,6 +113,7 @@ public class DoctorListItemViewModel
     public string ConsultingFeeNames { get; set; } = string.Empty;
     /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
     public bool HasOPDDept { get; set; }
+    public bool IsReferralDoctor { get; set; }
 }
 
 public class ConsultingFeeItemDto
@@ -151,6 +155,7 @@ public class DoctorDetailsViewModel
 
     public DateTime? JoiningDate { get; set; }
     public bool IsActive { get; set; }
+    public bool IsReferralDoctor { get; set; }
 
     public List<string> BranchNames { get; set; } = [];
     public List<string> DepartmentNames { get; set; } = [];

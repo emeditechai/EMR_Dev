@@ -32,10 +32,10 @@
         </div>
     </div>
     <div class="d-flex gap-2">
-        <a asp-action="Edit" asp-route-id="@Model.CompanyId" class="btn btn-outline-primary btn-sm px-3">
+        <a asp-permission="SETTINGS.COMPANIES:EDIT" asp-action="Edit" asp-route-id="@Model.CompanyId" class="btn btn-outline-primary btn-sm px-3">
             <i class="bi bi-pencil-fill me-1"></i> Edit Profile
         </a>
-        <a asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-primary btn-sm px-3 shadow-sm">
+        <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-primary btn-sm px-3 shadow-sm">
             <i class="bi bi-plus-circle-fill me-1"></i> Add Branch
         </a>
         <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
@@ -122,7 +122,7 @@
                     <i class="bi bi-diagram-3-fill me-2"></i>Operating Branches 
                     <span class="badge bg-primary bg-opacity-10 text-primary ms-1">@Model.Branches.Count</span>
                 </h6>
-                <a asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-outline-primary">
+                <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-plus-lg me-1"></i> Add Branch
                 </a>
             </div>
@@ -145,7 +145,7 @@
                                     <td colspan="5" class="text-center py-4 text-muted">
                                         <i class="bi bi-diagram-3 fs-3 text-secondary opacity-50 d-block mb-2"></i>
                                         <div>No branches created under this company yet.</div>
-                                        <a asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-primary mt-2">Create First Branch</a>
+                                        <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-primary mt-2">Create First Branch</a>
                                     </td>
                                 </tr>
                             }
@@ -184,7 +184,7 @@
                                             <a asp-controller="Branches" asp-action="Details" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-secondary" title="View Branch">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-controller="Branches" asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-primary" title="Edit Branch">
+                                            <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-primary" title="Edit Branch">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
                                         </td>
@@ -204,7 +204,7 @@
                     <i class="bi bi-people-fill me-2"></i>Company Users 
                     <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1">@Model.Users.Count</span>
                 </h6>
-                <a asp-controller="Users" asp-action="Create" class="btn btn-sm btn-outline-primary">
+                <a asp-permission="SETTINGS.COMPANIES:USERS" asp-controller="Users" asp-action="Create" class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-person-plus-fill me-1"></i> Add User
                 </a>
             </div>

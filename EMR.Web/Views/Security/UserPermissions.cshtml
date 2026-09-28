@@ -1,0 +1,320 @@
+@model EMR.Web.Models.ViewModels.SecurityPageViewModel
+@section HeadStyles { <link rel="stylesheet" href="~/css/security-admin.css" asp-append-version="true" /> }
+
+<form id="secAntiForgery">@Html.AntiForgeryToken()</form>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Dashboard" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Settings</li><li class="breadcrumb-item text-muted">Security</li>
+                <li class="breadcrumb-item active" aria-current="page">User Permissions</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-person-gear me-2"></i>User Permissions</h4>
+            <div class="text-muted small">One person's exceptions to their roles. A user row beats a role row at the same level, so an exception never needs a new role.</div>
+        </div>
+        <span class="sec-mode @Model.Mode.ToLowerInvariant()"><i class="bi bi-shield-check me-1"></i>@Model.Mode mode</span>
+    </div>
+
+    <div class="card sec-card mb-3">
+        <div class="card-body py-2 sec-toolbar">
+            <label class="small fw-semibold" for="user">User</label>
+            <select class="form-select form-select-sm" style="width:auto;min-width:260px" id="user">
+                <option value="">— choose a user —</option>
+                @foreach (var u in Model.Users)
+                {
+                    <option value="@u.Id" selected="@(Model.PreselectId == u.Id)">@u.Name@(u.Extra == "INACTIVE" ? " · inactive" : u.Extra == "SUPERADMIN" ? " · super admin" : "")</option>
+                }
+            </select>
+            <label class="small fw-semibold ms-2" for="branch">Applies in</label>
+            <select class="form-select form-select-sm" style="width:auto" id="branch" disabled><option value="">All branches</option></select>
+            <span id="roleBadges" class="ms-2"></span>
+            <span class="sec-pending ms-auto" id="pending"><b>0</b> pending changes</span>
+            <button class="btn btn-outline-secondary btn-sm" id="btnHistory" disabled><i class="bi bi-clock-history me-1"></i>History</button>
+            @if (Model.CanEdit)
+            {
+                <button class="btn btn-outline-secondary btn-sm" id="btnDiscard" disabled>Discard</button>
+                <button class="btn btn-primary btn-sm" id="btnSave" disabled><i class="bi bi-check2-circle me-1"></i>Save all</button>
+            }
+        </div>
+    </div>
+
+    <div class="alert alert-warning py-2 small" id="bypassNote" style="display:none"></div>
+
+    <div id="work" style="display:none">
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" id="tab1btn" data-bs-toggle="tab" data-bs-target="#tab1" type="button">Menus &amp; Pages <span class="badge rounded-pill bg-primary-subtle text-primary ms-1" id="pip1">0</span></button></li>
+            <li class="nav-item"><button class="nav-link" id="tab2btn" data-bs-toggle="tab" data-bs-target="#tab2" type="button">Page Controls <span class="badge rounded-pill bg-primary-subtle text-primary ms-1" id="pip2">0</span></button></li>
+        </ul>
+        <div class="tab-content card sec-card border-top-0 rounded-top-0">
+            <div class="tab-pane fade show active" id="tab1">
+                <div class="p-2 border-bottom sec-toolbar">
+                    <input class="form-control form-control-sm" style="max-width:260px" id="search" placeholder="Search menu or page…" />
+                    <div class="form-check form-switch mb-0 small"><input class="form-check-input" type="checkbox" id="onlyOverrides"><label class="form-check-label" for="onlyOverrides">Only rows with an override</label></div>
+                    <span class="sec-legend ms-auto"><span><span class="sec-inh A">Allow</span> / <span class="sec-inh D">Deny</span> = what the role gives</span></span>
+                </div>
+                <div class="sec-scroll"><table class="table table-sm sec-matrix mb-0"><thead><tr><th class="name">Nav bar › menu › page</th><th>From role</th><th>Override</th><th>Controls</th><th style="min-width:240px">Reason <span class="text-lowercase fw-normal">(required for a deny)</span></th></tr></thead>
+                    <tbody id="t1"></tbody></table></div>
+            </div>
+            <div class="tab-pane fade" id="tab2">
+                <div class="p-2 border-bottom sec-toolbar">
+                    <button class="btn btn-outline-secondary btn-sm" id="backToPages"><i class="bi bi-arrow-left me-1"></i>Back to pages</button>
+                    <label class="small fw-semibold" for="ctlPage">Page</label>
+                    <select class="form-select form-select-sm" style="width:auto;min-width:280px" id="ctlPage"></select>
+                    <span class="small text-muted" id="ctlPageAccess"></span>
+                    <span class="small text-muted ms-auto">Only pages this user can open are listed.</span>
+                </div>
+                <div id="t2wrap"></div>
+            </div>
+        </div>
+        <div class="small text-muted mt-2" id="otherTab"></div>
+    </div>
+    <div class="card sec-card" id="emptyState"><div class="sec-empty"><i class="bi bi-person-gear fs-3 d-block mb-2"></i>Choose a user to see what their roles give and set their exceptions.</div></div>
+</div>
+
+<div class="modal fade" id="histModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Change history</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body p-0"><table class="table table-sm mb-0" style="font-size:.82rem"><thead class="table-light"><tr><th>When</th><th>Who</th><th>Scope</th><th>What</th><th>Branch</th><th>From</th><th>To</th><th>Reason</th></tr></thead><tbody id="histBody"></tbody></table></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/security-admin.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const CAN_EDIT = @Json.Serialize(Model.CanEdit);
+    const PRE_BRANCH = @Json.Serialize(Model.PreselectBranchId);
+    let T = null, bundle = null, base = new Map(), pend = new Map(), fromRole = new Map(), bypass = false;
+    const $ = id => document.getElementById(id);
+    const key = (kind, id) => kind + ':' + id;
+    const cur = k => pend.has(k) ? pend.get(k) : (base.get(k) || { v: '', r: '' });
+
+    Sec.guardUnsaved(() => pend.size > 0);
+
+    async function load(keepBranch) {
+        const userId = $('user').value;
+        pend.clear(); updatePending();
+        $('btnHistory').disabled = !userId;
+        if (!userId) { $('work').style.display = 'none'; $('emptyState').style.display = ''; $('branch').disabled = true; return; }
+        const branchId = keepBranch ? $('branch').value : (PRE_BRANCH || '');
+        const r = await Sec.get('@Url.Action("GetUserGrantsJson")', { userId, branchId });
+        if (!r.success) return Sec.fail(r.message);
+        bundle = r.bundle; T = Sec.buildTree(r.tree, false);
+        $('branch').innerHTML = '<option value="">All branches</option>' + bundle.branches.map(b => '<option value="' + b.id + '">' + Sec.esc(b.name) + ' only</option>').join('');
+        $('branch').value = branchId || ''; $('branch').disabled = false;
+        base = new Map();
+        bundle.grants.forEach(g => base.set(g.control_ID ? key('c', g.control_ID) : g.page_ID ? key('p', g.page_ID) : key('m', g.menu_ID), { v: g.permission, r: g.reason || '' }));
+        fromRole = new Map(bundle.fromRole.map(x => [x.page_ID + '|' + x.control_Code, x]));
+        bypass = bundle.user.isSuperAdmin || bundle.fromRole.some(x => x.decided_By === 'BYPASS');
+        $('roleBadges').innerHTML = bundle.roles.length
+            ? bundle.roles.map(x => '<span class="badge bg-light text-dark border me-1">' + Sec.esc(x.roleName) + (x.branch_ID ? '' : '') + '</span>').join('')
+            : '<span class="badge bg-warning-subtle text-warning-emphasis">No role in this branch</span>';
+        const note = $('bypassNote');
+        if (bundle.user.isSuperAdmin) { note.style.display = ''; note.innerHTML = '<i class="bi bi-shield-fill-exclamation me-1"></i><b>Super admin</b> is outside the permission model - allowed everything, always. Overrides saved here have no effect. The flag is set only in the database.'; }
+        else note.style.display = 'none';
+        if (!bundle.user.isActive) { note.style.display = ''; note.innerHTML = '<i class="bi bi-person-x me-1"></i>This account is <b>inactive</b> and is refused everything.'; }
+        $('work').style.display = ''; $('emptyState').style.display = 'none';
+        renderAll();
+    }
+
+    // ── effective values with the staged overrides ──
+    function roleView(page) { return fromRole.get(page.page_ID + '|VIEW') || { permission: 'D', decided_At_Scope: 0, decided_By: 'NONE' }; }
+    function userMenuOverride(page) {
+        const ch = T.chain(page);
+        for (const [scope, id] of [[3, ch.sub], [2, ch.menu], [1, ch.nav]]) { if (id) { const c = cur(key('m', id)); if (c.v) return { v: c.v, scope }; } }
+        return null;
+    }
+    function effPage(page) {
+        const own = cur(key('p', page.page_ID));
+        if (own.v) return own.v;
+        const u = userMenuOverride(page), r = roleView(page);
+        if (u && r.decided_By !== 'BYPASS' && u.scope >= (r.decided_At_Scope || 0)) return u.v;
+        return r.permission === 'A' ? 'A' : (u && !r.decided_At_Scope ? u.v : 'D');
+    }
+    // The role's own answer for an action, or null when the role leaves it to follow the page.
+    function roleControl(page, code) {
+        const r = fromRole.get(page.page_ID + '|' + code);
+        if (!r) return null;
+        if (r.decided_By === 'BYPASS') return 'A';
+        return r.decided_At_Scope === 5 ? r.permission : null;
+    }
+    // An action follows the page for this user unless the user or the role sets it.
+    function effControl(page, c) {
+        if (c.control_Code === 'VIEW') return effPage(page);
+        if (effPage(page) !== 'A') return 'D';
+        const own = cur(key('c', c.control_ID));
+        return own.v || roleControl(page, c.control_Code) || 'A';
+    }
+    const lbl = v => v === 'A' ? '<span class="sec-inh A"><i class="bi bi-check-lg"></i> Allow</span>' : '<span class="sec-inh D"><i class="bi bi-x-lg"></i> ' + (v === 'D' ? 'Deny' : 'Not granted') + '</span>';
+
+    function tri(k, disabled) {
+        const v = cur(k).v, dis = (disabled || !CAN_EDIT) ? 'disabled' : '';
+        const b = (val, cls, text) => '<button type="button" class="' + (v === val ? 'on ' + cls : '') + '" data-k="' + k + '" data-v="' + val + '" ' + dis + ' aria-pressed="' + (v === val) + '">' + text + '</button>';
+        return '<span class="sec-tri" role="group">' + b('', 'i', 'Inherit') + b('A', 'a', 'Allow') + b('D', 'd', 'Deny') + '</span>';
+    }
+    function reasonBox(k) {
+        const c = cur(k);
+        if (!c.v && !c.r) return '';
+        return '<input class="form-control form-control-sm reason' + (c.v === 'D' && (c.r || '').trim().length < 10 ? ' is-invalid' : '') + '" data-k="' + k + '" value="' + Sec.esc(c.r || '') + '" placeholder="' +
+               (c.v === 'D' ? 'Why is this denied? (min. 10 characters)' : 'Optional note') + '" ' + (CAN_EDIT ? '' : 'disabled') + ' maxlength="500" />';
+    }
+    function controlOverrideCount(page) { return page.controls.filter(c => cur(key('c', c.control_ID)).v).length; }
+
+    function renderAll() { renderT1(); renderT2(); updatePending(); }
+
+    function renderT1() {
+        const q = $('search').value.trim().toLowerCase(), only = $('onlyOverrides').checked;
+        const hasOv = n => n.kind === 'PAGE' ? (cur(key('p', n.page_ID)).v || controlOverrideCount(n)) : (cur(key('m', n.menu_ID)).v || (n.children || []).some(hasOv));
+        const match = n => (!q || [n.title, n.page_Code, n.menu_Code].some(v => (v || '').toLowerCase().includes(q)));
+        const visible = n => (match(n) && (!only || hasOv(n))) || (n.children || []).some(visible);
+        let h = '';
+        const row = (n, parentKind) => {
+            if (!visible(n)) return;
+            if (n.kind === 'PAGE') {
+                const r = roleView(n), eff = effPage(n), k = key('p', n.page_ID), cnt = controlOverrideCount(n);
+                const from = r.decided_By === 'BYPASS' ? '<span class="sec-inh A">Allow (bypass)</span>' : lbl(r.permission === 'A' ? 'A' : (r.decided_At_Scope ? 'D' : '')) +
+                             (r.decided_At_Scope ? ' <span class="sec-code">' + Sec.scopeName(r.decided_At_Scope).toLowerCase() + '</span>' : '');
+                const chip = eff === 'A' || cnt
+                    ? '<a href="#" class="sec-chip ' + (eff === 'A' ? '' : 'off') + '" data-ctl="' + n.page_ID + '" title="' + (eff === 'A' ? 'Set this page\'s controls' : 'The page is denied - controls kept but not applied') + '">controls' + (cnt ? ' · ' + cnt : '') + '</a>'
+                    : '<span class="sec-chip off">n/a</span>';
+                h += '<tr class="lvl-PAGE under-' + parentKind + (pend.has(k) ? ' changed' : '') + '"><td class="name">' + Sec.icon(n.icon) + Sec.esc(n.title) + ' <span class="sec-code">' + Sec.esc(n.page_Code) + '</span>' +
+                     (eff === 'A' ? '' : ' <span class="badge bg-light text-danger border">cannot open</span>') + '</td><td>' + from + '</td><td>' + tri(k) + '</td><td>' + chip + '</td><td>' + reasonBox(k) + '</td></tr>';
+            } else {
+                const k = key('m', n.menu_ID), ps = T.pagesBeneath(n);
+                const roleAllowed = ps.filter(p => roleView(p).permission === 'A').length, effAllowed = ps.filter(p => effPage(p) === 'A').length;
+                h += '<tr class="lvl-' + n.kind + (pend.has(k) ? ' changed' : '') + '"><td class="name">' + Sec.icon(n.icon) + Sec.esc(n.title) + ' <span class="sec-code">' + Sec.kindLabel(n.kind) + '</span></td>' +
+                     '<td><span class="sec-inh">' + roleAllowed + ' of ' + ps.length + ' pages</span>' + (effAllowed !== roleAllowed ? ' <span class="sec-code">→ ' + effAllowed + ' with overrides</span>' : '') + '</td>' +
+                     '<td>' + tri(k) + '</td><td></td><td>' + reasonBox(k) + '</td></tr>';
+                (n.children || []).forEach(c => row(c, n.kind));
+            }
+        };
+        T.roots.forEach(n => row(n, null));
+        $('t1').innerHTML = h || '<tr><td colspan="5" class="sec-empty">Nothing matches.</td></tr>';
+    }
+
+    function openablePages() {
+        return T.roots.flatMap(T.pagesBeneath).concat(T.orphanPages).filter(p => effPage(p) === 'A' || controlOverrideCount(p));
+    }
+
+    function renderT2(pageId) {
+        const pages = openablePages();
+        const sel = $('ctlPage'), want = pageId || +sel.value;
+        sel.innerHTML = pages.map(p => '<option value="' + p.page_ID + '">' + Sec.esc(p.title) + (effPage(p) === 'A' ? '' : ' (denied - controls kept)') + (controlOverrideCount(p) ? ' · ' + controlOverrideCount(p) + ' override(s)' : '') + '</option>').join('');
+        if (pages.some(p => p.page_ID === want)) sel.value = want;
+        const page = T.pageById.get(+sel.value);
+        if (!page) {
+            $('ctlPageAccess').textContent = '';
+            $('t2wrap').innerHTML = '<div class="sec-empty"><i class="bi bi-hand-index fs-3 d-block mb-2"></i>Allow a page on the Menus &amp; Pages tab first, then set its controls here.</div>';
+            return;
+        }
+        const pageEff = effPage(page), r = roleView(page);
+        const pageOwn = cur(key('p', page.page_ID)).v;
+        $('ctlPageAccess').innerHTML = 'Page access: <b>' + (pageEff === 'A' ? 'Allow' : 'Deny') + '</b> ' + (pageOwn ? '(user override)' : r.decided_By === 'BYPASS' ? '(bypass)' : '(from ' + (r.decided_At_Scope ? 'role' : 'nothing') + ')');
+        const vocab = new Map(T.vocabulary.map(v => [v.control_Code, v]));
+        let h = pageEff === 'A' ? '' : '<div class="alert alert-warning small m-2 py-2"><i class="bi bi-exclamation-triangle me-1"></i><b>' + Sec.esc(page.title) + '</b> is denied for this user, so these controls will not apply. They are kept in case the page is allowed again.</div>';
+        h += '<table class="table table-sm sec-matrix mb-0"><thead><tr><th>Control</th><th>What it unlocks</th><th>From role</th><th>Override</th><th style="min-width:240px">Reason</th><th>Result</th></tr></thead><tbody>';
+        page.controls.forEach(c => {
+            const k = key('c', c.control_ID), eff = effControl(page, c);
+            h += '<tr class="' + (pageEff === 'A' ? '' : 'text-muted') + (pend.has(k) ? ' changed' : '') + '"><td class="fw-semibold">' + Sec.esc(c.title) + ' <span class="sec-code">' + Sec.esc(c.control_Code) + '</span>' + (c.is_Sensitive ? ' <i class="bi bi-exclamation-diamond text-danger" title="Sensitive action"></i>' : '') + '</td>' +
+                 '<td class="small">' + Sec.esc(c.control_Code === 'VIEW' ? 'Open the screen' : (vocab.get(c.control_Code) || {}).description || 'This action on the screen') + '</td><td>' + (c.control_Code === 'VIEW' ? lbl(r.permission === 'A' ? 'A' : (r.decided_At_Scope ? 'D' : ''))
+                     : roleControl(page, c.control_Code) ? lbl(roleControl(page, c.control_Code)) : '<span class="small text-muted">follows the page</span>') + '</td>' +
+                 '<td>' + (c.control_Code === 'VIEW' ? '<span class="small text-muted">set on the Menus &amp; Pages tab</span>' : tri(k)) + '</td><td>' + (c.control_Code === 'VIEW' ? '' : reasonBox(k)) + '</td>' +
+                 '<td><span class="sec-result ' + eff + '">' + (eff === 'A' ? 'Allow' : 'Deny') + '</span></td></tr>';
+        });
+        h += '</tbody></table>';
+        $('t2wrap').innerHTML = h;
+    }
+
+    function stage(k, v, r) {
+        const [kind, id] = k.split(':'), nid = +id;
+        const b = base.get(k) || { v: '', r: '' }, c = cur(k);
+        const next = { v: v ?? c.v, r: r ?? c.r };
+        if (next.v === b.v && (next.r || '') === (b.r || '')) { pend.delete(k); return; }
+        const ch = { m: null, p: null, c: null, v: next.v, r: next.r };
+        if (kind === 'm') ch.m = nid;
+        if (kind === 'p') ch.p = nid;
+        if (kind === 'c') { ch.c = nid; ch.p = [...T.pageById.values()].find(p => p.controls.some(x => x.control_ID === nid)).page_ID; }
+        pend.set(k, { ...next, change: ch });
+    }
+
+    function updatePending() {
+        const vals = [...pend.keys()];
+        const p1 = vals.filter(k => !k.startsWith('c:')).length, p2 = vals.length - p1;
+        $('pending').innerHTML = '<b>' + vals.length + '</b> pending change' + (vals.length === 1 ? '' : 's');
+        $('pip1').textContent = p1; $('pip2').textContent = p2;
+        ['btnSave', 'btnDiscard'].forEach(b => $(b) && ($(b).disabled = vals.length === 0));
+        $('otherTab').innerHTML = vals.length ? 'Unsaved: ' + p1 + ' on Menus &amp; Pages, ' + p2 + ' on Page Controls - all save together.' : '';
+    }
+
+    document.addEventListener('click', e => {
+        const b = e.target.closest('.sec-tri button');
+        if (b && !b.disabled) {
+            stage(b.dataset.k, b.dataset.v);
+            const page = $('tab2').classList.contains('active') ? +$('ctlPage').value : null;
+            renderT1(); renderT2(page); updatePending();
+            const again = document.querySelector('.sec-tri button[data-k="' + b.dataset.k + '"][data-v="' + b.dataset.v + '"]'); again && again.focus();
+            return;
+        }
+        const chip = e.target.closest('[data-ctl]');
+        if (chip) { e.preventDefault(); renderT2(+chip.dataset.ctl); bootstrap.Tab.getOrCreateInstance($('tab2btn')).show(); }
+    });
+    document.addEventListener('change', e => {
+        if (e.target.classList.contains('reason')) { stage(e.target.dataset.k, null, e.target.value); e.target.classList.toggle('is-invalid', cur(e.target.dataset.k).v === 'D' && e.target.value.trim().length < 10); updatePending(); }
+    });
+    $('ctlPage').onchange = () => renderT2();
+    let lastPage = null;
+    $('backToPages').onclick = () => { lastPage = +$('ctlPage').value; bootstrap.Tab.getOrCreateInstance($('tab1btn')).show(); };
+    $('tab1btn').addEventListener('shown.bs.tab', () => {
+        if (!lastPage) return; const p = T.pageById.get(lastPage); if (!p) return;
+        const row = [...document.querySelectorAll('#t1 tr')].find(tr => tr.textContent.includes(p.page_Code));
+        row && row.scrollIntoView({ block: 'center' });
+    });
+    $('search').oninput = renderT1; $('onlyOverrides').onchange = renderT1;
+
+    $('btnDiscard') && ($('btnDiscard').onclick = async () => { if (await Sec.confirm('Discard ' + pend.size + ' change(s)?', '', 'Discard', 'warning')) { pend.clear(); renderAll(); } });
+    $('btnSave') && ($('btnSave').onclick = () => save(false));
+
+    async function save(confirmed) {
+        const changes = [...pend.values()];
+        const badDeny = changes.filter(x => x.v === 'D' && (x.r || '').trim().length < 10);
+        if (badDeny.length) return Sec.fail('Give a short reason (at least 10 characters) for every deny - ' + badDeny.length + ' missing. It is kept with the change history.');
+        if (!confirmed) {
+            const notes = [];
+            changes.filter(x => x.change.c && x.v === 'A').forEach(x => { const p = T.pageById.get(x.change.p); if (effPage(p) !== 'A') notes.push(Sec.esc(p.title) + ' is denied for this user, so its allowed controls will not apply.'); });
+            const html = '<div class="text-start small"><div>' + changes.filter(x => !x.change.c).length + ' change(s) on Menus &amp; Pages, ' + changes.filter(x => x.change.c).length + ' on Page Controls, for <b>' + Sec.esc(bundle.user.displayName) + '</b> in <b>' +
+                         Sec.esc($('branch').selectedOptions[0].text.replace(' only', '')) + '</b>.</div>' +
+                         (notes.length ? '<div class="mt-2 text-warning-emphasis">' + notes.map(n => '<div><i class="bi bi-exclamation-triangle me-1"></i>' + n + '</div>').join('') + '</div>' : '') +
+                         '<div class="mt-2 text-muted">Applies on their next request.</div></div>';
+            if (!await Sec.confirm('Save all changes?', html, 'Save')) return;
+        }
+        const r = await Sec.post('@Url.Action("SaveUserGrantsJson")', {
+            targetId: +$('user').value, branchId: +$('branch').value || null, expectedVersion: bundle.version, confirmed, changes: changes.map(x => x.change)
+        });
+        if (!r.success) {
+            if (r.code === 'CONCURRENT') { if (await Sec.confirm('Someone else saved this user', Sec.esc(r.message), 'Reload', 'warning')) { pend.clear(); load(true); } return; }
+            return Sec.fail(r.message);
+        }
+        if (r.data.status === 'CONFIRM') {
+            if (await Sec.confirm('Large change', 'This changes <b>' + r.data.changes + '</b> grants. Confirm to continue.', 'Confirm and save', 'warning')) return save(true);
+            return;
+        }
+        Sec.ok(r.data.changes + ' change(s) saved'); pend.clear(); load(true);
+    }
+
+    $('btnHistory').onclick = async () => {
+        const r = await Sec.get('@Url.Action("GetUserHistoryJson")', { userId: $('user').value });
+        if (!r.success) return Sec.fail(r.message);
+        const l = v => v === 'A' ? '<span class="sec-result A">Allow</span>' : v === 'D' ? '<span class="sec-result D">Deny</span>' : '<span class="text-muted">Inherit</span>';
+        $('histBody').innerHTML = r.rows.length ? r.rows.map(h => '<tr><td class="text-nowrap">' + new Date(h.changed_On).toLocaleString() + '</td><td>' + Sec.esc(h.changedBy) + '</td><td>' + Sec.esc(h.scope) + '</td><td>' + Sec.esc(h.target) +
+            '</td><td>' + Sec.esc(h.branch) + '</td><td>' + l(h.old_Value) + '</td><td>' + l(h.new_Value) + '</td><td class="small">' + Sec.esc(h.reason || '') + '</td></tr>').join('')
+            : '<tr><td colspan="8" class="sec-empty">No changes recorded yet.</td></tr>';
+        bootstrap.Modal.getOrCreateInstance($('histModal')).show();
+    };
+
+    async function guard() { return !pend.size || await Sec.confirm(pend.size + ' changes are not saved', 'Including ' + $('pip2').textContent + ' on Page Controls. Discard them?', 'Discard', 'warning'); }
+    let lastUser = $('user').value, lastBranch = '';
+    $('user').onchange = async () => { if (await guard()) { lastUser = $('user').value; load(false); } else $('user').value = lastUser; };
+    $('branch').onchange = async () => { if (await guard()) { lastBranch = $('branch').value; load(true); } else $('branch').value = lastBranch; };
+    if ($('user').value) load(false);
+})();
+</script>
+}

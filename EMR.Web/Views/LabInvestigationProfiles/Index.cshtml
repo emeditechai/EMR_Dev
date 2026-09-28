@@ -20,10 +20,10 @@
             </h4>
         </div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
+            <button asp-permission="MASTER.LABINVESTIGATIONPROFILES:IMPORT" type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
                 <i class="bi bi-file-earmark-excel me-1"></i> Bulk Upload
             </button>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABINVESTIGATIONPROFILES:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add New Profile / Package
             </a>
         </div>
@@ -169,7 +169,7 @@
                                         <span class="badge bg-light text-dark border">@item.Applicable_Gender</span>
                                     </td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Profile_ID" method="post" class="d-inline">
+                                        <form asp-permission="MASTER.LABINVESTIGATIONPROFILES:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.Profile_ID" method="post" class="d-inline">
                                             <input type="hidden" name="status" value="@((!item.Status).ToString().ToLower())" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
                                                 @if (item.Status)
@@ -189,13 +189,13 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Profile_ID" class="btn btn-outline-info" title="View Header & Details">
+                                            <a asp-permission="MASTER.LABINVESTIGATIONPROFILES:DETAILS" asp-action="Details" asp-encrypted-id="@item.Profile_ID" class="btn btn-outline-info" title="View Header & Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Profile_ID" class="btn btn-outline-primary" title="Edit Profile">
+                                            <a asp-permission="MASTER.LABINVESTIGATIONPROFILES:EDIT" asp-action="Edit" asp-encrypted-id="@item.Profile_ID" class="btn btn-outline-primary" title="Edit Profile">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Profile_ID" title="Delete">
+                                            <button asp-permission="MASTER.LABINVESTIGATIONPROFILES:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Profile_ID" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -215,7 +215,7 @@
                                                     </div>
                                                     <div class="modal-footer border-0">
                                                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-encrypted-id="@item.Profile_ID" method="post">
+                                                        <form asp-permission="MASTER.LABINVESTIGATIONPROFILES:DELETE" asp-action="Delete" asp-encrypted-id="@item.Profile_ID" method="post">
                                                             <button type="submit" class="btn btn-danger">Delete</button>
                                                         </form>
                                                     </div>

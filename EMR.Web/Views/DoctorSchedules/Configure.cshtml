@@ -105,7 +105,7 @@
                                                 <button class="btn btn-sm btn-light border shadow-xs" title="Edit" onclick="editSchedule(@s.ScheduleId, @s.DayOfWeek, '@s.StartTime', '@s.EndTime', @s.SlotDurationMinutes, @s.MaxPatientsPerSlot, @(s.MaxPatientsPerSession ?? 0), '@s.EffectiveFrom.ToString("yyyy-MM-dd")', '@(s.EffectiveTo?.ToString("yyyy-MM-dd") ?? "")')">
                                                     <i class="bi bi-pencil text-primary"></i>
                                                 </button>
-                                                <button class="btn btn-sm btn-light border text-danger shadow-xs" title="Delete" onclick="deleteSchedule(@s.ScheduleId)">
+                                                <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-light border text-danger shadow-xs" title="Delete" onclick="deleteSchedule(@s.ScheduleId)">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </td>
@@ -156,7 +156,7 @@
                                                                 <button type="button" class="btn btn-xs p-0 text-muted" onclick="event.stopPropagation(); editSchedule(@s.ScheduleId, @s.DayOfWeek, '@s.StartTime', '@s.EndTime', @s.SlotDurationMinutes, @s.MaxPatientsPerSlot, @(s.MaxPatientsPerSession ?? 0), '@s.EffectiveFrom.ToString("yyyy-MM-dd")', '@(s.EffectiveTo?.ToString("yyyy-MM-dd") ?? "")')">
                                                                     <i class="bi bi-pencil" style="font-size: 0.7rem;"></i>
                                                                 </button>
-                                                                <button type="button" class="btn btn-xs p-0 text-danger" onclick="event.stopPropagation(); deleteSchedule(@s.ScheduleId)">
+                                                                <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" type="button" class="btn btn-xs p-0 text-danger" onclick="event.stopPropagation(); deleteSchedule(@s.ScheduleId)">
                                                                     <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
                                                                 </button>
                                                             </div>
@@ -235,7 +235,7 @@
                                                     @e.Reason
                                                 </div>
                                             </div>
-                                            <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(@e.ExceptionId)">
+                                            <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-light text-danger border" onclick="deleteException(@e.ExceptionId)">
                                                 <i class="bi bi-x-lg"></i>
                                             </button>
                                         </li>
@@ -265,7 +265,7 @@
                                                     @e.Reason
                                                 </div>
                                             </div>
-                                            <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(@e.ExceptionId)">
+                                            <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-light text-danger border" onclick="deleteException(@e.ExceptionId)">
                                                 <i class="bi bi-x-lg"></i>
                                             </button>
                                         </li>
@@ -292,7 +292,7 @@
                                                 <div class="fw-semibold">@e.ExceptionDate.ToString("MMM dd, yyyy")</div>
                                                 <div>@e.ExceptionType - @e.Reason</div>
                                             </div>
-                                            <button class="btn btn-sm btn-link text-danger p-1 text-decoration-none" onclick="deleteException(@e.ExceptionId)">
+                                            <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-link text-danger p-1 text-decoration-none" onclick="deleteException(@e.ExceptionId)">
                                                 <i class="bi bi-x-lg"></i>
                                             </button>
                                         </li>
@@ -1003,7 +1003,7 @@
                         <button class="btn btn-sm btn-light border shadow-xs" title="Edit" onclick="editSchedule(${s.scheduleId}, ${s.dayOfWeek}, '${s.startTime}', '${s.endTime}', ${s.slotDurationMinutes}, ${s.maxPatientsPerSlot}, ${s.maxPatientsPerSession || 0}, '${formatDateISO(s.effectiveFrom)}', '${s.effectiveTo ? formatDateISO(s.effectiveTo) : ''}')">
                             <i class="bi bi-pencil text-primary"></i>
                         </button>
-                        <button class="btn btn-sm btn-light border text-danger shadow-xs" title="Delete" onclick="deleteSchedule(${s.scheduleId})">
+                        <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-light border text-danger shadow-xs" title="Delete" onclick="deleteSchedule(${s.scheduleId})">
                             <i class="bi bi-trash"></i>
                         </button>
                     </td>
@@ -1042,7 +1042,7 @@
                                         <button type="button" class="btn btn-xs p-0 text-muted" onclick="event.stopPropagation(); editSchedule(${s.scheduleId}, ${s.dayOfWeek}, '${s.startTime}', '${s.endTime}', ${s.slotDurationMinutes}, ${s.maxPatientsPerSlot}, ${s.maxPatientsPerSession || 0}, '${formatDateISO(s.effectiveFrom)}', '${s.effectiveTo ? formatDateISO(s.effectiveTo) : ''}')">
                                             <i class="bi bi-pencil" style="font-size: 0.7rem;"></i>
                                         </button>
-                                        <button type="button" class="btn btn-xs p-0 text-danger" onclick="event.stopPropagation(); deleteSchedule(${s.scheduleId})">
+                                        <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" type="button" class="btn btn-xs p-0 text-danger" onclick="event.stopPropagation(); deleteSchedule(${s.scheduleId})">
                                             <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
                                         </button>
                                     </div>
@@ -1106,7 +1106,7 @@
                                 ${e.reason || ''}
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(${e.exceptionId})">
+                        <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-light text-danger border" onclick="deleteException(${e.exceptionId})">
                             <i class="bi bi-x-lg"></i>
                         </button>
                     `;
@@ -1130,7 +1130,7 @@
                                 ${e.reason || ''}
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-light text-danger border" onclick="deleteException(${e.exceptionId})">
+                        <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-light text-danger border" onclick="deleteException(${e.exceptionId})">
                             <i class="bi bi-x-lg"></i>
                         </button>
                     `;
@@ -1151,7 +1151,7 @@
                             <div class="fw-semibold">${formatDate(e.exceptionDate)}</div>
                             <div>${e.exceptionType} - ${e.reason || ''}</div>
                         </div>
-                        <button class="btn btn-sm btn-link text-danger p-1 text-decoration-none" onclick="deleteException(${e.exceptionId})">
+                        <button data-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="btn btn-sm btn-link text-danger p-1 text-decoration-none" onclick="deleteException(${e.exceptionId})">
                             <i class="bi bi-x-lg"></i>
                         </button>
                     `;

@@ -1,0 +1,54 @@
+@model List<EMR.Web.ViewComponents.NavItem>
+@using EMR.Web.ViewComponents
+@* Same markup as the hard-coded bar in _Layout.cshtml, so switching the flag changes nothing visually. *@
+<ul class="navbar-nav me-auto mb-2 mb-xl-0 emr-main-menu">
+    @foreach (var nav in Model)
+    {
+        var single = nav.SingleLink;
+        if (single != null)
+        {
+            <li class="nav-item">
+                <a class="nav-link" href="@single.Url" target="@single.Target"><i class="@(single.Icon ?? nav.Icon)"></i>@nav.Title</a>
+            </li>
+            continue;
+        }
+        var navId = nav.Code.ToLowerInvariant() + "Menu";
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="@navId" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="@nav.Icon"></i>@nav.Title
+            </a>
+            <ul class="dropdown-menu dropdown-menu-@nav.Code.ToLowerInvariant()" aria-labelledby="@navId">
+                @RenderChildren(nav.Children!)
+            </ul>
+        </li>
+    }
+</ul>
+
+@functions {
+    private Microsoft.AspNetCore.Html.IHtmlContent RenderChildren(List<NavItem> items)
+    {
+        NavItem? previous = null;
+        var html = new Microsoft.AspNetCore.Html.HtmlContentBuilder();
+        foreach (var item in items)
+        {
+            if (NavItem.DividerBetween(previous, item))
+                html.AppendHtml("<li><hr class=\"dropdown-divider\"></li>");
+            if (item.IsGroup)
+            {
+                html.AppendHtml("<li class=\"dropdown-submenu\"><a class=\"dropdown-item dropdown-submenu-toggle\" href=\"#\">");
+                html.AppendHtml("<i class=\"").Append(item.Icon ?? string.Empty).AppendHtml("\"></i>").Append(item.Title);
+                html.AppendHtml("<i class=\"bi bi-chevron-right ms-auto submenu-arrow\"></i></a><ul class=\"dropdown-menu dropdown-submenu-menu\">");
+                html.AppendHtml(RenderChildren(item.Children!));
+                html.AppendHtml("</ul></li>");
+            }
+            else
+            {
+                html.AppendHtml("<li><a class=\"dropdown-item\" href=\"").Append(item.Url ?? "#").AppendHtml("\"");
+                if (!string.IsNullOrEmpty(item.Target)) html.AppendHtml(" target=\"").Append(item.Target).AppendHtml("\"");
+                html.AppendHtml("><i class=\"").Append(item.Icon ?? string.Empty).AppendHtml("\"></i>").Append(item.Title).AppendHtml("</a></li>");
+            }
+            previous = item;
+        }
+        return html;
+    }
+}

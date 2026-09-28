@@ -1,8 +1,11 @@
+using EMR.Shared.Security;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EMR.Web.Controllers;
 
+// Infrastructure used by every screen (query-string encryption, API-unavailable page), not a screen itself.
+[PublicEndpoint]
 public class HomeController(IQueryStringEncryptionService encryptionService) : Controller
 {
     [HttpPost]

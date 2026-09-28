@@ -39,7 +39,8 @@ public class OPDController(
     IDbConnectionFactory db,
     ILedgerService ledgerService,
     ILabReportEmailService labReportEmailService,
-    ILabReportWhatsAppService labReportWhatsAppService) : Controller
+    ILabReportWhatsAppService labReportWhatsAppService,
+    EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -272,6 +273,12 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> PatientRegistration(int? id, int? doctorId = null, string? date = null, int? scheduleId = null, string? time = null)
     {
+        // Booking a slot from the Doctor Roster is its own action there (Settings > Security: Doctor Roster > Book slot).
+        if (scheduleId.HasValue && !string.IsNullOrWhiteSpace(time)
+            && !await permissionGuard.AllowsAsync(HttpContext, "OPD.DOCTORROSTER", "BOOK_SLOT"))
+            return RedirectToAction("AccessDenied", "Account",
+                new { returnUrl = Request.Path + Request.QueryString, page = "OPD.DOCTORROSTER", control = "BOOK_SLOT" });
+
         ViewData["Title"] = id.HasValue ? "Edit Patient" : "Patient Registration";
         PatientRegistrationViewModel model;
 
@@ -667,6 +674,9 @@ public class OPDController(
                 catch { /* malformed payment data is reported by the normal flow */ }
                 if (PaymentService.IsDiscountApprovalMissing(discountCheck))
                     return Json(new { success = false, error = PaymentService.DiscountApprovalRequiredMessage });
+                if (PaymentService.HasDiscount(discountCheck)
+                    && !await permissionGuard.AllowsAsync(HttpContext, "OPD.PATIENTREGISTRATION", EMR.Shared.Security.PermissionControls.Discount))
+                    return Json(new { success = false, error = PaymentService.DiscountNotPermittedMessage });
             }
 
             List<OPDServiceLineItem>? lineItems = null;
@@ -2238,6 +2248,9 @@ public class OPDController(
     {
         if (!ModelState.IsValid)
             return Json(new SavePaymentResult { Success = false, Error = "Invalid request." });
+
+        if (!await DiscountPermission.AllowsPaymentAsync(HttpContext, permissionGuard, paymentSummaryApiClient, request))
+            return Json(new SavePaymentResult { Success = false, Error = PaymentService.DiscountNotPermittedMessage });
 
         var userId = User.GetUserId();
         var result = await paymentService.SavePaymentAsync(request, userId);

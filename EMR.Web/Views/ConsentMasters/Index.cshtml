@@ -27,7 +27,7 @@
             <p class="text-muted small mb-0 mt-1">Manage standard hospital informed consent forms, rich text templates, and multi-department protocols.</p>
         </div>
         <div class="d-flex gap-2">
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm d-flex align-items-center gap-2">
+            <a asp-permission="MASTER.CONSENTMASTERS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm d-flex align-items-center gap-2">
                 <i class="bi bi-plus-circle-fill"></i>
                 <span>Add Consent Template</span>
             </a>
@@ -194,13 +194,13 @@
                                     </td>
                                     <td class="text-end pe-3">
                                         <div class="btn-group btn-group-sm">
-                                            <a asp-action="Details" asp-route-id="@item.Consent_ID" class="btn btn-outline-secondary" title="View Template & Metadata">
+                                            <a asp-permission="MASTER.CONSENTMASTERS:DETAILS" asp-action="Details" asp-route-id="@item.Consent_ID" class="btn btn-outline-secondary" title="View Template & Metadata">
                                                 <i class="bi bi-eye-fill"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-route-id="@item.Consent_ID" class="btn btn-outline-primary" title="Edit Template">
+                                            <a asp-permission="MASTER.CONSENTMASTERS:EDIT" asp-action="Edit" asp-route-id="@item.Consent_ID" class="btn btn-outline-primary" title="Edit Template">
                                                 <i class="bi bi-pencil-fill"></i>
                                             </a>
-                                            <form asp-action="Delete" asp-route-id="@item.Consent_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Consent Master template?');">
+                                            <form asp-permission="MASTER.CONSENTMASTERS:DELETE" asp-action="Delete" asp-route-id="@item.Consent_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Consent Master template?');">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-outline-danger" title="Delete Template">
                                                     <i class="bi bi-trash-fill"></i>
@@ -219,7 +219,7 @@
                                     <i class="bi bi-file-earmark-x fs-1 text-secondary opacity-50 d-block mb-2"></i>
                                     <h6>No Consent Master templates found</h6>
                                     <p class="small mb-3">Try adjusting your filters or create a new consent master template.</p>
-                                    <a asp-action="Create" class="btn btn-sm btn-primary">
+                                    <a asp-permission="MASTER.CONSENTMASTERS:ADD" asp-action="Create" class="btn btn-sm btn-primary">
                                         <i class="bi bi-plus-circle me-1"></i>Add Consent Template
                                     </a>
                                 </td>

@@ -21,7 +21,6 @@ using EMR.Web.Services;
 namespace EMR.Web.Controllers
 {
     [Authorize]
-    [EMR.Web.Filters.LabReportingAccess]
     public class LabImageReportingController(
         ILabReportingApiClient labReportingApiClient,
         ILabOrderApiClient labOrderApiClient,
@@ -32,7 +31,8 @@ namespace EMR.Web.Controllers
         ILabReportEmailService labReportEmailService,
         ILabReportWhatsAppService labReportWhatsAppService,
         EMR.Web.Data.ApplicationDbContext dbContext,
-        ILabReportPdfService pdfService) : Controller
+        ILabReportPdfService pdfService,
+        EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
     {
         private int CurrentBranchId()
             => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
@@ -116,6 +116,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> Index(
             DateTime? fromDate,
             DateTime? toDate,
@@ -182,6 +183,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> GetHeadersJson(
             DateTime? fromDate,
             DateTime? toDate,
@@ -216,6 +218,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> Entry(int labOrderId)
         {
             if (labOrderId <= 0)
@@ -270,6 +273,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> GetTemplateJson(int testId, int labOrderId, long sampleCollectionId, bool forceDefault = false)
         {
             if (testId <= 0 || labOrderId <= 0)
@@ -378,6 +382,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpPost]
+        [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> SaveReportJson([FromBody] SaveLabReportingRequestDto request)
         {
             if (request == null || request.LabOrderId <= 0)
@@ -385,6 +390,11 @@ namespace EMR.Web.Controllers
 
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
+
+            // Approving is its own control (Settings > Security): the page's VIEW lets a user enter and validate, not approve.
+            if (request.ReportStatusId == 5
+                && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABIMAGEREPORTING", EMR.Shared.Security.PermissionControls.Approve))
+                return Json(new { success = false, code = "FORBIDDEN", message = "You do not have permission to approve reports." });
 
             if (request.ReportStatusId == 5 && await PathologistApprovalRequiredAsync())
             {

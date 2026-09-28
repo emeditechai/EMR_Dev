@@ -15,7 +15,7 @@
         <a asp-controller="Buildings" asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-building me-1"></i>Building Master
         </a>
-        <a asp-action="Create" asp-route-buildingId="@ViewBag.BuildingId" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.FLOORS:ADD" asp-action="Create" asp-route-buildingId="@ViewBag.BuildingId" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Floor
         </a>
     </div>
@@ -100,11 +100,11 @@
                     </td>
                     <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.FloorId"
+                        <a asp-permission="MASTER.FLOORS:DETAILS" asp-action="Details" asp-route-id="@item.FloorId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.FloorId"
+                        <a asp-permission="MASTER.FLOORS:EDIT" asp-action="Edit" asp-route-id="@item.FloorId"
                            class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
@@ -116,7 +116,7 @@
                 <tr>
                     <td colspan="7" class="text-center text-muted py-5">
                         <i class="bi bi-layers fs-1 d-block mb-2 opacity-50"></i>
-                        No floors found. <a asp-action="Create">Add one now.</a>
+                        No floors found. <a asp-permission="MASTER.FLOORS:ADD" asp-action="Create">Add one now.</a>
                     </td>
                 </tr>
             }

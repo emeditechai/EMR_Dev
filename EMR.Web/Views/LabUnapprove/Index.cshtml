@@ -136,7 +136,7 @@
                     </div>
                     <div id="actionBar" class="d-none d-flex gap-2">
                         <a class="btn btn-outline-primary btn-sm" id="lnkEntry" target="_blank" title="Open the Lab Reporting Entry page"><i class="bi bi-box-arrow-up-right me-1"></i>Open Entry</a>
-                        <button type="button" class="btn btn-warning btn-sm fw-semibold" id="btnUnapproveSelected" disabled><i class="bi bi-unlock me-1"></i>Un-Approve Selected <span class="badge bg-dark ms-1" id="selCount">0</span></button>
+                        <button type="button" class="btn btn-warning btn-sm fw-semibold" id="btnUnapproveSelected" asp-permission="LAB.LABUNAPPROVE:UNAUTHORIZE" disabled><i class="bi bi-unlock me-1"></i>Un-Approve Selected <span class="badge bg-dark ms-1" id="selCount">0</span></button>
                     </div>
                 </div>
                 <div class="panel-body p-3">
@@ -202,6 +202,7 @@
     <partial name="_LabAuditHistoryScripts" />
     <script>
         $(function () {
+            const CAN_UNAPPROVE = emrCan('LAB.LABUNAPPROVE', 'UNAUTHORIZE');
             const urls = {
                 headers: '@Url.Action("GetHeadersJson", "LabUnapprove")',
                 detail: '@Url.Action("GetDetailJson", "LabUnapprove")',
@@ -312,7 +313,7 @@
                         + '<td class="val-pill fs-8">' + (t.testValue ? esc(t.testValue) + flag : '—') + '</td>'
                         + '<td><span class="badge ' + (t.isApproved ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border') + ' fs-9">' + esc(t.reportStatusName || '—') + '</span></td>'
                         + '<td class="fs-9">' + (t.isApproved ? fmt(t.approvedDate) + '<div class="text-muted">' + esc(t.approvedByName || '') + '</div>' : '—') + '</td>'
-                        + '<td class="text-end">' + (t.isApproved && !inProfile ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fs-9 btn-unapprove-one" data-id="' + t.samplecollectionID + '"><i class="bi bi-unlock me-1"></i>Un-Approve</button>' : '') + '</td>'
+                        + '<td class="text-end">' + (t.isApproved && !inProfile && CAN_UNAPPROVE ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fs-9 btn-unapprove-one" data-id="' + t.samplecollectionID + '"><i class="bi bi-unlock me-1"></i>Un-Approve</button>' : '') + '</td>'
                         + '</tr>';
                 };
 
@@ -338,7 +339,7 @@
                         + '<td colspan="4"><i class="bi bi-folder2-open me-1"></i>' + esc(g.name)
                         +   ' <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-9 ms-1">Profile</span>'
                         +   ' <span class="fw-normal text-muted fs-9 ms-1">' + ap + '/' + g.tests.length + ' tests approved</span></td>'
-                        + '<td class="text-end">' + (ap ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fs-9 btn-unapprove-profile" data-profile="' + g.id + '"><i class="bi bi-unlock me-1"></i>Un-Approve Profile</button>' : '') + '</td>'
+                        + '<td class="text-end">' + (ap && CAN_UNAPPROVE ? '<button type="button" class="btn btn-outline-warning btn-sm py-0 px-2 fs-9 btn-unapprove-profile" data-profile="' + g.id + '"><i class="bi bi-unlock me-1"></i>Un-Approve Profile</button>' : '') + '</td>'
                         + '</tr>');
                     g.tests.forEach(t => $tb.append(testRow(t, g.id)));
                 });

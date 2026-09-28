@@ -45,7 +45,7 @@
             <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-diagram-3-fill me-2"></i>Branch Master</h4>
             <div class="text-muted small mt-1">Operating branches of each parent organization. One Head Office per company.</div>
         </div>
-        <a asp-action="Create" asp-route-companyId="@selectedCompanyId" class="btn btn-primary px-3 shadow-sm">
+        <a asp-permission="SETTINGS.BRANCHES:ADD" asp-action="Create" asp-route-companyId="@selectedCompanyId" class="btn btn-primary px-3 shadow-sm">
             <i class="bi bi-building-add me-1"></i> Add Branch
         </a>
     </div>
@@ -195,7 +195,7 @@
                                     <div class="d-flex align-items-center gap-3">
                                         <span class="bm-tile" style="background:@color;">@initials</span>
                                         <div>
-                                            <a asp-action="Details" asp-route-id="@b.BranchId" class="bm-name text-decoration-none">@b.BranchName</a>
+                                            <a asp-permission="SETTINGS.BRANCHES:DETAILS" asp-action="Details" asp-route-id="@b.BranchId" class="bm-name text-decoration-none">@b.BranchName</a>
                                             <div class="bm-sub mt-1"><span class="bm-code">@b.BranchCode</span></div>
                                         </div>
                                     </div>
@@ -243,8 +243,8 @@
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="Details" asp-route-id="@b.BranchId" class="btn btn-outline-secondary" title="View"><i class="bi bi-eye-fill"></i></a>
-                                        <a asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-outline-primary ms-1" title="Edit"><i class="bi bi-pencil-fill"></i></a>
+                                        <a asp-permission="SETTINGS.BRANCHES:DETAILS" asp-action="Details" asp-route-id="@b.BranchId" class="btn btn-outline-secondary" title="View"><i class="bi bi-eye-fill"></i></a>
+                                        <a asp-permission="SETTINGS.BRANCHES:EDIT" asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-outline-primary ms-1" title="Edit"><i class="bi bi-pencil-fill"></i></a>
                                     </div>
                                 </td>
                             </tr>

@@ -33,7 +33,8 @@ namespace EMR.Web.Controllers
         ILabReportEmailService labReportEmailService,
         ILabReportWhatsAppService labReportWhatsAppService,
         ILabFormulaParameterApiClient labFormulaApiClient,
-        IQueryStringEncryptionService encryptionService) : Controller
+        IQueryStringEncryptionService encryptionService,
+        EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
     {
         [HttpGet]
         [EMR.Web.Filters.LabReportingAccess]
@@ -397,6 +398,11 @@ namespace EMR.Web.Controllers
 
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
+
+            // Approving is its own control (Settings > Security): the page's VIEW lets a user enter and validate, not approve.
+            if (request.ReportStatusId == 5
+                && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Approve))
+                return Json(new { success = false, code = "FORBIDDEN", message = "You do not have permission to approve reports." });
 
             // With pathologist approval switched on, only the Pathologist Dashboard may approve.
             if (request.ReportStatusId == 5 && await PathologistApprovalRequiredAsync())

@@ -8,7 +8,7 @@
         <h1 class="h3 mb-0 fw-bold">EMR Medication Master</h1>
         <small class="text-muted">Manage the medication catalogue used in EMR template prescription fields</small>
     </div>
-    <a asp-action="Create" class="btn btn-primary">
+    <a asp-permission="MASTER.EMRMEDICATIONS:ADD" asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add Medication
     </a>
 </div>
@@ -86,7 +86,7 @@
                             }
                         </td>
                         <td class="text-end">
-                            <a asp-action="Edit" asp-route-id="@item.MedicationId" class="btn btn-sm btn-outline-primary" title="Edit">
+                            <a asp-permission="MASTER.EMRMEDICATIONS:EDIT" asp-action="Edit" asp-route-id="@item.MedicationId" class="btn btn-sm btn-outline-primary" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </a>
                         </td>
@@ -97,7 +97,7 @@
                     <tr>
                         <td colspan="8" class="text-center text-muted py-5">
                             <i class="bi bi-capsule fs-2 d-block mb-2 opacity-50"></i>
-                            No medications found. <a asp-action="Create">Add one now.</a>
+                            No medications found. <a asp-permission="MASTER.EMRMEDICATIONS:ADD" asp-action="Create">Add one now.</a>
                         </td>
                     </tr>
                 }

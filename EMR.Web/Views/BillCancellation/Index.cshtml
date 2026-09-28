@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Bill Cancellation & Refund";
     string moduleCode = ViewBag.ModuleCode ?? "LAB";
+    string bcPage = moduleCode == "OPD" ? "OPD.BILLCANCELLATION.OPD" : "LAB.BILLCANCELLATION.LAB";
 }
 
 
@@ -357,7 +358,7 @@
                     </div>
 
                     <div class="d-flex align-items-center gap-3 flex-wrap">
-                        <button class="btn btn-danger fw-semibold px-4" id="btnSubmitCancel"
+                        <button class="btn btn-danger fw-semibold px-4" id="btnSubmitCancel" asp-permission="@(bcPage + ":CANCEL")" asp-permission-mode="hide"
                                 onclick="submitCancellation()" disabled>
                             <i class="bi bi-x-circle-fill me-1"></i>Confirm Cancellation
                         </button>
@@ -413,7 +414,7 @@
                             <textarea id="crRefundNotes" class="form-control form-control-sm" rows="2"
                                       placeholder="Additional notes..."></textarea>
                         </div>
-                        <button class="btn btn-success fw-semibold px-4" id="btnSubmitRefund" onclick="submitRefund()">
+                        <button class="btn btn-success fw-semibold px-4" id="btnSubmitRefund" asp-permission="@(bcPage + ":REFUND")" asp-permission-mode="hide" onclick="submitRefund()">
                             <i class="bi bi-cash-coin me-1"></i>Process Refund
                         </button>
                     </div>

@@ -21,7 +21,8 @@ public class LabApprovalFlowsController(
     ILabApprovalFlowApiClient flowApiClient,
     ILabTestCategoryApiClient categoryApiClient,
     ApplicationDbContext dbContext,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    Microsoft.Extensions.Options.IOptionsMonitor<EMR.Shared.Security.EmrAuthorizationOptions> authzOptions) : Controller
 {
     private const string PageName = "Pathologist Approval Flow";
 
@@ -400,8 +401,11 @@ public class LabApprovalFlowsController(
             : csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                  .Select(x => int.TryParse(x, out var id) ? id : 0).Where(id => id > 0).Distinct().ToList();
 
-    /// <summary>Configuration is for administrators only.</summary>
-    private bool CanManage() => User.IsCompanyAdmin();
+    /// <summary>
+    /// Configuration is for administrators only - until the SETTINGS module is enforced (Settings > Security); from then
+    /// on the role grants on this page decide, and the permission filter has already checked them.
+    /// </summary>
+    private bool CanManage() => authzOptions.CurrentValue.IsEnforced("SETTINGS.LABAPPROVALFLOWS") || User.IsCompanyAdmin();
 
     private IActionResult Denied()
     {

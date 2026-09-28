@@ -160,7 +160,7 @@
 
         @* Left Column: Configuration Form *@
         <div class="col-12 col-lg-7">
-            <form method="post" asp-action="Save">
+            <form asp-permission="SETTINGS.WHATSAPPCONFIG:EDIT" method="post" asp-action="Save">
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="Id" />
                 <input type="hidden" asp-for="BranchId" />
@@ -401,7 +401,7 @@
                 </div>
 
                 <div class="d-grid">
-                    <button type="button" id="btnSendTest" class="btn btn-success fw-semibold shadow-sm" onclick="sendTestWhatsApp()">
+                    <button asp-permission="SETTINGS.WHATSAPPCONFIG:TEST" type="button" id="btnSendTest" class="btn btn-success fw-semibold shadow-sm" onclick="sendTestWhatsApp()">
                         <i class="bi bi-whatsapp me-1"></i> Send Test Message
                     </button>
                 </div>
@@ -494,7 +494,7 @@
     <div class="modal fade" id="copyConfigModal" tabindex="-1" aria-labelledby="copyConfigModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-                <form asp-action="CopyToBranch" method="post" id="copyConfigForm">
+                <form asp-permission="SETTINGS.WHATSAPPCONFIG:COPY_TO_BRANCH" asp-action="CopyToBranch" method="post" id="copyConfigForm">
                     @Html.AntiForgeryToken()
                     <div class="modal-header bg-gradient bg-primary text-white px-4 py-3 border-0">
                         <div class="d-flex align-items-center gap-2">

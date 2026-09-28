@@ -1,0 +1,308 @@
+@model EMR.Web.Models.ViewModels.SecurityPageViewModel
+@section HeadStyles { <link rel="stylesheet" href="~/css/security-admin.css" asp-append-version="true" /> }
+
+<form id="secAntiForgery">@Html.AntiForgeryToken()</form>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Dashboard" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Settings</li><li class="breadcrumb-item text-muted">Security</li>
+                <li class="breadcrumb-item active" aria-current="page">Role Permissions</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-person-lock me-2"></i>Role Permissions</h4>
+            <div class="text-muted small">Grant at any level - nav bar item, menu item, sub-menu item, page or a single control. The innermost row wins; a tick high up covers everything beneath it that has no row of its own.</div>
+        </div>
+        <span class="sec-mode @Model.Mode.ToLowerInvariant()"><i class="bi bi-shield-check me-1"></i>@Model.Mode mode</span>
+    </div>
+
+    <div class="card sec-card mb-3">
+        <div class="card-body py-2 sec-toolbar">
+            <label class="small fw-semibold" for="role">Role</label>
+            <select class="form-select form-select-sm" style="width:auto;min-width:200px" id="role">
+                <option value="">— choose a role —</option>
+                @foreach (var r in Model.Roles) { <option value="@r.Id" selected="@(Model.PreselectId == r.Id)">@r.Name (@r.Extra user@(r.Extra == "1" ? "" : "s"))</option> }
+            </select>
+            <label class="small fw-semibold ms-2" for="branch">Applies in</label>
+            <select class="form-select form-select-sm" style="width:auto" id="branch">
+                <option value="">All branches</option>
+                @foreach (var b in Model.Branches) { <option value="@b.Id">@b.Name only</option> }
+            </select>
+            <label class="small fw-semibold ms-2" for="module">Module</label>
+            <select class="form-select form-select-sm" style="width:auto" id="module"><option value="">All</option></select>
+            <input class="form-control form-control-sm" style="max-width:220px" id="search" placeholder="Search page, code, controller…" />
+            <span class="sec-pending ms-auto" id="summary"></span>
+        </div>
+        <div class="card-body border-top py-2 sec-toolbar">
+            <span class="sec-pending" id="pending"><b>0</b> pending changes</span>
+            <span class="sec-pending" id="lastChange"></span>
+            <div class="ms-auto d-flex gap-1">
+                <button class="btn btn-outline-secondary btn-sm" id="btnHistory" disabled><i class="bi bi-clock-history me-1"></i>History</button>
+                @if (Model.CanEdit)
+                {
+                    <button class="btn btn-outline-secondary btn-sm" id="btnCopy" disabled><i class="bi bi-files me-1"></i>Copy from role…</button>
+                    <button class="btn btn-outline-danger btn-sm" id="btnClear" disabled><i class="bi bi-eraser me-1"></i>Clear role</button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnDiscard" disabled>Discard</button>
+                    <button class="btn btn-primary btn-sm" id="btnSave" disabled><i class="bi bi-check2-circle me-1"></i>Save changes</button>
+                }
+            </div>
+        </div>
+    </div>
+
+
+    <div class="card sec-card">
+        <div class="card-header sec-legend">
+            <span><span class="sec-cell A">✓</span> Allow</span><span><span class="sec-cell D">✕</span> Deny</span><span><span class="sec-cell"></span> Not set - follows the level above</span>
+            <span><span class="sec-cell inh-A"></span> / <span class="sec-cell inh-D"></span> what it inherits</span><span><span class="sec-cell dirty"></span> changed, not saved</span>
+            <span class="ms-auto">An action follows its page unless set - untick (Deny) what this role must not do.</span>
+        </div>
+        <div class="sec-scroll" id="gridWrap"><div class="sec-empty"><i class="bi bi-person-lock fs-3 d-block mb-2"></i>Choose a role to see and edit its permissions.</div></div>
+    </div>
+</div>
+
+<!-- history -->
+<div class="modal fade" id="histModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Change history</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body p-0"><table class="table table-sm mb-0" style="font-size:.82rem"><thead class="table-light"><tr><th>When</th><th>Who</th><th>Scope</th><th>What</th><th>Branch</th><th>From</th><th>To</th><th>Reason</th></tr></thead><tbody id="histBody"></tbody></table></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/security-admin.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const CAN_EDIT = @Json.Serialize(Model.CanEdit);
+    const roles = @Json.Serialize(Model.Roles);
+    let T = null, base = new Map(), pend = new Map(), meta = {}, cols = [], collapsed = new Set();
+    const $ = id => document.getElementById(id);
+    const key = (kind, id) => kind + ':' + id;
+    const val = k => pend.has(k) ? pend.get(k).v : (base.get(k) || '');
+
+    Sec.guardUnsaved(() => pend.size > 0);
+
+    async function load() {
+        const roleId = $('role').value;
+        pend.clear(); updatePending();
+        ['btnHistory', 'btnCopy', 'btnClear'].forEach(b => $(b) && ($(b).disabled = !roleId));
+        if (!roleId) { $('gridWrap').innerHTML = '<div class="sec-empty"><i class="bi bi-person-lock fs-3 d-block mb-2"></i>Choose a role to see and edit its permissions.</div>'; return; }
+        $('gridWrap').innerHTML = '<div class="sec-empty">Loading…</div>';
+        const r = await Sec.get('@Url.Action("GetRoleGrantsJson")', { roleId, branchId: $('branch').value });
+        if (!r.success) return Sec.fail(r.message);
+        T = Sec.buildTree(r.tree, false); meta = r.meta || {};
+        base = new Map();
+        (r.grants || []).forEach(g => base.set(g.control_ID ? key('c', g.control_ID) : g.page_ID ? key('p', g.page_ID) : key('m', g.menu_ID), g.permission));
+        $('lastChange').textContent = meta.lastChangedOn ? 'Last saved by ' + (meta.lastChangedBy || '?') + ', ' + new Date(meta.lastChangedOn).toLocaleString() : 'Never saved';
+        const mod = $('module').value;
+        $('module').innerHTML = '<option value="">All</option>' + T.roots.map(n => '<option value="' + n.menu_ID + '">' + Sec.esc(n.title) + '</option>').join('');
+        $('module').value = mod;
+        render();
+    }
+
+    // Effective VIEW of a node for this role with the staged changes: its own row, else the level above.
+    function effMenu(m) {
+        let n = m;
+        while (n) { const v = val(key('m', n.menu_ID)); if (v) return v; n = n.parent_Menu_ID ? T.menuById.get(n.parent_Menu_ID) : null; }
+        return 'D';
+    }
+    function effPage(p) {
+        const own = val(key('p', p.page_ID)); if (own) return own;
+        return p.menu_ID ? effMenu(T.menuById.get(p.menu_ID)) : 'D';
+    }
+    // An action follows its page: allowed with the page unless denied on the action itself.
+    function effControl(c, p) {
+        if (effPage(p) !== 'A') return 'D';
+        return val(key('c', c.control_ID)) || 'A';
+    }
+    function baseEffPage(p) { const saved = pend; pend = new Map(); const r = effPage(p); pend = saved; return r; }
+
+    function render() {
+        if (!T) return;
+        const q = $('search').value.trim().toLowerCase(), mod = +$('module').value || null;
+        const roots = mod ? T.roots.filter(n => n.menu_ID === mod) : T.roots;
+        const match = n => !q || [n.title, n.page_Code, n.menu_Code, n.controller, ...(n.controls || []).map(c => c.title)].some(v => (v || '').toLowerCase().includes(q));
+        const visible = n => match(n) || (n.children || []).some(visible);
+
+        let h = '<table class="table table-sm sec-matrix mb-0"><thead><tr><th class="name">Nav bar › menu › page</th><th class="text-center" title="Open the screen">Open page</th>' +
+                '<th title="Every action the screen offers. Not set = follows the page.">Actions on the page</th></tr></thead><tbody>';
+        const row = (n, parentType, hidden) => {
+            if (!visible(n)) return '';
+            const isPage = n.kind === 'PAGE';
+            let s = '<tr class="lvl-' + n.kind + (isPage ? ' under-' + parentType : '') + '" ' + (hidden ? 'style="display:none"' : '') + '>';
+            if (isPage) {
+                const eff = effPage(n);
+                s += '<td class="name">' + Sec.icon(n.icon) + Sec.esc(n.title) + ' <span class="sec-code">' + Sec.esc(n.page_Code) + '</span></td>';
+                s += '<td class="text-center">' + cell('p', n.page_ID, eff, n.title + ' - View') + '</td>';
+                const acts = n.controls.filter(c => c.control_Code !== 'VIEW');
+                s += '<td class="sec-actions">' + (acts.length
+                    ? acts.map(c => chip(c, n, eff)).join('')
+                    : '<span class="text-muted small">Opening the page is all it offers</span>') + '</td>';
+            } else {
+                const ps = T.pagesBeneath(n), allowed = ps.filter(p => effPage(p) === 'A').length, isColl = collapsed.has(n.menu_ID);
+                s += '<td class="name"><button class="toggle" data-t="' + n.menu_ID + '" aria-label="' + (isColl ? 'Expand' : 'Collapse') + ' ' + Sec.esc(n.title) + '"><i class="bi bi-chevron-' + (isColl ? 'right' : 'down') + '"></i></button>' +
+                     Sec.icon(n.icon) + Sec.esc(n.title) + ' <span class="sec-code">' + Sec.kindLabel(n.kind) + ' · ' + allowed + ' of ' + ps.length + ' pages</span>' +
+                     (CAN_EDIT ? ' <span class="dropdown d-inline-block"><button class="btn btn-link btn-sm p-0 ms-1 text-muted" data-bs-toggle="dropdown" aria-label="Bulk actions for ' + Sec.esc(n.title) + '"><i class="bi bi-three-dots"></i></button>' +
+                        '<ul class="dropdown-menu dropdown-menu-sm small">' +
+                        '<li><a class="dropdown-item" href="#" data-bulk="expand" data-id="' + n.menu_ID + '">Expand into pages (one row per page)</a></li>' +
+                        '<li><a class="dropdown-item" href="#" data-bulk="allowview" data-id="' + n.menu_ID + '">Allow View on every page beneath</a></li>' +
+                        '<li><a class="dropdown-item text-danger" href="#" data-bulk="clear" data-id="' + n.menu_ID + '">Clear everything beneath</a></li></ul></span>' : '') + '</td>';
+                s += '<td class="text-center">' + cell('m', n.menu_ID, effMenu(n), n.title + ' - View') + '</td><td class="na"></td>';
+            }
+            s += '</tr>';
+            if (!isPage) (n.children || []).forEach(ch => s += row(ch, n.kind, hidden || collapsed.has(n.menu_ID)));
+            return s;
+        };
+        roots.forEach(n => h += row(n, null, false));
+        h += '</tbody></table>';
+        $('gridWrap').innerHTML = h;
+        const total = T.roots.flatMap(T.pagesBeneath), granted = total.filter(p => effPage(p) === 'A').length;
+        $('summary').textContent = granted + ' of ' + total.length + ' pages granted · ' + (meta.usersHoldingRole ?? 0) + ' user(s) hold this role';
+    }
+
+    function cell(kind, id, eff, label, why) {
+        const k = key(kind, id), v = val(k), dirty = pend.has(k);
+        const cls = ['sec-cell', v, !v ? 'inh-' + eff : '', dirty ? 'dirty' : ''].join(' ');
+        const text = v === 'A' ? '✓' : v === 'D' ? '✕' : '';
+        const title = label + ': ' + (v === 'A' ? 'Allow' : v === 'D' ? 'Deny' : 'not set (' + (eff === 'A' ? 'allowed' : 'denied') + ' from above)') + (why === 'page' ? ' - the page is not allowed, so this control does nothing' : '');
+        return '<button type="button" class="' + cls + '" data-k="' + k + '" title="' + Sec.esc(title) + '" aria-label="' + Sec.esc(title) + '" ' + (CAN_EDIT ? '' : 'disabled') + '>' + text + '</button>';
+    }
+
+    // One action of a page: its name with its state (✓ allow, ✕ deny, dot = follows the page).
+    function chip(c, p, pageEff) {
+        const k = key('c', c.control_ID), v = val(k), dirty = pend.has(k), eff = effControl(c, p);
+        const cls = ['sec-cell', 'sec-chip', v, !v ? 'inh-' + eff : '', dirty ? 'dirty' : '', pageEff !== 'A' ? 'off' : ''].join(' ');
+        const mark = v === 'A' ? '✓ ' : v === 'D' ? '✕ ' : '';
+        const title = p.title + ' - ' + c.title + ': ' + (v === 'A' ? 'Allow' : v === 'D' ? 'Deny' : 'not set (' + (eff === 'A' ? 'allowed with the page' : 'denied - the page is not allowed') + ')');
+        return '<button type="button" class="' + cls + '" data-k="' + k + '" title="' + Sec.esc(title) + '" aria-label="' + Sec.esc(title) + '" ' + (CAN_EDIT ? '' : 'disabled') + '>' +
+               mark + Sec.esc(c.title) + '</button>';
+    }
+
+    function stage(k, v) {
+        const [kind, id] = k.split(':'), nid = +id;
+        const b = base.get(k) || '';
+        if (v === b) { pend.delete(k); return; }
+        const change = { m: null, p: null, c: null, v };
+        if (kind === 'm') change.m = nid;
+        if (kind === 'p') change.p = nid;
+        if (kind === 'c') { change.c = nid; change.p = [...T.pageById.values()].find(p => p.controls.some(c => c.control_ID === nid)).page_ID; }
+        pend.set(k, change);
+    }
+
+    function updatePending() {
+        $('pending').innerHTML = '<b>' + pend.size + '</b> pending change' + (pend.size === 1 ? '' : 's');
+        ['btnSave', 'btnDiscard'].forEach(b => $(b) && ($(b).disabled = pend.size === 0));
+    }
+
+    $('gridWrap').addEventListener('click', e => {
+        const t = e.target.closest('.toggle');
+        if (t) { const id = +t.dataset.t; collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id); render(); return; }
+        const b = e.target.closest('[data-bulk]');
+        if (b) { e.preventDefault(); bulk(b.dataset.bulk, +b.dataset.id); return; }
+        const c = e.target.closest('.sec-cell');
+        if (!c || c.disabled) return;
+        const k = c.dataset.k, cur = val(k), next = cur === '' ? 'A' : cur === 'A' ? 'D' : '';
+        stage(k, next); updatePending(); render();
+        const again = document.querySelector('.sec-cell[data-k="' + k + '"]'); again && again.focus();
+    });
+    Sec.gridKeys($('gridWrap'));
+
+    function bulk(action, menuId) {
+        const m = T.menuById.get(menuId); if (!m) return;
+        const pages = T.pagesBeneath(m), menus = [m, ...T.menusBeneath(m)];
+        if (action === 'expand') {
+            pages.forEach(p => { if (effPage(p) === 'A' && !val(key('p', p.page_ID))) stage(key('p', p.page_ID), 'A'); });
+            menus.forEach(x => { if (val(key('m', x.menu_ID))) stage(key('m', x.menu_ID), ''); });
+            Sec.warn('Every page that was allowed through ' + m.title + ' now has its own row.');
+        }
+        if (action === 'allowview') pages.forEach(p => stage(key('p', p.page_ID), 'A'));
+        if (action === 'clear') {
+            menus.forEach(x => stage(key('m', x.menu_ID), ''));
+            pages.forEach(p => { stage(key('p', p.page_ID), ''); p.controls.forEach(c => stage(key('c', c.control_ID), '')); });
+        }
+        updatePending(); render();
+    }
+
+    $('btnDiscard') && ($('btnDiscard').onclick = async () => { if (await Sec.confirm('Discard ' + pend.size + ' change(s)?', '', 'Discard', 'warning')) { pend.clear(); updatePending(); render(); } });
+
+    $('btnClear') && ($('btnClear').onclick = async () => {
+        if (!await Sec.confirm('Clear this role?', 'Stages the removal of every grant the role has ' + ($('branch').value ? 'for this branch' : 'for all branches') + '. Nothing is saved until you press Save changes.', 'Stage removal', 'warning')) return;
+        base.forEach((v, k) => stage(k, '')); updatePending(); render();
+    });
+
+    $('btnCopy') && ($('btnCopy').onclick = async () => {
+        const roleId = +$('role').value;
+        const opts = Object.fromEntries(roles.filter(r => r.id !== roleId).map(r => [r.id, r.name]));
+        const res = await Swal.fire({ title: 'Copy permissions from…', input: 'select', inputOptions: opts, inputPlaceholder: 'Choose a role', showCancelButton: true, confirmButtonText: 'Copy',
+            html: '<div class="small text-muted">Replaces every grant of <b>' + Sec.esc($('role').selectedOptions[0].text) + '</b> (all branches) with the other role\'s. Each change is written to the history.</div>',
+            inputValidator: v => v ? undefined : 'Choose a role' });
+        if (!res.isConfirmed) return;
+        if (pend.size && !await Sec.confirm('Discard your pending changes?', 'Copying replaces the whole set.', 'Discard and copy', 'warning')) return;
+        const r = await Sec.post('@Url.Action("CopyRoleGrantsJson")', null, { fromRoleId: res.value, toRoleId: roleId });
+        if (!r.success) return Sec.fail(r.message);
+        pend.clear(); Sec.ok('Permissions copied'); load();
+    });
+
+    $('btnHistory').onclick = async () => {
+        const r = await Sec.get('@Url.Action("GetRoleHistoryJson")', { roleId: $('role').value });
+        if (!r.success) return Sec.fail(r.message);
+        const lbl = v => v === 'A' ? '<span class="sec-result A">Allow</span>' : v === 'D' ? '<span class="sec-result D">Deny</span>' : '<span class="text-muted">—</span>';
+        $('histBody').innerHTML = r.rows.length ? r.rows.map(h => '<tr><td class="text-nowrap">' + new Date(h.changed_On).toLocaleString() + '</td><td>' + Sec.esc(h.changedBy) + '</td><td>' + Sec.esc(h.scope) + '</td><td>' + Sec.esc(h.target) +
+            '</td><td>' + Sec.esc(h.branch) + '</td><td>' + lbl(h.old_Value) + '</td><td>' + lbl(h.new_Value) + '</td><td class="small">' + Sec.esc(h.reason || '') + '</td></tr>').join('')
+            : '<tr><td colspan="8" class="sec-empty">No changes recorded yet.</td></tr>';
+        bootstrap.Modal.getOrCreateInstance($('histModal')).show();
+    };
+
+    $('btnSave') && ($('btnSave').onclick = () => save(false));
+
+    async function save(confirmed) {
+        if (!pend.size) return;
+        // Controls need their page (the server refuses it too).
+        const orphanCtl = [...pend.values()].filter(ch => ch.c && ch.v === 'A').map(ch => T.pageById.get(ch.p)).filter(p => effPage(p) !== 'A');
+        if (orphanCtl.length) return Sec.fail('Allow the page first - a control on a page the user cannot open does nothing: ' + [...new Set(orphanCtl.map(p => p.title))].join(', '));
+
+        if (!confirmed) {
+            const all = T.roots.flatMap(T.pagesBeneath);
+            const added = all.filter(p => baseEffPage(p) !== 'A' && effPage(p) === 'A'), removed = all.filter(p => baseEffPage(p) === 'A' && effPage(p) !== 'A');
+            const notes = [];
+            // contradiction explained, not blocked
+            [...pend.values()].filter(ch => ch.p && !ch.c && ch.v === 'A').forEach(ch => {
+                const p = T.pageById.get(ch.p), parent = p.menu_ID ? T.menuById.get(p.menu_ID) : null;
+                if (parent && effMenu(parent) === 'D') notes.push(Sec.esc(parent.title) + ' is denied for this role, so only the pages allowed on their own (like ' + Sec.esc(p.title) + ') will appear beneath it.');
+            });
+            // empty group warning
+            T.roots.concat(...T.roots.map(T.menusBeneath)).forEach(m => {
+                const k = key('m', m.menu_ID);
+                if (pend.has(k) && val(k) === 'A' && !T.pagesBeneath(m).some(p => effPage(p) === 'A')) notes.push('Nothing under ' + Sec.esc(m.title) + ' is allowed, so it will not appear in the bar.');
+            });
+            const html = '<div class="text-start small">' +
+                '<div>Affects <b>' + (meta.usersHoldingRole ?? 0) + '</b> user(s) holding this role' + ($('branch').value ? ' in ' + Sec.esc($('branch').selectedOptions[0].text.replace(' only', '')) : '') + '.</div>' +
+                (added.length ? '<div class="mt-2 text-success"><b>+' + added.length + '</b> page(s) appear in their menu: ' + added.slice(0, 8).map(p => Sec.esc(p.title)).join(', ') + (added.length > 8 ? '…' : '') + '</div>' : '') +
+                (removed.length ? '<div class="mt-2 text-danger"><b>−' + removed.length + '</b> page(s) removed from their menu: ' + removed.slice(0, 8).map(p => Sec.esc(p.title)).join(', ') + (removed.length > 8 ? '…' : '') + '</div>' : '') +
+                (notes.length ? '<div class="mt-2 text-warning-emphasis">' + notes.map(n => '<div><i class="bi bi-exclamation-triangle me-1"></i>' + n + '</div>').join('') + '</div>' : '') +
+                '<div class="mt-2 text-muted">It applies on their next request - no logout needed.</div></div>';
+            if (!await Sec.confirm('Save ' + pend.size + ' change(s)?', html, 'Save')) return;
+        }
+        const r = await Sec.post('@Url.Action("SaveRoleGrantsJson")', {
+            targetId: +$('role').value, branchId: +$('branch').value || null, expectedVersion: meta.version || 0, confirmed, changes: [...pend.values()]
+        });
+        if (!r.success) {
+            if (r.code === 'CONCURRENT') { if (await Sec.confirm('Someone else saved this role', Sec.esc(r.message), 'Reload', 'warning')) load(); return; }
+            return Sec.fail(r.message);
+        }
+        if (r.data.status === 'CONFIRM') {
+            if (await Sec.confirm('Large change', 'This changes <b>' + r.data.changes + '</b> grants for <b>' + r.data.affectedUsers + '</b> users. Confirm to continue.', 'Confirm and save', 'warning')) return save(true);
+            return;
+        }
+        Sec.ok(r.data.changes + ' change(s) saved'); pend.clear(); load();
+    }
+
+    async function switchContext() {
+        if (pend.size && !await Sec.confirm(pend.size + ' changes are not saved', 'Switching loses them. Continue?', 'Discard', 'warning')) return false;
+        return true;
+    }
+    let lastRole = $('role').value, lastBranch = $('branch').value;
+    $('role').onchange = async () => { if (await switchContext()) { lastRole = $('role').value; load(); } else $('role').value = lastRole; };
+    $('branch').onchange = async () => { if (await switchContext()) { lastBranch = $('branch').value; load(); } else $('branch').value = lastBranch; };
+    $('module').onchange = render; $('search').oninput = render;
+    if ($('role').value) load();
+})();
+</script>
+}

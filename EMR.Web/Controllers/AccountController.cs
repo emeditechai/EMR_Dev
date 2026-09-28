@@ -4,6 +4,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using EMR.Shared.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -13,11 +14,29 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
 
+// Sign-in, branch/role choice and sign-out come before any permission can be known.
+[PublicEndpoint]
 public class AccountController(
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasherService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    ILoginSecurity loginSecurity) : Controller
 {
+    /// <summary>Sign-in attempts per client address per minute (clinics share one address, so this is generous).</summary>
+    public const string SignInRateLimit = "signin";
+
+    [HttpGet]
+    [Authorize]
+    public IActionResult AccessDenied(string? returnUrl, string? page, string? control)
+    {
+        ViewData["Title"] = "Access denied";
+        ViewData["ReturnUrl"] = returnUrl;
+        ViewData["Page"] = page;
+        ViewData["Control"] = control;
+        Response.StatusCode = StatusCodes.Status403Forbidden;
+        return View();
+    }
+
     [HttpGet]
     [AllowAnonymous]
     public IActionResult Login()
@@ -33,6 +52,7 @@ public class AccountController(
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(SignInRateLimit)]
     public async Task<IActionResult> Login(LoginViewModel model)
     {
         if (!ModelState.IsValid)
@@ -45,9 +65,23 @@ public class AccountController(
                 .ThenInclude(x => x.Branch)
             .FirstOrDefaultAsync(x => x.Username == model.Username);
 
+        // Too many wrong passwords lock the account for a while (Users.Lockout_Until), whatever is typed next.
+        if (user is not null && await loginSecurity.LockedUntilAsync(user.Id) is { } lockedUntil)
+        {
+            await auditLogService.LogAsync("AuthFailure", "Login", $"Sign-in refused, account temporarily locked: {user.Username}", user.Id);
+            ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {lockedUntil:hh:mm tt}.");
+            return View(model);
+        }
+
         if (user is null || !passwordHasherService.VerifyPassword(model.Password, user.PasswordHash))
         {
             await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for username: {model.Username}");
+            if (user is not null && await loginSecurity.RecordFailureAsync(user.Id) is { } nowLocked)
+            {
+                await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {user.Username}", user.Id);
+                ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {nowLocked:hh:mm tt}.");
+                return View(model);
+            }
             ModelState.AddModelError(string.Empty, "Invalid username or password.");
             return View(model);
         }
@@ -58,6 +92,8 @@ public class AccountController(
             ModelState.AddModelError(string.Empty, "User is inactive or locked out. Contact administrator.");
             return View(model);
         }
+
+        await loginSecurity.RecordSuccessAsync(user.Id);
 
         var activeBranches = user.UserBranches
             .Where(x => x.Branch.IsActive)
@@ -199,7 +235,7 @@ public class AccountController(
         }
 
         var roleNames = await dbContext.UserRoles
-            .Where(x => x.UserId == userId && x.IsActive)
+            .Where(x => x.UserId == userId && x.IsActive && (x.Branch_ID == null || x.Branch_ID == branchId))
             .Join(dbContext.Roles,
                 userRole => userRole.RoleId,
                 role => role.Id,
@@ -268,7 +304,7 @@ public class AccountController(
         }
 
         var roleNames = await dbContext.UserRoles
-            .Where(x => x.UserId == userId && x.IsActive)
+            .Where(x => x.UserId == userId && x.IsActive && (x.Branch_ID == null || x.Branch_ID == branchId))
             .Join(dbContext.Roles,
                 ur => ur.RoleId,
                 r => r.Id,
@@ -346,7 +382,7 @@ public class AccountController(
         if (allowedBranch is null) return RedirectToAction(nameof(Login));
 
         var allRoleNames = await dbContext.UserRoles
-            .Where(x => x.UserId == userId && x.IsActive)
+            .Where(x => x.UserId == userId && x.IsActive && (x.Branch_ID == null || x.Branch_ID == branchId))
             .Join(dbContext.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
             .Distinct()
             .ToListAsync();
@@ -449,11 +485,7 @@ public class AccountController(
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
     }
 
-    private static bool IsSuperAdminUser(User user)
-    {
-        return string.Equals(user.Username, "admin", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(user.Role, "Super Admin", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(user.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
-    }
+    // Super admin is a flag on the account, set only in the database (Users.IsSuperAdmin), never from a screen.
+    private static bool IsSuperAdminUser(User user) => user.IsSuperAdmin;
 }
 

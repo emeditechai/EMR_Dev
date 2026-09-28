@@ -1,10 +1,41 @@
+using System.Threading.RateLimiting;
 using EMR.Api.Data;
 using EMR.Api.Services;
+using EMR.Shared.Security;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Services ─────────────────────────────────────────────────────────────────
-builder.Services.AddControllers();
+// ── Authentication: every call carries a token (see EMR.Api/Security/ApiCallerFilter) ──
+builder.Services.AddEmrAuthorization(builder.Configuration, "DefaultConnection",
+    new EmrAuthorizationApp { Name = "API", AlwaysJson = true });
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IApiTokenService>((o, tokens) =>
+    {
+        o.TokenValidationParameters = tokens.ValidationParameters();
+        o.MapInboundClaims = true;   // "sub" -> NameIdentifier, as the web cookie carries it
+    });
+builder.Services.AddScoped<EMR.Api.Security.ApiCallerFilter>();
+
+// Credential endpoints of api/auth: 20 requests a minute per client address.
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(EMR.Api.Controllers.AuthController.RateLimitPolicy, http =>
+        RateLimitPartition.GetFixedWindowLimiter(http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.OnRejected = async (ctx, ct) =>
+    {
+        ctx.HttpContext.Response.Headers.RetryAfter = "60";
+        await ctx.HttpContext.Response.WriteAsJsonAsync(
+            new { success = false, code = "TOO_MANY_REQUESTS", message = "Too many attempts. Wait a minute and try again." }, ct);
+    };
+});
+
+builder.Services.AddControllers(o => o.Filters.AddService<EMR.Api.Security.ApiCallerFilter>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -18,6 +49,15 @@ builder.Services.AddSwaggerGen(c =>
     var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath)) c.IncludeXmlComments(xmlPath);
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT",
+        Description = "Access token from POST /api/auth/login."
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }] = Array.Empty<string>()
+    });
 });
 
 // ── Data & Application services ───────────────────────────────────────────────
@@ -108,15 +148,21 @@ builder.Services.AddSingleton<IQueryStringEncryptionService, QueryStringEncrypti
 var app = builder.Build();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// The API description is published in Development, elsewhere only with Swagger:Enabled = true.
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "EMR API v1");
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "EMR API v1");
+    });
+}
 
 app.UseHttpsRedirection();
 app.UseMiddleware<EMR.Api.Middleware.QueryStringDecryptionMiddleware>();
 app.UseCors("EmrWebOrigin");
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

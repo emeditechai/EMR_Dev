@@ -43,7 +43,8 @@ namespace EMR.Web.Controllers
         ILabFranchiseApiClient franchiseApiClient,
         ICorporateApiClient corporateApiClient,
         IB2BBillingApiClient b2bBillingApiClient,
-        ILogger<LabOrderBookingController> logger) : Controller
+        ILogger<LabOrderBookingController> logger,
+        EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
     {
         [HttpGet]
         public async Task<IActionResult> B2BBooking(int? patientId)
@@ -112,6 +113,9 @@ namespace EMR.Web.Controllers
                 catch { /* malformed payment data is reported by the normal flow */ }
                 if (PaymentService.IsDiscountApprovalMissing(discountCheck))
                     ModelState.AddModelError(string.Empty, PaymentService.DiscountApprovalRequiredMessage);
+                else if (PaymentService.HasDiscount(discountCheck)
+                         && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BBOOKING", EMR.Shared.Security.PermissionControls.Discount))
+                    ModelState.AddModelError(string.Empty, PaymentService.DiscountNotPermittedMessage);
             }
 
             if (!model.DemographicsOnly)
@@ -1033,6 +1037,9 @@ namespace EMR.Web.Controllers
                 catch { /* malformed payment data is reported by the normal flow */ }
                 if (PaymentService.IsDiscountApprovalMissing(discountCheck))
                     return Json(new { success = false, error = PaymentService.DiscountApprovalRequiredMessage });
+                if (PaymentService.HasDiscount(discountCheck)
+                    && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2CBOOKING", EMR.Shared.Security.PermissionControls.Discount))
+                    return Json(new { success = false, error = PaymentService.DiscountNotPermittedMessage });
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;

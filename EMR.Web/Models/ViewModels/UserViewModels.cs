@@ -162,6 +162,8 @@ public class UserFormViewModel
 
     public List<int> SelectedBranchIds { get; set; } = new();
     public List<int> SelectedRoleIds { get; set; } = new();
+    /// <summary>Roles per branch, posted as "branchId:roleId" pairs.</summary>
+    public List<string> SelectedBranchRoles { get; set; } = new();
     public List<int> SelectedDepartmentIds { get; set; } = new();
 
     /// <summary>Lab Test Categories a pathologist may sign off; always a subset of the granted departments.</summary>

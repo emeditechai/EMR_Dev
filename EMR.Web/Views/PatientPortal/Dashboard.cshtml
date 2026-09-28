@@ -116,7 +116,7 @@
 </head>
 <body>
     <input type="hidden" id="patientId" value="@Model.PatientId" />
-    <input type="hidden" id="apiUrl" value="https://localhost:5125/api/patientportal/" />
+    <input type="hidden" id="apiUrl" value="@Url.Content("~/PatientPortal/Data/")" />
 
     <div class="glass-nav">
         <div class="nav-brand">
@@ -359,7 +359,7 @@
         // Load Vitals
         function loadVitals() {
             document.getElementById('vitals-content').innerHTML = '<div class="loader">Loading...</div>';
-            fetch(`${apiBase}${pId}/vitals`)
+            fetch(`${apiBase}vitals`)
                 .then(r => r.json())
                 .then(res => {
                     let html = `<table class="modern-table">
@@ -388,7 +388,7 @@
         // Load Dependents
         function loadDependents() {
             document.getElementById('dependents-content').innerHTML = '<div class="loader">Loading...</div>';
-            fetch(`${apiBase}${pId}/dependents`)
+            fetch(`${apiBase}dependents`)
                 .then(r => r.json())
                 .then(res => {
                     let html = `<div class="row g-4">`;
@@ -418,7 +418,7 @@
         // Load Bookings & Invoices
         function loadBookings() {
             document.getElementById('bookings-content').innerHTML = '<div class="loader">Loading...</div>';
-            fetch(`${apiBase}${pId}/bookings`)
+            fetch(`${apiBase}bookings`)
                 .then(r => r.json())
                 .then(res => {
                     // 1. Flash Upcoming Appointments
@@ -480,7 +480,7 @@
         // Load Prescriptions
         function loadPrescriptions() {
             document.getElementById('prescriptions-content').innerHTML = '<div class="loader">Loading...</div>';
-            fetch(`${apiBase}${pId}/prescriptions`)
+            fetch(`${apiBase}prescriptions`)
                 .then(r => r.json())
                 .then(res => {
                     let html = `<div class="row g-4">`;

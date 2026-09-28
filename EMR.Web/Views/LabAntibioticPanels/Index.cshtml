@@ -19,7 +19,7 @@
             </h4>
         </div>
         <div>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABANTIBIOTICPANELS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add New Antibiotic Panel
             </a>
         </div>
@@ -118,7 +118,7 @@
                                     <td>@(item.Sample_Type_Name ?? "All Specimens")</td>
                                     <td class="small text-secondary" style="max-width:320px;">@(string.IsNullOrWhiteSpace(item.Antibiotic_Names) ? "—" : item.Antibiotic_Names)</td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Panel_ID" method="post" class="d-inline">
+                                        <form asp-permission="MASTER.LABANTIBIOTICPANELS:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.Panel_ID" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(!item.Status ? "true" : "false")" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
@@ -135,9 +135,9 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Panel_ID" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Panel_ID" class="btn btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Panel_ID" title="Delete"><i class="bi bi-trash"></i></button>
+                                            <a asp-permission="MASTER.LABANTIBIOTICPANELS:DETAILS" asp-action="Details" asp-encrypted-id="@item.Panel_ID" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
+                                            <a asp-permission="MASTER.LABANTIBIOTICPANELS:EDIT" asp-action="Edit" asp-encrypted-id="@item.Panel_ID" class="btn btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+                                            <button asp-permission="MASTER.LABANTIBIOTICPANELS:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Panel_ID" title="Delete"><i class="bi bi-trash"></i></button>
                                         </div>
 
                                         <div class="modal fade text-start" id="deleteModal-@item.Panel_ID" tabindex="-1" aria-hidden="true">
@@ -152,7 +152,7 @@
                                                     </div>
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-encrypted-id="@item.Panel_ID" method="post">
+                                                        <form asp-permission="MASTER.LABANTIBIOTICPANELS:DELETE" asp-action="Delete" asp-encrypted-id="@item.Panel_ID" method="post">
                                                             @Html.AntiForgeryToken()
                                                             <button type="submit" class="btn btn-danger">Delete</button>
                                                         </form>
