@@ -54,7 +54,7 @@
         <div class="card-header sec-legend">
             <span><span class="sec-cell A">✓</span> Allow</span><span><span class="sec-cell D">✕</span> Deny</span><span><span class="sec-cell"></span> Not set - follows the level above</span>
             <span><span class="sec-cell inh-A"></span> / <span class="sec-cell inh-D"></span> what it inherits</span><span><span class="sec-cell dirty"></span> changed, not saved</span>
-            <span class="ms-auto">An action follows its page unless set - untick (Deny) what this role must not do.</span>
+            <span class="ms-auto">A tick on a nav bar item or menu applies to everything beneath it. An action follows its page unless set.</span>
         </div>
         <div class="sec-scroll" id="gridWrap"><div class="sec-empty"><i class="bi bi-person-lock fs-3 d-block mb-2"></i>Choose a role to see and edit its permissions.</div></div>
     </div>
@@ -199,10 +199,24 @@
         const c = e.target.closest('.sec-cell');
         if (!c || c.disabled) return;
         const k = c.dataset.k, cur = val(k), next = cur === '' ? 'A' : cur === 'A' ? 'D' : '';
-        stage(k, next); updatePending(); render();
+        stage(k, next);
+        if (k.startsWith('m:')) cascade(+k.slice(2), next);
+        updatePending(); render();
         const again = document.querySelector('.sec-cell[data-k="' + k + '"]'); again && again.focus();
     });
     Sec.gridKeys($('gridWrap'));
+
+    // Tree-wise marking: what is set on a nav bar item / menu goes to everything beneath it.
+    // Menus and pages beneath take the same value (Allow, Deny, or Not set = follow the level above);
+    // their actions are cleared so they follow their page. Single pages / actions can still be changed afterwards.
+    function cascade(menuId, v) {
+        const m = T.menuById.get(menuId); if (!m) return;
+        const menus = T.menusBeneath(m), pages = T.pagesBeneath(m);
+        menus.forEach(x => stage(key('m', x.menu_ID), v));
+        pages.forEach(p => { stage(key('p', p.page_ID), v); p.controls.forEach(c => stage(key('c', c.control_ID), '')); });
+        if (pages.length)
+            Sec.ok((v === 'A' ? 'Allowed' : v === 'D' ? 'Denied' : 'Cleared') + ': ' + m.title + ' and ' + pages.length + ' page(s) beneath - press Save changes');
+    }
 
     function bulk(action, menuId) {
         const m = T.menuById.get(menuId); if (!m) return;
