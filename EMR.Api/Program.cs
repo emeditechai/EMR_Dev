@@ -107,6 +107,7 @@ builder.Services.AddScoped<ILabAntibioticPanelService, LabAntibioticPanelService
 builder.Services.AddScoped<ILabParameterOptionService, LabParameterOptionService>();
 builder.Services.AddScoped<ILabExpertRuleService, LabExpertRuleService>();
 builder.Services.AddScoped<ILabBreakpointService, LabBreakpointService>();
+builder.Services.AddScoped<IDoctorIpService, DoctorIpService>();
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();

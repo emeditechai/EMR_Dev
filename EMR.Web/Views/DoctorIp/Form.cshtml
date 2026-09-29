@@ -1,0 +1,398 @@
+@model EMR.Web.Models.ViewModels.DoctorIpFormViewModel
+@{
+    var isEdit = Model.Doctor_IP_Hdr_ID > 0;
+    ViewData["Title"] = isEdit ? "Edit Doctor IP" : "Add Doctor IP";
+}
+
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+    <style>
+        .ip-grid { max-height: 520px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; }
+        .ip-grid thead th { position: sticky; top: 0; z-index: 3; background: #212529; color: #fff; white-space: nowrap; }
+        .ip-grid .inp-rate { max-width: 95px; margin-left: auto; }
+        .validation-summary-valid { display: none; }
+        .step-badge { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; }
+    </style>
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">IPD Master</li>
+                <li class="breadcrumb-item"><a asp-action="Index">Doctor IP</a></li>
+                <li class="breadcrumb-item active">@(isEdit ? "Edit" : "Add")</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary"><i class="bi @(isEdit ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>@ViewData["Title"]</h4>
+        @if (!string.IsNullOrEmpty(Model.CopiedFrom))
+        {
+            <div class="alert alert-info py-2 mt-2 mb-0 small"><i class="bi bi-files me-1"></i>Tests and rates copied from <strong>@Model.CopiedFrom</strong>. Choose the doctor, review, then save.</div>
+        }
+    </div>
+
+    <div id="pageAlert"></div>
+
+    <form asp-action="@(isEdit ? "Edit" : "Create")" asp-encrypted-id="@(isEdit ? Model.Doctor_IP_Hdr_ID : (int?)null)" method="post" id="frmDoctorIp" autocomplete="off">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Doctor_IP_Hdr_ID" />
+        <input type="hidden" asp-for="Branch_ID" />
+        <input type="hidden" asp-for="DetailsJson" id="DetailsJson" />
+        <input type="hidden" asp-for="CopiedFrom" />
+        <div asp-validation-summary="All" class="alert alert-danger small"></div>
+
+        <!-- 1. Header -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><span class="step-badge bg-primary text-white me-2">1</span>Doctor & Period</h6></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label asp-for="Speciality_ID" class="form-label fw-semibold">Speciality <span class="text-danger">*</span></label>
+                        <select asp-for="Speciality_ID" asp-items="Model.SpecialityOptions" class="form-select s2" data-placeholder="-- Select Speciality --">
+                            <option value="0"></option>
+                        </select>
+                        <small class="text-muted">Number in brackets = active referral doctors.</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Doctor_ID" class="form-label fw-semibold">Referral Doctor <span class="text-danger">*</span></label>
+                        <select asp-for="Doctor_ID" asp-items="Model.DoctorOptions" class="form-select s2" data-placeholder="-- Select Doctor --">
+                            <option value="0"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Branch</label>
+                        <input class="form-control bg-light" value="@Model.Branch_Name" readonly />
+                    </div>
+                    <div class="col-md-2">
+                        <label asp-for="Effective_From" class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                        <input asp-for="Effective_From" type="date" class="form-control" />
+                    </div>
+                    <div class="col-md-2">
+                        <label asp-for="Effective_To" class="form-label fw-semibold">Effective To <span class="text-danger">*</span></label>
+                        <input asp-for="Effective_To" type="date" class="form-control" />
+                    </div>
+                    @if (isEdit)
+                    {
+                        <div class="col-md-2">
+                            <div class="form-check form-switch mt-2">
+                                <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" />
+                                <label asp-for="IsActive" class="form-check-label fw-semibold">Active</label>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Copy -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><span class="step-badge bg-secondary text-white me-2">2</span>Copy from another Doctor IP <span class="text-muted fw-normal small">(optional)</span></h6></div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Source Doctor IP</label>
+                        <select id="copySource" asp-items="Model.CopySourceOptions" class="form-select s2" data-placeholder="-- Select a Doctor IP to copy --">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">How</label>
+                        <select id="copyMode" class="form-select">
+                            <option value="replace">Replace all tests below</option>
+                            <option value="merge">Add missing tests only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" id="btnCopy" class="btn btn-warning w-100"><i class="bi bi-files me-1"></i>Copy Tests & Rates</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Select tests -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><span class="step-badge bg-primary text-white me-2">3</span>Select Tests & Commission %</h6></div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Department</label>
+                        <select id="fDept" asp-items="Model.DepartmentOptions" class="form-select s2" data-placeholder="All Departments"><option value=""></option></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Category</label>
+                        <select id="fCat" class="form-select s2" data-placeholder="All Categories"><option value=""></option></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Sub Category</label>
+                        <select id="fSub" class="form-select s2" data-placeholder="All Sub Categories"><option value=""></option></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Test name / code contains</label>
+                        <input type="text" id="fText" class="form-control" placeholder="e.g. culture, CBC" />
+                    </div>
+                </div>
+                <div class="row g-2 align-items-end mt-1">
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold">Commission %</label>
+                        <div class="input-group">
+                            <input type="number" id="fRate" class="form-control text-end" min="0" max="100" step="0.01" value="20" />
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-md-10 d-flex flex-wrap gap-2">
+                        <button type="button" id="btnAddMatching" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i>Add matching tests</button>
+                        <button type="button" id="btnSetMatching" class="btn btn-outline-primary"><i class="bi bi-percent me-1"></i>Set % on matching tests in grid</button>
+                        <button type="button" id="btnSetAll" class="btn btn-outline-secondary"><i class="bi bi-asterisk me-1"></i>Set % on ALL tests in grid</button>
+                    </div>
+                </div>
+                <div class="small text-muted mt-2" id="matchInfo">Loading tests...</div>
+                <div class="row g-2 align-items-end mt-2">
+                    <div class="col-md-8">
+                        <label class="form-label small fw-semibold">Or add one test</label>
+                        <select id="oneTest" class="form-select" data-placeholder="Search a test or profile..."><option value=""></option></select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" id="btnAddOne" class="btn btn-outline-primary w-100"><i class="bi bi-plus me-1"></i>Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Grid -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h6 class="mb-0 fw-bold"><span class="step-badge bg-primary text-white me-2">4</span>Tests in this Doctor IP</h6>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <span class="badge bg-secondary" id="bTotal">0 tests</span>
+                    <span class="badge bg-info text-dark" id="bAvg">Avg 0%</span>
+                    <input type="text" id="gridSearch" class="form-control form-control-sm" style="width:220px" placeholder="Search in grid..." />
+                    <button type="button" id="btnClear" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Remove all</button>
+                </div>
+            </div>
+            <div class="ip-grid">
+                <table class="table table-sm table-hover align-middle mb-0" id="tblGrid">
+                    <thead>
+                        <tr>
+                            <th style="width:45px">#</th><th>Department</th><th>Category</th><th>Sub Category</th><th>Code</th><th>Test / Profile</th>
+                            <th class="text-end">MRP (₹)</th><th class="text-end" style="width:130px">Commission %</th><th class="text-end">Commission (₹)</th><th style="width:50px"></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mb-5">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4"><i class="bi bi-x-lg me-1"></i>Cancel</a>
+            <button type="submit" class="btn btn-primary px-4"><i class="bi bi-save me-1"></i>Save Doctor IP</button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js"></script>
+<script>
+(function () {
+    var allItems = [];
+    var rows = [];   // {Test_ID, Test_Code, Test_Name, Item_Type, Department_ID, Department_Name, Category_ID, Category_Name, Sub_Category_ID, Sub_Category_Name, MRP, Commission_Rate, Saved}
+
+    function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
+    function alertMsg(type, text) {
+        $('#pageAlert').html('<div class="alert alert-' + type + ' alert-dismissible fade show shadow-sm" role="alert">' + esc(text) +
+            '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>');
+        if (type !== 'success') window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    function locked(xhr) {
+        if (xhr && xhr.status === 401) { window.location.href = '@Url.Action("Unlock")'; return true; }
+        return false;
+    }
+    function rateInput() {
+        var v = parseFloat($('#fRate').val());
+        if (isNaN(v) || v < 0 || v > 100) { alertMsg('warning', 'Enter a Commission % between 0 and 100.'); return null; }
+        return Math.round(v * 100) / 100;
+    }
+    function matches(it) {
+        var d = $('#fDept').val(), c = $('#fCat').val(), s = $('#fSub').val(), t = ($('#fText').val() || '').toLowerCase().trim();
+        if (d && String(it.Department_ID) !== d) return false;
+        if (c && String(it.Category_ID) !== c) return false;
+        if (s && String(it.Sub_Category_ID) !== s) return false;
+        if (t && (it.Test_Name || '').toLowerCase().indexOf(t) < 0 && (it.Test_Code || '').toLowerCase().indexOf(t) < 0) return false;
+        return true;
+    }
+    function inGrid(id) { return rows.some(function (r) { return r.Test_ID === id; }); }
+    function toRow(it, rate) {
+        return { Test_ID: it.Test_ID, Test_Code: it.Test_Code, Test_Name: it.Test_Name, Item_Type: it.Item_Type,
+                 Department_ID: it.Department_ID, Department_Name: it.Department_Name, Category_ID: it.Category_ID, Category_Name: it.Category_Name,
+                 Sub_Category_ID: it.Sub_Category_ID, Sub_Category_Name: it.Sub_Category_Name, MRP: it.MRP, Commission_Rate: rate, Saved: false };
+    }
+
+    function updateMatchInfo() {
+        if (!allItems.length) return;
+        var m = allItems.filter(matches), notAdded = m.filter(function (i) { return !inGrid(i.Test_ID); }).length;
+        var inG = rows.filter(matches).length;
+        $('#matchInfo').html('<i class="bi bi-funnel me-1"></i><strong>' + m.length + '</strong> tests match the filters; <strong>' + notAdded +
+            '</strong> not yet added; <strong>' + inG + '</strong> already in the grid.');
+    }
+
+    function refreshOneTest() {
+        var opts = '<option value=""></option>';
+        allItems.forEach(function (i) {
+            if (!inGrid(i.Test_ID)) opts += '<option value="' + i.Test_ID + '">' + esc(i.Test_Code + ' - ' + i.Test_Name + (i.Item_Type === 'Profile' ? ' [Profile]' : '') + ' (' + (i.Department_Name || '') + ')') + '</option>';
+        });
+        $('#oneTest').html(opts).val('').trigger('change.select2');
+    }
+
+    function render() {
+        var q = ($('#gridSearch').val() || '').toLowerCase().trim(), html = '', n = 0, sum = 0;
+        rows.sort(function (a, b) {
+            return (a.Department_Name || '').localeCompare(b.Department_Name || '') || (a.Category_Name || '').localeCompare(b.Category_Name || '') || (a.Test_Name || '').localeCompare(b.Test_Name || '');
+        });
+        rows.forEach(function (r, idx) {
+            sum += r.Commission_Rate;
+            if (q && (r.Test_Name || '').toLowerCase().indexOf(q) < 0 && (r.Test_Code || '').toLowerCase().indexOf(q) < 0 &&
+                (r.Department_Name || '').toLowerCase().indexOf(q) < 0 && (r.Category_Name || '').toLowerCase().indexOf(q) < 0) return;
+            n++;
+            var amt = (r.MRP || 0) * r.Commission_Rate / 100;
+            html += '<tr data-idx="' + idx + '" class="' + (r.Saved ? '' : 'table-warning') + '">' +
+                '<td class="text-muted">' + n + '</td><td>' + esc(r.Department_Name) + '</td><td>' + esc(r.Category_Name) + '</td><td>' + esc(r.Sub_Category_Name) + '</td>' +
+                '<td class="font-monospace small">' + esc(r.Test_Code) + '</td><td>' + esc(r.Test_Name) +
+                (r.Item_Type === 'Profile' ? ' <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Profile</span>' : '') + '</td>' +
+                '<td class="text-end">' + (r.MRP || 0).toFixed(2) + '</td>' +
+                '<td class="text-end"><div class="input-group input-group-sm inp-rate"><input type="number" class="form-control text-end rate" min="0" max="100" step="0.01" value="' + r.Commission_Rate + '"><span class="input-group-text">%</span></div></td>' +
+                '<td class="text-end amt">' + amt.toFixed(2) + '</td>' +
+                '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger del" title="Remove"><i class="bi bi-x-lg"></i></button></td></tr>';
+        });
+        if (!rows.length) html = '<tr><td colspan="10" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No tests yet. Use the filters above and click "Add matching tests".</td></tr>';
+        else if (!n) html = '<tr><td colspan="10" class="text-center text-muted py-4">No tests match "' + esc(q) + '".</td></tr>';
+        $('#tblGrid tbody').html(html);
+        $('#bTotal').text(rows.length + ' tests');
+        $('#bAvg').text('Avg ' + (rows.length ? (sum / rows.length).toFixed(2) : '0') + '%');
+        updateMatchInfo();
+    }
+
+    $(function () {
+        $('.s2').each(function () { $(this).select2({ theme: 'bootstrap-5', width: '100%', placeholder: $(this).data('placeholder'), allowClear: true }); });
+        $('#oneTest').select2({ theme: 'bootstrap-5', width: '100%', placeholder: $('#oneTest').data('placeholder'), allowClear: true });
+
+        try { rows = JSON.parse($('#DetailsJson').val() || '[]').map(function (r) { r.Saved = @(isEdit ? "true" : "false") && (r.Doctor_IP_Dtl_ID || 0) > 0; r.Commission_Rate = Number(r.Commission_Rate); return r; }); }
+        catch (e) { rows = []; }
+        render();
+
+        $.ajax({ url: '@Url.Action("GetItems")', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .done(function (res) { allItems = res.data || []; refreshOneTest(); updateMatchInfo(); })
+            .fail(function (x) { if (!locked(x)) $('#matchInfo').text('Could not load tests.'); });
+
+        // Speciality -> doctors
+        $('#Speciality_ID').on('change', function () {
+            var sid = $(this).val(), $doc = $('#Doctor_ID');
+            $doc.html('<option value="0"></option>').val('0').trigger('change');
+            if (!sid || sid === '0') return;
+            $.ajax({ url: '@Url.Action("GetDoctors")', data: { specialityId: sid }, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .done(function (res) {
+                    var o = '<option value="0"></option>';
+                    (res.data || []).forEach(function (d) { o += '<option value="' + d.id + '">' + esc(d.name) + '</option>'; });
+                    $doc.html(o).val('0').trigger('change');
+                    if (!(res.data || []).length) alertMsg('warning', 'No active referral doctors in this speciality. Mark the doctor as "Is Referral Doctor" in Doctor Master.');
+                }).fail(locked);
+        });
+
+        // Department -> category -> sub category
+        $('#fDept').on('change', function () {
+            var d = $(this).val();
+            $.ajax({ url: '@Url.Action("GetCategories")', data: d ? { departmentId: d } : {}, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .done(function (res) {
+                    var o = '<option value=""></option>'; (res.data || []).forEach(function (c) { o += '<option value="' + c.id + '">' + esc(c.name) + '</option>'; });
+                    $('#fCat').html(o).val('').trigger('change');
+                }).fail(locked);
+        });
+        $('#fCat').on('change', function () {
+            var c = $(this).val();
+            var done = function (res) {
+                var o = '<option value=""></option>'; ((res && res.data) || []).forEach(function (s) { o += '<option value="' + s.id + '">' + esc(s.name) + '</option>'; });
+                $('#fSub').html(o).val('').trigger('change');
+            };
+            if (!c) { done(null); return; }
+            $.ajax({ url: '@Url.Action("GetSubCategories")', data: { categoryId: c }, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).done(done).fail(locked);
+        });
+        $('#fSub').on('change', updateMatchInfo);
+        $('#fText').on('input', updateMatchInfo);
+
+        $('#btnAddMatching').on('click', function () {
+            var rate = rateInput(); if (rate === null) return;
+            var add = allItems.filter(function (i) { return matches(i) && !inGrid(i.Test_ID); });
+            if (!add.length) { alertMsg('info', 'No new tests match the filters.'); return; }
+            add.forEach(function (i) { rows.push(toRow(i, rate)); });
+            render(); refreshOneTest();
+            alertMsg('success', add.length + ' test(s) added at ' + rate + '%.');
+        });
+        $('#btnSetMatching').on('click', function () {
+            var rate = rateInput(); if (rate === null) return;
+            var hit = rows.filter(matches);
+            if (!hit.length) { alertMsg('info', 'No tests in the grid match the filters.'); return; }
+            hit.forEach(function (r) { r.Commission_Rate = rate; });
+            render(); alertMsg('success', 'Commission set to ' + rate + '% on ' + hit.length + ' test(s).');
+        });
+        $('#btnSetAll').on('click', function () {
+            var rate = rateInput(); if (rate === null) return;
+            if (!rows.length) { alertMsg('info', 'The grid is empty.'); return; }
+            if (!confirm('Set ' + rate + '% on all ' + rows.length + ' tests in the grid?')) return;
+            rows.forEach(function (r) { r.Commission_Rate = rate; });
+            render(); alertMsg('success', 'Commission set to ' + rate + '% on all tests.');
+        });
+        $('#btnAddOne').on('click', function () {
+            var id = parseInt($('#oneTest').val(), 10), rate = rateInput(); if (!id || rate === null) return;
+            var it = allItems.find(function (i) { return i.Test_ID === id; });
+            if (it && !inGrid(id)) { rows.push(toRow(it, rate)); render(); refreshOneTest(); }
+        });
+        $('#btnClear').on('click', function () {
+            if (!rows.length || !confirm('Remove all ' + rows.length + ' tests from the grid?')) return;
+            rows = []; render(); refreshOneTest();
+        });
+        $('#gridSearch').on('input', render);
+
+        $('#tblGrid').on('change', '.rate', function () {
+            var tr = $(this).closest('tr'), r = rows[tr.data('idx')], v = parseFloat($(this).val());
+            if (isNaN(v) || v < 0 || v > 100) { $(this).addClass('is-invalid'); return; }
+            $(this).removeClass('is-invalid');
+            r.Commission_Rate = Math.round(v * 100) / 100;
+            tr.find('.amt').text(((r.MRP || 0) * r.Commission_Rate / 100).toFixed(2));
+            var sum = rows.reduce(function (a, x) { return a + x.Commission_Rate; }, 0);
+            $('#bAvg').text('Avg ' + (sum / rows.length).toFixed(2) + '%');
+        });
+        $('#tblGrid').on('click', '.del', function () {
+            rows.splice($(this).closest('tr').data('idx'), 1); render(); refreshOneTest();
+        });
+
+        // Copy from another Doctor IP
+        $('#btnCopy').on('click', function () {
+            var src = $('#copySource').val(), mode = $('#copyMode').val();
+            if (!src) { alertMsg('warning', 'Select the Doctor IP to copy from.'); return; }
+            if (mode === 'replace' && rows.length && !confirm('Replace the ' + rows.length + ' tests in the grid with the copied ones?')) return;
+            $.ajax({ url: '@Url.Action("GetCopySource")', data: { q: src }, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .done(function (res) {
+                    if (!res.success) { alertMsg('danger', res.message); return; }
+                    var copied = (res.data || []).map(function (d) { var r = toRow(d, Number(d.Commission_Rate)); return r; });
+                    if (mode === 'replace') rows = copied;
+                    else copied.forEach(function (r) { if (!inGrid(r.Test_ID)) rows.push(r); });
+                    render(); refreshOneTest();
+                    alertMsg('success', copied.length + ' test(s) copied. Review the rates, then save.');
+                }).fail(locked);
+        });
+
+        $('#frmDoctorIp').on('submit', function (e) {
+            if (!$('#Doctor_ID').val() || $('#Doctor_ID').val() === '0') { e.preventDefault(); alertMsg('warning', 'Select the referral doctor.'); return; }
+            if (!rows.length) { e.preventDefault(); alertMsg('warning', 'Add at least one test.'); return; }
+            if ($('#tblGrid .rate.is-invalid').length) { e.preventDefault(); alertMsg('warning', 'Fix the highlighted Commission % values (0 - 100).'); return; }
+            if ($('#Effective_To').val() < $('#Effective_From').val()) { e.preventDefault(); alertMsg('warning', 'Effective To must be on or after Effective From.'); return; }
+            $('#DetailsJson').val(JSON.stringify(rows.map(function (r) {
+                return { Test_ID: r.Test_ID, Commission_Rate: r.Commission_Rate, Test_Code: r.Test_Code, Test_Name: r.Test_Name, Item_Type: r.Item_Type,
+                         Department_ID: r.Department_ID, Department_Name: r.Department_Name, Category_ID: r.Category_ID, Category_Name: r.Category_Name,
+                         Sub_Category_ID: r.Sub_Category_ID, Sub_Category_Name: r.Sub_Category_Name, MRP: r.MRP };
+            })));
+        });
+    });
+})();
+</script>
+}

@@ -1,0 +1,49 @@
+@model EMR.Web.Models.ViewModels.DoctorIpSetCodeViewModel
+@{
+    ViewData["Title"] = "Doctor IP - Access Code";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card border-0 shadow">
+                <div class="card-header bg-primary text-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-key me-2"></i>@(Model.IsConfigured ? "Change" : "Set") Doctor IP Access Code</h5>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted small">The code is stored as a salted hash and cannot be read back. Share it only with the people who manage doctor commission.</p>
+                    <form asp-action="SetAccessCode" method="post" autocomplete="off">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+                        @if (Model.IsConfigured)
+                        {
+                            <div class="mb-3">
+                                <label asp-for="CurrentCode" class="form-label fw-semibold"></label>
+                                <input asp-for="CurrentCode" class="form-control" autocomplete="new-password" />
+                                <span asp-validation-for="CurrentCode" class="text-danger small"></span>
+                            </div>
+                        }
+                        <div class="mb-3">
+                            <label asp-for="NewCode" class="form-label fw-semibold"></label>
+                            <input asp-for="NewCode" class="form-control" autocomplete="new-password" />
+                            <span asp-validation-for="NewCode" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-4">
+                            <label asp-for="ConfirmCode" class="form-label fw-semibold"></label>
+                            <input asp-for="ConfirmCode" class="form-control" autocomplete="new-password" />
+                            <span asp-validation-for="ConfirmCode" class="text-danger small"></span>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-action="Unlock" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Code</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
