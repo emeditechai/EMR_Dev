@@ -86,10 +86,17 @@
             </div>
         </div>
 
-        <!-- 2. Copy -->
+        <!-- 2. Copy (behind a toggle, as in the B2C rate list) -->
         <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><span class="step-badge bg-secondary text-white me-2">2</span>Copy from another Doctor IP <span class="text-muted fw-normal small">(optional)</span></h6></div>
-            <div class="card-body">
+            <div class="card-header bg-white py-3">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="chkEnableCopy" />
+                    <label class="form-check-label fw-bold" for="chkEnableCopy">
+                        <span class="step-badge bg-secondary text-white me-2">2</span>Copy from another Doctor IP <span class="text-muted fw-normal small">(optional)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="card-body" id="divCopy" style="display:none;">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Source Doctor IP</label>
@@ -108,6 +115,7 @@
                         <button type="button" id="btnCopy" class="btn btn-warning w-100"><i class="bi bi-files me-1"></i>Copy Tests & Rates</button>
                     </div>
                 </div>
+                <small class="text-muted d-block mt-2">"Replace" clears the tests currently in the grid below.</small>
             </div>
         </div>
 
@@ -118,45 +126,39 @@
                 <div class="row g-2 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">Department</label>
-                        <select id="fDept" asp-items="Model.DepartmentOptions" class="form-select s2" data-placeholder="All Departments"><option value=""></option></select>
+                        <select id="fDept" asp-items="Model.DepartmentOptions" class="form-select s2" data-placeholder="-- All Departments --"><option value=""></option></select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">Category</label>
-                        <select id="fCat" class="form-select s2" data-placeholder="All Categories"><option value=""></option></select>
+                        <select id="fCat" class="form-select s2" data-placeholder="-- All Categories --"><option value=""></option></select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">Sub Category</label>
-                        <select id="fSub" class="form-select s2" data-placeholder="All Sub Categories"><option value=""></option></select>
+                        <select id="fSub" class="form-select s2" data-placeholder="-- All Sub Categories --"><option value=""></option></select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label small fw-semibold">Test name / code contains</label>
-                        <input type="text" id="fText" class="form-control" placeholder="e.g. culture, CBC" />
-                    </div>
-                </div>
-                <div class="row g-2 align-items-end mt-1">
-                    <div class="col-md-2">
-                        <label class="form-label small fw-semibold">Commission %</label>
+                        <label class="form-label small fw-semibold">Commission % for new tests</label>
                         <div class="input-group">
                             <input type="number" id="fRate" class="form-control text-end" min="0" max="100" step="0.01" value="20" />
                             <span class="input-group-text">%</span>
                         </div>
                     </div>
-                    <div class="col-md-10 d-flex flex-wrap gap-2">
-                        <button type="button" id="btnAddMatching" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i>Add matching tests</button>
-                        <button type="button" id="btnSetMatching" class="btn btn-outline-primary"><i class="bi bi-percent me-1"></i>Set % on matching tests in grid</button>
-                        <button type="button" id="btnSetAll" class="btn btn-outline-secondary"><i class="bi bi-asterisk me-1"></i>Set % on ALL tests in grid</button>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-12">
+                        <label class="form-label small fw-semibold d-flex justify-content-between align-items-center mb-1">
+                            <span>Select Test / Profile <span class="text-muted fw-normal">(picking one adds it to the grid)</span></span>
+                            <span class="badge bg-light text-muted border">Available: <strong id="lblAvail" class="text-primary font-monospace">0</strong></span>
+                        </label>
+                        <select id="oneTest" class="form-select" data-placeholder="-- Search by Test Code or Name --"><option value=""></option></select>
                     </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="button" id="btnAddMatching" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i>Add all available (<span id="lblAvailBtn">0</span>)</button>
+                    <button type="button" id="btnSetMatching" class="btn btn-outline-primary"><i class="bi bi-percent me-1"></i>Set % on matching tests in grid</button>
+                    <button type="button" id="btnSetAll" class="btn btn-outline-secondary"><i class="bi bi-asterisk me-1"></i>Set % on ALL tests in grid</button>
                 </div>
                 <div class="small text-muted mt-2" id="matchInfo">Loading tests...</div>
-                <div class="row g-2 align-items-end mt-2">
-                    <div class="col-md-8">
-                        <label class="form-label small fw-semibold">Or add one test</label>
-                        <select id="oneTest" class="form-select" data-placeholder="Search a test or profile..."><option value=""></option></select>
-                    </div>
-                    <div class="col-md-2">
-                        <button type="button" id="btnAddOne" class="btn btn-outline-primary w-100"><i class="bi bi-plus me-1"></i>Add</button>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -214,11 +216,10 @@
         return Math.round(v * 100) / 100;
     }
     function matches(it) {
-        var d = $('#fDept').val(), c = $('#fCat').val(), s = $('#fSub').val(), t = ($('#fText').val() || '').toLowerCase().trim();
+        var d = $('#fDept').val(), c = $('#fCat').val(), s = $('#fSub').val();
         if (d && String(it.Department_ID) !== d) return false;
         if (c && String(it.Category_ID) !== c) return false;
         if (s && String(it.Sub_Category_ID) !== s) return false;
-        if (t && (it.Test_Name || '').toLowerCase().indexOf(t) < 0 && (it.Test_Code || '').toLowerCase().indexOf(t) < 0) return false;
         return true;
     }
     function inGrid(id) { return rows.some(function (r) { return r.Test_ID === id; }); }
@@ -232,16 +233,23 @@
         if (!allItems.length) return;
         var m = allItems.filter(matches), notAdded = m.filter(function (i) { return !inGrid(i.Test_ID); }).length;
         var inG = rows.filter(matches).length;
-        $('#matchInfo').html('<i class="bi bi-funnel me-1"></i><strong>' + m.length + '</strong> tests match the filters; <strong>' + notAdded +
+        $('#matchInfo').html('<i class="bi bi-funnel me-1"></i><strong>' + m.length + '</strong> tests match the selected department / category; <strong>' + notAdded +
             '</strong> not yet added; <strong>' + inG + '</strong> already in the grid.');
+        $('#lblAvail, #lblAvailBtn').text(notAdded);
     }
 
+    // The dropdown lists only tests matching the department / category / sub category that are not yet in the grid.
     function refreshOneTest() {
-        var opts = '<option value=""></option>';
+        var prof = '', single = '';
         allItems.forEach(function (i) {
-            if (!inGrid(i.Test_ID)) opts += '<option value="' + i.Test_ID + '">' + esc(i.Test_Code + ' - ' + i.Test_Name + (i.Item_Type === 'Profile' ? ' [Profile]' : '') + ' (' + (i.Department_Name || '') + ')') + '</option>';
+            if (inGrid(i.Test_ID) || !matches(i)) return;
+            var o = '<option value="' + i.Test_ID + '">' + esc(i.Test_Code + ' - ' + i.Test_Name + ' (' + (i.Category_Name || i.Department_Name || '') + ')') + '</option>';
+            if (i.Item_Type === 'Profile') prof += o; else single += o;
         });
-        $('#oneTest').html(opts).val('').trigger('change.select2');
+        $('#oneTest').html('<option value=""></option>' +
+            (prof ? '<optgroup label="Investigation Profiles">' + prof + '</optgroup>' : '') +
+            (single ? '<optgroup label="Single Investigations">' + single + '</optgroup>' : '')).val('').trigger('change.select2');
+        updateMatchInfo();
     }
 
     function render() {
@@ -305,6 +313,7 @@
                 .done(function (res) {
                     var o = '<option value=""></option>'; (res.data || []).forEach(function (c) { o += '<option value="' + c.id + '">' + esc(c.name) + '</option>'; });
                     $('#fCat').html(o).val('').trigger('change');
+                    refreshOneTest();
                 }).fail(locked);
         });
         $('#fCat').on('change', function () {
@@ -312,12 +321,12 @@
             var done = function (res) {
                 var o = '<option value=""></option>'; ((res && res.data) || []).forEach(function (s) { o += '<option value="' + s.id + '">' + esc(s.name) + '</option>'; });
                 $('#fSub').html(o).val('').trigger('change');
+                refreshOneTest();
             };
             if (!c) { done(null); return; }
             $.ajax({ url: '@Url.Action("GetSubCategories")', data: { categoryId: c }, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).done(done).fail(locked);
         });
-        $('#fSub').on('change', updateMatchInfo);
-        $('#fText').on('input', updateMatchInfo);
+        $('#fSub').on('change', refreshOneTest);
 
         $('#btnAddMatching').on('click', function () {
             var rate = rateInput(); if (rate === null) return;
@@ -341,10 +350,19 @@
             rows.forEach(function (r) { r.Commission_Rate = rate; });
             render(); alertMsg('success', 'Commission set to ' + rate + '% on all tests.');
         });
-        $('#btnAddOne').on('click', function () {
-            var id = parseInt($('#oneTest').val(), 10), rate = rateInput(); if (!id || rate === null) return;
+        // Picking a test adds it straight to the grid (as in B2C / B2B booking).
+        $('#oneTest').on('select2:select', function (e) {
+            var id = parseInt(e.params.data.id, 10), rate = rateInput();
+            if (!id || rate === null) { $(this).val('').trigger('change.select2'); return; }
             var it = allItems.find(function (i) { return i.Test_ID === id; });
-            if (it && !inGrid(id)) { rows.push(toRow(it, rate)); render(); refreshOneTest(); }
+            if (it && !inGrid(id)) {
+                rows.push(toRow(it, rate)); render(); refreshOneTest();
+                alertMsg('success', it.Test_Name + ' added at ' + rate + '%.');
+            }
+        });
+        $('#chkEnableCopy').on('change', function () {
+            if (this.checked) { $('#divCopy').slideDown(150); }
+            else { $('#divCopy').slideUp(150); $('#copySource').val('').trigger('change'); $('#copyMode').val('replace'); }
         });
         $('#btnClear').on('click', function () {
             if (!rows.length || !confirm('Remove all ' + rows.length + ' tests from the grid?')) return;
