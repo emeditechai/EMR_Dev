@@ -43,6 +43,9 @@ public class LabReportDispatchRowDto
     public string PaymentStatus { get; set; } = "U";
     public decimal BalanceDue { get; set; }
     public decimal TotalAmount { get; set; }
+    /// <summary>B2B only: 1=Prepaid (Wallet), 2=Postpaid (Credit), 3=Hybrid. Null for B2C.</summary>
+    public int? CreditFacilityType { get; set; }
+    public string? CreditFacilityTypeName { get; set; }
     public int TotalTests { get; set; }
     public int CollectedTests { get; set; }
     public int RecollectTests { get; set; }

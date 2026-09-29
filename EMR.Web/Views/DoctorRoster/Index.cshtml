@@ -882,7 +882,7 @@
                     const bookUrl  = `@Url.Action("PatientRegistration", "OPD")?doctorId=${props.doctorId}&date=${props.date}&scheduleId=${slot.scheduleId}&time=${slot.slotTime}`;
 
                     col.innerHTML = `
-                        <button type="button"
+                        <button type="button" data-permission="OPD.DOCTORROSTER:BOOK_SLOT" data-permission-mode="disable"
                             class="btn w-100 slot-btn p-3 text-start h-100 d-flex flex-column justify-content-center shadow-sm border
                                    ${isFull ? '' : 'slot-available'}"
                             ${isFull ? 'disabled' : `onclick="window.location.href='${bookUrl}'"`}>

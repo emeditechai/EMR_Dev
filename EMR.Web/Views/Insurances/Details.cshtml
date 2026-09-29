@@ -9,7 +9,7 @@
         <small class="text-muted">Entity Code: <span class="font-monospace fw-bold">@Model.Code</span> | Policy Prefix: <span class="font-monospace text-primary fw-bold">@Model.PolicyPrefix</span></small>
     </div>
     <div class="d-flex gap-2">
-        <a asp-action="Edit" asp-route-id="@Model.InsuranceTPA_ID" class="btn btn-primary btn-sm px-3 shadow-sm">
+        <a asp-permission="MASTER.INSURANCES:EDIT" asp-action="Edit" asp-route-id="@Model.InsuranceTPA_ID" class="btn btn-primary btn-sm px-3 shadow-sm">
             <i class="bi bi-pencil me-1"></i> Edit Entity
         </a>
         <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">

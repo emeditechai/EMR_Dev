@@ -10,7 +10,7 @@
         <h1 class="h3 mb-0 fw-bold">Referral Doctor Master</h1>
         <small class="text-muted">Manage external referral doctors</small>
     </div>
-    <a asp-action="Create" class="btn btn-primary">
+    <a asp-permission="MASTER.REFERRALDOCTORS:ADD" asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add Doctor
     </a>
 </div>
@@ -76,7 +76,7 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-action="Edit" asp-route-id="@item.ReferralDoctorId"
+                        <a asp-permission="MASTER.REFERRALDOCTORS:EDIT" asp-action="Edit" asp-route-id="@item.ReferralDoctorId"
                            class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
@@ -88,7 +88,7 @@
                 <tr>
                     <td colspan="7" class="text-center text-muted py-5">
                         <i class="bi bi-person-hearts fs-2 d-block mb-2 opacity-50"></i>
-                        No referral doctors found. <a asp-action="Create">Add one now.</a>
+                        No referral doctors found. <a asp-permission="MASTER.REFERRALDOCTORS:ADD" asp-action="Create">Add one now.</a>
                     </td>
                 </tr>
             }

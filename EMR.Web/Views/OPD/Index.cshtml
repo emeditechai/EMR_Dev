@@ -175,7 +175,7 @@
                                 }
                             </td>
                             <td class="text-end">
-                                 <a asp-action="Details" asp-route-id="@p.PatientId" target="_blank"
+                                 <a asp-permission="MASTER.OPD:DETAILS" asp-action="Details" asp-route-id="@p.PatientId" target="_blank"
                                     class="btn btn-sm btn-outline-info me-1" title="View Details">
                                      <i class="bi bi-eye-fill"></i>
                                  </a>
@@ -183,7 +183,7 @@
                                    class="btn btn-sm btn-outline-primary me-1" title="Edit">
                                     <i class="bi bi-pencil-fill"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                <button asp-permission="MASTER.OPD:DELETE" type="button" class="btn btn-sm btn-outline-danger"
                                         data-bs-toggle="modal" data-bs-target="#deleteModal"
                                         data-id="@p.PatientId" data-name="@p.FullName" title="Delete">
                                     <i class="bi bi-trash-fill"></i>
@@ -293,7 +293,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form asp-action="DeletePatient" method="post" id="deleteForm">
+                <form asp-permission="MASTER.OPD:DELETE" asp-action="DeletePatient" method="post" id="deleteForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="id" id="deletePatientId" />
                     <button type="submit" class="btn btn-danger">

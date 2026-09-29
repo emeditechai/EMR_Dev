@@ -11,7 +11,7 @@
         <h1 class="h3 mb-0 fw-bold">Country Master</h1>
         <small class="text-muted">Configure countries, currency and dial codes</small>
     </div>
-    <a asp-action="Create" class="btn btn-primary">
+    <a asp-permission="MASTER.COUNTRIES:ADD" asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add Country
     </a>
 </div>
@@ -78,10 +78,10 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.CountryId" class="btn btn-sm btn-outline-secondary me-1" title="Details">
+                        <a asp-permission="MASTER.COUNTRIES:DETAILS" asp-action="Details" asp-route-id="@item.CountryId" class="btn btn-sm btn-outline-secondary me-1" title="Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.CountryId" class="btn btn-sm btn-outline-primary" title="Edit">
+                        <a asp-permission="MASTER.COUNTRIES:EDIT" asp-action="Edit" asp-route-id="@item.CountryId" class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
                     </td>

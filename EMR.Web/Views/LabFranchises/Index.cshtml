@@ -20,10 +20,10 @@
             </h4>
         </div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
+            <button asp-permission="MASTER.LABFRANCHISES:IMPORT" type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
                 <i class="bi bi-file-earmark-excel me-1"></i> Bulk Upload
             </button>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABFRANCHISES:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add New Franchise (Wizard)
             </a>
         </div>
@@ -233,7 +233,7 @@
                                         }
                                     </td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" method="post" class="d-inline">
+                                        <form asp-permission="MASTER.LABFRANCHISES:STATUS" asp-action="ToggleStatus" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@item.Franchise_ID" />
                                             <input type="hidden" name="isActive" value="@(item.IsActive ? "false" : "true")" />
@@ -251,10 +251,10 @@
                                     </td>
                                     <td class="text-end pe-3">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Franchise_ID" class="btn btn-outline-info" title="View Details">
+                                            <a asp-permission="MASTER.LABFRANCHISES:DETAILS" asp-action="Details" asp-encrypted-id="@item.Franchise_ID" class="btn btn-outline-info" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Franchise_ID" class="btn btn-outline-primary" title="Edit Franchise (Wizard)">
+                                            <a asp-permission="MASTER.LABFRANCHISES:EDIT" asp-action="Edit" asp-encrypted-id="@item.Franchise_ID" class="btn btn-outline-primary" title="Edit Franchise (Wizard)">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
                                             <!-- Suspension Button before Delete -->
@@ -262,7 +262,7 @@
                                                 <i class="bi @(item.Status ? "bi-play-circle" : "bi-slash-circle")"></i> @(item.Status ? "Unsuspend" : "Suspend")
                                             </button>
                                             <!-- Delete Button -->
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal_@item.Franchise_ID" title="Delete Franchise">
+                                            <button asp-permission="MASTER.LABFRANCHISES:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal_@item.Franchise_ID" title="Delete Franchise">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -271,7 +271,7 @@
                                         <div class="modal fade text-start" id="suspensionModal_@item.Franchise_ID" tabindex="-1" aria-hidden="true">
                                             <div class="modal-dialog">
                                                 <div class="modal-content">
-                                                    <form asp-action="ToggleSuspension" method="post">
+                                                    <form asp-permission="MASTER.LABFRANCHISES:SUSPEND" asp-action="ToggleSuspension" method="post">
                                                         @Html.AntiForgeryToken()
                                                         <input type="hidden" name="id" value="@item.Franchise_ID" />
                                                         <input type="hidden" name="status" value="@(item.Status ? "false" : "true")" />
@@ -307,7 +307,7 @@
                                         <div class="modal fade text-start" id="deleteModal_@item.Franchise_ID" tabindex="-1" aria-hidden="true">
                                             <div class="modal-dialog">
                                                 <div class="modal-content">
-                                                    <form asp-action="Delete" method="post">
+                                                    <form asp-permission="MASTER.LABFRANCHISES:DELETE" asp-action="Delete" method="post">
                                                         @Html.AntiForgeryToken()
                                                         <input type="hidden" name="id" value="@item.Franchise_ID" />
                                                         <div class="modal-header bg-danger text-white">

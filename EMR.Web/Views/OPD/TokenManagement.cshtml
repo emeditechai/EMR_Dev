@@ -15,7 +15,7 @@
             <p class="text-muted small mb-0">Live Queue & Status Dashboard</p>
         </div>
         <div>
-            <a href="@Url.Action("MonitorDisplay", "OPD")" target="_blank" class="btn btn-dark shadow-sm me-2">
+            <a asp-permission="OPD.TOKENMANAGEMENT:MONITOR" href="@Url.Action("MonitorDisplay", "OPD")" target="_blank" class="btn btn-dark shadow-sm me-2">
                 <i class="bi bi-tv me-1"></i> Open Monitor
             </a>
             <button class="btn btn-primary shadow-sm" onclick="fetchTokens()">
@@ -373,13 +373,13 @@
                             <i class="bi bi-info-circle me-1"></i>Clear payment to enable
                         </div>`;
                 } else {
-                    actionHtml = `<button class="btn btn-sm btn-outline-primary w-100 mt-3 rounded-pill fw-bold"
+                    actionHtml = `<button data-permission="OPD.TOKENMANAGEMENT:TOKEN_STATUS" class="btn btn-sm btn-outline-primary w-100 mt-3 rounded-pill fw-bold"
                                           onclick="updateStatus(${item.opdServiceId}, 'Consulting')">
                         <i class="bi bi-megaphone me-1"></i> Call Patient
                     </button>`;
                 }
             } else if (status === 'consulting') {
-                actionHtml = `<button class="btn btn-sm btn-success w-100 mt-3 rounded-pill fw-bold"
+                actionHtml = `<button data-permission="OPD.TOKENMANAGEMENT:TOKEN_STATUS" class="btn btn-sm btn-success w-100 mt-3 rounded-pill fw-bold"
                                       onclick="updateStatus(${item.opdServiceId}, 'Completed')">
                     <i class="bi bi-check2-all me-1"></i> Complete
                 </button>`;

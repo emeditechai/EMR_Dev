@@ -254,7 +254,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<UserRole>(entity =>
         {
-            entity.ToTable("Userroles");
+            // trg_Userroles_BumpPermissionVersion (SQL 2161) re-reads permissions when roles change; declaring it makes
+            // EF save without an OUTPUT clause, which SQL Server does not allow on a table with a trigger.
+            entity.ToTable("Userroles", tb => tb.HasTrigger("trg_Userroles_BumpPermissionVersion"));
             entity.HasKey(x => x.Id);
             entity.HasOne(x => x.User)
                 .WithMany(x => x.UserRoles)

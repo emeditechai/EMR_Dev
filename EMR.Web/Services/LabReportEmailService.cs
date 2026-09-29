@@ -14,6 +14,8 @@ namespace EMR.Web.Services;
 /// approved, the patient is emailed the final report (PDF attached) through the booking branch's SMTP configuration.
 /// Triggered after an approval (Report Entry / Pathologist Dashboard) and after a LAB payment that clears the due.
 /// Runs in the background, so a slow or failing mail server never delays or fails the approval / payment.
+/// For a B2B order, this only fires when the booking Franchise's "Notification Required" flag (Master > Franchise
+/// Setup) is on - a franchise with it off is expected to hand the report to its patient itself. B2C is unaffected.
 /// </summary>
 public interface ILabReportEmailService
 {
@@ -56,6 +58,8 @@ public class LabReportEmailService(
         public bool IsFinal { get; set; }
         public DateTime? FinalApprovedOn { get; set; }
         public bool EmailEnabled { get; set; }
+        public bool IsB2B { get; set; }
+        public bool NotificationAllowed { get; set; }
     }
 
     private sealed class Claim
@@ -95,6 +99,10 @@ public class LabReportEmailService(
         // Nothing is recorded while the setting is off or the bill is not final yet - those are the normal cases.
         if (state == null) return new("NotFound", "Lab order not found.");
         if (!state.EmailEnabled) return new("Disabled", "Lab report email is switched off for this branch.");
+        // B2B Franchise gate: a franchise with "Notification Required" switched off never has its
+        // patients emailed the report - the franchise handles delivery to the patient instead.
+        if (state.IsB2B && !state.NotificationAllowed)
+            return new("NotApplicable", "Franchise notification is switched off for this B2B order.");
         if (!state.IsFinal || state.FinalApprovedOn == null)
             return new("NotFinal", $"{state.ApprovedTests} of {state.TotalTests} test(s) approved.");
 

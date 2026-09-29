@@ -600,6 +600,15 @@
                 const payHtml = paid
                     ? '<span class="badge badge-ds bg-success-subtle text-success border-success-subtle fs-9">Paid</span>'
                     : '<span class="badge badge-ds bg-danger-subtle text-danger border-danger-subtle fs-9" title="Balance due">Due ₹' + Number(r.balanceDue).toFixed(2) + '</span>';
+                // B2B is settled with the franchise/company, not per-patient - show the partner's Credit
+                // Facility Type here instead of a due amount (same mapping as the Report Entry page).
+                const cftCls = r.creditFacilityType === 1 ? 'bg-info-subtle text-info border-info-subtle'
+                    : r.creditFacilityType === 2 ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle'
+                    : r.creditFacilityType === 3 ? 'bg-secondary-subtle text-secondary border-secondary-subtle'
+                    : 'bg-info-subtle text-info border-info-subtle';
+                const billingHtml = isB2B
+                    ? '<span class="badge badge-ds ' + cftCls + ' fs-9" title="Credit Facility Type">' + esc(r.creditFacilityTypeName || '—') + '</span>'
+                    : payHtml;
 
                 let printedHtml;
                 if (r.printedAfterApproval) {
@@ -612,7 +621,9 @@
                     printedHtml = '<span class="text-muted fs-9">—</span>';
                 }
 
-                const hasDue = !paid;
+                // B2B due is settled with the franchise/company, not the patient at the counter - never
+                // block printing on it. B2C keeps the existing "clear the due first" rule unchanged.
+                const hasDue = !paid && !isB2B;
                 let printBtn;
                 if (!r.canPrint) {
                     printBtn = '<button type="button" class="btn btn-outline-secondary btn-sm fs-9 px-2 py-1" disabled title="Validate at least one test to print"><i class="bi bi-printer me-1"></i>Print</button>';
@@ -643,7 +654,7 @@
                     +     '<div class="fs-9 text-muted text-nowrap"><span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9">' + esc(r.patientCode || '—') + '</span> '
                     +     esc((r.age != null ? r.age + 'Y / ' : '') + (r.gender || '')) + '</div>'
                     +     (r.phoneNumber ? '<div class="fs-9 text-muted text-nowrap"><i class="bi bi-telephone me-1"></i>' + esc(r.phoneNumber) + '</div>' : '') + '</td>'
-                    + '<td><div class="d-flex align-items-center gap-1"><span class="badge badge-ds fs-9 ' + (isB2B ? 'type-b2b' : 'type-b2c') + '">' + esc(r.billingType) + '</span>' + payHtml + '</div>' + client + '</td>'
+                    + '<td><div class="d-flex align-items-center gap-1"><span class="badge badge-ds fs-9 ' + (isB2B ? 'type-b2b' : 'type-b2c') + '">' + esc(r.billingType) + '</span>' + billingHtml + '</div>' + client + '</td>'
                     + '<td class="text-nowrap fs-9">' + esc(fmt(r.billingDate)) + '</td>'
                     + '<td><div class="d-flex align-items-center gap-2"><div class="tests-bar flex-grow-1" title="' + r.approvedTests + ' approved, ' + r.validatedTests + ' validated of ' + total + '">'
                     +     '<span class="seg-approved" style="width:' + pApp + '%"></span><span class="seg-validated" style="width:' + pVal + '%"></span><span class="seg-entered" style="width:' + pEnt + '%"></span></div>'

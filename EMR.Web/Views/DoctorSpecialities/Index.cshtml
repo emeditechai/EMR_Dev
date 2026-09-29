@@ -11,7 +11,7 @@
         <h1 class="h3 mb-0 fw-bold">Doctor Speciality Master</h1>
         <small class="text-muted">Manage medical specialities for doctors</small>
     </div>
-    <a asp-action="Create" class="btn btn-primary">
+    <a asp-permission="MASTER.DOCTORSPECIALITIES:ADD" asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add Speciality
     </a>
 </div>
@@ -80,11 +80,11 @@
                     </td>
                     <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.SpecialityId"
+                        <a asp-permission="MASTER.DOCTORSPECIALITIES:DETAILS" asp-action="Details" asp-route-id="@item.SpecialityId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.SpecialityId"
+                        <a asp-permission="MASTER.DOCTORSPECIALITIES:EDIT" asp-action="Edit" asp-route-id="@item.SpecialityId"
                            class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
@@ -96,7 +96,7 @@
                 <tr>
                     <td colspan="6" class="text-center text-muted py-5">
                         <i class="bi bi-award fs-2 d-block mb-2 opacity-50"></i>
-                        No specialities found. <a asp-action="Create">Add one now.</a>
+                        No specialities found. <a asp-permission="MASTER.DOCTORSPECIALITIES:ADD" asp-action="Create">Add one now.</a>
                     </td>
                 </tr>
             }

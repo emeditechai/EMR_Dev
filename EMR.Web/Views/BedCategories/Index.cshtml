@@ -15,7 +15,7 @@
         <a asp-controller="Rooms" asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-door-open me-1"></i>IPD Room Master
         </a>
-        <a asp-action="Create" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.BEDCATEGORIES:ADD" asp-action="Create" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Bed Category
         </a>
     </div>
@@ -102,15 +102,15 @@
                     </td>
                     <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
                     <td class="text-end">
-                        <a asp-action="Details" asp-route-id="@item.BedCategoryId"
+                        <a asp-permission="MASTER.BEDCATEGORIES:DETAILS" asp-action="Details" asp-route-id="@item.BedCategoryId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-action="Edit" asp-route-id="@item.BedCategoryId"
+                        <a asp-permission="MASTER.BEDCATEGORIES:EDIT" asp-action="Edit" asp-route-id="@item.BedCategoryId"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-action="Delete" asp-route-id="@item.BedCategoryId" method="post" class="d-inline"
+                        <form asp-permission="MASTER.BEDCATEGORIES:DELETE" asp-action="Delete" asp-route-id="@item.BedCategoryId" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.CategoryName?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -125,7 +125,7 @@
                 <tr>
                     <td colspan="7" class="text-center text-muted py-5">
                         <i class="bi bi-bookmark-star fs-1 d-block mb-2 opacity-50"></i>
-                        No bed categories found. <a asp-action="Create" class="fw-bold">Create one now.</a>
+                        No bed categories found. <a asp-permission="MASTER.BEDCATEGORIES:ADD" asp-action="Create" class="fw-bold">Create one now.</a>
                     </td>
                 </tr>
             }

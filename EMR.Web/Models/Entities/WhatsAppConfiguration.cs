@@ -21,6 +21,8 @@ public class WhatsAppConfiguration
     public bool VideoNotificationEnabled { get; set; } = true;
     public string VideoPatientMessageTemplate { get; set; } = "Dear {PatientName}, your Video Consultation with Dr. {DoctorName} on {Date} at {Time} is confirmed. Join using: {Link}";
     public string VideoDoctorMessageTemplate { get; set; } = "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}";
+    public bool LabReportApprovedNotificationEnabled { get; set; } = true;
+    public string LabReportApprovedMessageTemplate { get; set; } = "Dear {PatientName}, your report for Bill {BillNo} at {HospitalName} has been approved. Please find your report attached. Thank you for choosing us!";
     public bool IsDefault { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public DateTime? LastTestedDate { get; set; }

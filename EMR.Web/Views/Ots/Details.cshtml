@@ -93,7 +93,7 @@
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2">@equipments.Count Equipments</span>
                     }
                 </h6>
-                <a asp-controller="OtEquipments" asp-action="Create" asp-route-otId="@ot.OtId" class="btn btn-sm btn-outline-primary">
+                <a asp-permission="MASTER.OTS:OT_EQUIPMENTS" asp-controller="OtEquipments" asp-action="Create" asp-route-otId="@ot.OtId" class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-plus-lg me-1"></i>Add Equipment
                 </a>
             </div>
@@ -148,7 +148,7 @@
                                                 <a asp-controller="OtEquipments" asp-action="Details" asp-route-id="@eq.EquipmentId" class="btn btn-outline-info" title="View Equipment">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
-                                                <a asp-controller="OtEquipments" asp-action="Edit" asp-route-id="@eq.EquipmentId" class="btn btn-outline-primary" title="Edit Equipment">
+                                                <a asp-permission="MASTER.OTS:OT_EQUIPMENTS" asp-controller="OtEquipments" asp-action="Edit" asp-route-id="@eq.EquipmentId" class="btn btn-outline-primary" title="Edit Equipment">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
                                             </div>
@@ -232,7 +232,7 @@
                                                 <a asp-controller="OtTariffs" asp-action="Details" asp-route-id="@tariff.OtTariffId" class="btn btn-outline-info" title="View Tariff">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
-                                                <a asp-controller="OtTariffs" asp-action="Edit" asp-route-id="@tariff.OtTariffId" class="btn btn-outline-primary" title="Edit Tariff">
+                                                <a asp-permission="MASTER.OTS:OT_TARIFFS" asp-controller="OtTariffs" asp-action="Edit" asp-route-id="@tariff.OtTariffId" class="btn btn-outline-primary" title="Edit Tariff">
                                                     <i class="bi bi-pencil me-1"></i>Edit Tariff
                                                 </a>
                                             </div>
@@ -262,11 +262,11 @@
             <div class="d-flex gap-2">
                 @if (!Model.HasConfiguredTariffs)
                 {
-                    <a asp-controller="OtTariffs" asp-action="Create" asp-route-otId="@ot.OtId" class="btn btn-success">
+                    <a asp-permission="MASTER.OTS:OT_TARIFFS" asp-controller="OtTariffs" asp-action="Create" asp-route-otId="@ot.OtId" class="btn btn-success">
                         <i class="bi bi-plus-lg me-1"></i>Configure Tariff
                     </a>
                 }
-                <a asp-action="Edit" asp-route-id="@ot.OtId" class="btn btn-primary">
+                <a asp-permission="MASTER.OTS:EDIT" asp-action="Edit" asp-route-id="@ot.OtId" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i>Edit OT
                 </a>
             </div>

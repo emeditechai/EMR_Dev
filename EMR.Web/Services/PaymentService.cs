@@ -219,6 +219,15 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
     public const string DiscountApprovalRequiredMessage =
         "A discount needs a reason and the name of the person who approved it.";
 
+    public const string DiscountNotPermittedMessage =
+        "You do not have permission to give a discount. Ask a user with the Discount right on this screen.";
+
+    /// <summary>True when the bill carries any discount, on the header or on a line.</summary>
+    public static bool HasDiscount(SavePaymentRequest? request) =>
+        request != null
+        && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0
+            || (request.LineItems?.Any(l => l.LineDiscountAmount > 0 || l.LineDiscountValue > 0) ?? false));
+
     /// <summary>True when the request carries a discount but no reason / approver (checked before a bill is saved).</summary>
     public static bool IsDiscountApprovalMissing(SavePaymentRequest? request) =>
         request != null

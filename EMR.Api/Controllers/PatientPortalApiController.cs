@@ -6,6 +6,7 @@ namespace EMR.Api.Controllers;
 
 [ApiController]
 [Route("api/patientportal")]
+[EMR.Api.Security.PatientOwnData]
 [Produces("application/json")]
 public class PatientPortalApiController(IPatientPortalService portalService) : ControllerBase
 {

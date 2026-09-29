@@ -24,10 +24,10 @@
                                 (<strong>@Model.DependentMasters</strong>). Only existing, active masters can be selected.
                             </p>
                             <div class="d-flex flex-wrap gap-2">
-                                <a class="btn btn-outline-success btn-sm" href="@Url.Action("Template", "LabBulkUpload", new { module = Model.Module, withData = false })">
+                                <a asp-permission="MASTER.LABFRANCHISES:IMPORT,MASTER.LABINVESTIGATIONPROFILES:IMPORT,MASTER.LABINVESTIGATIONS:IMPORT,MASTER.LABRATELISTB2C:IMPORT,MASTER.LABRATELISTFRANCHISE:IMPORT,MASTER.LABTESTMETHODS:IMPORT,MASTER.LABTESTSUBCATEGORIES:IMPORT" class="btn btn-outline-success btn-sm" href="@Url.Action("Template", "LabBulkUpload", new { module = Model.Module, withData = false })">
                                     <i class="bi bi-file-earmark-plus me-1"></i>Blank Template
                                 </a>
-                                <a class="btn btn-outline-primary btn-sm" href="@Url.Action("Template", "LabBulkUpload", new { module = Model.Module, withData = true })">
+                                <a asp-permission="MASTER.LABFRANCHISES:IMPORT,MASTER.LABINVESTIGATIONPROFILES:IMPORT,MASTER.LABINVESTIGATIONS:IMPORT,MASTER.LABRATELISTB2C:IMPORT,MASTER.LABRATELISTFRANCHISE:IMPORT,MASTER.LABTESTMETHODS:IMPORT,MASTER.LABTESTSUBCATEGORIES:IMPORT" class="btn btn-outline-primary btn-sm" href="@Url.Action("Template", "LabBulkUpload", new { module = Model.Module, withData = true })">
                                     <i class="bi bi-file-earmark-arrow-down me-1"></i>Template with Existing Data
                                 </a>
                             </div>

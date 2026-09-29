@@ -1,4 +1,5 @@
 @model EMR.Web.Models.ViewModels.LabReportingEntryPageViewModel
+@inject EMR.Shared.Security.IActionPermissionGuard PermissionGuard
 @{
     var d = Model.Detail;
     ViewData["Title"] = $"Image Report Entry - {d.PatientName} ({d.TokenNo})";
@@ -21,6 +22,9 @@
 
     // Every workflow action (enter, submit, validate, approve, print) is on the test row or in its editor.
     bool pathologistApprovalRequired = Model.PathologistApprovalRequired;
+    // Approving is its own control (Settings > Security): without it the Approve buttons are not offered.
+    bool canApprove = await PermissionGuard.ShowsAsync(Context, "LAB.LABIMAGEREPORTING", EMR.Shared.Security.PermissionControls.Approve);
+    bool canValidate = await PermissionGuard.ShowsAsync(Context, "LAB.LABIMAGEREPORTING", EMR.Shared.Security.PermissionControls.Validate);
     bool showApprovedBadge = isAllApproved || isPartialApproved;
     // One print for the whole order, offered only once every image test is approved.
     bool showPrintAll = isAllApproved;
@@ -477,7 +481,7 @@
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1.5 fs-8 @(showApprovedBadge ? "" : "d-none")" id="badgeHeaderApproved">
                 <i class="bi bi-patch-check-fill me-1"></i>@(isPartialApproved ? $"Partially Approved ({approvedCount}/{totalCount})" : "Report Approved")
             </span>
-            <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
+            <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
                class="btn btn-dark px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-print-all @(showPrintAll ? "" : "d-none")" id="btnHeaderPrintAll"
                title="Print every approved image report of this order">
                 <i class="bi bi-printer-fill me-1"></i>Print All Reports
@@ -553,7 +557,7 @@
                                             <span class="btn-text">@(item.ReportStatusId == 5 ? "View Report" : (hasEntry ? "Edit Report" : "Start Entry"))</span>
                                         </button>
 
-                                        @if (item.ReportStatusId == 2)
+                                        @if (item.ReportStatusId == 2 && canValidate)
                                         {
                                             <button type="button"
                                                     class="btn btn-sm btn-outline-success px-2.5 d-inline-flex align-items-center gap-1 btn-card-validate"
@@ -564,7 +568,7 @@
                                                 <i class="bi bi-check-circle-fill"></i>Validate
                                             </button>
                                         }
-                                        else if (item.ReportStatusId == 3 && !pathologistApprovalRequired)
+                                        else if (item.ReportStatusId == 3 && !pathologistApprovalRequired && canApprove)
                                         {
                                             <button type="button"
                                                     class="btn btn-sm btn-outline-info text-info px-2.5 d-inline-flex align-items-center gap-1 btn-card-approve"
@@ -575,7 +579,7 @@
                                                 <i class="bi bi-patch-check-fill"></i>Approve
                                             </button>
                                         }
-                                        else if (item.ReportStatusId == 3)
+                                        else if (item.ReportStatusId == 3 && pathologistApprovalRequired)
                                         {
                                             <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1.5 fs-9"
                                                   title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch">
@@ -596,7 +600,7 @@
 
                                         @if (item.ReportStatusId == 5)
                                         {
-                                        <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
+                                        <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-dark px-2.5 d-inline-flex align-items-center gap-1"
                                            title="Print this report">
@@ -605,7 +609,7 @@
                                         }
                                         else if (item.ReportStatusId == 3)
                                         {
-                                        <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
+                                        <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-warning text-warning-emphasis px-2.5 d-inline-flex align-items-center gap-1"
                                            title="Validated, not yet approved: prints with a PROVISIONAL watermark">
@@ -712,12 +716,12 @@
                     </button>
 
                     <!-- Validate Report (Status 3) -->
-                    <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate btn-modal-validate" data-status-id="3" style="display:none;">
+                    <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate btn-modal-validate" asp-permission="LAB.LABIMAGEREPORTING:VALIDATE" data-status-id="3" style="display:none;">
                         <i class="bi bi-check-circle-fill me-1"></i>Validate Report
                     </button>
 
                     <!-- Approve Report (Status 5) -->
-                    <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve btn-modal-approve" data-status-id="5" style="display:none;">
+                    <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve btn-modal-approve" data-status-id="5" asp-permission="LAB.LABIMAGEREPORTING:APPROVE" style="display:none;">
                         <i class="bi bi-patch-check-fill me-1"></i>Approve Report
                     </button>
 
@@ -756,7 +760,7 @@
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fs-8 @(isAllApproved ? "" : "d-none")" id="badgeApprovedFooter">
                 <i class="bi bi-patch-check-fill me-1"></i>Report Approved
             </span>
-            <a asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
+            <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
                class="btn btn-sm btn-dark px-3 fw-semibold btn-print-all @(showPrintAll ? "" : "d-none")" id="btnStickyPrintAll"
                title="Print every approved image report of this order">
                 <i class="bi bi-printer-fill me-1"></i>Print All Reports
@@ -779,6 +783,8 @@
 
             const labOrderId = @d.LabOrderId;
             const PATHOLOGIST_APPROVAL_REQUIRED = @(pathologistApprovalRequired.ToString().ToLower());
+            const CAN_APPROVE = @(canApprove.ToString().ToLower());
+            const CAN_VALIDATE = @(canValidate.ToString().ToLower());
             const PRINT_URL = '@Url.Action("Print", "LabImageReporting")';
 
             let currentTestId = 0;
@@ -903,16 +909,16 @@
                 let h = `<button type="button" class="btn btn-sm ${approved ? 'btn-outline-dark' : (hasEntry ? 'btn-outline-primary' : 'btn-primary')} px-3 d-inline-flex align-items-center gap-1.5 btn-start-entry" ${data} data-has-entry="${hasEntry ? 'true' : 'false'}">
                             <i class="bi ${approved ? 'bi-eye' : 'bi-pencil-square'}"></i><span class="btn-text">${approved ? 'View Report' : (hasEntry ? 'Edit Report' : 'Start Entry')}</span>
                          </button>`;
-                if (statusId === 2) {
+                if (statusId === 2 && CAN_VALIDATE) {
                     h += `<button type="button" class="btn btn-sm btn-outline-success px-2.5 d-inline-flex align-items-center gap-1 btn-card-validate" ${data} title="Validate this report">
                               <i class="bi bi-check-circle-fill"></i>Validate
                           </button>`;
                 } else if (statusId === 3) {
                     h += PATHOLOGIST_APPROVAL_REQUIRED
                         ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1.5 fs-9" title="Hospital Settings > LAB > Pathologist approval required is switched on for this branch"><i class="bi bi-shield-lock-fill me-1"></i>Approval by pathologist</span>`
-                        : `<button type="button" class="btn btn-sm btn-outline-info text-info px-2.5 d-inline-flex align-items-center gap-1 btn-card-approve" ${data} title="Approve this report">
+                        : (CAN_APPROVE ? `<button type="button" class="btn btn-sm btn-outline-info text-info px-2.5 d-inline-flex align-items-center gap-1 btn-card-approve" ${data} title="Approve this report">
                                <i class="bi bi-patch-check-fill"></i>Approve
-                           </button>`;
+                           </button>` : '');
                 }
                 if (hasEntry) {
                     h += `<button type="button" class="btn btn-sm btn-outline-secondary px-2.5 d-inline-flex align-items-center gap-1 btn-preview-report" data-sample-id="${sampleId}" data-test-id="${testId}" title="Preview report">

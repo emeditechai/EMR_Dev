@@ -31,7 +31,7 @@
             <a asp-controller="ProcedureTariffs" asp-action="Index" class="btn btn-outline-success">
                 <i class="bi bi-cash-coin me-1"></i>Procedure Tariffs
             </a>
-            <a asp-action="Create" class="btn btn-primary">
+            <a asp-permission="MASTER.PROCEDURES:ADD" asp-action="Create" class="btn btn-primary">
                 <i class="bi bi-plus-lg me-1"></i>Add Procedure
             </a>
         </div>
@@ -166,13 +166,13 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm">
-                                            <a asp-action="Details" asp-route-id="@item.ProcedureId" class="btn btn-outline-info" title="View Details">
+                                            <a asp-permission="MASTER.PROCEDURES:DETAILS" asp-action="Details" asp-route-id="@item.ProcedureId" class="btn btn-outline-info" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-route-id="@item.ProcedureId" class="btn btn-outline-primary" title="Edit">
+                                            <a asp-permission="MASTER.PROCEDURES:EDIT" asp-action="Edit" asp-route-id="@item.ProcedureId" class="btn btn-outline-primary" title="Edit">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <form asp-action="Delete" asp-route-id="@item.ProcedureId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this procedure?');">
+                                            <form asp-permission="MASTER.PROCEDURES:DELETE" asp-action="Delete" asp-route-id="@item.ProcedureId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this procedure?');">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                     <i class="bi bi-trash"></i>

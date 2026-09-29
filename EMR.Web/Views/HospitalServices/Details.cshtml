@@ -141,7 +141,7 @@
                                                 <a asp-controller="HospitalServiceRates" asp-action="Details" asp-route-id="@rate.ServiceRateId" class="btn btn-outline-info" title="View Rate Details">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
-                                                <a asp-controller="HospitalServiceRates" asp-action="Edit" asp-route-id="@rate.ServiceRateId" class="btn btn-outline-primary" title="Edit Rate">
+                                                <a asp-permission="MASTER.HOSPITALSERVICES:HOSPITAL_SERVICE_RATES" asp-controller="HospitalServiceRates" asp-action="Edit" asp-route-id="@rate.ServiceRateId" class="btn btn-outline-primary" title="Edit Rate">
                                                     <i class="bi bi-pencil me-1"></i>Edit Rate
                                                 </a>
                                             </div>
@@ -171,11 +171,11 @@
             <div class="d-flex gap-2">
                 @if (!Model.HasConfiguredRates)
                 {
-                    <a asp-controller="HospitalServiceRates" asp-action="Create" asp-route-hospitalServiceId="@service.HospitalServiceId" class="btn btn-success">
+                    <a asp-permission="MASTER.HOSPITALSERVICES:HOSPITAL_SERVICE_RATES" asp-controller="HospitalServiceRates" asp-action="Create" asp-route-hospitalServiceId="@service.HospitalServiceId" class="btn btn-success">
                         <i class="bi bi-plus-lg me-1"></i>Configure Rate
                     </a>
                 }
-                <a asp-action="Edit" asp-route-id="@service.HospitalServiceId" class="btn btn-primary">
+                <a asp-permission="MASTER.HOSPITALSERVICES:EDIT" asp-action="Edit" asp-route-id="@service.HospitalServiceId" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i>Edit Service
                 </a>
             </div>

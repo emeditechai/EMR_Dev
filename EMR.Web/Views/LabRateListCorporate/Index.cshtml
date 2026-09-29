@@ -71,7 +71,7 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Lab Rate List (Corporate)</h5>
-        <a asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus"></i> Create New</a>
+        <a asp-permission="MASTER.LABRATELISTCORPORATE:ADD" asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus"></i> Create New</a>
     </div>
     <div class="card-body">
         @if (TempData["SuccessMessage"] != null)
@@ -168,7 +168,7 @@
                         var id = row.RateCard_ID || row.rateCard_ID;
                         var checked = st ? 'checked' : '';
                         return `<div class="form-check form-switch text-center">
-                                    <input class="form-check-input flexSwitchCheck" type="checkbox" data-id="${id}" ${checked}>
+                                    <input class="form-check-input flexSwitchCheck" data-permission="MASTER.LABRATELISTCORPORATE:STATUS" data-permission-mode="disable" type="checkbox" data-id="${id}" ${checked}>
                                 </div>`;
                     }
                 },
@@ -178,8 +178,8 @@
                         var id = row.RateCard_ID || row.rateCard_ID;
                         var qToken = row.EncryptedId || row.encryptedId || id;
                         return `<div class="btn-group btn-group-sm shadow-sm" role="group">
-                                    <a href="@Url.Action("Edit")?q=${encodeURIComponent(qToken)}" class="btn btn-outline-primary" title="Edit Rate Card"><i class="bi bi-pencil"></i></a>
-                                    <button type="button" class="btn btn-outline-danger btn-delete" data-id="${id}" title="Delete Rate Card"><i class="bi bi-trash"></i></button>
+                                    <a data-permission="MASTER.LABRATELISTCORPORATE:EDIT" href="@Url.Action("Edit")?q=${encodeURIComponent(qToken)}" class="btn btn-outline-primary" title="Edit Rate Card"><i class="bi bi-pencil"></i></a>
+                                    <button type="button" class="btn btn-outline-danger btn-delete" data-permission="MASTER.LABRATELISTCORPORATE:DELETE" data-id="${id}" title="Delete Rate Card"><i class="bi bi-trash"></i></button>
                                 </div>`;
                     }
                 }

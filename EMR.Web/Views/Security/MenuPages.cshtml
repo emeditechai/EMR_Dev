@@ -1,0 +1,512 @@
+@model EMR.Web.Models.ViewModels.SecurityPageViewModel
+@{
+    var modeCss = Model.Mode.ToLowerInvariant();
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/security-admin.css" asp-append-version="true" /> }
+
+<form id="secAntiForgery">@Html.AntiForgeryToken()</form>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Dashboard" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Settings</li><li class="breadcrumb-item text-muted">Security</li>
+                <li class="breadcrumb-item active" aria-current="page">Menu &amp; Page Master</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-diagram-3-fill me-2"></i>Menu &amp; Page Master</h4>
+            <div class="text-muted small">The navigation tree, its pages, their controls, and which endpoint belongs to which. Changes apply on the next request.</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="sec-mode @modeCss" title="Authorization:Mode in appsettings">
+                <i class="bi bi-shield-check me-1"></i>@Model.Mode mode@(Model.EnforceModules.Count > 0 ? " · " + string.Join(", ", Model.EnforceModules) : "")
+            </span>
+            @if (Model.CanEdit)
+            {
+                <button class="btn btn-outline-primary btn-sm" onclick="MP.editMenu(null, null)"><i class="bi bi-plus-lg me-1"></i>Nav bar item</button>
+                <button class="btn btn-primary btn-sm" onclick="MP.editPage(null, MP.selMenu)"><i class="bi bi-file-earmark-plus me-1"></i>Add page</button>
+            }
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3" id="kpis">
+        <div class="col-xl-3 col-md-6"><div class="card sec-kpi"><div class="card-body p-3 d-flex justify-content-between align-items-center">
+            <div><span class="text-muted small fw-semibold text-uppercase d-block">Pages</span><h3 class="fw-bold mb-0 text-primary" id="kPages">—</h3><span class="small text-muted" id="kPagesSub"></span></div>
+            <div class="sec-kpi-icon bg-primary-subtle text-primary"><i class="bi bi-window-stack"></i></div></div></div></div>
+        <div class="col-xl-3 col-md-6"><div class="card sec-kpi"><div class="card-body p-3 d-flex justify-content-between align-items-center">
+            <div><span class="text-muted small fw-semibold text-uppercase d-block">Mapped endpoints</span><h3 class="fw-bold mb-0 text-success" id="kMapped">—</h3><span class="small text-muted" id="kPublic"></span></div>
+            <div class="sec-kpi-icon bg-success-subtle text-success"><i class="bi bi-link-45deg"></i></div></div></div></div>
+        <div class="col-xl-3 col-md-6"><div class="card sec-kpi"><div class="card-body p-3 d-flex justify-content-between align-items-center">
+            <div><span class="text-muted small fw-semibold text-uppercase d-block">Unmapped endpoints</span><h3 class="fw-bold mb-0 text-warning" id="kUnmapped">—</h3><span class="small text-muted">Must reach 0 before switch-on</span></div>
+            <div class="sec-kpi-icon bg-warning-subtle text-warning"><i class="bi bi-exclamation-triangle"></i></div></div></div></div>
+        <div class="col-xl-3 col-md-6"><div class="card sec-kpi"><div class="card-body p-3 d-flex justify-content-between align-items-center">
+            <div><span class="text-muted small fw-semibold text-uppercase d-block">Orphaned</span><h3 class="fw-bold mb-0 text-secondary" id="kOrphaned">—</h3><span class="small text-muted">No longer in the code</span></div>
+            <div class="sec-kpi-icon bg-secondary-subtle text-secondary"><i class="bi bi-link-45deg"></i></div></div></div></div>
+    </div>
+
+    <ul class="nav nav-tabs mb-0" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabTree" type="button"><i class="bi bi-diagram-3 me-1"></i>Tree &amp; pages</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabInv" type="button" onclick="MP.loadInventory()"><i class="bi bi-inboxes me-1"></i>Endpoint inventory <span class="badge bg-warning text-dark ms-1" id="invBadge">…</span></button></li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- ───────────── Tree & pages ───────────── -->
+        <div class="tab-pane fade show active pt-3" id="tabTree">
+            <div class="row g-3">
+                <div class="col-lg-4">
+                    <div class="card sec-card h-100">
+                        <div class="card-header d-flex align-items-center gap-2">
+                            <span>Nav bar › menu › sub-menu</span>
+                            <div class="form-check form-switch ms-auto mb-0 small"><input class="form-check-input" type="checkbox" id="showInactive" onchange="MP.render()"><label class="form-check-label" for="showInactive">Inactive</label></div>
+                        </div>
+                        <div class="p-2 border-bottom"><input class="form-control form-control-sm" id="treeSearch" placeholder="Search menu, page, code or controller…" oninput="MP.render()" /></div>
+                        <ul class="sec-tree" id="tree" role="tree" aria-label="Navigation tree"></ul>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="card sec-card mb-3" id="menuPanel"><div class="card-body sec-empty"><i class="bi bi-arrow-left-circle fs-3 d-block mb-2"></i>Choose a nav bar item, menu item or sub-menu item.</div></div>
+                    <div class="card sec-card" id="pagePanel" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ───────────── Endpoint inventory ───────────── -->
+        <div class="tab-pane fade pt-3" id="tabInv">
+            <div class="card sec-card">
+                <div class="card-header sec-toolbar">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="invFilter" id="invUnmapped" value="UNMAPPED" checked onchange="MP.loadInventory()"><label class="btn btn-outline-primary" for="invUnmapped">Unmapped</label>
+                        <input type="radio" class="btn-check" name="invFilter" id="invOrphaned" value="ORPHANED" onchange="MP.loadInventory()"><label class="btn btn-outline-primary" for="invOrphaned">Orphaned</label>
+                    </div>
+                    <input class="form-control form-control-sm" style="max-width:260px" id="invSearch" placeholder="Filter by controller or action…" oninput="MP.renderInventory()" />
+                    <select class="form-select form-select-sm" style="max-width:170px" id="invConf" onchange="MP.renderInventory()">
+                        <option value="">All proposals</option><option value="high">High confidence</option><option value="review">Needs review</option><option value="none">No proposal</option>
+                    </select>
+                    <span class="sec-pending ms-auto" id="invCount"></span>
+                    @if (Model.CanEdit)
+                    {
+                        <button class="btn btn-outline-success btn-sm" onclick="MP.selectHigh()"><i class="bi bi-check2-all me-1"></i>Select high-confidence</button>
+                        <button class="btn btn-success btn-sm" onclick="MP.acceptSelected()"><i class="bi bi-check2-circle me-1"></i>Accept selected</button>
+                    }
+                </div>
+                <div class="alert alert-light border-0 border-bottom rounded-0 small mb-0 py-2">
+                    <i class="bi bi-info-circle me-1 text-primary"></i>The scanner proposes a page from the controller and a control from the action's verb and name.
+                    <b>High confidence</b> = the controller serves one screen, or the action is the screen itself. Everything else is marked for review, never guessed silently.
+                    <span class="text-muted">"Refused (7d)" = how often audit mode saw someone refused here.</span>
+                </div>
+                <div class="sec-scroll">
+                    <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.83rem">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1"><tr>
+                            <th style="width:30px">@if (Model.CanEdit) {<input type="checkbox" class="form-check-input" id="invAll" onchange="MP.toggleAll(this.checked)" aria-label="Select all shown">}</th>
+                            <th>Endpoint</th><th class="text-center">Refused (7d)</th><th style="min-width:260px">Page</th><th style="min-width:140px">Control</th><th>Proposal</th>
+                        </tr></thead>
+                        <tbody id="invBody"><tr><td colspan="6" class="sec-empty">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Menu modal -->
+<div class="modal fade" id="menuModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="menuModalTitle">Menu item</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="mId" />
+        <div class="mb-2"><label class="form-label small fw-semibold" for="mParent">Sits under</label><select class="form-select form-select-sm" id="mParent"></select>
+            <div class="form-text">Top level = a nav bar item. The bar supports three levels.</div></div>
+        <div class="mb-2"><label class="form-label small fw-semibold" for="mTitle">Title</label><input class="form-control form-control-sm" id="mTitle" maxlength="150" /></div>
+        <div class="mb-2"><label class="form-label small fw-semibold" for="mCode">Code</label><input class="form-control form-control-sm font-monospace text-uppercase" id="mCode" maxlength="100" placeholder="e.g. LAB.REPORTS" /></div>
+        <div class="row g-2"><div class="col-8"><label class="form-label small fw-semibold" for="mIcon">Icon (Bootstrap Icons class)</label><input class="form-control form-control-sm font-monospace" id="mIcon" placeholder="bi bi-folder me-2" /></div>
+            <div class="col-4"><label class="form-label small fw-semibold" for="mSort">Order</label><input type="number" class="form-control form-control-sm" id="mSort" step="10" /></div></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary btn-sm" onclick="MP.saveMenu()"><i class="bi bi-check2 me-1"></i>Save</button></div>
+</div></div></div>
+
+<!-- Page modal -->
+<div class="modal fade" id="pageModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="pageModalTitle">Page</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <input type="hidden" id="pId" />
+        <div class="row g-2">
+            <div class="col-md-6"><label class="form-label small fw-semibold" for="pTitle">Title</label><input class="form-control form-control-sm" id="pTitle" maxlength="150" /></div>
+            <div class="col-md-6"><label class="form-label small fw-semibold" for="pCode">Page code</label><input class="form-control form-control-sm font-monospace text-uppercase" id="pCode" maxlength="150" placeholder="e.g. LAB.REPORTING.ENTRY" />
+                <div class="form-text">Referenced in code - keep it stable.</div></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold" for="pController">Controller</label><input class="form-control form-control-sm font-monospace" id="pController" maxlength="100" /></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold" for="pAction">Action</label><input class="form-control form-control-sm font-monospace" id="pAction" maxlength="100" value="Index" /></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold" for="pRoute">Route values</label><input class="form-control form-control-sm font-monospace" id="pRoute" maxlength="200" placeholder="moduleCode=LAB" /></div>
+            <div class="col-md-6"><label class="form-label small fw-semibold" for="pMenu">Under menu</label><select class="form-select form-select-sm" id="pMenu"></select></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold" for="pSort">Order</label><input type="number" class="form-control form-control-sm" id="pSort" step="10" /></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold" for="pTarget">Opens in</label><select class="form-select form-select-sm" id="pTarget"><option value="">Same tab</option><option value="_blank">New tab</option></select></div>
+            <div class="col-md-8"><label class="form-label small fw-semibold" for="pIcon">Icon</label><input class="form-control form-control-sm font-monospace" id="pIcon" placeholder="bi bi-file-earmark me-2" /></div>
+            <div class="col-md-4 d-flex align-items-end"><div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="pShow" checked><label class="form-check-label small" for="pShow">Show in menu</label></div></div>
+        </div>
+        <div class="form-text mt-2">A details, print or edit screen opened from a list is a page too: add it with "Show in menu" off so it is protected even though nothing links to it from the bar.</div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary btn-sm" onclick="MP.savePage(false)"><i class="bi bi-check2 me-1"></i>Save</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/security-admin.js" asp-append-version="true"></script>
+<script>
+const MP = (function () {
+    const CAN_EDIT = @Json.Serialize(Model.CanEdit);
+    let raw = null, T = null, stats = {}, inv = [], proposals = new Map();
+    const st = { selMenu: null, selPage: null };
+
+    async function load(keep) {
+        const r = await Sec.get('@Url.Action("GetTreeJson")');
+        if (!r.success) return Sec.fail(r.message);
+        raw = r.tree; stats = r.stats || {};
+        renderKpis();
+        render();
+        if (keep && st.selPage) showPage(st.selPage); else if (keep && st.selMenu) selectMenu(st.selMenu);
+    }
+
+    function renderKpis() {
+        const pages = raw.pages || [];
+        document.getElementById('kPages').textContent = pages.filter(p => p.isActive).length;
+        document.getElementById('kPagesSub').textContent = pages.filter(p => p.isActive && !p.show_In_Menu).length + ' not in the menu · ' + pages.filter(p => !p.isActive).length + ' inactive';
+        document.getElementById('kMapped').textContent = stats.mapped ?? '—';
+        document.getElementById('kPublic').textContent = (stats.publicEndpoints ?? 0) + ' public (no page needed)';
+        document.getElementById('kUnmapped').textContent = stats.unmapped ?? '—';
+        document.getElementById('kOrphaned').textContent = stats.orphaned ?? '—';
+        document.getElementById('invBadge').textContent = stats.unmapped ?? '…';
+    }
+
+    function render() {
+        T = Sec.buildTree(raw, document.getElementById('showInactive').checked);
+        const q = document.getElementById('treeSearch').value.trim().toLowerCase();
+        const hit = n => !q || [n.title, n.menu_Code, n.page_Code, n.controller, n.action].some(v => (v || '').toLowerCase().includes(q));
+        const subtreeHit = n => hit(n) || (n.children || []).some(subtreeHit);
+        const ul = document.getElementById('tree'); ul.innerHTML = '';
+        const walk = (nodes, depth) => nodes.filter(n => n.kind !== 'PAGE' && subtreeHit(n)).forEach(n => {
+            const pages = T.pagesBeneath(n).length;
+            const li = document.createElement('li');
+            li.className = 'l' + depth + (n.menu_ID === st.selMenu ? ' sel' : '') + (n.isActive ? '' : ' inactive');
+            li.setAttribute('role', 'treeitem'); li.tabIndex = 0;
+            li.innerHTML = (depth === 1 ? '<b>' : '') + Sec.icon(n.icon) + Sec.esc(n.title) + (depth === 1 ? '</b>' : '') +
+                '<span class="cnt">' + n.kind + ' · ' + pages + '</span>';
+            li.onclick = () => selectMenu(n.menu_ID);
+            li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMenu(n.menu_ID); } };
+            ul.appendChild(li);
+            walk(n.children || [], depth + 1);
+        });
+        walk(T.roots, 1);
+        if (T.orphanPages.length) {
+            const li = document.createElement('li'); li.className = 'l1' + (st.selMenu === 0 ? ' sel' : '');
+            li.innerHTML = '<i class="bi bi-files me-1"></i><i>Pages not in the menu</i><span class="cnt">' + T.orphanPages.length + '</span>';
+            li.onclick = () => selectMenu(0); ul.appendChild(li);
+        }
+        if (st.selMenu !== null) renderMenuPanel();
+    }
+
+    function selectMenu(id) { st.selMenu = id; st.selPage = null; document.getElementById('pagePanel').style.display = 'none'; render(); }
+
+    function renderMenuPanel() {
+        const panel = document.getElementById('menuPanel');
+        const isLoose = st.selMenu === 0;
+        const m = isLoose ? null : T.menuById.get(st.selMenu);
+        if (!isLoose && !m) { panel.innerHTML = '<div class="card-body sec-empty">Not found.</div>'; return; }
+        const pages = isLoose ? T.orphanPages : (m.children || []).filter(c => c.kind === 'PAGE');
+        const childMenus = isLoose ? [] : (m.children || []).filter(c => c.kind !== 'PAGE');
+        let h = '<div class="card-header d-flex flex-wrap align-items-center gap-2">';
+        if (isLoose) h += '<span><i class="bi bi-files me-1"></i>Pages not in the menu</span>';
+        else h += Sec.icon(m.icon) + '<span>' + Sec.esc(m.title) + '</span><span class="badge bg-light text-dark border">' + Sec.kindLabel(m.menu_Type) + '</span><span class="sec-code">' + Sec.esc(m.menu_Code) + '</span>' +
+                  (m.isActive ? '' : '<span class="badge bg-secondary">Inactive</span>');
+        if (CAN_EDIT && !isLoose) {
+            h += '<div class="ms-auto d-flex gap-1">';
+            if (m.menu_Type !== 'SUBMENU') h += '<button class="btn btn-outline-secondary btn-sm" onclick="MP.editMenu(null,' + m.menu_ID + ')"><i class="bi bi-folder-plus me-1"></i>Add ' + (m.menu_Type === 'NAV' ? 'menu' : 'sub-menu') + '</button>';
+            h += '<button class="btn btn-outline-primary btn-sm" onclick="MP.editPage(null,' + m.menu_ID + ')"><i class="bi bi-file-earmark-plus me-1"></i>Add page</button>' +
+                 '<button class="btn btn-outline-secondary btn-sm" onclick="MP.editMenu(' + m.menu_ID + ')" aria-label="Edit menu item"><i class="bi bi-pencil"></i></button>' +
+                 '<button class="btn btn-outline-' + (m.isActive ? 'danger' : 'success') + ' btn-sm" onclick="MP.setMenuActive(' + m.menu_ID + ',' + !m.isActive + ')">' + (m.isActive ? 'Deactivate' : 'Activate') + '</button></div>';
+        }
+        h += '</div>';
+        if (childMenus.length) {
+            h += '<div class="px-3 pt-2 small text-muted">Contains: ' + childMenus.map(c => '<a href="#" class="me-2" onclick="MP.selectMenu(' + c.menu_ID + ');return false;">' + Sec.icon(c.icon) + Sec.esc(c.title) + '</a>').join('') + '</div>';
+        }
+        h += '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0" style="font-size:.84rem"><thead class="table-light"><tr><th>Page</th><th>Opens</th><th>Controls</th><th class="text-center">Endpoints</th><th></th></tr></thead><tbody>';
+        if (!pages.length) h += '<tr><td colspan="5" class="sec-empty">No pages directly under this item.</td></tr>';
+        pages.forEach(p => {
+            h += '<tr class="' + (p.isActive ? '' : 'text-muted') + '"><td>' + Sec.icon(p.icon) + '<a href="#" onclick="MP.showPage(' + p.page_ID + ');return false;" class="fw-semibold">' + Sec.esc(p.title) + '</a>' +
+                 (p.show_In_Menu ? '' : ' <span class="badge bg-light text-muted border">not in menu</span>') + (p.isActive ? '' : ' <span class="badge bg-secondary">Inactive</span>') +
+                 '<div class="sec-code">' + Sec.esc(p.page_Code) + '</div></td>' +
+                 '<td class="sec-code">' + Sec.esc(p.controller + '/' + p.action) + (p.route_Values ? '?' + Sec.esc(p.route_Values) : '') + '</td>' +
+                 '<td>' + p.controls.map(c => '<span class="sec-chip ' + (c.is_Sensitive ? 'sensitive' : '') + '">' + Sec.esc(c.control_Code) + '</span>').join('') + '</td>' +
+                 '<td class="text-center">' + p.endpointCount + '</td>' +
+                 '<td class="text-end"><button class="btn btn-light btn-sm" onclick="MP.showPage(' + p.page_ID + ')">Open <i class="bi bi-chevron-right"></i></button></td></tr>';
+        });
+        h += '</tbody></table></div>';
+        panel.innerHTML = h;
+    }
+
+    async function showPage(id) {
+        st.selPage = id;
+        const p = T.pageById.get(id) || (raw.pages || []).map(x => ({ ...x, kind: 'PAGE', controls: (raw.controls || []).filter(c => c.page_ID === x.page_ID) })).find(x => x.page_ID === id);
+        if (!p) return;
+        const panel = document.getElementById('pagePanel'); panel.style.display = '';
+        const r = await Sec.get('@Url.Action("GetEndpointsJson")', { filter: 'PAGE', pageId: id });
+        const eps = r.success ? r.rows : [];
+        const allControls = (raw.controls || []).filter(c => c.page_ID === id).sort((a, b) => a.sort_Order - b.sort_Order);
+        const used = new Set(allControls.filter(c => c.isActive).map(c => c.control_Code));
+        let h = '<div class="card-header d-flex flex-wrap align-items-center gap-2">' + Sec.icon(p.icon) + '<span>' + Sec.esc(p.title) + '</span><span class="sec-code">' + Sec.esc(p.page_Code) + '</span>' +
+                (p.isActive ? '' : '<span class="badge bg-secondary">Inactive</span>');
+        if (CAN_EDIT) h += '<div class="ms-auto d-flex gap-1"><button class="btn btn-outline-secondary btn-sm" onclick="MP.editPage(' + id + ')"><i class="bi bi-pencil me-1"></i>Edit</button>' +
+                           '<button class="btn btn-outline-' + (p.isActive ? 'danger' : 'success') + ' btn-sm" onclick="MP.setPageActive(' + id + ',' + !p.isActive + ',' + p.grantCount + ')">' + (p.isActive ? 'Deactivate' : 'Activate') + '</button></div>';
+        h += '</div><div class="card-body">';
+        h += '<div class="small text-muted mb-1">Opens <span class="sec-code">' + Sec.esc(p.controller + '/' + p.action) + '</span> · ' + p.grantCount + ' grant(s) reference this page</div>';
+        h += '<div class="fw-semibold small mt-3 mb-1">Controls <span class="text-muted fw-normal">- the actions this screen offers (a role allowed the page gets them unless denied)</span></div><div>';
+        allControls.forEach(c => {
+            const off = !c.isActive;
+            h += '<span class="sec-chip ' + (off ? 'off' : (c.is_Sensitive ? 'sensitive' : '')) + '" title="' + Sec.esc(c.control_Code + (off ? ' - inactive: the screen does not offer it' : '')) + '">' + Sec.esc(c.title || c.control_Code) +
+                 (CAN_EDIT && c.control_Code !== 'VIEW' ? ' <button onclick="MP.setControlActive(' + c.control_ID + ',' + off + ')" aria-label="' + (off ? 'Restore ' : 'Remove ') + c.control_Code + '"><i class="bi ' + (off ? 'bi-arrow-counterclockwise' : 'bi-x') + '"></i></button>' : '') + '</span>';
+        });
+        if (CAN_EDIT) {
+            const opts = T.vocabulary.filter(v => !used.has(v.control_Code)).map(v => '<option value="' + v.control_Code + '">' + Sec.esc(v.title + ' (' + v.control_Code + ')') + '</option>').join('') +
+                         '<option value="*">Another action of this screen…</option>';
+            h += '<span class="d-inline-flex gap-1 align-items-center ms-1"><select class="form-select form-select-sm d-inline-block" style="width:auto" id="newCtl" aria-label="Control to add">' + opts + '</select>' +
+                           '<button class="btn btn-sm btn-outline-primary" onclick="MP.addControl(' + id + ')"><i class="bi bi-plus"></i> control</button></span>';
+        }
+        h += '</div>';
+        h += '<div class="fw-semibold small mt-3 mb-1">Endpoints mapped to this page</div>';
+        h += '<table class="table table-sm align-middle mb-0" style="font-size:.82rem"><thead class="table-light"><tr><th>Method</th><th>Controller / action</th><th>Control</th><th>Source</th><th></th></tr></thead><tbody>';
+        if (!eps.length) h += '<tr><td colspan="5" class="text-muted text-center py-3">Nothing mapped yet. Map endpoints from the inventory tab.</td></tr>';
+        eps.forEach(e => {
+            const ctlSel = CAN_EDIT
+                ? '<select class="form-select form-select-sm" style="width:auto" onchange="MP.remap(' + e.endpoint_ID + ',' + id + ',this.value)" aria-label="Control for ' + Sec.esc(e.action) + '">' +
+                  allControls.filter(c => c.isActive).map(c => '<option ' + (c.control_ID === e.control_ID ? 'selected' : '') + '>' + c.control_Code + '</option>').join('') +
+                  (e.control_ID ? '' : '<option selected value="VIEW">VIEW (default)</option>') + '</select>'
+                : Sec.esc(e.control_Code || 'VIEW');
+            h += '<tr class="' + (e.is_Orphaned ? 'text-muted' : '') + '"><td><span class="badge bg-light text-dark border">' + e.http_Method + '</span></td><td class="sec-code">' + Sec.esc(e.controller + '/' + e.action) +
+                 (e.is_Orphaned ? ' <span class="badge bg-secondary">orphaned</span>' : '') + '</td><td>' + ctlSel + '</td><td class="small text-muted">' + Sec.esc(e.source || '') + '</td>' +
+                 '<td class="text-end">' + (CAN_EDIT ? '<button class="btn btn-sm btn-light text-danger" onclick="MP.unmap(' + e.endpoint_ID + ')" aria-label="Unmap"><i class="bi bi-x-lg"></i></button>' : '') + '</td></tr>';
+        });
+        h += '</tbody></table></div>';
+        panel.innerHTML = h;
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ── menu / page / control edits ──
+    function menuOptions(excludeId, allowTop, onlyContainers) {
+        let o = allowTop ? '<option value="">— Top level (nav bar item) —</option>' : '';
+        const walk = (nodes, depth) => nodes.filter(n => n.kind !== 'PAGE').forEach(n => {
+            if (n.menu_ID === excludeId) return;
+            if (!(onlyContainers && n.menu_Type === 'SUBMENU'))
+                o += '<option value="' + n.menu_ID + '">' + '&nbsp;&nbsp;&nbsp;'.repeat(depth) + Sec.esc(n.title) + ' (' + Sec.kindLabel(n.menu_Type) + ')</option>';
+            else o += '<option value="' + n.menu_ID + '" disabled>' + '&nbsp;&nbsp;&nbsp;'.repeat(depth) + Sec.esc(n.title) + ' (sub-menu: no deeper level)</option>';
+            walk(n.children || [], depth + 1);
+        });
+        walk(Sec.buildTree(raw, true).roots, 0);
+        return o;
+    }
+
+    function editMenu(id, parentId) {
+        const m = id ? Sec.buildTree(raw, true).menuById.get(id) : null;
+        document.getElementById('menuModalTitle').textContent = m ? 'Edit ' + Sec.kindLabel(m.menu_Type).toLowerCase() : 'New ' + (parentId ? 'menu item' : 'nav bar item');
+        document.getElementById('mParent').innerHTML = menuOptions(id, true, true);
+        document.getElementById('mId').value = m ? m.menu_ID : '';
+        document.getElementById('mParent').value = m ? (m.parent_Menu_ID || '') : (parentId || '');
+        document.getElementById('mTitle').value = m ? m.title : '';
+        document.getElementById('mCode').value = m ? m.menu_Code : '';
+        document.getElementById('mIcon').value = m ? (m.icon || '') : 'bi bi-folder me-2';
+        document.getElementById('mSort').value = m ? m.sort_Order : 999;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('menuModal')).show();
+    }
+
+    async function saveMenu() {
+        const body = {
+            menu_ID: +document.getElementById('mId').value || 0, parent_Menu_ID: +document.getElementById('mParent').value || null,
+            title: document.getElementById('mTitle').value.trim(), menu_Code: document.getElementById('mCode').value.trim().toUpperCase(),
+            icon: document.getElementById('mIcon').value.trim(), sort_Order: +document.getElementById('mSort').value || 0
+        };
+        if (!body.title) return Sec.fail('Enter a title for the menu item.');
+        const r = await Sec.post('@Url.Action("SaveMenuJson")', body);
+        if (!r.success) return Sec.fail(r.message);
+        bootstrap.Modal.getInstance(document.getElementById('menuModal')).hide();
+        Sec.ok('Menu item saved'); st.selMenu = r.data.id; await load(true);
+    }
+
+    async function setMenuActive(id, active) {
+        if (!active && !await Sec.confirm('Deactivate this menu item?', 'Everything beneath it disappears from the bar. Grants and history are kept, so it can be switched back on.', 'Deactivate', 'warning')) return;
+        const r = await Sec.post('@Url.Action("SetMenuActiveJson")', null, { id, isActive: active });
+        if (!r.success) return Sec.fail(r.message);
+        Sec.ok(active ? 'Activated' : 'Deactivated'); await load(true);
+    }
+
+    function editPage(id, menuId) {
+        const p = id ? (raw.pages || []).find(x => x.page_ID === id) : null;
+        document.getElementById('pageModalTitle').textContent = p ? 'Edit page' : 'New page';
+        document.getElementById('pMenu').innerHTML = '<option value="">— Not under a menu —</option>' + menuOptions(null, false, false);
+        document.getElementById('pId').value = p ? p.page_ID : '';
+        document.getElementById('pTitle').value = p ? p.title : '';
+        document.getElementById('pCode').value = p ? p.page_Code : '';
+        document.getElementById('pController').value = p ? p.controller : '';
+        document.getElementById('pAction').value = p ? p.action : 'Index';
+        document.getElementById('pRoute').value = p ? (p.route_Values || '') : '';
+        document.getElementById('pMenu').value = p ? (p.menu_ID || '') : (menuId || '');
+        document.getElementById('pSort').value = p ? p.sort_Order : 999;
+        document.getElementById('pTarget').value = p ? (p.link_Target || '') : '';
+        document.getElementById('pIcon').value = p ? (p.icon || '') : 'bi bi-file-earmark me-2';
+        document.getElementById('pShow').checked = p ? p.show_In_Menu : true;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('pageModal')).show();
+    }
+
+    async function savePage(confirmCode) {
+        const page = {
+            page_ID: +document.getElementById('pId').value || 0, menu_ID: +document.getElementById('pMenu').value || null,
+            title: document.getElementById('pTitle').value.trim(), page_Code: document.getElementById('pCode').value.trim().toUpperCase(),
+            controller: document.getElementById('pController').value.trim(), action: document.getElementById('pAction').value.trim(),
+            route_Values: document.getElementById('pRoute').value.trim() || null, sort_Order: +document.getElementById('pSort').value || 0,
+            link_Target: document.getElementById('pTarget').value || null, icon: document.getElementById('pIcon').value.trim() || null,
+            show_In_Menu: document.getElementById('pShow').checked
+        };
+        const r = await Sec.post('@Url.Action("SavePageJson")', { page, confirmCodeChange: confirmCode });
+        if (!r.success) {
+            if (r.code === 'CONFIRM_CODE' && await Sec.confirm('Change the page code?', Sec.esc(r.message), 'Change it', 'warning')) return savePage(true);
+            return Sec.fail(r.message);
+        }
+        bootstrap.Modal.getInstance(document.getElementById('pageModal')).hide();
+        Sec.ok('Page saved'); st.selPage = r.data.id; await load(true);
+    }
+
+    async function setPageActive(id, active, grants) {
+        if (!active && !await Sec.confirm('Deactivate this page?', (grants ? '<b>' + grants + '</b> grant(s) reference it. ' : '') + 'Pages are never deleted - deactivating keeps the history and can be undone.', 'Deactivate', 'warning')) return;
+        const r = await Sec.post('@Url.Action("SetPageActiveJson")', null, { id, isActive: active });
+        if (!r.success) return Sec.fail(r.message);
+        Sec.ok(active ? 'Activated' : 'Deactivated'); await load(true);
+    }
+
+    async function addControl(pageId) {
+        let code = document.getElementById('newCtl').value, title = null;
+        if (code === '*') {
+            const res = await Swal.fire({
+                title: 'Another action of this screen', showCancelButton: true, confirmButtonText: 'Add',
+                html: '<input id="swTitle" class="swal2-input" placeholder="Name on the screen, e.g. Consulting Charges">' +
+                      '<input id="swCode" class="swal2-input" placeholder="Code, e.g. CONSULTING_CHARGES">',
+                didOpen: () => { const t = document.getElementById('swTitle'), c = document.getElementById('swCode');
+                    t.oninput = () => { if (!c.dataset.touched) c.value = t.value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30); };
+                    c.oninput = () => c.dataset.touched = '1'; },
+                preConfirm: () => {
+                    const t = document.getElementById('swTitle').value.trim(), c = document.getElementById('swCode').value.trim().toUpperCase();
+                    if (t.length < 3) return Swal.showValidationMessage('Enter the name shown on the screen.');
+                    if (!/^[A-Z][A-Z0-9_]{1,29}$/.test(c)) return Swal.showValidationMessage('The code uses capital letters, digits and _.');
+                    return { t, c };
+                }
+            });
+            if (!res.isConfirmed) return;
+            code = res.value.c; title = res.value.t;
+        }
+        const r = await Sec.post('@Url.Action("SaveControlJson")', null, { pageId, controlCode: code, title });
+        if (!r.success) return Sec.fail(r.message);
+        Sec.ok(code + ' added'); await load(true);
+    }
+
+    async function setControlActive(id, active) {
+        const r = await Sec.post('@Url.Action("SetControlActiveJson")', null, { id, isActive: active });
+        if (!r.success) return Sec.fail(r.message);
+        await load(true);
+    }
+
+    async function remap(endpointId, pageId, code) {
+        const r = await Sec.post('@Url.Action("MapEndpointsJson")', [{ endpointId, pageId, controlCode: code }]);
+        if (!r.success) return Sec.fail(r.message);
+        Sec.ok('Mapping updated'); await load(true);
+    }
+
+    async function unmap(endpointId) {
+        if (!await Sec.confirm('Remove this mapping?', 'If this is the endpoint\'s only page it goes back to the unmapped list - and once enforcement is on, nobody but an administrator can reach it.', 'Remove', 'warning')) return;
+        const r = await Sec.post('@Url.Action("UnmapEndpointJson")', null, { endpointId });
+        if (!r.success) return Sec.fail(r.message);
+        Sec.ok('Mapping removed'); await load(true);
+    }
+
+    // ── inventory ──
+    async function loadInventory() {
+        const filter = document.querySelector('input[name="invFilter"]:checked').value;
+        document.getElementById('invBody').innerHTML = '<tr><td colspan="6" class="sec-empty">Loading…</td></tr>';
+        const [e, p] = await Promise.all([Sec.get('@Url.Action("GetEndpointsJson")', { filter }), filter === 'UNMAPPED' ? Sec.get('@Url.Action("GetProposalsJson")') : Promise.resolve({ success: true, proposals: [] })]);
+        if (!e.success) return Sec.fail(e.message);
+        inv = e.rows; stats = { ...stats, ...e.stats }; renderKpis();
+        proposals = new Map((p.proposals || []).map(x => [x.endpointId, x]));
+        renderInventory();
+    }
+
+    function pageOptions(selectedIds) {
+        const all = Sec.buildTree(raw, false);
+        let o = '<option value="">— choose a page —</option>';
+        const walk = (nodes, trail) => nodes.forEach(n => {
+            if (n.kind === 'PAGE') o += '<option value="' + n.page_ID + '" ' + (selectedIds.includes(n.page_ID) ? 'selected' : '') + '>' + Sec.esc(trail + n.title) + '</option>';
+            else walk(n.children || [], trail + n.title + ' › ');
+        });
+        walk(all.roots, '');
+        all.orphanPages.forEach(n => o += '<option value="' + n.page_ID + '" ' + (selectedIds.includes(n.page_ID) ? 'selected' : '') + '>' + Sec.esc('(not in menu) ' + n.title) + '</option>');
+        return o;
+    }
+
+    function renderInventory() {
+        const filter = document.querySelector('input[name="invFilter"]:checked').value;
+        const q = document.getElementById('invSearch').value.trim().toLowerCase();
+        const conf = document.getElementById('invConf').value;
+        const rows = inv.filter(e => {
+            if (q && !(e.controller + '/' + e.action).toLowerCase().includes(q)) return false;
+            const pr = proposals.get(e.endpoint_ID);
+            if (conf === 'none' && pr && pr.pageIds.length) return false;
+            if (conf && conf !== 'none' && (!pr || pr.confidence !== conf || !pr.pageIds.length)) return false;
+            return true;
+        });
+        document.getElementById('invCount').textContent = rows.length + ' of ' + inv.length + ' shown';
+        const vocab = T ? T.vocabulary : [];
+        const body = document.getElementById('invBody');
+        if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="sec-empty">' + (inv.length ? 'Nothing matches the filter.' : (filter === 'UNMAPPED' ? '<i class="bi bi-check-circle text-success fs-3 d-block mb-1"></i>Every endpoint is mapped.' : 'No orphaned endpoints.')) + '</td></tr>'; return; }
+        body.innerHTML = rows.map(e => {
+            const pr = proposals.get(e.endpoint_ID) || { pageIds: [], controlCode: 'VIEW', confidence: 'review', reason: '' };
+            if (filter === 'ORPHANED') {
+                return '<tr class="text-muted"><td></td><td><span class="badge bg-light text-dark border me-1">' + e.http_Method + '</span><span class="sec-code">' + Sec.esc(e.controller + '/' + e.action) + '</span></td><td class="text-center">' + e.refusals7d + '</td>' +
+                       '<td>' + Sec.esc(e.page_Title || '—') + '</td><td>' + Sec.esc(e.control_Code || '') + '</td><td class="small">Not found in the code at the last scan. Kept, with its grants, in case it comes back.</td></tr>';
+            }
+            const badge = !pr.pageIds.length ? '<span class="badge bg-secondary-subtle text-secondary">no proposal</span>'
+                : pr.confidence === 'high' ? '<span class="badge bg-success-subtle text-success">high</span>' : '<span class="badge bg-warning-subtle text-warning-emphasis">review</span>';
+            return '<tr data-id="' + e.endpoint_ID + '"><td>' + (CAN_EDIT ? '<input type="checkbox" class="form-check-input inv-pick" aria-label="Select ' + Sec.esc(e.action) + '">' : '') + '</td>' +
+                   '<td><span class="badge bg-light text-dark border me-1">' + e.http_Method + '</span><span class="sec-code">' + Sec.esc(e.controller + '/' + e.action) + '</span></td>' +
+                   '<td class="text-center">' + (e.refusals7d ? '<span class="badge bg-danger-subtle text-danger">' + e.refusals7d + '</span>' : '<span class="text-muted">0</span>') + '</td>' +
+                   '<td><select class="form-select form-select-sm inv-page" ' + (CAN_EDIT ? '' : 'disabled') + ' aria-label="Page">' + pageOptions(pr.pageIds) + '</select>' +
+                   (pr.pageIds.length > 1 ? '<div class="small text-muted mt-1">+ ' + (pr.pageIds.length - 1) + ' more placement(s) of the same screen</div>' : '') + '</td>' +
+                   '<td><select class="form-select form-select-sm inv-ctl" ' + (CAN_EDIT ? '' : 'disabled') + ' aria-label="Control">' + vocab.map(v => '<option ' + (v.control_Code === pr.controlCode ? 'selected' : '') + '>' + v.control_Code + '</option>').join('') + '</select></td>' +
+                   '<td class="small">' + badge + ' <span class="text-muted">' + Sec.esc(pr.reason) + '</span></td></tr>';
+        }).join('');
+    }
+
+    function toggleAll(on) { document.querySelectorAll('.inv-pick').forEach(c => c.checked = on); }
+    function selectHigh() {
+        document.querySelectorAll('#invBody tr[data-id]').forEach(tr => {
+            const pr = proposals.get(+tr.dataset.id);
+            tr.querySelector('.inv-pick').checked = !!(pr && pr.confidence === 'high' && pr.pageIds.length);
+        });
+    }
+
+    async function acceptSelected() {
+        const list = [];
+        let missing = 0;
+        document.querySelectorAll('#invBody tr[data-id]').forEach(tr => {
+            if (!tr.querySelector('.inv-pick').checked) return;
+            const id = +tr.dataset.id, page = +tr.querySelector('.inv-page').value, code = tr.querySelector('.inv-ctl').value;
+            if (!page) { missing++; return; }
+            const pr = proposals.get(id);
+            // keep every placement of the same screen when the proposal found several and the curator kept the first
+            const pages = pr && pr.pageIds.length > 1 && pr.pageIds[0] === page ? pr.pageIds : [page];
+            pages.forEach(p => list.push({ endpointId: id, pageId: p, controlCode: code }));
+        });
+        if (missing) return Sec.fail(missing + ' selected endpoint(s) have no page chosen.');
+        if (!list.length) return Sec.warn('Select at least one endpoint.');
+        if (!await Sec.confirm('Map ' + list.length + ' endpoint(s)?', 'Each is written with its page and control. Controls missing on a page are added from the standard vocabulary.', 'Map them')) return;
+        const r = await Sec.post('@Url.Action("MapEndpointsJson")', list);
+        if (!r.success) return Sec.fail(r.message);
+        Sec.ok(r.data.mapped + ' mapping(s) saved');
+        await load(true); await loadInventory();
+    }
+
+    load(false);
+    return { render, selectMenu, showPage, editMenu, saveMenu, setMenuActive, editPage, savePage, setPageActive, addControl, setControlActive, remap, unmap,
+             loadInventory, renderInventory, toggleAll, selectHigh, acceptSelected, get selMenu() { return st.selMenu; } };
+})();
+</script>
+}

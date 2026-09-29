@@ -8,7 +8,7 @@
         <h1 class="h3 mb-0 fw-bold">EMR Investigation Master</h1>
         <small class="text-muted">Manage the investigation catalogue used in EMR template fields</small>
     </div>
-    <a asp-action="Create" class="btn btn-primary">
+    <a asp-permission="MASTER.EMRINVESTIGATIONS:ADD" asp-action="Create" class="btn btn-primary">
         <i class="bi bi-plus-lg me-1"></i>Add Investigation
     </a>
 </div>
@@ -78,7 +78,7 @@
                         <td class="text-muted small">@(item.Unit ?? "—")</td>
                         <td class="text-muted small">@(item.NormalRange ?? "—")</td>
                         <td class="text-center">
-                            <button type="button" class="border-0 bg-transparent btn-toggle-active" data-id="@item.InvestigationId">
+                            <button asp-permission="MASTER.EMRINVESTIGATIONS:STATUS" type="button" class="border-0 bg-transparent btn-toggle-active" data-id="@item.InvestigationId">
                                 @if (item.IsActive)
                                 {
                                     <span class="badge text-bg-success" style="cursor: pointer;"><i class="bi bi-check-circle me-1"></i>Active</span>
@@ -90,7 +90,7 @@
                             </button>
                         </td>
                         <td class="text-end">
-                            <a asp-action="Edit" asp-route-id="@item.InvestigationId" class="btn btn-sm btn-outline-primary" title="Edit">
+                            <a asp-permission="MASTER.EMRINVESTIGATIONS:EDIT" asp-action="Edit" asp-route-id="@item.InvestigationId" class="btn btn-sm btn-outline-primary" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </a>
                         </td>
@@ -101,7 +101,7 @@
                     <tr>
                         <td colspan="7" class="text-center text-muted py-5">
                             <i class="bi bi-eyedropper fs-2 d-block mb-2 opacity-50"></i>
-                            No investigations found. <a asp-action="Create">Add one now.</a>
+                            No investigations found. <a asp-permission="MASTER.EMRINVESTIGATIONS:ADD" asp-action="Create">Add one now.</a>
                         </td>
                     </tr>
                 }

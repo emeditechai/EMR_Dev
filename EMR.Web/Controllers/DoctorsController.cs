@@ -63,7 +63,8 @@ public class DoctorsController(
                 EmailId               = d.EmailId ?? string.Empty,
                 IsActive              = d.IsActive,
                 ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
-                HasOPDDept            = d.HasOPDDept
+                HasOPDDept            = d.HasOPDDept,
+                IsReferralDoctor      = d.IsReferralDoctor
             });
             
             // Stats from the paged result (before local filter if any)
@@ -162,6 +163,7 @@ public class DoctorsController(
             SecondarySpecialityId = model.SecondarySpecialityId,
             JoiningDate = model.JoiningDate,
             IsActive = true,
+            IsReferralDoctor = model.IsReferralDoctor,
             CreatedBranchId = currentBranchId.Value,
             LinkedUserId = linkedUserId
         };
@@ -200,6 +202,7 @@ public class DoctorsController(
             SecondarySpecialityId = doctor.SecondarySpecialityId,
             JoiningDate = doctor.JoiningDate,
             IsActive = doctor.IsActive,
+            IsReferralDoctor = doctor.IsReferralDoctor,
             SelectedBranchIds = await doctorService.GetBranchIdsAsync(doctor.DoctorId),
             SelectedDepartmentIds = await doctorService.GetDepartmentIdsAsync(doctor.DoctorId),
             LinkedUserId = doctor.LinkedUserId
@@ -271,6 +274,7 @@ public class DoctorsController(
         doctor.SecondarySpecialityId = model.SecondarySpecialityId;
         doctor.JoiningDate = model.JoiningDate;
         doctor.IsActive = model.IsActive;
+        doctor.IsReferralDoctor = model.IsReferralDoctor;
 
         // ── Login account management ──────────────────────────────────────────
         if (model.IsLoginRequired)

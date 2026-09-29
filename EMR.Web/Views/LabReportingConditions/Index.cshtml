@@ -19,7 +19,7 @@
             </h4>
         </div>
         <div>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABREPORTINGCONDITIONS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add New Condition
             </a>
         </div>
@@ -157,7 +157,7 @@
                                     </td>
                                     <td class="text-center"><span class="badge bg-secondary rounded-pill px-3">@item.Display_Order</span></td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Condition_ID" method="post" class="d-inline">
+                                        <form asp-permission="MASTER.LABREPORTINGCONDITIONS:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.Condition_ID" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(!item.Status ? "true" : "false")" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
@@ -174,9 +174,9 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Condition_ID" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Condition_ID" class="btn btn-outline-primary" title="Edit Condition"><i class="bi bi-pencil"></i></a>
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Condition_ID" title="Delete"><i class="bi bi-trash"></i></button>
+                                            <a asp-permission="MASTER.LABREPORTINGCONDITIONS:DETAILS" asp-action="Details" asp-encrypted-id="@item.Condition_ID" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
+                                            <a asp-permission="MASTER.LABREPORTINGCONDITIONS:EDIT" asp-action="Edit" asp-encrypted-id="@item.Condition_ID" class="btn btn-outline-primary" title="Edit Condition"><i class="bi bi-pencil"></i></a>
+                                            <button asp-permission="MASTER.LABREPORTINGCONDITIONS:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Condition_ID" title="Delete"><i class="bi bi-trash"></i></button>
                                         </div>
 
                                         <div class="modal fade text-start" id="deleteModal-@item.Condition_ID" tabindex="-1" aria-hidden="true">
@@ -192,7 +192,7 @@
                                                     </div>
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-encrypted-id="@item.Condition_ID" method="post">
+                                                        <form asp-permission="MASTER.LABREPORTINGCONDITIONS:DELETE" asp-action="Delete" asp-encrypted-id="@item.Condition_ID" method="post">
                                                             @Html.AntiForgeryToken()
                                                             <button type="submit" class="btn btn-danger">Delete Condition</button>
                                                         </form>

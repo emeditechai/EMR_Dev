@@ -20,10 +20,10 @@
             </h4>
         </div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
+            <button asp-permission="MASTER.LABINVESTIGATIONS:IMPORT" type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
                 <i class="bi bi-file-earmark-excel me-1"></i> Bulk Upload
             </button>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABINVESTIGATIONS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add New Investigation
             </a>
         </div>
@@ -234,7 +234,7 @@
                                         }
                                     </td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Test_ID" method="post" class="d-inline">
+                                        <form asp-permission="MASTER.LABINVESTIGATIONS:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.Test_ID" method="post" class="d-inline">
                                             <input type="hidden" name="status" value="@((!item.Status).ToString().ToLower())" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
                                                 @if (item.Status)
@@ -254,13 +254,13 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Test_ID" class="btn btn-outline-info" title="View Details">
+                                            <a asp-permission="MASTER.LABINVESTIGATIONS:DETAILS" asp-action="Details" asp-encrypted-id="@item.Test_ID" class="btn btn-outline-info" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Test_ID" class="btn btn-outline-primary" title="Edit Investigation">
+                                            <a asp-permission="MASTER.LABINVESTIGATIONS:EDIT" asp-action="Edit" asp-encrypted-id="@item.Test_ID" class="btn btn-outline-primary" title="Edit Investigation">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Test_ID" title="Delete">
+                                            <button asp-permission="MASTER.LABINVESTIGATIONS:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Test_ID" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -280,7 +280,7 @@
                                                     </div>
                                                     <div class="modal-footer border-0">
                                                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-encrypted-id="@item.Test_ID" method="post">
+                                                        <form asp-permission="MASTER.LABINVESTIGATIONS:DELETE" asp-action="Delete" asp-encrypted-id="@item.Test_ID" method="post">
                                                             <button type="submit" class="btn btn-danger">Delete</button>
                                                         </form>
                                                     </div>

@@ -90,6 +90,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                 ss.SpecialityName AS SecondarySpecialityName,
                 d.JoiningDate,
                 d.IsActive,
+                d.IsReferralDoctor,
                 d.CreatedDate,
                 d.ModifiedDate,
                 d.LinkedUserId,
@@ -186,13 +187,13 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                 INSERT INTO DoctorMaster
                 (
                     NamePrefix, FullName, Gender, DateOfBirth, EmailId, PhoneNumber, MedicalLicenseNo,
-                    PrimarySpecialityId, SecondarySpecialityId, JoiningDate, IsActive,
+                    PrimarySpecialityId, SecondarySpecialityId, JoiningDate, IsActive, IsReferralDoctor,
                     CreatedBranchId, LinkedUserId, CreatedBy, CreatedDate
                 )
                 VALUES
                 (
                     @NamePrefix, @FullName, @Gender, @DateOfBirth, @EmailId, @PhoneNumber, @MedicalLicenseNo,
-                    @PrimarySpecialityId, @SecondarySpecialityId, @JoiningDate, @IsActive,
+                    @PrimarySpecialityId, @SecondarySpecialityId, @JoiningDate, @IsActive, @IsReferralDoctor,
                     @CreatedBranchId, @LinkedUserId, @userId, GETDATE()
                 );
                 SELECT CAST(SCOPE_IDENTITY() AS INT);",
@@ -209,6 +210,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     doctor.SecondarySpecialityId,
                     doctor.JoiningDate,
                     doctor.IsActive,
+                    doctor.IsReferralDoctor,
                     doctor.CreatedBranchId,
                     doctor.LinkedUserId,
                     userId
@@ -261,6 +263,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     SecondarySpecialityId = @SecondarySpecialityId,
                     JoiningDate           = @JoiningDate,
                     IsActive              = @IsActive,
+                    IsReferralDoctor      = @IsReferralDoctor,
                     LinkedUserId          = @LinkedUserId,
                     ModifiedBy            = @userId,
                     ModifiedDate          = GETDATE()
@@ -279,6 +282,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     doctor.SecondarySpecialityId,
                     doctor.JoiningDate,
                     doctor.IsActive,
+                    doctor.IsReferralDoctor,
                     doctor.LinkedUserId,
                     userId
                 }, tx);

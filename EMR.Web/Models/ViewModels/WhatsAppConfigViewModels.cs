@@ -57,6 +57,12 @@ public class WhatsAppConfigViewModel
     [Display(Name = "Video Consultation Doctor Template")]
     public string VideoDoctorMessageTemplate { get; set; } = "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}";
 
+    [Display(Name = "Send WhatsApp for B2C Approved Reports")]
+    public bool LabReportApprovedNotificationEnabled { get; set; } = true;
+
+    [Display(Name = "B2C Approved Report Message Template")]
+    public string LabReportApprovedMessageTemplate { get; set; } = "Dear {PatientName}, your report for Bill {BillNo} at {HospitalName} has been approved. Please find your report attached. Thank you for choosing us!";
+
     public bool IsHOBranch { get; set; }
     public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> TargetBranches { get; set; } = new();
 

@@ -85,7 +85,7 @@
                         </button>
                         @if (newSvcId > 0)
                         {
-                            <a href="@Url.Action("PrintBill", "OPD", new { id = newSvcId })"
+                            <a asp-permission="OPD.SERVICEBOOKING:PRINT" href="@Url.Action("PrintBill", "OPD", new { id = newSvcId })"
                                target="_blank" class="btn btn-success px-4 fw-semibold">
                                 <i class="bi bi-printer-fill me-2"></i>Print Bill
                             </a>
@@ -112,7 +112,7 @@
         <h1 class="h3 mb-0 fw-bold"><i class="bi bi-calendar2-check-fill me-2 text-primary"></i>Service Booking</h1>
         <small class="text-muted">OPD service bookings for your branch</small>
     </div>
-    <a asp-action="NewServiceBooking" class="btn btn-primary px-4 fw-semibold">
+    <a asp-permission="OPD.SERVICEBOOKING:SAVE" asp-action="NewServiceBooking" class="btn btn-primary px-4 fw-semibold">
         <i class="bi bi-plus-circle-fill me-2"></i>New Service Book
     </a>
 </div>
@@ -287,7 +287,7 @@
                                                 </button>
                                             </li>
                                             <li>
-                                                <a class="dropdown-item"
+                                                <a asp-permission="OPD.SERVICEBOOKING:PRINT" class="dropdown-item"
                                                    href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })"
                                                    target="_blank">
                                                     <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill

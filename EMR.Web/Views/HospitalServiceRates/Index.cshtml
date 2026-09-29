@@ -16,7 +16,7 @@
         <a asp-controller="HospitalServices" asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-gear-wide-connected me-1"></i>Hospital Services
         </a>
-        <a asp-action="Create" asp-route-tariffCategoryId="@ViewBag.TariffCategoryId" asp-route-hospitalServiceId="@ViewBag.HospitalServiceId" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.HOSPITALSERVICERATES:ADD" asp-action="Create" asp-route-tariffCategoryId="@ViewBag.TariffCategoryId" asp-route-hospitalServiceId="@ViewBag.HospitalServiceId" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Service Rate
         </a>
     </div>
@@ -179,13 +179,13 @@
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="Details" asp-route-id="@item.ServiceRateId" class="btn btn-outline-info" title="View Details">
+                                        <a asp-permission="MASTER.HOSPITALSERVICERATES:DETAILS" asp-action="Details" asp-route-id="@item.ServiceRateId" class="btn btn-outline-info" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <a asp-action="Edit" asp-route-id="@item.ServiceRateId" class="btn btn-outline-primary" title="Edit Rate">
+                                        <a asp-permission="MASTER.HOSPITALSERVICERATES:EDIT" asp-action="Edit" asp-route-id="@item.ServiceRateId" class="btn btn-outline-primary" title="Edit Rate">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <form asp-action="Delete" asp-route-id="@item.ServiceRateId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this rate configuration?');">
+                                        <form asp-permission="MASTER.HOSPITALSERVICERATES:DELETE" asp-action="Delete" asp-route-id="@item.ServiceRateId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this rate configuration?');">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                 <i class="bi bi-trash"></i>

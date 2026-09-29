@@ -260,7 +260,7 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditIcuModal(@item.IcuId)" title="Edit ICU">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-action="DeleteIcu" asp-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this ICU configuration?');">
+                                                <form asp-permission="MASTER.ICUS:DELETE" asp-action="DeleteIcu" asp-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this ICU configuration?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                         <i class="bi bi-trash"></i>
@@ -402,7 +402,7 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditTariffModal(@item.IcuTariffId)" title="Edit Tariff">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-action="DeleteTariff" asp-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this dynamic tariff package?');">
+                                                <form asp-permission="MASTER.ICUS:DELETE" asp-action="DeleteTariff" asp-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this dynamic tariff package?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                         <i class="bi bi-trash"></i>
@@ -431,7 +431,7 @@
                 <h5 class="modal-title fw-bold" id="addIcuModalLabel"><i class="bi bi-hospital me-2 text-primary"></i>Add ICU Configuration</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form asp-action="CreateIcu" method="post">
+            <form asp-permission="MASTER.ICUS:ADD" asp-action="CreateIcu" method="post">
                 @Html.AntiForgeryToken()
                 <div class="modal-body p-4">
                     <div class="row g-3">
@@ -509,7 +509,7 @@
                 <h5 class="modal-title fw-bold" id="editIcuModalLabel"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit ICU Configuration</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form asp-action="EditIcu" method="post">
+            <form asp-permission="MASTER.ICUS:EDIT" asp-action="EditIcu" method="post">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="IcuId" id="editIcuId" />
                 <div class="modal-body p-4">
@@ -588,7 +588,7 @@
                 <h5 class="modal-title fw-bold" id="addTariffModalLabel"><i class="bi bi-calculator me-2 text-primary"></i>Configure Dynamic ICU Tariff</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form asp-action="CreateTariff" method="post" id="addTariffForm">
+            <form asp-permission="MASTER.ICUS:ADD" asp-action="CreateTariff" method="post" id="addTariffForm">
                 @Html.AntiForgeryToken()
                 <div class="modal-body p-4">
                     <div class="row g-3 mb-4">
@@ -706,7 +706,7 @@
                 <h5 class="modal-title fw-bold" id="editTariffModalLabel"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Dynamic ICU Tariff</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form asp-action="EditTariff" method="post" id="editTariffForm">
+            <form asp-permission="MASTER.ICUS:EDIT" asp-action="EditTariff" method="post" id="editTariffForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="IcuTariffId" id="editTariffId" />
                 <div class="modal-body p-4">

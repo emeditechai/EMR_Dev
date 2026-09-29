@@ -268,7 +268,7 @@
                                                 </button>
                                             </li>
                                             <li>
-                                                <a class="dropdown-item" href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = o.LabOrderId })" target="_blank">
+                                                <a asp-permission="LAB.LABORDERBOOKING.B2CORDERLIST:PRINT" class="dropdown-item" href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = o.LabOrderId })" target="_blank">
                                                     <i class="bi bi-printer-fill me-2 text-dark"></i>Print Bill
                                                 </a>
                                             </li>

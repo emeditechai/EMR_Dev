@@ -57,7 +57,7 @@
             <small class="text-muted">Branch: <strong class="text-primary">@Model.BranchName</strong></small>
         </div>
     </div>
-    <a asp-action="Edit" class="btn btn-primary btn-sm px-3 shadow-sm">
+    <a asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="Edit" class="btn btn-primary btn-sm px-3 shadow-sm">
         <i class="bi bi-pencil-square me-1"></i> Edit Settings
     </a>
 </div>
@@ -68,7 +68,7 @@
         <div class="uf-section-body text-center py-5">
             <i class="bi bi-exclamation-circle fs-1 text-warning d-block mb-3"></i>
             <h5 class="text-muted">No settings configured for this branch yet.</h5>
-            <a asp-action="Edit" class="btn btn-primary mt-2"><i class="bi bi-plus-circle me-1"></i> Configure Now</a>
+            <a asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="Edit" class="btn btn-primary mt-2"><i class="bi bi-plus-circle me-1"></i> Configure Now</a>
         </div>
     </div>
 }

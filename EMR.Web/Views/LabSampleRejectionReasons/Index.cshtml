@@ -20,7 +20,7 @@
             </h4>
         </div>
         <div>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABSAMPLEREJECTIONREASONS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add New Rejection Reason
             </a>
         </div>
@@ -134,7 +134,7 @@
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Reason_ID" method="post" class="d-inline">
+                                        <form asp-permission="MASTER.LABSAMPLEREJECTIONREASONS:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.Reason_ID" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(!item.Status ? "true" : "false")" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
@@ -155,13 +155,13 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Reason_ID" class="btn btn-outline-info" title="View Details">
+                                            <a asp-permission="MASTER.LABSAMPLEREJECTIONREASONS:DETAILS" asp-action="Details" asp-encrypted-id="@item.Reason_ID" class="btn btn-outline-info" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Reason_ID" class="btn btn-outline-primary" title="Edit Rejection Reason">
+                                            <a asp-permission="MASTER.LABSAMPLEREJECTIONREASONS:EDIT" asp-action="Edit" asp-encrypted-id="@item.Reason_ID" class="btn btn-outline-primary" title="Edit Rejection Reason">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Reason_ID" title="Delete">
+                                            <button asp-permission="MASTER.LABSAMPLEREJECTIONREASONS:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Reason_ID" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -180,7 +180,7 @@
                                                     </div>
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-encrypted-id="@item.Reason_ID" method="post">
+                                                        <form asp-permission="MASTER.LABSAMPLEREJECTIONREASONS:DELETE" asp-action="Delete" asp-encrypted-id="@item.Reason_ID" method="post">
                                                             @Html.AntiForgeryToken()
                                                             <button type="submit" class="btn btn-danger">Delete Rejection Reason</button>
                                                         </form>

@@ -77,6 +77,8 @@ namespace EMR.Api.Models
         public decimal TotalAmount { get; set; }
         // B2B partner info
         public bool IsB2B { get; set; }
+        public string? AgentType { get; set; }
+        public int? B2BAgentId { get; set; }
         public string? PartnerName { get; set; }
         public List<SampleCollectionItemDto> Items { get; set; } = new();
     }
@@ -98,6 +100,8 @@ namespace EMR.Api.Models
         public string ContainerType { get; set; } = string.Empty;
         public bool IsFastingRequired { get; set; }
         public string? BarcodeNo { get; set; }
+        /// <summary>True for a Franchise (PreprintedBarcode = Yes) order's rows: no system barcode was ever generated - the operator enters the franchise's own pre-printed sticker here instead.</summary>
+        public bool RequiresManualBarcode { get; set; }
         public int CollectionstatusID { get; set; }
         public string StatusName { get; set; } = string.Empty;
         public string StatusCode { get; set; } = string.Empty;

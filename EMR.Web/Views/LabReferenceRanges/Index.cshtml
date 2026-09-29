@@ -59,7 +59,7 @@
             </h4>
         </div>
         <div>
-            <a asp-action="Create" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABREFERENCERANGES:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Add Reference Range
             </a>
         </div>
@@ -340,7 +340,7 @@
                                     }
                                 </td>
                                 <td class="text-center">
-                                    <form asp-action="ToggleStatus" asp-encrypted-id="@item.RefRange_ID" method="post" class="d-inline">
+                                    <form asp-permission="MASTER.LABREFERENCERANGES:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.RefRange_ID" method="post" class="d-inline">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-sm p-0 border-0 bg-transparent" title="Click to toggle status">
                                             @if (item.Status)
@@ -360,13 +360,13 @@
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="Details" asp-encrypted-id="@item.RefRange_ID" class="btn btn-outline-info" title="View Details">
+                                        <a asp-permission="MASTER.LABREFERENCERANGES:DETAILS" asp-action="Details" asp-encrypted-id="@item.RefRange_ID" class="btn btn-outline-info" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <a asp-action="Edit" asp-encrypted-id="@item.RefRange_ID" class="btn btn-outline-primary" title="Edit">
+                                        <a asp-permission="MASTER.LABREFERENCERANGES:EDIT" asp-action="Edit" asp-encrypted-id="@item.RefRange_ID" class="btn btn-outline-primary" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal@(item.RefRange_ID)" title="Delete">
+                                        <button asp-permission="MASTER.LABREFERENCERANGES:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal@(item.RefRange_ID)" title="Delete">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -390,7 +390,7 @@
                                                 </div>
                                                 <div class="modal-footer border-0 pt-0">
                                                     <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
-                                                    <form asp-action="Delete" asp-encrypted-id="@item.RefRange_ID" method="post">
+                                                    <form asp-permission="MASTER.LABREFERENCERANGES:DELETE" asp-action="Delete" asp-encrypted-id="@item.RefRange_ID" method="post">
                                                         @Html.AntiForgeryToken()
                                                         <button type="submit" class="btn btn-danger px-3">
                                                             <i class="bi bi-trash me-1"></i>Delete

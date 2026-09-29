@@ -1,0 +1,228 @@
+@model EMR.Web.Models.ViewModels.SecurityPageViewModel
+@section HeadStyles { <link rel="stylesheet" href="~/css/security-admin.css" asp-append-version="true" /> }
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Dashboard" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Settings</li><li class="breadcrumb-item text-muted">Security</li>
+                <li class="breadcrumb-item active" aria-current="page">Effective Permissions</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-search-heart me-2"></i>Effective Permissions</h4>
+            <div class="text-muted small">What a person can reach in a branch, which scope decided it, and why - the answer to "he can do it and I can't".</div>
+        </div>
+        <span class="sec-mode @Model.Mode.ToLowerInvariant()"><i class="bi bi-shield-check me-1"></i>@Model.Mode mode</span>
+    </div>
+
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tEff" type="button"><i class="bi bi-list-check me-1"></i>Effective permissions</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tLog" type="button" id="tLogBtn"><i class="bi bi-shield-x me-1"></i>Denied attempts</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tSa" type="button" id="tSaBtn"><i class="bi bi-person-badge me-1"></i>Super admins</button></li>
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tEff">
+            <div class="card sec-card border-top-0 rounded-top-0">
+                <div class="card-body py-2 sec-toolbar border-bottom">
+                    <label class="small fw-semibold" for="user">User</label>
+                    <select class="form-select form-select-sm" style="width:auto;min-width:240px" id="user">
+                        <option value="">— choose a user —</option>
+                        @foreach (var u in Model.Users) { <option value="@u.Id" selected="@(Model.PreselectId == u.Id)">@u.Name@(u.Extra == "INACTIVE" ? " · inactive" : u.Extra == "SUPERADMIN" ? " · super admin" : "")</option> }
+                    </select>
+                    <label class="small fw-semibold" for="branch">Branch</label>
+                    <select class="form-select form-select-sm" style="width:auto" id="branch" disabled></select>
+                    <label class="small fw-semibold" for="role">As role</label>
+                    <select class="form-select form-select-sm" style="width:auto" id="role" disabled><option value="">All their roles (deny wins)</option></select>
+                    <div class="ms-auto d-flex gap-1">
+                        <button class="btn btn-outline-secondary btn-sm" id="btnCompare" disabled><i class="bi bi-layout-split me-1"></i>Compare with user…</button>
+                        @if (Model.CanExport) { <button class="btn btn-outline-success btn-sm" id="btnExport" disabled><i class="bi bi-file-earmark-spreadsheet me-1"></i>Export</button> }
+                    </div>
+                </div>
+                <div class="card-body py-2 sec-toolbar border-bottom">
+                    <input class="form-control form-control-sm" style="max-width:260px" id="search" placeholder="Search page, code or control…" />
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="rf" id="rfAll" value="" checked><label class="btn btn-outline-secondary" for="rfAll">All</label>
+                        <input type="radio" class="btn-check" name="rf" id="rfA" value="A"><label class="btn btn-outline-success" for="rfA">Allowed</label>
+                        <input type="radio" class="btn-check" name="rf" id="rfD" value="D"><label class="btn btn-outline-danger" for="rfD">Denied</label>
+                    </div>
+                    <div class="form-check form-switch mb-0 small"><input class="form-check-input" type="checkbox" id="viewOnly"><label class="form-check-label" for="viewOnly">View only (hide controls)</label></div>
+                    <span class="sec-pending ms-auto" id="count"></span>
+                </div>
+                <div class="row g-0">
+                    <div class="col-lg-7 border-end"><div class="sec-scroll"><table class="table table-sm table-hover mb-0" style="font-size:.83rem">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1"><tr><th>Page</th><th>Control</th><th>Result</th><th>Decided at</th><th></th></tr></thead>
+                        <tbody id="effBody"><tr><td colspan="5" class="sec-empty">Choose a user.</td></tr></tbody></table></div></div>
+                    <div class="col-lg-5"><div class="p-3" id="whyPane"><div class="sec-empty"><i class="bi bi-question-circle fs-3 d-block mb-2"></i>Press <b>Why?</b> on any row to replay the five scopes.</div></div></div>
+                </div>
+            </div>
+            <div class="card sec-card mt-3" id="cmpCard" style="display:none">
+                <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-layout-split"></i><span id="cmpTitle"></span>
+                    <div class="form-check form-switch ms-auto mb-0 small"><input class="form-check-input" type="checkbox" id="cmpAll"><label class="form-check-label" for="cmpAll">Show identical rows too</label></div>
+                    <button class="btn-close ms-2" aria-label="Close comparison" onclick="document.getElementById('cmpCard').style.display='none'"></button></div>
+                <div class="sec-scroll"><table class="table table-sm mb-0" style="font-size:.83rem"><thead class="table-light"><tr><th>Page</th><th>Control</th><th id="cmpA"></th><th id="cmpB"></th></tr></thead><tbody id="cmpBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tLog">
+            <div class="card sec-card border-top-0 rounded-top-0">
+                <div class="card-body py-2 sec-toolbar border-bottom">
+                    <select class="form-select form-select-sm" style="width:auto" id="logDays"><option value="1">Last 24 hours</option><option value="7" selected>Last 7 days</option><option value="30">Last 30 days</option></select>
+                    <select class="form-select form-select-sm" style="width:auto;min-width:220px" id="logUser"><option value="">All users</option>
+                        @foreach (var u in Model.Users) { <option value="@u.Id">@u.Name</option> }</select>
+                    <span class="small text-muted ms-auto">In audit mode these requests were <b>allowed</b> and only logged ("would have been refused"). Each row is a missing page mapping or a missing grant.</span>
+                </div>
+                <div class="sec-scroll"><table class="table table-sm table-hover mb-0" style="font-size:.82rem"><thead class="table-light" style="position:sticky;top:0"><tr><th>When</th><th>User</th><th>Branch</th><th>Mode</th><th>Outcome</th><th>Endpoint</th><th>Page · control</th><th>Decided at</th></tr></thead>
+                    <tbody id="logBody"></tbody></table></div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tSa">
+            <div class="card sec-card border-top-0 rounded-top-0"><div class="card-body">
+                <p class="small text-muted mb-2">Super admin is a flag on the account, set only in the database - never from any screen. It bypasses every check, so this list should be short and reviewed.
+                    Every other account - including the <b>Administrator</b> role - gets exactly what its roles are granted.</p>
+                <table class="table table-sm mb-0" style="font-size:.85rem"><thead class="table-light"><tr><th>User</th><th>Account</th></tr></thead><tbody id="saBody"></tbody></table>
+            </div></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/security-admin.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const PRE_BRANCH = @Json.Serialize(Model.PreselectBranchId);
+    const users = @Json.Serialize(Model.Users);
+    const $ = id => document.getElementById(id);
+    let rows = [], T = null, titles = new Map(), ctlIds = new Map();
+
+    async function loadUser(first) {
+        const userId = $('user').value;
+        ['btnCompare', 'btnExport'].forEach(b => $(b) && ($(b).disabled = !userId));
+        if (!userId) { $('effBody').innerHTML = '<tr><td colspan="5" class="sec-empty">Choose a user.</td></tr>'; return; }
+        // branches of this user: fetch once with any branch to learn them
+        const probe = await Sec.get('@Url.Action("GetEffectiveJson")', { userId, branchId: first && PRE_BRANCH ? PRE_BRANCH : ($('branch').value || 0) });
+        if (!probe.success) return Sec.fail(probe.message);
+        const branches = probe.branches || [];
+        const want = first && PRE_BRANCH ? PRE_BRANCH : (+$('branch').value || (branches[0] || {}).id);
+        $('branch').innerHTML = branches.map(b => '<option value="' + b.id + '">' + Sec.esc(b.name) + '</option>').join('') || '<option value="">No branch</option>';
+        $('branch').disabled = !branches.length;
+        if (branches.some(b => b.id === want)) $('branch').value = want;
+        await loadEffective();
+    }
+
+    async function loadEffective() {
+        const userId = $('user').value, branchId = $('branch').value;
+        if (!userId || !branchId) { $('effBody').innerHTML = '<tr><td colspan="5" class="sec-empty">This user has no branch, so nothing can be evaluated.</td></tr>'; return; }
+        $('effBody').innerHTML = '<tr><td colspan="5" class="sec-empty">Loading…</td></tr>';
+        const r = await Sec.get('@Url.Action("GetEffectiveJson")', { userId, branchId, roleId: $('role').value });
+        if (!r.success) return Sec.fail(r.message);
+        const roleSel = $('role').value;
+        $('role').innerHTML = '<option value="">All their roles (deny wins)</option>' + (r.roles || []).map(x => '<option value="' + x.roleId + '">' + Sec.esc(x.roleName) + '</option>').join('');
+        $('role').value = roleSel; $('role').disabled = false;
+        T = Sec.buildTree(r.tree, false);
+        titles = new Map((r.tree.pages || []).map(p => [p.page_ID, p.title]));
+        rows = r.rows || [];
+        render();
+        $('whyPane').innerHTML = rows.some(x => x.decided_By === 'BYPASS')
+            ? '<div class="alert alert-warning small"><i class="bi bi-shield-fill-exclamation me-1"></i>' + 'This account is <b>super admin</b>' + ' - allowed everything, including pages nobody has mapped yet. Nothing below is read.</div>'
+            : '<div class="sec-empty"><i class="bi bi-question-circle fs-3 d-block mb-2"></i>Press <b>Why?</b> on any row to replay the five scopes.</div>';
+    }
+
+    function render() {
+        const q = $('search').value.trim().toLowerCase(), rf = document.querySelector('input[name="rf"]:checked').value, vo = $('viewOnly').checked;
+        const shown = rows.filter(x => (!rf || x.permission === rf) && (!vo || x.control_Code === 'VIEW') &&
+            (!q || [titles.get(x.page_ID), x.page_Code, x.control_Code].some(v => (v || '').toLowerCase().includes(q))));
+        $('count').textContent = shown.length + ' of ' + rows.length + ' · ' + rows.filter(x => x.control_Code === 'VIEW' && x.permission === 'A').length + ' pages open';
+        $('effBody').innerHTML = shown.length ? shown.map(x =>
+            '<tr><td>' + Sec.esc(titles.get(x.page_ID) || x.page_Code) + '<div class="sec-code">' + Sec.esc(x.page_Code) + '</div></td><td>' + Sec.esc(x.control_Code) + '</td>' +
+            '<td><span class="sec-result ' + x.permission + '">' + (x.permission === 'A' ? 'Allow' : 'Deny') + '</span></td>' +
+            '<td class="small">' + Sec.esc(Sec.scopeName(x.decided_At_Scope)) + (x.decided_By && !['NONE', 'BYPASS'].includes(x.decided_By) ? ' · ' + (x.decided_By === 'USER' ? 'user override' : x.decided_By === 'PAGE' ? 'page not allowed' : 'role') : '') + '</td>' +
+            '<td class="text-end"><button class="btn btn-light btn-sm" data-why="' + x.page_ID + '|' + x.control_ID + '|' + x.control_Code + '">Why?</button></td></tr>').join('')
+            : '<tr><td colspan="5" class="sec-empty">Nothing matches.</td></tr>';
+    }
+
+    $('effBody').addEventListener('click', async e => {
+        const b = e.target.closest('[data-why]'); if (!b) return;
+        const [pageId, controlId, code] = b.dataset.why.split('|');
+        const r = await Sec.get('@Url.Action("ExplainJson")', { userId: $('user').value, branchId: $('branch').value, roleId: $('role').value, pageId, controlId: code === 'VIEW' ? '' : controlId });
+        if (!r.success) return Sec.fail(r.message);
+        const res = rows.find(x => x.page_ID === +pageId && x.control_Code === code) || {};
+        if (res.decided_By === 'BYPASS') { $('whyPane').innerHTML = '<div class="alert alert-warning small">Super admin: answered Allow before any scope is read.</div>'; return; }
+        let won = false, h = '<div class="fw-bold mb-2">Why? - ' + Sec.esc(titles.get(+pageId)) + ' · ' + Sec.esc(code) + ' <span class="sec-result ' + res.permission + ' ms-1">' + (res.permission === 'A' ? 'Allow' : 'Deny') + '</span></div><div class="sec-why">';
+        const levels = (r.levels || []).filter(l => l.title);
+        levels.forEach(l => {
+            const found = r.rows.filter(x => x.scope === l.scope);
+            // an action with no row of its own follows its page, and the page its menu
+            const applies = code === 'VIEW' ? l.scope <= 4 : true;
+            let text, cls = '';
+            if (!found.length) text = '<span class="text-muted">nothing set for ' + Sec.esc(l.title) + '</span>';
+            else {
+                const user = found.filter(x => x.source === 'USER'), role = found.filter(x => x.source === 'ROLE');
+                const decider = user.length ? user[0] : null;
+                const roleVal = role.length ? (role.some(x => x.permission === 'D') ? 'D' : 'A') : null;
+                const v = decider ? decider.permission : roleVal;
+                text = found.map(x => '<span class="sec-result ' + x.permission + '">' + (x.permission === 'A' ? 'Allow' : 'Deny') + '</span> ' + Sec.esc(x.who) +
+                    (x.reason ? ' - "' + Sec.esc(x.reason) + '"' : '') + (x.changedOn ? ' <span class="text-muted">(' + new Date(x.changedOn).toLocaleDateString() + ')</span>' : '')).join('<br>');
+                if (role.length > 1 && roleVal === 'D' && role.some(x => x.permission === 'A') && !decider) text += '<br><span class="text-muted">roles disagree - deny wins</span>';
+                if (applies && !won) { won = true; cls = 'win'; text += ' <b>→ ' + (v === 'A' ? 'Allow' : 'Deny') + '</b>'; }
+                else if (won) { cls = 'skip'; text += ' <span class="text-muted">- not reached</span>'; }
+            }
+            h += '<div class="step ' + cls + '"><span class="n">' + Sec.esc(l.scopeName) + '</span><span>' + text + '</span></div>';
+        });
+        if (!won) h += '<div class="step win"><span class="n">Result</span><span>' + (code === 'VIEW' ? 'No row at any scope - denied. Permission is never assumed.' : 'Nothing set for this action or its page at any level - denied. Permission is never assumed.') + '</span></div>';
+        if (res.decided_By === 'PAGE') h += '<div class="step win"><span class="n">Result</span><span>The control is allowed, but the page itself is not - a control on a page the user cannot open does nothing.</span></div>';
+        $('whyPane').innerHTML = h + '</div>';
+    });
+
+    $('btnCompare').onclick = async () => {
+        const me = +$('user').value;
+        const opts = Object.fromEntries(users.filter(u => u.id !== me).map(u => [u.id, u.name]));
+        const res = await Swal.fire({ title: 'Compare with…', input: 'select', inputOptions: opts, inputPlaceholder: 'Choose a user', showCancelButton: true, confirmButtonText: 'Compare', inputValidator: v => v ? undefined : 'Choose a user' });
+        if (!res.isConfirmed) return;
+        const other = await Sec.get('@Url.Action("GetEffectiveJson")', { userId: res.value, branchId: $('branch').value });
+        if (!other.success) return Sec.fail(other.message);
+        const b = new Map((other.rows || []).map(x => [x.page_ID + '|' + x.control_Code, x]));
+        const nameA = $('user').selectedOptions[0].text, nameB = opts[res.value];
+        $('cmpTitle').textContent = nameA + '  vs  ' + nameB + ' - in ' + $('branch').selectedOptions[0].text;
+        $('cmpA').textContent = nameA; $('cmpB').textContent = nameB;
+        const draw = () => {
+            const all = $('cmpAll').checked;
+            const list = rows.map(x => [x, b.get(x.page_ID + '|' + x.control_Code)]).filter(([x, y]) => all || !y || x.permission !== y.permission);
+            const cellR = x => x ? '<span class="sec-result ' + x.permission + '">' + (x.permission === 'A' ? 'Allow' : 'Deny') + '</span> <span class="small text-muted">' + Sec.esc(Sec.scopeName(x.decided_At_Scope)) + '</span>' : '<span class="text-muted">—</span>';
+            $('cmpBody').innerHTML = list.length ? list.map(([x, y]) => '<tr class="' + (!y || x.permission !== y.permission ? 'sec-diff' : '') + '"><td>' + Sec.esc(titles.get(x.page_ID) || x.page_Code) + '</td><td>' + Sec.esc(x.control_Code) + '</td><td>' + cellR(x) + '</td><td>' + cellR(y) + '</td></tr>').join('')
+                : '<tr><td colspan="4" class="sec-empty">No differences - they can reach exactly the same things here.</td></tr>';
+        };
+        $('cmpAll').onchange = draw; draw();
+        $('cmpCard').style.display = ''; $('cmpCard').scrollIntoView({ behavior: 'smooth' });
+    };
+
+    $('btnExport') && ($('btnExport').onclick = () => {
+        const p = new URLSearchParams({ userId: $('user').value, branchId: $('branch').value });
+        if ($('role').value) p.set('roleId', $('role').value);
+        window.location = '@Url.Action("ExportEffectiveCsv")?' + p.toString();
+    });
+
+    async function loadLog() {
+        const r = await Sec.get('@Url.Action("GetDecisionLogJson")', { days: $('logDays').value, userId: $('logUser').value });
+        if (!r.success) return Sec.fail(r.message);
+        $('logBody').innerHTML = r.rows.length ? r.rows.map(x => '<tr><td class="text-nowrap">' + new Date(x.logged_On).toLocaleString() + '</td><td>' + Sec.esc(x.userName || '#' + x.user_ID) + '</td><td>' + Sec.esc(x.branchName || '') + '</td>' +
+            '<td><span class="badge ' + (x.mode === 'ENFORCE' ? 'bg-danger' : 'bg-warning text-dark') + '">' + (x.mode === 'ENFORCE' ? 'refused' : 'would refuse') + '</span></td>' +
+            '<td>' + Sec.esc(x.outcome === 'UNMAPPED' ? 'no page mapped' : x.outcome === 'INACTIVE' ? 'inactive account' : 'not granted') + '</td>' +
+            '<td class="sec-code">' + Sec.esc(x.http_Method + ' ' + x.controller + '/' + x.action) + '</td><td class="sec-code">' + Sec.esc([x.page_Code, x.control_Code].filter(Boolean).join(' · ')) + '</td>' +
+            '<td class="small">' + (x.decided_At_Scope != null ? Sec.esc(Sec.scopeName(x.decided_At_Scope)) : '') + '</td></tr>').join('')
+            : '<tr><td colspan="8" class="sec-empty"><i class="bi bi-check-circle text-success fs-3 d-block mb-1"></i>Nothing refused in this period.</td></tr>';
+    }
+    $('tLogBtn').addEventListener('shown.bs.tab', loadLog); $('logDays').onchange = loadLog; $('logUser').onchange = loadLog;
+    $('tSaBtn').addEventListener('shown.bs.tab', async () => {
+        const r = await Sec.get('@Url.Action("GetSuperAdminsJson")');
+        $('saBody').innerHTML = r.success && r.rows.length ? r.rows.map(x => '<tr><td>' + Sec.esc(x.name) + '</td><td>' + Sec.esc(x.extra) + '</td></tr>').join('') : '<tr><td colspan="2" class="text-muted">None.</td></tr>';
+    });
+
+    $('user').onchange = () => { $('role').value = ''; loadUser(false); };
+    $('branch').onchange = () => { $('role').value = ''; loadEffective(); };
+    $('role').onchange = loadEffective;
+    $('search').oninput = render; $('viewOnly').onchange = render;
+    document.querySelectorAll('input[name="rf"]').forEach(x => x.onchange = render);
+    if ($('user').value) loadUser(true);
+})();
+</script>
+}

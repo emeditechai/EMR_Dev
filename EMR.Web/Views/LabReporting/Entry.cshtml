@@ -1,4 +1,5 @@
 @model EMR.Web.Models.ViewModels.LabReportingEntryPageViewModel
+@inject EMR.Shared.Security.IActionPermissionGuard PermissionGuard
 @{
     ViewData["Title"] = $"Report Entry - {Model.Detail.PatientName} ({Model.Detail.TokenNo})";
     var d = Model.Detail;
@@ -24,12 +25,16 @@
     // Submit button: visible if any active test is unentered or unsubmitted, and not fully approved
     bool showSubmit = (unenteredCount > 0 || unsubmittedCount > 0) && !isAllApproved;
     // Validate button: visible if there are any submitted tests awaiting validation (allows partial validation)
-    bool showValidate = (submittedCount > 0) && !isAllApproved;
+    // Validating is its own control (Settings > Security): without it the Validate buttons are not offered.
+    bool canValidate = await PermissionGuard.ShowsAsync(Context, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Validate);
+    bool showValidate = (submittedCount > 0) && !isAllApproved && canValidate;
     // Approve button: visible if there are any validated tests awaiting approval (allows partial approval).
     // With "Pathologist approval required" on for the branch, approval belongs to the Pathologist Dashboard,
     // so this screen never offers it.
     bool pathologistApprovalRequired = Model.PathologistApprovalRequired;
-    bool showApprove = (validatedCount > 0) && !isAllApproved && !pathologistApprovalRequired;
+    // Approving is its own control (Settings > Security): without it the Approve buttons are not offered.
+    bool canApprove = await PermissionGuard.ShowsAsync(Context, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Approve);
+    bool showApprove = (validatedCount > 0) && !isAllApproved && !pathologistApprovalRequired && canApprove;
     bool showApprovedBadge = isAllApproved || isPartialApproved;
 
     // Print Report: available once any test is Validated/Approved. Amber "Not Approved" copy while a printed test is not yet approved.
@@ -864,10 +869,10 @@
             <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save" id="btnHeaderSave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" style="@(showValidate ? "" : "display:none;")">
+            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" asp-permission="LAB.LABREPORTING:VALIDATE" style="@(showValidate ? "" : "display:none;")">
                 <i class="bi bi-check-circle-fill me-1"></i>Validate Report
             </button>
-            <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" style="@(showApprove ? "" : "display:none;")">
+            <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" asp-permission="LAB.LABREPORTING:APPROVE" style="@(showApprove ? "" : "display:none;")">
                 <i class="bi bi-patch-check-fill me-1"></i>Approve Report
             </button>
             @if (pathologistApprovalRequired && !isAllApproved)
@@ -1431,10 +1436,10 @@
             <button type="button" class="btn btn-primary btn-sm px-3.5 fw-semibold shadow-xs btn-action-save" id="btnStickySave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" style="@(showValidate ? "" : "display:none;")">
+            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" asp-permission="LAB.LABREPORTING:VALIDATE" style="@(showValidate ? "" : "display:none;")">
                 <i class="bi bi-check-circle-fill me-1"></i>Validate Report
             </button>
-            <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove" style="@(showApprove ? "" : "display:none;")">
+            <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove" asp-permission="LAB.LABREPORTING:APPROVE" style="@(showApprove ? "" : "display:none;")">
                 <i class="bi bi-patch-check-fill me-1"></i>Approve Report
             </button>
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fs-8 @(isAllApproved ? "" : "d-none")" id="badgeApprovedFooter">
@@ -1503,7 +1508,7 @@
             </div>
             <div class="modal-footer border-top py-2 px-3 bg-light">
                 <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" data-bs-dismiss="modal" id="btnCancelModal">Cancel</button>
-                <button type="button" class="btn btn-primary btn-sm fs-8 px-3 shadow-sm fw-bold" id="btnConfirmSampleStatusChange">
+                <button asp-permission="LAB.LABREPORTING:SAMPLE_STATUS" type="button" class="btn btn-primary btn-sm fs-8 px-3 shadow-sm fw-bold" id="btnConfirmSampleStatusChange">
                     <span class="spinner-border spinner-border-sm me-1 d-none" id="spnConfirmSampleStatus"></span>
                     <i class="bi bi-check2-circle me-1" id="iconConfirmSampleStatus"></i>Confirm & Update
                 </button>

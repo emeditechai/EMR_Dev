@@ -1,0 +1,62 @@
+@using System.Security.Claims
+@{
+    ViewData["Title"] = "Access Denied";
+    var screenCode = ViewData["Page"]?.ToString();
+    var control = ViewData["Control"]?.ToString();
+    var isAction = !string.IsNullOrWhiteSpace(control) && !string.Equals(control, "VIEW", StringComparison.OrdinalIgnoreCase);
+}
+
+@section HeadStyles {
+<style>
+    .denied-wrap { min-height: 70vh; display: flex; align-items: center; justify-content: center; }
+    .denied-card {
+        max-width: 540px; width: 100%; border-radius: 18px; border: 2px solid #dc3545;
+        box-shadow: 0 8px 40px rgba(220,53,69,.14); padding: 2.6rem 2.4rem 2.1rem; text-align: center; background: #fff;
+    }
+    .denied-icon { font-size: 3.6rem; color: #dc3545; margin-bottom: .9rem; }
+    .denied-title { font-size: 1.4rem; font-weight: 700; color: #212529; margin-bottom: .5rem; }
+    .denied-msg { color: #6c757d; font-size: .95rem; margin-bottom: 1.4rem; line-height: 1.6; }
+    .denied-meta {
+        background: #f8f9fa; border-radius: 8px; padding: .6rem 1rem; font-size: .8rem; color: #495057;
+        margin-bottom: 1.6rem; border: 1px solid #e9ecef; text-align: left;
+    }
+</style>
+}
+
+<div class="denied-wrap">
+    <div class="denied-card">
+        <div class="denied-icon"><i class="bi bi-shield-lock-fill"></i></div>
+        <div class="denied-title">Access Denied</div>
+        <div class="denied-msg">
+            @if (isAction)
+            {
+                <text>You can open this screen, but your role does not allow this action.</text>
+            }
+            else
+            {
+                <text>Your role in this branch does not have access to this screen.</text>
+            }
+            <br />If you need it for your work, ask your administrator to grant it.
+        </div>
+        @if (!string.IsNullOrWhiteSpace(screenCode))
+        {
+            <div class="denied-meta">
+                <div><i class="bi bi-window me-1 text-muted"></i>Screen: <code>@screenCode</code></div>
+                @if (isAction)
+                {
+                    <div><i class="bi bi-hand-index me-1 text-muted"></i>Action: <code>@control</code></div>
+                }
+                <div><i class="bi bi-person-badge me-1 text-muted"></i>Signed in as <strong>@User.FindFirstValue("DisplayName")</strong>
+                    (@(User.FindFirstValue("ActiveRole") ?? "no role"), @User.FindFirstValue("BranchName"))</div>
+            </div>
+        }
+        <div class="d-flex gap-2 justify-content-center flex-wrap">
+            <a href="@Url.Action("Index", "Dashboard")" class="btn btn-primary px-4">
+                <i class="bi bi-house me-1"></i>Dashboard
+            </a>
+            <a href="@Url.Action("SwitchRole", "Account")" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-arrow-left-right me-1"></i>Switch Role
+            </a>
+        </div>
+    </div>
+</div>

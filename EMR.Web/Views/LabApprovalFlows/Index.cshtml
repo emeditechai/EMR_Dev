@@ -23,7 +23,7 @@
             </nav>
             <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-diagram-3-fill me-2"></i>Pathologist Approval Flow</h4>
         </div>
-        <a asp-action="Create" class="btn btn-primary px-3 shadow-sm"><i class="bi bi-plus-lg me-1"></i> Add New Flow</a>
+        <a asp-permission="SETTINGS.LABAPPROVALFLOWS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm"><i class="bi bi-plus-lg me-1"></i> Add New Flow</a>
     </div>
 
     <!-- KPI cards (whole company) -->
@@ -198,7 +198,7 @@
                                         }
                                     </td>
                                     <td class="text-center">
-                                        <form asp-action="ToggleStatus" asp-encrypted-id="@item.Flow_ID" method="post" class="d-inline">
+                                        <form asp-permission="SETTINGS.LABAPPROVALFLOWS:STATUS" asp-action="ToggleStatus" asp-encrypted-id="@item.Flow_ID" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(!item.Status ? "true" : "false")" />
                                             <button type="submit" class="btn btn-link p-0 text-decoration-none" title="Click to toggle status">
@@ -215,9 +215,9 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-action="Details" asp-encrypted-id="@item.Flow_ID" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
-                                            <a asp-action="Edit" asp-encrypted-id="@item.Flow_ID" class="btn btn-outline-primary" title="Edit Flow"><i class="bi bi-pencil"></i></a>
-                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Flow_ID" title="Delete"><i class="bi bi-trash"></i></button>
+                                            <a asp-permission="SETTINGS.LABAPPROVALFLOWS:DETAILS" asp-action="Details" asp-encrypted-id="@item.Flow_ID" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
+                                            <a asp-permission="SETTINGS.LABAPPROVALFLOWS:EDIT" asp-action="Edit" asp-encrypted-id="@item.Flow_ID" class="btn btn-outline-primary" title="Edit Flow"><i class="bi bi-pencil"></i></a>
+                                            <button asp-permission="SETTINGS.LABAPPROVALFLOWS:DELETE" type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-@item.Flow_ID" title="Delete"><i class="bi bi-trash"></i></button>
                                         </div>
 
                                         <div class="modal fade text-start" id="deleteModal-@item.Flow_ID" tabindex="-1" aria-hidden="true">
@@ -233,7 +233,7 @@
                                                     </div>
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <form asp-action="Delete" asp-encrypted-id="@item.Flow_ID" method="post">
+                                                        <form asp-permission="SETTINGS.LABAPPROVALFLOWS:DELETE" asp-action="Delete" asp-encrypted-id="@item.Flow_ID" method="post">
                                                             @Html.AntiForgeryToken()
                                                             <button type="submit" class="btn btn-danger">Delete Flow</button>
                                                         </form>

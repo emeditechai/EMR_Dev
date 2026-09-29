@@ -38,7 +38,10 @@ public class OPDController(
     IVitalApiClient vitalApiClient,
     IDbConnectionFactory db,
     ILedgerService ledgerService,
-    ILabReportEmailService labReportEmailService) : Controller
+    ILabReportEmailService labReportEmailService,
+    ILabReportWhatsAppService labReportWhatsAppService,
+    EMR.Shared.Security.IActionPermissionGuard permissionGuard,
+    IAdministratorCheck administratorCheck) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -90,27 +93,28 @@ public class OPDController(
             return RedirectToAction("SelectBranch", "Account");
         }
 
-        var userId = User.GetUserId();
         var userEmail = User.FindFirstValue(ClaimTypes.Email);
-        var displayName = User.FindFirstValue("DisplayName");
-        var isDoctorRole = string.Equals(User.GetActiveRole(), "Doctor", StringComparison.OrdinalIgnoreCase) || User.IsInRole("Doctor");
 
-        dynamic? linkedDoctor = null;
-        if (!string.IsNullOrEmpty(userEmail) || !string.IsNullOrEmpty(displayName))
+        // Only a super admin or a user holding the Administrator role picks any doctor; everyone else sees their own.
+        if (!await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext))
         {
-            linkedDoctor = await doctorApiClient.GetLinkedDoctorAsync(userId, userEmail, displayName);
-        }
-
-        if (isDoctorRole && linkedDoctor != null)
-        {
-            ViewBag.IsDoctor = true;
-            ViewBag.DoctorName = (string)linkedDoctor!.FullName;
-            ViewBag.DefaultDoctorId = (int)linkedDoctor!.DoctorId;
-
-            ViewBag.Doctors = new List<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>
+            var ownDoctor = await OwnDoctorAsync();
+            ViewBag.IsDoctor = ownDoctor is not null;
+            ViewBag.NoOwnDoctor = ownDoctor is null;
+            ViewBag.DefaultDoctorId = ownDoctor?.DoctorId ?? 0;
+            if (ownDoctor is not null)
             {
-                ((int)linkedDoctor!.DoctorId, (string)linkedDoctor!.FullName, (int?)linkedDoctor!.PrimarySpecialityId, (string)linkedDoctor!.Gender)
-            };
+                // same entry the full list would show (name format, room), else the Doctor Master row
+                var opd = (await patientService.GetOpdDoctorsAsync(branchId.Value))
+                    .Where(d => d.DoctorId == ownDoctor.DoctorId).ToList();
+                var own = opd.Count > 0 ? opd[0] : (ownDoctor.DoctorId, ownDoctor.FullName, ownDoctor.PrimarySpecialityId, ownDoctor.Gender ?? "");
+                ViewBag.DoctorName = own.FullName;
+                ViewBag.Doctors = new List<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)> { own };
+            }
+            else
+            {
+                ViewBag.Doctors = new List<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>();
+            }
         }
         else
         {
@@ -157,51 +161,13 @@ public class OPDController(
             return Json(new { isSuccess = false, message = "Please select a branch first." });
         }
 
-        // Enforce doctor data isolation: override doctorId if active role is Doctor and linked DoctorMaster exists
-        var isDoctorRole = string.Equals(User.GetActiveRole(), "Doctor", StringComparison.OrdinalIgnoreCase) || User.IsInRole("Doctor");
-        if (isDoctorRole)
+        // Only a super admin or an Administrator may load any doctor's queue; everyone else gets their own doctor's.
+        if (!await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext))
         {
-            var userId = User.GetUserId();
-            var userEmail = User.FindFirstValue(ClaimTypes.Email);
-            var displayName = User.FindFirstValue("DisplayName");
-
-            using (var conn = db.CreateConnection())
-            {
-                var linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
-                    "SELECT DoctorId FROM DoctorMaster WHERE LinkedUserId = @userId AND IsActive = 1",
-                    new { userId });
-
-                if (linkedDoctor == null && !string.IsNullOrEmpty(userEmail))
-                {
-                    linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
-                        "SELECT DoctorId FROM DoctorMaster WHERE EmailId = @userEmail AND IsActive = 1",
-                        new { userEmail });
-                    if (linkedDoctor != null)
-                    {
-                        await conn.ExecuteAsync(
-                            "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
-                            new { userId, doctorId = (int)linkedDoctor.DoctorId });
-                    }
-                }
-
-                if (linkedDoctor == null && !string.IsNullOrEmpty(displayName))
-                {
-                    linkedDoctor = await conn.QueryFirstOrDefaultAsync<dynamic>(
-                        "SELECT DoctorId FROM DoctorMaster WHERE FullName = @displayName AND IsActive = 1",
-                        new { displayName });
-                    if (linkedDoctor != null)
-                    {
-                        await conn.ExecuteAsync(
-                            "UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId",
-                            new { userId, doctorId = (int)linkedDoctor.DoctorId });
-                    }
-                }
-
-                if (linkedDoctor != null)
-                {
-                    doctorId = (int)linkedDoctor.DoctorId;
-                }
-            }
+            var own = await OwnDoctorAsync();
+            if (own is null)
+                return Json(new { isSuccess = false, message = NoOwnDoctorMessage });
+            doctorId = own.DoctorId;
         }
 
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -218,6 +184,48 @@ public class OPDController(
             totalWaiting = result.TotalWaiting,
             totalCompleted = result.TotalCompleted
         });
+    }
+
+    private const string NoOwnDoctorMessage =
+        "No doctor is linked to your login. Ask an administrator to link your user to your doctor in Doctor Master (Login Account).";
+
+    private sealed record OwnDoctorRow(int DoctorId, string FullName, int? PrimarySpecialityId, string? Gender);
+
+    /// <summary>
+    /// The Doctor Master doctor of the signed-in user: linked by LinkedUserId, else matched once by e-mail or display
+    /// name and then linked (the rule the dashboard has always used). Null when there is none.
+    /// </summary>
+    private async Task<OwnDoctorRow?> OwnDoctorAsync()
+    {
+        if (HttpContext.Items["OwnDoctor"] is OwnDoctorRow cached) return cached;
+        var userId = User.GetUserId();
+        var userEmail = User.FindFirstValue(ClaimTypes.Email);
+        var displayName = User.FindFirstValue("DisplayName");
+        const string select = "SELECT TOP 1 DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE IsActive = 1 AND ";
+
+        using var conn = db.CreateConnection();
+        var doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "LinkedUserId = @userId", new { userId });
+        if (doctor is null && !string.IsNullOrEmpty(userEmail))
+            doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "EmailId = @userEmail AND LinkedUserId IS NULL", new { userEmail });
+        if (doctor is null && !string.IsNullOrEmpty(displayName))
+            doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "FullName = @displayName AND LinkedUserId IS NULL", new { displayName });
+        if (doctor is not null)
+            await conn.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId AND LinkedUserId IS NULL",
+                new { userId, doctorId = doctor.DoctorId });
+        if (doctor is not null) HttpContext.Items["OwnDoctor"] = doctor;
+        return doctor;
+    }
+
+    /// <summary>Consultation screens: a user who is not a super admin / Administrator works only on their own doctor's bookings.</summary>
+    private async Task<bool> MayWorkOnBookingAsync(int opdServiceId)
+    {
+        if (await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext)) return true;
+        var own = await OwnDoctorAsync();
+        if (own is null) return false;
+        using var conn = db.CreateConnection();
+        var bookingDoctor = await conn.ExecuteScalarAsync<int?>(
+            "SELECT ConsultingDoctorId FROM PatientOPDService WHERE OPDServiceId = @opdServiceId", new { opdServiceId });
+        return bookingDoctor == own.DoctorId;
     }
 
     // ─── Index (patient list – server-side paged via EMR.Api) ────────────────────
@@ -271,6 +279,12 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> PatientRegistration(int? id, int? doctorId = null, string? date = null, int? scheduleId = null, string? time = null)
     {
+        // Booking a slot from the Doctor Roster is its own action there (Settings > Security: Doctor Roster > Book slot).
+        if (scheduleId.HasValue && !string.IsNullOrWhiteSpace(time)
+            && !await permissionGuard.AllowsAsync(HttpContext, "OPD.DOCTORROSTER", "BOOK_SLOT"))
+            return RedirectToAction("AccessDenied", "Account",
+                new { returnUrl = Request.Path + Request.QueryString, page = "OPD.DOCTORROSTER", control = "BOOK_SLOT" });
+
         ViewData["Title"] = id.HasValue ? "Edit Patient" : "Patient Registration";
         PatientRegistrationViewModel model;
 
@@ -666,6 +680,9 @@ public class OPDController(
                 catch { /* malformed payment data is reported by the normal flow */ }
                 if (PaymentService.IsDiscountApprovalMissing(discountCheck))
                     return Json(new { success = false, error = PaymentService.DiscountApprovalRequiredMessage });
+                if (PaymentService.HasDiscount(discountCheck)
+                    && !await permissionGuard.AllowsAsync(HttpContext, "OPD.PATIENTREGISTRATION", EMR.Shared.Security.PermissionControls.Discount))
+                    return Json(new { success = false, error = PaymentService.DiscountNotPermittedMessage });
             }
 
             List<OPDServiceLineItem>? lineItems = null;
@@ -2238,6 +2255,9 @@ public class OPDController(
         if (!ModelState.IsValid)
             return Json(new SavePaymentResult { Success = false, Error = "Invalid request." });
 
+        if (!await DiscountPermission.AllowsPaymentAsync(HttpContext, permissionGuard, paymentSummaryApiClient, request))
+            return Json(new SavePaymentResult { Success = false, Error = PaymentService.DiscountNotPermittedMessage });
+
         var userId = User.GetUserId();
         var result = await paymentService.SavePaymentAsync(request, userId);
 
@@ -2279,11 +2299,12 @@ public class OPDController(
             TriggerVideoOnFullPayment(User.GetCurrentBranchId(), request.OPDServiceId!.Value);
         }
 
-        // ── LAB: a final report held back for an outstanding due is emailed once the due is cleared ──
+        // ── LAB: a final report held back for an outstanding due is emailed / WhatsApp'd once the due is cleared ──
         if (result.Success && result.BalanceDue <= 0 && request.ModuleRefId > 0
             && string.Equals(request.ModuleCode, "LAB", StringComparison.OrdinalIgnoreCase))
         {
             labReportEmailService.QueueIfFinal(request.ModuleRefId, User, LabReportEmailTriggers.PaymentCleared);
+            labReportWhatsAppService.QueueIfFinal(request.ModuleRefId, User, LabReportEmailTriggers.PaymentCleared);
         }
 
         return Json(result);
@@ -2294,6 +2315,10 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> GetPatientConsultationData(int opdServiceId, int doctorId)
     {
+        if (!await MayWorkOnBookingAsync(opdServiceId))
+            return Json(new { success = false, message = "This patient is not in your queue." });
+        if (!await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext))
+            doctorId = (await OwnDoctorAsync())!.DoctorId;
         var booking = await serviceBookingApiClient.GetByIdAsync(opdServiceId);
         if (booking == null)
         {
@@ -2323,6 +2348,10 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> PrintPrescription(int opdServiceId, int doctorId)
     {
+        if (!await MayWorkOnBookingAsync(opdServiceId))
+            return Forbid();
+        if (!await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext))
+            doctorId = (await OwnDoctorAsync())!.DoctorId;
         var booking = await serviceBookingApiClient.GetByIdAsync(opdServiceId);
         if (booking == null) return NotFound("Booking not found");
 
@@ -2386,6 +2415,10 @@ public class OPDController(
     {
         if (req == null || req.OPDServiceId <= 0)
             return Json(new { success = false, message = "Invalid request payload." });
+        if (!await MayWorkOnBookingAsync(req.OPDServiceId))
+            return Json(new { success = false, message = "This patient is not in your queue." });
+        if (!await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext))
+            req.DoctorId = (await OwnDoctorAsync())!.DoctorId;
 
         var userId = User.GetUserId();
         

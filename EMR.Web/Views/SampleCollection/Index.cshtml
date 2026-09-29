@@ -1031,6 +1031,10 @@
                     $('#btnPrintAllLabels').html(`<i class="bi bi-printer me-1"></i> Print Labels`);
                 }
 
+                // Pre-Printed Barcode (Franchise): a pending test needing its own manual/scanned
+                // barcode blocks Collect All until every such test has one validated.
+                const pendingMissingBarcode = items.find(x => x.collectionstatusID !== 2 && x.requiresManualBarcode && !x.barcodeNo);
+
                 // Collect All Button State based on Date & Pending items
                 if (!hasPending) {
                     $('#btnCollectAll')
@@ -1038,6 +1042,12 @@
                         .removeClass('btn-success')
                         .addClass('btn-secondary')
                         .attr('title', 'All samples for this order are already collected');
+                } else if (pendingMissingBarcode) {
+                    $('#btnCollectAll')
+                        .prop('disabled', true)
+                        .removeClass('btn-success')
+                        .addClass('btn-secondary')
+                        .attr('title', `Enter and validate the pre-printed barcode for '${pendingMissingBarcode.testName}' first`);
                 } else {
                     $('#btnCollectAll')
                         .prop('disabled', false)
@@ -1107,6 +1117,12 @@
                     grpIndex++;
                     const grpId = `grp_${grpIndex}`;
                     const sharedBarcode = profGrp.items.find(x => x.barcodeNo)?.barcodeNo || null;
+                    // Pre-Printed Barcode (Franchise): one tube = one code for the WHOLE profile, entered
+                    // once at the profile header instead of per test. The representative sample id is
+                    // any test of this profile - the server already writes the validated code onto every
+                    // sibling row sharing this Profile/Package (see usp_Lab_ValidateAndConsumeFranchiseBarcode).
+                    const profileNeedsManualBarcode = profGrp.items.some(x => x.requiresManualBarcode) && !sharedBarcode;
+                    const profileRepresentativeSampleId = profGrp.items[0]?.samplecollectionID;
                     const firstStatus = profGrp.items[0]?.collectionstatusID || 1;
                     const allSameStatus = profGrp.items.every(x => x.collectionstatusID === firstStatus);
                     const groupSelectedStatus = allSameStatus ? firstStatus : 1;
@@ -1145,6 +1161,16 @@
                                                 <button type="button" class="btn btn-link p-0 text-success ms-1 btn-copy-barcode" data-barcode="${escapeHtml(sharedBarcode)}" title="Copy Barcode to Clipboard"><i class="bi bi-clipboard"></i></button>
                                             </span>
                                         ` : ''}
+                                        ${profileNeedsManualBarcode ? `
+                                            <span class="d-inline-flex align-items-center gap-1 ms-2">
+                                                <div class="input-group input-group-sm" style="width: 240px;">
+                                                    <input type="text" class="form-control form-control-sm txt-manual-barcode" placeholder="Scan or type Profile's tube barcode"
+                                                           data-sample-id="${profileRepresentativeSampleId}" data-investigation-id="" autocomplete="off" />
+                                                    <button type="button" class="btn btn-outline-primary btn-validate-manual-barcode" data-sample-id="${profileRepresentativeSampleId}" title="Validate"><i class="bi bi-check2"></i></button>
+                                                </div>
+                                                <span class="fs-9 manual-barcode-feedback" data-sample-id="${profileRepresentativeSampleId}"></span>
+                                            </span>
+                                        ` : ''}
                                         ${grpReason ? `
                                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-2" title="Reason: ${escapeHtml(grpReason)}">
                                                 <i class="bi bi-exclamation-octagon me-1"></i>${escapeHtml(grpReason)}
@@ -1168,7 +1194,7 @@
                                             </select>
                                             <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
                                                    data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
-                                            <button type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                            <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                     data-grpid="${grpId}"
                                                     data-profileid="${profGrp.profileId || ''}"
                                                     data-profilename="${escapeHtml(profGrp.name)}"
@@ -1186,13 +1212,13 @@
                                         </select>
                                         <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
                                                data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
-                                        <button type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
+                                        <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditProfile && !profileNeedsManualBarcode ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                 data-grpid="${grpId}"
                                                 data-profileid="${profGrp.profileId || ''}"
                                                 data-profilename="${escapeHtml(profGrp.name)}"
-                                                ${!canEditProfile ? 'disabled' : ''}
-                                                title="Save collection status for all tests in this Profile">
-                                            <i class="bi ${canEditProfile ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
+                                                ${!canEditProfile || profileNeedsManualBarcode ? 'disabled' : ''}
+                                                title="${profileNeedsManualBarcode ? 'Validate the tube barcode for this profile first' : 'Save collection status for all tests in this Profile'}">
+                                            <i class="bi ${canEditProfile && !profileNeedsManualBarcode ? 'bi-check-all' : 'bi-lock-fill'} me-1"></i> Save Profile
                                         </button>
                                     </div>
                                     `}
@@ -1302,6 +1328,15 @@
                             ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9"><i class="bi bi-exclamation-circle me-1"></i>Yes</span>'
                             : '<span class="badge bg-light text-muted border fs-9">No</span>';
 
+                        // Pre-Printed Barcode (Franchise): this field's SOURCE changes for such rows -
+                        // typed/scanned and validated here instead of system-generated - nothing else
+                        // about the row (Collect, printing, the barcode preview) changes once it's set.
+                        const needsBarcodeFirst = Boolean(test.requiresManualBarcode) && !test.barcodeNo;
+                        // A profile/package's tests share ONE tube: the entry point for such a test is
+                        // the group header above (see renderProfileHeader), not this row - one input per
+                        // bill's tube, not one per test.
+                        const isPartOfGroup = Boolean(test.profileId || (test.profileName && test.profileName !== '—') || test.packageId || (test.packageName && test.packageName !== '—'));
+
                         const barcodeCellHtml = test.barcodeNo
                             ? `<div class="d-flex align-items-center gap-1">
                                  <span class="barcode-display-badge" title="Barcode">${escapeHtml(test.barcodeNo)}</span>
@@ -1309,7 +1344,16 @@
                                  <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 btn-preview-barcode" data-barcode="${escapeHtml(test.barcodeNo)}" data-name="${escapeHtml(test.testName)}" title="View Barcode"><i class="bi bi-upc-scan"></i></button>
                                  <button type="button" class="btn btn-outline-dark btn-sm py-0 px-1 btn-print-single-label" data-barcode="${escapeHtml(test.barcodeNo)}" title="Print Thermal Label"><i class="bi bi-printer"></i></button>
                                </div>`
-                            : `<span class="badge bg-warning-subtle text-dark border border-warning-subtle fs-9"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`;
+                            : (needsBarcodeFirst && isPartOfGroup
+                                ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fs-9"><i class="bi bi-arrow-up-circle me-1"></i>Enter barcode at Profile header above</span>`
+                            : needsBarcodeFirst
+                                ? `<div class="input-group input-group-sm txt-manual-barcode-wrap" style="max-width: 220px;">
+                                     <input type="text" class="form-control form-control-sm txt-manual-barcode" placeholder="Scan or type barcode"
+                                            data-sample-id="${test.samplecollectionID}" data-investigation-id="${test.investigationID}" autocomplete="off" />
+                                     <button type="button" class="btn btn-outline-primary btn-validate-manual-barcode" data-sample-id="${test.samplecollectionID}" title="Validate"><i class="bi bi-check2"></i></button>
+                                   </div>
+                                   <div class="fs-9 manual-barcode-feedback mt-1" data-sample-id="${test.samplecollectionID}"></div>`
+                                : `<span class="badge bg-warning-subtle text-dark border border-warning-subtle fs-9"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`);
 
                         let statusOptionsHtml = '';
                         statuses.forEach(st => {
@@ -1353,7 +1397,7 @@
                                                data-id="${test.samplecollectionID}" 
                                                value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                                ${!canEditTest ? 'disabled' : ''} />
-                                        <button type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
+                                        <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
                                                 data-id="${test.samplecollectionID}"
                                                 ${!canEditTest ? 'disabled' : ''}
                                                 title="Save sample status">
@@ -1376,11 +1420,11 @@
                                            data-id="${test.samplecollectionID}" 
                                            value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                            ${!canEditTest ? 'disabled' : ''} />
-                                    <button type="button" class="btn btn-sm ${canEditTest ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample" 
+                                    <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditTest && !needsBarcodeFirst ? 'btn-primary' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-sample"
                                             data-id="${test.samplecollectionID}"
-                                            ${!canEditTest ? 'disabled' : ''}
-                                            title="Save sample status">
-                                        <i class="bi ${canEditTest ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
+                                            ${!canEditTest || needsBarcodeFirst ? 'disabled' : ''}
+                                            title="${needsBarcodeFirst ? 'Validate the pre-printed barcode first' : 'Save sample status'}">
+                                        <i class="bi ${canEditTest && !needsBarcodeFirst ? 'bi-check2' : 'bi-lock-fill'} me-1"></i> Save
                                     </button>
                                 </div>
                             `;
@@ -1625,7 +1669,14 @@
             });
 
             // ── 4b. Profile Collapse / Expand Toggle ────────────────────────────
-            $(document).on('click', '.profile-collapse-toggle', function () {
+            $(document).on('click', '.profile-collapse-toggle', function (e) {
+                // Let clicks inside the profile-header barcode input/button through without
+                // toggling the collapse - stopPropagation() here would also block THEIR OWN
+                // delegated document-level handlers (same delegation root), so this is a
+                // target check instead, not a propagation cut.
+                if ($(e.target).closest('.txt-manual-barcode-wrap, .txt-manual-barcode, .btn-validate-manual-barcode, .manual-barcode-feedback').length) {
+                    return;
+                }
                 const grpId = $(this).data('target');
                 const rows = $(`.row-group-${grpId}`);
                 const icon = $(`#icon_${grpId}`);
@@ -1805,6 +1856,67 @@
                         showNotify('Error occurred while updating sample.', 'error');
                     }
                 });
+            });
+
+            // ── 5b. Pre-Printed Barcode (Franchise): validate the manually entered/scanned code ──
+            function validateManualBarcode(sampleId) {
+                if (!activeOrderId || !currentDetailData) return;
+                const item = (currentDetailData.items || []).find(x => x.samplecollectionID === sampleId);
+                if (!item) return;
+
+                const $input = $(`.txt-manual-barcode[data-sample-id="${sampleId}"]`);
+                const $feedback = $(`.manual-barcode-feedback[data-sample-id="${sampleId}"]`);
+                const barcodeNo = ($input.val() || '').trim();
+                if (!barcodeNo) {
+                    $feedback.removeClass('text-success').addClass('text-danger').text('Enter or scan a barcode first.');
+                    return;
+                }
+                if (!currentDetailData.b2BAgentId || currentDetailData.agentType !== 'F') {
+                    $feedback.removeClass('text-success').addClass('text-danger').text('This order has no Franchise on file.');
+                    return;
+                }
+
+                $input.prop('disabled', true);
+                $(`.btn-validate-manual-barcode[data-sample-id="${sampleId}"]`).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+                $feedback.removeClass('text-success text-danger').text('Validating…');
+
+                $.ajax({
+                    url: '@Url.Action("ValidateFranchiseBarcodeJson", "SampleCollection")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        BarcodeNo: barcodeNo,
+                        Franchise_ID: currentDetailData.b2BAgentId,
+                        LabOrderId: activeOrderId,
+                        SamplecollectionID: sampleId,
+                        InvestigationId: item.investigationID
+                    }),
+                    success: function (res) {
+                        if (res.success) {
+                            showNotify('Barcode validated and assigned.', 'success');
+                            refreshOrderData(activeOrderId);
+                        } else {
+                            $input.prop('disabled', false);
+                            $(`.btn-validate-manual-barcode[data-sample-id="${sampleId}"]`).prop('disabled', false).html('<i class="bi bi-check2"></i>');
+                            $feedback.removeClass('text-success').addClass('text-danger').text(res.message || 'Unable to validate this barcode.');
+                        }
+                    },
+                    error: function () {
+                        $input.prop('disabled', false);
+                        $(`.btn-validate-manual-barcode[data-sample-id="${sampleId}"]`).prop('disabled', false).html('<i class="bi bi-check2"></i>');
+                        $feedback.removeClass('text-success').addClass('text-danger').text('Server error while validating the barcode.');
+                    }
+                });
+            }
+
+            $(document).on('click', '.btn-validate-manual-barcode', function () {
+                validateManualBarcode(parseInt($(this).data('sample-id')));
+            });
+            $(document).on('keypress', '.txt-manual-barcode', function (e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    validateManualBarcode(parseInt($(this).data('sample-id')));
+                }
             });
 
             // ── 6. Collect All Button Click ─────────────────────────────────────

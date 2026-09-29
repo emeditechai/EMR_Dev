@@ -214,10 +214,10 @@
                                         <button type="button" class="btn btn-outline-info" onclick="openViewPackageModal(@item.HospitalPackage_ID)" title="View Complete Breakdown">
                                             <i class="bi bi-eye"></i>
                                         </button>
-                                        <button type="button" class="btn btn-outline-primary" onclick="openEditPackageModal(@item.HospitalPackage_ID)" title="Edit Package">
+                                        <button asp-permission="MASTER.HOSPITALPACKAGES:EDIT" type="button" class="btn btn-outline-primary" onclick="openEditPackageModal(@item.HospitalPackage_ID)" title="Edit Package">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <form asp-action="Delete" asp-route-id="@item.HospitalPackage_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete package @item.Package_Code and its dynamic detail heads?');">
+                                        <form asp-permission="MASTER.HOSPITALPACKAGES:DELETE" asp-action="Delete" asp-route-id="@item.HospitalPackage_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete package @item.Package_Code and its dynamic detail heads?');">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="btn btn-outline-danger" title="Delete Package">
                                                 <i class="bi bi-trash"></i>
@@ -246,7 +246,7 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="packageForm" method="post" asp-action="Create" class="d-flex flex-column flex-grow-1" style="min-height: 0; overflow: hidden;">
+            <form asp-permission="MASTER.HOSPITALPACKAGES:ADD" id="packageForm" method="post" asp-action="Create" class="d-flex flex-column flex-grow-1" style="min-height: 0; overflow: hidden;">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="HospitalPackage_ID" id="formPackageId" value="0" />
                 <input type="hidden" name="Branch_ID" id="formBranchId" value="@Model.SelectedBranchId" />

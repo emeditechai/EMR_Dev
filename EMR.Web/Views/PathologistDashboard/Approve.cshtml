@@ -469,7 +469,7 @@
                     <i class="bi bi-printer-fill me-1"></i>@(printProvisional ? "Print (Not Approved)" : "Print Report")
                 </button>
             }
-            <button type="button" class="btn btn-sign btn-sm px-3 fs-8 text-nowrap" id="btnSign" disabled>
+            <button type="button" class="btn btn-sign btn-sm px-3 fs-8 text-nowrap" id="btnSign" asp-permission="LAB.PATHOLOGISTDASHBOARD:APPROVE" asp-permission-mode="hide" disabled>
                 <i class="bi bi-pen-fill me-1"></i>Approve <span class="badge bg-white text-danger ms-1" id="selCount">0</span>
             </button>
         </div>

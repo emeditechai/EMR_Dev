@@ -257,7 +257,7 @@
                                 <button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail(@item.LabOrderId)" title="View Order Details">
                                     <i class="bi bi-eye"></i>
                                 </button>
-                                <a href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = item.LabOrderId })" target="_blank" class="btn btn-outline-success" title="Print Bill">
+                                <a asp-permission="LAB.LABORDERBOOKING.B2BREGISTRATION:PRINT" href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = item.LabOrderId })" target="_blank" class="btn btn-outline-success" title="Print Bill">
                                     <i class="bi bi-printer"></i>
                                 </a>
                                 @if (showLabReportPrint && item.ApprovedTestCount > 0)

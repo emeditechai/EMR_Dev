@@ -31,8 +31,10 @@ namespace EMR.Web.Controllers
         ILabReportingConditionApiClient conditionApiClient,
         ILabReportPdfService reportPdfService,
         ILabReportEmailService labReportEmailService,
+        ILabReportWhatsAppService labReportWhatsAppService,
         ILabFormulaParameterApiClient labFormulaApiClient,
-        IQueryStringEncryptionService encryptionService) : Controller
+        IQueryStringEncryptionService encryptionService,
+        EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
     {
         [HttpGet]
         [EMR.Web.Filters.LabReportingAccess]
@@ -397,6 +399,14 @@ namespace EMR.Web.Controllers
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
 
+            // Validating and approving are actions of their own (Settings > Security > this page).
+            if (request.ReportStatusId == 3
+                && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Validate))
+                return Json(new { success = false, code = "FORBIDDEN", message = "You do not have permission to validate reports." });
+            if (request.ReportStatusId == 5
+                && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Approve))
+                return Json(new { success = false, code = "FORBIDDEN", message = "You do not have permission to approve reports." });
+
             // With pathologist approval switched on, only the Pathologist Dashboard may approve.
             if (request.ReportStatusId == 5 && await PathologistApprovalRequiredAsync())
                 return Json(new
@@ -509,8 +519,9 @@ namespace EMR.Web.Controllers
                 }
                 catch (HttpRequestException) { /* never block the save */ }
 
-                // The whole bill may be final now: email the patient's report (background, when enabled).
+                // The whole bill may be final now: email / WhatsApp the patient's report (background, when enabled).
                 labReportEmailService.QueueIfFinal(request.LabOrderId, User, LabReportEmailTriggers.EntryApproval);
+                labReportWhatsAppService.QueueIfFinal(request.LabOrderId, User, LabReportEmailTriggers.EntryApproval);
             }
 
             if (success)

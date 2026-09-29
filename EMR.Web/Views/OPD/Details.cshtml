@@ -290,7 +290,7 @@
                                         <tr>
                                             <td class="fw-semibold text-dark">@v.VisitDate.ToString("dd MMM yyyy, HH:mm")</td>
                                             <td class="font-monospace text-secondary">
-                                                <a href="/OPD/PrintBill?id=@v.OPDServiceId" target="_blank" class="text-decoration-none">
+                                                <a asp-permission="MASTER.OPD:PRINT" href="/OPD/PrintBill?id=@v.OPDServiceId" target="_blank" class="text-decoration-none">
                                                     <i class="bi bi-file-earmark-pdf text-danger me-1"></i>@v.OPDBillNo
                                                 </a>
                                             </td>
@@ -548,7 +548,7 @@
                                             </td>
                                             <td>
                                                 <div class="d-inline-flex gap-1">
-                                                    <a href="/LabOrderBooking/PrintBill?labOrderId=@l.LabOrderId" target="_blank" class="btn btn-sm btn-outline-primary py-1 px-2" title="Print Bill">
+                                                    <a asp-permission="MASTER.OPD:PRINT" href="/LabOrderBooking/PrintBill?labOrderId=@l.LabOrderId" target="_blank" class="btn btn-sm btn-outline-primary py-1 px-2" title="Print Bill">
                                                         <i class="bi bi-printer me-1"></i>Print
                                                     </a>
                                                     @if (l.ApprovedTestCount > 0)

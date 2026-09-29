@@ -309,8 +309,8 @@
                                 @foreach (var role in group.Roles)
                                 {
                                     <label class="uf-role-chip cms-option" data-search-text="@role.Name.ToLowerInvariant()">
-                                        <input type="checkbox" name="SelectedRoleIds" value="@role.Id"
-                                            @(Model.SelectedRoleIds.Contains(role.Id) ? "checked" : "")
+                                        <input type="checkbox" name="SelectedBranchRoles" value="@(group.BranchId):@(role.Id)"
+                                            @(Model.SelectedBranchRoles.Contains($"{group.BranchId}:{role.Id}") ? "checked" : "")
                                             onchange="updateRoleLabel()">
                                         <span>@role.Name</span>
                                     </label>
@@ -1006,7 +1006,7 @@ function updateRoleLabel() {
     let totalRoles = 0, branchesWithoutRole = 0;
     document.querySelectorAll('#roleBranchTabs li[data-branch-id]').forEach(li => {
         const bid = li.dataset.branchId;
-        const n = document.querySelectorAll('.uf-role-group[data-branch-id="' + bid + '"] input[name="SelectedRoleIds"]:checked').length;
+        const n = document.querySelectorAll('.uf-role-group[data-branch-id="' + bid + '"] input[name="SelectedBranchRoles"]:checked').length;
         const badge = li.querySelector('.uf-role-count');
         badge.textContent = n;
         badge.classList.toggle('has-roles', n > 0);

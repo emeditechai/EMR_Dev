@@ -125,6 +125,15 @@
             </div>
 
             <div class="col-md-12">
+                <div class="form-check form-switch">
+                    <input asp-for="IsReferralDoctor" class="form-check-input" type="checkbox" role="switch" />
+                    <label asp-for="IsReferralDoctor" class="form-check-label fw-semibold">Is Referral Doctor</label>
+                    <span class="badge ms-1 @(Model.IsReferralDoctor ? "bg-success-subtle text-success border border-success-subtle" : "bg-secondary-subtle text-secondary border border-secondary-subtle")" id="isReferralDoctorText">@(Model.IsReferralDoctor ? "Yes" : "No")</span>
+                    <div class="form-text text-muted">Mark this doctor as a referral doctor. Default is No.</div>
+                </div>
+            </div>
+
+            <div class="col-md-12">
                 <label class="form-label fw-semibold">Assign Branch</label>
                 @if (Model.CanAssignMultipleBranches)
                 {
@@ -267,6 +276,18 @@
         }
 
         // ── Login account toggle ──
+        // Is Referral Doctor: show Yes / No next to the switch
+        (function () {
+            const sw = document.getElementById('IsReferralDoctor'), txt = document.getElementById('isReferralDoctorText');
+            if (!sw || !txt) return;
+            const paint = () => {
+                txt.textContent = sw.checked ? 'Yes' : 'No';
+                txt.className = 'badge ms-1 ' + (sw.checked ? 'bg-success-subtle text-success border border-success-subtle'
+                                                           : 'bg-secondary-subtle text-secondary border border-secondary-subtle');
+            };
+            sw.addEventListener('change', paint);
+        })();
+
         const loginToggle = document.getElementById('isLoginRequired');
         const loginPanel  = document.getElementById('loginFieldsPanel');
         function syncLoginPanel() {

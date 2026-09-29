@@ -148,7 +148,13 @@ public class UsersController(
             {
                 BranchName = ub.Branch.BranchName,
                 EmployeeCode = ub.EmployeeCode,
-                Roles = allUserRoles
+                // A role with no branch applies in every branch; otherwise only in its own.
+                Roles = user.UserRoles
+                    .Where(ur => ur.Role is not null && (ur.Branch_ID == null || ur.Branch_ID == ub.BranchId))
+                    .Select(ur => ur.Role.Name)
+                    .Distinct()
+                    .OrderBy(n => n)
+                    .ToList()
             }).ToList();
 
         var deptDict = await dbContext.DepartmentMasters
@@ -238,6 +244,7 @@ public class UsersController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(UserFormViewModel model)
     {
+        NormalizeBranchRoles(model);
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
@@ -411,6 +418,11 @@ public class UsersController(
             AnalyzerTrainedOn = user.AnalyzerTrainedOn,
             SelectedBranchIds = user.UserBranches.Where(x => x.IsActive).Select(x => x.BranchId).ToList(),
             SelectedRoleIds = user.UserRoles.Where(x => x.IsActive).Select(x => x.RoleId).ToList(),
+            SelectedBranchRoles = user.UserRoles.Where(x => x.IsActive)
+                .SelectMany(r => r.Branch_ID.HasValue
+                    ? new[] { $"{r.Branch_ID}:{r.RoleId}" }
+                    : user.UserBranches.Where(b => b.IsActive).Select(b => $"{b.BranchId}:{r.RoleId}"))
+                .Distinct().ToList(),
             SelectedDepartmentIds = selectedDeptIds,
             SelectedTestCategoryIds = ParseIdCsv(user.PathologistCategoryIds)
         };
@@ -423,6 +435,7 @@ public class UsersController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(UserFormViewModel model)
     {
+        NormalizeBranchRoles(model);
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
@@ -827,6 +840,25 @@ public class UsersController(
         }
     }
 
+    /// <summary>The ticked (branch, role) pairs, limited to branches the user is actually mapped to.</summary>
+    private static List<(int BranchId, int RoleId)> ParseBranchRoles(UserFormViewModel model)
+    {
+        var branches = model.SelectedBranchIds.ToHashSet();
+        return model.SelectedBranchRoles
+            .Select(v => v.Split(':'))
+            .Where(p => p.Length == 2 && int.TryParse(p[0], out _) && int.TryParse(p[1], out _))
+            .Select(p => (BranchId: int.Parse(p[0]), RoleId: int.Parse(p[1])))
+            .Where(p => branches.Contains(p.BranchId))
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>Keeps SelectedRoleIds (used by validation and the form) in step with the posted branch-role pairs.</summary>
+    private static void NormalizeBranchRoles(UserFormViewModel model)
+    {
+        model.SelectedRoleIds = ParseBranchRoles(model).Select(p => p.RoleId).Distinct().ToList();
+    }
+
     private async Task SaveMappings(UserFormViewModel model, int userId, string? normalizedEmployeeCode)
     {
         var existingBranches = await dbContext.UserBranches.Where(x => x.UserId == userId).ToListAsync();
@@ -850,12 +882,13 @@ public class UsersController(
         var existingRoles = await dbContext.UserRoles.Where(x => x.UserId == userId).ToListAsync();
         dbContext.UserRoles.RemoveRange(existingRoles);
 
-        var roleMappings = model.SelectedRoleIds
-            .Distinct()
-            .Select(roleId => new UserRole
+        // Roles are branch-scoped: each ticked role applies only in the branch whose tab it was ticked on.
+        var roleMappings = ParseBranchRoles(model)
+            .Select(br => new UserRole
             {
                 UserId = userId,
-                RoleId = roleId,
+                RoleId = br.RoleId,
+                Branch_ID = br.BranchId,
                 IsActive = true,
                 AssignedDate = DateTime.Now,
                 AssignedBy = User.GetUserId(),

@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 m-0">City Details</h1>
     <div class="d-flex gap-2">
-        <a asp-action="Edit" asp-route-id="@Model.CityId" class="btn btn-outline-primary">
+        <a asp-permission="MASTER.CITIES:EDIT" asp-action="Edit" asp-route-id="@Model.CityId" class="btn btn-outline-primary">
             <i class="bi bi-pencil me-1"></i>Edit
         </a>
         <a asp-action="Index" class="btn btn-outline-secondary">

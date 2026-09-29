@@ -19,7 +19,7 @@
             </h4>
         </div>
         <div>
-            <a asp-action="BatchCreate" class="btn btn-primary px-3 shadow-sm">
+            <a asp-permission="MASTER.LABDESCRIPTIVETESTTEMPLATES:ADD" asp-action="BatchCreate" class="btn btn-primary px-3 shadow-sm">
                 <i class="bi bi-file-earmark-medical me-1"></i> Create Report Template
             </a>
         </div>
@@ -133,15 +133,15 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="Edit" asp-encrypted-id="@item.Test_ID"
+                                        <a asp-permission="MASTER.LABDESCRIPTIVETESTTEMPLATES:EDIT" asp-action="Edit" asp-encrypted-id="@item.Test_ID"
                                            class="btn btn-outline-primary" title="Edit All Sections">
                                             <i class="bi bi-pencil-square"></i>
                                         </a>
-                                        <a asp-action="Details" asp-encrypted-id="@item.Test_ID"
+                                        <a asp-permission="MASTER.LABDESCRIPTIVETESTTEMPLATES:DETAILS" asp-action="Details" asp-encrypted-id="@item.Test_ID"
                                            class="btn btn-outline-info" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <form asp-action="DeleteByTestId" method="post" class="d-inline"
+                                        <form asp-permission="MASTER.LABDESCRIPTIVETESTTEMPLATES:DELETE" asp-action="DeleteByTestId" method="post" class="d-inline"
                                               onsubmit="return confirm('Are you sure you want to delete all @item.SectionCount section(s) for this test?')">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="testId" value="@item.Test_ID" />

@@ -10,6 +10,14 @@
 <link href="~/lib/quill/quill.snow.css" rel="stylesheet" />
 
 <div class="container-fluid" id="config-page-container">
+    @if (ViewBag.NoOwnDoctor == true)
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3">
+            <i class="bi bi-person-exclamation fs-5"></i>
+            <div><b>No doctor is linked to your login.</b> The Doctor Dashboard shows only your own doctor's queue.
+                Ask an administrator to link your user to your doctor in Doctor Master (Login Account).</div>
+        </div>
+    }
     <!-- Header Bar -->
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 bg-white p-2.5 rounded-12 shadow-xs border">
         <div>
@@ -925,7 +933,7 @@
                     `;
                 } else {
                     const skipButton = item.status === 'Skipped' ? '' : `
-                        <button class="btn btn-sm btn-outline-danger rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Skip/Pass Patient" onclick="skipConsulting(${item.opdServiceId})">
+                        <button data-permission="OPD.DOCTORDASHBOARD:TOKEN_STATUS" class="btn btn-sm btn-outline-danger rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Skip/Pass Patient" onclick="skipConsulting(${item.opdServiceId})">
                             <i class="bi bi-skip-forward"></i>
                         </button>
                     `;
@@ -937,7 +945,7 @@
                             <i class="bi bi-megaphone"></i>
                         </button>
                         ${skipButton}
-                        <button class="btn btn-sm btn-success rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Mark Consultation Completed" onclick="completeConsulting(${item.opdServiceId}, '${item.patientName}', ${item.isEmrDone})">
+                        <button data-permission="OPD.DOCTORDASHBOARD:TOKEN_STATUS" class="btn btn-sm btn-success rounded-circle" style="width: 32px; height: 32px; padding: 0;" title="Mark Consultation Completed" onclick="completeConsulting(${item.opdServiceId}, '${item.patientName}', ${item.isEmrDone})">
                             <i class="bi bi-check-lg"></i>
                         </button>
                     `;
@@ -1120,7 +1128,7 @@
                         <a href="/Vitals/History?patientId=${patientId}" target="_blank" class="btn btn-sm btn-outline-info flex-fill fw-semibold py-1" style="font-size: 0.76rem;">
                             <i class="bi bi-clock-history me-1"></i> History
                         </a>
-                        <a href="/Vitals/RecordVital?patientId=${patientId}&opdServiceId=${opdServiceId}&returnUrl=%2FOPD%2FDoctorDashboard%3FpatientId%3D${patientId}" class="btn btn-sm btn-outline-primary flex-fill fw-semibold py-1" style="font-size: 0.76rem;">
+                        <a data-permission="OPD.DOCTORDASHBOARD:RECORD_VITALS" href="/Vitals/RecordVital?patientId=${patientId}&opdServiceId=${opdServiceId}&returnUrl=%2FOPD%2FDoctorDashboard%3FpatientId%3D${patientId}" class="btn btn-sm btn-outline-primary flex-fill fw-semibold py-1" style="font-size: 0.76rem;">
                             <i class="bi bi-plus-circle me-1"></i> Add Vitals
                         </a>
                     </div>

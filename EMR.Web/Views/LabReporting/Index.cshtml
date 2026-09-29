@@ -77,8 +77,10 @@
         .st-pending   { --st: #64748b; --st-bg: #f8fafc; --st-hover: #eef2f6; --st-bd: #cbd5e1; }
         .st-draft     { --st: #b45309; --st-bg: #fffbeb; --st-hover: #fef3c7; --st-bd: #fcd34d; }
         .st-entered   { --st: #1d4ed8; --st-bg: #eff6ff; --st-hover: #dbeafe; --st-bd: #93c5fd; }
-        .st-validated { --st: #15803d; --st-bg: #f0fdf4; --st-hover: #dcfce7; --st-bd: #86efac; }
-        .st-approved  { --st: #0f766e; --st-bg: #f0fdfa; --st-hover: #ccfbf1; --st-bd: #5eead4; }
+        /* Validated (purple) and Approved (green) are deliberately far apart in hue - the earlier
+           green/teal pairing here read as the same colour at badge size. */
+        .st-validated { --st: #6d28d9; --st-bg: #f5f3ff; --st-hover: #ede9fe; --st-bd: #c4b5fd; }
+        .st-approved  { --st: #15803d; --st-bg: #f0fdf4; --st-hover: #dcfce7; --st-bd: #86efac; }
         .st-recollect { --st: #c2410c; --st-bg: #fff7ed; --st-hover: #ffedd5; --st-bd: #fdba74; }
         .st-rejected  { --st: #b91c1c; --st-bg: #fef2f2; --st-hover: #fee2e2; --st-bd: #fca5a5; }
 
@@ -570,7 +572,7 @@
                                 </span>
                             </td>
                             <td class="text-end pe-3">
-                                <a href="@Url.Action("Entry", "LabReporting")?q=${encodeURIComponent(encMap[o.labOrderId] || '')}"
+                                <a data-permission="LAB.LABREPORTING:ENTRY" href="@Url.Action("Entry", "LabReporting")?q=${encodeURIComponent(encMap[o.labOrderId] || '')}"
                                    target="_blank"
                                    class="btn btn-entry btn-sm py-1 px-2.5 fs-8 d-inline-flex align-items-center"
                                    title="Open Report Entry in a new tab">

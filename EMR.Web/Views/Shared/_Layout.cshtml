@@ -1,3 +1,4 @@
+@inject Microsoft.Extensions.Options.IOptionsMonitor<EMR.Shared.Security.EmrAuthorizationOptions> AuthzOptions
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - eClinicPlus+</title>
     <script type="importmap"></script>
+    <emr-permission-script />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
@@ -25,6 +27,13 @@
             <div class="collapse navbar-collapse" id="mainNav">
                 @if (User.Identity?.IsAuthenticated == true)
                 {
+                    @if (AuthzOptions.CurrentValue.DatabaseNavigation)
+                    {
+                        @await Component.InvokeAsync("DatabaseNav")
+                    }
+                    else
+                    {
+                    @* Hard-coded bar: kept until the database-driven bar has run for a full cycle, then removed. *@
                     <ul class="navbar-nav me-auto mb-2 mb-xl-0 emr-main-menu">
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Dashboard" asp-action="Index"><i class="bi bi-house-fill me-1"></i>Home</a>
@@ -74,7 +83,7 @@
                                 <li><a class="dropdown-item" asp-controller="LabReporting" asp-action="Index"><i class="bi bi-file-earmark-medical me-2 text-info"></i>Lab Reporting Entry</a></li>
                                 <li><a class="dropdown-item" asp-controller="LabImageReporting" asp-action="Index"><i class="bi bi-file-earmark-image me-2 text-primary"></i>Image Report Entry</a></li>
                                 <li><a class="dropdown-item" asp-controller="LabReportDispatch" asp-action="Index"><i class="bi bi-printer-fill me-2 text-success"></i>Lab Report Dispatch</a></li>
-                                <li><a class="dropdown-item" asp-controller="PathologistDashboard" asp-action="Index"><i class="bi bi-clipboard2-pulse-fill me-2 text-danger"></i>Pathologist Dashboard</a></li>
+                                <li><a class="dropdown-item" asp-controller="PathologistDashboard" asp-action="Index"><i class="bi bi-clipboard2-pulse-fill me-2 text-danger"></i>Report Approval Dashboard</a></li>
                                 <li><a class="dropdown-item" asp-controller="LabUnapprove" asp-action="Index"><i class="bi bi-unlock-fill me-2 text-warning"></i>Un-Authorize Report</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="BillCancellation" asp-action="Index" asp-route-moduleCode="LAB"><i class="bi bi-x-circle-fill me-2 text-danger"></i>Bill Cancellation &amp; Refund</a></li>
@@ -203,6 +212,7 @@
                                         <li><a class="dropdown-item" asp-controller="LabSampleRejectionReasons" asp-action="Index"><i class="bi bi-x-octagon me-2"></i>Sample Rejection Reason Master</a></li>
                                         <li><a class="dropdown-item" asp-controller="LabReportingConditions" asp-action="Index"><i class="bi bi-file-earmark-ruled me-2"></i>Conditions of Reporting</a></li>
                                         <li><a class="dropdown-item" asp-controller="LabFranchises" asp-action="Index"><i class="bi bi-building-gear me-2"></i>Franchise Setup</a></li>
+                                        <li><a class="dropdown-item" asp-controller="LabFranchiseBarcodes" asp-action="Index"><i class="bi bi-upc-scan me-2"></i>Franchise Barcode Assignment</a></li>
                                         <li><a class="dropdown-item" asp-controller="LabRateListB2C" asp-action="Index"><i class="bi bi-currency-dollar me-2"></i>Rate List (B2C)</a></li>
                                         <li><a class="dropdown-item" asp-controller="LabRateListFranchise" asp-action="Index"><i class="bi bi-building-gear me-2"></i>Rate List (Franchise)</a></li>
                                         <li><a class="dropdown-item" asp-controller="LabRateListCorporate" asp-action="Index"><i class="bi bi-building me-2"></i>Rate List (Corporate)</a></li>
@@ -246,6 +256,22 @@
                                 <li><a class="dropdown-item" asp-controller="SmtpConfig" asp-action="Index"><i class="bi bi-envelope-at me-2"></i>Email Configuration</a></li>
                                 <li><a class="dropdown-item" asp-controller="WhatsAppConfig" asp-action="Index"><i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp Configuration</a></li>
                                 <li><a class="dropdown-item" asp-controller="VideoConfig" asp-action="Index"><i class="bi bi-camera-video-fill me-2"></i>Video Consultation Config</a></li>
+                                @if (User.IsCompanyAdmin())
+                                {
+                                <li><hr class="dropdown-divider"></li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-submenu-toggle" href="#">
+                                        <i class="bi bi-shield-lock-fill me-2 text-danger"></i>Security
+                                        <i class="bi bi-chevron-right ms-auto submenu-arrow"></i>
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-submenu-menu">
+                                        <li><a class="dropdown-item" asp-controller="Security" asp-action="MenuPages"><i class="bi bi-diagram-3-fill me-2 text-primary"></i>Menu &amp; Page Master</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Security" asp-action="RolePermissions"><i class="bi bi-person-lock me-2 text-success"></i>Role Permissions</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Security" asp-action="UserPermissions"><i class="bi bi-person-gear me-2 text-warning"></i>User Permissions</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Security" asp-action="EffectivePermissions"><i class="bi bi-search-heart me-2 text-info"></i>Effective Permissions</a></li>
+                                    </ul>
+                                </li>
+                                }
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
@@ -312,6 +338,7 @@
                             </ul>
                         </li>
                     </ul>
+                    }
 
                     <div class="d-flex align-items-center gap-1.5 ms-auto emr-top-actions">
                         <button type="button" class="btn btn-sm emr-icon-btn" title="Notifications"><i class="bi bi-bell-fill"></i></button>
@@ -400,6 +427,7 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/emr-authz.js" asp-append-version="true"></script>
     <script>
         // Nested submenu: hover on desktop, click on mobile
         document.querySelectorAll('.dropdown-submenu').forEach(function (el) {

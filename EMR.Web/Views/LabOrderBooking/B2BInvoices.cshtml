@@ -163,7 +163,7 @@
 
                             <tr>
                                 <td>
-                                    <a asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="fw-bold font-monospace text-primary text-decoration-none">
+                                    <a asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:DETAILS" asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="fw-bold font-monospace text-primary text-decoration-none">
                                         @inv.InvoiceNo
                                     </a>
                                 </td>
@@ -184,7 +184,7 @@
                                 <td class="text-center">@Html.Raw(statusBadge)</td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="btn btn-outline-primary" title="View / Print Invoice">
+                                        <a asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:DETAILS" asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="btn btn-outline-primary" title="View / Print Invoice">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if (inv.Status != "P")
@@ -333,7 +333,7 @@
 
                 <div class="d-flex justify-content-end gap-2 mt-3">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary btn-sm px-4 fw-bold" id="btnSubmitGenerateInvoice" onclick="submitGenerateInvoice()">
+                    <button asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:GENERATE_INVOICE" type="button" class="btn btn-primary btn-sm px-4 fw-bold" id="btnSubmitGenerateInvoice" onclick="submitGenerateInvoice()">
                         <i class="bi bi-file-earmark-check me-1"></i>Generate Invoice
                     </button>
                 </div>
@@ -566,7 +566,7 @@
                                         <div>
                                             <span class="fw-bold text-dark">${inv.partnerName}</span> 
                                             <span class="badge bg-light text-muted border font-monospace ms-1">${inv.partnerCode}</span><br/>
-                                            <a href="/LabOrderBooking/B2BInvoiceDetail?q=${encodeURIComponent(inv.encryptedInvoiceId)}" target="_blank" class="font-monospace text-primary fw-semibold small text-decoration-none">
+                                            <a data-permission="LAB.LABORDERBOOKING.B2BINVOICES:DETAILS" href="/LabOrderBooking/B2BInvoiceDetail?q=${encodeURIComponent(inv.encryptedInvoiceId)}" target="_blank" class="font-monospace text-primary fw-semibold small text-decoration-none">
                                                 <i class="bi bi-file-earmark-text me-1"></i>${inv.invoiceNo}
                                             </a> · <span class="small text-muted">${inv.orderCount} orders</span>
                                         </div>

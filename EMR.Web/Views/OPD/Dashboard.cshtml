@@ -333,7 +333,7 @@
                                                         </button>
                                                     </li>
                                                     <li>
-                                                        <a class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank">
+                                                        <a asp-permission="OPD.DASHBOARD:PRINT" class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank">
                                                             <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
                                                         </a>
                                                     </li>

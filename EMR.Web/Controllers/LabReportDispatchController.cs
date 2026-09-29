@@ -124,7 +124,9 @@ public class LabReportDispatchController(
 
             var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
             var balanceDue = detail?.BalanceDue ?? 0m;
-            if (balanceDue > 0)
+            // A B2B bill is settled with the franchise/company, not collected from the patient at the
+            // counter, so it must always be printable once ready - the due rule is B2C only.
+            if (balanceDue > 0 && detail?.IsB2B != true)
             {
                 return StatusCode(StatusCodes.Status402PaymentRequired, new
                 {

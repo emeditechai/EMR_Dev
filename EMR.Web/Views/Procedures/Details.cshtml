@@ -163,7 +163,7 @@
                                                 <a asp-controller="ProcedureTariffs" asp-action="Details" asp-route-id="@tariff.ProcedureTariffId" class="btn btn-outline-info" title="View Tariff Details">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
-                                                <a asp-controller="ProcedureTariffs" asp-action="Edit" asp-route-id="@tariff.ProcedureTariffId" class="btn btn-outline-primary" title="Edit Tariff">
+                                                <a asp-permission="MASTER.PROCEDURES:PROCEDURE_TARIFFS" asp-controller="ProcedureTariffs" asp-action="Edit" asp-route-id="@tariff.ProcedureTariffId" class="btn btn-outline-primary" title="Edit Tariff">
                                                     <i class="bi bi-pencil me-1"></i>Edit Tariff
                                                 </a>
                                             </div>
@@ -193,11 +193,11 @@
             <div class="d-flex gap-2">
                 @if (!Model.HasConfiguredTariffs)
                 {
-                    <a asp-controller="ProcedureTariffs" asp-action="Create" asp-route-procedureId="@procedure.ProcedureId" class="btn btn-success">
+                    <a asp-permission="MASTER.PROCEDURES:PROCEDURE_TARIFFS" asp-controller="ProcedureTariffs" asp-action="Create" asp-route-procedureId="@procedure.ProcedureId" class="btn btn-success">
                         <i class="bi bi-plus-lg me-1"></i>Configure Tariff
                     </a>
                 }
-                <a asp-action="Edit" asp-route-id="@procedure.ProcedureId" class="btn btn-primary">
+                <a asp-permission="MASTER.PROCEDURES:EDIT" asp-action="Edit" asp-route-id="@procedure.ProcedureId" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i>Edit Procedure
                 </a>
             </div>

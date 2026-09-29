@@ -70,7 +70,7 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-action="Assign" asp-route-userId="@item.UserId" class="btn btn-sm btn-outline-primary">
+                        <a asp-permission="SETTINGS.ACCESS:ASSIGN" asp-action="Assign" asp-route-userId="@item.UserId" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-shield-plus me-1"></i>Assign Roles
                         </a>
                     </td>

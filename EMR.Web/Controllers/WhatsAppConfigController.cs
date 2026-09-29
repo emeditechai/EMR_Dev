@@ -60,6 +60,8 @@ public class WhatsAppConfigController(
                     VideoNotificationEnabled = defaultConfig.VideoNotificationEnabled,
                     VideoPatientMessageTemplate = defaultConfig.VideoPatientMessageTemplate,
                     VideoDoctorMessageTemplate = defaultConfig.VideoDoctorMessageTemplate,
+                    LabReportApprovedNotificationEnabled = defaultConfig.LabReportApprovedNotificationEnabled,
+                    LabReportApprovedMessageTemplate = defaultConfig.LabReportApprovedMessageTemplate,
                     IsDefault = false,
                     IsActive = true
                 };
@@ -106,10 +108,12 @@ public class WhatsAppConfigController(
             OpdNotificationEnabled = config?.OpdNotificationEnabled ?? true,
             LabNotificationEnabled = config?.LabNotificationEnabled ?? true,
             VideoNotificationEnabled = config?.VideoNotificationEnabled ?? true,
+            LabReportApprovedNotificationEnabled = config?.LabReportApprovedNotificationEnabled ?? true,
             OpdMessageTemplate = config?.OpdMessageTemplate ?? "Dear {PatientName}, thank you for visiting {HospitalName}. Your OPD Bill {BillNo} of Rs. {Amount} has been generated. Token: {TokenNo}, Doctor: {DoctorName}. Wish you a speedy recovery!",
             LabMessageTemplate = config?.LabMessageTemplate ?? "Dear {PatientName}, thank you for choosing {HospitalName}. Your Lab Order {BillNo} of Rs. {Amount} has been registered. Token: {TokenNo}. Please find your bill attached. Thank you!",
             VideoPatientMessageTemplate = config?.VideoPatientMessageTemplate ?? "Dear {PatientName}, your Video Consultation with Dr. {DoctorName} on {Date} at {Time} is confirmed. Join using: {Link}",
             VideoDoctorMessageTemplate = config?.VideoDoctorMessageTemplate ?? "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}",
+            LabReportApprovedMessageTemplate = config?.LabReportApprovedMessageTemplate ?? "Dear {PatientName}, your report for Bill {BillNo} at {HospitalName} has been approved. Please find your report attached. Thank you for choosing us!",
             LastTestedDate = config?.LastTestedDate,
             LastTestResult = config?.LastTestResult,
             RecentLogs = recentLogs
@@ -181,10 +185,12 @@ public class WhatsAppConfigController(
         config.OpdNotificationEnabled = model.OpdNotificationEnabled;
         config.LabNotificationEnabled = model.LabNotificationEnabled;
         config.VideoNotificationEnabled = model.VideoNotificationEnabled;
+        config.LabReportApprovedNotificationEnabled = model.LabReportApprovedNotificationEnabled;
         config.OpdMessageTemplate = model.OpdMessageTemplate.Trim();
         config.LabMessageTemplate = model.LabMessageTemplate.Trim();
         config.VideoPatientMessageTemplate = model.VideoPatientMessageTemplate.Trim();
         config.VideoDoctorMessageTemplate = model.VideoDoctorMessageTemplate.Trim();
+        config.LabReportApprovedMessageTemplate = model.LabReportApprovedMessageTemplate.Trim();
         config.IsActive = true;
         config.ModifiedBy = User.Identity?.Name;
         config.ModifiedDate = DateTime.Now;
@@ -279,10 +285,12 @@ public class WhatsAppConfigController(
             targetConfig.OpdNotificationEnabled = hoConfig.OpdNotificationEnabled;
             targetConfig.LabNotificationEnabled = hoConfig.LabNotificationEnabled;
             targetConfig.VideoNotificationEnabled = hoConfig.VideoNotificationEnabled;
+            targetConfig.LabReportApprovedNotificationEnabled = hoConfig.LabReportApprovedNotificationEnabled;
             targetConfig.OpdMessageTemplate = hoConfig.OpdMessageTemplate;
             targetConfig.LabMessageTemplate = hoConfig.LabMessageTemplate;
             targetConfig.VideoPatientMessageTemplate = hoConfig.VideoPatientMessageTemplate;
             targetConfig.VideoDoctorMessageTemplate = hoConfig.VideoDoctorMessageTemplate;
+            targetConfig.LabReportApprovedMessageTemplate = hoConfig.LabReportApprovedMessageTemplate;
             targetConfig.IsActive = true;
             targetConfig.ModifiedBy = User.Identity?.Name;
             targetConfig.ModifiedDate = DateTime.Now;

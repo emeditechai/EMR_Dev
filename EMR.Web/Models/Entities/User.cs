@@ -70,6 +70,8 @@ public class User
     public CityMaster? City { get; set; }
 
     public bool IsActive { get; set; } = true;
+    /// <summary>Break-glass account outside the permission model. Set only in the database - never bind from a form.</summary>
+    public bool IsSuperAdmin { get; private set; }
     public bool IsNursingStaff { get; set; }
     public bool IsPhlebotomist { get; set; }
     public bool IsPathologist { get; set; }

@@ -4,15 +4,47 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
+using EMR.Shared.Security;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace EMR.Web.Controllers;
 
 [Authorize]
 public class BillCancellationController(
     ICancellationService cancellationService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IActionPermissionGuard permissionGuard) : Controller
 {
+    // One screen serves both modules (LAB / OPD Bill Cancellation pages), so every action is also checked against
+    // the page of the module it works on - the endpoint map alone would let the LAB page's rights reach OPD bills.
+    public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        var action = context.ActionDescriptor.RouteValues["action"];
+        string? moduleCode = context.ActionArguments.TryGetValue("moduleCode", out var m) ? m as string : null;
+        if (context.ActionArguments.TryGetValue("request", out var r))
+            moduleCode = (r as BillCancellationRequestDto)?.ModuleCode ?? (r as BillRefundRequestDto)?.ModuleCode ?? moduleCode;
+
+        var page = string.Equals(moduleCode, "OPD", StringComparison.OrdinalIgnoreCase) ? "OPD.BILLCANCELLATION.OPD" : "LAB.BILLCANCELLATION.LAB";
+        var control = action switch
+        {
+            nameof(CancelBill) => PermissionControls.Cancel,
+            nameof(ProcessRefund) => PermissionControls.Refund,
+            _ => PermissionControls.View
+        };
+
+        if (!await permissionGuard.AllowsAsync(HttpContext, page, control))
+        {
+            context.Result = action == nameof(Index)
+                ? RedirectToAction("AccessDenied", "Account", new { returnUrl = Request.Path + Request.QueryString, page, control })
+                : new ObjectResult(new { success = false, code = "FORBIDDEN", error = PermissionFilter.DeniedMessage, message = PermissionFilter.DeniedMessage, page, control })
+                  { StatusCode = StatusCodes.Status403Forbidden };
+            return;
+        }
+
+        await next();
+    }
+
     // ── Dashboard Page ─────────────────────────────────────────────────────────
     [HttpGet]
     public IActionResult Index(string moduleCode = "LAB")
