@@ -59,7 +59,6 @@ public class DoctorIpFormViewModel
 public class DoctorIpUnlockViewModel
 {
     [Required(ErrorMessage = "Enter the access code.")]
-    [DataType(DataType.Password)]
     [Display(Name = "Access Code")]
     public string Code { get; set; } = string.Empty;
 
@@ -75,19 +74,16 @@ public class DoctorIpSetCodeViewModel
 {
     public bool IsConfigured { get; set; }
 
-    [DataType(DataType.Password)]
     [Display(Name = "Current Access Code")]
     public string? CurrentCode { get; set; }
 
     [Required(ErrorMessage = "Enter the new access code.")]
     [StringLength(100, MinimumLength = 6, ErrorMessage = "The access code must be at least 6 characters.")]
-    [DataType(DataType.Password)]
     [Display(Name = "New Access Code")]
     public string NewCode { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Confirm the new access code.")]
     [Compare(nameof(NewCode), ErrorMessage = "The codes do not match.")]
-    [DataType(DataType.Password)]
     [Display(Name = "Confirm New Access Code")]
     public string ConfirmCode { get; set; } = string.Empty;
 }

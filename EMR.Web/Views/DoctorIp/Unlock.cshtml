@@ -43,12 +43,14 @@
                         <form asp-action="Unlock" method="post" autocomplete="off" class="text-start">
                             @Html.AntiForgeryToken()
                             <input type="hidden" asp-for="ReturnUrl" />
-                            <label asp-for="Code" class="form-label fw-semibold"></label>
+                            <label for="codeEntry" class="form-label fw-semibold">Access Code</label>
                             <div class="input-group mb-1">
                                 <span class="input-group-text"><i class="bi bi-key"></i></span>
-                                <input asp-for="Code" class="form-control" autocomplete="new-password" autofocus />
-                                <button type="button" class="btn btn-outline-secondary" id="toggleCode" title="Show / hide"><i class="bi bi-eye"></i></button>
+                                <input type="text" id="codeEntry" class="form-control secure-code" data-target="Code" autofocus />
+                                <button type="button" class="btn btn-outline-secondary" data-reveal="codeEntry" title="Show / hide"><i class="bi bi-eye"></i></button>
                             </div>
+                            <input type="hidden" asp-for="Code" value="" />
+                            <small class="text-muted d-block mb-1">Type the code; pasting is disabled.</small>
                             <span asp-validation-for="Code" class="text-danger small d-block mb-2"></span>
                             <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
                             <button type="submit" class="btn btn-primary w-100 mt-2"><i class="bi bi-unlock me-1"></i>Unlock</button>
@@ -67,10 +69,10 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/secure-code-input.js" asp-append-version="true"></script>
     <script>
-        $('#toggleCode').on('click', function () {
-            var i = $('#Code'); i.attr('type', i.attr('type') === 'password' ? 'text' : 'password');
-            $(this).find('i').toggleClass('bi-eye bi-eye-slash');
+        $('form[action*="Unlock"]').on('submit', function (e) {
+            if (!$('#Code').val()) { e.preventDefault(); $('[data-valmsg-for="Code"]').text('Enter the access code.'); }
         });
     </script>
 }
