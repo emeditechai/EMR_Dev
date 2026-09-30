@@ -486,6 +486,13 @@ public class AccountController(
         }
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
+
+        HttpContext.Response.Cookies.Append("__emr_fresh_login", "1", new CookieOptions
+        {
+            HttpOnly = false,
+            SameSite = SameSiteMode.Strict,
+            Path = "/"
+        });
     }
 
     // Super admin is a flag on the account, set only in the database (Users.IsSuperAdmin), never from a screen.

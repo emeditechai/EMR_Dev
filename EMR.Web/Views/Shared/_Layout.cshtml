@@ -551,8 +551,13 @@
                 var tabKey = '__emr_tab_session';
                 try {
                     if (!sessionStorage.getItem(tabKey)) {
-                        window.location.href = '@Url.Action("SessionTimeoutLogout", "Account")';
-                        return;
+                        if (document.cookie.indexOf('__emr_fresh_login=') !== -1) {
+                            sessionStorage.setItem(tabKey, '1');
+                            document.cookie = '__emr_fresh_login=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                        } else {
+                            window.location.href = '@Url.Action("SessionTimeoutLogout", "Account")';
+                            return;
+                        }
                     }
                 } catch (e) {}
             })();
