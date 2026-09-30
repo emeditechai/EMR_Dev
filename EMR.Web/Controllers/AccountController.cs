@@ -449,6 +449,13 @@ public class AccountController(
         }
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
+
+        HttpContext.Response.Cookies.Append("__emr_fresh_login", "1", new CookieOptions
+        {
+            HttpOnly = false,
+            SameSite = SameSiteMode.Strict,
+            Path = "/"
+        });
     }
 
     private static bool IsSuperAdminUser(User user)
