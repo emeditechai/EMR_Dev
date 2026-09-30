@@ -511,6 +511,17 @@
                 });
             })();
         </script>
+        <script>
+            (function () {
+                var tabKey = '__emr_tab_session';
+                try {
+                    if (!sessionStorage.getItem(tabKey)) {
+                        window.location.href = '@Url.Action("SessionTimeoutLogout", "Account")';
+                        return;
+                    }
+                } catch (e) {}
+            })();
+        </script>
     }
 </body>
 </html>

@@ -441,9 +441,12 @@ public class AccountController(
 
         var authProperties = new AuthenticationProperties
         {
-            IsPersistent = rememberMe,
-            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+            IsPersistent = rememberMe
         };
+        if (rememberMe)
+        {
+            authProperties.ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8);
+        }
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
     }
