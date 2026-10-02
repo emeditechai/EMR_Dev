@@ -75,6 +75,7 @@
                         <th>Doctor</th>
                         <th>Speciality</th>
                         <th>Effective Period</th>
+                        <th>Frequency</th>
                         <th class="text-center">Tests</th>
                         <th class="text-center">Avg %</th>
                         <th class="text-center">Status</th>
@@ -84,7 +85,7 @@
                 <tbody>
                     @if (!Model.Items.Any())
                     {
-                        <tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>No Doctor IP found.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>No Doctor IP found.</td></tr>
                     }
                     else
                     {
@@ -102,6 +103,7 @@
                                     @item.Effective_From.ToString("dd-MMM-yyyy") <span class="text-muted">to</span> @item.Effective_To.ToString("dd-MMM-yyyy")
                                     @if (current) { <span class="badge bg-info-subtle text-info border border-info-subtle ms-1">Current</span> }
                                 </td>
+                                <td>@(item.Frequency_Of_Disbursal ?? "Monthly")</td>
                                 <td class="text-center"><span class="badge bg-secondary rounded-pill px-3">@item.Item_Count</span></td>
                                 <td class="text-center">@(item.Avg_Rate?.ToString("0.##") ?? "-")</td>
                                 <td class="text-center">

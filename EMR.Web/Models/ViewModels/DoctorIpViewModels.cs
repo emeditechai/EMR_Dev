@@ -42,6 +42,10 @@ public class DoctorIpFormViewModel
     [Display(Name = "Effective To")]
     public DateTime Effective_To { get; set; } = new DateTime(DateTime.Today.Year, 12, 31);
 
+    [Required(ErrorMessage = "Frequency of Disbursal is required.")]
+    [Display(Name = "Frequency of Disbursal")]
+    public string Frequency_Of_Disbursal { get; set; } = "Monthly";
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

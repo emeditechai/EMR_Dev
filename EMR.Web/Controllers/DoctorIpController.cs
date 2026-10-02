@@ -262,6 +262,7 @@ public class DoctorIpController(
             Branch_ID = item.Header.Branch_ID,
             Effective_From = item.Header.Effective_From,
             Effective_To = item.Header.Effective_To,
+            Frequency_Of_Disbursal = item.Header.Frequency_Of_Disbursal ?? "Monthly",
             IsActive = item.Header.IsActive,
             DetailsJson = JsonSerializer.Serialize(item.Details, RawJson)
         };
@@ -315,6 +316,7 @@ public class DoctorIpController(
                 Branch_ID = model.Branch_ID,
                 Effective_From = model.Effective_From,
                 Effective_To = model.Effective_To,
+                Frequency_Of_Disbursal = model.Frequency_Of_Disbursal,
                 IsActive = isNew || model.IsActive,
                 UserId = User.GetUserId(),
                 Details = details

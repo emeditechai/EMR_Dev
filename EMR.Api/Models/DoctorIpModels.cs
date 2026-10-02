@@ -12,6 +12,7 @@ public class DoctorIpListItem
     public DateTime Effective_From { get; set; }
     public DateTime Effective_To { get; set; }
     public bool IsActive { get; set; }
+    public string Frequency_Of_Disbursal { get; set; } = "Monthly";
     public int Item_Count { get; set; }
     public decimal? Avg_Rate { get; set; }
     public DateTime CreatedDate { get; set; }
@@ -31,6 +32,7 @@ public class DoctorIpHeader
     public DateTime Effective_From { get; set; }
     public DateTime Effective_To { get; set; }
     public bool IsActive { get; set; }
+    public string Frequency_Of_Disbursal { get; set; } = "Monthly";
     public int? Created_By { get; set; }
     public DateTime CreatedDate { get; set; }
     public int? Updated_By { get; set; }
@@ -77,6 +79,7 @@ public class DoctorIpSaveRequest
     public DateTime Effective_From { get; set; }
     public DateTime Effective_To { get; set; }
     public bool IsActive { get; set; } = true;
+    public string Frequency_Of_Disbursal { get; set; } = "Monthly";
     public int? UserId { get; set; }
     public List<DoctorIpDetailInput> Details { get; set; } = [];
 }
