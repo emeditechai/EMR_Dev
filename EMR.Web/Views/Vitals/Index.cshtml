@@ -180,6 +180,7 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/emr-suggest-keys.js" asp-append-version="true"></script>
 <script>
 (function () {
     'use strict';
@@ -270,6 +271,7 @@
         renderDropdown(await fetchJson(searchUrl(val)));
     });
     searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnSearch').click(); } });
+    emrSuggestKeys(searchInput, autoDrop);   // ↓ ↑ Enter Esc on the suggestion list (wwwroot/js/emr-suggest-keys.js)
 
     autoDrop.addEventListener('click', e => {
         const item = e.target.closest('.suggest-item');
