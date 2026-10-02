@@ -17,6 +17,7 @@ namespace EMR.Web.Controllers;
 [Authorize]
 public class PathologistDashboardController(
     IPathologistDashboardApiClient apiClient,
+    ILabReportingApiClient labReportingApiClient,
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
     ILabReportEmailService labReportEmailService,
@@ -120,6 +121,16 @@ public class PathologistDashboardController(
         ViewData["Profile"] = access.Profile;
         // embed=true: rendered inside the dashboard's sign-off modal (iframe) - same content, chrome-less layout.
         ViewData["Embed"] = embed;
+
+        // Tests reported on Microbiology Report Entry (Reporting Type Template): corrected and printed there.
+        var templateIds = new HashSet<long>();
+        try
+        {
+            var template = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), MicrobiologyReportingController.ReportingType);
+            if (template?.Items != null) templateIds = template.Items.Select(i => i.SamplecollectionID).ToHashSet();
+        }
+        catch (HttpRequestException) { /* links fall back to Lab Report Entry */ }
+        ViewData["TemplateSampleIds"] = templateIds;
         return View(detail);
     }
 

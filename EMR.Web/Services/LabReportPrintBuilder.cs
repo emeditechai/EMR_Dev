@@ -437,6 +437,9 @@ public static class LabReportPrintBuilder
     {
         var (flagText, abnormal, critical) = ResolveFlag(item);
         var result = (item.TestValue ?? string.Empty).Trim();
+        // A narrative (descriptive) result is kept as formatted text in Template_Html; TestValue only says "Report Entered".
+        if (IsNarrative(item))
+            result = HtmlToText(item.TemplateHtml!);
 
         return new LabReportRow
         {
@@ -449,7 +452,8 @@ public static class LabReportPrintBuilder
             Unit = item.UnitName?.Trim() ?? string.Empty,
             Method = item.MethodName?.Trim() ?? string.Empty,
             IsApproved = item.ReportStatusId == StatusApproved,
-            IsLongText = result.Length > 40 || result.Contains('\n')
+            IsLongText = result.Length > 40 || result.Contains('\n'),
+            IsNarrative = IsNarrative(item)
         };
     }
 
@@ -457,6 +461,9 @@ public static class LabReportPrintBuilder
     internal static (string FlagText, bool IsAbnormal, bool IsCritical) ResolveFlag(LabReportingItemDto item)
     {
         var raw = (item.AbnormalFlag ?? string.Empty).Trim();
+        // A picklist answer (Reporting Type Select) is flagged from its option's Is_Abnormal, not from a range.
+        if (raw.Equals("Abnormal", StringComparison.OrdinalIgnoreCase))
+            return ("A", true, false);
         // 'Panic' is the most severe critical value: printed with the same "*" marking.
         bool critical = raw.Equals("Critical", StringComparison.OrdinalIgnoreCase)
                      || raw.Equals("Panic", StringComparison.OrdinalIgnoreCase);
@@ -480,6 +487,22 @@ public static class LabReportPrintBuilder
     }
 
     // ═════════════════════════ helpers ═════════════════════════
+
+    /// <summary>A result written in the rich-text editor (any type other than Numeric / Select).</summary>
+    private static bool IsNarrative(LabReportingItemDto i) =>
+        !string.IsNullOrWhiteSpace(i.TemplateHtml)
+        && !string.Equals(i.ReportingType?.Trim(), "Numeric", StringComparison.OrdinalIgnoreCase)
+        && !string.Equals(i.ReportingType?.Trim(), "Select", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Editor HTML to printable text: one line per paragraph / list item / line break, entities decoded.</summary>
+    internal static string HtmlToText(string html)
+    {
+        var text = System.Text.RegularExpressions.Regex.Replace(html, @"<\s*(br|/p|/div|/li|/h[1-6]|/tr)\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"<\s*li[^>]*>", "\u2022 ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", string.Empty);
+        text = System.Net.WebUtility.HtmlDecode(text);
+        return string.Join("\n", SplitLines(text));
+    }
 
     private static bool IsActiveTest(LabReportingItemDto i) => i.CollectionstatusID != 3 && i.CollectionstatusID != 4;
     private static bool HasValue(LabReportingItemDto i) => !string.IsNullOrWhiteSpace(i.TestValue);

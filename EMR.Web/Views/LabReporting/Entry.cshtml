@@ -1,7 +1,13 @@
 @model EMR.Web.Models.ViewModels.LabReportingEntryPageViewModel
 @inject EMR.Shared.Security.IActionPermissionGuard PermissionGuard
 @{
-    ViewData["Title"] = $"Report Entry - {Model.Detail.PatientName} ({Model.Detail.TokenNo})";
+    // The reporting screen using this page: Lab Report Entry (defaults) or Microbiology Report Entry.
+    var screen = Model.Screen ?? EMR.Web.Models.ViewModels.LabReportingScreen.Numeric;
+    ViewData["Title"] = (screen.MixedTypes ? "Microbiology " : "") + $"Report Entry - {Model.Detail.PatientName} ({Model.Detail.TokenNo})";
+    ViewData["MixedReporting"] = screen.MixedTypes;
+    ViewData["PicklistOptions"] = Model.PicklistOptions;
+    ViewData["DescriptiveDefaults"] = Model.DescriptiveDefaults;
+    ViewData["ReportPrintController"] = screen.Controller;
     var d = Model.Detail;
     var latestDrafted = d.Items?.FirstOrDefault(x => x.DraftedDate.HasValue)?.DraftedDate;
     var latestSubmitted = d.Items?.FirstOrDefault(x => x.SubmittedDate.HasValue)?.SubmittedDate;
@@ -26,14 +32,14 @@
     bool showSubmit = (unenteredCount > 0 || unsubmittedCount > 0) && !isAllApproved;
     // Validate button: visible if there are any submitted tests awaiting validation (allows partial validation)
     // Validating is its own control (Settings > Security): without it the Validate buttons are not offered.
-    bool canValidate = await PermissionGuard.ShowsAsync(Context, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Validate);
+    bool canValidate = await PermissionGuard.ShowsAsync(Context, screen.PageCode, EMR.Shared.Security.PermissionControls.Validate);
     bool showValidate = (submittedCount > 0) && !isAllApproved && canValidate;
     // Approve button: visible if there are any validated tests awaiting approval (allows partial approval).
     // With "Pathologist approval required" on for the branch, approval belongs to the Pathologist Dashboard,
     // so this screen never offers it.
     bool pathologistApprovalRequired = Model.PathologistApprovalRequired;
     // Approving is its own control (Settings > Security): without it the Approve buttons are not offered.
-    bool canApprove = await PermissionGuard.ShowsAsync(Context, "LAB.LABREPORTING", EMR.Shared.Security.PermissionControls.Approve);
+    bool canApprove = await PermissionGuard.ShowsAsync(Context, screen.PageCode, EMR.Shared.Security.PermissionControls.Approve);
     bool showApprove = (validatedCount > 0) && !isAllApproved && !pathologistApprovalRequired && canApprove;
     bool showApprovedBadge = isAllApproved || isPartialApproved;
 
@@ -55,6 +61,10 @@
 
 @section HeadStyles {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
+    @if (screen.MixedTypes)
+    {
+        <link rel="stylesheet" href="~/lib/quill/quill.snow.css" />
+    }
     <style>
         .reporting-entry-wrapper {
             background-color: #f8fafc;
@@ -631,7 +641,7 @@
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-0 fs-8">
                 <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index" class="text-decoration-none">Home</a></li>
-                <li class="breadcrumb-item"><a asp-controller="LabReporting" asp-action="Index" class="text-decoration-none">Lab Reporting Entry</a></li>
+                <li class="breadcrumb-item"><a asp-controller="@screen.Controller" asp-action="Index" class="text-decoration-none">@screen.ListTitle</a></li>
                 <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">Report Entry: @d.BillNo</li>
             </ol>
         </nav>
@@ -644,6 +654,16 @@
             </button>
         </div>
     </div>
+
+    @if (ViewData["RelatedReportLink"] is ValueTuple<string, string, string> related)
+    {
+        <div class="alert alert-info border-info-subtle shadow-sm d-flex flex-wrap align-items-center justify-content-between p-2.5 mb-3 rounded-3 gap-2 fs-8" role="note">
+            <span><i class="bi bi-info-circle-fill me-1"></i>@related.Item3 - they are reported on <strong>@related.Item2</strong>.</span>
+            <a asp-controller="@related.Item1" asp-action="Entry" asp-route-labOrderId="@d.LabOrderId" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary fs-8">
+                Open @related.Item2 <i class="bi bi-box-arrow-up-right ms-1"></i>
+            </a>
+        </div>
+    }
 
     @if (d.IsTransferred)
     {
@@ -869,10 +889,10 @@
             <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save" id="btnHeaderSave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" asp-permission="LAB.LABREPORTING:VALIDATE" style="@(showValidate ? "" : "display:none;")">
+            <button type="button" class="btn btn-success px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-validate" id="btnHeaderValidate" asp-permission="@($"{screen.PageCode}:VALIDATE")" style="@(showValidate ? "" : "display:none;")">
                 <i class="bi bi-check-circle-fill me-1"></i>Validate Report
             </button>
-            <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" asp-permission="LAB.LABREPORTING:APPROVE" style="@(showApprove ? "" : "display:none;")">
+            <button type="button" class="btn btn-info text-white px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-approve" id="btnHeaderApprove" asp-permission="@($"{screen.PageCode}:APPROVE")" style="@(showApprove ? "" : "display:none;")">
                 <i class="bi bi-patch-check-fill me-1"></i>Approve Report
             </button>
             @if (pathologistApprovalRequired && !isAllApproved)
@@ -1059,7 +1079,7 @@
                                         data-unit="@(item.UnitName ?? "")"
                                         data-reporting-type="@(item.ReportingType ?? "Numeric")"
                                         data-grpid="@prof.GroupId">
-                                        @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                        @await Html.PartialAsync("~/Views/LabReporting/_LabReportingEntryRow.cshtml", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
                                     </tr>
                                 }
 
@@ -1112,7 +1132,7 @@
                                     data-unit="@(item.UnitName ?? "")"
                                     data-reporting-type="@(item.ReportingType ?? "Numeric")"
                                     data-grpid="@pkg.GroupId">
-                                    @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                    @await Html.PartialAsync("~/Views/LabReporting/_LabReportingEntryRow.cshtml", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
                                 </tr>
                             }
 
@@ -1256,7 +1276,7 @@
                                     data-unit="@(item.UnitName ?? "")"
                                     data-reporting-type="@(item.ReportingType ?? "Numeric")"
                                     data-grpid="@prof.GroupId">
-                                    @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                    @await Html.PartialAsync("~/Views/LabReporting/_LabReportingEntryRow.cshtml", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
                                 </tr>
                             }
 
@@ -1383,7 +1403,7 @@
                                         data-unit="@(item.UnitName ?? "")"
                                         data-reporting-type="@(item.ReportingType ?? "Numeric")"
                                         data-grpid="@tstGrp.GroupId">
-                                        @await Html.PartialAsync("_LabReportingEntryRow", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
+                                        @await Html.PartialAsync("~/Views/LabReporting/_LabReportingEntryRow.cshtml", new Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>(globalRowIndex, item))
                                     </tr>
                                 }
 
@@ -1436,10 +1456,10 @@
             <button type="button" class="btn btn-primary btn-sm px-3.5 fw-semibold shadow-xs btn-action-save" id="btnStickySave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
             </button>
-            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" asp-permission="LAB.LABREPORTING:VALIDATE" style="@(showValidate ? "" : "display:none;")">
+            <button type="button" class="btn btn-success btn-sm px-3.5 fw-semibold shadow-xs btn-action-validate" id="btnStickyValidate" asp-permission="@($"{screen.PageCode}:VALIDATE")" style="@(showValidate ? "" : "display:none;")">
                 <i class="bi bi-check-circle-fill me-1"></i>Validate Report
             </button>
-            <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove" asp-permission="LAB.LABREPORTING:APPROVE" style="@(showApprove ? "" : "display:none;")">
+            <button type="button" class="btn btn-info text-white btn-sm px-3.5 fw-semibold shadow-xs btn-action-approve" id="btnStickyApprove" asp-permission="@($"{screen.PageCode}:APPROVE")" style="@(showApprove ? "" : "display:none;")">
                 <i class="bi bi-patch-check-fill me-1"></i>Approve Report
             </button>
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fs-8 @(isAllApproved ? "" : "d-none")" id="badgeApprovedFooter">
@@ -1508,7 +1528,7 @@
             </div>
             <div class="modal-footer border-top py-2 px-3 bg-light">
                 <button type="button" class="btn btn-outline-secondary btn-sm fs-8 px-3" data-bs-dismiss="modal" id="btnCancelModal">Cancel</button>
-                <button asp-permission="LAB.LABREPORTING:SAMPLE_STATUS" type="button" class="btn btn-primary btn-sm fs-8 px-3 shadow-sm fw-bold" id="btnConfirmSampleStatusChange">
+                <button asp-permission="@($"{screen.PageCode}:SAMPLE_STATUS")" type="button" class="btn btn-primary btn-sm fs-8 px-3 shadow-sm fw-bold" id="btnConfirmSampleStatusChange">
                     <span class="spinner-border spinner-border-sm me-1 d-none" id="spnConfirmSampleStatus"></span>
                     <i class="bi bi-check2-circle me-1" id="iconConfirmSampleStatus"></i>Confirm & Update
                 </button>
@@ -1758,7 +1778,7 @@
             // ── Calculated parameters (Lab Master > Lab Formula Component) ──────────────
             // The value of every configured target test is worked out on the server from its formula,
             // so the browser never decides the result. It runs while the technician types, debounced.
-            const formulaUrl = '@Url.Action("CalculateFormulasJson", "LabReporting")';
+            const formulaUrl = '@Url.Action("CalculateFormulasJson", screen.Controller)';
             const hasFormulaRows = $('.txt-test-val.is-formula').length > 0;
             let formulaTimer = null;
             let formulaInFlight = false;
@@ -1893,6 +1913,12 @@
                     const curRemarks = $row.find('.txt-test-remarks').val()?.trim() || '';
                     const initRemarks = ($row.attr('data-initial-remarks') ?? '').trim();
                     if (curRemarks !== initRemarks) {
+                        hasChanges = true;
+                        return false;
+                    }
+
+                    // narrative text edited (Microbiology Report Entry)
+                    if ($row.attr('data-html-dirty') === '1') {
                         hasChanges = true;
                         return false;
                     }
@@ -2034,7 +2060,7 @@
                     const initRemarks = ($row.attr('data-initial-remarks') ?? '').trim();
                     const reportStatusId = parseInt($row.attr('data-report-status-id')) || 0;
                     const isUnlocked = !$valInp.prop('readonly') && initVal.length > 0;
-                    const isRowModified = (curVal !== initVal) || (curRemarks !== initRemarks) || isUnlocked;
+                    const isRowModified = (curVal !== initVal) || (curRemarks !== initRemarks) || isUnlocked || $row.attr('data-html-dirty') === '1';
 
                     if (curVal.length === 0) {
                         unenteredCount++;
@@ -2264,6 +2290,8 @@
                         investigationID: investigationID,
                         reportingType: reportingType,
                         testValue: testValue,
+                        // narrative rows (Microbiology Report Entry) also send their formatted text; null elsewhere
+                        templateHtml: (window.labEntryHooks && window.labEntryHooks.templateHtml) ? window.labEntryHooks.templateHtml($row) : null,
                         remarks: remarks,
                         abnormalFlag: abnormalFlag
                     });
@@ -2327,7 +2355,7 @@
                 $btns.prop('disabled', true);
 
                 $.ajax({
-                    url: '@Url.Action("SaveEntryJson", "LabReporting")',
+                    url: '@Url.Action("SaveEntryJson", screen.Controller)',
                     type: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify(payload)
@@ -2453,6 +2481,9 @@
                             }
                         }
 
+                        if (window.labEntryHooks && window.labEntryHooks.onSaved) {
+                            targetRowIds.forEach(function (id) { window.labEntryHooks.onSaved(id, statusId); });
+                        }
                         updateActionButtonsVisibility();
                     } else {
                         toastr.error(res.message || 'Failed to save entries.');
@@ -2529,7 +2560,7 @@
                             };
 
                             $.ajax({
-                                url: '@Url.Action("UpdateSampleStatusJson", "LabReporting")',
+                                url: '@Url.Action("UpdateSampleStatusJson", screen.Controller)',
                                 type: 'POST',
                                 contentType: 'application/json',
                                 data: JSON.stringify(payload)
@@ -2616,7 +2647,7 @@
                 };
 
                 $.ajax({
-                    url: '@Url.Action("UpdateSampleStatusJson", "LabReporting")',
+                    url: '@Url.Action("UpdateSampleStatusJson", screen.Controller)',
                     type: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify(payload)
@@ -2746,6 +2777,11 @@
             updateActionButtonsVisibility();
         });
     </script>
+    @if (screen.MixedTypes)
+    {
+        <script src="~/lib/quill/quill.min.js"></script>
+        <partial name="~/Views/LabReporting/_LabReportingMixedTypeScripts.cshtml" />
+    }
     <partial name="_LabAuditHistoryScripts" />
 
     <partial name="_LabReportPrintScripts" />

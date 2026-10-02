@@ -117,6 +117,8 @@ public class LabReportRow
     /// <summary>False when the row is validated but not yet approved.</summary>
     public bool IsApproved { get; set; }
     public bool IsLongText { get; set; }
+    /// <summary>A written (descriptive) report: printed full width under the test name, not in the Result column.</summary>
+    public bool IsNarrative { get; set; }
 }
 
 public class LabReportSignatory

@@ -407,7 +407,7 @@
             <div class="modal-header border-bottom py-2 px-3 bg-light flex-wrap gap-2">
                 <div class="flex-grow-1">
                     <h6 class="modal-title fs-7 fw-bold d-flex align-items-center gap-2 mb-0" id="modalDispatchPrintLabel">
-                        <i class="bi bi-printer-fill text-primary"></i>Lab Report
+                        <i class="bi bi-printer-fill text-primary"></i><span id="dispatchReportTitle">Lab Report</span>
                         <span class="badge bg-secondary-subtle text-secondary border font-monospace fs-9" id="printBillChip">—</span>
                         <span class="badge fs-9 d-none" id="printStatusChip"></span>
                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 d-none" id="printDuplicateChip"></span>
@@ -452,6 +452,13 @@
                     <label class="form-check-label fs-8" for="chkPrintNumeric">
                         <span class="fw-semibold text-dark"><i class="bi bi-clipboard-data me-1 text-primary"></i>Numeric Report</span>
                         <span class="d-block text-muted fs-9">Lab values with reference ranges &middot; opens the PDF report</span>
+                    </label>
+                </div>
+                <div class="form-check mb-2 d-none" id="pickerTemplateRow">
+                    <input class="form-check-input" type="checkbox" id="chkPrintTemplate" checked>
+                    <label class="form-check-label fs-8" for="chkPrintTemplate">
+                        <span class="fw-semibold text-dark"><i class="bi bi-virus me-1 text-success"></i>Microbiology Report</span>
+                        <span class="d-block text-muted fs-9">Microbiology Report Entry (picklist, numeric and narrative results) &middot; opens the PDF report</span>
                     </label>
                 </div>
                 <div class="form-check mb-2 d-none" id="pickerImageRow">
@@ -774,7 +781,11 @@
 
             // ── Print modal (same PDF as the Entry page) ─────────────────────
             let printOrderId = 0, blobUrl = null, fileName = 'LabReport.pdf', printLogged = false, printScope = 'all';
-            const reportUrl = (id, mode) => pdfUrl + '?q=' + encodeURIComponent(encMap[id] || '') + '&mode=' + mode + '&scope=' + printScope + '&_=' + Date.now();
+            // Numeric = Lab Report, Template = Microbiology Report: two PDFs of the same bill
+            let printReportType = 'Numeric';
+            let pdfQueue = [];   // a second PDF chosen in the picker opens when the first preview closes
+            const reportUrl = (id, mode) => pdfUrl + '?q=' + encodeURIComponent(encMap[id] || '') + '&mode=' + mode + '&scope=' + printScope
+                + '&reportingType=' + printReportType + '&_=' + Date.now();
             const $frame = $('#dispatchPrintFrame'), $loading = $('#printLoading'), $error = $('#printError');
             const $actions = $('#btnReportPrintNow, #btnReportDownload, #btnReportNewTab');
 
@@ -974,13 +985,16 @@
             // The PDF report is built from the Numeric tests of a bill, the Image / Descriptive
             // report from its own print page. A bill can hold both, so when it does the user
             // picks what to print; with a single report type nothing changes for them.
-            function openNumericPrint(id, scope, bill) {
+            function openPdfPrint(id, scope, bill, type) {
                 printOrderId = id;
                 printScope = scope;
+                printReportType = type || 'Numeric';
                 printLogged = false;
                 $('#printBillChip').text(bill || '—');
+                $('#dispatchReportTitle').text(printReportType === 'Template' ? 'Microbiology Report' : 'Lab Report');
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
+            function openNumericPrint(id, scope, bill) { openPdfPrint(id, scope, bill, 'Numeric'); }
 
             function openImagePrint(id) {
                 window.open(imagePrintUrl + '?labOrderId=' + id, '_blank');
@@ -989,25 +1003,36 @@
             const pickerEl = document.getElementById('modalPrintTypePicker');
             let pickerCtx = { id: 0, scope: 'all', bill: '—' };
 
-            function openPrintTypePicker(id, scope, bill, hasUnprintableTypes) {
+            function openPrintTypePicker(id, scope, bill, hasUnprintableTypes, offer) {
                 pickerCtx = { id: id, scope: scope, bill: bill };
                 $('#printPickerBillChip').text(bill || '—');
-                $('#pickerNumericRow, #pickerImageRow').removeClass('d-none');
-                $('#chkPrintNumeric, #chkPrintImage').prop('checked', true);
+                $('#pickerNumericRow').toggleClass('d-none', !offer.numeric);
+                $('#pickerTemplateRow').toggleClass('d-none', !offer.template);
+                $('#pickerImageRow').toggleClass('d-none', !offer.image);
+                $('#chkPrintNumeric').prop('checked', !!offer.numeric);
+                $('#chkPrintTemplate').prop('checked', !!offer.template);
+                $('#chkPrintImage').prop('checked', !!offer.image);
                 $('#pickerOtherNote').toggleClass('d-none', !hasUnprintableTypes);
                 bootstrap.Modal.getOrCreateInstance(pickerEl).show();
             }
 
             $('#btnPrintPickerConfirm').on('click', function () {
-                const wantNumeric = $('#chkPrintNumeric').is(':checked');
-                const wantImage = $('#chkPrintImage').is(':checked');
-                if (!wantNumeric && !wantImage) {
+                const wantNumeric = $('#chkPrintNumeric').is(':checked') && !$('#pickerNumericRow').hasClass('d-none');
+                const wantTemplate = $('#chkPrintTemplate').is(':checked') && !$('#pickerTemplateRow').hasClass('d-none');
+                const wantImage = $('#chkPrintImage').is(':checked') && !$('#pickerImageRow').hasClass('d-none');
+                if (!wantNumeric && !wantTemplate && !wantImage) {
                     toastr.warning('Select at least one report to print.');
                     return;
                 }
                 bootstrap.Modal.getOrCreateInstance(pickerEl).hide();
                 if (wantImage) openImagePrint(pickerCtx.id);
-                if (wantNumeric) openNumericPrint(pickerCtx.id, pickerCtx.scope, pickerCtx.bill);
+                const pdfs = [];
+                if (wantNumeric) pdfs.push('Numeric');
+                if (wantTemplate) pdfs.push('Template');
+                if (pdfs.length) {
+                    pdfQueue = pdfs.slice(1).map(function (t) { return { id: pickerCtx.id, scope: pickerCtx.scope, bill: pickerCtx.bill, type: t }; });
+                    openPdfPrint(pickerCtx.id, pickerCtx.scope, pickerCtx.bill, pdfs[0]);
+                }
             });
 
             $('#tblDispatchBody').on('click', '.btn-print', function () {
@@ -1019,8 +1044,11 @@
                 $.get(testsUrl, { labOrderId: id })
                     .done(function (res) {
                         const tests = (res && res.success) ? (res.tests || []) : [];
+                        // Microbiology (Template) tests print on their own PDF, whatever their parameters' own types
+                        const templateIds = new Set((res && res.templateSampleIds) || []);
+                        const reports = (res && res.reports) || null;   // PDFs with something to print (server-side rule)
                         const types = new Set(
-                            tests.filter(function (t) { return t.reportStatusId === 3 || t.reportStatusId === 5; })
+                            tests.filter(function (t) { return (t.reportStatusId === 3 || t.reportStatusId === 5) && !templateIds.has(t.samplecollectionID); })
                                  .map(function (t) { return (t.reportingType || 'Numeric').trim(); }));
 
                         let hasNumeric = false, hasImage = false, hasOther = false;
@@ -1029,9 +1057,16 @@
                             else if (t.toLowerCase() === 'image') hasImage = true;
                             else hasOther = true;
                         });
+                        let hasTemplate = false;
+                        if (reports) {
+                            hasNumeric = reports.indexOf('Numeric') !== -1;
+                            hasTemplate = reports.indexOf('Template') !== -1;
+                        }
 
-                        if (hasNumeric && hasImage) openPrintTypePicker(id, scope, bill, hasOther);
+                        const count = (hasNumeric ? 1 : 0) + (hasTemplate ? 1 : 0) + (hasImage ? 1 : 0);
+                        if (count > 1) openPrintTypePicker(id, scope, bill, hasOther, { numeric: hasNumeric, template: hasTemplate, image: hasImage });
                         else if (hasImage) openImagePrint(id);
+                        else if (hasTemplate) openPdfPrint(id, scope, bill, 'Template');
                         else openNumericPrint(id, scope, bill);
                     })
                     .fail(function () {
@@ -1047,6 +1082,8 @@
             $(modalEl).on('hidden.bs.modal', function () {
                 resetModal();
                 if (printLogged) { printLogged = false; setTimeout(load, 600); } // refresh the Printed column / cards
+                const next = pdfQueue.shift();   // the other PDF chosen in the picker
+                if (next) setTimeout(function () { openPdfPrint(next.id, next.scope, next.bill, next.type); }, 350);
             });
             $('#btnReportPrintNow').on('click', async function () {
                 if (!blobUrl) return;

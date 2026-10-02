@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EMR.Web.Services;
 
 /// <summary>
-/// Who may work on Lab Reporting Entry and Image Reporting (on top of the page permission in Settings > Security):
+/// Who may work on Lab Reporting Entry, Image Reporting and Microbiology Reporting (on top of the page permission in Settings > Security):
 ///   - a super admin, or a user holding the Administrator role in the current branch - not checked further;
 ///   - otherwise an active user flagged "Is Lab Technician" or "Is Pathologist" in User Master.
 /// Answered once per request.
@@ -20,7 +20,7 @@ public sealed record LabReportingEligibilityResult(bool Allowed, string? UserNam
 public sealed class LabReportingEligibility(ApplicationDbContext db, IAdministratorCheck administrators) : ILabReportingEligibility
 {
     private const string ItemKey = "LabReportingEligibility";
-    public static readonly string[] PageCodes = ["LAB.LABREPORTING", "LAB.LABIMAGEREPORTING"];
+    public static readonly string[] PageCodes = ["LAB.LABREPORTING", "LAB.LABIMAGEREPORTING", "LAB.MICROBIOLOGYREPORTING"];
 
     public async Task<LabReportingEligibilityResult> CheckAsync(HttpContext http)
     {

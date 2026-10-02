@@ -128,12 +128,18 @@ public class LabReportEmailService(
                     $"Outstanding due of Rs. {detail.BalanceDue:N2} - the report will be emailed once the bill is paid.",
                     email, claim.IsRevised, user, trigger);
 
-            var vm = await reportPdfService.BuildAsync(labOrderId, user, LabReportPrintBuilder.ScopeApproved);
-            if (vm == null || vm.IncludedTestCount == 0)
+            // One PDF per report of the bill: the Lab Report and/or the Microbiology Report (Reporting Type Template).
+            var reports = new List<(string Type, EMR.Web.Models.ViewModels.LabReportPrintViewModel Vm, byte[] Pdf)>();
+            foreach (var type in new[] { LabReportTypes.Numeric, LabReportTypes.Template })
+            {
+                var rvm = await reportPdfService.BuildAsync(labOrderId, user, LabReportPrintBuilder.ScopeApproved, type);
+                if (rvm == null || rvm.IncludedTestCount == 0) continue;
+                rvm.PrintSequence = 1;   // the patient's copy is an original, never "DUPLICATE"
+                reports.Add((type, rvm, LabReportPdfDocument.Generate(rvm, reportPdfService.LoadLogo(rvm.HospitalLogoPath))));
+            }
+            if (reports.Count == 0)
                 return await FinishAsync(state, logId, "Failed", "The approved report could not be generated.", email, claim.IsRevised, user, trigger);
-            vm.PrintSequence = 1;   // the patient's copy is an original, never "DUPLICATE"
-
-            var pdf = LabReportPdfDocument.Generate(vm, reportPdfService.LoadLogo(vm.HospitalLogoPath));
+            var vm = reports[0].Vm;
 
             var settings = await dbContext.HospitalSettings.AsNoTracking()
                 .Where(s => s.BranchId == state.BranchId && s.IsActive)
@@ -141,16 +147,19 @@ public class LabReportEmailService(
                 .FirstOrDefaultAsync();
 
             var hospital = string.IsNullOrWhiteSpace(settings?.HospitalName) ? vm.HospitalName : settings!.HospitalName!;
-            var tests = vm.Sections.SelectMany(s => s.Groups).SelectMany(g => g.Rows).Select(r => r.TestName)
+            var tests = reports.SelectMany(r => r.Vm.Sections).SelectMany(s => s.Groups).SelectMany(g => g.Rows).Select(r => r.TestName)
                           .Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
 
             var subject = $"{(claim.IsRevised ? "Revised " : "")}Lab Report - {state.BillNo} | {hospital}";
             var body = BuildBody(state, hospital, settings, tests, claim.IsRevised);
             var safeBill = new string((state.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
 
-            using var stream = new MemoryStream(pdf);
-            using var attachment = new System.Net.Mail.Attachment(stream, $"LabReport_{safeBill}.pdf", "application/pdf");
-            var (ok, message) = await emailService.SendEmailAsync(state.BranchId, email!, subject, body, new[] { attachment });
+            var attachments = reports
+                .Select(r => new System.Net.Mail.Attachment(new MemoryStream(r.Pdf), $"{LabReportTypes.FilePrefix(r.Type)}_{safeBill}.pdf", "application/pdf"))
+                .ToList();
+            bool ok; string message;
+            try { (ok, message) = await emailService.SendEmailAsync(state.BranchId, email!, subject, body, attachments.ToArray()); }
+            finally { attachments.ForEach(a => a.Dispose()); }
 
             return ok
                 ? await FinishAsync(state, logId, "Sent", $"Emailed to {email}.", email, claim.IsRevised, user, trigger)

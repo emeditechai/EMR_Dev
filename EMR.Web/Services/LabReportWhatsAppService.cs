@@ -121,12 +121,18 @@ public class LabReportWhatsAppService(
                     $"Outstanding due of Rs. {detail.BalanceDue:N2} - the report will be WhatsApp'd once the bill is fully paid.",
                     phone, claim.IsRevised, user, trigger);
 
-            var vm = await reportPdfService.BuildAsync(labOrderId, user, LabReportPrintBuilder.ScopeApproved);
-            if (vm == null || vm.IncludedTestCount == 0)
+            // One PDF per report of the bill: the Lab Report and/or the Microbiology Report (Reporting Type Template).
+            var reports = new List<(string Type, EMR.Web.Models.ViewModels.LabReportPrintViewModel Vm, byte[] Pdf)>();
+            foreach (var type in new[] { LabReportTypes.Numeric, LabReportTypes.Template })
+            {
+                var rvm = await reportPdfService.BuildAsync(labOrderId, user, LabReportPrintBuilder.ScopeApproved, type);
+                if (rvm == null || rvm.IncludedTestCount == 0) continue;
+                rvm.PrintSequence = 1;   // the patient's copy is an original, never "DUPLICATE"
+                reports.Add((type, rvm, LabReportPdfDocument.Generate(rvm, reportPdfService.LoadLogo(rvm.HospitalLogoPath))));
+            }
+            if (reports.Count == 0)
                 return await FinishAsync(state, logId, "Failed", "The approved report could not be generated.", phone, claim.IsRevised, user, trigger);
-            vm.PrintSequence = 1;   // the patient's copy is an original, never "DUPLICATE"
-
-            var pdfBytes = LabReportPdfDocument.Generate(vm, reportPdfService.LoadLogo(vm.HospitalLogoPath));
+            var vm = reports[0].Vm;
 
             var settings = await dbContext.HospitalSettings.AsNoTracking()
                 .Where(s => s.BranchId == state.BranchId && s.IsActive)
@@ -135,19 +141,6 @@ public class LabReportWhatsAppService(
             var hospitalName = string.IsNullOrWhiteSpace(settings?.HospitalName) ? vm.HospitalName : settings!.HospitalName!;
 
             var safeBill = new string((state.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
-            string? documentUrl = null;
-            string? fileName = null;
-            try
-            {
-                documentUrl = await whatsAppService.UploadMediaAsync(pdfBytes, "application/pdf", state.BranchId);
-                if (!string.IsNullOrWhiteSpace(documentUrl))
-                    fileName = $"LabReport_{safeBill}.pdf";
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "[LAB-REPORT-WHATSAPP] Error uploading report PDF for LabOrderId {Id}", labOrderId);
-            }
-
             var messageTemplate = string.IsNullOrWhiteSpace(config.LabReportApprovedMessageTemplate)
                 ? "Dear {PatientName}, your report for Bill {BillNo} at {HospitalName} has been approved. Please find your report attached. Thank you for choosing us!"
                 : config.LabReportApprovedMessageTemplate;
@@ -159,11 +152,33 @@ public class LabReportWhatsAppService(
                 .Replace("{TokenNo}", state.TokenNo ?? "—")
                 .Trim();
 
-            var sendResult = await whatsAppService.SendTextMessageAsync(phone, message, state.BranchId, "LABREPORT", labOrderId, documentUrl, fileName);
+            // A WhatsApp message carries one document: the first report goes with the configured message,
+            // a second one (the Microbiology Report of a bill that has both) follows with a short caption.
+            var errors = new List<string>();
+            for (int i = 0; i < reports.Count; i++)
+            {
+                var (type, _, pdfBytes) = reports[i];
+                string? documentUrl = null;
+                string? fileName = null;
+                try
+                {
+                    documentUrl = await whatsAppService.UploadMediaAsync(pdfBytes, "application/pdf", state.BranchId);
+                    if (!string.IsNullOrWhiteSpace(documentUrl))
+                        fileName = $"{LabReportTypes.FilePrefix(type)}_{safeBill}.pdf";
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[LAB-REPORT-WHATSAPP] Error uploading report PDF for LabOrderId {Id}", labOrderId);
+                }
 
-            return sendResult.Success
-                ? await FinishAsync(state, logId, "Sent", $"WhatsApp'd to {phone}.", phone, claim.IsRevised, user, trigger)
-                : await FinishAsync(state, logId, "Failed", sendResult.ErrorMessage ?? "WhatsApp send failed.", phone, claim.IsRevised, user, trigger);
+                var text = i == 0 ? message : $"{LabReportTypes.Title(type)} for Bill {state.BillNo} - {hospitalName}.";
+                var sendResult = await whatsAppService.SendTextMessageAsync(phone, text, state.BranchId, "LABREPORT", labOrderId, documentUrl, fileName);
+                if (!sendResult.Success) errors.Add(sendResult.ErrorMessage ?? "WhatsApp send failed.");
+            }
+
+            return errors.Count == 0
+                ? await FinishAsync(state, logId, "Sent", $"WhatsApp'd to {phone}{(reports.Count > 1 ? $" ({reports.Count} reports)" : "")}.", phone, claim.IsRevised, user, trigger)
+                : await FinishAsync(state, logId, "Failed", string.Join(" | ", errors), phone, claim.IsRevised, user, trigger);
         }
         catch (Exception ex)
         {

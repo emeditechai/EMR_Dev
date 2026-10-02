@@ -1,0 +1,128 @@
+@model Tuple<int, EMR.Web.Models.DTOs.LabReportingItemDto>
+@*
+    Microbiology Report Entry: a parameter whose Reporting Type is neither Numeric nor Select (Descriptive, Image, Text,
+    Template ...) is written as a narrative in a rich-text editor, started from its Lab Descriptive Test Template.
+    The text is saved in labentrydetails.Template_Html; the hidden .txt-test-val carries "Report Entered" so the page's
+    Submit / Validate / Approve / re-collect logic treats the row like any other.
+*@
+@{
+    int globalRowIndex = Model.Item1;
+    var item = Model.Item2;
+
+    bool isRejectedOrReCollect = item.CollectionstatusID == 3 || item.CollectionstatusID == 4;
+    bool hasValue = !isRejectedOrReCollect && (!string.IsNullOrWhiteSpace(item.TestValue) || !string.IsNullOrWhiteSpace(item.TemplateHtml));
+    bool isOrderFullyApproved = (ViewData["IsOrderApproved"] as bool? ?? false);
+    bool isApproved = (isOrderFullyApproved || item.ReportStatusId == 5) && hasValue;
+    bool isOtherBranch = item.IsReadOnlyForBranch;
+    bool isLocked = isOtherBranch || isApproved || (hasValue && item.ReportStatusId >= 2) || isRejectedOrReCollect;
+    bool canEditRow = !isOtherBranch && hasValue && !isApproved && !isRejectedOrReCollect && (item.ReportStatusId == 2 || item.ReportStatusId == 3);
+
+    var defaults = ViewData["DescriptiveDefaults"] as Dictionary<long, string> ?? new Dictionary<long, string>();
+    defaults.TryGetValue(item.SamplecollectionID, out var defaultHtml);
+    var savedHtml = isRejectedOrReCollect ? "" : (item.TemplateHtml ?? "");
+    var startHtml = savedHtml.Length > 0 ? savedHtml : (isRejectedOrReCollect ? "" : (defaultHtml ?? ""));
+}
+
+<td class="ps-3 text-muted fw-bold align-top pt-2.5">@globalRowIndex</td>
+
+<!-- Investigation Column -->
+<td class="ps-2 ps-md-3 align-top pt-2.5">
+    <div class="fw-bold text-dark fs-7 lh-sm">@item.TestName</div>
+    <div class="fs-9 text-muted mt-1 d-flex align-items-center gap-1.5 flex-wrap">
+        <span class="font-monospace text-secondary fw-semibold">@item.TestCode</span>
+        <span class="text-secondary">•</span>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-9">@(item.ReportingType ?? "Descriptive")</span>
+    </div>
+    @if (isRejectedOrReCollect)
+    {
+        <div class="fs-9 mt-0.5 d-flex align-items-center gap-1">
+            @if (item.CollectionstatusID == 3)
+            {
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-9"><i class="bi bi-arrow-repeat me-1"></i>Re-Collect Pending</span>
+            }
+            else
+            {
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9"><i class="bi bi-x-circle me-1"></i>Sample Rejected</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(item.RejectionReason))
+            {
+                <span class="text-danger fs-9 text-truncate" style="max-width: 200px;" title="Reason: @item.RejectionReason">(@item.RejectionReason)</span>
+            }
+        </div>
+    }
+    <div class="fs-9 text-muted mt-1">
+        <i class="bi bi-droplet-fill me-1"></i>@(item.SampleTypeName ?? "Sample")
+    </div>
+    @if (!string.IsNullOrWhiteSpace(item.MethodName))
+    {
+        <div class="fs-9 text-secondary mt-0.5"><span class="text-muted">Method:</span> @item.MethodName</div>
+    }
+</td>
+
+<!-- Narrative report (spans Sample .. Remarks) -->
+<td colspan="6" class="align-top pt-2">
+    <div class="narrative-box @(isLocked ? "is-locked" : "")">
+        <div class="narrative-head d-flex align-items-center justify-content-between gap-2 flex-wrap">
+            <span class="fs-9 fw-semibold text-muted"><i class="bi bi-journal-richtext text-primary me-1"></i>Narrative report</span>
+            <div class="d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fs-9 btn-narrative-reset @(isLocked || string.IsNullOrEmpty(defaultHtml) ? "d-none" : "")"
+                        title="Replace the text with the template (Lab Descriptive Test Template)">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to template
+                </button>
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm btn-edit-row py-0 px-1.5 shadow-2xs @(canEditRow ? "" : "d-none")"
+                        title="Edit report">
+                    <i class="bi bi-pencil-square text-primary"></i>
+                </button>
+            </div>
+        </div>
+        <div class="narrative-editor" aria-label="@item.TestName report"></div>
+        <textarea class="d-none narrative-start">@startHtml</textarea>
+        <textarea class="d-none narrative-default">@(defaultHtml ?? "")</textarea>
+        <input type="hidden"
+               class="txt-test-val is-narrative @(hasValue ? "has-value" : "") @(isLocked ? "is-locked" : "")"
+               data-no-ref-range="false"
+               value="@(hasValue ? "Report Entered" : "")"
+               @(isOtherBranch || isRejectedOrReCollect ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
+        <input type="text"
+               class="form-control form-control-sm fs-8 mt-1.5 txt-test-remarks @(isOtherBranch || isApproved || isRejectedOrReCollect ? "bg-light-subtle text-muted" : "")"
+               value="@(isRejectedOrReCollect ? "" : (item.Remarks ?? ""))"
+               placeholder="@(isRejectedOrReCollect ? (item.CollectionstatusID == 3 ? "Re-Collect pending" : "Sample Rejected") : "Optional note")"
+               autocomplete="off"
+               @(isOtherBranch || isRejectedOrReCollect ? "disabled=\"disabled\"" : (isApproved ? "readonly=\"readonly\"" : "")) />
+    </div>
+</td>
+
+<!-- Status Column -->
+<td class="align-top pt-2.5 text-center">
+    @{
+        string statusText = "Pending entry";
+        string statusClass = "bg-secondary-subtle text-secondary border border-secondary-subtle";
+        if (item.CollectionstatusID == 3) { statusText = "Pending (Re-Collect)"; statusClass = "bg-warning-subtle text-warning-emphasis border border-warning-subtle"; }
+        else if (item.CollectionstatusID == 4) { statusText = "Pending (Rejected)"; statusClass = "bg-danger-subtle text-danger border border-danger-subtle"; }
+        else if (hasValue)
+        {
+            if (item.ReportStatusId == 5) { statusText = "Approved"; statusClass = "bg-info-subtle text-info border border-info-subtle"; }
+            else if (item.ReportStatusId == 3) { statusText = "Validated"; statusClass = "bg-success-subtle text-success border border-success-subtle"; }
+            else if (item.ReportStatusId == 1) { statusText = "Draft"; statusClass = "bg-warning-subtle text-warning border border-warning-subtle"; }
+            else { statusText = "Entered"; statusClass = "status-entered"; }
+        }
+        string? StageTime(DateTime? dt) => dt.HasValue ? dt.Value.ToString("dd MMM yyyy, hh:mm tt") : null;
+    }
+    @if (isOtherBranch)
+    {
+        <div class="mb-1">
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fs-9"
+                  title="The sample was transferred to @(item.TargetBranchName ?? "another branch"), which entered and approved this result. It is read-only here.">
+                <i class="bi bi-lock-fill me-1"></i>@(item.TargetBranchName ?? "Other branch")
+            </span>
+        </div>
+    }
+    <span class="badge fs-9 row-status-badge @statusClass"
+          data-time-drafted="@StageTime(item.DraftedDate)"
+          data-time-submitted="@StageTime(item.SubmittedDate)"
+          data-time-validated="@StageTime(item.ValidatedDate)"
+          data-time-approved="@StageTime(item.ApprovedDate)">
+        @statusText
+    </span>
+</td>

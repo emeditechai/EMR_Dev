@@ -3,6 +3,24 @@
     int globalRowIndex = Model.Item1;
     var item = Model.Item2;
 
+    // Microbiology Report Entry (Reporting Type Template) renders each parameter by its own Reporting Type:
+    // Numeric exactly as below, Select as a picklist, anything else as a narrative (_LabReportingNarrativeCells).
+    // Lab Report Entry only ever has Numeric rows, so for it nothing here changes.
+    bool mixedReporting = ViewData["MixedReporting"] as bool? ?? false;
+    var rowType = (item.ReportingType ?? "Numeric").Trim();
+    bool isSelect = mixedReporting && rowType.Equals("Select", StringComparison.OrdinalIgnoreCase);
+    bool isNarrative = mixedReporting && !isSelect && !rowType.Equals("Numeric", StringComparison.OrdinalIgnoreCase);
+    var pickOptions = isSelect && ViewData["PicklistOptions"] is Dictionary<int, List<EMR.Web.Models.ViewModels.LabPicklistOption>> allOptions
+                      && allOptions.TryGetValue(item.InvestigationID, out var itemOptions)
+        ? itemOptions : new List<EMR.Web.Models.ViewModels.LabPicklistOption>();
+}
+@if (isNarrative)
+{
+    await Html.RenderPartialAsync("~/Views/LabReporting/_LabReportingNarrativeCells.cshtml", Model);
+    return;
+}
+@{
+
     var cTypeLower = (item.ContainerType ?? "").ToLower();
     var sTypeLower = (item.SampleTypeName ?? "").ToLower();
     var capBadgeClass = "cap-badge-grey";
@@ -33,7 +51,7 @@
     bool hasValue = !isRejectedOrReCollect && !string.IsNullOrWhiteSpace(item.TestValue);
     // No Reference Range configured for this test/patient => result entry is blocked until the range is configured.
     // Values saved before this rule existed stay untouched (so those reports can still be validated / approved).
-    bool noRefRange = !item.RefRangeId.HasValue && !hasValue && !isRejectedOrReCollect;
+    bool noRefRange = !isSelect && !item.RefRangeId.HasValue && !hasValue && !isRejectedOrReCollect;
     bool isOrderFullyApproved = (ViewData["IsOrderApproved"] as bool? ?? false);
     bool isApproved = (isOrderFullyApproved || item.ReportStatusId == 5) && hasValue;
     // Transferred out of this branch and approved at the target branch: shown here for viewing / printing only.
@@ -101,9 +119,19 @@
 <!-- Reference Range Column -->
 <td class="align-top pt-2.5">
     <div class="d-flex align-items-center gap-1.5 flex-wrap">
+        @if (isSelect)
+        {
+            var normalAnswers = pickOptions.Where(o => !o.IsAbnormal).Select(o => o.Text).ToList();
+            <span class="fw-semibold text-dark fs-9 pick-normal-hint" title="Answers that are not flagged abnormal">
+                @(normalAnswers.Count == 0 ? "—" : string.Join(" / ", normalAnswers))
+            </span>
+        }
+        else
+        {
         <span class="fw-bold text-dark fs-8 font-monospace">
             @(string.IsNullOrWhiteSpace(item.ReferenceRange) ? "—" : item.ReferenceRange)
         </span>
+        }
         @if (!string.IsNullOrWhiteSpace(item.SpecialRemarks))
         {
             <i class="bi bi-info-circle text-primary opacity-75 fs-8" 
@@ -124,6 +152,36 @@
 <!-- Result Value Column -->
 <td class="align-top pt-2">
     <div class="d-flex align-items-center gap-1">
+        @if (isSelect)
+        {
+            var currentPick = isRejectedOrReCollect ? "" : (item.TestValue ?? "").Trim();
+            bool pickKnown = currentPick.Length == 0 || pickOptions.Any(o => o.Text.Equals(currentPick, StringComparison.OrdinalIgnoreCase));
+            var defaultPick = pickOptions.FirstOrDefault(o => o.IsDefault)?.Text ?? "";
+            <input type="hidden"
+                   class="txt-test-val is-picklist @(hasValue ? "has-value" : "") @(isLocked ? "is-locked" : "")"
+                   data-no-ref-range="false"
+                   data-default-pick="@defaultPick"
+                   value="@currentPick"
+                   @(isOtherBranch || isRejectedOrReCollect ? "disabled=\"disabled\"" : (isLocked ? "readonly=\"readonly\"" : "")) />
+            <select class="form-select form-select-sm fs-8 picklist-select @(isLocked ? "bg-light text-dark" : "")"
+                    tabindex="@globalRowIndex"
+                    aria-label="@item.TestName"
+                    title="@(isOtherBranch ? $"Processed at {item.TargetBranchName ?? "the target branch"} - this branch cannot change it" : "Choose the result (Lab Parameter Option Master)")"
+                    @(isOtherBranch || isRejectedOrReCollect || isLocked ? "disabled=\"disabled\"" : "")>
+                <option value="">@(isRejectedOrReCollect ? "Pending" : (pickOptions.Count == 0 ? "No options configured" : "-- Select --"))</option>
+                @foreach (var opt in pickOptions)
+                {
+                    <option value="@opt.Text" data-abnormal="@(opt.IsAbnormal ? "1" : "0")" selected="@(opt.Text.Equals(currentPick, StringComparison.OrdinalIgnoreCase))">@opt.Text@(opt.IsAbnormal ? " \u26A0" : "")</option>
+                }
+                @if (!pickKnown)
+                {
+                    @* a saved answer whose option was renamed / retired since *@
+                    <option value="@currentPick" data-abnormal="@(string.Equals(item.AbnormalFlag, "Abnormal", StringComparison.OrdinalIgnoreCase) ? "1" : "0")" selected>@currentPick</option>
+                }
+            </select>
+        }
+        else
+        {
         <input type="number"
                step="any"
                data-no-ref-range="@(!item.RefRangeId.HasValue && !hasValue ? "true" : "false")"
@@ -138,6 +196,7 @@
                autocomplete="off"
                title="@(isOtherBranch ? $"Processed at {item.TargetBranchName ?? "the target branch"} - this branch cannot change it" : "")"
                @(isOtherBranch || isRejectedOrReCollect || noRefRange ? "disabled=\"disabled\"" : (isLocked || isAutoCalculated ? "readonly=\"readonly\"" : "")) />
+        }
         
         <button type="button" 
                 class="btn btn-outline-secondary btn-sm btn-edit-row py-1 px-1.5 shadow-2xs @(canEditRow ? "" : "d-none")" 
@@ -146,7 +205,13 @@
         </button>
     </div>
     
-    @if (!item.RefRangeId.HasValue && !isRejectedOrReCollect && !hasValue)
+    @if (isSelect && pickOptions.Count == 0 && !isRejectedOrReCollect)
+    {
+        <div class="no-ref-range-msg fs-9 mt-1" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Configure answers in Lab Parameter Option Master first
+        </div>
+    }
+    @if (!isSelect && !item.RefRangeId.HasValue && !isRejectedOrReCollect && !hasValue)
     {
         <div class="no-ref-range-msg fs-9 mt-1" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-1"></i>Need to configure Reference Range first
@@ -193,7 +258,13 @@
             if (item.LowThreshold.HasValue && thrVal < item.LowThreshold.Value) { thrDir = "L"; }
             else if (item.HighThreshold.HasValue && thrVal > item.HighThreshold.Value) { thrDir = "H"; }
         }
-        if (string.IsNullOrEmpty(flagVal) && hasValue && decimal.TryParse(item.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal parsedVal))
+        if (isSelect)
+        {
+            // picklist: the flag is the chosen option's Is_Abnormal (no range needed)
+            if (hasValue) { flagVal = flagVal.Equals("Abnormal", StringComparison.OrdinalIgnoreCase) ? "Abnormal" : "Normal"; }
+            else { flagVal = ""; }
+        }
+        else if (string.IsNullOrEmpty(flagVal) && hasValue && decimal.TryParse(item.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal parsedVal))
         {
             if (thrDir.Length > 0) { flagVal = item.RangeTier == "Panic Value" ? "Panic" : "Critical"; }
             else if (item.LowValue.HasValue && parsedVal < item.LowValue.Value) { flagVal = "L"; }
@@ -215,6 +286,11 @@
         {
             flagText = "Normal";
             flagClass = "flag-normal";
+        }
+        else if (flagVal.Equals("Abnormal", StringComparison.OrdinalIgnoreCase))
+        {
+            flagText = "Abnormal";
+            flagClass = "flag-h";
         }
         else if (flagVal.Equals("Critical", StringComparison.OrdinalIgnoreCase))
         {

@@ -1,0 +1,87 @@
+@model EMR.Web.Models.DTOs.LabReportingOrderDetailDto
+@{
+    var d = Model;
+    ViewData["Title"] = $"Microbiology Report Entry - {d.PatientName} ({d.TokenNo})";
+    var groups = d.Items
+        .GroupBy(i => string.IsNullOrWhiteSpace(i.ProfileName) ? i.TestName : i.ProfileName!)
+        .ToList();
+
+    static string StatusLabel(int id) => id switch
+    {
+        1 => "In Progress", 2 => "Submitted", 3 => "Validated", 4 => "Re-collected", 5 => "Approved", _ => "Pending Entry"
+    };
+}
+
+<div class="px-3 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0 fs-8">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index" class="text-decoration-none">Home</a></li>
+                <li class="breadcrumb-item"><a asp-controller="MicrobiologyReporting" asp-action="Index" class="text-decoration-none">Microbiology Report Entry</a></li>
+                <li class="breadcrumb-item active text-dark fw-semibold" aria-current="page">Report Entry: @(d.BillNo ?? $"#{d.LabOrderId}")</li>
+            </ol>
+        </nav>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
+            <i class="bi bi-arrow-left me-1"></i>Back to List
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2 px-3 d-flex flex-wrap gap-4 fs-8">
+            <div><div class="text-muted fs-9">Patient</div><div class="fw-semibold">@d.PatientName <span class="text-muted">(@d.PatientCode)</span></div></div>
+            <div><div class="text-muted fs-9">Age / Gender</div><div class="fw-semibold">@(d.Age?.ToString() ?? "-") / @(d.Gender ?? "-")</div></div>
+            <div><div class="text-muted fs-9">Bill No</div><div class="fw-semibold">@(d.BillNo ?? "-")</div></div>
+            <div><div class="text-muted fs-9">Token</div><div class="fw-semibold">@(d.TokenNo ?? "-")</div></div>
+            <div><div class="text-muted fs-9">Booked</div><div class="fw-semibold">@((d.BookingDateTime ?? d.OrderDate).ToString("dd-MMM-yyyy hh:mm tt"))</div></div>
+            <div><div class="text-muted fs-9">Referred by</div><div class="fw-semibold">@(d.ReferralDoctorName ?? "-")</div></div>
+            @if (d.IsUrgent)
+            {
+                <div class="align-self-center"><span class="badge bg-danger">URGENT</span></div>
+            }
+        </div>
+    </div>
+
+    <div class="alert alert-info d-flex align-items-center gap-2 py-2 fs-8">
+        <i class="bi bi-info-circle-fill"></i>
+        <span>The result-entry form for Template reports is not available yet. The investigations below are the ones this screen will report.</span>
+    </div>
+
+    @foreach (var g in groups)
+    {
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white py-2 fw-semibold fs-8">
+                <i class="bi bi-virus me-1 text-primary"></i>@g.Key
+                <span class="badge bg-light text-secondary border ms-1 fs-9">@g.Count() parameter@(g.Count() == 1 ? "" : "s")</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0 fs-8">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Investigation</th>
+                            <th>Department</th>
+                            <th>Sample</th>
+                            <th>Barcode</th>
+                            <th>Unit</th>
+                            <th>Reference</th>
+                            <th class="pe-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var i in g)
+                        {
+                            <tr>
+                                <td class="ps-3 fw-semibold">@i.TestName <span class="text-muted fs-9">@i.TestCode</span></td>
+                                <td>@i.DepartmentName</td>
+                                <td>@i.SampleTypeName</td>
+                                <td>@i.BarcodeNo</td>
+                                <td>@i.UnitName</td>
+                                <td>@i.ReferenceRange</td>
+                                <td class="pe-3">@(string.IsNullOrWhiteSpace(i.TestValue) && string.IsNullOrWhiteSpace(i.TemplateHtml) ? "Pending Entry" : StatusLabel(i.ReportStatusId))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>

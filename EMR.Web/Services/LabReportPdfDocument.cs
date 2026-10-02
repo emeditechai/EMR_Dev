@@ -287,6 +287,28 @@ public class LabReportPdfDocument : IDocument
     {
         IContainer Cell() => table.Cell().BorderBottom(Line).BorderRight(Line).BorderColor(Ink).PaddingHorizontal(4).PaddingVertical(3).AlignMiddle();
 
+        // Written report (Microbiology descriptive parameter): the test name, then its text across the whole row.
+        if (row.IsNarrative)
+        {
+            table.Cell().ColumnSpan(5).BorderBottom(Line).BorderRight(Line).BorderColor(Ink).PaddingHorizontal(6).PaddingVertical(4).Column(col =>
+            {
+                col.Item().PaddingBottom(2).Text(t =>
+                {
+                    t.Span(row.TestName).Bold().FontSize(9.5f);
+                    if (vm.ShowNotApprovedWatermark && !row.IsApproved)
+                        t.Span(" ‡").Bold().FontColor(Amber);
+                });
+                foreach (var line in row.Result.Split('\n'))
+                {
+                    // a section heading of the template ("MICROSCOPY FINDINGS:") is printed bold
+                    bool heading = line.EndsWith(':') && line.Length <= 48 && line == line.ToUpperInvariant();
+                    var text = col.Item().PaddingTop(heading ? 3 : 0).Text(line).FontSize(9);
+                    if (heading) text.Bold();
+                }
+            });
+            return;
+        }
+
         // Test name (‡ = validated but not yet approved, only on provisional copies)
         Cell().Text(t =>
         {
