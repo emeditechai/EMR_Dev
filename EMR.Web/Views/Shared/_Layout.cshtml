@@ -389,7 +389,7 @@
                                         <a asp-controller="Account" asp-action="SwitchBranch" class="btn btn-light text-start"><i class="bi bi-building-gear me-2"></i>Switch Branch</a>
                                     }
                                     <a asp-controller="Account" asp-action="SwitchRole" class="btn btn-light text-start"><i class="bi bi-arrow-left-right me-2"></i>Switch Role</a>
-                                    <button type="button" class="btn btn-light text-start"><i class="bi bi-key-fill me-2"></i>Change Password</button>
+                                    <a asp-controller="Account" asp-action="ChangePassword" class="btn btn-light text-start"><i class="bi bi-key-fill me-2"></i>Change Password</a>
                                     <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-light text-start w-100"><i class="bi bi-box-arrow-right me-2"></i>Logout</button>
@@ -533,6 +533,7 @@
                 var idleExceeded = false;
                 var redirecting = false;
                 var logoutUrl = '@Url.Action("SessionTimeoutLogout", "Account")';
+                window.emrIdle = { limitMs: idleLimitMs, activityKey: activityKey };   // read by the Home dashboard countdown
 
                 function sharedLastActivity() {
                     var shared = 0;

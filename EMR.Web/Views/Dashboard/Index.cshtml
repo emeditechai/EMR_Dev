@@ -1,8 +1,14 @@
 @model EMR.Web.Models.ViewModels.DashboardViewModel
 @{
     ViewData["Title"] = "Dashboard";
+    var now = DateTime.Now;
+    var greeting = now.Hour < 12 ? "Good morning" : now.Hour < 17 ? "Good afternoon" : "Good evening";
+    var last = Model.RecentActivity.FirstOrDefault();
+    var earlier = Model.RecentActivity.Skip(1).ToList();
+    var passwordAgeDays = Model.PasswordLastChanged.HasValue ? (int)(now - Model.PasswordLastChanged.Value).TotalDays : (int?)null;
+    var passwordDue = Model.MustChangePassword || passwordAgeDays is null || passwordAgeDays > EMR.Web.Models.ViewModels.DashboardViewModel.PasswordMaxAgeDays;
+    var goToPages = Model.PageCatalog.Select(p => new { t = p.Title, p = p.Path, u = p.Url, i = IconClass(p.Icon), x = p.Target });
 }
-
 
 @functions {
     /// <summary>"12 minutes ago", "3 hours ago", "2 days ago" - plain words, no library.</summary>
@@ -15,6 +21,15 @@
         if (span.TotalHours < 24) { var h = (int)span.TotalHours; return $"{h} hour{(h == 1 ? "" : "s")} ago"; }
         if (span.TotalDays < 30) { var d = (int)span.TotalDays; return $"{d} day{(d == 1 ? "" : "s")} ago"; }
         return when.ToString("dd MMM yyyy");
+    }
+
+    /// <summary>"Today", "Yesterday" or the date - the day heading of the activity list.</summary>
+    public static string DayLabel(DateTime when)
+    {
+        var day = when.Date;
+        if (day == DateTime.Today) { return "Today"; }
+        if (day == DateTime.Today.AddDays(-1)) { return "Yesterday"; }
+        return when.ToString("ddd, dd MMM yyyy");
     }
 
     /// <summary>Names the address people would recognise instead of showing a bare loopback or private IP.</summary>
@@ -37,59 +52,138 @@
         }
         return ip;
     }
+
+    /// <summary>The page icon from the catalogue ("bi bi-eyedropper me-2") without spacing classes; a window when none.</summary>
+    public static string IconClass(string? icon)
+    {
+        var parts = (icon ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(c => !System.Text.RegularExpressions.Regex.IsMatch(c, @"^(m[selrtbxy]?|p[selrtbxy]?)-\d$")).ToList();
+        if (!parts.Any(c => c.StartsWith("bi-"))) { return "bi bi-window"; }
+        if (!parts.Contains("bi")) { parts.Insert(0, "bi"); }
+        return string.Join(' ', parts);
+    }
+
+    public static string ModuleTone(string? module) => (module ?? string.Empty).ToUpperInvariant() switch
+    {
+        "LAB" => "home-tone-lab",
+        "OPD" => "home-tone-opd",
+        "SEC" => "home-tone-sec",
+        _ => "home-tone-other"
+    };
 }
 
 <style>
+    /* Home - personal start page. Colours come from the app gradient (--emr-gradient / --emr-primary). */
+    .home-hero { background: var(--emr-gradient); border-radius: 18px; padding: 1.1rem 1.5rem; color: #fff;
+                 border: 1px solid rgba(255,255,255,.18); box-shadow: 0 10px 26px rgba(100,64,152,.22);
+                 display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 2rem; }
+    .home-hero-kicker { font-size: .76rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 600; color: rgba(255,255,255,.72); }
+    .home-hero h1 { font-size: 1.65rem; font-weight: 800; margin: .15rem 0 .2rem; text-wrap: balance; }
+    .home-hero-sub { color: rgba(255,255,255,.88); font-size: .95rem; }
+    .home-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+    .home-chip { display: inline-flex; align-items: center; gap: .35rem; background: rgba(255,255,255,.94); color: #644098;
+                 border-radius: 999px; padding: .2rem .75rem; font-weight: 700; font-size: .85rem; }
+    .home-chip.ghost { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.3); }
+
+    .home-goto { position: relative; flex: 1 1 320px; max-width: 460px; }
+    .home-goto input { width: 100%; border: 0; border-radius: 12px; padding: .7rem 4.2rem .7rem 2.5rem; font-size: .95rem;
+                       box-shadow: 0 6px 18px rgba(16,25,47,.18); }
+    .home-goto input:focus { outline: 3px solid rgba(255,255,255,.55); }
+    .home-goto .bi-search { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); color: #64748b; }
+    .home-goto kbd { position: absolute; right: .7rem; top: 50%; transform: translateY(-50%); background: #f1f5f9; color: #475569;
+                     border: 1px solid #e2e8f0; font-size: .72rem; padding: .1rem .4rem; border-radius: 6px; }
+    .home-goto-results { position: absolute; z-index: 1050; left: 0; right: 0; top: calc(100% + 6px); background: #fff; border-radius: 12px;
+                         box-shadow: 0 16px 40px rgba(16,25,47,.22); max-height: 360px; overflow-y: auto; padding: .35rem; }
+    .home-goto-item { display: flex; align-items: center; gap: .7rem; padding: .5rem .65rem; border-radius: 8px; color: #0f172a; text-decoration: none; }
+    .home-goto-item i { color: #644098; font-size: 1.05rem; width: 1.2rem; text-align: center; }
+    .home-goto-item small { display: block; color: #64748b; font-size: .75rem; }
+    .home-goto-item.active, .home-goto-item:hover { background: #f3effa; color: #0f172a; }
+    .home-goto-empty { padding: .75rem; color: #64748b; font-size: .88rem; }
+
     .info-card { display: flex; flex-direction: column; gap: .5rem; }
     .info-head { display: flex; align-items: center; gap: .75rem; padding-bottom: .75rem; border-bottom: 1px solid #eef1f7; margin-bottom: .25rem; }
     .info-icon { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
-    .info-value { font-size: 1.55rem; font-weight: 700; color: #0f172a; line-height: 1.2; font-variant-numeric: tabular-nums; }
-    .info-value span { font-size: 1.05rem; font-weight: 600; color: #475569; margin-left: .5rem; }
+    .info-value { font-size: 1.45rem; font-weight: 700; color: #0f172a; line-height: 1.2; font-variant-numeric: tabular-nums; }
+    .info-value span { font-size: 1rem; font-weight: 600; color: #475569; margin-left: .5rem; }
     .info-ago { font-size: .82rem; color: #64748b; }
     .info-desc { margin: .35rem 0 0; font-size: .88rem; color: #1e293b; }
-    .info-list { display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; margin: .65rem 0 0; font-size: .85rem; }
+    .info-list { display: grid; grid-template-columns: auto 1fr; gap: .35rem .9rem; margin: .65rem 0 0; font-size: .85rem; }
     .info-list dt { color: #64748b; font-weight: 600; }
     .info-list dd { margin: 0; color: #0f172a; }
+    .info-foot { margin-top: auto; padding-top: .6rem; }
+
+    .home-event { font-weight: 700; color: #0f172a; }
+    .home-tone-lab { background: #e0f2fe; color: #075985; }
+    .home-tone-opd { background: #dcfce7; color: #166534; }
+    .home-tone-sec { background: #fef3c7; color: #92400e; }
+    .home-tone-other { background: #f1f5f9; color: #334155; }
+    .home-badge { display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .04em; padding: .1rem .45rem; border-radius: 6px; }
+
+    .sec-row { display: flex; align-items: flex-start; gap: .65rem; padding: .55rem 0; border-bottom: 1px dashed #eef1f7; font-size: .86rem; }
+    .sec-row:last-child { border-bottom: 0; }
+    .sec-row > i { font-size: 1rem; margin-top: .1rem; width: 1.1rem; text-align: center; }
+    .sec-row .sec-main { flex: 1; min-width: 0; }
+    .sec-row .sec-label { color: #64748b; font-size: .76rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .sec-row .btn { white-space: nowrap; }
+    .sec-ok { color: #15803d; }
+    .sec-warn { color: #b45309; }
+    .sec-bad { color: #b91c1c; }
+
+    .home-section-title { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
+    .home-section-title h2 { font-size: 1rem; font-weight: 700; margin: 0; color: #0f172a; }
+    .home-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .75rem; }
+    .home-tile { display: flex; align-items: center; gap: .75rem; padding: .8rem .9rem; border: 1px solid #e7eaf3; border-radius: 12px;
+                 background: #fbfcfe; color: #0f172a; text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s; min-width: 0; }
+    .home-tile:hover { border-color: #c9b8e8; box-shadow: 0 6px 16px rgba(100,64,152,.12); transform: translateY(-1px); color: #0f172a; }
+    .home-tile-icon { width: 38px; height: 38px; border-radius: 10px; background: #f3effa; color: #644098; display: inline-flex;
+                      align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+    .home-tile-title { font-weight: 700; font-size: .88rem; line-height: 1.25; overflow-wrap: anywhere; }
+    .home-tile-meta { font-size: .74rem; color: #64748b; }
+
+    .home-timeline { list-style: none; margin: 0; padding: 0; }
+    .home-timeline-day { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; margin: .4rem 0 .3rem; }
+    .home-timeline li.item { position: relative; padding: 0 0 .85rem 1.4rem; }
+    .home-timeline li.item::before { content: ""; position: absolute; left: .32rem; top: .35rem; bottom: -.1rem; width: 2px; background: #eef1f7; }
+    .home-timeline li.item:last-child::before { display: none; }
+    .home-timeline li.item::after { content: ""; position: absolute; left: 0; top: .3rem; width: .7rem; height: .7rem; border-radius: 50%;
+                                    background: #fff; border: 2px solid #8b6cc4; }
+    .home-timeline .t-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem; font-size: .86rem; }
+    .home-timeline .t-time { color: #64748b; font-size: .78rem; font-variant-numeric: tabular-nums; }
+    .home-timeline .t-desc { font-size: .82rem; color: #334155; margin-top: .15rem; }
+    .home-timeline .t-link { font-size: .78rem; }
+    .home-empty { color: #64748b; font-size: .88rem; padding: .5rem 0; }
 </style>
 
 <div class="dashboard-page">
-    <div class="dashboard-hero-card mb-4">
-        <div class="dashboard-hero-content">
-            <div>
-                @if (!string.IsNullOrWhiteSpace(Model.CompanyName))
+    @* 1. Greeting, where the user is working, and "Go to" any page they may open *@
+    <div class="home-hero mb-4">
+        <div>
+            <div class="home-hero-kicker"><i class="bi bi-buildings-fill text-warning me-1"></i>@Model.CompanyName &middot; @Model.CompanyCode</div>
+            <h1>@greeting, @Model.UserDisplayName</h1>
+            <div class="home-hero-sub">@Model.CurrentHospitalName &middot; @now.ToString("dddd, dd MMMM yyyy")</div>
+            <div class="home-chips">
+                <span class="home-chip"><i class="bi bi-geo-alt-fill"></i>@Model.CurrentBranchName</span>
+                @if (!string.IsNullOrWhiteSpace(Model.ActiveRole))
                 {
-                    <div class="text-white-50 small mb-1 fw-semibold text-uppercase d-flex align-items-center gap-2" style="font-size: 0.82rem; letter-spacing: 0.05em;">
-                        <span><i class="bi bi-buildings-fill text-warning me-1"></i>@Model.CompanyName</span>
-                        @if (!string.IsNullOrWhiteSpace(Model.CompanyCode))
-                        {
-                            <span class="badge bg-white bg-opacity-25 text-white border border-white border-opacity-25 font-monospace" style="font-size: 0.72rem;">@Model.CompanyCode</span>
-                        }
-                    </div>
+                    <span class="home-chip ghost"><i class="bi bi-person-badge"></i>@Model.ActiveRole</span>
                 }
-                <h1 class="dashboard-title text-white mb-2">@Model.CurrentHospitalName Dashboard</h1>
-                <p class="dashboard-hero-subtitle mb-3">Welcome back, @Model.UserDisplayName!</p>
-                <div class="d-flex flex-wrap align-items-center gap-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="dashboard-hero-label" style="font-size: 0.95rem;">Company:</span>
-                        <span class="dashboard-hero-pill" style="font-size: 0.92rem; padding: 0.2rem 0.75rem; background: rgba(255, 255, 255, 0.18); color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.3);">
-                            <i class="bi bi-buildings me-1 text-warning"></i>@Model.CompanyName
-                        </span>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="dashboard-hero-label" style="font-size: 0.95rem;">Active Branch:</span>
-                        <span class="dashboard-hero-pill" style="font-size: 0.92rem; padding: 0.2rem 0.75rem;">
-                            <i class="bi bi-geo-alt-fill me-1"></i>@Model.CurrentBranchName
-                        </span>
-                    </div>
-                </div>
             </div>
-
         </div>
+        @if (Model.PageCatalog.Count > 0)
+        {
+            <div class="home-goto" id="homeGoTo">
+                <i class="bi bi-search"></i>
+                <input type="text" id="homeGoToInput" placeholder="Go to a screen…" autocomplete="off" spellcheck="false"
+                       aria-label="Go to a screen" aria-controls="homeGoToResults" aria-expanded="false" role="combobox" />
+                <kbd id="homeGoToKey">Ctrl K</kbd>
+                <div class="home-goto-results" id="homeGoToResults" role="listbox" hidden></div>
+            </div>
+        }
     </div>
 
-    @* Two facts about the person looking at the page: when they signed in, and what they last did. *@
-    <div class="row g-3">
-        <div class="col-12 col-lg-6">
+    @* 2. Sign-in, last activity, session & security *@
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-4">
             <div class="dashboard-panel h-100 info-card">
                 <div class="info-head">
                     <span class="info-icon bg-primary-subtle text-primary"><i class="bi bi-box-arrow-in-right"></i></span>
@@ -129,7 +223,7 @@
             </div>
         </div>
 
-        <div class="col-12 col-lg-6">
+        <div class="col-12 col-md-6 col-xl-4">
             <div class="dashboard-panel h-100 info-card">
                 <div class="info-head">
                     <span class="info-icon bg-success-subtle text-success"><i class="bi bi-clock-history"></i></span>
@@ -138,21 +232,39 @@
                         <div class="text-muted small">The last thing you did in @Model.CurrentBranchName</div>
                     </div>
                 </div>
-                @if (Model.LastActivityAt.HasValue)
+                @if (last is not null)
                 {
-                    <div class="info-value">@Model.LastActivityAt.Value.ToString("dd MMM yyyy")<span>@Model.LastActivityAt.Value.ToString("hh:mm tt")</span></div>
-                    <div class="info-ago">@Ago(Model.LastActivityAt.Value)</div>
-                    <p class="info-desc">@Model.LastActivityDescription</p>
+                    <div class="info-value">@last.At.ToString("dd MMM yyyy")<span>@last.At.ToString("hh:mm tt")</span></div>
+                    <div class="info-ago">@Ago(last.At)</div>
+                    <div class="mt-1"><span class="home-event">@last.EventTitle</span></div>
+                    <p class="info-desc mt-0">@last.Description</p>
                     <dl class="info-list">
-                        @if (!string.IsNullOrWhiteSpace(Model.LastActivityModule))
+                        @if (!string.IsNullOrWhiteSpace(last.Module))
                         {
-                            <dt>Module</dt><dd><span class="badge text-bg-light border">@Model.LastActivityModule</span></dd>
+                            <dt>Module</dt><dd><span class="home-badge @ModuleTone(last.Module)">@last.Module</span></dd>
                         }
-                        @if (!string.IsNullOrWhiteSpace(Model.LastActivityScreen))
+                        @if (!string.IsNullOrWhiteSpace(last.ScreenTitle))
                         {
-                            <dt>Screen</dt><dd class="font-monospace small">@Model.LastActivityScreen</dd>
+                            <dt>Screen</dt>
+                            <dd>
+                                @last.ScreenTitle
+                                @if (!string.IsNullOrWhiteSpace(last.ScreenPath))
+                                {
+                                    <div class="text-muted" style="font-size:.76rem;">@last.ScreenPath</div>
+                                }
+                            </dd>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(last.ReferenceNo))
+                        {
+                            <dt>Reference</dt><dd class="font-monospace small">@last.ReferenceNo</dd>
                         }
                     </dl>
+                    @if (!string.IsNullOrWhiteSpace(last.OpenUrl))
+                    {
+                        <div class="info-foot">
+                            <a href="@last.OpenUrl" class="btn btn-sm btn-primary"><i class="bi bi-box-arrow-up-right me-1"></i>@last.OpenLabel</a>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -160,5 +272,267 @@
                 }
             </div>
         </div>
+
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="dashboard-panel h-100 info-card">
+                <div class="info-head">
+                    <span class="info-icon bg-warning-subtle text-warning-emphasis"><i class="bi bi-shield-lock"></i></span>
+                    <div>
+                        <h2 class="h6 mb-0 fw-bold">Session &amp; security</h2>
+                        <div class="text-muted small">Your account and this session</div>
+                    </div>
+                </div>
+
+                <div class="sec-row">
+                    <i class="bi bi-person-badge text-primary"></i>
+                    <div class="sec-main">
+                        <div class="sec-label">Working as</div>
+                        <div class="fw-semibold">@(string.IsNullOrWhiteSpace(Model.ActiveRole) ? "—" : Model.ActiveRole) &middot; @Model.CurrentBranchName</div>
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                        @if (Model.RoleCount > 1)
+                        {
+                            <a asp-controller="Account" asp-action="SwitchRole" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left-right me-1"></i>Switch role</a>
+                        }
+                        @if (Model.BranchCount > 1)
+                        {
+                            <a asp-controller="Account" asp-action="SwitchBranch" class="btn btn-sm btn-outline-primary"><i class="bi bi-building-gear me-1"></i>Switch branch</a>
+                        }
+                    </div>
+                </div>
+
+                <div class="sec-row">
+                    @if (Model.FailedSignInsSinceLast > 0)
+                    {
+                        <i class="bi bi-exclamation-octagon-fill sec-bad"></i>
+                        <div class="sec-main">
+                            <div class="sec-label">Sign-in attempts</div>
+                            <div class="sec-bad fw-semibold">@Model.FailedSignInsSinceLast refused sign-in@(Model.FailedSignInsSinceLast == 1 ? "" : "s") on your account since your last sign-in</div>
+                            @if (Model.LastFailedSignInAt.HasValue)
+                            {
+                                <div class="text-muted small">Latest @Model.LastFailedSignInAt.Value.ToString("dd MMM, hh:mm tt") &middot; if it was not you, change your password.</div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <i class="bi bi-check-circle-fill sec-ok"></i>
+                        <div class="sec-main">
+                            <div class="sec-label">Sign-in attempts</div>
+                            <div>No wrong passwords since your last sign-in@(Model.LastSessionAt.HasValue ? $" ({Model.LastSessionAt.Value:dd MMM, hh:mm tt})" : "")</div>
+                        </div>
+                    }
+                </div>
+
+                <div class="sec-row">
+                    @if (passwordDue)
+                    {
+                        <i class="bi bi-key-fill sec-warn"></i>
+                    }
+                    else
+                    {
+                        <i class="bi bi-key-fill sec-ok"></i>
+                    }
+                    <div class="sec-main">
+                        <div class="sec-label">Password</div>
+                        @if (Model.MustChangePassword)
+                        {
+                            <div class="sec-warn fw-semibold">Your administrator asked you to change it</div>
+                        }
+                        else if (passwordAgeDays is null)
+                        {
+                            <div class="sec-warn">No change recorded - set a password of your own</div>
+                        }
+                        else if (passwordDue)
+                        {
+                            <div class="sec-warn fw-semibold">Not changed for @passwordAgeDays days - time for a new one</div>
+                        }
+                        else
+                        {
+                            <div>Changed @Ago(Model.PasswordLastChanged!.Value)</div>
+                        }
+                    </div>
+                    <a asp-controller="Account" asp-action="ChangePassword" class="btn btn-sm @(passwordDue ? "btn-warning" : "btn-outline-secondary")">Change</a>
+                </div>
+
+                <div class="sec-row">
+                    <i class="bi bi-hourglass-split text-secondary"></i>
+                    <div class="sec-main">
+                        <div class="sec-label">Idle sign-out</div>
+                        <div id="homeIdle">After 60 minutes without activity in any tab</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* 3. Where the user left off, and what they did before the last activity *@
+    <div class="row g-3">
+        <div class="col-12 col-lg-7">
+            <div class="dashboard-panel h-100">
+                <div class="home-section-title">
+                    <h2><i class="bi bi-arrow-repeat me-2 text-primary"></i>Continue where you left off</h2>
+                    <span class="text-muted small">Screens you used last in @Model.CurrentBranchName</span>
+                </div>
+                @if (Model.RecentScreens.Count > 0)
+                {
+                    <div class="home-tiles">
+                        @foreach (var s in Model.RecentScreens)
+                        {
+                            <a class="home-tile" href="@s.Page.Url" target="@(string.IsNullOrWhiteSpace(s.Page.Target) ? null : s.Page.Target)" title="@s.Page.Path › @s.Page.Title">
+                                <span class="home-tile-icon"><i class="@IconClass(s.Page.Icon)"></i></span>
+                                <span class="min-w-0">
+                                    <span class="home-tile-title d-block">@s.Page.Title</span>
+                                    <span class="home-tile-meta">@Ago(s.LastOpenedAt)</span>
+                                </span>
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="home-empty">The screens you open in @Model.CurrentBranchName will appear here, so you can go straight back to them.</div>
+                }
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-5">
+            <div class="dashboard-panel h-100">
+                <div class="home-section-title">
+                    <h2><i class="bi bi-list-check me-2 text-success"></i>Before that</h2>
+                    <span class="text-muted small">Your earlier actions in @Model.CurrentBranchName</span>
+                </div>
+                @if (earlier.Count > 0)
+                {
+                    <ul class="home-timeline">
+                        @{ string? day = null; }
+                        @foreach (var a in earlier)
+                        {
+                            var label = DayLabel(a.At);
+                            if (label != day)
+                            {
+                                day = label;
+                                <li class="home-timeline-day">@label</li>
+                            }
+                            <li class="item">
+                                <div class="t-head">
+                                    <span class="t-time">@a.At.ToString("hh:mm tt")</span>
+                                    @if (!string.IsNullOrWhiteSpace(a.Module))
+                                    {
+                                        <span class="home-badge @ModuleTone(a.Module)">@a.Module</span>
+                                    }
+                                    <span class="fw-semibold">@a.EventTitle</span>
+                                    @if (!string.IsNullOrWhiteSpace(a.ScreenTitle))
+                                    {
+                                        <span class="text-muted small">&middot; @a.ScreenTitle</span>
+                                    }
+                                </div>
+                                <div class="t-desc">@a.Description</div>
+                                @if (!string.IsNullOrWhiteSpace(a.OpenUrl))
+                                {
+                                    <a href="@a.OpenUrl" class="t-link"><i class="bi bi-box-arrow-up-right me-1"></i>@a.OpenLabel</a>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="home-empty">Nothing else recorded in @Model.CurrentBranchName yet.</div>
+                }
+            </div>
+        </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            // ---- Go to: every page the user may open (the navbar's own list), filtered as they type ----
+            var pages = @Json.Serialize(goToPages);
+            var box = document.getElementById('homeGoTo');
+            if (box) {
+                var input = document.getElementById('homeGoToInput');
+                var list = document.getElementById('homeGoToResults');
+                var keyHint = document.getElementById('homeGoToKey');
+                var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+                keyHint.textContent = isMac ? '⌘ K' : 'Ctrl K';
+                var shown = [], active = -1;
+
+                function esc(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+
+                function render() {
+                    var words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+                    if (!words.length) { close(); return; }
+                    shown = pages.filter(function (p) {
+                        var hay = (p.t + ' ' + p.p).toLowerCase();
+                        return words.every(function (w) { return hay.indexOf(w) >= 0; });
+                    }).sort(function (a, b) {
+                        // titles that start with what was typed first
+                        var w = words[0], at = a.t.toLowerCase().indexOf(w) === 0 ? 0 : 1, bt = b.t.toLowerCase().indexOf(w) === 0 ? 0 : 1;
+                        return at - bt || a.t.localeCompare(b.t);
+                    }).slice(0, 12);
+                    active = shown.length ? 0 : -1;
+                    list.innerHTML = shown.length
+                        ? shown.map(function (p, i) {
+                            return '<a class="home-goto-item' + (i === active ? ' active' : '') + '" role="option" href="' + esc(p.u) + '"' +
+                                (p.x ? ' target="' + esc(p.x) + '"' : '') + ' data-i="' + i + '"><i class="' + esc(p.i) + '"></i>' +
+                                '<span><span>' + esc(p.t) + '</span><small>' + esc(p.p) + '</small></span></a>';
+                        }).join('')
+                        : '<div class="home-goto-empty">No screen matches "' + esc(input.value) + '".</div>';
+                    list.hidden = false;
+                    input.setAttribute('aria-expanded', 'true');
+                }
+                function close() { list.hidden = true; list.innerHTML = ''; shown = []; active = -1; input.setAttribute('aria-expanded', 'false'); }
+                function highlight(i) {
+                    var items = list.querySelectorAll('.home-goto-item');
+                    if (!items.length) return;
+                    active = (i + items.length) % items.length;
+                    items.forEach(function (el, k) { el.classList.toggle('active', k === active); });
+                    items[active].scrollIntoView({ block: 'nearest' });
+                }
+
+                input.addEventListener('input', render);
+                input.addEventListener('focus', function () { if (input.value) render(); });
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(active + 1); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(active - 1); }
+                    else if (e.key === 'Enter') {
+                        var p = shown[active];
+                        if (p) { e.preventDefault(); if (p.x === '_blank') window.open(p.u, '_blank'); else window.location.href = p.u; }
+                    }
+                    else if (e.key === 'Escape') { input.value = ''; close(); input.blur(); }
+                });
+                document.addEventListener('click', function (e) { if (!box.contains(e.target)) close(); });
+                document.addEventListener('keydown', function (e) {
+                    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+                        e.preventDefault();
+                        input.focus();
+                        input.select();
+                    }
+                });
+            }
+
+            // ---- Idle sign-out countdown: the same shared timer the layout signs out with ----
+            // (the layout's idle script comes after this section, so start once the page is parsed)
+            document.addEventListener('DOMContentLoaded', function () {
+            var idleEl = document.getElementById('homeIdle');
+            var idle = window.emrIdle;
+            if (idleEl && idle && idle.limitMs) {
+                var minutes = Math.round(idle.limitMs / 60000);
+                function tick() {
+                    var lastAt = 0;
+                    try { lastAt = +(localStorage.getItem(idle.activityKey) || 0); } catch (e) { }
+                    if (!lastAt) { idleEl.textContent = 'After ' + minutes + ' minutes without activity in any tab'; return; }
+                    var left = Math.max(0, idle.limitMs - (Date.now() - lastAt));
+                    var m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
+                    idleEl.innerHTML = 'After ' + minutes + ' min idle &middot; <span class="fw-semibold" style="font-variant-numeric:tabular-nums">' +
+                        m + ':' + (s < 10 ? '0' : '') + s + '</span> left';
+                }
+                tick();
+                setInterval(tick, 1000);
+            }
+            });
+        })();
+    </script>
+}

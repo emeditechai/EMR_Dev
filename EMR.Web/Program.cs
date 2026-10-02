@@ -135,6 +135,7 @@ builder.Services.AddRateLimiter(o =>
 builder.Services.AddTransient<EMR.Web.ApiClients.EmrApiTokenHandler>();
 builder.Services.AddScoped<IAdministratorCheck, AdministratorCheck>();
 builder.Services.AddScoped<ILabReportingEligibility, LabReportingEligibility>();
+builder.Services.AddScoped<IHomeDashboardService, HomeDashboardService>();
 builder.Services.AddHttpClient("EmrApi", client =>
 {
     var baseUrl = builder.Configuration["ApiSettings:BaseUrl"] ?? "https://localhost:5125";

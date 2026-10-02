@@ -480,6 +480,55 @@ public class AccountController(
         return RedirectToAction("Index", "Dashboard");
     }
 
+    // ---- Change password (profile menu / Home) ----------------------------------------------------------------------
+
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword()
+    {
+        var userId = User.GetUserId();
+        var user = userId > 0 ? await dbContext.Users.FindAsync(userId) : null;
+        if (user is null) return RedirectToAction(nameof(Login));
+        return View(new ChangePasswordViewModel { PasswordLastChanged = user.PasswordLastChanged });
+    }
+
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
+    {
+        var userId = User.GetUserId();
+        var user = userId > 0 ? await dbContext.Users.FindAsync(userId) : null;
+        if (user is null) return RedirectToAction(nameof(Login));
+        model.PasswordLastChanged = user.PasswordLastChanged;
+
+        if (!ModelState.IsValid) return View(model);
+
+        if (!passwordHasherService.VerifyPassword(model.CurrentPassword, user.PasswordHash))
+        {
+            await auditLogService.LogAsync("AuthFailure", "ChangePassword", "Password change refused: the current password was wrong.", user.Id);
+            ModelState.AddModelError(nameof(model.CurrentPassword), "The current password is not correct.");
+            return View(model);
+        }
+        if (passwordHasherService.VerifyPassword(model.NewPassword, user.PasswordHash))
+        {
+            ModelState.AddModelError(nameof(model.NewPassword), "Choose a password different from the current one.");
+            return View(model);
+        }
+
+        var (hash, salt) = passwordHasherService.HashPassword(model.NewPassword);
+        user.PasswordHash = hash;
+        user.Salt = salt;
+        user.PasswordLastChanged = DateTime.Now;
+        user.MustChangePassword = false;
+        user.LastModifiedDate = DateTime.Now;
+        await dbContext.SaveChangesAsync();
+
+        await auditLogService.LogAsync("Auth", "ChangePassword", "Password changed by the user.", user.Id);
+        TempData["Success"] = "Your password has been changed.";
+        return RedirectToAction("Index", "Dashboard");
+    }
+
     // ---- Last branch / role (UserBranchLastLogin, script 2187) --------------------------------------------------------
     // A convenience only: a failure here never blocks or changes a sign-in.
 

@@ -1288,7 +1288,7 @@ namespace EMR.Web.Controllers
                         await auditLogService.LogActivityAsync(
                             eventType: "Payment Collection",
                             actionName: "LAB.PaymentReceived",
-                            description: $"Payment of ₹{paidAmt:F2} collected for Lab Order {labOrderRes.BillNo} (Token: {labOrderRes.TokenNo}). Receipt: {receiptNo}. Status: {statusStr}. Balance Due: ₹{paymentResult.BalanceDue:F2}.",
+                            description: $"Payment of ₹{paidAmt:F2} collected for Lab Order {labOrderRes.BillNo}{(string.IsNullOrWhiteSpace(labOrderRes.TokenNo?.ToString()) ? "" : $" (Token: {labOrderRes.TokenNo})")}. Receipt: {receiptNo}. Status: {statusStr}. Balance Due: ₹{paymentResult.BalanceDue:F2}.",
                             userId: User.GetUserId(),
                             branchId: branchId,
                             moduleCode: "LAB",
