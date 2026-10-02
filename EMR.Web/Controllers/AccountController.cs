@@ -141,7 +141,18 @@ public class AccountController(
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> SelectBranch()
+    public Task<IActionResult> SelectBranch() => BranchSelectionView(isSwitch: false);
+
+    /// <summary>
+    /// Profile menu > Switch Branch: move the signed-in session to another of the user's branches without signing in
+    /// again. The sign-in cookie is re-issued for the new branch (same "remember me"); the active role is kept when the
+    /// user holds it there, otherwise the role is chosen as at sign-in.
+    /// </summary>
+    [HttpGet]
+    [Authorize]
+    public Task<IActionResult> SwitchBranch() => BranchSelectionView(isSwitch: true);
+
+    private async Task<IActionResult> BranchSelectionView(bool isSwitch)
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!int.TryParse(userIdClaim, out var userId))
@@ -166,13 +177,23 @@ public class AccountController(
                 x.BranchId.ToString()))
             .ToList();
 
+        var currentBranchId = User.GetCurrentBranchId();
+        if (isSwitch && branchOptions.Count <= 1)
+        {
+            TempData["Warning"] = "You have access to only one branch.";
+            return RedirectToAction("Index", "Dashboard");
+        }
+
         var viewModel = new BranchSelectionViewModel
         {
             DisplayName = string.IsNullOrWhiteSpace(user.FullName) ? user.Username : user.FullName,
-            Branches = branchOptions
+            Branches = branchOptions,
+            IsSwitch = isSwitch && currentBranchId.HasValue,
+            CurrentBranchName = User.FindFirstValue("BranchName"),
+            BranchId = isSwitch ? currentBranchId ?? 0 : 0
         };
 
-        return View(viewModel);
+        return View("SelectBranch", viewModel);
     }
 
     [HttpPost]
@@ -190,6 +211,18 @@ public class AccountController(
         if (user is null)
         {
             return RedirectToAction(nameof(Login));
+        }
+
+        var currentBranchId = User.GetCurrentBranchId();
+        if (model.IsSwitch && currentBranchId.HasValue)
+        {
+            if (model.BranchId == currentBranchId.Value)
+                return RedirectToAction("Index", "Dashboard");   // nothing to switch
+
+            // same session: keep "remember me" and, where the user holds it there, the active role
+            var current = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return await CompleteBranchSelection(userId, model.BranchId, current.Properties?.IsPersistent ?? false,
+                switchedFrom: User.FindFirstValue("BranchName"), preferredRole: User.GetActiveRole());
         }
 
         return await CompleteBranchSelection(userId, model.BranchId, false);
@@ -214,8 +247,10 @@ public class AccountController(
         return RedirectToAction(nameof(Login));
     }
 
-    private async Task<IActionResult> CompleteBranchSelection(int userId, int branchId, bool rememberMe)
+    private async Task<IActionResult> CompleteBranchSelection(int userId, int branchId, bool rememberMe,
+        string? switchedFrom = null, string? preferredRole = null)
     {
+        var isSwitch = switchedFrom is not null;
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId);
         if (user is null)
         {
@@ -231,7 +266,7 @@ public class AccountController(
         {
             _ = auditLogService.LogAsync("AuthFailure", "SelectBranch", $"Invalid branch selection: {branchId}", userId, branchId);
             TempData["Error"] = "Invalid branch selection.";
-            return RedirectToAction(nameof(SelectBranch));
+            return RedirectToAction(isSwitch ? nameof(SwitchBranch) : nameof(SelectBranch));
         }
 
         var roleNames = await dbContext.UserRoles
@@ -247,9 +282,34 @@ public class AccountController(
 
         if (!isSuperAdmin && roleNames.Count == 0)
         {
+            if (isSwitch)
+            {
+                // a switch must never end the session: stay in the current branch
+                TempData["Error"] = $"You have no active role in {allowedBranch.Branch.BranchName}. Ask an administrator to add one in User Master.";
+                return RedirectToAction("Index", "Dashboard");
+            }
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             TempData["Error"] = "No active role mapping found for selected branch.";
             return RedirectToAction(nameof(Login));
+        }
+
+        if (isSwitch)
+        {
+            // keep the role the user is working in when they hold it in the new branch
+            var keepRole = isSuperAdmin ? "Administrator"
+                : roleNames.Count == 1 ? roleNames[0]
+                : roleNames.FirstOrDefault(r => string.Equals(r, preferredRole, StringComparison.OrdinalIgnoreCase));
+            await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, roleNames, keepRole);
+            await auditLogService.LogAsync("Auth", "SwitchBranch",
+                $"Switched branch from {switchedFrom} to {allowedBranch.Branch.BranchName}" + (keepRole is null ? "" : $" (role: {keepRole})"),
+                userId, branchId);
+            if (keepRole is null)
+            {
+                TempData["RememberMe"] = rememberMe;
+                return RedirectToAction(nameof(SelectRole));
+            }
+            TempData["Success"] = $"Switched to {allowedBranch.Branch.BranchName}.";
+            return RedirectToAction("Index", "Dashboard");
         }
 
         // Sign in, then record the login. This is awaited on purpose: fired and forgotten it ran after the
@@ -453,8 +513,13 @@ public class AccountController(
 
             HttpContext.Session.SetString("IsHOBranch", branch.IsHOBranch.ToString().ToLower());
             HttpContext.Session.SetInt32("BranchId", branch.BranchId);
+            HttpContext.Session.SetInt32("SelectedBranchId", branch.BranchId);
             HttpContext.Session.SetString("BranchName", branch.BranchName);
         }
+
+        // how many branches the user may work in - the profile menu offers "Switch Branch" only when there is a choice
+        var branchCount = await dbContext.UserBranches.CountAsync(x => x.UserId == user.Id && x.IsActive && x.Branch.IsActive);
+        claims.Add(new Claim("BranchCount", branchCount.ToString()));
 
 
         if (!string.IsNullOrWhiteSpace(activeRole))

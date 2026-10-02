@@ -62,6 +62,9 @@ namespace EMR.Web.Controllers
 
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
                 branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
+            // Save Draft is no longer part of the flow (entry starts at Submit): the "Draft" bucket now means
+            // "some tests further along than others on this bill", shown as In Progress as on Image Reporting.
+            LabImageReportingController.RelabelDraftAsInProgress(headerResult);
 
             var statuses = await labReportingApiClient.GetStatusesAsync();
 
@@ -345,6 +348,9 @@ namespace EMR.Web.Controllers
 
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
                 branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
+            // Save Draft is no longer part of the flow (entry starts at Submit): the "Draft" bucket now means
+            // "some tests further along than others on this bill", shown as In Progress as on Image Reporting.
+            LabImageReportingController.RelabelDraftAsInProgress(headerResult);
 
             var encMap = headerResult.Headers.ToDictionary(
                 h => h.LabOrderId,

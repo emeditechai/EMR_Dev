@@ -618,14 +618,14 @@ namespace EMR.Web.Controllers
         /// <summary>
         /// The shared header-list procedure (usp_LabReporting_GetHeaderList) labels a bill "Draft" as its
         /// fallback bucket for "some tests entered, not uniformly at one stage yet" - a state that comes up
-        /// naturally in the numeric Lab Reporting flow, which has an explicit Save Draft action.
-        /// The Image Reporting editor has no Save Draft (see "Modal Footer ... No Save Draft" in Entry.cshtml):
-        /// every save is a full Submit, so a bill only ever lands in that bucket by having some tests further
-        /// along than others (e.g. one validated, one still pending). Relabelled here, in the image module only,
-        /// so the list never shows a status this workflow does not use. ReportStatusId (1) and the counts are
+        /// once had an explicit Save Draft action. Neither the Image nor the numeric Lab Reporting editor has Save Draft
+        /// any more: every save is a full Submit, so a bill only lands in that bucket by having some tests further
+        /// along than others (e.g. one submitted, one still pending), or from drafts saved before that change.
+        /// Relabelled for both screens (LabReportingController calls this too), so a list never shows a status the
+        /// workflow does not use. ReportStatusId (1) and the counts are
         /// left untouched - only the two things a person reads are relabelled: the text and the CSS class hook.
         /// </summary>
-        private static void RelabelDraftAsInProgress(LabReportingHeaderListResult result)
+        internal static void RelabelDraftAsInProgress(LabReportingHeaderListResult result)
         {
             if (result?.Headers == null) return;
             foreach (var h in result.Headers)

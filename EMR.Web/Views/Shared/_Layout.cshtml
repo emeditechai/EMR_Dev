@@ -378,6 +378,10 @@
                                 </div>
 
                                 <div class="p-3 d-grid gap-2">
+                                    @if (!int.TryParse(User.FindFirst("BranchCount")?.Value, out var branchCount) || branchCount > 1)
+                                    {
+                                        <a asp-controller="Account" asp-action="SwitchBranch" class="btn btn-light text-start"><i class="bi bi-building-gear me-2"></i>Switch Branch</a>
+                                    }
                                     <a asp-controller="Account" asp-action="SwitchRole" class="btn btn-light text-start"><i class="bi bi-arrow-left-right me-2"></i>Switch Role</a>
                                     <button type="button" class="btn btn-light text-start"><i class="bi bi-key-fill me-2"></i>Change Password</button>
                                     <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
