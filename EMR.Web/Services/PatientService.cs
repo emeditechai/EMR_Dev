@@ -515,7 +515,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             WHERE s.IsActive = 1
               AND s.ServiceType = @ServiceType
               AND (@BranchId IS NULL OR s.BranchId = @BranchId)
-            ORDER BY s.ItemName",
+            ORDER BY s.IsRegistration DESC, s.ItemName   -- the Registration service always first in the OPD item lists",
             new { ServiceType = serviceType, BranchId = branchId });
 
         return rows.Select(r => ((int)r.ServiceId, (string)r.ItemName, (decimal)r.ItemCharges, (bool)r.IsRegistration));
