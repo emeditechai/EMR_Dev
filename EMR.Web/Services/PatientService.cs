@@ -449,6 +449,16 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             new { BranchId = branchId, From = from.ToDateTime(TimeOnly.MinValue), To = to.ToDateTime(TimeOnly.MinValue) });
     }
 
+    public async Task<Dictionary<int, bool>> GetServiceDiscountableMapAsync(IEnumerable<int> serviceIds)
+    {
+        var ids = serviceIds.Where(i => i > 0).Distinct().ToArray();
+        if (ids.Length == 0) return new Dictionary<int, bool>();
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync<(int ServiceId, bool IsDiscountable)>(
+            "SELECT ServiceId, IsDiscountable FROM ServiceMaster WHERE ServiceId IN @ids", new { ids });
+        return rows.ToDictionary(r => r.ServiceId, r => r.IsDiscountable);
+    }
+
     // ─── Latest OPD Service ───────────────────────────────────────────────────
 
     public async Task<PatientOPDService?> GetLatestOPDServiceAsync(int patientId)

@@ -5,10 +5,17 @@ public class ServiceListItem
     public int ServiceId { get; set; }
     public string ItemCode { get; set; } = string.Empty;
     public string ServiceName { get; set; } = string.Empty;
+    /// <summary>ServiceMaster.ItemName - the name the Service Master list shows (usp_Api_Service_GetList returns the table's columns).</summary>
+    public string ItemName { get; set; } = string.Empty;
     public string ServiceType { get; set; } = string.Empty;
+    public bool IsRegistration { get; set; }
+    public string? ConsultingType { get; set; }
+    public bool IsGstRequired { get; set; }
+    /// <summary>Service Master > Is Discountable (script 2190).</summary>
+    public bool IsDiscountable { get; set; } = true;
     public string? SacCode { get; set; }
     public decimal ItemCharges { get; set; }
-    public decimal GstPercentage { get; set; }
+    public decimal? GstPercentage { get; set; }
     public bool IsActive { get; set; }
     public int BranchId { get; set; }
     public int? CreatedBy { get; set; }

@@ -1468,6 +1468,7 @@
                 const o = new Option(s.itemName, s.serviceId);
                 o.dataset.charges = s.itemCharges;
                 o.dataset.isRegistration = s.isRegistration ? 'true' : 'false';
+                o.dataset.isDiscountable = s.isDiscountable === false ? 'false' : 'true';   // Service Master > Is Discountable
                 $item.append(o);
             });
             if (selectedId) $item.val(selectedId);
@@ -1481,6 +1482,7 @@
             const rowItem = lineItems.find(r => r.rowId === rowId);
             if (rowItem) {
                 rowItem.isRegistration = sel?.dataset?.isRegistration === 'true';
+                rowItem.isDiscountable = sel?.dataset?.isDiscountable !== 'false';
             }
         }
 
@@ -1510,6 +1512,7 @@
                     row.itemName       = sel?.text ?? '';
                     row.serviceCharges = parseFloat(sel?.dataset?.charges) || 0;
                     row.isRegistration = sel?.dataset?.isRegistration === 'true';
+                    row.isDiscountable = sel?.dataset?.isDiscountable !== 'false';
                 }
                 setRowCharges($(this).closest('tr'), rid, sel?.dataset?.charges || '');
                 updateTotal();
@@ -2053,6 +2056,14 @@
                 var printUrl = '@Url.Action("PrintBill", "OPD")' + '?id=' + result.opdServiceId;
                 $('#btnPrintBillSuccess').attr('href', printUrl);
 
+                // Saved: the button must not stay on "Processing..." nor allow the same booking to be sent again
+                var doneBtn = document.getElementById('btnSave');
+                if (doneBtn) {
+                    doneBtn.disabled = true;
+                    doneBtn.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Saved';
+                }
+                window.__opdSaved = true;
+
                 var successModal = new bootstrap.Modal(document.getElementById('registrationSuccessModal'));
                 successModal.show();
 
@@ -2205,6 +2216,7 @@
                         itemName: x.itemName || 'Consulting / Service',
                         serviceType: x.serviceType || 'Service',
                         originalAmount: parseFloat(x.serviceCharges) || 0,
+                        isDiscountAllowed: x.isDiscountable !== false,   // a bill discount skips non-discountable services
                         isGstRequired: false
                     };
                 }),
@@ -2223,6 +2235,23 @@
                     await submitRegistrationWithPayment(paymentData);
                 }
             });
+        });
+
+        // After a completed registration / booking: closing the success window (its ✕) starts a fresh form - the same as
+        // "Register Another" - so the saved data (and a Doctor Roster slot lock) is not left on screen to be sent twice.
+        // (Only after a billing save made on this page - the demographics-only save keeps its own flow.)
+        document.getElementById('registrationSuccessModal')?.addEventListener('hidden.bs.modal', function () {
+            if (window.__opdSaved) window.location.href = '@Url.Action("PatientRegistration")';
+        });
+        // Back to this page from the browser cache (Back button): never show a stuck "Processing..." button
+        window.addEventListener('pageshow', function (e) {
+            if (!e.persisted) return;
+            var btn = document.getElementById('btnSave');
+            if (window.__opdSaved) { window.location.href = '@Url.Action("PatientRegistration")'; return; }
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi ' + (btn.dataset.defaultIcon || 'bi-save2-fill') + ' me-2"></i>' + (btn.dataset.defaultLabel || 'Register Patient');
+            }
         });
 
         window.previewProfilePic = function(input) {

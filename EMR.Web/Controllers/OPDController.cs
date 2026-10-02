@@ -1757,8 +1757,10 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(type)) return Json(Array.Empty<object>());
         var branchId = User.GetCurrentBranchId();
-        var services = await patientService.GetServicesByTypeAsync(type, branchId);
-        return Json(services.Select(s => new { s.ServiceId, s.ItemName, s.ItemCharges, s.IsRegistration }));
+        var services = (await patientService.GetServicesByTypeAsync(type, branchId)).ToList();
+        var discountable = await patientService.GetServiceDiscountableMapAsync(services.Select(s => s.ServiceId));
+        return Json(services.Select(s => new { s.ServiceId, s.ItemName, s.ItemCharges, s.IsRegistration,
+                                                IsDiscountable = discountable.GetValueOrDefault(s.ServiceId, true) }));
     }
 
     [HttpGet]
@@ -1804,8 +1806,10 @@ public class OPDController(
     {
         if (doctorId <= 0) return Json(Array.Empty<object>());
         var branchId = User.GetCurrentBranchId() ?? 0;
-        var fees = await consultingFeeService.GetByDoctorAsync(doctorId, branchId);
-        return Json(fees.Select(f => new { ServiceId = f.ServiceId, ItemName = f.ItemName, ItemCharges = f.ItemCharges }));
+        var fees = (await consultingFeeService.GetByDoctorAsync(doctorId, branchId)).ToList();
+        var discountable = await patientService.GetServiceDiscountableMapAsync(fees.Select(f => f.ServiceId));
+        return Json(fees.Select(f => new { ServiceId = f.ServiceId, ItemName = f.ItemName, ItemCharges = f.ItemCharges,
+                                           IsDiscountable = discountable.GetValueOrDefault(f.ServiceId, true) }));
     }
 
     [HttpGet]
