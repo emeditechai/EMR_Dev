@@ -438,9 +438,11 @@
                     {
                         <span class="badge bg-success bg-opacity-75 text-white border border-white border-opacity-25 px-2 py-1">LIVE TODAY</span>
                     }
-                    @* Client filter: drives every figure on this page *@
+                    @* Client filter: drives every figure on this page. Only the tabs the user holds (Role Permissions,
+                       LAB Dashboard > All Clients / B2C Patients / B2B Partners tab) are offered. *@
                     <div class="lab-seg" role="group" aria-label="Client type">
-                        @foreach (var seg in new[] { ("ALL", "All Clients", "bi-people-fill"), ("B2C", "B2C Patients", "bi-person-fill"), ("B2B", "B2B Partners", "bi-building-fill") })
+                        @foreach (var seg in new[] { ("ALL", "All Clients", "bi-people-fill"), ("B2C", "B2C Patients", "bi-person-fill"), ("B2B", "B2B Partners", "bi-building-fill") }
+                                     .Where(s => Model.AllowedClientTypes.Contains(s.Item1)))
                         {
                             <a class="lab-seg-btn @(Model.ClientType == seg.Item1 ? "active" : "")"
                                href="@Url.Action("Index", new { date = selectedDateStr, clientType = seg.Item1 })"

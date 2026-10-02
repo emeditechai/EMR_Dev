@@ -28,6 +28,8 @@ STANDARD = {
     "IMPORT": ("Bulk upload", 85), "APPROVE": ("Approve", 90), "UNAUTHORIZE": ("Un-approve", 92), "CANCEL": ("Cancel", 94),
     "REFUND": ("Refund", 96), "SETTLE": ("Settle", 97), "DISCOUNT": ("Discount", 98),
     "BOOK_SLOT": ("Book slot", 20), "VALIDATE": ("Validate", 88),
+    # LAB Dashboard client tabs (script 2188)
+    "CLIENT_ALL": ("All Clients tab", 11), "CLIENT_B2C": ("B2C Patients tab", 12), "CLIENT_B2B": ("B2B Partners tab", 13),
 }
 
 # Controls that are not reached through an endpoint of their own (checked inside a save), or declared in code.
@@ -39,6 +41,7 @@ IN_ACTION = {
     ("LAB.LABORDERBOOKING.B2CBOOKING", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BBOOKING", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CORDERLIST", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BREGISTRATION", "DISCOUNT"),
     ("OPD.DOCTORROSTER", "BOOK_SLOT"),       # a slot opens Patient Registration pre-filled; checked there
+    ("LAB.LABDASHBOARD", "CLIENT_ALL"), ("LAB.LABDASHBOARD", "CLIENT_B2C"), ("LAB.LABDASHBOARD", "CLIENT_B2B"),   # the tab is a parameter of Index
 }
 
 # ── curated groups: (page or "*", controller, action) -> (code, title) ──────
