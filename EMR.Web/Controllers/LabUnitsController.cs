@@ -22,7 +22,7 @@ public class LabUnitsController(
 
         try
         {
-            var units = (await unitApiClient.GetListAsync(status, search, companyId)).ToList();
+            var units = (await unitApiClient.GetListAsync(status, search)).ToList();   // Unit Master is global
             var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabUnits");
 
             var model = new LabUnitIndexViewModel

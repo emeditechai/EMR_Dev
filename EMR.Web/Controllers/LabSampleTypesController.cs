@@ -330,7 +330,7 @@ public class LabSampleTypesController(
     {
         try
         {
-            var units = await unitApiClient.GetListAsync(status: true, companyId: companyId);
+            var units = await unitApiClient.GetListAsync(status: true);   // Unit Master is global
             return units.Select(u => new SelectListItem
             {
                 Value = u.Unit_ID.ToString(),

@@ -18,9 +18,8 @@ public class ClinicalUnitsController(
     {
         try
         {
-            var companyId = User.GetCompanyId();
-            var branchId = User.GetCurrentBranchId();
-            var list = await masterApiClient.GetClinicalUnitsAsync(departmentId, specialityId, companyId, branchId);
+            // Clinical Unit Master is global: every company and branch sees the same units.
+            var list = await masterApiClient.GetClinicalUnitsAsync(departmentId, specialityId);
 
             ViewBag.DepartmentId = departmentId;
             ViewBag.SpecialityId = specialityId;
@@ -61,7 +60,7 @@ public class ClinicalUnitsController(
         model.UnitCode = model.UnitCode.Trim().ToUpper();
         model.UnitName = model.UnitName.Trim();
 
-        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode, companyId: companyId))
+        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode))
             ModelState.AddModelError(nameof(model.UnitCode), "This Clinical Unit Code already exists.");
 
         if (!ModelState.IsValid)
@@ -123,12 +122,11 @@ public class ClinicalUnitsController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(ClinicalUnitFormViewModel model)
     {
-        var companyId = User.GetCompanyId();
         var branchId = User.GetCurrentBranchId();
         model.UnitCode = model.UnitCode.Trim().ToUpper();
         model.UnitName = model.UnitName.Trim();
 
-        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode, excludeId: model.UnitId, companyId: companyId))
+        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode, excludeId: model.UnitId))
             ModelState.AddModelError(nameof(model.UnitCode), "This Clinical Unit Code already exists.");
 
         if (!ModelState.IsValid)

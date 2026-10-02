@@ -8,8 +8,9 @@ namespace EMR.Web.Services;
 
 public class ClinicalUnitService(IDbConnectionFactory db) : IClinicalUnitService
 {
-    public async Task<IEnumerable<ClinicalUnitListItemViewModel>> GetAllAsync(
-        int? departmentId = null, int? specialityId = null, int? companyId = null, int? branchId = null)
+    // Clinical Unit Master is global: every company and branch uses the same units (CompanyId / BranchId only record
+    // where a unit was created).
+    public async Task<IEnumerable<ClinicalUnitListItemViewModel>> GetAllAsync(int? departmentId = null, int? specialityId = null)
     {
         using var con = db.CreateConnection();
         var sql = @"
@@ -34,11 +35,9 @@ public class ClinicalUnitService(IDbConnectionFactory db) : IClinicalUnitService
             LEFT JOIN DoctorMaster d ON u.ConsultantInChargeDoctorId = d.DoctorId
             WHERE (@departmentId IS NULL OR u.DepartmentId = @departmentId)
               AND (@specialityId IS NULL OR u.SpecialityId = @specialityId)
-              AND (@companyId IS NULL OR u.CompanyId = @companyId)
-              AND (@branchId IS NULL OR u.BranchId = @branchId OR u.BranchId IS NULL)
             ORDER BY dept.DeptName, s.SpecialityName, u.UnitName";
 
-        return await con.QueryAsync<ClinicalUnitListItemViewModel>(sql, new { departmentId, specialityId, companyId, branchId });
+        return await con.QueryAsync<ClinicalUnitListItemViewModel>(sql, new { departmentId, specialityId });
     }
 
     public async Task<ClinicalUnitMaster?> GetByIdAsync(int id)
@@ -110,15 +109,15 @@ public class ClinicalUnitService(IDbConnectionFactory db) : IClinicalUnitService
         return await con.QueryFirstOrDefaultAsync<ClinicalUnitDetailsViewModel>(sql, new { id });
     }
 
-    public async Task<bool> CodeExistsAsync(string code, int? excludeId = null, int? companyId = null)
+    // Unit Code is unique application-wide (UQ_ClinicalUnitMaster_Code, script 2186).
+    public async Task<bool> CodeExistsAsync(string code, int? excludeId = null)
     {
         using var con = db.CreateConnection();
         var count = await con.ExecuteScalarAsync<int>(@"
             SELECT COUNT(1) FROM ClinicalUnitMaster
             WHERE UnitCode = @code
-              AND (@companyId IS NULL OR CompanyId = @companyId)
               AND (@excludeId IS NULL OR UnitId <> @excludeId)",
-            new { code, excludeId, companyId });
+            new { code, excludeId });
         return count > 0;
     }
 

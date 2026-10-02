@@ -621,7 +621,7 @@ public class LabReferenceRangesController(
                 Selected = model.Test_ID == t.Test_ID
             }).ToList();
 
-            var units = (await unitApiClient.GetListAsync(status: true, companyId: companyId)).ToList();
+            var units = (await unitApiClient.GetListAsync(status: true)).ToList();   // Unit Master is global
             model.UnitOptions = units.Select(u => new SelectListItem
             {
                 Value = u.Unit_ID.ToString(),
