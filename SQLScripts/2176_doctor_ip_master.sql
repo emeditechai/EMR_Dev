@@ -28,6 +28,7 @@ BEGIN
         Branch_ID        INT NOT NULL,
         Effective_From   DATE NOT NULL,
         Effective_To     DATE NOT NULL,
+        Frequency_Of_Disbursal VARCHAR(20) NOT NULL DEFAULT 'Monthly',
         IsActive         BIT NOT NULL DEFAULT 1,
         IsDeleted        BIT NOT NULL DEFAULT 0,
         Created_By       INT NULL,
@@ -38,6 +39,10 @@ BEGIN
     );
     CREATE INDEX IX_Doctor_IP_Hdr_Doctor ON dbo.Doctor_IP_Hdr (Doctor_ID, Branch_ID, IsDeleted);
 END
+GO
+
+IF COL_LENGTH('dbo.Doctor_IP_Hdr', 'Frequency_Of_Disbursal') IS NULL
+    ALTER TABLE dbo.Doctor_IP_Hdr ADD Frequency_Of_Disbursal VARCHAR(20) NOT NULL DEFAULT 'Monthly';
 GO
 
 IF OBJECT_ID('dbo.Doctor_IP_Dtl', 'U') IS NULL
@@ -285,6 +290,7 @@ BEGIN
            h.Effective_From,
            h.Effective_To,
            h.IsActive,
+           h.Frequency_Of_Disbursal,
            (SELECT COUNT(*) FROM dbo.Doctor_IP_Dtl x WHERE x.Doctor_IP_Hdr_ID = h.Doctor_IP_Hdr_ID) AS Item_Count,
            (SELECT CAST(AVG(x.Commission_Rate) AS DECIMAL(18,2)) FROM dbo.Doctor_IP_Dtl x WHERE x.Doctor_IP_Hdr_ID = h.Doctor_IP_Hdr_ID) AS Avg_Rate,
            h.CreatedDate,
@@ -313,7 +319,7 @@ BEGIN
            ISNULL(d.NamePrefix + ' ', '') + d.FullName AS Doctor_Name,
            h.Speciality_ID, s.SpecialityName AS Speciality_Name,
            h.Branch_ID, b.BranchName AS Branch_Name,
-           h.Effective_From, h.Effective_To, h.IsActive,
+           h.Effective_From, h.Effective_To, h.Frequency_Of_Disbursal, h.IsActive,
            h.Created_By, h.CreatedDate, h.Updated_By, h.UpdatedDate
     FROM dbo.Doctor_IP_Hdr h
     JOIN dbo.DoctorMaster d ON d.DoctorId = h.Doctor_ID
@@ -348,6 +354,7 @@ CREATE OR ALTER PROCEDURE dbo.usp_DoctorIp_Save
     @Branch_ID     INT,
     @Effective_From DATE,
     @Effective_To   DATE,
+    @Frequency_Of_Disbursal VARCHAR(20) = 'Monthly',
     @IsActive      BIT = 1,
     @DetailsJson   NVARCHAR(MAX),
     @UserId        INT = NULL,
@@ -392,15 +399,16 @@ BEGIN
     BEGIN TRY
         IF @NewId IS NULL
         BEGIN
-            INSERT INTO dbo.Doctor_IP_Hdr (CompanyId, Doctor_ID, Speciality_ID, Branch_ID, Effective_From, Effective_To, IsActive, Created_By)
-            VALUES (@CompanyId, @Doctor_ID, @Speciality_ID, @Branch_ID, @Effective_From, @Effective_To, ISNULL(@IsActive, 1), @UserId);
+            INSERT INTO dbo.Doctor_IP_Hdr (CompanyId, Doctor_ID, Speciality_ID, Branch_ID, Effective_From, Effective_To, Frequency_Of_Disbursal, IsActive, Created_By)
+            VALUES (@CompanyId, @Doctor_ID, @Speciality_ID, @Branch_ID, @Effective_From, @Effective_To, ISNULL(@Frequency_Of_Disbursal, 'Monthly'), ISNULL(@IsActive, 1), @UserId);
             SET @NewId = SCOPE_IDENTITY();
         END
         ELSE
         BEGIN
             UPDATE dbo.Doctor_IP_Hdr
                SET Doctor_ID = @Doctor_ID, Speciality_ID = @Speciality_ID, Branch_ID = @Branch_ID,
-                   Effective_From = @Effective_From, Effective_To = @Effective_To, IsActive = ISNULL(@IsActive, 1),
+                   Effective_From = @Effective_From, Effective_To = @Effective_To,
+                   Frequency_Of_Disbursal = ISNULL(@Frequency_Of_Disbursal, 'Monthly'), IsActive = ISNULL(@IsActive, 1),
                    Updated_By = @UserId, UpdatedDate = GETDATE()
              WHERE Doctor_IP_Hdr_ID = @NewId;
             DELETE FROM dbo.Doctor_IP_Dtl WHERE Doctor_IP_Hdr_ID = @NewId;

@@ -73,6 +73,16 @@
                         <label asp-for="Effective_To" class="form-label fw-semibold">Effective To <span class="text-danger">*</span></label>
                         <input asp-for="Effective_To" type="date" class="form-control" />
                     </div>
+                    <div class="col-md-2">
+                        <label asp-for="Frequency_Of_Disbursal" class="form-label fw-semibold">Frequency of Disbursal <span class="text-danger">*</span></label>
+                        <select asp-for="Frequency_Of_Disbursal" class="form-select">
+                            <option value="Daily">Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Monthly">Monthly</option>
+                            <option value="Quarterly">Quarterly</option>
+                            <option value="Annually">Annually</option>
+                        </select>
+                    </div>
                     @if (isEdit)
                     {
                         <div class="col-md-2">

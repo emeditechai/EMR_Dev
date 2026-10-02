@@ -37,6 +37,7 @@ public class DoctorIpService(IDbConnectionFactory db) : IDoctorIpService
         p.Add("@Branch_ID", req.Branch_ID);
         p.Add("@Effective_From", req.Effective_From.Date, DbType.Date);
         p.Add("@Effective_To", req.Effective_To.Date, DbType.Date);
+        p.Add("@Frequency_Of_Disbursal", req.Frequency_Of_Disbursal);
         p.Add("@IsActive", req.IsActive);
         p.Add("@DetailsJson", JsonSerializer.Serialize(req.Details));
         p.Add("@UserId", req.UserId);

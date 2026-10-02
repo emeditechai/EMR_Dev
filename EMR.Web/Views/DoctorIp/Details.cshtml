@@ -30,7 +30,8 @@
                 <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Speciality</div><div class="fw-semibold">@(h.Speciality_Name ?? "-")</div></div>
                 <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Doctor</div><div class="fw-semibold">@h.Doctor_Name</div></div>
                 <div class="col-md-2"><div class="text-muted small text-uppercase fw-semibold">Branch</div><div class="fw-semibold">@(h.Branch_Name ?? "-")</div></div>
-                <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Effective Period</div><div class="fw-semibold">@h.Effective_From.ToString("dd-MMM-yyyy") to @h.Effective_To.ToString("dd-MMM-yyyy")</div></div>
+                <div class="col-md-2"><div class="text-muted small text-uppercase fw-semibold">Effective Period</div><div class="fw-semibold">@h.Effective_From.ToString("dd-MMM-yyyy") to @h.Effective_To.ToString("dd-MMM-yyyy")</div></div>
+                <div class="col-md-1"><div class="text-muted small text-uppercase fw-semibold">Frequency</div><div class="fw-semibold">@(h.Frequency_Of_Disbursal ?? "Monthly")</div></div>
                 <div class="col-md-1"><div class="text-muted small text-uppercase fw-semibold">Status</div>
                     @if (h.IsActive) { <span class="badge bg-success">Active</span> } else { <span class="badge bg-secondary">Inactive</span> }
                 </div>
