@@ -67,3 +67,26 @@ public sealed class HomeActivityItem
     public string? OpenUrl { get; set; }
     public string? OpenLabel { get; set; }
 }
+
+/// <summary>Select Role: what the user can do in the branch with one of their roles - modules, screens, key actions.</summary>
+public sealed class RoleAccessSummary
+{
+    public string? Role { get; set; }
+    /// <summary>Super admin: everything is open, whatever the role.</summary>
+    public bool FullAccess { get; set; }
+    public int ScreenCount { get; set; }
+    /// <summary>Actions beyond opening a screen (add, edit, print, approve ...) held on those screens.</summary>
+    public int ActionCount { get; set; }
+    public List<RoleAccessModule> Modules { get; set; } = new();
+    public List<RoleAccessAction> KeyActions { get; set; } = new();
+}
+
+public sealed class RoleAccessModule
+{
+    public string Title { get; set; } = string.Empty;
+    public string? Icon { get; set; }
+    public int ScreenCount { get; set; }
+    public List<string> Examples { get; set; } = new();
+}
+
+public sealed record RoleAccessAction(string Label, string Icon);

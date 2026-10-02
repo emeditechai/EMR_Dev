@@ -18,8 +18,12 @@ namespace EMR.Web.Services;
 /// </summary>
 public interface IHomeDashboardService
 {
-    /// <summary>The pages of the navigation the user may open, with their menu path - the same set the navbar shows.</summary>
-    Task<IReadOnlyList<HomePageLink>> GetPageCatalogAsync(HttpContext http);
+    /// <summary>The pages of the navigation the user may open, with their menu path - the same set the navbar shows.
+    /// <paramref name="subject"/> answers for another role of the signed-in user (Select Role); default: the session.</summary>
+    Task<IReadOnlyList<HomePageLink>> GetPageCatalogAsync(HttpContext http, PermissionSubject? subject = null);
+
+    /// <summary>A short summary of what the user can do in the branch with a role: modules, screens and key actions.</summary>
+    Task<RoleAccessSummary> GetRoleAccessSummaryAsync(HttpContext http, PermissionSubject subject);
 
     /// <summary>The distinct screens the user opened last in the branch, newest first.</summary>
     Task<IReadOnlyList<HomeRecentScreen>> GetRecentScreensAsync(HttpContext http, IReadOnlyList<HomePageLink> catalog,
@@ -75,16 +79,78 @@ public sealed class HomeDashboardService(
         && !EF.Functions.Like(x.ActionName, "%SmsFailed")
         && !EF.Functions.Like(x.ActionName, "%Notification%");
 
-    public async Task<IReadOnlyList<HomePageLink>> GetPageCatalogAsync(HttpContext http)
-    {
-        var subject = PermissionSubjectReader.FromPrincipal(http.User);
-        if (subject is null) return [];
+    // Key actions shown on Select Role, in this order: control code -> how the summary words it.
+    private static readonly (string Code, string Label, string Icon)[] KeyActions =
+    [
+        ("COLLECT_PAYMENT", "Collect payments", "bi-cash-coin"),
+        ("DISCOUNT", "Give discounts", "bi-percent"),
+        ("ENTRY", "Enter reports", "bi-pencil-square"),
+        ("VALIDATE", "Validate reports", "bi-check2-square"),
+        ("APPROVE", "Approve", "bi-patch-check"),
+        ("UNAUTHORIZE", "Un-approve reports", "bi-unlock"),
+        ("CANCEL", "Cancel bills", "bi-x-circle"),
+        ("REFUND", "Refund", "bi-arrow-counterclockwise"),
+        ("SETTLE", "Settle B2B bills", "bi-journal-check"),
+        ("PRINT", "Print", "bi-printer"),
+        ("EXPORT", "Export", "bi-download"),
+        ("IMPORT", "Bulk upload", "bi-upload"),
+        ("ADD", "Add records", "bi-plus-circle"),
+        ("EDIT", "Edit records", "bi-pencil"),
+        ("DELETE", "Delete records", "bi-trash"),
+    ];
 
-        var tree = await cache.GetOrCreateAsync($"authz:navtree:{subject.CompanyId}:{permissions.NavigationGeneration}", e =>
+    public async Task<RoleAccessSummary> GetRoleAccessSummaryAsync(HttpContext http, PermissionSubject subject)
+    {
+        var tree = await NavTreeAsync(subject.CompanyId);
+        var set = await permissions.GetPermissionSetAsync(subject);
+        var pages = await GetPageCatalogAsync(http, subject);
+        var summary = new RoleAccessSummary { Role = subject.ActiveRoleName, FullAccess = set.IsBypass, ScreenCount = pages.Count };
+        if (tree is null || pages.Count == 0) return summary;
+
+        // modules in navbar order, each with its screens
+        var rootIcons = tree.Menus.Where(m => m.Parent_Menu_ID == null && m.Menu_Type == "NAV")
+            .GroupBy(m => m.Title).ToDictionary(g => g.Key, g => g.First().Icon);
+        // the Home page itself is not a capability worth listing
+        var work = pages.Where(p => !NotWorkControllers.Contains(p.Controller)).ToList();
+        summary.ScreenCount = work.Count;
+        foreach (var group in work.GroupBy(p => p.Path.Split(" › ")[0]))
+        {
+            var titles = group.Select(p => p.Title).ToList();
+            summary.Modules.Add(new RoleAccessModule
+            {
+                Title = group.Key,
+                Icon = rootIcons.TryGetValue(group.Key, out var icon) ? icon : null,
+                ScreenCount = titles.Count,
+                Examples = titles.Take(3).ToList()
+            });
+        }
+
+        // key actions the role holds on at least one of those screens
+        var visible = work.Select(p => p.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var granted = set.Rows.Where(r => r.Permission == "A" && visible.Contains(r.Page_Code))
+            .Select(r => r.Control_Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        summary.ActionCount = set.Rows.Count(r => r.Permission == "A" && visible.Contains(r.Page_Code)
+                                                  && !string.Equals(r.Control_Code, PermissionControls.View, StringComparison.OrdinalIgnoreCase));
+        foreach (var (code, label, icon) in KeyActions)
+        {
+            if (granted.Contains(code)) summary.KeyActions.Add(new RoleAccessAction(label, icon));
+        }
+        return summary;
+    }
+
+    private Task<NavTree?> NavTreeAsync(int companyId)
+        => cache.GetOrCreateAsync($"authz:navtree:{companyId}:{permissions.NavigationGeneration}", e =>
         {
             e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
-            return permissionData.GetNavTreeAsync(subject.CompanyId);
+            return permissionData.GetNavTreeAsync(companyId);
         });
+
+    public async Task<IReadOnlyList<HomePageLink>> GetPageCatalogAsync(HttpContext http, PermissionSubject? subject = null)
+    {
+        subject ??= PermissionSubjectReader.FromPrincipal(http.User);
+        if (subject is null) return [];
+
+        var tree = await NavTreeAsync(subject.CompanyId);
         if (tree is null) return [];
 
         var set = await permissions.GetPermissionSetAsync(subject);

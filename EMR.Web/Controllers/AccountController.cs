@@ -20,7 +20,8 @@ public class AccountController(
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasherService,
     IAuditLogService auditLogService,
-    ILoginSecurity loginSecurity) : Controller
+    ILoginSecurity loginSecurity,
+    IHomeDashboardService home) : Controller
 {
     /// <summary>Sign-in attempts per client address per minute (clinics share one address, so this is generous).</summary>
     public const string SignInRateLimit = "signin";
@@ -414,6 +415,30 @@ public class AccountController(
         };
 
         return View(model);
+    }
+
+    /// <summary>
+    /// Select Role: what the signed-in user can do in the current branch with one of their roles there - the modules,
+    /// screens and key actions the menu will offer (same catalogue and permissions as the navbar). Only for a role the
+    /// user holds in the branch. Named under /Account/SelectRole... so the session guard (Program.cs) lets it through
+    /// before a role is chosen.
+    /// </summary>
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> SelectRoleSummaryJson(string role)
+    {
+        var userId = User.GetUserId();
+        var branchId = User.GetCurrentBranchId();
+        if (userId == 0 || branchId is null || string.IsNullOrWhiteSpace(role)) return BadRequest();
+
+        var holds = await dbContext.UserRoles
+            .Where(x => x.UserId == userId && x.IsActive && (x.Branch_ID == null || x.Branch_ID == branchId))
+            .Join(dbContext.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+            .AnyAsync(n => n == role);
+        if (!holds && !User.IsSuperAdmin()) return NotFound();
+
+        var subject = new PermissionSubject(userId, branchId.Value, User.GetCompanyId(), role);
+        return Json(await home.GetRoleAccessSummaryAsync(HttpContext, subject));
     }
 
     [HttpPost]
