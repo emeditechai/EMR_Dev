@@ -1,99 +1,42 @@
--- ============================================================
--- Script 19: Clear Transaction Data (DEV / TEST RESET ONLY)
--- ⚠  DO NOT RUN ON PRODUCTION
+-- ============================================================================
+-- Script 19: OPD transaction clean-up (production go-live / test reset)
+-- ----------------------------------------------------------------------------
+-- Uses the clean-up procedures in SQLScripts/DataCleanup (run DataCleanup/00_install_cleanup_procedures.sql once
+-- first). Safe by default: as it stands the script is a DRY RUN - it performs every delete, shows how many rows
+-- each table would lose, and rolls everything back. Nothing is deleted until @Execute = 1 and @Confirm are set.
 --
--- Clears ALL patient and OPD booking transactions while
--- preserving all master / reference data:
---   ✔ Branchmaster, Users, Roles, UserBranches
---   ✔ DoctorMaster, DoctorBranchMap, DoctorDepartmentMap
---   ✔ ServiceMaster, DoctorConsultingFees
---   ✔ Geography masters (Country/State/District/City/Area)
---   ✔ ReligionMaster, OccupationMaster, MaritalStatusMaster
---   ✔ IdentificationTypeMaster, DepartmentMaster
---   ✔ FloorMaster, DoctorRoomMaster, DoctorSpecialityMaster
+-- Clears, for the chosen company / branch:
+--   OPD bookings and bills (Patient Registration / Service Booking / Doctor Dashboard): booked services,
+--     payments (receipts, bill lines), Bill Cancellation & Refund (OPD), doctor consultations (EMR),
+--     video consultations, vitals, doctor disbursal and bill adjustments, ledger vouchers of OPD bills and
+--     cancellations, OPD / video WhatsApp messages and OPD audit entries of these bills;
+--   optionally Patient Master (OPD > Patient Master) - only patients nothing refers to any more; a patient
+--     with a LAB bill is kept until the LAB transactions are cleared too (DataCleanup/01).
+--   OPD bill numbers, tokens and cancellation numbers restart at 1 for each branch left without OPD bills;
+--   receipt numbers (shared with LAB) and patient codes when the branch has no payment / patient left.
+-- Kept: doctors, services, schedules, fees, all masters and settings; LAB data (see DataCleanup/01).
 --
--- Tables cleared (FK order — child first):
---   1. PatientOPDServiceItem
---   2. PatientOPDService
---   3. PatientMaster
---   4. OPDBillSequence   (reset counters)
---   5. OPDTokenSequence  (reset counters)
---   6. PatientCodeSeq    (reseed to 0)
--- ============================================================
+--   HOW TO RUN
+--     1. Select the database, run DataCleanup/00_install_cleanup_procedures.sql once.
+--     2. Set the scope below, run as it is (dry run) and read the result grid.
+--     3. Take a full database backup.
+--     4. Set @Execute = 1 and @Confirm = 'CLEAR <database name>' and run again.
+-- ============================================================================
+SET NOCOUNT ON;
 
-PRINT '=== Starting transaction data clear ===';
-PRINT 'Server  : ' + @@SERVERNAME;
-PRINT 'Database: ' + DB_NAME();
-PRINT 'Time    : ' + CONVERT(NVARCHAR, GETDATE(), 120);
-PRINT '';
+DECLARE @CompanyId      INT = NULL;   -- the company to clear (all its branches) ...
+DECLARE @BranchId       INT = NULL;   -- ... or one branch
+DECLARE @AllCompanies   BIT = 0;      -- 1 = every company (only when both ids above are NULL)
+DECLARE @ClearPatients  BIT = 1;      -- 1 = also Patient Master (patients nothing refers to any more)
+DECLARE @ClearAuditLogs BIT = 1;      -- 1 = also the OPD audit entries of the cleared bills
 
-BEGIN TRY
-    BEGIN TRANSACTION;
+DECLARE @Execute BIT           = 0;      -- 0 = dry run (nothing is changed)   1 = delete for real
+DECLARE @Confirm NVARCHAR(200) = N'';    -- with @Execute = 1: 'CLEAR ' + the database name
 
-    -- ── 1. Line items (child of PatientOPDService) ────────────────────────
-    IF OBJECT_ID('dbo.PatientOPDServiceItem', 'U') IS NOT NULL
-    BEGIN
-        DELETE FROM dbo.PatientOPDServiceItem;
-        PRINT 'Cleared: PatientOPDServiceItem  (' + CAST(@@ROWCOUNT AS NVARCHAR) + ' rows)';
-    END
-    ELSE
-        PRINT 'Skipped: PatientOPDServiceItem (table does not exist)';
+IF OBJECT_ID('cleanup.usp_Run', 'P') IS NULL
+    THROW 50130, 'Run SQLScripts/DataCleanup/00_install_cleanup_procedures.sql first: this script uses its procedures.', 1;
 
-    -- ── 2. OPD Service / Bill headers (child of PatientMaster) ───────────
-    IF OBJECT_ID('dbo.PatientOPDService', 'U') IS NOT NULL
-    BEGIN
-        DELETE FROM dbo.PatientOPDService;
-        PRINT 'Cleared: PatientOPDService       (' + CAST(@@ROWCOUNT AS NVARCHAR) + ' rows)';
-    END
-    ELSE
-        PRINT 'Skipped: PatientOPDService (table does not exist)';
-
-    -- ── 3. Patient Master ─────────────────────────────────────────────────
-    IF OBJECT_ID('dbo.PatientMaster', 'U') IS NOT NULL
-    BEGIN
-        DELETE FROM dbo.PatientMaster;
-        PRINT 'Cleared: PatientMaster           (' + CAST(@@ROWCOUNT AS NVARCHAR) + ' rows)';
-    END
-    ELSE
-        PRINT 'Skipped: PatientMaster (table does not exist)';
-
-    -- ── 4. OPD Bill Sequence counters ─────────────────────────────────────
-    IF OBJECT_ID('dbo.OPDBillSequence', 'U') IS NOT NULL
-    BEGIN
-        DELETE FROM dbo.OPDBillSequence;
-        PRINT 'Reset  : OPDBillSequence          (' + CAST(@@ROWCOUNT AS NVARCHAR) + ' rows)';
-    END
-    ELSE
-        PRINT 'Skipped: OPDBillSequence (table does not exist)';
-
-    -- ── 5. OPD Token Sequence counters ────────────────────────────────────
-    IF OBJECT_ID('dbo.OPDTokenSequence', 'U') IS NOT NULL
-    BEGIN
-        DELETE FROM dbo.OPDTokenSequence;
-        PRINT 'Reset  : OPDTokenSequence         (' + CAST(@@ROWCOUNT AS NVARCHAR) + ' rows)';
-    END
-    ELSE
-        PRINT 'Skipped: OPDTokenSequence (table does not exist)';
-
-    -- ── 6. Reseed PatientCodeSeq to 0 (next patient gets P000001) ─────────
-    IF EXISTS (SELECT 1 FROM sys.sequences WHERE name = 'PatientCodeSeq' AND schema_id = SCHEMA_ID('dbo'))
-    BEGIN
-        ALTER SEQUENCE dbo.PatientCodeSeq RESTART WITH 1;
-        PRINT 'Reseeded: PatientCodeSeq → next value = 1 (P000001)';
-    END
-    ELSE
-        PRINT 'Skipped: PatientCodeSeq sequence does not exist';
-
-    COMMIT TRANSACTION;
-    PRINT '';
-    PRINT '=== Transaction data cleared successfully ===';
-
-END TRY
-BEGIN CATCH
-    IF @@TRANCOUNT > 0 ROLLBACK;
-    PRINT '*** ERROR — rollback performed ***';
-    PRINT 'Message : ' + ERROR_MESSAGE();
-    PRINT 'Line    : ' + CAST(ERROR_LINE() AS NVARCHAR);
-    THROW;
-END CATCH
+DECLARE @Areas NVARCHAR(100) = CONCAT(N'OPD,', CASE WHEN @ClearPatients = 1 THEN N'PATIENTS,' END, N'SEQUENCES');
+EXEC cleanup.usp_Run @Areas = @Areas, @CompanyId = @CompanyId, @BranchId = @BranchId, @AllCompanies = @AllCompanies,
+                     @ClearAuditLogs = @ClearAuditLogs, @Execute = @Execute, @Confirm = @Confirm;
 GO
