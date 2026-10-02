@@ -184,13 +184,17 @@ public class AccountController(
             return RedirectToAction("Index", "Dashboard");
         }
 
+        // at sign-in the branch the user last worked in is pre-selected (none on a first sign-in)
+        var lastBranchId = isSwitch ? null : await LastBranchIdAsync(userId, branchOptions.Select(x => int.Parse(x.Value)));
+
         var viewModel = new BranchSelectionViewModel
         {
             DisplayName = string.IsNullOrWhiteSpace(user.FullName) ? user.Username : user.FullName,
             Branches = branchOptions,
             IsSwitch = isSwitch && currentBranchId.HasValue,
             CurrentBranchName = User.FindFirstValue("BranchName"),
-            BranchId = isSwitch ? currentBranchId ?? 0 : 0
+            BranchId = isSwitch ? currentBranchId ?? 0 : lastBranchId ?? 0,
+            IsLastUsedBranch = lastBranchId.HasValue
         };
 
         return View("SelectBranch", viewModel);
@@ -300,6 +304,7 @@ public class AccountController(
                 : roleNames.Count == 1 ? roleNames[0]
                 : roleNames.FirstOrDefault(r => string.Equals(r, preferredRole, StringComparison.OrdinalIgnoreCase));
             await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, roleNames, keepRole);
+            await RememberBranchAsync(userId, branchId, keepRole);
             await auditLogService.LogAsync("Auth", "SwitchBranch",
                 $"Switched branch from {switchedFrom} to {allowedBranch.Branch.BranchName}" + (keepRole is null ? "" : $" (role: {keepRole})"),
                 userId, branchId);
@@ -319,7 +324,7 @@ public class AccountController(
         {
             var activeRole = isSuperAdmin ? "Administrator" : (roleNames.Count == 1 ? roleNames[0] : null);
             await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, roleNames, activeRole);
-            await FinalizeLoginAsync(user, allowedBranch, userId);
+            await FinalizeLoginAsync(user, allowedBranch, userId, activeRole);
             return RedirectToAction("Index", "Dashboard");
         }
 
@@ -330,8 +335,9 @@ public class AccountController(
         return RedirectToAction(nameof(SelectRole));
     }
 
-    private async Task FinalizeLoginAsync(User user, UserBranch allowedBranch, int userId)
+    private async Task FinalizeLoginAsync(User user, UserBranch allowedBranch, int userId, string? activeRole = null)
     {
+        await RememberBranchAsync(userId, allowedBranch.BranchId, activeRole);
         try
         {
             user.LastLoginDate = DateTime.Now;
@@ -389,8 +395,12 @@ public class AccountController(
         var displayName = User.FindFirstValue("DisplayName") ?? User.Identity?.Name ?? string.Empty;
         var branchName = User.FindFirstValue("BranchName") ?? string.Empty;
 
+        // the role the user last worked in at this branch is pre-selected (none on a first sign-in)
+        var lastRole = await LastRoleNameAsync(userId, branchId.Value);
+
         var model = new RoleSelectionViewModel
         {
+            LastRoleName = roleNames.Select(r => r.Name).FirstOrDefault(n => string.Equals(n, lastRole, StringComparison.OrdinalIgnoreCase)),
             DisplayName = displayName,
             BranchName = branchName,
             ProfilePicturePath = User.FindFirstValue("ProfilePicturePath"),
@@ -464,9 +474,59 @@ public class AccountController(
         }
 
         await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, allRoleNames, selectedRole);
+        await RememberBranchAsync(userId, branchId, selectedRole);
 
         await auditLogService.LogAsync("Auth", "SelectRole", $"Active role set to: {selectedRole}", userId, branchId);
         return RedirectToAction("Index", "Dashboard");
+    }
+
+    // ---- Last branch / role (UserBranchLastLogin, script 2187) --------------------------------------------------------
+    // A convenience only: a failure here never blocks or changes a sign-in.
+
+    /// <summary>Records that the user is working in the branch now, and the role when known (null keeps the last one).</summary>
+    private async Task RememberBranchAsync(int userId, int branchId, string? roleName)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"EXEC dbo.usp_UserBranchLastLogin_Save @UserId = {userId}, @BranchId = {branchId}, @RoleName = {roleName}");
+        }
+        catch
+        {
+            // non-critical
+        }
+    }
+
+    /// <summary>The branch, among those offered, that the user last worked in; null when there is none (first sign-in).</summary>
+    private async Task<int?> LastBranchIdAsync(int userId, IEnumerable<int> offeredBranchIds)
+    {
+        try
+        {
+            var offered = offeredBranchIds.ToHashSet();
+            var recent = await dbContext.Database
+                .SqlQuery<int>($"SELECT BranchId AS Value FROM dbo.UserBranchLastLogin WHERE UserId = {userId} ORDER BY LastLoginDate DESC")
+                .ToListAsync();
+            return recent.Where(offered.Contains).Select(id => (int?)id).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The role the user last worked in at the branch; null when there is none.</summary>
+    private async Task<string?> LastRoleNameAsync(int userId, int branchId)
+    {
+        try
+        {
+            return (await dbContext.Database
+                .SqlQuery<string>($"SELECT LastRoleName AS Value FROM dbo.UserBranchLastLogin WHERE UserId = {userId} AND BranchId = {branchId} AND LastRoleName IS NOT NULL")
+                .ToListAsync()).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string MapRoleIcon(string roleName) => roleName.ToLowerInvariant() switch

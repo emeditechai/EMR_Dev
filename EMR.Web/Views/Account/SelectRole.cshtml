@@ -61,20 +61,25 @@
                 <form asp-action="SelectRole" method="post" novalidate id="roleForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="rememberMe" value="@Model.RememberMe.ToString().ToLower()" />
-                    <input type="hidden" name="selectedRole" id="selectedRoleInput" />
+                    <input type="hidden" name="selectedRole" id="selectedRoleInput" value="@Model.LastRoleName" />
 
                     <div class="role-card-grid mb-4">
                         @foreach (var role in Model.Roles)
                         {
-                            <button type="button" class="role-card" onclick="selectRole('@role.Name', this)">
+                            var isLastUsed = string.Equals(role.Name, Model.LastRoleName, StringComparison.OrdinalIgnoreCase);
+                            <button type="button" class="role-card@(isLastUsed ? " selected" : "")" onclick="selectRole('@role.Name', this)">
                                 <i class="bi @role.Icon role-card-icon"></i>
                                 <span class="role-card-name">@role.Name</span>
+                                @if (isLastUsed)
+                                {
+                                    <span class="small text-muted"><i class="bi bi-clock-history me-1"></i>Last used</span>
+                                }
                                 <i class="bi bi-check-circle-fill role-card-check"></i>
                             </button>
                         }
                     </div>
 
-                    <button type="submit" id="continueBtn" class="btn auth-signin-btn w-100" disabled>
+                    <button type="submit" id="continueBtn" class="btn auth-signin-btn w-100" @(Model.LastRoleName is null ? "disabled" : null)>
                         <i class="bi bi-arrow-right-circle me-2"></i>Continue to Dashboard
                     </button>
                 </form>
