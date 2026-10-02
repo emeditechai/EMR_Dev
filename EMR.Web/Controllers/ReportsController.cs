@@ -9,10 +9,15 @@ namespace EMR.Web.Controllers;
 public class ReportsController : Controller
 {
     private readonly IReportApiClient _reportApi;
+    private readonly EMR.Shared.Security.IActionPermissionGuard _permissionGuard;
+    private readonly EMR.Web.Services.IAuditLogService _auditLog;
 
-    public ReportsController(IReportApiClient reportApi)
+    public ReportsController(IReportApiClient reportApi, EMR.Shared.Security.IActionPermissionGuard permissionGuard,
+        EMR.Web.Services.IAuditLogService auditLog)
     {
         _reportApi = reportApi;
+        _permissionGuard = permissionGuard;
+        _auditLog = auditLog;
     }
 
     [HttpGet]
@@ -135,6 +140,11 @@ public class ReportsController : Controller
         ["b2b-partner-billing"] = new[] { "partnerType", "partner" },
         ["franchise-wallet"]    = new[] { "transactionType", "franchiseId" },
         ["b2b-outstanding"]     = new[] { "partnerType", "ageBucket" },
+        // Sample stage (LR-10 / LR-11 / LR-12)
+        ["samples-pending"]     = new[] { "collectionType", "waitBand", "pendingStatus", "createdBy", "phlebotomistId" },
+        ["sample-rejection"]    = new[] { "outcome", "reasonId", "collectedBy" },
+        ["sample-transfer"]     = new[] { "direction", "transferStatus", "otherBranchId" },
+        ["outsourced-tests"]    = new[] { "outsourceStatus", "outsideLab" },
     };
 
     private IActionResult LabReportPage(string viewName)
@@ -150,6 +160,75 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabB2BPartnerBilling() => LabReportPage("LabB2BPartnerBilling");
     [HttpGet] public IActionResult LabFranchiseWallet() => LabReportPage("LabFranchiseWallet");
     [HttpGet] public IActionResult LabB2BOutstanding() => LabReportPage("LabB2BOutstanding");
+    [HttpGet] public IActionResult LabSamplesPending() => LabReportPage("LabSamplesPending");
+    [HttpGet] public IActionResult LabSampleRejection() => LabReportPage("LabSampleRejection");
+    [HttpGet] public IActionResult LabSampleTransfer() => LabReportPage("LabSampleTransfer");
+    [HttpGet] public IActionResult LabOutsourcedTests() => LabReportPage("LabOutsourcedTests");
+
+    // ── LR-13 Outsourced Test Register: Mark sent / Mark result received ──
+    // Each is its own control of the page (Settings > Security); the procedure validates the test and the dates.
+    private const string OutsourcedPage = "REPORTS.LABOUTSOURCED";
+
+    public sealed class OutsourceActionInput
+    {
+        public int LabOrderId { get; set; }
+        public string SampleIds { get; set; } = string.Empty;
+        public string? BillNo { get; set; }
+        public string? TestName { get; set; }
+        public string? OutsideLab { get; set; }
+        public string? ExternalRefNo { get; set; }
+        public DateTime? ActionOn { get; set; }
+        public string? Remarks { get; set; }
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> MarkOutsourceSent([FromBody] OutsourceActionInput input) =>
+        OutsourceActionAsync("sent", "OUTSOURCE_SEND", input);
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> MarkOutsourceReceived([FromBody] OutsourceActionInput input) =>
+        OutsourceActionAsync("received", "OUTSOURCE_RESULT", input);
+
+    private async Task<IActionResult> OutsourceActionAsync(string action, string control, OutsourceActionInput input)
+    {
+        if (input == null || input.LabOrderId <= 0 || string.IsNullOrWhiteSpace(input.SampleIds))
+            return Json(new { success = false, message = "Select the outsourced test first." });
+        if (!await _permissionGuard.AllowsAsync(HttpContext, OutsourcedPage, control))
+            return Json(new { success = false, code = "FORBIDDEN", message = action == "sent"
+                ? "You do not have permission to mark samples as sent to an outside lab."
+                : "You do not have permission to record outside-lab results." });
+
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        var result = await _reportApi.LabOutsourceActionAsync(action, new LabOutsourceActionModel
+        {
+            BranchId = branchId, LabOrderId = input.LabOrderId, SampleIds = input.SampleIds,
+            OutsideLab = input.OutsideLab, ExternalRefNo = input.ExternalRefNo, ActionOn = input.ActionOn, Remarks = input.Remarks,
+            UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
+        });
+        if (!result.IsSuccess)
+            return Json(new { success = false, message = result.ErrorMessage ?? "The action was not accepted." });
+
+        try
+        {
+            await _auditLog.LogActivityAsync(
+                eventType: "Lab Outsourcing",
+                actionName: action == "sent" ? "LAB.OutsourceSent" : "LAB.OutsourceResultReceived",
+                description: action == "sent"
+                    ? $"{input.TestName} of bill {input.BillNo} sent to outside lab {input.OutsideLab}{(string.IsNullOrWhiteSpace(input.ExternalRefNo) ? "" : $" (ref {input.ExternalRefNo})")}."
+                    : $"Outside-lab result of {input.TestName} of bill {input.BillNo} received.",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "LAB",
+                referenceNo: input.BillNo,
+                referenceId: input.LabOrderId,
+                metadata: new { input.LabOrderId, input.SampleIds, input.TestName, input.OutsideLab, input.ExternalRefNo, input.ActionOn, input.Remarks });
+        }
+        catch { /* audit only */ }
+
+        return Json(new { success = true, message = action == "sent" ? "Marked as sent to the outside lab." : "Outside-lab result recorded." });
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetLabReportData(string report, string fromDate, string toDate, string? search)

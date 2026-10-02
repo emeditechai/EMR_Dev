@@ -12,5 +12,7 @@ public interface IReportService
         int? approvedBy, int? enteredBy, string? search, int userId, bool isAdmin, bool isSuperAdmin);
     /// <summary>Runs one of the registered LAB report procedures (summary / groups / rows / options result sets).</summary>
     Task<LabReportResult> RunLabReportAsync(string storedProcedure, IDictionary<string, object?> parameters);
+    /// <summary>Runs a LAB register action procedure (e.g. LR-13 Mark sent); returns the rows it changed.</summary>
+    Task<int> ExecuteLabActionAsync(string storedProcedure, IDictionary<string, object?> parameters);
 }
 

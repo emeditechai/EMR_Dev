@@ -112,7 +112,50 @@ public class ReportsController : ControllerBase
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner" },              Array.Empty<string>()),
             ["franchise-wallet"]    = ("dbo.usp_Api_LabReport_FranchiseWallet",    new[] { "TransactionType" },                     new[] { "FranchiseId" }),
             ["b2b-outstanding"]     = ("dbo.usp_Api_LabReport_B2BOutstanding",     new[] { "PartnerType", "AgeBucket" },            Array.Empty<string>()),
+            // Sample stage: LR-10 / LR-11 / LR-12 (SQLScripts/2183)
+            ["samples-pending"]     = ("dbo.usp_Api_LabReport_SamplesPendingCollection", new[] { "CollectionType", "WaitBand", "PendingStatus" }, new[] { "CreatedBy", "PhlebotomistId" }),
+            ["sample-rejection"]    = ("dbo.usp_Api_LabReport_SampleRejection",   new[] { "Outcome" },                             new[] { "ReasonId", "CollectedBy" }),
+            ["sample-transfer"]     = ("dbo.usp_Api_LabReport_SampleTransfer",    new[] { "Direction", "TransferStatus" },          new[] { "OtherBranchId" }),
+            // LR-13 (SQLScripts/2185); outside lab names are long, the prefix is enough to filter on
+            ["outsourced-tests"]    = ("dbo.usp_Api_LabReport_OutsourcedTests",   new[] { "OutsourceStatus", "OutsideLab" },        Array.Empty<string>()),
         };
+
+    /// <summary>LR-13: an outsourced test sent to an outside lab (or its sending details corrected). Validated by the procedure.</summary>
+    [HttpPost("lab/outsource/sent")]
+    public Task<IActionResult> MarkOutsourceSent([FromBody] LabOutsourceActionRequest req) =>
+        RunOutsourceAction("dbo.usp_LabOutsource_MarkSent", req, new Dictionary<string, object?>
+        {
+            ["OutsideLab"] = req.OutsideLab, ["ExternalRefNo"] = req.ExternalRefNo, ["SentOn"] = req.ActionOn
+        });
+
+    /// <summary>LR-13: the outside lab's result of an outsourced test received.</summary>
+    [HttpPost("lab/outsource/received")]
+    public Task<IActionResult> MarkOutsourceReceived([FromBody] LabOutsourceActionRequest req) =>
+        RunOutsourceAction("dbo.usp_LabOutsource_MarkReceived", req, new Dictionary<string, object?> { ["ReceivedOn"] = req.ActionOn });
+
+    private async Task<IActionResult> RunOutsourceAction(string procedure, LabOutsourceActionRequest req, Dictionary<string, object?> extra)
+    {
+        if (req == null || req.BranchId <= 0 || req.LabOrderId <= 0 || string.IsNullOrWhiteSpace(req.SampleIds))
+            return BadRequest(new { message = "Select the outsourced test first." });
+        var parameters = new Dictionary<string, object?>
+        {
+            ["BranchId"] = req.BranchId, ["LabOrderId"] = req.LabOrderId, ["SampleIds"] = req.SampleIds,
+            ["Remarks"] = req.Remarks, ["UserId"] = req.UserId, ["IsSuperAdmin"] = req.IsSuperAdmin
+        };
+        foreach (var kv in extra) parameters[kv.Key] = kv.Value;
+        try
+        {
+            return Ok(new { rows = await _reportService.ExecuteLabActionAsync(procedure, parameters) });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50020)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 50010 or 50011)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+    }
 
     [HttpGet("lab/run/{report}")]
     public async Task<IActionResult> RunLabReport(
@@ -156,4 +199,18 @@ public class ReportsController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
     }
+}
+
+/// <summary>LR-13 Mark sent / Mark result received: one billed outsourced test (its sample ids) of a lab order.</summary>
+public sealed class LabOutsourceActionRequest
+{
+    public int BranchId { get; set; }
+    public int LabOrderId { get; set; }
+    public string SampleIds { get; set; } = string.Empty;
+    public string? OutsideLab { get; set; }
+    public string? ExternalRefNo { get; set; }
+    public DateTime? ActionOn { get; set; }
+    public string? Remarks { get; set; }
+    public int UserId { get; set; }
+    public bool IsSuperAdmin { get; set; }
 }

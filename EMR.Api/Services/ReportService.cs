@@ -113,4 +113,11 @@ public class ReportService : IReportService
         if (!multi.IsConsumed) result.Options = (await multi.ReadAsync()).Select(Row).ToList();
         return result;
     }
+
+    public async Task<int> ExecuteLabActionAsync(string storedProcedure, IDictionary<string, object?> parameters)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        return await connection.ExecuteScalarAsync<int>(storedProcedure, new DynamicParameters(parameters),
+            commandType: CommandType.StoredProcedure, commandTimeout: 60);
+    }
 }

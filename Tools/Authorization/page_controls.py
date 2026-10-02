@@ -34,6 +34,7 @@ STANDARD = {
 IN_ACTION = {
     ("LAB.LABREPORTING", "APPROVE"), ("LAB.LABIMAGEREPORTING", "APPROVE"),
     ("LAB.LABREPORTING", "VALIDATE"), ("LAB.LABIMAGEREPORTING", "VALIDATE"),   # a save with status Validated (3)
+    ("LAB.MICROBIOLOGYREPORTING", "APPROVE"), ("LAB.MICROBIOLOGYREPORTING", "VALIDATE"),
     ("OPD.PATIENTREGISTRATION", "DISCOUNT"), ("OPD.SERVICEBOOKING", "DISCOUNT"), ("OPD.DASHBOARD", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CBOOKING", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BBOOKING", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CORDERLIST", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BREGISTRATION", "DISCOUNT"),
@@ -78,6 +79,15 @@ OVERRIDES = {
     ("LAB.LABIMAGEREPORTING", "LabImageReporting", "SaveReportJson"): ("ENTRY", "Report entry"),
     ("*", "LabReporting", "Entry"): ("VIEW", None),            # opening a report from another screen reads it
     ("*", "LabImageReporting", "Entry"): ("VIEW", None),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "Entry"): ("ENTRY", "Report entry"),
+    ("REPORTS.LABOUTSOURCED", "Reports", "MarkOutsourceSent"): ("OUTSOURCE_SEND", "Mark sent to outside lab"),
+    ("REPORTS.LABOUTSOURCED", "Reports", "MarkOutsourceReceived"): ("OUTSOURCE_RESULT", "Record outside-lab result"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "SaveEntryJson"): ("ENTRY", "Report entry"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "CalculateFormulasJson"): ("VIEW", None),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "UpdateSampleStatusJson"): ("SAMPLE_STATUS", "Reject / re-collect sample"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "PrintReportPdf"): ("PRINT", "Print"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "LogReportPrintedJson"): ("PRINT", "Print"),
+    ("*", "MicrobiologyReporting", "Entry"): ("VIEW", None),
     ("*", "LabReporting", "LogReportPrintedJson"): ("PRINT", "Print"),
     ("LAB.SAMPLECOLLECTION", "SampleCollection", "CollectAllJson"): ("COLLECT", "Collect sample"),
     ("LAB.SAMPLECOLLECTION", "SampleCollection", "UpdateStatusJson"): ("COLLECT", "Collect sample"),

@@ -138,4 +138,27 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
             return ReportApiResult<string>.FailureResult(ex.Message);
         }
     }
+
+    public async Task<ReportApiResult<int>> LabOutsourceActionAsync(string action, LabOutsourceActionModel request)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync($"/api/reports/lab/outsource/{(action == "received" ? "received" : "sent")}", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var ok = await response.Content.ReadFromJsonAsync<Dictionary<string, int>>();
+                return ReportApiResult<int>.SuccessResult(ok?.GetValueOrDefault("rows") ?? 0);
+            }
+            if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest)
+            {
+                var body = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                return ReportApiResult<int>.FailureResult(body?.GetValueOrDefault("message")?.ToString() ?? "The action was not accepted.");
+            }
+            return ReportApiResult<int>.FailureResult($"Failed with status {response.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            return ReportApiResult<int>.FailureResult(ex.Message);
+        }
+    }
 }
