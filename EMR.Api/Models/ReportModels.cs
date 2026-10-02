@@ -2,29 +2,32 @@ namespace EMR.Api.Models;
 
 public class DailyCollectionRegisterItem
 {
-    public int PaymentHeaderId { get; set; }
-    public string OPDBillNo { get; set; } = string.Empty;
-    public string PatientCode { get; set; } = string.Empty;
-    public string PatientName { get; set; } = string.Empty;
+    // One receipt (EntryType = RECEIPT) or one refund paid out (EntryType = REFUND) in the period -
+    // usp_Api_Report_DailyCollectionRegister (script 2192). Bill amounts describe the bill the receipt was taken against.
+    public string EntryType { get; set; } = "RECEIPT";
+    public int EntryId { get; set; }
+    public int? PaymentHeaderId { get; set; }
     public DateTime PaymentDate { get; set; }
-    
-    public decimal TotalAmount { get; set; }
-    public decimal DiscountAmount { get; set; }
-    public decimal NetAmount { get; set; }
-    public decimal GstAmount { get; set; }
-    public decimal TotalPaid { get; set; }
-    public string? PaymentStatus { get; set; }
-    public string? PaymentModes { get; set; }
+    public string? ReceiptNo { get; set; }
+    public string? ModuleCode { get; set; }
+    public int? ModuleRefId { get; set; }
+    public string BillNo { get; set; } = string.Empty;
+    public string? PatientCode { get; set; }
+    public string? PatientName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? DoctorName { get; set; }
 
-    // Detailed Report (Item Wise) specific fields
-    public string? ItemName { get; set; }
-    public string? ServiceType { get; set; }
-    public decimal ServiceCharges { get; set; }
-    public decimal ItemDiscount { get; set; }
-    public decimal GstPercentage { get; set; }
-    public decimal ItemGstAmount { get; set; }
-    public decimal ItemTotalAmount { get; set; }
-    
+    public decimal BillAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal GstAmount { get; set; }
+    public decimal NetAmount { get; set; }
+    public decimal BalanceDue { get; set; }
+    public string? PaymentStatus { get; set; }
+
+    /// <summary>The receipt's amount (or the refund's).</summary>
+    public decimal Amount { get; set; }
+    public string? PaymentMode { get; set; }
+    public string? Reference { get; set; }
     public string? CollectedBy { get; set; }
 }
 

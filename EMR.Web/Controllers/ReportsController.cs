@@ -40,7 +40,8 @@ public class ReportsController : Controller
         if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
         if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
 
-        var result = await _reportApi.GetDailyCollectionRegisterAsync(branchId, fDate, tDate, isDetailed, companyId);
+        // Reports > OPD > Daily Collection: OPD receipts only (LAB has its own collection register)
+        var result = await _reportApi.GetDailyCollectionRegisterAsync(branchId, fDate, tDate, isDetailed, companyId, "OPD");
         if (result.IsSuccess)
         {
             return Json(new { success = true, data = result.Data });

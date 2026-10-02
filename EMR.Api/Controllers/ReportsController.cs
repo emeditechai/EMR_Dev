@@ -22,9 +22,10 @@ public class ReportsController : ControllerBase
         [FromQuery] DateTime fromDate,
         [FromQuery] DateTime toDate,
         [FromQuery] bool isDetailed = false,
-        [FromQuery] int? companyId = null)
+        [FromQuery] int? companyId = null,
+        [FromQuery] string? moduleCode = null)
     {
-        var result = await _reportService.GetDailyCollectionRegisterAsync(companyId, branchId, fromDate, toDate, isDetailed);
+        var result = await _reportService.GetDailyCollectionRegisterAsync(companyId, branchId, fromDate, toDate, isDetailed, moduleCode);
         return Ok(result);
     }
 

@@ -8,7 +8,7 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
 {
     private readonly HttpClient _http = factory.CreateClient("EmrApi");
 
-    public async Task<ReportApiResult<List<DailyCollectionRegisterItem>>> GetDailyCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool isDetailed, int? companyId = null)
+    public async Task<ReportApiResult<List<DailyCollectionRegisterItem>>> GetDailyCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool isDetailed, int? companyId = null, string? moduleCode = null)
     {
         try
         {
@@ -17,6 +17,7 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
             {
                 url += $"&companyId={companyId.Value}";
             }
+            if (!string.IsNullOrWhiteSpace(moduleCode)) url += $"&moduleCode={Uri.EscapeDataString(moduleCode)}";
             var response = await _http.GetAsync(url);
             
             if (response.IsSuccessStatusCode)
