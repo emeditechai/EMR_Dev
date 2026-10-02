@@ -5,6 +5,14 @@ using EMR.Web.Models.Entities;
 namespace EMR.Web.Models.ViewModels;
 
 // ─── Roster Calendar Booking Summary ─────────────────────────────────────────
+/// <summary>Doctor Roster: open bookings of one doctor on one day.</summary>
+public class RosterBookingCount
+{
+    public int DoctorId { get; set; }
+    public DateTime VisitDate { get; set; }
+    public int Bookings { get; set; }
+}
+
 public class RosterBookingSummary
 {
     public int      OPDServiceId        { get; set; }

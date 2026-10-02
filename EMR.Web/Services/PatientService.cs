@@ -432,6 +432,23 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
     }
 
 
+    public async Task<IEnumerable<RosterBookingCount>> GetRosterBookingCountsAsync(int branchId, DateOnly from, DateOnly to)
+    {
+        // Same rows as usp_RosterBookings_GetByDoctorDate, less the Completed ones (the roster pop-up leaves those out too).
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<RosterBookingCount>(@"
+            SELECT s.ConsultingDoctorId AS DoctorId, CAST(s.VisitDate AS DATE) AS VisitDate, COUNT(*) AS Bookings
+            FROM PatientOPDService s
+            INNER JOIN PatientMaster p ON p.PatientId = s.PatientId
+            WHERE s.IsActive = 1 AND p.IsActive = 1
+              AND ISNULL(s.Status, '') <> 'Completed'
+              AND s.ConsultingDoctorId IS NOT NULL
+              AND s.VisitDate >= @From AND s.VisitDate < DATEADD(DAY, 1, @To)
+              AND s.BranchId = @BranchId
+            GROUP BY s.ConsultingDoctorId, CAST(s.VisitDate AS DATE)",
+            new { BranchId = branchId, From = from.ToDateTime(TimeOnly.MinValue), To = to.ToDateTime(TimeOnly.MinValue) });
+    }
+
     // ─── Latest OPD Service ───────────────────────────────────────────────────
 
     public async Task<PatientOPDService?> GetLatestOPDServiceAsync(int patientId)

@@ -99,4 +99,6 @@ public interface IPatientService
     /// Returns all bookings for a specific doctor on a specific date (used for roster calendar hover summary).
     /// </summary>
     Task<IEnumerable<RosterBookingSummary>> GetBookingsByDoctorDateAsync(int doctorId, DateOnly date, int branchId);
+    /// <summary>Doctor Roster: open (not Completed) bookings per doctor and day in a date range - the same rows the day pop-up lists.</summary>
+    Task<IEnumerable<RosterBookingCount>> GetRosterBookingCountsAsync(int branchId, DateOnly from, DateOnly to);
 }
