@@ -516,29 +516,40 @@
     {
         <script>
             (function () {
+                // Idle sign-out after 60 minutes without activity in ANY tab of this login (activity is shared via localStorage).
                 var idleLimitMs = 60 * 60 * 1000;
+                var activityKey = '__emr_last_activity';
                 var lastActivityAt = Date.now();
                 var idleExceeded = false;
                 var redirecting = false;
                 var logoutUrl = '@Url.Action("SessionTimeoutLogout", "Account")';
 
+                function sharedLastActivity() {
+                    var shared = 0;
+                    try { shared = +(localStorage.getItem(activityKey) || 0); } catch (e) {}
+                    return Math.max(lastActivityAt, shared);
+                }
+                function markActivity(now) {
+                    lastActivityAt = now;
+                    try { localStorage.setItem(activityKey, String(now)); } catch (e) {}
+                }
+
                 function handleInteraction() {
                     if (redirecting) return;
 
                     var now = Date.now();
-                    if (idleExceeded || (now - lastActivityAt) >= idleLimitMs) {
+                    if (idleExceeded || (now - sharedLastActivity()) >= idleLimitMs) {
                         redirecting = true;
                         window.location.href = logoutUrl;
                         return;
                     }
 
-                    lastActivityAt = now;
+                    markActivity(now);
                 }
 
+                markActivity(Date.now());   // opening a page is activity
                 setInterval(function () {
-                    if ((Date.now() - lastActivityAt) >= idleLimitMs) {
-                        idleExceeded = true;
-                    }
+                    idleExceeded = (Date.now() - sharedLastActivity()) >= idleLimitMs;
                 }, 1000);
 
                 ['click', 'keydown', 'mousedown', 'touchstart'].forEach(function (evt) {
@@ -547,19 +558,41 @@
             })();
         </script>
         <script>
+            // Sign-out when the browser is closed - but one login works in every tab.
+            // Each signed-in tab carries a marker in sessionStorage (per tab), keeps a shared heartbeat in localStorage
+            // and answers "anyone here?" on a BroadcastChannel. A tab without the marker (a new tab, or the browser
+            // reopened) joins the session when another signed-in tab is open; only when none is open is the session ended.
             (function () {
-                var tabKey = '__emr_tab_session';
+                var tabKey = '__emr_tab_session', beatKey = '__emr_tab_heartbeat', beatEvery = 10000, beatFresh = 90000;
+                var logoutUrl = '@Url.Action("SessionTimeoutLogout", "Account")';
+                var channel = null;
+                try { channel = 'BroadcastChannel' in window ? new BroadcastChannel('emr-tab-session') : null; } catch (e) { channel = null; }
+
+                function beat() { try { localStorage.setItem(beatKey, String(Date.now())); } catch (e) {} }
+                function joined() {
+                    try { sessionStorage.setItem(tabKey, '1'); } catch (e) {}
+                    beat();
+                    setInterval(beat, beatEvery);
+                    document.addEventListener('visibilitychange', function () { if (!document.hidden) beat(); });
+                    if (channel) channel.onmessage = function (e) { if (e.data === 'who') { channel.postMessage('here'); beat(); } };
+                }
+
                 try {
-                    if (!sessionStorage.getItem(tabKey)) {
-                        if (document.cookie.indexOf('__emr_fresh_login=') !== -1) {
-                            sessionStorage.setItem(tabKey, '1');
-                            document.cookie = '__emr_fresh_login=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                        } else {
-                            window.location.href = '@Url.Action("SessionTimeoutLogout", "Account")';
-                            return;
-                        }
+                    if (sessionStorage.getItem(tabKey)) { joined(); return; }                     // this tab is already signed in
+                    if (document.cookie.indexOf('__emr_fresh_login=') !== -1) {                   // the tab that just logged in
+                        document.cookie = '__emr_fresh_login=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                        joined(); return;
                     }
-                } catch (e) {}
+                    var last = +(localStorage.getItem(beatKey) || 0);
+                    if (last && Date.now() - last < beatFresh) { joined(); return; }              // another tab was active just now
+                    if (!channel) { window.location.href = logoutUrl; return; }
+
+                    // ask the open tabs; no answer = no signed-in tab is open (the browser was closed)
+                    var answered = false;
+                    channel.onmessage = function (e) { if (e.data === 'here' && !answered) { answered = true; joined(); } };
+                    channel.postMessage('who');
+                    setTimeout(function () { if (!answered) window.location.href = logoutUrl; }, 1200);
+                } catch (e) { }
             })();
         </script>
     }
