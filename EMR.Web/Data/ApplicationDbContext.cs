@@ -518,7 +518,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<PatientOPDService>(entity =>
         {
-            entity.ToTable("PatientOPDService");
+            // trg_PatientOPDService_TokenLog (script 2191) logs token / status changes; EF must not use OUTPUT on it
+            entity.ToTable("PatientOPDService", tb => tb.HasTrigger("trg_PatientOPDService_TokenLog"));
             entity.HasKey(x => x.OPDServiceId);
             entity.HasOne(x => x.Patient)
                   .WithMany()

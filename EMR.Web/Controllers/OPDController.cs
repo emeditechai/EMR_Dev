@@ -1068,7 +1068,43 @@ public class OPDController(
             .Where(item => !videoOpdIds.Contains(item.OPDServiceId))
             .ToList();
 
-        return Json(new { isSuccess = true, data = new { result.TotalCount, result.TotalFeesAll, result.RegisteredCount, result.CompletedCount, Items = filtered } });
+        // ── Time line of each token (OPDTokenStatusLog, script 2191): issued, called in, completed ─────────
+        var timing = new Dictionary<int, object>();
+        var ids = filtered.Select(i => i.OPDServiceId).Distinct().ToArray();
+        if (ids.Length > 0)
+        {
+            try
+            {
+                using var con = db.CreateConnection();
+                var rows = await con.QueryAsync(@"
+                    SELECT s.OPDServiceId, s.Status, s.VisitDate, s.AppointmentTime, s.CreatedDate,
+                           (SELECT MIN(l.ChangedAt) FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.EventType = 'TOKEN') AS IssuedAt,
+                           (SELECT MAX(l.ChangedAt) FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.EventType = 'STATUS' AND l.ToStatus = 'Consulting') AS ConsultingAt,
+                           (SELECT MAX(l.ChangedAt) FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.EventType = 'STATUS' AND l.ToStatus = 'Completed') AS CompletedAt,
+                           CAST(CASE WHEN EXISTS (SELECT 1 FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.Source = 'BACKFILL')
+                                      AND NOT EXISTS (SELECT 1 FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.Source = 'LIVE' AND l.EventType = 'STATUS' AND l.FromStatus IS NOT NULL)
+                                     THEN 1 ELSE 0 END AS BIT) AS Approximate
+                    FROM PatientOPDService s
+                    WHERE s.OPDServiceId IN @ids", new { ids });
+                foreach (var r in rows)
+                {
+                    DateTime? slot = r.AppointmentTime is TimeSpan t && r.VisitDate is DateTime vd ? vd.Date + t : null;
+                    timing[(int)r.OPDServiceId] = new
+                    {
+                        issuedAt = (DateTime?)r.IssuedAt ?? (DateTime?)r.CreatedDate,
+                        slotAt = slot,
+                        consultingAt = (DateTime?)r.ConsultingAt,
+                        completedAt = (DateTime?)r.CompletedAt,
+                        approximate = (bool)r.Approximate
+                    };
+                }
+            }
+            catch { /* the board still works without timers */ }
+        }
+
+        // serverNow carries no offset, like the stamps above, so the browser reads them all the same way
+        return Json(new { isSuccess = true, serverNow = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified), timing,
+                          data = new { result.TotalCount, result.TotalFeesAll, result.RegisteredCount, result.CompletedCount, Items = filtered } });
     }
 
     [HttpPost]
