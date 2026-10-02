@@ -18,13 +18,16 @@ public class VitalEntryViewModel
     public string? PatientPhone { get; set; }
     public string? PatientAddress { get; set; }
 
+    // Only what the database can store is enforced here (no negatives, fits the column). Clinical ranges are
+    // warnings on the form - an unusual value can still be saved after the user confirms it.
+
     // ── Anthropometric ──────────────────────────────────────────────
     [Display(Name = "Height (cm)")]
-    [Range(30, 250, ErrorMessage = "Height must be 30–250 cm")]
+    [Range(0, 9999.99, ErrorMessage = "Height must be a positive number.")]
     public decimal? Height { get; set; }
 
     [Display(Name = "Weight (kg)")]
-    [Range(1, 300, ErrorMessage = "Weight must be 1–300 kg")]
+    [Range(0, 9999.99, ErrorMessage = "Weight must be a positive number.")]
     public decimal? Weight { get; set; }
 
     // Calculated, no user input
@@ -33,33 +36,33 @@ public class VitalEntryViewModel
 
     // ── Cardiovascular ──────────────────────────────────────────────
     [Display(Name = "Systolic BP (mmHg)")]
-    [Range(50, 250, ErrorMessage = "Value 50–250")]
+    [Range(0, 9999, ErrorMessage = "Systolic BP must be a positive number.")]
     public int? BPSystolic { get; set; }
 
     [Display(Name = "Diastolic BP (mmHg)")]
-    [Range(30, 150, ErrorMessage = "Value 30–150")]
+    [Range(0, 9999, ErrorMessage = "Diastolic BP must be a positive number.")]
     public int? BPDiastolic { get; set; }
 
     [Display(Name = "Pulse Rate (bpm)")]
-    [Range(20, 250, ErrorMessage = "Value 20–250")]
+    [Range(0, 9999, ErrorMessage = "Pulse must be a positive number.")]
     public int? PulseRate { get; set; }
 
     [Display(Name = "SpO₂ (%)")]
-    [Range(50, 100, ErrorMessage = "Value 50–100")]
+    [Range(0, 100, ErrorMessage = "SpO₂ is a percentage: 0–100.")]
     public decimal? SpO2 { get; set; }
 
     // ── General ─────────────────────────────────────────────────────
     [Display(Name = "Temperature (°F)")]
-    [Range(90, 115, ErrorMessage = "Value 90–115 °F")]
+    [Range(0, 999.99, ErrorMessage = "Temperature must be a positive number.")]
     public decimal? Temperature { get; set; }
 
     [Display(Name = "Respiratory Rate")]
-    [Range(1, 80, ErrorMessage = "Value 1–80")]
+    [Range(0, 9999, ErrorMessage = "Respiratory rate must be a positive number.")]
     public int? RespiratoryRate { get; set; }
 
     // ── Optional ────────────────────────────────────────────────────
     [Display(Name = "Blood Glucose (mg/dL)")]
-    [Range(20, 600, ErrorMessage = "Value 20–600")]
+    [Range(0, 99999.99, ErrorMessage = "Blood glucose must be a positive number.")]
     public decimal? BloodGlucose { get; set; }
 
     [Display(Name = "Glucose Type")]
