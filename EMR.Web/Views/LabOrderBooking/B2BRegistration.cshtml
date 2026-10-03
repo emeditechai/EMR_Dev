@@ -267,19 +267,6 @@
                                         <i class="bi bi-file-earmark-medical"></i>
                                     </button>
                                 }
-                                @if (item.PaymentStatus != "P")
-                                {
-                                    <button type="button" class="btn btn-outline-primary btn-collect-pay"
-                                            data-order-id="@item.LabOrderId"
-                                            data-total="@((item.B2BTotal ?? item.TotalAmount).ToString("F2"))"
-                                            data-balance="@item.BalanceDue.ToString("F2")"
-                                            data-bill="@item.BillNo"
-                                            data-patient="@item.PatientName"
-                                            data-code="@item.PatientCode"
-                                            title="Collect Payment">
-                                        <i class="bi bi-credit-card"></i>
-                                    </button>
-                                }
                                 <button type="button" class="btn btn-outline-primary btn-view-compliance-docs"
                                         data-laborderid="@item.LabOrderId" title="View Uploaded Documents">
                                     <i class="bi bi-file-earmark-arrow-up"></i>
