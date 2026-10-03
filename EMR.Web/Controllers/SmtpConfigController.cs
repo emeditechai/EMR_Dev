@@ -121,6 +121,7 @@ public class SmtpConfigController(
             UseStartTls = model.UseStartTls,
             SenderEmail = model.SenderEmail,
             SenderDisplayName = model.SenderDisplayName,
+            ApplicationBaseUrl = model.ApplicationBaseUrl?.Trim().TrimEnd('/'),
             Username = model.Username,
             PasswordEncrypted = protector.Protect(model.Password!),
             IsDefault = model.IsDefault,
@@ -174,6 +175,7 @@ public class SmtpConfigController(
             UseStartTls = entity.UseStartTls,
             SenderEmail = entity.SenderEmail,
             SenderDisplayName = entity.SenderDisplayName,
+            ApplicationBaseUrl = entity.ApplicationBaseUrl,
             Username = entity.Username,
             Password = null, // Never send password back
             IsDefault = entity.IsDefault,
@@ -225,6 +227,7 @@ public class SmtpConfigController(
         entity.UseStartTls = model.UseStartTls;
         entity.SenderEmail = model.SenderEmail;
         entity.SenderDisplayName = model.SenderDisplayName;
+        entity.ApplicationBaseUrl = model.ApplicationBaseUrl?.Trim().TrimEnd('/');
         entity.Username = model.Username;
         entity.IsActive = model.IsActive;
         entity.ModifiedBy = userId;

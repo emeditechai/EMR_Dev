@@ -29,6 +29,10 @@ public class SmtpEmailConfiguration
     [MaxLength(200)]
     public string? SenderDisplayName { get; set; }
 
+    /// <summary>Public URL of the application (e.g. https://emr.yourhospital.com), used for links in outgoing emails.</summary>
+    [MaxLength(300)]
+    public string? ApplicationBaseUrl { get; set; }
+
     [MaxLength(200)]
     public string Username { get; set; } = string.Empty;
 

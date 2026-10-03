@@ -12,4 +12,7 @@ public interface IEmailService
     /// Sends an email using the default SMTP configuration for the given branch.
     /// </summary>
     Task<(bool Success, string Message)> SendEmailAsync(int branchId, string recipientEmail, string subject, string htmlBody, IEnumerable<System.Net.Mail.Attachment>? attachments = null);
+
+    /// <summary>Application Base URL from the branch's active SMTP configuration (no trailing slash), or null if not set.</summary>
+    Task<string?> GetApplicationBaseUrlAsync(int branchId);
 }

@@ -71,6 +71,17 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
         }
     }
 
+    public async Task<string?> GetApplicationBaseUrlAsync(int branchId)
+    {
+        var url = await dbContext.SmtpEmailConfigurations
+            .Where(x => x.BranchId == branchId && x.IsActive)
+            .OrderByDescending(x => x.IsDefault)
+            .Select(x => x.ApplicationBaseUrl)
+            .FirstOrDefaultAsync();
+
+        return string.IsNullOrWhiteSpace(url) ? null : url.Trim().TrimEnd('/');
+    }
+
     public async Task<(bool Success, string Message)> SendEmailAsync(
         int branchId, string recipientEmail, string subject, string htmlBody, IEnumerable<Attachment>? attachments = null)
     {
