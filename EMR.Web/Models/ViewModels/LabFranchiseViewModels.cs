@@ -40,10 +40,11 @@ public class LabFranchiseWizardViewModel
     [Display(Name = "Mobile Number")]
     public string Mobile_No { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Email Address is mandatory.")]
     [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
     [StringLength(200, ErrorMessage = "Email cannot exceed 200 characters.")]
     [Display(Name = "Email Address")]
-    public string? Email { get; set; }
+    public string Email { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Franchise Type is required.")]
     [Display(Name = "Franchise Type")]
