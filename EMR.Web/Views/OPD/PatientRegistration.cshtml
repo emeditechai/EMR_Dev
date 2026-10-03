@@ -279,7 +279,7 @@
                         <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
                         <input asp-for="PhoneNumber" id="phoneNumber" class="form-control"
                                maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
-                               placeholder="10-digit mobile" autocomplete="off" />
+                               placeholder="10-digit mobile" autocomplete="emr-no-autofill" />
                     </div>
                     <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
                     <div id="phoneError" class="text-danger small" style="display:none"></div>
