@@ -138,7 +138,7 @@ public class ReportsController : Controller
         ["patient-orders"]      = new[] { "reportStatus", "createdBy" },
         ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy" },
         // B2B partner-account reports: branch-wide for every user of the branch
-        ["b2b-partner-billing"] = new[] { "partnerType", "partner" },
+        ["b2b-partner-billing"] = new[] { "partnerType", "partner", "paymentMethod" },
         ["franchise-wallet"]    = new[] { "transactionType", "franchiseId" },
         ["b2b-outstanding"]     = new[] { "partnerType", "ageBucket" },
         // Sample stage (LR-10 / LR-11 / LR-12)

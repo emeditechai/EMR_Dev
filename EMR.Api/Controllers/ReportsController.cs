@@ -110,7 +110,7 @@ public class ReportsController : ControllerBase
             ["patient-orders"]      = ("dbo.usp_Api_LabReport_PatientOrders",      new[] { "ReportStatus" },                       new[] { "CreatedBy" }),
             ["cancellation-refund"] = ("dbo.usp_Api_LabReport_CancellationRefund", new[] { "CancellationType", "RefundStatus" },   new[] { "CancelledBy" }),
             // B2B partner-account reports: branch-wide, not limited to the user's own records (SQLScripts/2125)
-            ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner" },              Array.Empty<string>()),
+            ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
             ["franchise-wallet"]    = ("dbo.usp_Api_LabReport_FranchiseWallet",    new[] { "TransactionType" },                     new[] { "FranchiseId" }),
             ["b2b-outstanding"]     = ("dbo.usp_Api_LabReport_B2BOutstanding",     new[] { "PartnerType", "AgeBucket" },            Array.Empty<string>()),
             // Sample stage: LR-10 / LR-11 / LR-12 (SQLScripts/2183)
