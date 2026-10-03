@@ -157,7 +157,6 @@
     </div>
 
     @* ── Login Account Panel ── *@
-    <input asp-for="LinkedUserId" type="hidden" />
     <div class="dashboard-panel doctor-form-panel mb-4">
         <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-shield-lock me-2"></i>Login Account</h5>
         <div class="row g-3">
@@ -175,6 +174,13 @@
                             </span>
                             <span>Login account is active. To change password, please visit the <strong>User Master</strong> page.</span>
                         }
+                        else if (Model.LoginAccountId.HasValue)
+                        {
+                            <span class="badge bg-secondary-subtle text-secondary border me-1">
+                                <i class="bi bi-pause-circle me-1"></i>Login Switched Off
+                            </span>
+                            <span>This doctor's login <strong>@Model.LoginUsername</strong> is switched off. Turning this on re-activates the same account (its password is unchanged).</span>
+                        }
                         else
                         {
                             <span>Enable to create/sync a system login account for this doctor with the <strong>Doctor</strong> role.</span>
@@ -191,28 +197,30 @@
                 </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-person"></i></span>
-                    @if (Model.LinkedUserId.HasValue)
+                    @if (Model.LoginAccountId.HasValue)
                     {
                         <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="off" disabled />
                     }
                     else
                     {
-                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="off" />
+                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="emr-no-autofill" spellcheck="false" />
                     }
                 </div>
                 <span asp-validation-for="LoginUsername" class="text-danger small"></span>
+                <div id="usernameStatus" class="small mt-1"></div>
+                <div id="usernameSuggestions" class="d-flex flex-wrap align-items-center gap-1 mt-1"></div>
             </div>
             <div class="col-md-4">
                 <label asp-for="LoginPassword" class="form-label fw-semibold">
                     Password
-                    @if (!Model.LinkedUserId.HasValue)
+                    @if (!Model.LoginAccountId.HasValue)
                     {
                         <span class="text-danger">*</span>
                     }
                 </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-key"></i></span>
-                    @if (Model.LinkedUserId.HasValue)
+                    @if (Model.LoginAccountId.HasValue)
                     {
                         <input asp-for="LoginPassword" class="form-control" type="password" maxlength="100" autocomplete="new-password" placeholder="Change via User Master" disabled />
                     }
@@ -229,7 +237,7 @@
                 </label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
-                    @if (Model.LinkedUserId.HasValue)
+                    @if (Model.LoginAccountId.HasValue)
                     {
                         <input asp-for="LoginConfirmPassword" class="form-control" type="password" maxlength="100" autocomplete="new-password" placeholder="Change via User Master" disabled />
                     }
@@ -300,4 +308,5 @@
         loginToggle.addEventListener('change', syncLoginPanel);
         // Panel visibility already set server-side via Razor class binding
     </script>
+    <partial name="_LoginUsernameAssist" model="Model" />
 }

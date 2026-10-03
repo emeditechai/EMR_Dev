@@ -114,12 +114,22 @@
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-3">
             <div class="row g-3 align-items-end">
-                <div class="col-md-5">
+                <div class="col-md-3">
                     <label class="form-label small fw-semibold text-muted mb-1">Search</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
                         <input type="text" id="umSearch" class="form-control border-start-0" placeholder="Name, username, email, employee code, department or branch..." autocomplete="off" />
                     </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label small fw-semibold text-muted mb-1">User Type</label>
+                    <select id="umType" class="form-select">
+                        <option value="">All types</option>
+                        <option value="U">General user</option>
+                        <option value="D">Doctor</option>
+                        <option value="F">Franchise</option>
+                        <option value="C">Company</option>
+                    </select>
                 </div>
                 <div class="col-md-2 col-6">
                     <label class="form-label small fw-semibold text-muted mb-1">Status</label>
@@ -179,11 +189,11 @@
                             if (item.IsPathologist) { roles.Add("pathologist"); }
                             if (item.IsLabTechnician) { roles.Add("labtech"); }
                             if (item.IsLogisticsBoy) { roles.Add("logistics"); }
-                            var searchText = string.Join(' ', new[] { item.Username, item.FullName, item.Email, item.EmployeeCode, item.DepartmentNames, item.Branches }).ToLowerInvariant();
+                            var searchText = string.Join(' ', new[] { item.Username, item.FullName, item.Email, item.EmployeeCode, item.DepartmentNames, item.Branches, item.ReferenceName }).ToLowerInvariant();
                             var depts = (item.DepartmentNames ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries);
                             var branches = (item.Branches ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries);
 
-                            <tr class="@(item.IsActive ? "" : "um-inactive")" data-search="@searchText" data-status="@(item.IsActive ? "active" : "inactive")" data-roles="@string.Join(' ', roles)">
+                            <tr class="@(item.IsActive ? "" : "um-inactive")" data-search="@searchText" data-status="@(item.IsActive ? "active" : "inactive")" data-roles="@string.Join(' ', roles)" data-type="@item.UserType">
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center gap-3">
                                         @if (!string.IsNullOrWhiteSpace(item.ProfilePicturePath))
@@ -202,6 +212,9 @@
                                                 {
                                                     <span class="mx-1">&middot;</span><span class="font-monospace">@item.EmployeeCode</span>
                                                 }
+                                            </div>
+                                            <div class="mt-1">
+                                                <partial name="_UserTypeBadge" model="@(new EMR.Web.Models.ViewModels.UserTypeBadgeModel(item.UserType, item.ReferenceUserId, item.ReferenceName))" />
                                             </div>
                                         </div>
                                     </div>
@@ -324,6 +337,7 @@
             const $search = document.getElementById('umSearch');
             const $status = document.getElementById('umStatus');
             const $role = document.getElementById('umRole');
+            const $type = document.getElementById('umType');
             const $count = document.getElementById('umCount');
             const $empty = document.getElementById('umEmpty');
 
@@ -331,12 +345,14 @@
                 const term = $search.value.toLowerCase().trim();
                 const status = $status.value;
                 const role = $role.value;
+                const type = $type.value;
                 let shown = 0;
 
                 rows.forEach(r => {
                     const ok = (!term || r.dataset.search.includes(term))
                         && (!status || r.dataset.status === status)
-                        && (!role || r.dataset.roles.split(' ').includes(role));
+                        && (!role || r.dataset.roles.split(' ').includes(role))
+                        && (!type || r.dataset.type === type);
                     r.style.display = ok ? '' : 'none';
                     if (ok) shown++;
                 });
@@ -348,8 +364,9 @@
             $search.addEventListener('input', apply);
             $status.addEventListener('change', apply);
             $role.addEventListener('change', apply);
+            $type.addEventListener('change', apply);
             document.getElementById('umReset').addEventListener('click', () => {
-                $search.value = ''; $status.value = ''; $role.value = ''; apply(); $search.focus();
+                $search.value = ''; $status.value = ''; $role.value = ''; $type.value = ''; apply(); $search.focus();
             });
         })();
     </script>

@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using EMR.Shared.Security;
+using System.Text.RegularExpressions;
 
 namespace EMR.Web.Controllers;
 
@@ -110,6 +112,90 @@ public class DoctorsController(
     }
 
 
+    // ── Login account: username suggestions and availability ─────────────────
+    /// <summary>
+    /// Free usernames for the doctor's login, built from the doctor's name and e-mail (dr.first, first.last, ...),
+    /// and - when <paramref name="check"/> is given - whether that username is free. The doctor's own login
+    /// (Users 'D' for <paramref name="doctorId"/>) does not count as taken.
+    /// </summary>
+    [HttpGet]
+    [RequiresPermission("MASTER.DOCTORS", PermissionControls.Create)]
+    [RequiresPermission("MASTER.DOCTORS", PermissionControls.Edit)]
+    public async Task<IActionResult> SuggestLoginUsernames(string? fullName, string? email, string? check, int? doctorId)
+    {
+        int? ownUserId = null;
+        if (doctorId is > 0)
+            ownUserId = await dbContext.Users.Where(u => u.UserType == UserTypes.Doctor && u.ReferenceUserId == doctorId)
+                                             .Select(u => (int?)u.Id).FirstOrDefaultAsync();
+
+        var candidates = UsernameCandidates(fullName, email);
+        var taken = await TakenUsernamesAsync(candidates, ownUserId);
+        var suggestions = candidates.Where(c => !taken.Contains(c)).Take(5).ToList();
+
+        // still short of five (common names): number the first base until five are free
+        var baseName = candidates.FirstOrDefault();
+        if (suggestions.Count < 5 && baseName is not null)
+        {
+            var numbered = Enumerable.Range(1, 30).Select(i => $"{baseName}{i}").ToList();
+            var takenNumbered = await TakenUsernamesAsync(numbered, ownUserId);
+            suggestions.AddRange(numbered.Where(n => !takenNumbered.Contains(n)).Take(5 - suggestions.Count));
+        }
+
+        object? checkResult = null;
+        var wanted = check?.Trim();
+        if (!string.IsNullOrEmpty(wanted))
+        {
+            var error = UsernameFormatError(wanted);
+            var free = error is null && !await dbContext.Users.AnyAsync(u => u.Username == wanted && (!ownUserId.HasValue || u.Id != ownUserId.Value));
+            checkResult = new { username = wanted, available = free, message = error ?? (free ? "Username is available." : "This username is already taken.") };
+        }
+
+        return Json(new { suggestions, check = checkResult });
+    }
+
+    /// <summary>Usernames to offer, most natural first: dr.first, first.last, dr.first.last, firstlast, first, e-mail name, first.l.</summary>
+    private static List<string> UsernameCandidates(string? fullName, string? email)
+    {
+        static string Clean(string? v) => Regex.Replace((v ?? string.Empty).ToLowerInvariant(), "[^a-z0-9]", "");
+        var words = (fullName ?? string.Empty).Split(new[] { ' ', '.', ',', '-', '_' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(Clean).Where(w => w.Length > 0)
+            .Where(w => w is not ("dr" or "mr" or "mrs" or "ms" or "prof"))
+            .ToList();
+        var list = new List<string>();
+        if (words.Count > 0)
+        {
+            var first = words[0];
+            var last = words.Count > 1 ? words[^1] : null;
+            list.Add($"dr.{first}");
+            if (last is not null)
+            {
+                list.Add($"{first}.{last}");
+                list.Add($"dr.{first}.{last}");
+                list.Add($"{first}{last}");
+            }
+            list.Add(first);
+            if (last is not null) list.Add($"{first}.{last[0]}");
+        }
+        var local = (email ?? string.Empty).Split('@')[0];
+        var emailName = Regex.Replace(local.ToLowerInvariant(), "[^a-z0-9._-]", "").Trim('.', '_', '-');
+        if (emailName.Length >= 3) list.Insert(Math.Min(2, list.Count), emailName);
+        return list.Where(u => u.Length is >= 3 and <= 50).Distinct().ToList();
+    }
+
+    private async Task<HashSet<string>> TakenUsernamesAsync(List<string> names, int? ownUserId)
+    {
+        if (names.Count == 0) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var taken = await dbContext.Users.Where(u => names.Contains(u.Username) && (!ownUserId.HasValue || u.Id != ownUserId.Value))
+                                         .Select(u => u.Username).ToListAsync();
+        return new HashSet<string>(taken, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A login username: 3-50 characters, letters, digits and . _ - only, no spaces.</summary>
+    private static string? UsernameFormatError(string username) =>
+        username.Length is < 3 or > 50 ? "Use 3 to 50 characters."
+        : !Regex.IsMatch(username, "^[A-Za-z0-9._-]+$") ? "Use only letters, digits and . _ - (no spaces)."
+        : null;
+
     [HttpGet]
     public async Task<IActionResult> Create()
     {
@@ -143,12 +229,6 @@ public class DoctorsController(
             return View(model);
         }
 
-        int? linkedUserId = null;
-        if (model.IsLoginRequired)
-        {
-            linkedUserId = await CreateLinkedUserAsync(model, model.FullName);
-        }
-
         var doctor = new DoctorMaster
         {
             CompanyId = User.GetCompanyId(),
@@ -165,11 +245,17 @@ public class DoctorsController(
             IsActive = true,
             IsReferralDoctor = model.IsReferralDoctor,
             CreatedBranchId = currentBranchId.Value,
-            LinkedUserId = linkedUserId
+            LinkedUserId = null
         };
 
-
-        await doctorService.CreateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
+        // the doctor first: its login points at the doctor (Users.User_Type 'D', ReferenceUserID = DoctorId)
+        var doctorId = await doctorService.CreateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
+        doctor.DoctorId = doctorId;
+        if (model.IsLoginRequired)
+        {
+            var loginUserId = await CreateLinkedUserAsync(model, doctor.FullName, doctorId);
+            await doctorService.SetLinkedUserAsync(doctorId, loginUserId);
+        }
 
         await auditLogService.LogAsync("MasterData", "Doctors.Create", $"Created doctor: {doctor.FullName} ({doctor.EmailId})");
         TempData["Success"] = "Doctor created successfully." + (model.IsLoginRequired ? " Login account created." : string.Empty);
@@ -208,15 +294,18 @@ public class DoctorsController(
             LinkedUserId = doctor.LinkedUserId
         };
 
-        // Populate existing linked user info
-        if (doctor.LinkedUserId.HasValue)
+        // the doctor's login: switched on when DoctorMaster links it; a switched-off one is shown so it is re-used
+        var login = await FindDoctorLoginAsync(doctor);
+        if (login is not null)
         {
-            var linkedUser = await dbContext.Users.FindAsync(doctor.LinkedUserId.Value);
-            if (linkedUser is not null)
-            {
-                model.IsLoginRequired = true;
-                model.LoginUsername = linkedUser.Username;
-            }
+            model.LoginAccountId = login.Id;
+            model.LoginUsername = login.Username;
+            model.IsLoginRequired = doctor.LinkedUserId == login.Id;
+            model.LinkedUserId = model.IsLoginRequired ? login.Id : null;
+        }
+        else
+        {
+            model.LinkedUserId = null;
         }
 
         await PopulateFormSelections(model, isEdit: true);
@@ -238,13 +327,17 @@ public class DoctorsController(
             return NotFound();
         }
 
-        if (model.LinkedUserId.HasValue && model.IsLoginRequired)
+        var doctor = await doctorService.GetByIdAsync(model.DoctorId);
+        if (doctor is null) return NotFound();
+
+        // The doctor's login is looked up here (Users 'D' + this DoctorId, or the doctor's link) - any id posted
+        // with the form is ignored, so one doctor's form can never change another user's account.
+        var login = await FindDoctorLoginAsync(doctor);
+        model.LoginAccountId = login?.Id;
+        model.LinkedUserId = doctor.LinkedUserId.HasValue && login?.Id == doctor.LinkedUserId ? login!.Id : null;
+        if (login is not null && model.IsLoginRequired)
         {
-            var existingUser = await dbContext.Users.FindAsync(model.LinkedUserId.Value);
-            if (existingUser != null)
-            {
-                model.LoginUsername = existingUser.Username;
-            }
+            model.LoginUsername = login.Username;      // the username of an existing login is changed in User Master
             ModelState.Remove(nameof(model.LoginPassword));
             ModelState.Remove(nameof(model.LoginConfirmPassword));
         }
@@ -252,16 +345,13 @@ public class DoctorsController(
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
         if (model.IsLoginRequired)
-            await ValidateLoginFieldsAsync(model, existingUserId: model.LinkedUserId);
+            await ValidateLoginFieldsAsync(model, existingUserId: login?.Id);
 
         if (!ModelState.IsValid)
         {
             await PopulateFormSelections(model, isEdit: true);
             return View(model);
         }
-
-        var doctor = await doctorService.GetByIdAsync(model.DoctorId);
-        if (doctor is null) return NotFound();
 
         doctor.NamePrefix = model.NamePrefix;
         doctor.FullName = model.FullName.Trim();
@@ -279,29 +369,26 @@ public class DoctorsController(
         // ── Login account management ──────────────────────────────────────────
         if (model.IsLoginRequired)
         {
-            if (!model.LinkedUserId.HasValue)
+            if (login is null)
             {
-                // No linked user yet — create one
-                var newUserId = await CreateLinkedUserAsync(model, doctor.FullName);
-                doctor.LinkedUserId = newUserId;
+                // no login yet - create the doctor's login
+                doctor.LinkedUserId = await CreateLinkedUserAsync(model, doctor.FullName, doctor.DoctorId);
             }
             else
             {
-                // Already linked — sync
-                await SyncLinkedUserAsync(model, model.LinkedUserId.Value, doctor.FullName);
-                doctor.LinkedUserId = model.LinkedUserId;
+                // the doctor's login (switched on, or switched off earlier and now re-activated) - sync it
+                await SyncLinkedUserAsync(model, login.Id, doctor.FullName, doctor.DoctorId);
+                doctor.LinkedUserId = login.Id;
             }
         }
-        else if (!model.IsLoginRequired && model.LinkedUserId.HasValue)
+        else if (login is not null && doctor.LinkedUserId.HasValue)
         {
-            // Login disabled — deactivate the existing user account
-            var existingUser = await dbContext.Users.FindAsync(model.LinkedUserId.Value);
-            if (existingUser is not null)
-            {
-                existingUser.IsActive = false;
-                existingUser.LastModifiedDate = DateTime.Now;
-                await dbContext.SaveChangesAsync();
-            }
+            // login switched off - the account stays the doctor's (type 'D') but cannot sign in
+            login.IsActive = false;
+            login.LastModifiedDate = DateTime.Now;
+            await dbContext.SaveChangesAsync();
+            await auditLogService.LogAsync("MasterData", "Doctors.DisableLogin",
+                $"Switched off login account '{login.Username}' of doctor '{doctor.FullName}'", login.Id);
             doctor.LinkedUserId = null;
         }
 
@@ -354,6 +441,10 @@ public class DoctorsController(
         {
             ModelState.AddModelError(nameof(model.LoginUsername), "Username is required when login is enabled.");
         }
+        else if (!existingUserId.HasValue && UsernameFormatError(model.LoginUsername.Trim()) is { } formatError)
+        {
+            ModelState.AddModelError(nameof(model.LoginUsername), formatError);
+        }
         else
         {
             // Check username uniqueness (allow same user on edit)
@@ -378,8 +469,25 @@ public class DoctorsController(
         }
     }
 
-    /// <summary>Creates a new User linked to this doctor and returns the new User.Id.</summary>
-    private async Task<int> CreateLinkedUserAsync(DoctorFormViewModel model, string fullName)
+    /// <summary>
+    /// The doctor's login: the user of type 'D' whose ReferenceUserID is this doctor, else the user the doctor links to
+    /// (DoctorMaster.LinkedUserId) when that user is not some other record's login. Null when the doctor has none.
+    /// </summary>
+    private async Task<User?> FindDoctorLoginAsync(DoctorMaster doctor)
+    {
+        var login = await dbContext.Users.FirstOrDefaultAsync(u => u.UserType == UserTypes.Doctor && u.ReferenceUserId == doctor.DoctorId);
+        if (login is null && doctor.LinkedUserId.HasValue)
+        {
+            var linked = await dbContext.Users.FindAsync(doctor.LinkedUserId.Value);
+            if (linked is not null && (linked.UserType == UserTypes.General
+                                       || (linked.UserType == UserTypes.Doctor && linked.ReferenceUserId == doctor.DoctorId)))
+                login = linked;
+        }
+        return login;
+    }
+
+    /// <summary>Creates the doctor's login (User_Type 'D', ReferenceUserID = DoctorId) and returns the new User.Id.</summary>
+    private async Task<int> CreateLinkedUserAsync(DoctorFormViewModel model, string fullName, int doctorId)
     {
         var (hash, salt) = passwordHasherService.HashPassword(model.LoginPassword!);
 
@@ -401,6 +509,8 @@ public class DoctorsController(
             PhoneNumber      = model.PhoneNumber.Trim(),
             Phone            = model.PhoneNumber.Trim(),
             IsActive         = true,
+            UserType         = UserTypes.Doctor,
+            ReferenceUserId  = doctorId,
             PasswordLastChanged = DateTime.Now,
             CreatedDate      = DateTime.Now,
             LastModifiedDate = DateTime.Now
@@ -448,11 +558,14 @@ public class DoctorsController(
         return user.Id;
     }
 
-    /// <summary>Syncs an existing linked User's details and branch mappings with the doctor.</summary>
-    private async Task SyncLinkedUserAsync(DoctorFormViewModel model, int linkedUserId, string fullName)
+    /// <summary>Syncs the doctor's login (details, active status, branches) with the doctor.</summary>
+    private async Task SyncLinkedUserAsync(DoctorFormViewModel model, int linkedUserId, string fullName, int doctorId)
     {
         var user = await dbContext.Users.FindAsync(linkedUserId);
         if (user is null) return;
+
+        user.UserType        = UserTypes.Doctor;     // the login belongs to this doctor
+        user.ReferenceUserId = doctorId;
 
         var nameParts = fullName.Trim().Split(' ', 2);
         user.Username        = model.LoginUsername!.Trim();
@@ -473,10 +586,15 @@ public class DoctorsController(
             user.PasswordLastChanged = DateTime.Now;
         }
 
-        // Re-sync branch mappings
+        // Re-sync branch mappings: existing rows are kept (with their employee codes) and switched on / off
+        var selected = model.SelectedBranchIds.Distinct().ToHashSet();
         var existingBranches = await dbContext.UserBranches.Where(x => x.UserId == linkedUserId).ToListAsync();
-        dbContext.UserBranches.RemoveRange(existingBranches);
-        var newBranches = model.SelectedBranchIds.Distinct().Select(bid => new UserBranch
+        foreach (var ub in existingBranches)
+        {
+            var on = selected.Contains(ub.BranchId);
+            if (ub.IsActive != on) { ub.IsActive = on; ub.ModifiedDate = DateTime.Now; ub.ModifiedBy = User.GetUserId(); }
+        }
+        dbContext.UserBranches.AddRange(selected.Where(bid => existingBranches.All(x => x.BranchId != bid)).Select(bid => new UserBranch
         {
             UserId       = linkedUserId,
             BranchId     = bid,
@@ -485,8 +603,25 @@ public class DoctorsController(
             ModifiedDate = DateTime.Now,
             CreatedBy    = User.GetUserId(),
             ModifiedBy   = User.GetUserId()
-        });
-        dbContext.UserBranches.AddRange(newBranches);
+        }));
+
+        // the doctor's login always carries the Doctor role (e.g. when a switched-off login is turned on again)
+        var doctorRoleId = await dbContext.Roles.Where(r => r.Name.ToLower() == "doctor").Select(r => (int?)r.Id).FirstOrDefaultAsync();
+        if (doctorRoleId.HasValue && !await dbContext.UserRoles.AnyAsync(r => r.UserId == linkedUserId && r.RoleId == doctorRoleId.Value && r.IsActive))
+        {
+            dbContext.UserRoles.Add(new UserRole
+            {
+                UserId       = linkedUserId,
+                RoleId       = doctorRoleId.Value,
+                IsActive     = true,
+                AssignedDate = DateTime.Now,
+                AssignedBy   = User.GetUserId(),
+                CreatedDate  = DateTime.Now,
+                CreatedBy    = User.GetUserId(),
+                ModifiedDate = DateTime.Now,
+                ModifiedBy   = User.GetUserId()
+            });
+        }
 
         await dbContext.SaveChangesAsync();
         await auditLogService.LogAsync("MasterData", "Doctors.SyncLogin",

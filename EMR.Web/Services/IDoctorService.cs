@@ -13,4 +13,6 @@ public interface IDoctorService
     Task<bool> IsVisibleForBranchAsync(int doctorId, int? branchId);
     Task<int> CreateAsync(DoctorMaster doctor, IEnumerable<int> branchIds, IEnumerable<int> departmentIds, int? userId);
     Task UpdateAsync(DoctorMaster doctor, IEnumerable<int> branchIds, IEnumerable<int> departmentIds, int? userId);
+    /// <summary>Keeps DoctorMaster.LinkedUserId in step with the doctor's login (Users.User_Type 'D').</summary>
+    Task SetLinkedUserAsync(int doctorId, int? linkedUserId);
 }

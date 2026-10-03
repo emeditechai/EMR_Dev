@@ -1,3 +1,4 @@
+using Dapper;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
@@ -74,9 +75,12 @@ public class UsersController(
                 x.DepartmentIds,
                 x.ProfilePicturePath,
                 HasSignature = x.SignaturePath != null && x.SignaturePath != "",
+                x.UserType,
+                x.ReferenceUserId,
                 Branches = string.Join(", ", x.UserBranches.Where(b => b.IsActive).Select(b => b.Branch.BranchName))
             })
             .ToListAsync();
+        var referenceNames = await ReferenceNamesAsync(rawUsers.Select(x => (x.UserType, x.ReferenceUserId)));
 
         var users = rawUsers.Select(x =>
         {
@@ -106,7 +110,10 @@ public class UsersController(
                 Branches = x.Branches,
                 DepartmentNames = deptNames,
                 ProfilePicturePath = x.ProfilePicturePath,
-                HasSignature = x.HasSignature
+                HasSignature = x.HasSignature,
+                UserType = x.UserType,
+                ReferenceUserId = x.ReferenceUserId,
+                ReferenceName = x.ReferenceUserId.HasValue ? referenceNames.GetValueOrDefault((x.UserType, x.ReferenceUserId.Value)) : null
             };
         }).ToList();
 
@@ -178,9 +185,13 @@ public class UsersController(
             ? $"{user.LabTechnicianShiftSlot.ShiftName} ({user.LabTechnicianShiftSlot.StartTime:hh\\:mm} - {user.LabTechnicianShiftSlot.EndTime:hh\\:mm})"
             : null;
 
+        var detailRefNames = await ReferenceNamesAsync(new[] { (user.UserType, user.ReferenceUserId) });
         var model = new UserDetailsViewModel
         {
             Id = user.Id,
+            UserType = user.UserType,
+            ReferenceUserId = user.ReferenceUserId,
+            ReferenceName = user.ReferenceUserId.HasValue ? detailRefNames.GetValueOrDefault((user.UserType, user.ReferenceUserId.Value)) : null,
             Username = user.Username,
             EmployeeCode = user.UserBranches.Where(ub => ub.IsActive).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty,
             Email = user.Email,
@@ -341,6 +352,8 @@ public class UsersController(
             DailyCollectionTarget = model.IsPhlebotomist ? model.DailyCollectionTarget : null,
             LabTechnicianShiftSlotId = model.IsLabTechnician && model.LabTechnicianShiftSlotId > 0 ? model.LabTechnicianShiftSlotId : null,
             AnalyzerTrainedOn = model.IsLabTechnician ? model.AnalyzerTrainedOn?.Trim() : null,
+            UserType = UserTypes.General,          // created in User Master (logins of other masters are created there)
+            ReferenceUserId = null,
             PasswordLastChanged = DateTime.Now,
             CreatedDate = DateTime.Now,
             LastModifiedDate = DateTime.Now,
@@ -383,9 +396,13 @@ public class UsersController(
                 .ToList();
         }
 
+        var editRefNames = await ReferenceNamesAsync(new[] { (user.UserType, user.ReferenceUserId) });
         var model = new UserFormViewModel
         {
             Id = user.Id,
+            UserType = user.UserType,
+            ReferenceUserId = user.ReferenceUserId,
+            ReferenceName = user.ReferenceUserId.HasValue ? editRefNames.GetValueOrDefault((user.UserType, user.ReferenceUserId.Value)) : null,
             Username = user.Username,
             Email = user.Email,
             FirstName = user.FirstName ?? string.Empty,
@@ -447,6 +464,27 @@ public class UsersController(
             return NotFound();
         }
 
+        // A login created from another master (doctor / franchise / company): its username, name, e-mail, phone and
+        // active status are maintained there - whatever the form sends for them is replaced by the stored values.
+        model.UserType = user.UserType;
+        model.ReferenceUserId = user.ReferenceUserId;
+        if (model.IsLinkedLogin)
+        {
+            var refNames = await ReferenceNamesAsync(new[] { (user.UserType, user.ReferenceUserId) });
+            model.ReferenceName = refNames.GetValueOrDefault((user.UserType, user.ReferenceUserId!.Value));
+            model.Username = user.Username;
+            model.FirstName = user.FirstName ?? string.Empty;
+            model.LastName = user.LastName ?? string.Empty;
+            model.Email = user.Email;
+            model.PhoneNumber = user.PhoneNumber;
+            model.IsActive = user.IsActive;
+            ModelState.Remove(nameof(model.Username));
+            ModelState.Remove(nameof(model.FirstName));
+            ModelState.Remove(nameof(model.LastName));
+            ModelState.Remove(nameof(model.Email));
+            ModelState.Remove(nameof(model.PhoneNumber));
+        }
+
         if (await dbContext.Users.AnyAsync(x => x.Id != model.Id && x.Username == model.Username))
         {
             ModelState.AddModelError(nameof(model.Username), "Username already exists.");
@@ -489,13 +527,16 @@ public class UsersController(
             ? null
             : model.EmployeeCode.Trim().ToUpperInvariant();
 
-        user.Username = model.Username.Trim();
-        user.Email = model.Email?.Trim();
-        user.FirstName = model.FirstName.Trim();
-        user.LastName = model.LastName.Trim();
-        user.FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim());
-        user.PhoneNumber = model.PhoneNumber;
-        user.Phone = model.PhoneNumber;
+        if (!model.IsLinkedLogin)
+        {
+            user.Username = model.Username.Trim();
+            user.Email = model.Email?.Trim();
+            user.FirstName = model.FirstName.Trim();
+            user.LastName = model.LastName.Trim();
+            user.FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim());
+            user.PhoneNumber = model.PhoneNumber;
+            user.Phone = model.PhoneNumber;
+        }
         user.DateOfJoining = model.DateOfJoining;
         user.DateOfBirth = model.DateOfBirth;
         user.Address = model.Address?.Trim();
@@ -506,7 +547,7 @@ public class UsersController(
         user.DepartmentIds = (model.SelectedDepartmentIds != null && model.SelectedDepartmentIds.Any())
             ? string.Join(",", model.SelectedDepartmentIds.Distinct().OrderBy(id => id))
             : null;
-        user.IsActive = model.IsActive;
+        if (!model.IsLinkedLogin) user.IsActive = model.IsActive;
         user.IsNursingStaff = model.IsNursingStaff;
         user.IsPhlebotomist = model.IsPhlebotomist;
         user.IsPathologist = model.IsPathologist;
@@ -558,6 +599,14 @@ public class UsersController(
             return NotFound();
         }
 
+        if (user.UserType != UserTypes.General && user.ReferenceUserId.HasValue)
+        {
+            TempData["Error"] = user.UserType == UserTypes.Doctor
+                ? $"'{user.Username}' is a doctor's login - switch it on or off in Doctor Master (Login Account)."
+                : $"'{user.Username}' is the login of a {UserTypes.Label(user.UserType).ToLowerInvariant()} - switch it on or off where it was created.";
+            return RedirectToAction(nameof(Index));
+        }
+
         user.IsActive = !user.IsActive;
         user.LastModifiedDate = DateTime.Now;
         await dbContext.SaveChangesAsync();
@@ -565,6 +614,29 @@ public class UsersController(
         TempData["Success"] = "User status updated.";
 
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Names of the records logins belong to: doctor (Doctor Master), franchise, company.</summary>
+    private async Task<Dictionary<(string Type, int Id), string>> ReferenceNamesAsync(IEnumerable<(string Type, int? Id)> refs)
+    {
+        var list = refs.Where(r => r.Id.HasValue && r.Type != UserTypes.General).Select(r => (r.Type, Id: r.Id!.Value)).Distinct().ToList();
+        var names = new Dictionary<(string, int), string>();
+        var doctorIds = list.Where(r => r.Type == UserTypes.Doctor).Select(r => r.Id).ToList();
+        if (doctorIds.Count > 0)
+            foreach (var d in await dbContext.DoctorMasters.AsNoTracking().Where(d => doctorIds.Contains(d.DoctorId))
+                         .Select(d => new { d.DoctorId, d.NamePrefix, d.FullName }).ToListAsync())
+                names[(UserTypes.Doctor, d.DoctorId)] = string.IsNullOrWhiteSpace(d.NamePrefix) ? d.FullName : $"{d.NamePrefix} {d.FullName}";
+        var companyIds = list.Where(r => r.Type == UserTypes.Company).Select(r => r.Id).ToList();
+        if (companyIds.Count > 0)
+            foreach (var c in await dbContext.CorporateMasters.AsNoTracking().Where(c => companyIds.Contains(c.Corporate_ID))
+                         .Select(c => new { c.Corporate_ID, c.Corporate_Name }).ToListAsync())
+                names[(UserTypes.Company, c.Corporate_ID)] = c.Corporate_Name;
+        var franchiseIds = list.Where(r => r.Type == UserTypes.Franchise).Select(r => r.Id).ToList();
+        if (franchiseIds.Count > 0)
+            foreach (var f in await dbContext.Database.GetDbConnection().QueryAsync<(int Id, string Name)>(
+                         "SELECT Franchise_ID, Franchise_Name FROM dbo.LabFranchiseMaster WHERE Franchise_ID IN @franchiseIds", new { franchiseIds }))
+                names[(UserTypes.Franchise, f.Id)] = f.Name;
+        return names;
     }
 
     // ── AJAX Cascade Endpoints for Dependable Dropdowns ───────────

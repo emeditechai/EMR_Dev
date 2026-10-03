@@ -139,6 +139,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.ToTable("Users");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.Username).IsUnique();
+            entity.Property(x => x.UserType).HasColumnName("User_Type").HasMaxLength(1).IsFixedLength().IsUnicode(false);
+            entity.Property(x => x.ReferenceUserId).HasColumnName("ReferenceUserID");
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.Users)
                 .HasForeignKey(x => x.CompanyId)

@@ -111,7 +111,31 @@ public class User
     public int? CompanyId { get; set; } = 1;
     public CompanyMaster? Company { get; set; }
 
+    /// <summary>What the login is (column User_Type): see <see cref="UserTypes"/>. 'U' for users created in User Master.</summary>
+    public string UserType { get; set; } = UserTypes.General;
+    /// <summary>
+    /// The record a login created from another master belongs to (column ReferenceUserID): the DoctorId for a doctor
+    /// login, the franchise / corporate id for 'F' / 'C'; null for a general user.
+    /// </summary>
+    public int? ReferenceUserId { get; set; }
+
     public ICollection<UserBranch> UserBranches { get; set; } = new List<UserBranch>();
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }
 
+/// <summary>Users.User_Type values (SQLScripts/2197).</summary>
+public static class UserTypes
+{
+    public const string General = "U";    // created in User Master
+    public const string Doctor = "D";     // created from Doctor Master; ReferenceUserID = DoctorMaster.DoctorId
+    public const string Franchise = "F";  // ReferenceUserID = LabFranchiseMaster.Franchise_ID
+    public const string Company = "C";    // ReferenceUserID = CorporateMaster.Corporate_ID
+
+    public static string Label(string? type) => type switch
+    {
+        Doctor => "Doctor",
+        Franchise => "Franchise",
+        Company => "Company",
+        _ => "General"
+    };
+}

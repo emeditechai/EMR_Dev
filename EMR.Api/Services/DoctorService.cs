@@ -149,34 +149,31 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
     public async Task<DoctorListItem?> GetLinkedDoctorAsync(int userId, string? email, string? displayName)
     {
         using var con = db.CreateConnection();
-        DoctorListItem? linkedDoctor = null;
+        const string select = "SELECT TOP 1 DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE IsActive = 1 AND ";
 
-        // 1. Try by LinkedUserId
-        linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(
-            "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE LinkedUserId = @userId AND IsActive = 1",
-            new { userId });
+        // 1. a doctor login (Users.User_Type 'D') names its doctor (SQLScripts/2197)
+        var linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(select +
+            "DoctorId = (SELECT ReferenceUserID FROM Users WHERE Id = @userId AND User_Type = 'D')", new { userId });
 
-        // 2. Try by Email
+        // 2. the doctor's link to this user
+        linkedDoctor ??= await con.QueryFirstOrDefaultAsync<DoctorListItem>(select + "LinkedUserId = @userId", new { userId });
+
+        // 3. a general user matched once by e-mail, else display name, to a doctor that has no login yet -
+        //    then recorded as that doctor's login (User_Type 'D') and linked. A doctor with a login is never re-linked.
+        const string noLogin = " AND LinkedUserId IS NULL AND NOT EXISTS (SELECT 1 FROM Users x WHERE x.User_Type = 'D' AND x.ReferenceUserID = DoctorMaster.DoctorId)" +
+                               " AND EXISTS (SELECT 1 FROM Users me WHERE me.Id = @userId AND me.User_Type = 'U')";
+        var matched = false;
         if (linkedDoctor == null && !string.IsNullOrEmpty(email))
-        {
-            linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(
-                "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE EmailId = @email AND IsActive = 1",
-                new { email });
-
-            if (linkedDoctor != null)
-                await con.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId", new { userId, doctorId = linkedDoctor.DoctorId });
-        }
-
-        // 3. Try by DisplayName
+            matched = (linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(select + "EmailId = @email" + noLogin, new { email, userId })) != null;
         if (linkedDoctor == null && !string.IsNullOrEmpty(displayName))
-        {
-            linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(
-                "SELECT DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE FullName = @displayName AND IsActive = 1",
-                new { displayName });
+            matched = (linkedDoctor = await con.QueryFirstOrDefaultAsync<DoctorListItem>(select + "FullName = @displayName" + noLogin, new { displayName, userId })) != null;
 
-            if (linkedDoctor != null)
-                await con.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId", new { userId, doctorId = linkedDoctor.DoctorId });
-        }
+        if (linkedDoctor != null && matched)
+            await con.ExecuteAsync(@"
+                UPDATE Users SET User_Type = 'D', ReferenceUserID = @doctorId WHERE Id = @userId AND User_Type = 'U'
+                  AND NOT EXISTS (SELECT 1 FROM Users x WHERE x.User_Type = 'D' AND x.ReferenceUserID = @doctorId);
+                UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId AND LinkedUserId IS NULL;",
+                new { userId, doctorId = linkedDoctor.DoctorId });
 
         return linkedDoctor;
     }

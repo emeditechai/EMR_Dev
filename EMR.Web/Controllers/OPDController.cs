@@ -192,8 +192,9 @@ public class OPDController(
     private sealed record OwnDoctorRow(int DoctorId, string FullName, int? PrimarySpecialityId, string? Gender);
 
     /// <summary>
-    /// The Doctor Master doctor of the signed-in user: linked by LinkedUserId, else matched once by e-mail or display
-    /// name and then linked (the rule the dashboard has always used). Null when there is none.
+    /// The Doctor Master doctor of the signed-in user: the doctor a doctor login (User_Type 'D') belongs to, else the
+    /// doctor linked to the user, else matched once by e-mail or display name and then recorded as that doctor's
+    /// login (the rule the dashboard has always used). Null when there is none.
     /// </summary>
     private async Task<OwnDoctorRow?> OwnDoctorAsync()
     {
@@ -204,13 +205,25 @@ public class OPDController(
         const string select = "SELECT TOP 1 DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE IsActive = 1 AND ";
 
         using var conn = db.CreateConnection();
-        var doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "LinkedUserId = @userId", new { userId });
+        // 1. a doctor login (Users.User_Type 'D') names its doctor
+        var doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select +
+            "DoctorId = (SELECT ReferenceUserID FROM Users WHERE Id = @userId AND User_Type = 'D')", new { userId });
+        // 2. the doctor's link to this user
+        doctor ??= await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "LinkedUserId = @userId", new { userId });
+        // 3. a general user matched once by e-mail / name to a doctor that has no login yet - then recorded as that
+        //    doctor's login (User_Type 'D') and linked
+        const string noLogin = " AND LinkedUserId IS NULL AND NOT EXISTS (SELECT 1 FROM Users x WHERE x.User_Type = 'D' AND x.ReferenceUserID = DoctorMaster.DoctorId)" +
+                               " AND EXISTS (SELECT 1 FROM Users me WHERE me.Id = @userId AND me.User_Type = 'U')";
+        var matched = false;
         if (doctor is null && !string.IsNullOrEmpty(userEmail))
-            doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "EmailId = @userEmail AND LinkedUserId IS NULL", new { userEmail });
+            matched = (doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "EmailId = @userEmail" + noLogin, new { userEmail, userId })) is not null;
         if (doctor is null && !string.IsNullOrEmpty(displayName))
-            doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "FullName = @displayName AND LinkedUserId IS NULL", new { displayName });
-        if (doctor is not null)
-            await conn.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId AND LinkedUserId IS NULL",
+            matched = (doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "FullName = @displayName" + noLogin, new { displayName, userId })) is not null;
+        if (doctor is not null && matched)
+            await conn.ExecuteAsync(@"
+                UPDATE Users SET User_Type = 'D', ReferenceUserID = @doctorId WHERE Id = @userId AND User_Type = 'U'
+                  AND NOT EXISTS (SELECT 1 FROM Users x WHERE x.User_Type = 'D' AND x.ReferenceUserID = @doctorId);
+                UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId AND LinkedUserId IS NULL;",
                 new { userId, doctorId = doctor.DoctorId });
         if (doctor is not null) HttpContext.Items["OwnDoctor"] = doctor;
         return doctor;

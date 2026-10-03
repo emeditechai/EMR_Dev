@@ -42,6 +42,12 @@
             </div>
             <div class="col-md-4">
                 <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-tag me-1"></i>User Type</div>
+                    <div class="detail-value"><partial name="_UserTypeBadge" model="@(new EMR.Web.Models.ViewModels.UserTypeBadgeModel(Model.UserType, Model.ReferenceUserId, Model.ReferenceName))" /></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-upc-scan me-1"></i>Employee Code</div>
                     <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.EmployeeCode) ? "—" : Model.EmployeeCode)</div>
                 </div>

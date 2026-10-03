@@ -242,6 +242,12 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         }
     }
 
+    public async Task SetLinkedUserAsync(int doctorId, int? linkedUserId)
+    {
+        using var con = db.CreateConnection();
+        await con.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @linkedUserId WHERE DoctorId = @doctorId", new { doctorId, linkedUserId });
+    }
+
     public async Task UpdateAsync(DoctorMaster doctor, IEnumerable<int> branchIds, IEnumerable<int> departmentIds, int? userId)
     {
         using var con = db.CreateConnection();
