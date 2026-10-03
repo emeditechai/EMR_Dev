@@ -3329,7 +3329,70 @@ namespace EMR.Web.Controllers
                 TempData["Error"] = "Invoice not found.";
                 return RedirectToAction(nameof(B2BInvoices));
             }
+            ViewBag.Letterhead = await BuildInvoiceLetterheadAsync(detail.BranchId);
             return View(detail);
+        }
+
+        private static readonly Dictionary<string, string> GstStates = new()
+        {
+            ["01"] = "Jammu & Kashmir", ["02"] = "Himachal Pradesh", ["03"] = "Punjab", ["04"] = "Chandigarh", ["05"] = "Uttarakhand",
+            ["06"] = "Haryana", ["07"] = "Delhi", ["08"] = "Rajasthan", ["09"] = "Uttar Pradesh", ["10"] = "Bihar", ["11"] = "Sikkim",
+            ["12"] = "Arunachal Pradesh", ["13"] = "Nagaland", ["14"] = "Manipur", ["15"] = "Mizoram", ["16"] = "Tripura", ["17"] = "Meghalaya",
+            ["18"] = "Assam", ["19"] = "West Bengal", ["20"] = "Jharkhand", ["21"] = "Odisha", ["22"] = "Chhattisgarh", ["23"] = "Madhya Pradesh",
+            ["24"] = "Gujarat", ["26"] = "Dadra & Nagar Haveli and Daman & Diu", ["27"] = "Maharashtra", ["29"] = "Karnataka", ["30"] = "Goa",
+            ["31"] = "Lakshadweep", ["32"] = "Kerala", ["33"] = "Tamil Nadu", ["34"] = "Puducherry", ["35"] = "Andaman & Nicobar Islands",
+            ["36"] = "Telangana", ["37"] = "Andhra Pradesh", ["38"] = "Ladakh"
+        };
+
+        /// <summary>Supplier block of the B2B tax invoice - real company / branch data only, nothing hard-coded.</summary>
+        private async Task<B2BInvoiceLetterheadViewModel> BuildInvoiceLetterheadAsync(int branchId)
+        {
+            var settings = await dbContext.HospitalSettings.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.BranchId == branchId && s.IsActive);
+            var branch = await dbContext.BranchMasters.AsNoTracking().FirstOrDefaultAsync(b => b.BranchId == branchId);
+            var companyId = settings?.CompanyId ?? branch?.CompanyId ?? User.GetCompanyId();
+            var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(c => c.CompanyId == companyId);
+
+            string? Join(params string?[] parts) =>
+                string.Join(", ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim())) is { Length: > 0 } s ? s : null;
+            string? First(params string?[] values) => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
+
+            var gstin = First(settings?.GSTCode, company?.GSTIN)?.ToUpperInvariant();
+            var vm = new B2BInvoiceLetterheadViewModel
+            {
+                DisplayName = First(settings?.HospitalName, company?.CompanyName, branch?.BranchName) ?? "Diagnostic Laboratory",
+                LegalName = First(company?.LegalName, company?.CompanyName),
+                Tagline = settings?.HospitalType,
+                LogoPath = First(settings?.LogoPath, company?.LogoPath),
+                // the Hospital Settings address is printed as entered (same as the other print pages)
+                Address = First(settings?.Address,
+                                Join(branch?.Address, branch?.City, branch?.State, branch?.Pincode),
+                                Join(company?.Address, company?.City, company?.State, company?.Pincode)),
+                Phone = First(settings?.ContactNumber1, company?.Phone),
+                Email = First(settings?.EmailAddress, company?.Email),
+                Website = First(settings?.Website, company?.Website),
+                RegistrationNumber = First(settings?.RegistrationNumber, company?.RegistrationNumber),
+                GSTIN = gstin,
+                PAN = First(company?.PAN, gstin is { Length: 15 } ? gstin.Substring(2, 10) : null),
+                StateCode = gstin is { Length: >= 2 } && char.IsDigit(gstin[0]) && char.IsDigit(gstin[1]) ? gstin[..2] : null
+            };
+            // on a tax invoice the state is the one the GSTIN is registered in
+            vm.State = (vm.StateCode != null && GstStates.TryGetValue(vm.StateCode, out var gstState) ? gstState : null)
+                       ?? First(branch?.State, company?.State);
+
+            try
+            {
+                var conn = dbContext.Database.GetDbConnection();
+                var bank = await conn.QueryFirstOrDefaultAsync<(string? BankName, string? AccountNumber, string? BranchName, string? IFSCCode, string? UpiId)>(
+                    "SELECT TOP 1 BankName, AccountNumber, BranchName, IFSCCode, UpiId FROM dbo.BankMaster WHERE IsActive = 1 ORDER BY IsPrimary DESC, Id");
+                vm.BankName = bank.BankName; vm.BankAccountNumber = bank.AccountNumber; vm.BankBranch = bank.BranchName;
+                vm.BankIfsc = bank.IFSCCode; vm.UpiId = bank.UpiId;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "B2B invoice: bank details could not be read");
+            }
+            return vm;
         }
 
         #endregion

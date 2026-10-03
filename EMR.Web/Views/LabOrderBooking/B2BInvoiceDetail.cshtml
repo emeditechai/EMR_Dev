@@ -1,553 +1,346 @@
 @model EMR.Web.Models.DTOs.B2BInvoiceDetailDto
 @{
     ViewData["Title"] = $"Tax Invoice {Model.InvoiceNo}";
+    var lh = ViewBag.Letterhead as EMR.Web.Models.ViewModels.B2BInvoiceLetterheadViewModel
+             ?? new EMR.Web.Models.ViewModels.B2BInvoiceLetterheadViewModel { DisplayName = Model.BranchName ?? "Diagnostic Laboratory" };
+    var items = Model.Items ?? new List<EMR.Web.Models.DTOs.B2BInvoiceItemDto>();
+    var dateGroups = items.GroupBy(i => i.OrderDate.Date).OrderBy(g => g.Key).ToList();
+    int testCount = Model.TestLines != null && Model.TestLines.Any() ? Model.TestLines.Count : items.Sum(i => i.Tests?.Count > 0 ? i.Tests.Count : 1);
+    var periodFrom = items.Any() ? items.Min(i => i.OrderDate) : (DateTime?)null;
+    var periodTo = items.Any() ? items.Max(i => i.OrderDate) : (DateTime?)null;
+    var statusText = Model.Status == "P" ? "Paid" : Model.Status == "R" ? "Partially Paid" : "Unpaid";
+    var statusCls = Model.Status == "P" ? "st-paid" : Model.Status == "R" ? "st-partial" : "st-unpaid";
+    var partnerTypeText = Model.PartnerType == "C" ? "Corporate" : "Franchise";
+    decimal taxable = Model.TotalAmount - Model.DiscountAmount;
+    decimal balance = Math.Max(0, Model.BalanceAmount);
+    bool showLegal = !string.IsNullOrWhiteSpace(lh.LegalName) && !string.Equals(lh.LegalName, lh.DisplayName, StringComparison.OrdinalIgnoreCase);
 }
 
 @section HeadStyles {
     <style>
-        .invoice-container {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            color: #0f172a;
-        }
-        .invoice-card {
-            max-width: 1020px;
-            margin: auto;
-            padding: 36px 42px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.03);
-        }
-        .barcode-font {
-            font-family: 'Libre Barcode 128', cursive;
-            font-size: 42px;
-            line-height: 1;
-            letter-spacing: 2px;
-        }
-        .inv-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 14px;
-            border-radius: 9999px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-        .inv-badge-paid {
-            color: #15803d;
-            background: #dcfce7;
-            border: 1px solid #bbf7d0;
-        }
-        .inv-badge-unpaid {
-            color: #b91c1c;
-            background: #fee2e2;
-            border: 1px solid #fecaca;
-        }
-        .inv-badge-partial {
-            color: #b45309;
-            background: #fef3c7;
-            border: 1px solid #fde68a;
+        /* B2B tax invoice - A4 document, prints as it looks on screen */
+        .tinv-wrap { --ink:#111827; --muted:#4b5563; --soft:#6b7280; --rule:#d1d5db; --rule-soft:#e5e7eb; --band:#f3f4f6; --accent:#1e3a5f; --accent-soft:#eef2f7;
+                     max-width: 900px; margin: auto; color: var(--ink); font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; }
+        .tinv-actions { display:flex; justify-content:space-between; align-items:center; gap:.5rem; margin-bottom:.75rem; flex-wrap:wrap; }
+        .tinv { background:#fff; border:1px solid var(--rule); box-shadow:0 1px 3px rgba(0,0,0,.06); padding:28px 32px; font-size:12.5px; line-height:1.45; }
+
+        /* letterhead */
+        .tinv-head { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; padding-bottom:14px; border-bottom:3px solid var(--accent); }
+        .tinv-brand { display:flex; gap:14px; align-items:flex-start; min-width:0; }
+        .tinv-logo { width:64px; height:64px; object-fit:contain; flex-shrink:0; }
+        .tinv-logo-ph { width:56px; height:56px; border-radius:8px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; }
+        .tinv-name { font-size:20px; font-weight:800; color:var(--accent); letter-spacing:-.2px; line-height:1.2; }
+        .tinv-legal { font-size:12px; font-weight:600; color:var(--ink); }
+        .tinv-line { color:var(--muted); font-size:11.5px; }
+        .tinv-line b { color:var(--ink); font-weight:600; }
+        .tinv-title { text-align:right; flex-shrink:0; }
+        .tinv-title h1 { font-size:24px; font-weight:800; letter-spacing:3px; margin:0; color:var(--ink); }
+        .tinv-title .copy { font-size:10.5px; text-transform:uppercase; letter-spacing:1px; color:var(--soft); margin-top:2px; }
+
+        /* boxed grids */
+        .tinv-meta { display:grid; grid-template-columns:repeat(4, 1fr); border:1px solid var(--rule); border-top:0; }
+        .tinv-meta > div { padding:8px 10px; border-right:1px solid var(--rule); }
+        .tinv-meta > div:last-child { border-right:0; }
+        .lbl { display:block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--soft); margin-bottom:2px; }
+        .val { font-weight:700; color:var(--ink); }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .tinv-parties { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--rule); border-top:0; }
+        .tinv-parties > div { padding:10px 12px; }
+        .tinv-parties > div + div { border-left:1px solid var(--rule); }
+        .party-name { font-size:14px; font-weight:800; color:var(--ink); margin-bottom:2px; }
+        .kv { display:flex; justify-content:space-between; gap:12px; padding:1px 0; }
+        .kv span:first-child { color:var(--muted); }
+        .kv span:last-child { font-weight:600; text-align:right; }
+        .st { display:inline-block; padding:1px 8px; border-radius:3px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; border:1px solid; }
+        .st-paid { color:#166534; border-color:#86efac; background:#f0fdf4; }
+        .st-partial { color:#92400e; border-color:#fcd34d; background:#fffbeb; }
+        .st-unpaid { color:#991b1b; border-color:#fca5a5; background:#fef2f2; }
+
+        /* items */
+        .tinv-items { width:100%; border-collapse:collapse; margin-top:14px; font-size:12px; }
+        .tinv-items thead th { background:var(--accent); color:#fff; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:7px 8px; border:1px solid var(--accent); text-align:left; }
+        .tinv-items td { padding:6px 8px; border-left:1px solid var(--rule-soft); border-right:1px solid var(--rule-soft); border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+        .tinv-items .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+        .tinv-items tr.grp td { background:var(--band); font-weight:700; font-size:11px; color:var(--ink); border-color:var(--rule); }
+        .tinv-items tr.ord-sub td { color:var(--muted); font-size:11px; background:#fafafa; }
+        .tinv-items tr.grp-sub td { font-weight:700; border-bottom:1px solid var(--rule); }
+        .tinv-items tfoot td { border:1px solid var(--rule); font-weight:800; background:var(--accent-soft); padding:8px; }
+        .tag { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.4px; padding:0 5px; border:1px solid var(--rule); border-radius:3px; color:var(--muted); margin-left:4px; vertical-align:1px; }
+
+        /* summary */
+        .tinv-summary { display:grid; grid-template-columns:1fr 300px; gap:16px; margin-top:14px; align-items:start; }
+        .box { border:1px solid var(--rule); padding:10px 12px; }
+        .box + .box { margin-top:10px; }
+        .words { font-weight:700; font-style:italic; }
+        .totals { width:100%; border-collapse:collapse; border:1px solid var(--rule); }
+        .totals td { padding:6px 10px; border-bottom:1px solid var(--rule-soft); }
+        .totals td:last-child { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:600; }
+        .totals tr.net td { background:var(--accent); color:#fff; font-weight:800; font-size:13.5px; border-bottom:0; }
+        .totals tr.bal td { font-weight:800; border-top:1px solid var(--rule); }
+        .terms { margin:0; padding-left:16px; color:var(--muted); font-size:11px; }
+
+        /* sign-off */
+        .tinv-sign { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-top:22px; }
+        .sign-box { text-align:right; min-width:240px; }
+        .sign-space { height:52px; }
+        .sign-line { border-top:1px solid var(--ink); padding-top:4px; font-weight:700; }
+        .tinv-foot { margin-top:16px; padding-top:8px; border-top:1px solid var(--rule); display:flex; justify-content:space-between; gap:12px; color:var(--soft); font-size:10.5px; }
+
+        @@media (max-width: 760px) {
+            .tinv { padding:16px; }
+            .tinv-head, .tinv-sign { flex-direction:column; align-items:flex-start; }
+            .tinv-title { text-align:left; }
+            .tinv-meta { grid-template-columns:1fr 1fr; }
+            .tinv-meta > div:nth-child(2n) { border-right:0; }
+            .tinv-meta > div:nth-child(-n+2) { border-bottom:1px solid var(--rule); }
+            .tinv-parties, .tinv-summary { grid-template-columns:1fr; }
+            .tinv-parties > div + div { border-left:0; border-top:1px solid var(--rule); }
+            .tinv-items-scroll { overflow-x:auto; }
+            .sign-box { text-align:left; }
         }
 
-        /* Modern Table Styles */
-        .invoice-table {
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 0.85rem;
-        }
-        .invoice-table th {
-            background-color: #f8fafc;
-            color: #475569;
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 0.72rem;
-            letter-spacing: 0.6px;
-            border-top: 1px solid #cbd5e1;
-            border-bottom: 2px solid #cbd5e1;
-            padding: 10px 12px;
-        }
-        .invoice-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-        }
-        .date-group-header {
-            background: linear-gradient(90deg, #f1f5f9 0%, #f8fafc 100%);
-            border-left: 4px solid #3b82f6;
-            border-top: 1px solid #e2e8f0;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .date-group-header td {
-            padding: 8px 12px;
-            font-weight: 700;
-            color: #1e293b;
-        }
-        .date-subtotal-row {
-            background-color: #f8fafc;
-            border-top: 1px solid #e2e8f0;
-            border-bottom: 2px solid #cbd5e1;
-            font-weight: 700;
-        }
-        .bill-subtotal-row {
-            background-color: #fdfdfe;
-            border-top: 1px dashed #e2e8f0;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 0.8rem;
-        }
-        .table-grand-total {
-            background: #f1f5f9;
-            border-top: 2px solid #0f172a;
-            border-bottom: 2px solid #0f172a;
-        }
-
-        .info-card {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 16px 18px;
-            height: 100%;
-        }
-
+        @@page { size: A4; margin: 12mm 10mm; }
         @@media print {
-            body {
-                background: #fff !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-            body * {
-                visibility: hidden;
-            }
-            .invoice-card, .invoice-card * {
-                visibility: visible;
-            }
-            .invoice-card {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                max-width: 100%;
-                border: none !important;
-                box-shadow: none !important;
-                padding: 15px 20px !important;
-                border-radius: 0 !important;
-            }
-            .no-print {
-                display: none !important;
-            }
-            .date-group-header {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-            .invoice-table tr {
-                page-break-inside: avoid;
-            }
+            body { background:#fff !important; }
+            body * { visibility:hidden; }
+            .tinv, .tinv * { visibility:visible; }
+            .tinv { position:absolute; left:0; top:0; width:100%; border:0; box-shadow:none; padding:0; }
+            .no-print { display:none !important; }
+            .tinv * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+            .tinv-items thead { display:table-header-group; }
+            .tinv-items tr, .tinv-summary, .tinv-sign { page-break-inside:avoid; break-inside:avoid; }
         }
     </style>
 }
 
-<div class="invoice-container py-3">
-    @* Action Control Bar (Hidden on Print) *@
-    <div class="d-flex justify-content-between align-items-center mb-3 no-print" style="max-width: 1020px; margin: auto;">
-        <a asp-action="B2BInvoices" class="btn btn-outline-secondary btn-sm px-3 fw-semibold shadow-sm">
+<div class="tinv-wrap py-3">
+    @* actions - not printed *@
+    <div class="tinv-actions no-print">
+        <a asp-action="B2BInvoices" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
             <i class="bi bi-arrow-left me-1"></i> Back to Invoices List
         </a>
         <div class="d-flex gap-2">
             @if (Model.Status != "P")
             {
-                <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@Model.PartnerType,agentId=@Model.PartnerId" class="btn btn-success btn-sm px-3 fw-bold shadow-sm">
+                <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@Model.PartnerType&agentId=@Model.PartnerId" class="btn btn-success btn-sm px-3 fw-bold">
                     <i class="bi bi-wallet2 me-1"></i> Settle Payment
                 </a>
             }
-            <button type="button" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm" onclick="window.print()">
+            <button type="button" class="btn btn-primary btn-sm px-4 fw-bold" onclick="window.print()">
                 <i class="bi bi-printer me-1"></i> Print Invoice
             </button>
         </div>
     </div>
 
-    @* Master Invoice Document *@
-    <div class="invoice-card">
-        <!-- Document Header: Lab Branding & Invoice Meta -->
-        <div class="row align-items-start border-bottom pb-4 mb-4">
-            <div class="col-7">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <div class="bg-primary text-white p-2 rounded-3 d-inline-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
-                        <i class="bi bi-hospital fs-5"></i>
-                    </div>
-                    <h3 class="fw-bolder text-primary mb-0" style="letter-spacing: -0.5px;">eClinicPlus+ Diagnostics</h3>
-                </div>
-                <div class="text-secondary small fw-semibold mb-2">Central Clinical Laboratory &amp; Diagnostic Imaging Center</div>
-                <div class="small text-muted mb-0.5">
-                    Branch: <strong class="text-dark">@(Model.BranchName ?? "Main Central Laboratory")</strong> 
-                    <span class="badge bg-light text-secondary border ms-1 font-monospace">@(Model.BranchCode ?? "CMP-001")</span>
-                </div>
-                <div class="small text-muted mb-0.5">
-                    GSTIN: <strong class="text-dark font-monospace">19AAACE0000A1Z5</strong> &nbsp;|&nbsp; 
-                    PAN: <strong class="text-dark font-monospace">AAACE0000A</strong> &nbsp;|&nbsp; 
-                    State Code: <strong>19 (West Bengal)</strong>
-                </div>
-                <div class="small text-muted">
-                    Helpline: <strong>+91 98765 43210</strong> &nbsp;|&nbsp; Email: <strong>billing@emeditechplus.com</strong>
-                </div>
-            </div>
-
-            <div class="col-5 text-end">
-                <div class="barcode-font text-dark mb-1">@Model.InvoiceNo</div>
-                <h2 class="text-uppercase fw-extrabold text-dark mb-1" style="letter-spacing: 1.5px;">TAX INVOICE</h2>
-                <div class="d-inline-block px-2.5 py-1 bg-light border rounded font-monospace fw-bold text-primary fs-6 mb-2">
-                    @Model.InvoiceNo
-                </div>
-                <div class="small text-muted mb-0.5">Invoice Date: <strong class="text-dark">@Model.InvoiceDate.ToString("dd MMM yyyy")</strong></div>
-                <div class="small text-muted mb-2">Due Date: <strong class="text-danger">@Model.DueDate.ToString("dd MMM yyyy")</strong></div>
+    <div class="tinv">
+        <!-- Letterhead -->
+        <div class="tinv-head">
+            <div class="tinv-brand">
+                @if (!string.IsNullOrWhiteSpace(lh.LogoPath))
+                {
+                    <img src="@lh.LogoPath" class="tinv-logo" alt="Logo" />
+                }
+                else
+                {
+                    <div class="tinv-logo-ph"><i class="bi bi-hospital"></i></div>
+                }
                 <div>
-                    @if (Model.Status == "P")
-                    {
-                        <span class="inv-badge inv-badge-paid"><i class="bi bi-check-circle-fill"></i> Fully Settled (Paid)</span>
+                    <div class="tinv-name">@lh.DisplayName</div>
+                    @if (showLegal) { <div class="tinv-legal">@lh.LegalName</div> }
+                    @if (!string.IsNullOrWhiteSpace(lh.Address)) { <div class="tinv-line">@lh.Address</div> }
+                    @{
+                        var contacts = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(lh.Phone)) contacts.Add("Ph: " + lh.Phone);
+                        if (!string.IsNullOrWhiteSpace(lh.Email)) contacts.Add(lh.Email!);
+                        if (!string.IsNullOrWhiteSpace(lh.Website)) contacts.Add(lh.Website!.Replace("https://", "").Replace("http://", "").TrimEnd('/'));
                     }
-                    else if (Model.Status == "R")
-                    {
-                        <span class="inv-badge inv-badge-partial"><i class="bi bi-hourglass-split"></i> Partially Paid</span>
-                    }
-                    else
-                    {
-                        <span class="inv-badge inv-badge-unpaid"><i class="bi bi-exclamation-circle-fill"></i> Unpaid (Payment Due)</span>
-                    }
+                    @if (contacts.Any()) { <div class="tinv-line">@string.Join("  ·  ", contacts)</div> }
+                    <div class="tinv-line">
+                        @if (!string.IsNullOrWhiteSpace(lh.GSTIN)) { <span>GSTIN: <b class="mono">@lh.GSTIN</b></span> }
+                        @if (!string.IsNullOrWhiteSpace(lh.PAN)) { <span>&nbsp;·&nbsp; PAN: <b class="mono">@lh.PAN</b></span> }
+                        @if (!string.IsNullOrWhiteSpace(lh.State)) { <span>&nbsp;·&nbsp; State: <b>@(lh.State + (lh.StateCode != null ? $" ({lh.StateCode})" : ""))</b></span> }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(lh.RegistrationNumber)) { <div class="tinv-line">Regn. No: <b>@lh.RegistrationNumber</b></div> }
                 </div>
+            </div>
+            <div class="tinv-title">
+                <h1>TAX INVOICE</h1>
+                <div class="copy">Original for Recipient</div>
             </div>
         </div>
 
-        <!-- Billed To & Terms Details (2-Column Grid) -->
-        <div class="row g-3 mb-4">
-            <div class="col-6">
-                <div class="info-card">
-                    <span class="text-uppercase fw-bold text-secondary d-block mb-1.5" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                        <i class="bi bi-person-badge me-1 text-primary"></i>Invoiced To (B2B Partner):
-                    </span>
-                    <h5 class="fw-bold text-dark mb-1">@Model.PartnerName</h5>
-                    <div class="d-flex align-items-center gap-2 mb-1.5">
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace fw-bold">@Model.PartnerCode</span>
-                        <span class="badge bg-secondary-subtle text-secondary border">@(Model.PartnerType == "C" ? "Corporate Partner" : "Franchise Partner")</span>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(Model.PartnerPhone))
-                    {
-                        <div class="small text-muted mb-0.5"><i class="bi bi-telephone me-1"></i>@Model.PartnerPhone</div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.PartnerEmail))
-                    {
-                        <div class="small text-muted mb-0.5"><i class="bi bi-envelope me-1"></i>@Model.PartnerEmail</div>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.PartnerAddress))
-                    {
-                        <div class="small text-muted"><i class="bi bi-geo-alt me-1"></i>@Model.PartnerAddress</div>
-                    }
-                </div>
-            </div>
+        <!-- Invoice details -->
+        <div class="tinv-meta">
+            <div><span class="lbl">Invoice No</span><span class="val mono">@Model.InvoiceNo</span></div>
+            <div><span class="lbl">Invoice Date</span><span class="val">@Model.InvoiceDate.ToString("dd MMM yyyy")</span></div>
+            <div><span class="lbl">Due Date</span><span class="val">@Model.DueDate.ToString("dd MMM yyyy")</span></div>
+            <div><span class="lbl">Payment Status</span><span class="st @statusCls">@statusText</span></div>
+        </div>
 
-            <div class="col-6">
-                <div class="info-card">
-                    <span class="text-uppercase fw-bold text-secondary d-block mb-1.5" style="font-size: 0.72rem; letter-spacing: 0.5px;">
-                        <i class="bi bi-receipt me-1 text-primary"></i>Billing &amp; Credit Terms:
-                    </span>
-                    <div class="d-flex justify-content-between mb-1 small">
-                        <span class="text-muted">Billing Cycle:</span>
-                        <strong class="text-dark">@(Model.BillingCycle ?? "Monthly Consolidated")</strong>
-                    </div>
-                    <div class="d-flex justify-content-between mb-1 small">
-                        <span class="text-muted">Invoice Date:</span>
-                        <strong class="text-dark">@Model.InvoiceDate.ToString("dd/MM/yyyy")</strong>
-                    </div>
-                    <div class="d-flex justify-content-between mb-1 small">
-                        <span class="text-muted">Payment Due Date:</span>
-                        <strong class="text-dark">@Model.DueDate.ToString("dd/MM/yyyy")</strong>
-                    </div>
-                    <div class="d-flex justify-content-between mb-1 small">
-                        <span class="text-muted">Total Lab Orders:</span>
-                        <strong class="text-primary font-monospace">@(Model.Items?.Count ?? 0) Orders</strong>
-                    </div>
-                    <div class="d-flex justify-content-between small">
-                        <span class="text-muted">Total Test Items:</span>
-                        <strong class="text-dark font-monospace">
-                            @(Model.TestLines != null && Model.TestLines.Any() 
-                                ? Model.TestLines.Count 
-                                : Model.Items?.Sum(i => i.Tests?.Count ?? 1) ?? 0) Tests
-                        </strong>
-                    </div>
-                </div>
+        <!-- Bill to / invoice summary -->
+        <div class="tinv-parties">
+            <div>
+                <span class="lbl">Bill To</span>
+                <div class="party-name">@Model.PartnerName</div>
+                <div class="tinv-line">@partnerTypeText Partner &nbsp;·&nbsp; Code: <b class="mono">@Model.PartnerCode</b></div>
+                @if (!string.IsNullOrWhiteSpace(Model.PartnerAddress)) { <div class="tinv-line">@Model.PartnerAddress</div> }
+                @if (!string.IsNullOrWhiteSpace(Model.PartnerPhone)) { <div class="tinv-line">Ph: @Model.PartnerPhone</div> }
+                @if (!string.IsNullOrWhiteSpace(Model.PartnerEmail)) { <div class="tinv-line">@Model.PartnerEmail</div> }
+            </div>
+            <div>
+                <span class="lbl">Invoice Summary</span>
+                <div class="kv"><span>Billing cycle</span><span>@(string.IsNullOrWhiteSpace(Model.BillingCycle) ? "—" : Model.BillingCycle)</span></div>
+                <div class="kv"><span>Service period</span><span>@(periodFrom.HasValue ? $"{periodFrom:dd MMM yyyy} – {periodTo:dd MMM yyyy}" : "—")</span></div>
+                <div class="kv"><span>Lab orders / tests</span><span>@items.Count / @testCount</span></div>
+                <div class="kv"><span>Billing branch</span><span>@((Model.BranchName ?? "—") + (string.IsNullOrWhiteSpace(Model.BranchCode) ? "" : $" ({Model.BranchCode})"))</span></div>
             </div>
         </div>
 
-        <!-- Date-wise Grouped Itemized Line Items Table -->
-        @{
-            var dateGroups = (Model.Items ?? new List<EMR.Web.Models.DTOs.B2BInvoiceItemDto>())
-                .GroupBy(i => i.OrderDate.Date)
-                .OrderBy(g => g.Key)
-                .ToList();
-            int globalSlNo = 1;
-        }
-
-        <div class="table-responsive mb-4">
-            <table class="invoice-table">
+        <!-- Line items -->
+        <div class="tinv-items-scroll">
+            <table class="tinv-items">
                 <thead>
                     <tr>
-                        <th style="width: 42px;" class="text-center">#</th>
-                        <th style="width: 140px;">Bill No</th>
-                        <th style="width: 100px;">Order Date</th>
-                        <th style="width: 220px;">Patient Name &amp; Code</th>
-                        <th>Investigation(s) / Test Name</th>
-                        <th style="width: 110px;">Code / Dept</th>
-                        <th style="width: 130px;" class="text-end">B2B Rate (₹)</th>
+                        <th style="width:34px;">#</th>
+                        <th style="width:130px;">Bill No</th>
+                        <th style="width:170px;">Patient</th>
+                        <th>Investigation</th>
+                        <th style="width:110px;">Code / Dept</th>
+                        <th style="width:105px;" class="num">Amount (₹)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @if (dateGroups.Any())
+                    @if (!dateGroups.Any())
                     {
-                        foreach (var group in dateGroups)
+                        <tr><td colspan="6" class="text-center py-4" style="color:var(--soft)">No bills in this invoice.</td></tr>
+                    }
+                    @{ int sl = 1; }
+                    @foreach (var group in dateGroups)
+                    {
+                        decimal groupTotal = group.Sum(o => o.B2BTotal > 0 ? o.B2BTotal : o.Amount);
+                        int groupTests = group.Sum(o => o.Tests != null && o.Tests.Any() ? o.Tests.Count : 1);
+                        <tr class="grp">
+                            <td colspan="6">Order date: @group.Key.ToString("dd MMM yyyy") &nbsp;·&nbsp; @group.Count() order(s), @groupTests test(s)</td>
+                        </tr>
+                        foreach (var order in group)
                         {
-                            decimal dateSubtotal = group.Sum(o => o.B2BTotal > 0 ? o.B2BTotal : o.Amount);
-                            int dateOrdersCount = group.Count();
-                            int dateTestsCount = group.Sum(o => o.Tests != null && o.Tests.Any() ? o.Tests.Count : 1);
-
-                            <!-- Date Group Header Band -->
-                            <tr class="date-group-header">
-                                <td colspan="7">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <i class="bi bi-calendar-check me-2 text-primary"></i>
-                                            <span>Order Date: <strong>@group.Key.ToString("dd MMM yyyy")</strong> (@group.Key.ToString("dd/MM/yyyy"))</span>
-                                        </div>
-                                        <div class="small text-secondary fw-semibold">
-                                            <span class="badge bg-white text-dark border me-1 font-monospace">@dateOrdersCount Order(s)</span>
-                                            <span class="badge bg-white text-dark border font-monospace">@dateTestsCount Test(s)</span>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-
-                            <!-- Bills & Test Line Items for this Date -->
-                            foreach (var order in group)
+                            var tests = order.Tests ?? new List<EMR.Web.Models.DTOs.B2BInvoiceTestLineDto>();
+                            if (tests.Any())
                             {
-                                var testLines = order.Tests ?? new List<EMR.Web.Models.DTOs.B2BInvoiceTestLineDto>();
-
-                                if (testLines.Any())
+                                for (int t = 0; t < tests.Count; t++)
                                 {
-                                    int orderTestCount = testLines.Count;
-                                    for (int tIdx = 0; tIdx < orderTestCount; tIdx++)
-                                    {
-                                        var test = testLines[tIdx];
-                                        <tr>
-                                            @if (tIdx == 0)
-                                            {
-                                                <td rowspan="@orderTestCount" class="text-center text-muted small fw-semibold" style="vertical-align: top; padding-top: 12px;">
-                                                    @(globalSlNo++)
-                                                </td>
-                                                <td rowspan="@orderTestCount" style="vertical-align: top; padding-top: 12px;">
-                                                    <span class="font-monospace fw-bold text-primary small d-block">@order.BillNo</span>
-                                                </td>
-                                                <td rowspan="@orderTestCount" class="small text-muted" style="vertical-align: top; padding-top: 12px;">
-                                                    @order.OrderDate.ToString("dd/MM/yyyy")
-                                                </td>
-                                                <td rowspan="@orderTestCount" style="vertical-align: top; padding-top: 12px;">
-                                                    <span class="fw-bold text-dark d-block">@order.PatientName</span>
-                                                    <small class="text-muted font-monospace d-block">@(order.PatientCode ?? "--")</small>
-                                                </td>
-                                            }
-                                            <td>
-                                                <div class="fw-semibold text-dark">
-                                                    @test.TestName
-                                                    @if (test.ItemType == "P")
-                                                    {
-                                                        <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:0.65rem;">PROFILE</span>
-                                                    }
-                                                </div>
-                                            </td>
-                                            <td class="small text-muted">
-                                                <span class="font-monospace">@(test.TestCode ?? "--")</span>
-                                                <small class="text-muted d-block" style="font-size:0.7rem;">@(test.DepartmentName ?? "Pathology")</small>
-                                            </td>
-                                            <td class="text-end font-monospace fw-semibold text-dark">
-                                                ₹ @test.B2BRate.ToString("N2")
-                                            </td>
-                                        </tr>
-                                    }
-
-                                    @if (orderTestCount > 1)
-                                    {
-                                        <tr class="bill-subtotal-row">
-                                            <td colspan="4" class="text-end text-muted small pe-3 py-1">
-                                                <i class="bi bi-arrow-return-right me-1"></i>Order <strong>@order.BillNo</strong> Total (@orderTestCount Tests):
-                                            </td>
-                                            <td colspan="2" class="text-muted small py-1 font-monospace">
-                                                @order.PatientName
-                                            </td>
-                                            <td class="text-end font-monospace fw-bold text-dark py-1">
-                                                ₹ @order.B2BTotal.ToString("N2")
-                                            </td>
-                                        </tr>
-                                    }
-                                }
-                                else
-                                {
-                                    <!-- Fallback when individual test breakdown is not itemized -->
+                                    var test = tests[t];
                                     <tr>
-                                        <td class="text-center text-muted small fw-semibold">@(globalSlNo++)</td>
-                                        <td><span class="font-monospace fw-bold text-primary small">@order.BillNo</span></td>
-                                        <td class="small text-muted">@order.OrderDate.ToString("dd/MM/yyyy")</td>
-                                        <td>
-                                            <span class="fw-bold text-dark d-block">@order.PatientName</span>
-                                            <small class="text-muted font-monospace">@(order.PatientCode ?? "--")</small>
-                                        </td>
-                                        <td class="small text-secondary">@(order.TestNames ?? "Standard Investigation")</td>
-                                        <td class="small text-muted font-monospace">--</td>
-                                        <td class="text-end font-monospace fw-bold text-dark">₹ @(order.B2BTotal > 0 ? order.B2BTotal.ToString("N2") : order.Amount.ToString("N2"))</td>
+                                        @if (t == 0)
+                                        {
+                                            <td rowspan="@tests.Count">@(sl++)</td>
+                                            <td rowspan="@tests.Count" class="mono">@order.BillNo</td>
+                                            <td rowspan="@tests.Count"><b>@order.PatientName</b><div style="color:var(--soft);font-size:10.5px;" class="mono">@(order.PatientCode ?? "")</div></td>
+                                        }
+                                        <td>@test.TestName @if (test.ItemType == "P") { <span class="tag">PROFILE</span> }</td>
+                                        <td><span class="mono">@(test.TestCode ?? "—")</span><div style="color:var(--soft);font-size:10.5px;">@(test.DepartmentName ?? "")</div></td>
+                                        <td class="num">@test.B2BRate.ToString("N2")</td>
+                                    </tr>
+                                }
+                                if (tests.Count > 1)
+                                {
+                                    <tr class="ord-sub">
+                                        <td colspan="5" class="num">Bill @order.BillNo total</td>
+                                        <td class="num">@order.B2BTotal.ToString("N2")</td>
                                     </tr>
                                 }
                             }
-
-                            <!-- Date Group Subtotal Row -->
-                            <tr class="date-subtotal-row">
-                                <td colspan="6" class="text-end py-2">
-                                    <span class="text-secondary small text-uppercase me-2 fw-bold">
-                                        Subtotal for @group.Key.ToString("dd/MM/yyyy") (@dateOrdersCount Bills, @dateTestsCount Tests):
-                                    </span>
-                                </td>
-                                <td class="text-end font-monospace fw-bold text-primary py-2 fs-6">
-                                    ₹ @dateSubtotal.ToString("N2")
-                                </td>
-                            </tr>
+                            else
+                            {
+                                <tr>
+                                    <td>@(sl++)</td>
+                                    <td class="mono">@order.BillNo</td>
+                                    <td><b>@order.PatientName</b><div style="color:var(--soft);font-size:10.5px;" class="mono">@(order.PatientCode ?? "")</div></td>
+                                    <td>@(order.TestNames ?? "Investigation")</td>
+                                    <td>—</td>
+                                    <td class="num">@((order.B2BTotal > 0 ? order.B2BTotal : order.Amount).ToString("N2"))</td>
+                                </tr>
+                            }
                         }
-                    }
-                    else
-                    {
-                        <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">
-                                <i class="bi bi-inbox fs-1 d-block mb-2 text-muted"></i>
-                                No bill items found in this invoice.
-                            </td>
+                        <tr class="grp-sub">
+                            <td colspan="5" class="num">Subtotal for @group.Key.ToString("dd MMM yyyy")</td>
+                            <td class="num">@groupTotal.ToString("N2")</td>
                         </tr>
                     }
                 </tbody>
                 <tfoot>
-                    <tr class="table-grand-total">
-                        <td colspan="6" class="text-end py-2.5">
-                            <span class="fw-bolder text-dark text-uppercase fs-6">Grand Total / Net Invoice Amount:</span>
-                        </td>
-                        <td class="text-end font-monospace fw-extrabold text-primary fs-5 py-2.5">
-                            ₹ @Model.NetAmount.ToString("N2")
-                        </td>
+                    <tr>
+                        <td colspan="5" class="num">Total (@items.Count orders, @testCount tests)</td>
+                        <td class="num">@Model.TotalAmount.ToString("N2")</td>
                     </tr>
                 </tfoot>
             </table>
         </div>
 
-        <!-- Amount In Words Banner -->
-        <div class="p-2.5 bg-light rounded-3 border mb-4 d-flex align-items-center justify-content-between">
+        <!-- Amount in words, bank, terms | totals -->
+        <div class="tinv-summary">
             <div>
-                <span class="small text-secondary text-uppercase fw-bold me-2"><i class="bi bi-cash-coin me-1 text-primary"></i>Amount in Words:</span>
-                <strong class="text-dark small font-monospace fst-italic">@Model.AmountInWords</strong>
+                <div class="box">
+                    <span class="lbl">Amount in words</span>
+                    <div class="words">@Model.AmountInWords</div>
+                </div>
+                <div class="box">
+                    <span class="lbl">Payment details</span>
+                    @if (lh.HasBank)
+                    {
+                        <div class="kv"><span>Account name</span><span>@lh.PayeeName</span></div>
+                        @if (!string.IsNullOrWhiteSpace(lh.BankName)) { <div class="kv"><span>Bank</span><span>@(lh.BankName + (string.IsNullOrWhiteSpace(lh.BankBranch) ? "" : ", " + lh.BankBranch))</span></div> }
+                        @if (!string.IsNullOrWhiteSpace(lh.BankAccountNumber)) { <div class="kv"><span>Account no</span><span class="mono">@lh.BankAccountNumber</span></div> }
+                        @if (!string.IsNullOrWhiteSpace(lh.BankIfsc)) { <div class="kv"><span>IFSC</span><span class="mono">@lh.BankIfsc</span></div> }
+                        @if (!string.IsNullOrWhiteSpace(lh.UpiId)) { <div class="kv"><span>UPI</span><span class="mono">@lh.UpiId</span></div> }
+                    }
+                    else
+                    {
+                        <div class="tinv-line">NEFT / RTGS / cheque in favour of <b>@lh.PayeeName</b>. Please quote invoice no <b class="mono">@Model.InvoiceNo</b> with the payment.</div>
+                    }
+                </div>
+                <div class="box">
+                    <span class="lbl">Terms &amp; conditions</span>
+                    <ol class="terms">
+                        <li>Payment is due on or before <b>@Model.DueDate.ToString("dd MMM yyyy")</b> as per the agreed credit terms.</li>
+                        <li>Any discrepancy in billing, rates or test counts must be reported in writing within 7 days of the invoice date.</li>
+                        <li>Cheque / demand draft to be drawn in favour of <b>@lh.PayeeName</b>.</li>
+                    </ol>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.Notes))
+                {
+                    <div class="box"><span class="lbl">Notes</span><div>@Model.Notes</div></div>
+                }
             </div>
-            <span class="badge bg-white text-secondary border font-monospace small">INR (₹)</span>
+            <table class="totals">
+                <tr><td>Gross amount</td><td>₹ @Model.TotalAmount.ToString("N2")</td></tr>
+                @if (Model.DiscountAmount > 0)
+                {
+                    <tr><td>Less: discount</td><td>− ₹ @Model.DiscountAmount.ToString("N2")</td></tr>
+                    <tr><td>Taxable value</td><td>₹ @taxable.ToString("N2")</td></tr>
+                }
+                <tr><td>GST</td><td>@(Model.TaxAmount > 0 ? "₹ " + Model.TaxAmount.ToString("N2") : "Nil")</td></tr>
+                <tr class="net"><td>Invoice total</td><td>₹ @Model.NetAmount.ToString("N2")</td></tr>
+                <tr><td>Amount received</td><td>₹ @Model.PaidAmount.ToString("N2")</td></tr>
+                <tr class="bal"><td>Balance due</td><td style="color:@(balance > 0 ? "#991b1b" : "#166534")">₹ @balance.ToString("N2")</td></tr>
+            </table>
         </div>
 
-        <!-- Financial Summary & Banking Details (2-Column Grid) -->
-        <div class="row g-3 align-items-start border-top pt-3 mb-4">
-            <div class="col-7">
-                <div class="info-card">
-                    <span class="fw-bold small text-dark d-block mb-2">
-                        <i class="bi bi-bank me-1.5 text-primary"></i>Bank Payment Details for NEFT / RTGS Transfer:
-                    </span>
-                    <div class="row g-2 small">
-                        <div class="col-6">
-                            <span class="text-muted d-block">Bank Name:</span>
-                            <strong class="text-dark">HDFC Bank Ltd.</strong>
-                        </div>
-                        <div class="col-6">
-                            <span class="text-muted d-block">Account Name:</span>
-                            <strong class="text-dark">eMeditech Healthcare Pvt Ltd</strong>
-                        </div>
-                        <div class="col-6">
-                            <span class="text-muted d-block">Account No:</span>
-                            <strong class="text-dark font-monospace fs-6">50200012345678</strong>
-                        </div>
-                        <div class="col-6">
-                            <span class="text-muted d-block">IFSC Code:</span>
-                            <strong class="text-dark font-monospace fs-6">HDFC0001234</strong>
-                        </div>
-                        <div class="col-12">
-                            <span class="text-muted">Branch:</span>
-                            <strong class="text-dark">Kolkata Central Branch</strong>
-                            &nbsp;|&nbsp;
-                            <span class="text-muted">Account Type:</span>
-                            <strong class="text-dark">Current Account</strong>
-                        </div>
-                    </div>
-                </div>
+        <!-- Sign-off -->
+        <div class="tinv-sign">
+            <div class="tinv-line" style="max-width:420px;">
+                Prepared on @Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")@(string.IsNullOrWhiteSpace(Model.CreatedByName) ? "" : " by " + Model.CreatedByName).
             </div>
-
-            <div class="col-5">
-                <div class="info-card">
-                    <div class="d-flex justify-content-between mb-1.5 small">
-                        <span class="text-muted">Total Gross Amount:</span>
-                        <span class="font-monospace fw-semibold text-dark">₹ @Model.TotalAmount.ToString("N2")</span>
-                    </div>
-                    @if (Model.DiscountAmount > 0)
-                    {
-                        <div class="d-flex justify-content-between mb-1.5 small text-success">
-                            <span>Discount / Rebate:</span>
-                            <span class="font-monospace fw-semibold">- ₹ @Model.DiscountAmount.ToString("N2")</span>
-                        </div>
-                    }
-                    @if (Model.TaxAmount > 0)
-                    {
-                        <div class="d-flex justify-content-between mb-1.5 small">
-                            <span class="text-muted">GST / Applicable Tax:</span>
-                            <span class="font-monospace fw-semibold text-dark">₹ @Model.TaxAmount.ToString("N2")</span>
-                        </div>
-                    }
-                    <div class="d-flex justify-content-between border-top pt-2 mb-2">
-                        <span class="fw-bold text-dark fs-6">Net Payable:</span>
-                        <span class="fs-5 fw-extrabold font-monospace text-primary">₹ @Model.NetAmount.ToString("N2")</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-1.5 small">
-                        <span class="text-muted">Amount Settled / Paid:</span>
-                        <span class="font-monospace fw-semibold text-success">₹ @Model.PaidAmount.ToString("N2")</span>
-                    </div>
-                    <div class="d-flex justify-content-between border-top pt-1.5 @(Model.BalanceAmount > 0 ? "text-danger" : "text-success")">
-                        <span class="fw-bold small">Balance Due:</span>
-                        <span class="fw-bold font-monospace fs-5">₹ @Math.Max(0, Model.BalanceAmount).ToString("N2")</span>
-                    </div>
-                </div>
+            <div class="sign-box">
+                <div class="tinv-line">For <b>@lh.PayeeName</b></div>
+                <div class="sign-space"></div>
+                <div class="sign-line">Authorised Signatory</div>
             </div>
         </div>
 
-        <!-- Standard Terms & Dual Signatures -->
-        <div class="border-top pt-3 mt-4">
-            <div class="row g-3 align-items-end">
-                <div class="col-8">
-                    <div class="small text-muted">
-                        <strong class="text-dark d-block mb-1">Terms &amp; Conditions:</strong>
-                        <ol class="ps-3 mb-1" style="font-size: 0.76rem; line-height: 1.5;">
-                            <li>Payment is due strictly as per contracted billing credit terms on or before <strong>@Model.DueDate.ToString("dd/MM/yyyy")</strong>.</li>
-                            <li>Delayed payments attract interest @@ 18% per annum from the due date until realization.</li>
-                            <li>Discrepancies in billing, rate contracts, or test counts must be notified in writing within 7 days of invoice generation.</li>
-                            <li>Cheque/Demand Draft to be drawn in favor of <strong>eMeditech Healthcare Pvt Ltd</strong>.</li>
-                        </ol>
-                        <p class="mb-0 text-muted fst-italic" style="font-size: 0.72rem;">
-                            * This is an electronically generated and authenticated Tax Invoice.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="col-4 text-end">
-                    <div style="height: 55px;" class="d-flex align-items-end justify-content-end">
-                        <span class="badge bg-light text-muted border font-monospace px-2 py-1" style="font-size: 0.65rem;">DIGITALLY SIGNED</span>
-                    </div>
-                    <div class="border-top pt-1 small fw-bold text-dark">
-                        For eClinicPlus+ Diagnostics
-                    </div>
-                    <div class="text-muted" style="font-size: 0.72rem;">Authorized Signatory</div>
-                </div>
-            </div>
+        <div class="tinv-foot">
+            <span>This is a computer-generated invoice.</span>
+            <span class="mono">@Model.InvoiceNo</span>
         </div>
     </div>
 </div>
