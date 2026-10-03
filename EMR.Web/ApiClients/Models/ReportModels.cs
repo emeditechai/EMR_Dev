@@ -12,6 +12,10 @@ public class DailyCollectionRegisterItem
     public string? ModuleCode { get; set; }
     public int? ModuleRefId { get; set; }
     public string BillNo { get; set; } = string.Empty;
+    public string? TokenNo { get; set; }
+    public DateTime? BillDate { get; set; }
+    /// <summary>'F' bill fully cancelled, 'P' partly cancelled, null not cancelled (script 2194).</summary>
+    public string? CancellationType { get; set; }
     public string? PatientCode { get; set; }
     public string? PatientName { get; set; }
     public string? PhoneNumber { get; set; }
