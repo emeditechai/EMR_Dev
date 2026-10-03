@@ -68,6 +68,7 @@ OVERRIDES = {
     ("OPD.SERVICEBOOKING", "OPD", "NewServiceBooking"): ("SAVE", "New service booking"),
     ("LAB.LABORDERBOOKING.B2CBOOKING", "LabOrderBooking", "B2CBooking"): ("SAVE", "Save booking"),
     ("LAB.LABORDERBOOKING.B2CBOOKING", "LabOrderBooking", "SaveBookingWithPayment"): ("SAVE", "Save booking"),
+    ("LAB.LABORDERBOOKING.B2CBOOKING", "LabOrderBooking", "PrescriptionAssist"): ("AI_ASSIST", "AI prescription assist"),   # script 2198
     ("LAB.LABORDERBOOKING.B2BBOOKING", "LabOrderBooking", "B2BBooking"): ("SAVE", "Save booking"),
     ("LAB.LABORDERBOOKING.B2BBOOKING", "LabOrderBooking", "FranchiseWalletStatement"): ("VIEW", None),
     ("LAB.LABORDERBOOKING.B2BINVOICES", "LabOrderBooking", "GenerateInvoice"): ("GENERATE_INVOICE", "Generate invoice"),

@@ -18,6 +18,7 @@ using EMR.Web.ApiClients;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Extensions;
 using Dapper;
+using EMR.Shared.Security;
 using System.Net.Http;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -409,7 +410,18 @@ namespace EMR.Web.Controllers
                 Items = lineItems!
             };
 
-            var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
+            LabOrderResponseDto labOrderRes;
+            try
+            {
+                labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // a billing rule refused the order (e.g. a test not on the branch's rate list - script 2199)
+                ModelState.AddModelError(string.Empty, ex.Message);
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
             await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
                 prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
@@ -976,7 +988,18 @@ namespace EMR.Web.Controllers
                 Items = lineItems!
             };
 
-            var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
+            LabOrderResponseDto labOrderRes;
+            try
+            {
+                labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // a billing rule refused the order (e.g. a test not on the branch's rate list - script 2199)
+                ModelState.AddModelError(string.Empty, ex.Message);
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
 
             decimal totalAmount = lineItems!.Sum(x => x.Price);
@@ -1209,7 +1232,16 @@ namespace EMR.Web.Controllers
                 Items = lineItems
             };
 
-            var labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
+            LabOrderResponseDto labOrderRes;
+            try
+            {
+                labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // a billing rule refused the order (e.g. a test not on the branch's rate list - script 2199)
+                return Json(new { success = false, error = ex.Message });
+            }
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
             await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
                 prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
@@ -1721,6 +1753,88 @@ namespace EMR.Web.Controllers
                 ViewBag.Franchises = model.FranchiseOptions;
                 ViewBag.Companies = model.CorporateOptions;
             }
+        }
+
+        // ── AI assist: read an uploaded prescription and suggest its tests (optional; manual search is unchanged) ──
+        private static readonly string[] PrescriptionImageTypes = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".pdf"];
+
+        /// <summary>
+        /// Reads the prescription image with OCR on this server (Tesseract - the image is not stored or sent anywhere)
+        /// and matches what it says to the investigations / profiles / packages bookable here for this patient (ML.NET).
+        /// Returns suggestions only: the user picks which to add, through the same add logic as the search box.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(20_000_000)]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_ASSIST")]
+        public async Task<IActionResult> PrescriptionAssist(IFormFile? prescription, string? gender, int? ageInYears,
+            [FromServices] Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
+            [FromServices] EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine ocr,
+            [FromServices] EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher matcher,
+            CancellationToken ct)
+        {
+            var o = assistOptions.CurrentValue;
+            if (!o.Enabled) return Json(new { success = false, message = "AI assist is switched off." });
+            if (prescription is null || prescription.Length == 0) return Json(new { success = false, message = "Choose a prescription image first." });
+            if (prescription.Length > o.MaxFileSizeMb * 1024L * 1024L)
+                return Json(new { success = false, message = $"The image is larger than {o.MaxFileSizeMb} MB. Use a smaller photo." });
+            var ext = Path.GetExtension(prescription.FileName ?? string.Empty).ToLowerInvariant();
+            if (!PrescriptionImageTypes.Contains(ext) || !LooksLikeImage(prescription))
+                return Json(new { success = false, message = "Upload a photo, scan or PDF of the prescription (JPG, PNG, WEBP, BMP, TIFF or PDF)." });
+
+            var branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 1;
+            try
+            {
+                var catalogue = (await labOrderApiClient.GetAvailableInvestigationsAsync(branchId, null, null, null,
+                    string.IsNullOrWhiteSpace(gender) ? null : gender, ageInYears is > 0 and < 150 ? ageInYears : null, "B2C", null)).ToList();
+
+                EMR.Web.Services.PrescriptionAssist.PrescriptionReading reading;
+                await using (var stream = prescription.OpenReadStream())
+                    reading = await ocr.ReadAsync(stream, ext, matcher.HandwritingCandidates(catalogue), ct);
+                var text = reading.Text;
+                var catalogueKey = $"{branchId}|{gender}|{ageInYears}|{catalogue.Count}|" +
+                    string.Join(',', catalogue.Select(t => $"{(t.IsPackage ? 'P' : 'I')}{t.InvestigationId}:{t.TestName}")).GetHashCode();
+                var result = matcher.Match(text, catalogue, catalogueKey, o.MinScore, o.PreselectScore, reading.Handwriting);
+
+                await auditLogService.LogAsync("LAB", "LAB.PrescriptionAssist",
+                    $"AI assist read a prescription: {result.Suggestions.Count} test(s) suggested, {result.UnmatchedLines.Count} line(s) not matched.");
+                return Json(new
+                {
+                    success = true,
+                    suggestions = result.Suggestions,
+                    unmatched = result.UnmatchedLines,
+                    text = text.Length > 4000 ? text[..4000] : text
+                });
+            }
+            catch (EMR.Web.Services.PrescriptionAssist.PrescriptionOcrUnavailableException ex)
+            {
+                logger.LogError(ex, "Prescription assist: OCR engine unavailable");
+                return Json(new { success = false, message = ex.Message + " Ask your administrator to install it; tests can still be added from the search box." });
+            }
+            catch (TimeoutException ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Prescription assist failed");
+                return Json(new { success = false, message = "The prescription could not be read. Try a clearer photo, or add the tests from the search box." });
+            }
+        }
+
+        /// <summary>Checks the file starts like an image (JPEG, PNG, WEBP, BMP, TIFF) or a PDF, not just that its name says so.</summary>
+        private static bool LooksLikeImage(IFormFile file)
+        {
+            Span<byte> head = stackalloc byte[12];
+            using var s = file.OpenReadStream();
+            var n = s.Read(head);
+            if (n < 4) return false;
+            return (head[0] == 0xFF && head[1] == 0xD8)                                                   // JPEG
+                || (head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47)              // PNG
+                || (n >= 12 && head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F' && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P')
+                || (head[0] == '%' && head[1] == 'P' && head[2] == 'D' && head[3] == 'F')                  // PDF
+                || (head[0] == 'B' && head[1] == 'M')                                                     // BMP
+                || (head[0] == 'I' && head[1] == 'I' && head[2] == 0x2A) || (head[0] == 'M' && head[1] == 'M' && head[3] == 0x2A); // TIFF
         }
 
         [HttpGet]

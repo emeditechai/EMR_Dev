@@ -1,3 +1,4 @@
+@inject Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> PrescriptionAssistOptions
 @model EMR.Web.Models.ViewModels.LabOrderBookingViewModel
 @{
     ViewData["Title"] = "LAB Order Booking/Registration - B2C";
@@ -758,6 +759,13 @@
                         <button type="button" id="btnComplianceUpload" class="btn btn-sm btn-outline-primary ms-2 py-0 px-2" disabled title="No compliance documents are required for the tests currently added">
                             <i class="bi bi-file-earmark-arrow-up"></i>
                         </button>
+                        @if (PrescriptionAssistOptions.CurrentValue.Enabled)
+                        {
+                            <button type="button" id="btnRxAssist" asp-permission="LAB.LABORDERBOOKING.B2CBOOKING:AI_ASSIST"
+                                    class="btn btn-sm btn-rx-ai ms-1 py-0 px-2" title="AI assist: upload a prescription and get the tests it asks for">
+                                <i class="bi bi-stars me-1"></i>AI
+                            </button>
+                        }
                     </span>
                     <span class="badge bg-light text-muted border fw-normal" style="font-size:0.75rem;">
                         Use <kbd class="bg-white border text-dark px-1">↑</kbd> <kbd class="bg-white border text-dark px-1">↓</kbd> & <kbd class="bg-white border text-dark px-1">↵ Enter</kbd> or click to add
@@ -1354,14 +1362,23 @@
             }
 
             var lineItems = [];
+            window.getOrderItemKeys = () => lineItems.map(x => x.itemKey);   // AI assist: what is already in the order
 
             // Directly add test on selection (via Keyboard Enter or Mouse Click)
-            $('#ddlInvestigations').on('select2:select', async function(e) {
+            $('#ddlInvestigations').on('select2:select', function(e) {
                 var data = e.params.data;
-                var valStr = data.id;
-                if (!valStr) return;
+                if (!data || !data.id) return;
+                addInvestigationOption(data.id);
+            });
 
-                var opt = $(this).find(`option[value="${valStr}"]`);
+            // Adds one option of the investigation search box to the order (same checks for manual search and AI assist).
+            // options.keepClosed: do not re-open the search box afterwards (AI assist adds several in a row).
+            // Returns true when the test was added.
+            async function addInvestigationOption(valStr, options) {
+                options = options || {};
+                var $ddlInv = $('#ddlInvestigations');
+                var opt = $ddlInv.find(`option[value="${valStr}"]`);
+                if (!opt.length) return false;
                 
                 var parts = valStr.split('_');
                 var itemType = parts[0];
@@ -1391,8 +1408,8 @@
                         confirmButtonColor: '#0d6efd',
                         confirmButtonText: 'OK'
                     });
-                    $(this).val('').trigger('change.select2');
-                    return;
+                    $ddlInv.val('').trigger('change.select2');
+                    return false;
                 }
 
                 var profileTests = null;
@@ -1401,7 +1418,7 @@
 
                 if (isProfile || isPackage) {
                     try {
-                        $(this).prop('disabled', true);
+                        $ddlInv.prop('disabled', true);
                         var targetProfileId = isPackage ? id : profileId;
                         var targetTestId = isPackage ? '' : id;
                         var url = `@Url.Action("GetProfileDetails", "LabOrderBooking")?profileId=${targetProfileId}&testId=${targetTestId}`;
@@ -1414,7 +1431,7 @@
                     } catch (err) {
                         console.error('Failed to fetch profile details:', err);
                     } finally {
-                        $(this).prop('disabled', false);
+                        $ddlInv.prop('disabled', false);
                     }
                 }
 
@@ -1434,8 +1451,8 @@
                             confirmButtonColor: '#0d6efd',
                             confirmButtonText: 'OK'
                         });
-                        $(this).val('').trigger('change.select2');
-                        return;
+                        $ddlInv.val('').trigger('change.select2');
+                        return false;
                     }
                 }
 
@@ -1455,8 +1472,8 @@
                             confirmButtonColor: '#0d6efd',
                             confirmButtonText: 'OK'
                         });
-                        $(this).val('').trigger('change.select2');
-                        return;
+                        $ddlInv.val('').trigger('change.select2');
+                        return false;
                     }
 
                     // Check if an individual investigation already in the order is part of this profile
@@ -1483,8 +1500,8 @@
                             var removeKeys = conflictingSingles.map(s => s.itemKey);
                             lineItems = lineItems.filter(x => !removeKeys.includes(x.itemKey));
                         } else {
-                            $(this).val('').trigger('change.select2');
-                            return;
+                            $ddlInv.val('').trigger('change.select2');
+                            return false;
                         }
                     }
                 }
@@ -1515,8 +1532,8 @@
                             var removeKeys = conflictingProfiles.map(p => p.itemKey);
                             lineItems = lineItems.filter(x => !removeKeys.includes(x.itemKey));
                         } else {
-                            $(this).val('').trigger('change.select2');
-                            return;
+                            $ddlInv.val('').trigger('change.select2');
+                            return false;
                         }
                     }
 
@@ -1544,8 +1561,8 @@
                             var removeKeys = conflictingSingles.map(s => s.itemKey);
                             lineItems = lineItems.filter(x => !removeKeys.includes(x.itemKey));
                         } else {
-                            $(this).val('').trigger('change.select2');
-                            return;
+                            $ddlInv.val('').trigger('change.select2');
+                            return false;
                         }
                     }
                 }
@@ -1611,11 +1628,15 @@
                 }
 
                 // Clear selection back to placeholder and reopen for rapid next test entry
-                $(this).val('').trigger('change.select2');
-                setTimeout(() => {
-                    $('#ddlInvestigations').select2('open');
-                }, 80);
-            });
+                $ddlInv.val('').trigger('change.select2');
+                if (!options.keepClosed) {
+                    setTimeout(() => {
+                        $('#ddlInvestigations').select2('open');
+                    }, 80);
+                }
+                return true;
+            }
+            window.addInvestigationOption = addInvestigationOption;
 
             $(document).on('click', '.btn-remove', function() {
                 var key = $(this).data('key');
@@ -4201,4 +4222,8 @@
     })();
     </script>
 
+    @if (PrescriptionAssistOptions.CurrentValue.Enabled)
+    {
+        <partial name="_PrescriptionAssist" />
+    }
 }

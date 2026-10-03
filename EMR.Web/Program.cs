@@ -42,6 +42,12 @@ builder.Services.AddScoped<IDoctorSubSpecialityService, DoctorSubSpecialityServi
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IClinicalUnitService, ClinicalUnitService>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
+// LAB billing AI assist: Tesseract OCR on this server + ML.NET test matching (PrescriptionAssist section)
+builder.Services.Configure<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions>(builder.Configuration.GetSection(EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions.SectionName));
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IHandwritingRecognizer, EMR.Web.Services.PrescriptionAssist.HandwritingRecognizer>();
+builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine, EMR.Web.Services.PrescriptionAssist.TesseractOcrEngine>();
+builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher, EMR.Web.Services.PrescriptionAssist.PrescriptionTestMatcher>();
 
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 

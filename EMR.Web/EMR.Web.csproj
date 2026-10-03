@@ -16,6 +16,10 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.2" />
+    <PackageReference Include="Microsoft.ML" Version="5.0.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+    <PackageReference Include="PDFtoImage" Version="5.4.0" />
     <PackageReference Include="QuestPDF" Version="2026.9.0" />
   </ItemGroup>
 
@@ -23,4 +27,8 @@
     <ProjectReference Include="..\EMR.Shared.Security\EMR.Shared.Security.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- offline handwriting model for LAB billing AI assist (git-ignored; fetched with Tools/AiModels/download-trocr.*) -->
+    <None Include="AiModels\**\*" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
