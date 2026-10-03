@@ -662,25 +662,12 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             // ── Insert PaymentDetail rows for valid payment ──────────────────────────
             if (incomingPaidTotal > 0 && request.Payments != null)
             {
-                var branchCode = await con.QuerySingleOrDefaultAsync<string>(
-                    "SELECT BranchCode FROM Branchmaster WHERE BranchId = @BranchId",
-                    new { request.BranchId }, tx) ?? "BR";
-                string financialYear = DateTime.Now.Month >= 4
-                    ? $"{DateTime.Now.Year}-{DateTime.Now.Year + 1}"
-                    : $"{DateTime.Now.Year - 1}-{DateTime.Now.Year}";
-                string datePart = DateTime.Now.ToString("ddMMyyyy");
-
-                int nextSeq = await con.QuerySingleAsync<int>(@"
-                    DECLARE @NextSeq INT;
-                    UPDATE ReceiptSequence SET @NextSeq = LastSeq = LastSeq + 1 WHERE BranchId = @BranchId AND FinancialYear = @FinancialYear;
-                    IF @NextSeq IS NULL
-                    BEGIN
-                        SET @NextSeq = 1;
-                        INSERT INTO ReceiptSequence (BranchId, FinancialYear, LastSeq) VALUES (@BranchId, @FinancialYear, @NextSeq);
-                    END
-                    SELECT @NextSeq;", new { request.BranchId, FinancialYear = financialYear }, tx);
-
-                string batchReceiptNo = $"{branchCode}{datePart}{nextSeq:D6}";
+                // Receipt number: <Branch Code><FY><8-digit serial>, e.g. HO262700000001 - one generator for every module (script 2193)
+                var receiptParams = new DynamicParameters();
+                receiptParams.Add("@BranchId", request.BranchId);
+                receiptParams.Add("@ReceiptNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
+                await con.ExecuteAsync("dbo.usp_Receipt_GetNextNo", receiptParams, tx, commandType: CommandType.StoredProcedure);
+                string batchReceiptNo = receiptParams.Get<string>("@ReceiptNo");
 
                 foreach (var p in request.Payments)
                 {
