@@ -2,6 +2,7 @@ using EMR.Web.ApiClients;
 using EMR.Web.ApiClients.Models;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
+using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -16,7 +17,8 @@ public class LabFranchisesController(
     ILabFranchiseApiClient franchiseApiClient,
     ApplicationDbContext dbContext,
     IWebHostEnvironment environment,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IPasswordHasherService passwordHasherService) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(
@@ -154,6 +156,8 @@ public class LabFranchisesController(
             };
 
             var newId = await franchiseApiClient.CreateAsync(req);
+
+            await CreateLinkedUserAsync(model, newId, companyId);
 
             await auditLogService.LogAsync(
                 "Create Lab Franchise",
@@ -490,5 +494,51 @@ public class LabFranchisesController(
         await file.CopyToAsync(fileStream);
 
         return $"/uploads/franchise_docs/{uniqueFileName}";
+    }
+
+    private async Task CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId)
+    {
+        var username = model.Franchise_Name.Trim().Replace(" ", "").ToLowerInvariant();
+
+        if (await dbContext.Users.AnyAsync(u => u.Username == username))
+            return;
+
+        var (hash, salt) = passwordHasherService.HashPassword("Welcome@123");
+
+        var newUser = new Models.Entities.User
+        {
+            CompanyId       = companyId,
+            Username        = username,
+            Email           = model.Email?.Trim(),
+            PasswordHash    = hash,
+            Salt            = salt,
+            FullName        = model.Franchise_Name,
+            FirstName       = model.Franchise_Name,
+            PhoneNumber     = model.Mobile_No,
+            Phone           = model.Mobile_No,
+            IsActive        = true,
+            UserType        = Models.Entities.UserTypes.Franchise,
+            ReferenceUserId = franchiseId,
+            MustChangePassword  = true,
+            PasswordLastChanged = DateTime.Now,
+            CreatedDate         = DateTime.Now,
+            LastModifiedDate    = DateTime.Now
+        };
+
+        dbContext.Users.Add(newUser);
+        await dbContext.SaveChangesAsync();
+
+        var branchId = model.Parent_Branch_ID > 0 ? model.Parent_Branch_ID : (User.GetCurrentBranchId() ?? 1);
+        dbContext.UserBranches.Add(new UserBranch
+        {
+            UserId      = newUser.Id,
+            BranchId    = branchId,
+            IsActive    = true,
+            CreatedDate = DateTime.Now,
+            ModifiedDate = DateTime.Now,
+            CreatedBy   = User.GetUserId(),
+            ModifiedBy  = User.GetUserId()
+        });
+        await dbContext.SaveChangesAsync();
     }
 }

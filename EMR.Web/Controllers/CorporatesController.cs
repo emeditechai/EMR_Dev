@@ -1,10 +1,13 @@
 using EMR.Web.ApiClients;
+using EMR.Web.Data;
 using EMR.Web.Extensions;
+using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
 
@@ -14,7 +17,9 @@ public class CorporatesController(
     ICorporateHospitalRateApiClient rateApiClient,
     ICorporateService corporateService,
     ICorporateHospitalRateService rateService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    ApplicationDbContext dbContext,
+    IPasswordHasherService passwordHasherService) : Controller
 {
     private static readonly List<string> CorporateTypes = ["IPD", "OPD", "LAB", "MED", "GENERAL", "ALL"];
     private static readonly List<string> BillingCycles = ["Monthly", "Daily", "Yearly", "Bi-Monthly", "Half-Yearly"];
@@ -126,6 +131,8 @@ public class CorporatesController(
         try
         {
             var newId = await corporateApiClient.CreateAsync(model, User.GetUserId());
+
+            await CreateLinkedUserAsync(model, newId, companyId, branchId);
 
             await auditLogService.LogAsync("MasterData", "Corporate.Create",
                 $"Created Corporate: {model.Corporate_Name} ({model.Corporate_Code}) [{model.Corporate_Type}] - Contact: {model.Contact_No} [ID: {newId}]",
@@ -453,4 +460,49 @@ public class CorporatesController(
             Text = b,
             Selected = string.Equals(b, selected, StringComparison.OrdinalIgnoreCase)
         }).ToList();
+
+    private async Task CreateLinkedUserAsync(CorporateFormViewModel model, int corporateId, int companyId, int branchId)
+    {
+        var username = (model.Corporate_Code ?? model.Corporate_Name).Trim().Replace(" ", "").ToLowerInvariant();
+
+        if (await dbContext.Users.AnyAsync(u => u.Username == username))
+            return;
+
+        var (hash, salt) = passwordHasherService.HashPassword("Welcome@123");
+
+        var newUser = new Models.Entities.User
+        {
+            CompanyId       = companyId,
+            Username        = username,
+            Email           = model.Email?.Trim(),
+            PasswordHash    = hash,
+            Salt            = salt,
+            FullName        = model.Corporate_Name,
+            FirstName       = model.Corporate_Name,
+            PhoneNumber     = model.Contact_No,
+            Phone           = model.Contact_No,
+            IsActive        = true,
+            UserType        = Models.Entities.UserTypes.Company,
+            ReferenceUserId = corporateId,
+            MustChangePassword  = true,
+            PasswordLastChanged = DateTime.Now,
+            CreatedDate         = DateTime.Now,
+            LastModifiedDate    = DateTime.Now
+        };
+
+        dbContext.Users.Add(newUser);
+        await dbContext.SaveChangesAsync();
+
+        dbContext.UserBranches.Add(new UserBranch
+        {
+            UserId      = newUser.Id,
+            BranchId    = branchId,
+            IsActive    = true,
+            CreatedDate = DateTime.Now,
+            ModifiedDate = DateTime.Now,
+            CreatedBy   = User.GetUserId(),
+            ModifiedBy  = User.GetUserId()
+        });
+        await dbContext.SaveChangesAsync();
+    }
 }
