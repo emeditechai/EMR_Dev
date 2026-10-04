@@ -18,6 +18,15 @@ public class PatientListItem
     public string?  ConsultingDoctorName  { get; set; }
 }
 
+// ── Patient Master list summary cards (usp_Api_Patient_GetStats, SQLScripts/2207) ──
+public class PatientStats
+{
+    public int TotalPatients       { get; set; }
+    public int ActivePatients      { get; set; }
+    public int InactivePatients    { get; set; }
+    public int RegisteredToday     { get; set; }
+    public int RegisteredThisMonth { get; set; }
+}
 
 // ── Patient full detail ──────────────────────────────────────────────────────
 public class PatientDetail : PatientListItem

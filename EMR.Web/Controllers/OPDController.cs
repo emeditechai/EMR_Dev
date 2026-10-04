@@ -269,15 +269,21 @@ public class OPDController(
                     CreatedDate          = p.CreatedDate,
                     IsActive             = p.IsActive,
                     ConsultingDoctorName = p.ConsultingDoctorName,
+                    Address              = p.Address,
                     TotalCount           = apiResult.TotalCount
                 }).ToList(),
                 TotalCount = apiResult.TotalCount,
                 Page       = page,
                 PageSize   = pageSize,
-                Search     = search?.Trim()
+                Search     = search?.Trim(),
+                BranchName = User.FindFirstValue("BranchName")
             };
 
-            ViewData["Title"] = "Patient List";
+            // Summary cards: never block the list
+            try { paged.Stats = await patientApiClient.GetStatsAsync(branchId, User.GetCompanyId()); }
+            catch (Exception) { paged.Stats = null; }
+
+            ViewData["Title"] = "Patient Master";
             return View(paged);
         }
         catch (HttpRequestException)
@@ -297,6 +303,11 @@ public class OPDController(
             && !await permissionGuard.AllowsAsync(HttpContext, "OPD.DOCTORROSTER", "BOOK_SLOT"))
             return RedirectToAction("AccessDenied", "Account",
                 new { returnUrl = Request.Path + Request.QueryString, page = "OPD.DOCTORROSTER", control = "BOOK_SLOT" });
+
+        // Editing an existing patient's details is Patient Master's own action (Settings > Security: Patient Master > Edit patient, script 2208).
+        if (id.HasValue && !await permissionGuard.AllowsAsync(HttpContext, "MASTER.OPD", "EDIT"))
+            return RedirectToAction("AccessDenied", "Account",
+                new { returnUrl = Request.Path + Request.QueryString, page = "MASTER.OPD", control = "EDIT" });
 
         ViewData["Title"] = id.HasValue ? "Edit Patient" : "Patient Registration";
         PatientRegistrationViewModel model;
@@ -337,6 +348,12 @@ public class OPDController(
     public async Task<IActionResult> PatientRegistration(PatientRegistrationViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile)
     {
         Console.WriteLine($"[DEBUG] PatientRegistration POST: model.PatientId={model.PatientId}, model.PhoneNumber={model.PhoneNumber}, model.RelationId={model.RelationId}");
+
+        // Saving an existing patient's details (the Edit screen opened from Patient Master) needs Patient Master > Edit patient (script 2208).
+        if (model.DemographicsOnly && model.PatientId > 0 && !await permissionGuard.AllowsAsync(HttpContext, "MASTER.OPD", "EDIT"))
+            return RedirectToAction("AccessDenied", "Account",
+                new { returnUrl = Url.Action(nameof(PatientRegistration), new { id = model.PatientId }), page = "MASTER.OPD", control = "EDIT" });
+
         var branchId = User.GetCurrentBranchId();
         if (branchId is null)
         {

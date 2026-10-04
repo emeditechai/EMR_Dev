@@ -27,6 +27,17 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         };
     }
 
+    // ─── STATS (Patient Master summary cards, same scope as the list) ────────
+
+    public async Task<PatientStats> GetStatsAsync(int? companyId, int? branchId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryFirstOrDefaultAsync<PatientStats>(
+            "usp_Api_Patient_GetStats",
+            new { CompanyId = companyId, BranchId = branchId },
+            commandType: CommandType.StoredProcedure) ?? new PatientStats();
+    }
+
     // ─── GET BY ID ────────────────────────────────────────────────────────────
 
     public async Task<PatientDetail?> GetByIdAsync(int patientId, int? companyId = null)

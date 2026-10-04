@@ -27,7 +27,7 @@ STANDARD = {
     "STATUS": ("Activate / Deactivate", 50), "DELETE": ("Delete", 60), "PRINT": ("Print", 70), "EXPORT": ("Export", 80),
     "IMPORT": ("Bulk upload", 85), "APPROVE": ("Approve", 90), "UNAUTHORIZE": ("Un-approve", 92), "CANCEL": ("Cancel", 94),
     "REFUND": ("Refund", 96), "SETTLE": ("Settle", 97), "DISCOUNT": ("Discount", 98),
-    "BOOK_SLOT": ("Book slot", 20), "VALIDATE": ("Validate", 88),
+    "BOOK_SLOT": ("Book slot", 20), "VALIDATE": ("Validate", 88), "REGISTER": ("Register", 20),
     # LAB Dashboard client tabs (script 2188)
     "CLIENT_ALL": ("All Clients tab", 11), "CLIENT_B2C": ("B2C Patients tab", 12), "CLIENT_B2B": ("B2B Partners tab", 13),
 }
@@ -41,7 +41,15 @@ IN_ACTION = {
     ("LAB.LABORDERBOOKING.B2CBOOKING", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BBOOKING", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CORDERLIST", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BREGISTRATION", "DISCOUNT"),
     ("OPD.DOCTORROSTER", "BOOK_SLOT"),       # a slot opens Patient Registration pre-filled; checked there
+    ("MASTER.OPD", "EDIT"),                  # Patient Master > Edit opens Patient Registration with the patient (script 2208); checked there
+    ("MASTER.OPD", "REGISTER"),              # Patient Master's Register Patient button (script 2208); registering is Patient Registration's
     ("LAB.LABDASHBOARD", "CLIENT_ALL"), ("LAB.LABDASHBOARD", "CLIENT_B2C"), ("LAB.LABDASHBOARD", "CLIENT_B2B"),   # the tab is a parameter of Index
+}
+
+# Titles of IN_ACTION controls that are not the standard ones.
+IN_ACTION_TITLES = {
+    ("MASTER.OPD", "EDIT"): "Edit patient",
+    ("MASTER.OPD", "REGISTER"): "Register patient",
 }
 
 # ── curated groups: (page or "*", controller, action) -> (code, title) ──────
@@ -260,7 +268,7 @@ def build():
         page["placements"].append(dict(m=meth, ctl=c, act=a, c=code))
     for pc, code in IN_ACTION:
         if pc in pages:
-            pages[pc]["controls"].setdefault(code, dict(code=code, title=None, endpoints=["(checked inside the save)"], active=True))
+            pages[pc]["controls"].setdefault(code, dict(code=code, title=IN_ACTION_TITLES.get((pc, code)), endpoints=["(checked inside the save)"], active=True))
     for page in pages.values():
         for ctl in page["controls"].values():
             std = STANDARD.get(ctl["code"])
