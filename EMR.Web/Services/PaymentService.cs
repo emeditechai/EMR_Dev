@@ -660,6 +660,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             }
 
             // ── Insert PaymentDetail rows for valid payment ──────────────────────────
+            string? savedReceiptNo = null;
             if (incomingPaidTotal > 0 && request.Payments != null)
             {
                 // Receipt number: <Branch Code><FY><8-digit serial>, e.g. HO262700000001 - one generator for every module (script 2193)
@@ -668,6 +669,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 receiptParams.Add("@ReceiptNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
                 await con.ExecuteAsync("dbo.usp_Receipt_GetNextNo", receiptParams, tx, commandType: CommandType.StoredProcedure);
                 string batchReceiptNo = receiptParams.Get<string>("@ReceiptNo");
+                savedReceiptNo = batchReceiptNo;
 
                 foreach (var p in request.Payments)
                 {
@@ -785,7 +787,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 TotalPaid       = newTotalPaid,
                 BalanceDue      = newBalanceDue,
                 PaymentStatus   = status,
-                TokenNo         = assignedToken
+                TokenNo         = assignedToken,
+                ReceiptNo       = savedReceiptNo
             };
         }
         catch (Exception ex)
