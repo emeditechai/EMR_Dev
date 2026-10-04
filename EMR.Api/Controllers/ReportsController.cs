@@ -119,6 +119,13 @@ public class ReportsController : ControllerBase
             ["sample-transfer"]     = ("dbo.usp_Api_LabReport_SampleTransfer",    new[] { "Direction", "TransferStatus" },          new[] { "OtherBranchId" }),
             // LR-13 (SQLScripts/2185); outside lab names are long, the prefix is enough to filter on
             ["outsourced-tests"]    = ("dbo.usp_Api_LabReport_OutsourcedTests",   new[] { "OutsourceStatus", "OutsideLab" },        Array.Empty<string>()),
+            // LR-03 cashier hand-over; LR-14 to LR-18 bench work, TAT and result quality (SQLScripts/2201)
+            ["cashier-closing"]     = ("dbo.usp_Api_LabReport_CashierClosing",    Array.Empty<string>(),                           new[] { "PaymentMethodId", "CollectedBy" }),
+            ["work-pending"]        = ("dbo.usp_Api_LabReport_WorkPending",       new[] { "Stage", "WaitBand" },                    new[] { "DepartmentId" }),
+            ["turnaround"]          = ("dbo.usp_Api_LabReport_Turnaround",        new[] { "TatStatus" },                            new[] { "DepartmentId" }),
+            ["critical-values"]     = ("dbo.usp_Api_LabReport_CriticalValues",    new[] { "Severity", "ResultStatus" },             new[] { "DepartmentId" }),
+            ["delta-check"]         = ("dbo.usp_Api_LabReport_DeltaCheck",        new[] { "Direction" },                            new[] { "DeltaLimit", "DepartmentId" }),
+            ["abnormal-results"]    = ("dbo.usp_Api_LabReport_AbnormalResults",   new[] { "Signal" },                               new[] { "DepartmentId" }),
         };
 
     /// <summary>LR-13: an outsourced test sent to an outside lab (or its sending details corrected). Validated by the procedure.</summary>
@@ -151,6 +158,38 @@ public class ReportsController : ControllerBase
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50020)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 50010 or 50011)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+    }
+
+    private static readonly string[] OwnerMisSections =
+        { "summary", "trend", "tests", "departments", "doctors", "partners", "quality", "ageing", "modes", "branches" };
+
+    /// <summary>LF-18 Owner MIS: revenue by test / department / doctor / partner, TAT, quality, collection and ageing.</summary>
+    [HttpGet("lab/owner-mis")]
+    public async Task<IActionResult> GetLabOwnerMis(
+        [FromQuery] int branchId,
+        [FromQuery] DateTime fromDate,
+        [FromQuery] DateTime toDate,
+        [FromQuery] bool allBranches = false,
+        [FromQuery] int userId = 0,
+        [FromQuery] bool isSuperAdmin = false)
+    {
+        if (branchId <= 0) return BadRequest(new { message = "Valid branchId is required." });
+        if (Math.Abs((toDate.Date - fromDate.Date).TotalDays) > 366)
+            return BadRequest(new { message = "Please select a date range of up to one year." });
+
+        var parameters = new Dictionary<string, object?>
+        {
+            ["BranchId"] = branchId, ["FromDate"] = fromDate.Date, ["ToDate"] = toDate.Date, ["AllBranches"] = allBranches,
+            ["UserId"] = userId, ["IsSuperAdmin"] = isSuperAdmin
+        };
+        try
+        {
+            return Ok(await _reportService.RunLabSectionsAsync("dbo.usp_Api_LabReport_OwnerMis", parameters, OwnerMisSections));
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 50010 or 50011)
         {

@@ -1,0 +1,78 @@
+@{
+    ViewData["Title"] = "Critical & Panic Value Register";
+    ViewData["ReportSubtitle"] = "results beyond a critical or panic threshold, not yet approved first (NABL / NABH quality indicator)";
+    ViewData["ReportIcon"] = "bi-exclamation-octagon";
+    ViewData["ReportAccent"] = "#b91c1c";
+    ViewData["DateLabel"] = "result entry date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dash = '<span class="text-muted">—</span>';
+    const SEV = { PANIC: ['Panic', 'bg-danger text-white border-danger'], CRITICAL: ['Critical', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'] };
+    const STATUS = { APPROVED: ['Approved', 'bg-success-subtle text-success border-success-subtle'], PENDING: ['Not yet approved', 'bg-danger-subtle text-danger border-danger-subtle'] };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hrs = (v) => v === null || v === undefined ? '—' : `${Number(v).toFixed(1)} h`;
+    const arrow = d => d === 'H' ? '<i class="bi bi-arrow-up-circle-fill text-danger ms-1" title="Above the high threshold"></i>'
+                     : d === 'L' ? '<i class="bi bi-arrow-down-circle-fill text-primary ms-1" title="Below the low threshold"></i>' : '';
+    LabReport.init({
+        report: 'critical-values', title: 'Critical & Panic Value Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient, mobile or test...',
+        filters: [
+            { id: 'severity', label: 'Severity', allLabel: 'Critical & panic', options: [['PANIC', 'Panic'], ['CRITICAL', 'Critical']] },
+            { id: 'resultStatus', label: 'Approval', allLabel: 'All results', options: [['PENDING', 'Not yet approved'], ['APPROVED', 'Approved']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Flagged results', color: '#b91c1c', value: (s, h) => h.num(s.Flagged), sub: (s, h) => `${h.num(s.Patients)} patient(s)` },
+            { label: 'Panic', color: '#7f1d1d', value: (s, h) => h.num(s.Panic), sub: () => 'act immediately' },
+            { label: 'Critical', color: '#d97706', value: (s, h) => h.num(s.Critical), sub: () => 'beyond the critical threshold' },
+            { label: 'Not yet approved', color: '#9f1239', value: (s, h) => h.num(s.AwaitingApproval), sub: () => 'still with the bench / pathologist' },
+            { label: 'Entry → approval', color: '#0e7490', value: (s) => hrs(s.AvgHoursToApproval), sub: (s, h) => `average · most often ${h.esc(s.TopTest || '—')}` }
+        ],
+        groups: [
+            { key: 'byTest', label: 'Test', rowField: 'TestName' },
+            { key: 'bySeverity', label: 'Severity', rowField: 'Severity', name: (r, h) => pillOf(SEV, r.GroupName, h) },
+            { key: 'byStatus', label: 'Approval', rowField: 'ResultStatus', name: (r, h) => pillOf(STATUS, r.GroupName, h) },
+            { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byDate', label: 'Entry date', rowField: 'EnteredDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'Flagged', label: 'Flagged', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Panic', label: 'Panic', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : dash },
+            { field: 'Critical', label: 'Critical', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'Low', label: 'Below low', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'High', label: 'Above high', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'AwaitingApproval', label: 'Not yet approved', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : dash },
+            { field: 'AvgHoursToApproval', label: 'Avg to approval', num: true, total: 'none', fmt: (v) => hrs(v) }
+        ],
+        shareOf: 'Flagged',
+        cols: [
+            { label: 'Entered', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.EnteredOn)}<div class="text-muted fs-9">${h.esc(r.EnteredBy || '')}</div>`, text: (r, h) => h.fmtDT(r.EnteredOn) },
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ` · <i class="bi bi-telephone"></i> ${h.esc(r.PhoneNumber)}` : ''}${r.AgeYears !== null && r.AgeYears !== undefined ? ` · ${h.num(r.AgeYears)} y` : ''}${r.Gender ? ' ' + h.esc(r.Gender) : ''}</div>`,
+              text: r => `${r.PatientName} (${r.PatientCode}) ${r.PhoneNumber || ''}` },
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}</div><div class="text-muted fs-9">${h.esc(r.ProfileName ? r.ProfileName + ' · ' : '')}${h.esc(r.Department)}</div>`, text: r => r.TestName },
+            { label: 'Result', cls: 'text-nowrap', html: (r, h) => `<span class="fw-bold fs-6">${h.esc(r.TestValue)}</span> <span class="text-muted fs-9">${h.esc(r.Unit || '')}</span>${arrow(r.ThresholdDir)}`,
+              text: r => `${r.TestValue} ${r.Unit || ''}` },
+            { label: 'Threshold', html: (r, h) => r.Threshold ? `<span class="fs-9">${h.esc(r.Threshold)}</span>` : '<span class="text-muted fs-9">flagged on entry</span>', text: r => r.Threshold || 'flagged on entry' },
+            { label: 'Severity', html: (r, h) => pillOf(SEV, r.Severity, h) + (r.SavedFlag && r.SavedFlag.toUpperCase() !== r.Severity ? `<div class="text-danger fs-9" title="The flag saved with the result">saved as ${h.esc(r.SavedFlag)}</div>`
+                                                                           : (!r.SavedFlag ? '<div class="text-muted fs-9">no flag saved</div>' : '')),
+              text: r => (SEV[r.Severity] || [r.Severity])[0] + (r.SavedFlag && r.SavedFlag.toUpperCase() !== r.Severity ? ` (saved as ${r.SavedFlag})` : '') },
+            { label: 'Approval', cls: 'text-nowrap', html: (r, h) => pillOf(STATUS, r.ResultStatus, h) + (r.ApprovedOn ? `<div class="text-muted fs-9">${h.fmtDT(r.ApprovedOn)}${r.ApprovedBy ? ' · ' + h.esc(r.ApprovedBy) : ''}${r.HoursToApproval !== null && r.HoursToApproval !== undefined ? ` · ${hrs(r.HoursToApproval)}` : ''}</div>` : ''),
+              text: (r, h) => (STATUS[r.ResultStatus] || [r.ResultStatus])[0] + (r.ApprovedOn ? ` ${h.fmtDT(r.ApprovedOn)} ${r.ApprovedBy || ''}` : '') }
+        ],
+        rowClass: r => r.ResultStatus === 'PENDING' ? 'row-muted' : ''
+    });
+})();
+</script>
+}

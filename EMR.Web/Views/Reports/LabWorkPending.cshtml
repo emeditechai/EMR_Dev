@@ -1,0 +1,78 @@
+@{
+    ViewData["Title"] = "Work Pending by Stage";
+    ViewData["ReportSubtitle"] = "collected tests not yet approved, at the stage each one waits in: urgent and longest-waiting first";
+    ViewData["ReportIcon"] = "bi-hourglass-split";
+    ViewData["ReportAccent"] = "#c2410c";
+    ViewData["DateLabel"] = "bill date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dash = '<span class="text-muted">—</span>';
+    const STAGE_CLS = { PENDING: 'bg-danger-subtle text-danger border-danger-subtle', DRAFT: 'bg-warning-subtle text-warning-emphasis border-warning-subtle',
+                        SUBMITTED: 'bg-primary-subtle text-primary border-primary-subtle' };
+    const stagePill = (r, h) => h.pill(h.esc(r.StageName), STAGE_CLS[r.Stage] || 'bg-info-subtle text-info-emphasis border-info-subtle');
+    const hours = (v, h) => { if (v === null || v === undefined) return '—'; const n = Number(v) || 0; return n >= 48 ? `${h.num(Math.floor(n / 24))} d ${Math.round(n % 24)} h` : `${n.toFixed(1)} h`; };
+    LabReport.init({
+        report: 'work-pending', title: 'Work Pending by Stage', defaultRange: 'year',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, token, patient or test...',
+        filters: [
+            { id: 'stage', label: 'Stage', allLabel: 'All stages', options: [['PENDING', 'Pending entry'], ['DRAFT', 'Draft'], ['SUBMITTED', 'Submitted'],
+                ['AWAITING', 'Awaiting approval (any level)'], ['AWAIT_L1', 'Validated · approval L1'], ['AWAIT_L2', 'Approval L2'], ['AWAIT_L3', 'Approval L3']] },
+            { id: 'waitBand', label: 'Waiting', allLabel: 'Any time', options: [['0-2', 'Under 2 h'], ['2-6', '2–6 h'], ['6-24', '6–24 h'], ['24+', 'Over 24 h']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Tests waiting', color: '#c2410c', value: (s, h) => h.num(s.PendingTests), sub: (s, h) => `${h.num(s.BillCount)} bill(s) · ${h.num(s.UrgentTests)} urgent` },
+            { label: 'Pending entry', color: '#b91c1c', value: (s, h) => h.num(s.PendingEntry), sub: () => 'collected, no result yet' },
+            { label: 'Draft · submitted', color: '#d97706', value: (s, h) => `${h.num(s.Draft)} · ${h.num(s.Submitted)}`, sub: () => 'to finish / to validate' },
+            { label: 'Awaiting approval', color: '#0891b2', value: (s, h) => h.num(s.AwaitingApproval), sub: () => 'validated, waiting for sign-off' },
+            { label: 'Past TAT', color: '#9f1239', value: (s, h) => h.num(s.OverdueTests), sub: () => 'received at lab + TAT hours passed' },
+            { label: 'Oldest wait', color: '#475569', value: (s, h) => s.OldestHours === null || s.OldestHours === undefined ? '—' : hours(s.OldestHours, h), sub: (s, h) => `average ${hours(s.AvgHours, h)} at the current stage` }
+        ],
+        groups: [
+            { key: 'byStage', label: 'Stage', rowField: 'StageName' },
+            { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byTest', label: 'Test', rowField: 'TestName' },
+            { key: 'byBillDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'PendingTests', label: 'Tests', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'PendingEntry', label: 'Pending entry', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'Draft', label: 'Draft', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'Submitted', label: 'Submitted', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'AwaitingApproval', label: 'Awaiting approval', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'UrgentTests', label: 'Urgent', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : dash },
+            { field: 'OverdueTests', label: 'Past TAT', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : dash },
+            { field: 'OldestHours', label: 'Oldest', num: true, total: 'max', fmt: (v, h) => hours(v, h) },
+            { field: 'AvgHours', label: 'Avg wait', num: true, total: 'none', fmt: (v, h) => hours(v, h) }
+        ],
+        shareOf: 'PendingTests',
+        cols: [
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')} · ${h.fmtD(r.BilledOn)}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${r.IsUrgent ? '<i class="bi bi-lightning-charge-fill text-danger me-1" title="Urgent"></i>' : ''}${h.esc(r.TestName)}</div>
+                <div class="text-muted fs-9">${h.esc(r.Department)}${r.Parameters > 1 ? ` · ${h.num(r.ParamsApproved)}/${h.num(r.Parameters)} parameters approved` : ''}${r.IsTransferred ? ' · transferred in' : ''}</div>`,
+              text: r => `${r.IsUrgent ? '[URGENT] ' : ''}${r.TestName} / ${r.Department}` },
+            { label: 'Stage', html: (r, h) => stagePill(r, h), text: r => r.StageName },
+            { label: 'Waiting', cls: 'text-nowrap', html: (r, h) => `<div class="fw-semibold">${hours(r.HoursWaiting, h)}</div><div class="text-muted fs-9">since ${h.fmtDT(r.StageSince)}</div>`,
+              text: (r, h) => hours(r.HoursWaiting, h) },
+            { label: 'Received at lab', cls: 'text-nowrap', html: (r, h) => r.ReceivedOn ? `${h.fmtDT(r.ReceivedOn)}<div class="text-muted fs-9">${hours(r.HoursSinceReceipt, h)} ago</div>` : dash, text: (r, h) => h.fmtDT(r.ReceivedOn) },
+            { label: 'TAT due', cls: 'text-nowrap', html: (r, h) => r.TatDueOn ? `<span class="${r.IsOverdue ? 'text-danger fw-semibold' : ''}">${h.fmtDT(r.TatDueOn)}</span><div class="text-muted fs-9">${h.num(r.TargetHours)} h TAT${r.IsOverdue ? ' · past due' : ''}</div>` : '<span class="text-muted fs-9">No TAT hours set</span>',
+              text: (r, h) => r.TatDueOn ? h.fmtDT(r.TatDueOn) + (r.IsOverdue ? ' (past due)' : '') : '' },
+            { label: 'Entered by', html: (r, h) => r.EnteredBy ? h.esc(r.EnteredBy) : dash, text: r => r.EnteredBy || '' }
+        ],
+        rowClass: r => r.IsOverdue ? 'row-muted' : ''
+    });
+})();
+</script>
+}

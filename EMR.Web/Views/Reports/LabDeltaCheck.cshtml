@@ -1,0 +1,70 @@
+@{
+    ViewData["Title"] = "Delta-check Exceptions";
+    ViewData["ReportSubtitle"] = "results that changed sharply from the same patient's previous result of the test, largest change first";
+    ViewData["ReportIcon"] = "bi-arrow-left-right";
+    ViewData["ReportAccent"] = "#a16207";
+    ViewData["DateLabel"] = "result entry date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const STATUS = { APPROVED: ['Approved', 'bg-success-subtle text-success border-success-subtle'], PENDING: ['Not yet approved', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'] };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const pct = (v) => v === null || v === undefined ? '—' : `${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%`;
+    const BAND = { '<25': 'Under 25%', '25-50': '25–50%', '50-100': '50–100%', '100+': '100% or more' };
+    LabReport.init({
+        report: 'delta-check', title: 'Delta-check Exceptions', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient or test...',
+        filters: [
+            { id: 'deltaLimit', label: 'Change of at least', allLabel: '25% (standard)', options: [['10', '10%'], ['50', '50%'], ['100', '100%']] },
+            { id: 'direction', label: 'Direction', allLabel: 'Rise or fall', options: [['UP', 'Rise'], ['DOWN', 'Fall']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Exceptions', color: '#a16207', value: (s, h) => h.num(s.Exceptions), sub: (s, h) => `${h.num(s.Patients)} patient(s) · change of ${h.num(s.DeltaLimit)}% or more` },
+            { label: 'Rises · falls', color: '#475569', value: (s, h) => `${h.num(s.Rises)} · ${h.num(s.Falls)}`, sub: () => 'against the previous result' },
+            { label: '100% or more', color: '#b91c1c', value: (s, h) => h.num(s.Over100), sub: (s) => `largest ${pct(s.MaxChangePct)}` },
+            { label: 'Not yet approved', color: '#9f1239', value: (s, h) => h.num(s.AwaitingApproval), sub: () => 'check before sign-off' },
+            { label: 'Most frequent', color: '#0e7490', value: (s, h) => `<span class="fs-8 fw-semibold d-block lh-sm">${h.esc(s.TopTest || '—')}</span>` }
+        ],
+        groups: [
+            { key: 'byTest', label: 'Test', rowField: 'TestName' },
+            { key: 'byBand', label: 'Size of change', rowField: 'Band', name: (r, h) => h.esc(BAND[r.GroupName] || r.GroupName) },
+            { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byDate', label: 'Entry date', rowField: 'EnteredDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'Exceptions', label: 'Exceptions', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Rises', label: 'Rises', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Falls', label: 'Falls', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'AvgChangePct', label: 'Average change', num: true, total: 'none', fmt: (v) => pct(v) },
+            { field: 'MaxChangePct', label: 'Largest change', num: true, total: 'none', fmt: (v) => pct(v) }
+        ],
+        shareOf: 'Exceptions',
+        cols: [
+            { label: 'Entered', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.EnteredOn)}<div class="text-muted fs-9">${h.esc(r.EnteredBy || '')}</div>`, text: (r, h) => h.fmtDT(r.EnteredOn) },
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.AgeYears !== null && r.AgeYears !== undefined ? ` · ${h.num(r.AgeYears)} y` : ''}${r.Gender ? ' ' + h.esc(r.Gender) : ''}</div>`,
+              text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}</div><div class="text-muted fs-9">${h.esc(r.ProfileName ? r.ProfileName + ' · ' : '')}${h.esc(r.Department)}</div>`, text: r => r.TestName },
+            { label: 'Previous', cls: 'text-nowrap', html: (r, h) => `<span class="fw-semibold">${h.esc(r.PrevValue)}</span> <span class="text-muted fs-9">${h.esc(r.Unit || '')}</span><div class="text-muted fs-9">${h.fmtD(r.PrevOn)} · ${h.esc(r.PrevBillNo || '')}</div>`,
+              text: (r, h) => `${r.PrevValue} (${h.fmtD(r.PrevOn)})` },
+            { label: 'Current', cls: 'text-nowrap', html: (r, h) => `<span class="fw-bold">${h.esc(r.TestValue)}</span> <span class="text-muted fs-9">${h.esc(r.Unit || '')}</span>${r.AbnormalFlag ? `<div class="fs-9">flag ${h.esc(r.AbnormalFlag)}</div>` : ''}`,
+              text: r => r.TestValue },
+            { label: 'Change', cls: 'text-nowrap text-end', html: (r, h) => `<span class="fw-bold ${Number(r.ChangePct) >= 25 ? 'text-danger' : ''}"><i class="bi ${r.Direction === 'UP' ? 'bi-arrow-up' : 'bi-arrow-down'}"></i> ${pct(r.ChangePct)}</span><div class="text-muted fs-9">${h.num(r.DaysApart)} day(s) apart</div>`,
+              text: r => `${r.Direction === 'UP' ? '+' : '-'}${Number(r.ChangePct).toFixed(1)}%` },
+            { label: 'Approval', html: (r, h) => pillOf(STATUS, r.ResultStatus, h), text: r => (STATUS[r.ResultStatus] || [r.ResultStatus])[0] }
+        ]
+    });
+})();
+</script>
+}

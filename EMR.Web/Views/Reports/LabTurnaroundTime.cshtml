@@ -1,0 +1,83 @@
+@{
+    ViewData["Title"] = "Turnaround Time (TAT)";
+    ViewData["ReportSubtitle"] = "approved tests, every stage from billing to approval, against the test's TAT hours (NABL / NABH quality indicator)";
+    ViewData["ReportIcon"] = "bi-stopwatch";
+    ViewData["ReportAccent"] = "#0e7490";
+    ViewData["DateLabel"] = "approval date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dash = '<span class="text-muted">—</span>';
+    const STATUS = { ONTIME: ['On time', 'bg-success-subtle text-success border-success-subtle'], BREACH: ['TAT breached', 'bg-danger-subtle text-danger border-danger-subtle'],
+                     NOTARGET: ['No TAT hours set', 'bg-secondary-subtle text-secondary border-secondary-subtle'],
+                     NOTIMED: ['Times not in order', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'] };
+    const pillOf = (v, h) => { const x = STATUS[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hrs = (v) => v === null || v === undefined ? '—' : `${Number(v).toFixed(1)} h`;
+    const pct = (v) => v === null || v === undefined ? '—' : `${Number(v).toFixed(1)}%`;
+    // a stage timestamp with the hours that stage took
+    const step = (on, took, h) => on ? `${h.fmtDT(on)}${took !== null && took !== undefined ? `<div class="text-muted fs-9">+${Number(took).toFixed(1)} h</div>` : ''}` : dash;
+    LabReport.init({
+        report: 'turnaround', title: 'Turnaround Time (TAT)', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, token, patient or test...',
+        filters: [
+            { id: 'tatStatus', label: 'TAT', allLabel: 'All tests', options: [['BREACH', 'TAT breached'], ['ONTIME', 'On time'], ['NOTARGET', 'No TAT hours set'], ['NOTIMED', 'Times not in order']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Within TAT', color: '#0e7490', value: (s) => pct(s.OnTimePct), sub: (s, h) => `${h.num(s.OnTime)} of ${h.num(s.WithTarget)} tests with TAT hours` },
+            { label: 'TAT breaches', color: '#b91c1c', value: (s, h) => h.num(s.Breaches), sub: (s) => s.WorstOverBy ? `worst ${hrs(s.WorstOverBy)} over · mostly at ${s.TopDelayStage || '—'}` : 'none in the period' },
+            { label: 'Average lab TAT', color: '#0f766e', value: (s) => hrs(s.AvgLabHours), sub: () => 'received at lab → approval' },
+            { label: 'Average total', color: '#475569', value: (s) => hrs(s.AvgTotalHours), sub: (s) => `billing → approval · collection ${hrs(s.AvgPreHours)}` },
+            { label: 'Where the time goes', color: '#7c3aed', value: (s) => `<span class="fs-8 fw-semibold d-block lh-sm">entry ${hrs(s.AvgBenchHours)} · validation ${hrs(s.AvgValidationHours)} · sign-off ${hrs(s.AvgSignoffHours)}</span>`,
+              sub: (s) => `transport ${hrs(s.AvgTransportHours)} (transferred samples)` }
+        ],
+        groups: [
+            { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byTest', label: 'Test', rowField: 'TestName' },
+            { key: 'byDate', label: 'Approval date', rowField: 'ApprovedDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byDelay', label: 'Delayed at (breaches)', rowField: 'DelayGroup' }
+        ],
+        groupCols: [
+            { field: 'Tests', label: 'Tests', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'OnTime', label: 'On time', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Breaches', label: 'Breaches', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : dash },
+            { field: 'OnTimePct', label: '% on time', num: true, total: 'none', fmt: (v) => pct(v) },
+            { field: 'AvgPreHours', label: 'Bill → collect', num: true, total: 'none', fmt: (v) => hrs(v) },
+            { field: 'AvgTransportHours', label: 'Transport', num: true, total: 'none', fmt: (v) => hrs(v) },
+            { field: 'AvgBenchHours', label: 'Result entry', num: true, total: 'none', fmt: (v) => hrs(v) },
+            { field: 'AvgValidationHours', label: 'Validation', num: true, total: 'none', fmt: (v) => hrs(v) },
+            { field: 'AvgSignoffHours', label: 'Sign-off', num: true, total: 'none', fmt: (v) => hrs(v) },
+            { field: 'AvgLabHours', label: 'Lab TAT', num: true, total: 'none', fmt: (v) => `<span class="fw-semibold">${hrs(v)}</span>` },
+            { field: 'AvgTargetHours', label: 'TAT hours', num: true, total: 'none', fmt: (v) => hrs(v) }
+        ],
+        shareOf: 'Tests',
+        cols: [
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}</div><div class="text-muted fs-9">${h.esc(r.Department)}${r.Parameters > 1 ? ` · ${h.num(r.Parameters)} parameters` : ''}</div>`, text: r => `${r.TestName} / ${r.Department}` },
+            { label: 'Billed', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BilledOn), text: (r, h) => h.fmtDT(r.BilledOn) },
+            { label: 'Collected', cls: 'text-nowrap', html: (r, h) => step(r.CollectedOn, r.PreHours, h), text: (r, h) => h.fmtDT(r.CollectedOn) },
+            { label: 'Received at lab', cls: 'text-nowrap', html: (r, h) => step(r.ReceivedOn, r.IsTransferred ? r.TransportHours : null, h) + (r.IsTransferred ? '<div class="fs-9 text-info-emphasis">transferred in</div>' : ''),
+              text: (r, h) => h.fmtDT(r.ReceivedOn) + (r.IsTransferred ? ' (transferred)' : '') },
+            { label: 'Entered', cls: 'text-nowrap', html: (r, h) => step(r.EnteredOn, r.BenchHours, h), text: (r, h) => h.fmtDT(r.EnteredOn) },
+            { label: 'Validated', cls: 'text-nowrap', html: (r, h) => step(r.ValidatedOn, r.ValidationHours, h), text: (r, h) => h.fmtDT(r.ValidatedOn) },
+            { label: 'Approved', cls: 'text-nowrap', html: (r, h) => step(r.ApprovedOn, r.SignoffHours, h) + (r.ApprovedBy ? `<div class="fs-9">${h.esc(r.ApprovedBy)}${r.TotalLevels > 1 ? ` · ${h.num(r.TotalLevels)} levels` : ''}</div>` : ''),
+              text: (r, h) => `${h.fmtDT(r.ApprovedOn)}${r.ApprovedBy ? ' · ' + r.ApprovedBy : ''}` },
+            { label: 'Lab TAT', cls: 'text-nowrap', html: (r, h) => `<div class="fw-semibold">${hrs(r.LabHours)} <span class="text-muted fw-normal fs-9">/ ${r.TargetHours ? h.num(r.TargetHours) + ' h' : '—'}</span></div>${pillOf(r.TatStatus, h)}${r.OverByHours ? `<div class="text-danger fs-9">${Number(r.OverByHours).toFixed(1)} h over · ${h.esc(r.DelayStage || '')}</div>` : ''}`,
+              text: r => `${hrs(r.LabHours)} / ${r.TargetHours || '—'} h · ${(STATUS[r.TatStatus] || [r.TatStatus])[0]}${r.OverByHours ? ` (${Number(r.OverByHours).toFixed(1)} h over, ${r.DelayStage})` : ''}` }
+        ],
+        rowClass: r => r.TatStatus === 'BREACH' ? 'row-muted' : ''
+    });
+})();
+</script>
+}

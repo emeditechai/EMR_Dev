@@ -1,0 +1,555 @@
+@{
+    ViewData["Title"] = "Owner MIS & Test Revenue";
+    var branchName = User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? "";
+}
+
+@section HeadStyles {
+<style>
+    /* LF-18 Owner MIS: same card language as the LAB / OPD registers */
+    .mis-wrap { --cr-line:#e2e8f0; --cr-muted:#64748b; --cr-ink:#0f172a; }
+    .mis-wrap .fs-7 { font-size:.85rem !important; } .mis-wrap .fs-8 { font-size:.78rem !important; } .mis-wrap .fs-9 { font-size:.7rem !important; }
+    .cr-card { background:#fff;border:1px solid var(--cr-line);border-radius:.75rem; }
+    .cr-kpi { position:relative;overflow:hidden;padding:.85rem 1rem;border-left:4px solid var(--k);height:100%; }
+    .cr-kpi .k-label { font-size:.66rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+    .cr-kpi .k-val { font-size:1.4rem;font-weight:800;color:var(--cr-ink);line-height:1.25; }
+    .cr-kpi .k-sub { font-size:.7rem;color:var(--cr-muted); }
+    .cr-kpi .k-ico { position:absolute;right:.8rem;top:.8rem;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+                     background:var(--kb);color:var(--k);font-size:1.05rem; }
+    .cr-section-title { font-size:.72rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+    .btn-quick.active, .btn-scope.active { background:#0f766e;border-color:#0f766e;color:#fff; }
+    .chip { display:inline-flex;align-items:center;gap:2px;font-size:.66rem;font-weight:700;padding:1px 6px;border-radius:999px;white-space:nowrap; }
+    .chip.up { background:#dcfce7;color:#15803d; } .chip.down { background:#fee2e2;color:#b91c1c; } .chip.flat { background:#f1f5f9;color:#64748b; }
+    .amt, .num { font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .bridge-row { display:grid;grid-template-columns:150px 1fr 110px;align-items:center;gap:.6rem;padding:.3rem 0;font-size:.78rem; }
+    .bridge-bar { height:14px;border-radius:4px;background:#f1f5f9;overflow:hidden; }
+    .bridge-bar > span { display:block;height:100%;border-radius:4px; }
+    .list-row { display:flex;align-items:center;gap:.5rem;padding:.33rem 0;border-bottom:1px dashed #eef2f6;font-size:.78rem; }
+    .list-row:last-child { border-bottom:0; }
+    .dot { width:10px;height:10px;border-radius:3px;flex-shrink:0; }
+    .mini-bar { height:5px;border-radius:3px;background:#eef2f6;overflow:hidden;margin-top:3px; }
+    .mini-bar > span { display:block;height:100%; }
+    .gauge { display:flex;flex-direction:column;gap:2px;padding:.55rem .7rem;border:1px solid var(--cr-line);border-radius:.6rem;height:100%; }
+    .gauge .g-val { font-size:1.15rem;font-weight:800;color:var(--cr-ink); }
+    .gauge .g-lbl { font-size:.64rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--cr-muted); }
+    .gauge .g-sub { font-size:.68rem;color:var(--cr-muted); }
+    .nav-mis .nav-link { font-size:.78rem;font-weight:600;color:#475569;padding:.45rem .8rem; }
+    .nav-mis .nav-link.active { color:#0f766e;border-bottom:2px solid #0f766e;background:transparent; }
+    .cr-table thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--cr-muted);font-size:.66rem;font-weight:700;
+                         letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--cr-line);cursor:pointer;user-select:none; }
+    .cr-table thead th.no-sort { cursor:default; }
+    .cr-table tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6; }
+    .cr-table tfoot td { font-size:.8rem;font-weight:800;background:#f8fafc; }
+    .tbl-scroll { max-height:60vh;overflow:auto; }
+    .sort-ind { font-size:.6rem;margin-left:2px;opacity:.5; }
+    .share { display:flex;align-items:center;gap:.4rem;min-width:110px; }
+    .share .mini-bar { flex:1;margin:0; }
+    .code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;color:#0f766e;font-weight:700; }
+    .neg { color:#b91c1c; }
+    .age-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem; }
+    .age-cell { border:1px solid var(--cr-line);border-radius:.5rem;padding:.4rem .5rem;text-align:center; }
+    .age-cell .a-b { font-size:.64rem;font-weight:700;color:var(--cr-muted);text-transform:uppercase; }
+    .age-cell .a-v { font-size:.85rem;font-weight:800; }
+    .age-cell .a-n { font-size:.64rem;color:var(--cr-muted); }
+    @@media (max-width: 575.98px) {
+        .cr-kpi .k-ico { display:none; }
+        .cr-kpi .k-val { font-size:1.15rem; }
+        .bridge-row { grid-template-columns:110px 1fr 90px; }
+        .btn-group.w-100 { flex-wrap:wrap; }
+    }
+    @@media print {
+        .emr-topbar, footer, .no-print { display:none !important; }
+        .tbl-scroll { max-height:none;overflow:visible; }
+        .tab-pane { display:block !important;opacity:1 !important;margin-bottom:1rem; }
+        .cr-card { border:1px solid #ddd;break-inside:avoid; }
+        body { background:#fff !important; }
+    }
+</style>
+}
+
+<div class="container-fluid px-3 py-2 mis-wrap">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-graph-up-arrow text-success me-2"></i>Owner MIS &amp; Test Revenue</h1>
+            <div class="text-muted fs-8">Reports &rsaquo; LAB &middot; <span id="lblScope">@(string.IsNullOrWhiteSpace(branchName) ? "This branch" : "Branch " + branchName)</span>
+                &middot; <span id="lblRange"></span> <span id="lblPrev" class="ms-1"></span></div>
+            <div class="fs-9 mt-1 text-muted"><i class="bi bi-info-circle me-1"></i>Revenue view: what each test, department, doctor and partner brings in after discounts and partner rates. Cost and profit per test will follow with reagent costing (LF-07).</div>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            <button type="button" class="btn btn-sm btn-outline-success" id="btnExcel" disabled><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="btnPdf" disabled><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPrint" disabled><i class="bi bi-printer me-1"></i>Print</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="cr-card p-2 px-3 mb-2 no-print">
+        <div class="row g-2 align-items-end">
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">From</label>
+                <input type="date" id="txtFrom" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">To</label>
+                <input type="date" id="txtTo" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Quick select</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="week">7 Days</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="month">This Month</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="lastmonth">Last Month</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="quarter">3 Months</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="fy">This FY</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Branches</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-scope active" data-scope="branch">This branch</button>
+                    <button type="button" class="btn btn-outline-secondary btn-scope" data-scope="all" title="All branches you work in">All my branches</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-2 d-flex justify-content-md-end">
+                <button type="button" class="btn btn-sm btn-success px-4 w-100" id="btnApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="stateError" class="alert alert-danger fs-8 d-none"></div>
+    <div id="stateLoading" class="text-center text-muted py-4 d-none"><span class="spinner-border spinner-border-sm me-2"></span>Building the MIS&hellip;</div>
+
+    <div id="misBody" class="d-none">
+        <!-- Headline KPIs -->
+        <div class="row g-2 mb-2">
+            <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#0f766e;--kb:#ccfbf1;"><div class="k-ico"><i class="bi bi-currency-rupee"></i></div>
+                <div class="k-label">Net revenue</div><div class="k-val amt" id="kNet">&mdash;</div><div class="k-sub"><span id="gNet"></span> <span id="kNetSplit"></span></div></div></div>
+            <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#2563eb;--kb:#dbeafe;"><div class="k-ico"><i class="bi bi-journal-text"></i></div>
+                <div class="k-label">Bills</div><div class="k-val num" id="kBills">&mdash;</div><div class="k-sub"><span id="gBills"></span> <span id="kBillSplit"></span></div></div></div>
+            <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#db2777;--kb:#fce7f3;"><div class="k-ico"><i class="bi bi-people"></i></div>
+                <div class="k-label">Patients</div><div class="k-val num" id="kPatients">&mdash;</div><div class="k-sub"><span id="gPatients"></span> <span id="kTests"></span></div></div></div>
+            <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#7c3aed;--kb:#ede9fe;"><div class="k-ico"><i class="bi bi-receipt"></i></div>
+                <div class="k-label">Average bill</div><div class="k-val amt" id="kAvg">&mdash;</div><div class="k-sub" id="kAvgSub"></div></div></div>
+            <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#15803d;--kb:#dcfce7;"><div class="k-ico"><i class="bi bi-cash-stack"></i></div>
+                <div class="k-label">Collected</div><div class="k-val amt" id="kCollected">&mdash;</div><div class="k-sub"><span id="gCollected"></span> <span id="kWallet"></span></div></div></div>
+            <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#d97706;--kb:#fef3c7;"><div class="k-ico"><i class="bi bi-hourglass-split"></i></div>
+                <div class="k-label">Outstanding today</div><div class="k-val amt" id="kOutstanding">&mdash;</div><div class="k-sub" id="kOutSub">all open bills</div></div></div>
+        </div>
+
+        <!-- Revenue bridge / trend / mix -->
+        <div class="row g-2 mb-2">
+            <div class="col-12 col-xl-4">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-funnel me-1"></i>From MRP to revenue</div>
+                    <div id="bridge"></div>
+                    <div class="fs-9 text-muted mt-2" id="bridgeNote"></div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-5">
+                <div class="cr-card p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="cr-section-title" id="lblTrend"><i class="bi bi-bar-chart me-1"></i>Billed vs collected</div>
+                        <div class="fs-9 text-muted"><span class="dot d-inline-block me-1" style="background:#0f766e"></span>Billed <span class="dot d-inline-block ms-2 me-1" style="background:#d97706"></span>Collected</div>
+                    </div>
+                    <div style="height:190px;"><canvas id="chTrend"></canvas></div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-3">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-pie-chart me-1"></i>Collection by mode</div>
+                    <div id="modeList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue by ... -->
+        <div class="cr-card mb-2">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 pt-2 border-bottom">
+                <ul class="nav nav-mis" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabTests" type="button"><i class="bi bi-eyedropper me-1"></i>By test</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDepts" type="button"><i class="bi bi-diagram-3 me-1"></i>By department</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDoctors" type="button"><i class="bi bi-person-badge me-1"></i>By referring doctor</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPartners" type="button"><i class="bi bi-buildings me-1"></i>By B2B partner</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabBranches" type="button"><i class="bi bi-geo-alt me-1"></i>By branch</button></li>
+                </ul>
+                <div class="pb-2 no-print" style="min-width:240px;">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" id="txtSearch" class="form-control" autocomplete="off" placeholder="Filter the table..." />
+                    </div>
+                </div>
+            </div>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="tabTests"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="tests"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+                <div class="tab-pane fade" id="tabDepts"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="departments"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+                <div class="tab-pane fade" id="tabDoctors"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="doctors"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+                <div class="tab-pane fade" id="tabPartners"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="partners"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+                <div class="tab-pane fade" id="tabBranches"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="branches"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+            </div>
+        </div>
+
+        <!-- Turnaround & quality / collection against billing / ageing -->
+        <div class="row g-2 mb-2">
+            <div class="col-12 col-xl-5">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-stopwatch me-1"></i>Turnaround &amp; quality</div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6 col-md-3"><div class="gauge"><span class="g-lbl">TAT met</span><span class="g-val" id="qTat">&mdash;</span><span class="g-sub" id="qTatSub"></span></div></div>
+                        <div class="col-6 col-md-3"><div class="gauge"><span class="g-lbl">Avg TAT</span><span class="g-val" id="qAvg">&mdash;</span><span class="g-sub">collection &rarr; approval</span></div></div>
+                        <div class="col-6 col-md-3"><div class="gauge"><span class="g-lbl">Rejection</span><span class="g-val" id="qRej">&mdash;</span><span class="g-sub" id="qRejSub"></span></div></div>
+                        <div class="col-6 col-md-3"><div class="gauge"><span class="g-lbl">Repeat</span><span class="g-val" id="qRep">&mdash;</span><span class="g-sub" id="qRepSub"></span></div></div>
+                    </div>
+                    <div class="fs-8 fw-semibold mb-1">Rejection &amp; re-collection reasons</div>
+                    <div id="reasonList" class="fs-8"></div>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-arrow-left-right me-1"></i>Collection against billing</div>
+                    <div id="collList"></div>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-calendar2-week me-1"></i>Outstanding ageing (as of today)</div>
+                    <div class="fs-8 fw-semibold mb-1">B2C patients <span class="text-muted fw-normal" id="ageB2CTotal"></span></div>
+                    <div class="age-grid mb-3" id="ageB2C"></div>
+                    <div class="fs-8 fw-semibold mb-1">B2B partners <span class="text-muted fw-normal" id="ageB2BTotal"></span></div>
+                    <div class="age-grid" id="ageB2B"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script>
+(function () {
+    const dataUrl = '@Url.Action("GetLabOwnerMisData", "Reports")';
+    const branchName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(branchName))';
+    const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#b91c1c', '#475569'];
+
+    let data = null, scope = 'branch', loadSeq = 0, chTrend = null;
+    const sortState = {};
+
+    const pad = n => String(n).padStart(2, '0');
+    const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const N = v => Number(v) || 0;
+    const money = n => (N(n) < 0 ? '−₹' : '₹') + Math.abs(N(n)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money0 = n => (Math.round(N(n)) < 0 ? '−₹' : '₹') + Math.abs(Math.round(N(n))).toLocaleString('en-IN');
+    const num = n => N(n).toLocaleString('en-IN');
+    const pct = (a, b) => N(b) > 0 ? (N(a) * 100 / N(b)) : null;
+    const pctText = v => v === null ? '—' : v.toFixed(1) + '%';
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtD = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); };
+    const sum = (list, k) => list.reduce((t, r) => t + N(r[k]), 0);
+
+    // growth against the previous period of the same length
+    function chip(cur, prev) {
+        if (N(prev) <= 0) return N(cur) > 0 ? '<span class="chip flat" title="Nothing in the previous period">new</span>' : '';
+        const g = (N(cur) - N(prev)) * 100 / N(prev);
+        const cls = g > 0.05 ? 'up' : (g < -0.05 ? 'down' : 'flat');
+        const ico = g > 0.05 ? 'bi-arrow-up-short' : (g < -0.05 ? 'bi-arrow-down-short' : 'bi-dash');
+        return `<span class="chip ${cls}" title="Previous period: ${esc(String(prev))}"><i class="bi ${ico}"></i>${Math.abs(g).toFixed(1)}%</span>`;
+    }
+
+    function setRange(range) {
+        const t = new Date(); let f = new Date(t), to = new Date(t);
+        if (range === 'week') { f.setDate(t.getDate() - 6); }
+        else if (range === 'month') { f = new Date(t.getFullYear(), t.getMonth(), 1); }
+        else if (range === 'lastmonth') { f = new Date(t.getFullYear(), t.getMonth() - 1, 1); to = new Date(t.getFullYear(), t.getMonth(), 0); }
+        else if (range === 'quarter') { f = new Date(t.getFullYear(), t.getMonth() - 2, 1); }
+        else if (range === 'fy') { f = new Date(t.getMonth() >= 3 ? t.getFullYear() : t.getFullYear() - 1, 3, 1); }
+        $('#txtFrom').val(iso(f)); $('#txtTo').val(iso(to));
+        $('.btn-quick').removeClass('active').filter(`[data-range="${range}"]`).addClass('active');
+    }
+
+    function load() {
+        const seq = ++loadSeq;
+        const from = $('#txtFrom').val(), to = $('#txtTo').val();
+        if (!from || !to) return;
+        $('#stateError').addClass('d-none'); $('#stateLoading').removeClass('d-none');
+        $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', true);
+        $('#lblRange').text(fmtD(from) + (from === to ? '' : ' – ' + fmtD(to)));
+        $.get(dataUrl, { fromDate: from, toDate: to, scope: scope })
+        .done(function (res) {
+            if (seq !== loadSeq) return;
+            $('#stateLoading').addClass('d-none');
+            if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+            data = res.data || {};
+            $('#misBody').removeClass('d-none');   // visible first, so the chart gets its size
+            render();
+            $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', false);
+        })
+        .fail(function (xhr) {
+            if (seq !== loadSeq) return;
+            $('#stateLoading').addClass('d-none');
+            $('#stateError').text(xhr.status === 403 ? 'You do not have access to this report.' : 'Server error while loading the report. Please try again.').removeClass('d-none');
+        });
+    }
+
+    const S = () => (data.summary && data.summary[0]) || {};
+
+    function render() {
+        const s = S();
+        $('#lblScope').text(scope === 'all' ? `All my branches (${num(s.BranchCount)})` : (branchName ? 'Branch ' + branchName : 'This branch'));
+        $('#lblPrev').html(s.PrevFrom ? `<span class="fs-9">&middot; compared with ${esc(fmtD(s.PrevFrom))} – ${esc(fmtD(s.PrevTo))}</span>` : '');
+        renderKpis(s); renderBridge(s); renderTrend(); renderModes(); renderQuality(s); renderCollection(s); renderAgeing();
+        Object.keys(tables).forEach(renderTable);
+    }
+
+    function renderKpis(s) {
+        $('#kNet').text(money0(s.NetRevenue)); $('#gNet').html(chip(s.NetRevenue, s.PrevNetRevenue));
+        $('#kNetSplit').text(`B2C ${money0(s.B2CRevenue)} · B2B ${money0(s.B2BRevenue)}`);
+        $('#kBills').text(num(s.BillCount)); $('#gBills').html(chip(s.BillCount, s.PrevBillCount));
+        $('#kBillSplit').text(`${num(s.B2CBills)} B2C · ${num(s.B2BBills)} B2B`);
+        $('#kPatients').text(num(s.PatientCount)); $('#gPatients').html(chip(s.PatientCount, s.PrevPatientCount));
+        $('#kTests').text(`${num(s.TestCount)} tests billed`);
+        $('#kAvg').text(money0(N(s.BillCount) ? N(s.NetRevenue) / N(s.BillCount) : 0));
+        $('#kAvgSub').text(`${(N(s.BillCount) ? N(s.TestCount) / N(s.BillCount) : 0).toFixed(1)} tests per bill`);
+        $('#kCollected').text(money0(s.Collected)); $('#gCollected').html(chip(s.Collected, s.PrevCollected));
+        $('#kWallet').text(N(s.PaidFromWallet) > 0 ? `+ ${money0(s.PaidFromWallet)} from wallets` : 'receipts in the period');
+        $('#kOutstanding').text(money0(s.OutstandingNow));
+        const ag = data.ageing || [];
+        $('#kOutSub').text(`${num(sum(ag, 'Bills'))} open bill(s)`);
+    }
+
+    function renderBridge(s) {
+        const gross = N(s.GrossAmount), disc = N(s.DiscountAmount), margin = N(s.PartnerMargin);
+        const lineNet = gross - disc - margin, max = Math.max(gross, 1);
+        const rows = [
+            { label: 'MRP value of tests', v: gross, color: '#94a3b8', sub: `${num(s.TestCount)} tests` },
+            { label: 'Discount to patients', v: -disc, color: '#db2777', sub: pctText(pct(disc, gross)) + ' of MRP' },
+            { label: 'Partner margin (B2B)', v: -margin, color: '#7c3aed', sub: pctText(pct(margin, gross)) + ' of MRP' },
+            { label: 'Net revenue', v: lineNet, color: '#0f766e', sub: pctText(pct(lineNet, gross)) + ' realised' }
+        ];
+        $('#bridge').html(rows.map(r => `<div class="bridge-row">
+            <div><div class="fw-semibold">${r.label}</div><div class="fs-9 text-muted">${r.sub}</div></div>
+            <div class="bridge-bar"><span style="width:${Math.min(100, Math.abs(r.v) * 100 / max).toFixed(1)}%;background:${r.color}"></span></div>
+            <div class="text-end amt fw-bold ${r.v < 0 ? 'neg' : ''}">${r.v < 0 ? '− ' : ''}${money0(Math.abs(r.v))}</div></div>`).join(''));
+        const notes = [];
+        if (N(s.CancelledBills) > 0 || N(s.CancelledAmount) > 0) notes.push(`${num(s.CancelledBills)} bill(s) fully cancelled · ${money0(s.CancelledAmount)} cancelled in the period (not in revenue)`);
+        if (N(s.Refunds) > 0) notes.push(`${money0(s.Refunds)} refunded`);
+        $('#bridgeNote').html(notes.length ? '<i class="bi bi-x-octagon me-1"></i>' + esc(notes.join(' · ')) : 'Partner margin = MRP − the partner\'s contract rate.');
+    }
+
+    function renderTrend() {
+        const rows = data.trend || [];
+        const byMonth = rows.length && rows[0].ByMonth;
+        $('#lblTrend').html(`<i class="bi bi-bar-chart me-1"></i>Billed vs collected (${byMonth ? 'monthly' : 'daily'})`);
+        const labels = rows.map(r => byMonth ? new Date(r.Bucket + '-01').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+                                             : new Date(r.Bucket).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }));
+        if (chTrend) chTrend.destroy();
+        chTrend = new Chart(document.getElementById('chTrend'), {
+            type: 'bar',
+            data: { labels, datasets: [
+                { type: 'bar', label: 'Billed', data: rows.map(r => N(r.Billed)), backgroundColor: '#0f766e', borderRadius: 3, maxBarThickness: 40, order: 2 },
+                { type: 'line', label: 'Collected', data: rows.map(r => N(r.Collected)), borderColor: '#d97706', backgroundColor: '#d97706', pointRadius: 2, tension: .3, order: 1 }
+            ] },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false },
+                       tooltip: { callbacks: { label: c => `${c.dataset.label}: ${money(c.parsed.y)}` } } },
+                       scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                                 y: { ticks: { font: { size: 10 }, callback: v => '₹' + Number(v).toLocaleString('en-IN') } } } }
+        });
+    }
+
+    function renderModes() {
+        const rows = data.modes || [], total = sum(rows, 'Amount');
+        $('#modeList').html(rows.length ? rows.map((r, i) => `<div class="list-row"><span class="dot" style="background:${palette[i % palette.length]}"></span>
+            <div class="flex-grow-1"><div class="d-flex justify-content-between"><span>${esc(r.Mode)} <span class="text-muted fs-9">(${num(r.Receipts)})</span></span>
+            <span class="amt fw-semibold">${money0(r.Amount)}</span></div><div class="mini-bar"><span style="width:${(pct(r.Amount, total) || 0).toFixed(1)}%;background:${palette[i % palette.length]}"></span></div></div></div>`).join('')
+            : '<div class="text-muted fs-8">No receipts in the period.</div>');
+    }
+
+    function renderQuality(s) {
+        const tat = pct(s.TatWithin, s.TatTests);
+        $('#qTat').text(pctText(tat)).toggleClass('text-danger', tat !== null && tat < 80).toggleClass('text-success', tat !== null && tat >= 95);
+        $('#qTatSub').text(`${num(s.TatWithin)} of ${num(s.TatTests)} reports`);
+        $('#qAvg').text(s.TatAvgHours == null ? '—' : N(s.TatAvgHours).toFixed(1) + ' h');
+        const rej = pct(s.SpecimensRejected, s.SpecimensCollected);
+        $('#qRej').text(pctText(rej));
+        $('#qRejSub').text(`${num(s.SpecimensRejected)} rejected · ${num(s.SpecimensRecollect)} re-collect of ${num(s.SpecimensCollected)} specimens`);
+        const rep = pct(s.Retests, s.ReportsApproved);
+        $('#qRep').text(pctText(rep));
+        $('#qRepSub').text(`${num(s.Retests)} retest(s) / ${num(s.ReportsApproved)} reports`);
+        const rows = data.quality || [];
+        $('#reasonList').html(rows.length ? rows.map(r => `<div class="list-row"><i class="bi bi-exclamation-triangle text-warning"></i>
+            <span class="flex-grow-1">${esc(r.Reason)}</span>
+            ${N(r.Rejected) ? `<span class="badge bg-danger-subtle text-danger border">${num(r.Rejected)} rejected</span>` : ''}
+            ${N(r.Recollect) ? `<span class="badge bg-warning-subtle text-warning-emphasis border">${num(r.Recollect)} re-collect</span>` : ''}</div>`).join('')
+            : '<div class="text-muted">No specimen rejected or sent for re-collection in the period.</div>');
+    }
+
+    function renderCollection(s) {
+        const billed = N(s.NetRevenue), onBills = N(s.CollectedOnPeriodBills);
+        const eff = pct(onBills, billed);
+        const row = (label, v, sub, cls) => `<div class="list-row"><div class="flex-grow-1"><div>${label}</div>${sub ? `<div class="fs-9 text-muted">${sub}</div>` : ''}</div>
+            <span class="amt fw-bold ${cls || ''}">${v}</span></div>`;
+        $('#collList').html(
+            `<div class="mb-2"><div class="d-flex justify-content-between fs-8"><span class="fw-semibold">Collection efficiency</span><span class="fw-bold">${pctText(eff)}</span></div>
+             <div class="mini-bar" style="height:8px"><span style="width:${Math.min(100, eff || 0).toFixed(1)}%;background:${(eff || 0) >= 95 ? '#15803d' : '#d97706'}"></span></div>
+             <div class="fs-9 text-muted mt-1">paid so far on the bills of the period</div></div>` +
+            row('Billed (net)', money0(billed), `${num(s.BillCount)} bills`) +
+            row('Paid on these bills', money0(onBills), 'any date, wallet included') +
+            row('Still due on these bills', money0(s.PeriodBillsDue), '', N(s.PeriodBillsDue) > 0 ? 'text-danger' : '') +
+            row('Receipts in the period', money0(s.Collected), 'cash, card, UPI… (old bills too)') +
+            row('Paid from partner wallets', money0(s.PaidFromWallet), 'top-ups were received earlier') +
+            row('Refunds paid out', money0(s.Refunds), '', N(s.Refunds) > 0 ? 'neg' : ''));
+    }
+
+    function renderAgeing() {
+        const rows = data.ageing || [];
+        const draw = (seg, buckets, colors) => {
+            const list = rows.filter(r => r.Segment === seg);
+            $('#age' + seg).html(buckets.map((b, i) => { const r = list.find(x => x.Bucket === b) || {};
+                return `<div class="age-cell" style="border-top:3px solid ${colors[i]}"><div class="a-b">${b} days</div>
+                    <div class="a-v amt">${money0(r.Due)}</div><div class="a-n">${num(r.Bills)} bill(s)</div></div>`; }).join(''));
+            $('#age' + seg + 'Total').text(list.length ? `· ${money0(sum(list, 'Due'))} in ${num(sum(list, 'Bills'))} bill(s)` : '· nothing due');
+        };
+        draw('B2C', ['0-2', '3-7', '8-30', '30+'], ['#65a30d', '#d97706', '#ea580c', '#b91c1c']);
+        draw('B2B', ['0-30', '31-60', '61-90', '90+'], ['#65a30d', '#d97706', '#ea580c', '#b91c1c']);
+    }
+
+    // ── sortable tables ────────────────────────────────────────────────────
+    const m = (k, label) => ({ k, label, money: true });
+    const n = (k, label) => ({ k, label, num: true });
+    const tables = {
+        tests: { sort: 'Net', share: 'Net', cols: [
+            { k: 'TestCode', label: 'Code', code: true }, { k: 'TestName', label: 'Test / profile / package' }, { k: 'Kind', label: 'Type', badge: true },
+            { k: 'Department', label: 'Department' }, n('Tests', 'Tests'), n('B2CTests', 'B2C'), n('B2BTests', 'B2B'),
+            m('Gross', 'MRP value'), m('Discount', 'Discount'), m('PartnerMargin', 'Partner margin'), m('Net', 'Net revenue'), m('AvgRealised', 'Avg / test')] },
+        departments: { sort: 'Net', share: 'Net', cols: [
+            { k: 'Department', label: 'Department' }, n('Tests', 'Tests'), m('Gross', 'MRP value'), m('Discount', 'Discount'),
+            m('PartnerMargin', 'Partner margin'), m('Net', 'Net revenue'), n('Reported', 'Reports approved'),
+            { k: '_tat', label: 'TAT met', calc: r => pct(r.TatWithin, r.TatTests), pct: true }, { k: 'AvgHours', label: 'Avg TAT (h)', dec: 1 }] },
+        doctors: { sort: 'Net', share: 'Net', cols: [
+            { k: 'Doctor', label: 'Referring doctor' }, n('Bills', 'Bills'), n('B2CBills', 'B2C'), n('B2BBills', 'B2B'), n('Patients', 'Patients'), n('Tests', 'Tests'),
+            m('Net', 'Net revenue'), { k: '_avg', label: 'Avg bill', calc: r => N(r.Bills) ? N(r.Net) / N(r.Bills) : 0, money: true }, m('Due', 'Due')] },
+        partners: { sort: 'Billed', share: 'Billed', cols: [
+            { k: 'PartnerCode', label: 'Code', code: true }, { k: 'Partner', label: 'B2B partner' }, { k: 'PartnerType', label: 'Type', badge: true },
+            n('Bills', 'Bills'), n('Tests', 'Tests'), m('Mrp', 'MRP value'), m('Billed', 'Billed at contract'), m('MarginGiven', 'Margin given'),
+            { k: '_mp', label: 'Margin %', calc: r => pct(r.MarginGiven, r.Mrp), pct: true }, m('Collected', 'Collected'), m('Due', 'Due')] },
+        branches: { sort: 'Net', share: 'Net', cols: [
+            { k: 'Branch', label: 'Branch' }, n('Bills', 'Bills'), m('Net', 'Net revenue'), m('Collected', 'Collected'), m('Due', 'Due on period bills')] }
+    };
+    const val = (c, r) => c.calc ? c.calc(r) : r[c.k];
+
+    function renderTable(sec) {
+        const def = tables[sec], $t = $(`table[data-section="${sec}"]`);
+        const st = sortState[sec] || (sortState[sec] = { key: def.sort, dir: -1 });
+        const q = $('#txtSearch').val().trim().toLowerCase();
+        let rows = (data[sec] || []).filter(r => !q || def.cols.some(c => !c.money && !c.num && String(val(c, r) ?? '').toLowerCase().includes(q)));
+        const col = def.cols.find(c => c.k === st.key);
+        rows = rows.slice().sort((a, b) => {
+            const x = col ? val(col, a) : a[st.key], y = col ? val(col, b) : b[st.key];
+            return (typeof x === 'string' || typeof y === 'string') ? String(x ?? '').localeCompare(String(y ?? '')) * st.dir : (N(x) - N(y)) * st.dir;
+        });
+        const shareTotal = sum(data[sec] || [], def.share);
+        const right = c => c.money || c.num || c.pct || c.dec !== undefined;
+        $t.find('thead').html('<tr><th class="ps-3 no-sort">#</th>' + def.cols.map(c =>
+            `<th class="${right(c) ? 'text-end' : ''}" data-k="${c.k}">${c.label}${st.key === c.k ? `<span class="sort-ind">${st.dir < 0 ? '▼' : '▲'}</span>` : ''}</th>`).join('') +
+            '<th class="no-sort pe-3">Share</th></tr>');
+        const cell = (c, r) => {
+            const v = val(c, r);
+            if (c.money) return `<td class="text-end amt ${N(v) < 0 ? 'neg' : ''}">${money(v)}</td>`;
+            if (c.num) return `<td class="text-end num">${num(v)}</td>`;
+            if (c.pct) return `<td class="text-end num">${pctText(v)}</td>`;
+            if (c.dec !== undefined) return `<td class="text-end num">${v == null ? '—' : N(v).toFixed(c.dec)}</td>`;
+            if (c.code) return `<td><span class="code">${esc(v)}</span></td>`;
+            if (c.badge) return `<td><span class="badge bg-light text-dark border">${esc(v)}</span></td>`;
+            return `<td>${esc(v)}</td>`;
+        };
+        $t.find('tbody').html(rows.length ? rows.map((r, i) => {
+            const sh = pct(r[def.share], shareTotal) || 0;
+            return `<tr><td class="ps-3 text-muted">${i + 1}</td>${def.cols.map(c => cell(c, r)).join('')}
+                <td class="pe-3"><div class="share"><div class="mini-bar"><span style="width:${sh.toFixed(1)}%;background:#0f766e"></span></div><span class="fs-9 num">${sh.toFixed(1)}%</span></div></td></tr>`;
+        }).join('') : `<tr><td colspan="${def.cols.length + 2}" class="text-center text-muted py-4">Nothing for the selected period.</td></tr>`);
+        // totals of the visible rows
+        $t.find('tfoot').html(rows.length ? '<tr><td class="ps-3"></td>' + def.cols.map((c, i) => {
+            if (c.money && !c.calc && c.k !== 'AvgRealised') return `<td class="text-end amt">${money(sum(rows, c.k))}</td>`;
+            if (c.num) return `<td class="text-end num">${num(sum(rows, c.k))}</td>`;
+            return i === 0 ? `<td>Total (${num(rows.length)})</td>` : '<td></td>';
+        }).join('') + '<td></td></tr>' : '');
+    }
+
+    $(document).on('click', '.cr-table thead th:not(.no-sort)', function () {
+        const sec = $(this).closest('table').data('section'), k = $(this).data('k');
+        const st = sortState[sec];
+        if (st.key === k) st.dir = -st.dir; else { st.key = k; st.dir = -1; }
+        renderTable(sec);
+    });
+    $('#txtSearch').on('input', function () { if (data) Object.keys(tables).forEach(renderTable); });
+
+    // ── exports ───────────────────────────────────────────────────────────
+    const fileBase = () => `Owner_MIS_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`;
+    const exportRows = sec => (data[sec] || []).map(r => {
+        const o = {}; tables[sec].cols.forEach(c => { const v = val(c, r); o[c.label] = c.pct ? (v === null ? '' : Number(v.toFixed(1))) : (c.money || c.num ? N(v) : (v ?? '')); }); return o;
+    });
+    function summaryPairs() {
+        const s = S();
+        return [
+            ['Period', $('#lblRange').text()], ['Branches', $('#lblScope').text()],
+            ['Previous period', s.PrevFrom ? `${fmtD(s.PrevFrom)} – ${fmtD(s.PrevTo)}` : ''],
+            ['Bills', N(s.BillCount)], ['B2C bills', N(s.B2CBills)], ['B2B bills', N(s.B2BBills)], ['Patients', N(s.PatientCount)], ['Tests billed', N(s.TestCount)],
+            ['MRP value', N(s.GrossAmount)], ['Discount to patients', N(s.DiscountAmount)], ['Partner margin (B2B)', N(s.PartnerMargin)],
+            ['Net revenue', N(s.NetRevenue)], ['B2C revenue', N(s.B2CRevenue)], ['B2B revenue', N(s.B2BRevenue)],
+            ['Net revenue, previous period', N(s.PrevNetRevenue)], ['Average bill', N(s.BillCount) ? +(N(s.NetRevenue) / N(s.BillCount)).toFixed(2) : 0],
+            ['Bills fully cancelled', N(s.CancelledBills)], ['Amount cancelled', N(s.CancelledAmount)], ['Refunds paid out', N(s.Refunds)],
+            ['Receipts in the period', N(s.Collected)], ['Paid from partner wallets', N(s.PaidFromWallet)],
+            ['Paid on bills of the period', N(s.CollectedOnPeriodBills)], ['Still due on bills of the period', N(s.PeriodBillsDue)],
+            ['Collection efficiency %', +(pct(s.CollectedOnPeriodBills, s.NetRevenue) || 0).toFixed(1)], ['Outstanding today', N(s.OutstandingNow)],
+            ['Reports approved', N(s.ReportsApproved)], ['TAT met %', +(pct(s.TatWithin, s.TatTests) || 0).toFixed(1)], ['Average TAT (hours)', N(s.TatAvgHours)],
+            ['Specimens collected', N(s.SpecimensCollected)], ['Specimens rejected', N(s.SpecimensRejected)], ['Sent for re-collection', N(s.SpecimensRecollect)],
+            ['Rejection rate %', +(pct(s.SpecimensRejected, s.SpecimensCollected) || 0).toFixed(1)], ['Retests', N(s.Retests)],
+            ['Repeat rate %', +(pct(s.Retests, s.ReportsApproved) || 0).toFixed(1)]
+        ];
+    }
+
+    $('#btnExcel').on('click', function () {
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Measure', 'Value']].concat(summaryPairs())), 'Summary');
+        [['tests', 'By test'], ['departments', 'By department'], ['doctors', 'By doctor'], ['partners', 'By partner'], ['branches', 'By branch']]
+            .forEach(([sec, name]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(sec)), name));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((data.trend || []).map(r => ({ Period: r.Bucket, Bills: N(r.Bills), Billed: N(r.Billed), Collected: N(r.Collected) }))), 'Trend');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((data.modes || []).map(r => ({ Mode: r.Mode, Receipts: N(r.Receipts), Amount: N(r.Amount) }))), 'Collection by mode');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((data.ageing || []).map(r => ({ Segment: r.Segment, 'Age (days)': r.Bucket, Bills: N(r.Bills), Due: N(r.Due) }))), 'Ageing');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((data.quality || []).map(r => ({ Reason: r.Reason, Rejected: N(r.Rejected), 'Re-collect': N(r.Recollect) }))), 'Rejection reasons');
+        XLSX.writeFile(wb, fileBase() + '.xlsx');
+    });
+
+    $('#btnPdf').on('click', function () {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        const title = 'Owner MIS & Test Revenue';
+        const head = () => { doc.setFontSize(14); doc.text(title, 40, 36); doc.setFontSize(9); doc.text(`${$('#lblScope').text()} · ${$('#lblRange').text()}`, 40, 50); };
+        const opts = { styles: { fontSize: 7.5, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] }, margin: { left: 40, right: 40 } };
+        head();
+        const pairs = summaryPairs().slice(3).map(([k, v]) => [k, typeof v === 'number' ? v.toLocaleString('en-IN') : v]);
+        const half = Math.ceil(pairs.length / 2);
+        doc.autoTable({ ...opts, startY: 62, head: [['Measure', 'Value', 'Measure', 'Value']],
+            body: pairs.slice(0, half).map((p, i) => p.concat(pairs[half + i] || ['', ''])) });
+        [['tests', 'Revenue by test'], ['departments', 'Revenue by department'], ['doctors', 'Revenue by referring doctor'], ['partners', 'Revenue by B2B partner'], ['branches', 'By branch']]
+            .forEach(([sec, name]) => {
+                const rows = exportRows(sec); if (!rows.length) return;
+                const cols = Object.keys(rows[0]);
+                doc.addPage(); head(); doc.setFontSize(11); doc.text(name, 40, 70);
+                doc.autoTable({ ...opts, startY: 78, head: [cols], body: rows.map(r => cols.map(c => typeof r[c] === 'number' ? r[c].toLocaleString('en-IN') : r[c])) });
+            });
+        doc.save(fileBase() + '.pdf');
+    });
+    $('#btnPrint').on('click', () => window.print());
+
+    // ── filters ───────────────────────────────────────────────────────────
+    $('.btn-quick').on('click', function () { setRange($(this).data('range')); load(); });
+    $('.btn-scope').on('click', function () { scope = $(this).data('scope'); $('.btn-scope').removeClass('active'); $(this).addClass('active'); load(); });
+    $('#txtFrom, #txtTo').on('change', () => $('.btn-quick').removeClass('active'));
+    $('#btnApply').on('click', load);
+
+    setRange('month');
+    load();
+})();
+</script>
+}

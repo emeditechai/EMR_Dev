@@ -140,6 +140,28 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
         }
     }
 
+    public async Task<ReportApiResult<string>> GetLabOwnerMisRawAsync(IDictionary<string, string?> query)
+    {
+        try
+        {
+            var qs = string.Join("&", query.Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
+                                           .Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value!)}"));
+            var response = await _http.GetAsync($"/api/reports/lab/owner-mis?{qs}");
+            if (response.IsSuccessStatusCode)
+                return ReportApiResult<string>.SuccessResult(await response.Content.ReadAsStringAsync());
+            if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest)
+            {
+                var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+                return ReportApiResult<string>.FailureResult(body?.GetValueOrDefault("message") ?? "You do not have access to this report.");
+            }
+            return ReportApiResult<string>.FailureResult($"Failed with status {response.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            return ReportApiResult<string>.FailureResult(ex.Message);
+        }
+    }
+
     public async Task<ReportApiResult<int>> LabOutsourceActionAsync(string action, LabOutsourceActionModel request)
     {
         try

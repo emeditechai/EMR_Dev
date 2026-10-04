@@ -146,6 +146,13 @@ public class ReportsController : Controller
         ["sample-rejection"]    = new[] { "outcome", "reasonId", "collectedBy" },
         ["sample-transfer"]     = new[] { "direction", "transferStatus", "otherBranchId" },
         ["outsourced-tests"]    = new[] { "outsourceStatus", "outsideLab" },
+        // LR-03, LR-14 to LR-18 (SQLScripts/2201)
+        ["cashier-closing"]     = new[] { "paymentMethodId", "collectedBy" },
+        ["work-pending"]        = new[] { "stage", "waitBand", "departmentId" },
+        ["turnaround"]          = new[] { "tatStatus", "departmentId" },
+        ["critical-values"]     = new[] { "severity", "resultStatus", "departmentId" },
+        ["delta-check"]         = new[] { "deltaLimit", "direction", "departmentId" },
+        ["abnormal-results"]    = new[] { "signal", "departmentId" },
     };
 
     private IActionResult LabReportPage(string viewName)
@@ -165,6 +172,42 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabSampleRejection() => LabReportPage("LabSampleRejection");
     [HttpGet] public IActionResult LabSampleTransfer() => LabReportPage("LabSampleTransfer");
     [HttpGet] public IActionResult LabOutsourcedTests() => LabReportPage("LabOutsourcedTests");
+    [HttpGet] public IActionResult LabCashierClosing() => LabReportPage("LabCashierClosing");
+    [HttpGet] public IActionResult LabWorkPending() => LabReportPage("LabWorkPending");
+    [HttpGet] public IActionResult LabTurnaroundTime() => LabReportPage("LabTurnaroundTime");
+    [HttpGet] public IActionResult LabCriticalValues() => LabReportPage("LabCriticalValues");
+    [HttpGet] public IActionResult LabDeltaCheck() => LabReportPage("LabDeltaCheck");
+    [HttpGet] public IActionResult LabAbnormalResults() => LabReportPage("LabAbnormalResults");
+
+    /// <summary>LF-18 Owner MIS & Test Revenue: one management view of the lab for a period (revenue view; cost comes with LF-07).</summary>
+    [HttpGet]
+    public IActionResult LabOwnerMis() => View();
+
+    [HttpGet]
+    public async Task<IActionResult> GetLabOwnerMisData(string fromDate, string toDate, string? scope)
+    {
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
+        if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
+        if (tDate < fDate) (fDate, tDate) = (tDate, fDate);
+        if ((tDate - fDate).TotalDays > 366)
+            return Json(new { success = false, message = "Please select a date range of up to one year." });
+
+        // who is asking always comes from the login; "all" covers only the branches the user works in
+        var query = new Dictionary<string, string?>
+        {
+            ["branchId"] = branchId.ToString(),
+            ["fromDate"] = fDate.ToString("yyyy-MM-dd"),
+            ["toDate"] = tDate.ToString("yyyy-MM-dd"),
+            ["allBranches"] = string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase) ? "true" : "false",
+            ["userId"] = User.GetUserId().ToString(),
+            ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+        };
+        var result = await _reportApi.GetLabOwnerMisRawAsync(query);
+        if (!result.IsSuccess)
+            return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
+        return Content("{\"success\":true,\"data\":" + result.Data + "}", "application/json");
+    }
 
     // ── LR-13 Outsourced Test Register: Mark sent / Mark result received ──
     // Each is its own control of the page (Settings > Security); the procedure validates the test and the dates.
