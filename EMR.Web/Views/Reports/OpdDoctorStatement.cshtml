@@ -1,0 +1,84 @@
+@{
+    ViewData["Title"] = "Doctor Statement";
+    ViewData["ReportSubtitle"] = "the doctor's payable account: opening balance, shares earned, recoveries, deductions, TDS and payments, with the running balance";
+    ViewData["ReportIcon"] = "bi-journal-text";
+    ViewData["ReportAccent"] = "#7c3aed";
+    ViewData["DateLabel"] = "entry date";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const COMMON = {
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))'
+    };
+    const voucherUrl = '@Url.Action("Voucher", "DoctorDisbursal")';
+    const dash = '<span class="text-muted">—</span>';
+    const voucherBtn = (id) => id ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print payout voucher" href="${voucherUrl}/${id}"><i class="bi bi-printer"></i></a>` : '';
+    const ST = { OPEN: ['Not settled', 'bg-light text-dark border-secondary-subtle'], PREPARED: ['Awaiting approval', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                 APPROVED: ['Approved · to pay', 'bg-primary-subtle text-primary border-primary-subtle'], PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'],
+                 REJECTED: ['Rejected', 'bg-danger-subtle text-danger border-danger-subtle'], CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'],
+                 NOT_SETTLED: ['Not settled', 'bg-light text-dark border-secondary-subtle'], AWAITING_APPROVAL: ['Awaiting approval', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                 AWAITING_PAYMENT: ['Approved · to pay', 'bg-primary-subtle text-primary border-primary-subtle'] };
+    const st = (v, h) => { const s = ST[v] || [v, '']; return h.pill(s[0], s[1]); };
+    const stName = (r, h) => st(r.GroupName, h);
+    const LT = { SHARE: ['Share', 'text-success'], TOPUP: ['Top-up', 'text-primary'], RECOVERY: ['Recovery', 'text-danger'] };
+    const lt = (v) => { const x = LT[v] || [v, '']; return `<span class="fw-semibold ${x[1]}">${x[0]}</span>`; };
+    const neg = (v, h) => Number(v) < 0 ? `<span class="text-danger">-${h.money(-v)}</span>` : (Number(v) ? h.money(v) : dash);
+
+    const ET = { OPENING: 'Opening balance', SHARE: 'Share earned', TOPUP: 'Share on later collection', RECOVERY: 'Recovery', ADJUSTMENT: 'Deduction / incentive', TDS: 'TDS (194J)', PAYMENT: 'Payment' };
+    LabReport.init({ ...COMMON,
+        report: 'doctor-statement', title: 'Doctor Statement', defaultRange: 'month', summaryAlways: true,
+        searchPlaceholder: 'Bill No, settlement no, patient...',
+        filters: [
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId', adminOnly: true },
+            { id: 'entryType', label: 'Entry', allLabel: 'All entries', options: Object.keys(ET).filter(k => k !== 'OPENING').map(k => [k, ET[k]]) }
+        ],
+        kpis: [
+            { label: 'Opening', color: '#475569', value: (s, h) => h.money(s.Opening), sub: (s, h) => `${h.num(s.Doctors)} doctor(s)` },
+            { label: 'Earned', color: '#16a34a', value: (s, h) => h.money(s.Earned), sub: (s, h) => `recovered ${h.money(s.Recovered)}` },
+            { label: 'Deductions & TDS', color: '#b45309', value: (s, h) => h.money(Number(s.Tds) - Number(s.Adjusted)), sub: (s, h) => `TDS ${h.money(s.Tds)} · adjustments ${h.money(s.Adjusted)}` },
+            { label: 'Paid', color: '#1d4ed8', value: (s, h) => h.money(s.Paid), sub: () => 'payments in the period' },
+            { label: 'Closing balance', color: '#7c3aed', value: (s, h) => h.money(s.Closing), sub: () => 'still owed to the doctor(s)' }
+        ],
+        groups: [
+            { key: 'byDoctor', label: 'Doctor', rowField: 'DoctorId', byId: true },
+            { key: 'byType', label: 'Entry type', rowField: 'EntryType', name: (r, h) => h.esc(ET[r.GroupName] || r.GroupName) },
+            { key: 'byMonth', label: 'Month', rowField: 'Month', name: (r, h) => h.fmtD(r.GroupName + '-01').replace(/^\d+ /, '') }
+        ],
+        groupCols: [
+            { field: 'Opening', label: 'Opening', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'Earned', label: 'Earned', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'Recovered', label: 'Recovered', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'Adjusted', label: 'Adjusted', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'Tds', label: 'TDS', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'Paid', label: 'Paid', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'Closing', label: 'Closing', money: true, fmt: (v, h) => v === null || v === undefined ? dash : `<b>${h.money(v)}</b>` },
+            { field: 'Credit', label: 'Credit', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) },
+            { field: 'Debit', label: 'Debit', money: true, fmt: (v, h) => v === null || v === undefined ? dash : h.money(v) }
+        ],
+        shareOf: null,
+        cols: [
+            { label: 'Date', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.EntryDate), text: (r, h) => h.fmtD(r.EntryDate) },
+            { label: 'Doctor', html: (r, h) => h.esc(r.DoctorName), text: r => r.DoctorName },
+            { label: 'Entry', html: (r, h) => `<span class="fw-semibold">${h.esc(ET[r.EntryType] || r.EntryType)}</span>`, text: r => ET[r.EntryType] || r.EntryType },
+            { label: 'Ref', html: (r, h) => `<span class="font-monospace">${h.esc(r.Ref || '')}</span>`, text: r => r.Ref || '' },
+            { label: 'Particulars', html: (r, h) => `<span class="fs-9">${h.esc(r.Particulars || '')}</span>`, text: r => r.Particulars },
+            { label: 'Credit', cls: 'text-end amt text-success', html: (r, h) => Number(r.Credit) ? h.money(r.Credit) : dash, text: r => r.Credit, sum: 'Credit' },
+            { label: 'Debit', cls: 'text-end amt text-danger', html: (r, h) => Number(r.Debit) ? h.money(r.Debit) : dash, text: r => r.Debit, sum: 'Debit' },
+            { label: 'Balance', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.Balance), text: r => r.Balance },
+            { label: 'Voucher', cls: 'text-center no-print', noExport: true, html: r => ['ADJUSTMENT', 'TDS', 'PAYMENT'].includes(r.EntryType) ? voucherBtn(r.SettlementId) : '' }
+        ],
+        rowClass: r => r.EntryType === 'OPENING' ? 'table-light fw-semibold' : ''
+    });
+})();
+</script>
+}

@@ -1,0 +1,171 @@
+@using System.Text.Json
+@{
+    Layout = null;
+    var settings = ViewBag.Settings as EMR.Web.Models.Entities.HospitalSettings;
+    using var doc = JsonDocument.Parse((string)ViewBag.Json);
+    var h = doc.RootElement.GetProperty("header")[0];
+    var lines = doc.RootElement.GetProperty("lines").EnumerateArray().ToList();
+
+    string S(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind != JsonValueKind.Null ? v.ToString() : "";
+    decimal M(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : 0m;
+    string D(JsonElement e, string name, string fmt = "dd MMM yyyy") => DateTime.TryParse(S(e, name), out var d) ? d.ToString(fmt) : "";
+    string Money(decimal v) => (v < 0 ? "-₹" : "₹") + Math.Abs(v).ToString("N2", new System.Globalization.CultureInfo("en-IN"));
+
+    var status = S(h, "Status");
+    var hospName = settings?.HospitalName ?? S(h, "BranchName");
+    var hospAddress = settings?.Address ?? S(h, "BranchAddress");
+    var hospLogo = settings?.LogoPath ?? "";
+    var phones = string.Join(" / ", new[] { settings?.ContactNumber1, settings?.ContactNumber2 }.Where(p => !string.IsNullOrWhiteSpace(p)));
+    var period = S(h, "PeriodFrom") == S(h, "PeriodTo") ? D(h, "PeriodFrom") : $"{D(h, "PeriodFrom")} to {D(h, "PeriodTo")}";
+    var lineLabel = new Dictionary<string, string> { ["SHARE"] = "Share", ["TOPUP"] = "Top-up", ["RECOVERY"] = "Recovery" };
+
+    // amount in words (Indian system) for the net paid
+    string Words(long n)
+    {
+        string[] ones = { "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen" };
+        string[] tens = { "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety" };
+        string Two(long x) => x < 20 ? ones[x] : tens[x / 10] + (x % 10 > 0 ? " " + ones[x % 10] : "");
+        string Three(long x) => (x >= 100 ? ones[x / 100] + " Hundred" + (x % 100 > 0 ? " " : "") : "") + (x % 100 > 0 ? Two(x % 100) : "");
+        if (n == 0) return "Zero";
+        var parts = new List<string>();
+        if (n >= 10000000) { parts.Add(Words(n / 10000000) + " Crore"); n %= 10000000; }
+        if (n >= 100000) { parts.Add(Two(n / 100000) + " Lakh"); n %= 100000; }
+        if (n >= 1000) { parts.Add(Two(n / 1000) + " Thousand"); n %= 1000; }
+        if (n > 0) parts.Add(Three(n));
+        return string.Join(" ", parts);
+    }
+    var net = M(h, "NetPayable");
+    var rupees = (long)Math.Floor(net); var paise = (int)Math.Round((net - rupees) * 100);
+    var inWords = "Rupees " + Words(rupees) + (paise > 0 ? " and " + Words(paise) + " Paise" : "") + " Only";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Doctor Payout Voucher @S(h, "SettlementNo")</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 0; background: #e2e8f0; font-size: 12px; }
+        .sheet { width: 210mm; min-height: 297mm; margin: 12px auto; background: #fff; padding: 14mm 14mm 12mm; position: relative; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+        .head { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #1e3a8a; padding-bottom: 8px; }
+        .head img { max-height: 56px; max-width: 120px; }
+        .head h1 { margin: 0; font-size: 18px; color: #1e3a8a; }
+        .head .sub { color: #475569; font-size: 11px; }
+        .title { display: flex; justify-content: space-between; align-items: flex-end; margin: 12px 0 8px; }
+        .title h2 { margin: 0; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; }
+        .badge { display: inline-block; border: 1px solid; border-radius: 4px; padding: 1px 8px; font-weight: 700; font-size: 11px; }
+        .b-PAID { color: #15803d; border-color: #15803d; } .b-APPROVED { color: #1d4ed8; border-color: #1d4ed8; }
+        .b-PREPARED { color: #b45309; border-color: #b45309; } .b-REJECTED, .b-CANCELLED { color: #b91c1c; border-color: #b91c1c; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; }
+        .grid div span { color: #64748b; display: inline-block; min-width: 110px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; vertical-align: top; }
+        th { background: #f1f5f9; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
+        td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .neg { color: #b91c1c; }
+        .totals { width: 55%; margin-left: auto; }
+        .totals td { border: none; padding: 3px 6px; }
+        .totals tr.t td { border-top: 2px solid #0f172a; font-weight: 800; font-size: 13px; }
+        .words { margin-top: 6px; font-style: italic; }
+        .sign { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 46px; text-align: center; }
+        .sign div { border-top: 1px solid #475569; padding-top: 4px; font-size: 11px; }
+        .sign b { display: block; font-size: 11px; }
+        .note { margin-top: 14px; color: #64748b; font-size: 10px; }
+        .watermark { position: absolute; top: 45%; left: 0; right: 0; text-align: center; font-size: 72px; font-weight: 900; color: rgba(185,28,28,.12); transform: rotate(-24deg); pointer-events: none; }
+        .toolbar { text-align: center; margin: 10px; }
+        .toolbar button { padding: 6px 18px; font-size: 13px; cursor: pointer; }
+        @@media print {
+            body { background: #fff; }
+            .sheet { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 0; }
+            .toolbar { display: none; }
+            @@page { size: A4; margin: 12mm; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar"><button onclick="window.print()">Print voucher</button></div>
+    <div class="sheet">
+        @if (status is "REJECTED" or "CANCELLED")
+        {
+            <div class="watermark">@status</div>
+        }
+        else if (status is "PREPARED")
+        {
+            <div class="watermark" style="color:rgba(180,83,9,.10)">NOT APPROVED</div>
+        }
+        <div class="head">
+            @if (!string.IsNullOrWhiteSpace(hospLogo)) { <img src="@hospLogo" alt="" /> }
+            <div>
+                <h1>@hospName</h1>
+                <div class="sub">@hospAddress</div>
+                <div class="sub">@(string.IsNullOrWhiteSpace(phones) ? "" : "Ph: " + phones)@(string.IsNullOrWhiteSpace(settings?.GSTCode) ? "" : "  ·  GSTIN " + settings!.GSTCode)</div>
+            </div>
+        </div>
+
+        <div class="title">
+            <h2>Doctor Payout Voucher</h2>
+            <div><b>@S(h, "SettlementNo")</b> &nbsp; <span class="badge b-@status">@status</span></div>
+        </div>
+
+        <div class="grid">
+            <div><span>Doctor</span><b>@S(h, "DoctorName")</b></div>
+            <div><span>Voucher date</span>@D(h, "PreparedOn")</div>
+            <div><span>Speciality</span>@S(h, "Speciality")</div>
+            <div><span>Shares of</span>@period</div>
+            <div><span>Payee</span>@(S(h, "PayeeName") is { Length: > 0 } p ? p : S(h, "DoctorName"))</div>
+            <div><span>PAN</span>@(S(h, "PAN") is { Length: > 0 } pan ? pan : "Not given")</div>
+            <div><span>Bank</span>@(S(h, "AccountNo") is { Length: > 0 } acc ? $"{S(h, "BankName")} a/c {acc} · IFSC {S(h, "IFSC")}" : "—")</div>
+            <div><span>UPI</span>@(S(h, "UpiId") is { Length: > 0 } upi ? upi : "—")</div>
+            <div><span>Branch</span>@S(h, "BranchName")</div>
+            <div><span>Visits</span>@S(h, "Visits")</div>
+        </div>
+
+        <table>
+            <thead><tr><th>#</th><th>Share date</th><th>Type</th><th>Bill no.</th><th>Patient</th><th class="r">Collected</th><th>Rule</th><th class="r">Share</th></tr></thead>
+            <tbody>
+                @if (!lines.Any())
+                {
+                    <tr><td colspan="8" style="text-align:center;color:#64748b">The shares of this settlement went back to be settled again.</td></tr>
+                }
+                @for (var i = 0; i < lines.Count; i++)
+                {
+                    var l = lines[i]; var amt = M(l, "NetPayable");
+                    <tr>
+                        <td>@(i + 1)</td><td>@D(l, "ShareDate")</td><td>@(lineLabel.GetValueOrDefault(S(l, "LineType"), S(l, "LineType")))</td>
+                        <td>@S(l, "BillNo")</td><td>@S(l, "PatientName")</td><td class="r">@Money(M(l, "CollectedAmount"))</td>
+                        <td>@S(l, "CommissionRule")</td><td class="r @(amt < 0 ? "neg" : "")">@Money(amt)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <table class="totals">
+            <tr><td>Gross share</td><td class="r">@Money(M(h, "GrossShare"))</td></tr>
+            @if (M(h, "Recoveries") != 0) { <tr><td>Recoveries (cancellations / refunds)</td><td class="r neg">@Money(M(h, "Recoveries"))</td></tr> }
+            @if (M(h, "OtherAdjustment") != 0) { <tr><td>@(M(h, "OtherAdjustment") < 0 ? "Deduction" : "Incentive"): @S(h, "OtherAdjustmentReason")</td><td class="r">@Money(M(h, "OtherAdjustment"))</td></tr> }
+            <tr><td>Taxable amount</td><td class="r">@Money(M(h, "TaxableAmount"))</td></tr>
+            <tr><td>TDS u/s 194J @@ @M(h, "TdsPercent").ToString("0.##")%@(string.IsNullOrEmpty(S(h, "PAN")) && M(h, "TdsPercent") > 0 ? " (no PAN, 206AA)" : "")</td><td class="r neg">-@Money(M(h, "TdsAmount"))</td></tr>
+            <tr class="t"><td>Net payable</td><td class="r">@Money(net)</td></tr>
+        </table>
+        <div class="words">@inWords</div>
+
+        <div class="grid" style="margin-top:12px">
+            <div><span>Payment</span>@(status == "PAID" ? $"{S(h, "PaymentMode")} on {D(h, "PaymentDate")}" : "Not paid yet")</div>
+            <div><span>Reference</span>@(S(h, "PaymentReference") is { Length: > 0 } rf ? rf : "—")</div>
+            @if (!string.IsNullOrEmpty(S(h, "CloseReason")))
+            {
+                <div style="grid-column:1/3"><span>@(status == "REJECTED" ? "Rejected" : "Cancelled")</span>@S(h, "ClosedByName"), @D(h, "ClosedOn", "dd MMM yyyy hh:mm tt"): @S(h, "CloseReason")</div>
+            }
+        </div>
+
+        <div class="sign">
+            <div><b>@S(h, "PreparedByName")</b>Prepared by<br />@D(h, "PreparedOn", "dd MMM yyyy hh:mm tt")</div>
+            <div><b>@S(h, "ApprovedByName")</b>Approved by<br />@D(h, "ApprovedOn", "dd MMM yyyy hh:mm tt")</div>
+            <div><b>@S(h, "PaidByName")</b>Paid by<br />@D(h, "PaidOn", "dd MMM yyyy hh:mm tt")</div>
+            <div><b>&nbsp;</b>Received by (doctor)<br />&nbsp;</div>
+        </div>
+        <div class="note">System-generated voucher. The doctor's share is worked out from the commission rules on the money collected; TDS is deducted under section 194J of the Income-tax Act.</div>
+    </div>
+</body>
+</html>

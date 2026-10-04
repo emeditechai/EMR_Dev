@@ -1,0 +1,76 @@
+@{
+    ViewData["Title"] = "Doctor TDS Register (194J)";
+    ViewData["ReportSubtitle"] = "TDS deducted on doctor payouts by payment date, with PAN, taxable amount, rate and quarter, for the TDS return";
+    ViewData["ReportIcon"] = "bi-bank";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["DateLabel"] = "payment date";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const COMMON = {
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))'
+    };
+    const voucherUrl = '@Url.Action("Voucher", "DoctorDisbursal")';
+    const dash = '<span class="text-muted">—</span>';
+    const voucherBtn = (id) => id ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print payout voucher" href="${voucherUrl}/${id}"><i class="bi bi-printer"></i></a>` : '';
+    const ST = { OPEN: ['Not settled', 'bg-light text-dark border-secondary-subtle'], PREPARED: ['Awaiting approval', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                 APPROVED: ['Approved · to pay', 'bg-primary-subtle text-primary border-primary-subtle'], PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'],
+                 REJECTED: ['Rejected', 'bg-danger-subtle text-danger border-danger-subtle'], CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'],
+                 NOT_SETTLED: ['Not settled', 'bg-light text-dark border-secondary-subtle'], AWAITING_APPROVAL: ['Awaiting approval', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                 AWAITING_PAYMENT: ['Approved · to pay', 'bg-primary-subtle text-primary border-primary-subtle'] };
+    const st = (v, h) => { const s = ST[v] || [v, '']; return h.pill(s[0], s[1]); };
+    const stName = (r, h) => st(r.GroupName, h);
+    const LT = { SHARE: ['Share', 'text-success'], TOPUP: ['Top-up', 'text-primary'], RECOVERY: ['Recovery', 'text-danger'] };
+    const lt = (v) => { const x = LT[v] || [v, '']; return `<span class="fw-semibold ${x[1]}">${x[0]}</span>`; };
+    const neg = (v, h) => Number(v) < 0 ? `<span class="text-danger">-${h.money(-v)}</span>` : (Number(v) ? h.money(v) : dash);
+
+    LabReport.init({ ...COMMON,
+        report: 'doctor-tds', title: 'Doctor TDS Register 194J', defaultRange: 'month',
+        searchPlaceholder: 'Settlement no, PAN, doctor...',
+        filters: [
+            { id: 'panStatus', label: 'PAN', allLabel: 'All', options: [['WITH', 'With PAN'], ['WITHOUT', 'Without PAN (206AA)']] },
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'TDS deducted', color: '#0f766e', value: (s, h) => h.money(s.Tds), sub: (s, h) => `${h.num(s.Payments)} payment(s) · ${h.num(s.Doctors)} doctor(s)` },
+            { label: 'Taxable', color: '#1d4ed8', value: (s, h) => h.money(s.Taxable), sub: () => 'share after recoveries and adjustments' },
+            { label: 'Net paid', color: '#16a34a', value: (s, h) => h.money(s.NetPaid), sub: () => 'to the doctors' },
+            { label: 'Without PAN', color: '#b91c1c', value: (s, h) => h.num(s.WithoutPan), sub: (s, h) => `TDS ${h.money(s.TdsWithoutPan)} at 20% (206AA)` }
+        ],
+        groups: [
+            { key: 'byDoctor', label: 'Doctor · PAN', rowField: 'DoctorId', byId: true },
+            { key: 'byQuarter', label: 'Quarter', rowField: 'Quarter' },
+            { key: 'byMonth', label: 'Month', rowField: 'Month', name: (r, h) => h.fmtD(r.GroupName + '-01').replace(/^\d+ /, '') },
+            { key: 'byPan', label: 'PAN', rowField: 'PanStatus', name: (r) => r.GroupName === 'WITH' ? 'With PAN' : 'Without PAN (206AA)' }
+        ],
+        groupCols: [
+            { field: 'Payments', label: 'Payments', num: true }, { field: 'Taxable', label: 'Taxable', money: true },
+            { field: 'Tds', label: 'TDS', money: true }, { field: 'NetPaid', label: 'Net paid', money: true }
+        ],
+        shareOf: 'Tds',
+        cols: [
+            { label: 'Paid on', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.PaymentDate) + `<div class="text-muted fs-9">${h.esc(r.Quarter)}</div>`, text: (r, h) => h.fmtD(r.PaymentDate) },
+            { label: 'Settlement', html: (r, h) => `<span class="font-monospace">${h.esc(r.SettlementNo)}</span>`, text: r => r.SettlementNo },
+            { label: 'Doctor / payee', html: (r, h) => `<div class="fw-semibold">${h.esc(r.DoctorName)}</div><div class="text-muted fs-9">${h.esc(r.PayeeName || '')}</div>`, text: r => r.DoctorName },
+            { label: 'PAN', html: (r, h) => r.PAN ? `<span class="font-monospace">${h.esc(r.PAN)}</span>` : '<span class="text-danger fs-9">Not given</span>', text: r => r.PAN || '' },
+            { label: 'Taxable', cls: 'text-end amt', html: (r, h) => h.money(r.TaxableAmount), text: r => r.TaxableAmount, sum: 'TaxableAmount' },
+            { label: 'Rate', cls: 'text-end', html: r => Number(r.TdsPercent) + '%', text: r => r.TdsPercent },
+            { label: 'TDS', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.TdsAmount), text: r => r.TdsAmount, sum: 'TdsAmount' },
+            { label: 'Net paid', cls: 'text-end amt', html: (r, h) => h.money(r.NetPayable), text: r => r.NetPayable, sum: 'NetPayable' },
+            { label: 'Paid by', html: (r, h) => `${h.esc(r.PaymentMode)}<div class="text-muted fs-9">${h.esc(r.PaymentReference || '')}</div>`, text: r => r.PaymentMode },
+            { label: 'Voucher', cls: 'text-center no-print', noExport: true, html: r => voucherBtn(r.SettlementId) }
+        ]
+    });
+})();
+</script>
+}

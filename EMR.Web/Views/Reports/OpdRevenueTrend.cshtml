@@ -1,0 +1,160 @@
+@{
+    ViewData["Title"] = "OPD Revenue & Footfall Trend";
+    ViewData["ReportSubtitle"] = "is the OPD growing, and when is it busiest? revenue, visits and new patients by day and month, with the hour x weekday heatmap for staffing";
+    ViewData["ReportIcon"] = "bi-graph-up-arrow";
+    ViewData["ReportAccent"] = "#1d4ed8";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+<style>
+    .rt-heat { border-collapse: separate; border-spacing: 3px; font-size: .72rem; }
+    .rt-heat th { color: #64748b; font-weight: 600; text-align: center; padding: 0 2px; white-space: nowrap; }
+    .rt-heat td { width: 34px; height: 26px; text-align: center; border-radius: 4px; font-variant-numeric: tabular-nums; }
+    .rt-heat td.rt-day { width: auto; text-align: right; padding-right: 6px; color: #334155; font-weight: 600; background: none; }
+    .rt-legend { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: #64748b; }
+    .rt-legend span { width: 18px; height: 10px; border-radius: 2px; display: inline-block; }
+</style>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const pct = (v) => v === null || v === undefined ? '' : `${Number(v) > 0 ? '+' : ''}${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%`;
+    const growth = (v) => v === null || v === undefined ? '<span class="text-muted">no earlier data</span>'
+        : `<span class="${Number(v) >= 0 ? 'text-success' : 'text-danger'} fw-semibold"><i class="bi ${Number(v) >= 0 ? 'bi-arrow-up-right' : 'bi-arrow-down-right'}"></i> ${pct(v)}</span> vs previous period`;
+    const hourText = (hNo) => hNo === null || hNo === undefined ? '—' : `${String(hNo).padStart(2, '0')}:00–${String(hNo).padStart(2, '0')}:59`;
+    const MODE = { BOOKED: 'Booked (appointment)', WALKIN: 'Walk-in' };
+    const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    let chart = null;
+
+    function drawExtra(data, h) {
+        const rows = (data.rows || []).slice().sort((a, b) => a.Day < b.Day ? -1 : 1);
+        const heat = (data.groups || []).filter(g => g.GroupKey === 'heat');
+        if (!rows.length) { $('#lrExtra').empty(); return; }
+        // long periods are drawn by month, short ones by day
+        const byMonth = rows.length > 62;
+        let labels, revenue, visits, fresh;
+        if (byMonth) {
+            const months = (data.groups || []).filter(g => g.GroupKey === 'byMonth').sort((a, b) => a.GroupName < b.GroupName ? -1 : 1);
+            labels = months.map(m => h.fmtD(m.GroupName + '-01').replace(/^\d+ /, ''));
+            revenue = months.map(m => Number(m.Revenue) || 0); visits = months.map(m => Number(m.Visits) || 0); fresh = months.map(m => Number(m.NewPatients) || 0);
+        } else {
+            labels = rows.map(r => h.fmtD(r.Day).replace(/ \d{4}$/, ''));
+            revenue = rows.map(r => Number(r.Revenue) || 0); visits = rows.map(r => Number(r.Visits) || 0); fresh = rows.map(r => Number(r.NewPatients) || 0);
+        }
+        const max = Math.max(1, ...heat.map(c => Number(c.Visits) || 0));
+        const hoursUsed = heat.map(c => c.GroupId % 100);
+        const hFrom = Math.min(7, ...hoursUsed), hTo = Math.max(21, ...hoursUsed);
+        const cell = (d, hr) => {
+            const c = heat.find(x => x.GroupId === d * 100 + hr), n = c ? Number(c.Visits) || 0 : 0;
+            const a = n ? (0.15 + 0.85 * n / max).toFixed(2) : 0;
+            return `<td style="background:${n ? `rgba(29,78,216,${a})` : '#f1f5f9'};color:${a > 0.55 ? '#fff' : '#1e293b'}" title="${DAYS[d - 1]} ${String(hr).padStart(2, '0')}:00 · ${n} visit(s)${c ? ' · ' + h.money(c.Revenue) : ''}">${n || ''}</td>`;
+        };
+        let heatHtml = '<table class="rt-heat"><thead><tr><th></th>';
+        for (let hr = hFrom; hr <= hTo; hr++) heatHtml += `<th>${String(hr).padStart(2, '0')}</th>`;
+        heatHtml += '</tr></thead><tbody>';
+        for (let d = 1; d <= 7; d++) {
+            heatHtml += `<tr><td class="rt-day">${DAYS[d - 1]}</td>`;
+            for (let hr = hFrom; hr <= hTo; hr++) heatHtml += cell(d, hr);
+            heatHtml += '</tr>';
+        }
+        heatHtml += '</tbody></table>';
+
+        $('#lrExtra').html(`
+            <div class="row g-2 mb-2">
+                <div class="col-12 col-xl-7"><div class="lr-card p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold fs-7"><i class="bi bi-bar-chart-line me-1 text-primary"></i>Revenue and visits ${byMonth ? 'by month' : 'by day'}</span>
+                        <span class="text-muted fs-9">bars: revenue · lines: visits, new patients</span></div>
+                    <div style="position:relative;height:250px;"><canvas id="rtChart"></canvas></div></div></div>
+                <div class="col-12 col-xl-5"><div class="lr-card p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold fs-7"><i class="bi bi-grid-3x3-gap me-1 text-primary"></i>When patients are registered</span>
+                        <span class="rt-legend">fewer <span style="background:rgba(29,78,216,.2)"></span><span style="background:rgba(29,78,216,.6)"></span><span style="background:rgba(29,78,216,1)"></span> more</span></div>
+                    <div style="overflow-x:auto;">${heatHtml}</div>
+                    <div class="text-muted fs-9 mt-1">OPD visits by day of week and hour of the bill, for the selected period. Use it to plan front-desk staff and doctor sessions.</div></div></div>
+            </div>`);
+        if (chart) { chart.destroy(); chart = null; }
+        chart = new Chart(document.getElementById('rtChart'), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'bar', label: 'Revenue', data: revenue, backgroundColor: 'rgba(29,78,216,.75)', borderRadius: 3, yAxisID: 'y' },
+                    { type: 'line', label: 'Visits', data: visits, borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: .3, pointRadius: 2, yAxisID: 'y1' },
+                    { type: 'line', label: 'New patients', data: fresh, borderColor: '#16a34a', backgroundColor: '#16a34a', borderDash: [4, 3], tension: .3, pointRadius: 2, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.dataset.label === 'Revenue' ? ' Revenue ' + h.money(c.parsed.y) : ` ${c.dataset.label} ${c.parsed.y}` } } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { callback: (v) => '₹' + Number(v).toLocaleString('en-IN') } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { precision: 0 } },
+                    x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } }
+                }
+            }
+        });
+    }
+
+    LabReport.init({
+        report: 'revenue-trend', title: 'OPD Revenue & Footfall Trend', defaultRange: 'month', summaryAlways: true,
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        filters: [
+            { id: 'visitMode', label: 'Visit', allLabel: 'Booked and walk-in', options: [['BOOKED', 'Booked (appointment)'], ['WALKIN', 'Walk-in']] },
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId' },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Revenue', color: '#1d4ed8', value: (s, h) => h.money(s.Revenue), sub: (s) => growth(s.RevenueGrowthPct) },
+            { label: 'Visits', color: '#0f766e', value: (s, h) => h.num(s.Visits), sub: (s) => growth(s.VisitsGrowthPct) },
+            { label: 'New patients', color: '#16a34a', value: (s, h) => h.num(s.NewPatients), sub: (s, h) => `${h.num(s.Patients)} patient(s) in all · ${growth(s.NewGrowthPct)}` },
+            { label: 'Per day', color: '#b45309', value: (s, h) => h.money(s.AvgDailyRevenue),
+              sub: (s, h) => `${Number(s.AvgDailyVisits || 0).toLocaleString('en-IN')} visits a day · average bill ${h.money(s.AvgBillValue)} · ${s.BookedPct ?? 0}% booked` },
+            { label: 'Busiest', color: '#be123c', value: (s, h) => `<span class="fs-6">${h.esc(s.BusiestWeekday || '—')}</span>`,
+              sub: (s, h) => `${hourText(s.BusiestHour)} · peak day ${s.PeakDay ? h.fmtD(s.PeakDay) + ' (' + h.num(s.PeakDayVisits) + ' visits)' : '—'}` }
+        ],
+        groups: [
+            { key: 'byDay', label: 'Day', rowField: 'Day', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byMonth', label: 'Month (month-on-month)', rowField: 'Month', name: (r, h) => h.fmtD(r.GroupName + '-01').replace(/^\d+ /, '') },
+            { key: 'byWeekday', label: 'Day of week', rowField: 'WeekdayNo', byId: true },
+            { key: 'byHour', label: 'Hour of the day', rowField: 'none', noDrill: true },
+            { key: 'byVisitMode', label: 'Booked / walk-in', rowField: 'none', noDrill: true, name: (r, h) => h.esc(MODE[r.GroupName] || r.GroupName) },
+            { key: 'byDoctor', label: 'Doctor', rowField: 'none', noDrill: true }
+        ],
+        groupCols: [
+            { field: 'Visits', label: 'Visits', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Patients', label: 'Patients', num: true, total: 'none', fmt: (v, h) => h.num(v) },
+            { field: 'NewPatients', label: 'New patients', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'BookedVisits', label: 'Booked', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'WalkInVisits', label: 'Walk-in', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Revenue', label: 'Revenue', money: true },
+            { field: 'Collected', label: 'Received', money: true, fmt: (v, h) => v === null || v === undefined ? '<span class="text-muted">—</span>' : h.money(v) },
+            { field: 'AvgBillValue', label: 'Average bill', num: true, total: 'none', fmt: (v, h) => v === null || v === undefined ? '—' : h.money(v) },
+            { field: 'GrowthPct', label: 'vs previous month', num: true, total: 'none', fmt: (v) => v === null || v === undefined ? '—' : `<span class="${Number(v) >= 0 ? 'text-success' : 'text-danger'}">${pct(v)}</span>` },
+            { field: 'VisitsPerDay', label: 'Visits a day', num: true, total: 'none', fmt: (v) => v === null || v === undefined ? '—' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 }) }
+        ],
+        shareOf: 'Revenue',
+        cols: [
+            { label: 'Day', cls: 'text-nowrap', html: (r, h) => `<span class="fw-semibold">${h.fmtD(r.Day)}</span><div class="text-muted fs-9">${h.esc(r.WeekdayName)}</div>`, text: (r, h) => h.fmtD(r.Day) },
+            { label: 'Visits', cls: 'text-end', html: (r, h) => h.num(r.Visits), text: r => r.Visits },
+            { label: 'Booked · walk-in', cls: 'text-end', html: (r, h) => `${h.num(r.BookedVisits)} · ${h.num(r.WalkInVisits)}`, text: r => `${r.BookedVisits} / ${r.WalkInVisits}` },
+            { label: 'Patients', cls: 'text-end', html: (r, h) => h.num(r.Patients), text: r => r.Patients },
+            { label: 'New patients', cls: 'text-end', html: (r, h) => Number(r.NewPatients) ? `<span class="text-success fw-semibold">${h.num(r.NewPatients)}</span>` : '0', text: r => r.NewPatients },
+            { label: 'Revenue', cls: 'text-end', money: true, sum: 'Revenue', html: (r, h) => `<span class="fw-semibold">${h.money(r.Revenue)}</span>`, text: r => Number(r.Revenue) || 0 },
+            { label: 'Received', cls: 'text-end', money: true, sum: 'Collected', html: (r, h) => h.money(r.Collected), text: r => Number(r.Collected) || 0 },
+            { label: 'Average bill', cls: 'text-end', html: (r, h) => r.AvgBillValue === null || r.AvgBillValue === undefined ? '—' : h.money(r.AvgBillValue), text: r => r.AvgBillValue ?? '' }
+        ],
+        afterLoad: drawExtra
+    });
+    $('#lrSearchCol').addClass('d-none');   // a trend has no record to search
+})();
+</script>
+}

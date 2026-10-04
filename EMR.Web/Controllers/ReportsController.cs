@@ -153,6 +153,14 @@ public class ReportsController : Controller
         ["critical-values"]     = new[] { "severity", "resultStatus", "communication", "departmentId" },
         ["delta-check"]         = new[] { "deltaLimit", "direction", "departmentId" },
         ["abnormal-results"]    = new[] { "signal", "departmentId" },
+        // LR-19 / LR-20 / LR-22 (SQLScripts/2209)
+        ["sign-off"]            = new[] { "show", "level", "source", "pathologistId", "departmentId" },
+        ["dispatch-print"]      = new[] { "dispatchStatus", "billingType", "printedBy" },
+        ["unauthorized"]        = new[] { "withdrawAction", "outcome", "amended", "unapprovedBy", "departmentId" },
+        // LR-24 / LR-26 / LR-27 (SQLScripts/2210)
+        ["revenue-trend"]       = new[] { "billingType", "createdBy" },
+        ["patient-analytics"]   = new[] { "patientType", "ageBand", "gender", "createdBy" },
+        ["staff-productivity"]  = new[] { "activity", "staffId" },
     };
 
     private IActionResult LabReportPage(string viewName)
@@ -189,6 +197,12 @@ public class ReportsController : Controller
     }
     [HttpGet] public IActionResult LabDeltaCheck() => LabReportPage("LabDeltaCheck");
     [HttpGet] public IActionResult LabAbnormalResults() => LabReportPage("LabAbnormalResults");
+    [HttpGet] public IActionResult LabSignOff() => LabReportPage("LabSignOff");
+    [HttpGet] public IActionResult LabDispatchPrint() => LabReportPage("LabDispatchPrint");
+    [HttpGet] public IActionResult LabUnauthorized() => LabReportPage("LabUnauthorized");
+    [HttpGet] public IActionResult LabRevenueTrend() => LabReportPage("LabRevenueTrend");
+    [HttpGet] public IActionResult LabPatientAnalytics() => LabReportPage("LabPatientAnalytics");
+    [HttpGet] public IActionResult LabStaffProductivity() => LabReportPage("LabStaffProductivity");
 
     /// <summary>LF-18 Owner MIS & Test Revenue: one management view of the lab for a period (revenue view; cost comes with LF-07).</summary>
     [HttpGet]
@@ -286,9 +300,55 @@ public class ReportsController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetLabReportData(string report, string fromDate, string toDate, string? search)
+    public Task<IActionResult> GetLabReportData(string report, string fromDate, string toDate, string? search)
+        => RegisterDataAsync(LabReportFilters, _reportApi.RunLabReportRawAsync, report, fromDate, toDate, search);
+
+    // ── Reports > OPD registers (OPD Reports Roadmap, SQLScripts/2211): same page, script and rules as the LAB ones ──
+    private static readonly Dictionary<string, string[]> OpdReportFilters = new(StringComparer.OrdinalIgnoreCase)
     {
-        if (string.IsNullOrWhiteSpace(report) || !LabReportFilters.TryGetValue(report, out var filters))
+        ["billing-register"]    = new[] { "paymentStatus", "doctorId", "createdBy" },
+        ["cashier-closing"]     = new[] { "paymentMethodId", "collectedBy" },
+        ["outstanding-dues"]    = new[] { "ageBucket", "doctorId", "createdBy" },
+        ["discount-register"]   = new[] { "reasonStatus", "approvedBy", "doctorId", "enteredBy" },
+        ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy" },
+        // OR-24 / OR-25 / OR-26 (SQLScripts/2212)
+        ["revenue-trend"]          = new[] { "visitMode", "doctorId", "createdBy" },
+        ["patient-analytics"]      = new[] { "patientType", "ageBand", "gender", "doctorId", "createdBy" },
+        ["speciality-performance"] = new[] { "visitMode", "specialityId", "doctorId" },
+        // OR-31 to OR-36 doctor payout (SQLScripts/2214)
+        ["doctor-share"]           = new[] { "lineType", "settleStatus", "doctorId" },
+        ["doctor-payout"]          = new[] { "status", "paymentMode", "doctorId" },
+        ["doctor-payable"]         = new[] { "stage", "ageBucket", "doctorId" },
+        ["doctor-statement"]       = new[] { "entryType", "doctorId" },
+        ["doctor-tds"]             = new[] { "panStatus", "doctorId" },
+        ["doctor-revenue-share"]   = new[] { "ruleStatus", "specialityId", "doctorId" },
+    };
+
+    [HttpGet] public IActionResult OpdBillingRegister() => LabReportPage("OpdBillingRegister");
+    [HttpGet] public IActionResult OpdCashierClosing() => LabReportPage("OpdCashierClosing");
+    [HttpGet] public IActionResult OpdOutstandingDues() => LabReportPage("OpdOutstandingDues");
+    [HttpGet] public IActionResult OpdDiscountRegister() => LabReportPage("OpdDiscountRegister");
+    [HttpGet] public IActionResult OpdCancellationRefund() => LabReportPage("OpdCancellationRefund");
+    [HttpGet] public IActionResult OpdRevenueTrend() => LabReportPage("OpdRevenueTrend");
+    [HttpGet] public IActionResult OpdPatientAnalytics() => LabReportPage("OpdPatientAnalytics");
+    [HttpGet] public IActionResult OpdSpecialityPerformance() => LabReportPage("OpdSpecialityPerformance");
+    [HttpGet] public IActionResult OpdDoctorShareRegister() => LabReportPage("OpdDoctorShareRegister");
+    [HttpGet] public IActionResult OpdDoctorPayoutRegister() => LabReportPage("OpdDoctorPayoutRegister");
+    [HttpGet] public IActionResult OpdDoctorPayable() => LabReportPage("OpdDoctorPayable");
+    [HttpGet] public IActionResult OpdDoctorStatement() => LabReportPage("OpdDoctorStatement");
+    [HttpGet] public IActionResult OpdDoctorTdsRegister() => LabReportPage("OpdDoctorTdsRegister");
+    [HttpGet] public IActionResult OpdDoctorRevenueShare() => LabReportPage("OpdDoctorRevenueShare");
+
+    [HttpGet]
+    public Task<IActionResult> GetOpdReportData(string report, string fromDate, string toDate, string? search)
+        => RegisterDataAsync(OpdReportFilters, _reportApi.RunOpdReportRawAsync, report, fromDate, toDate, search);
+
+    /// <summary>One data action shape for every register: only known reports and their own filters are passed on.</summary>
+    private async Task<IActionResult> RegisterDataAsync(Dictionary<string, string[]> known,
+        Func<string, IDictionary<string, string?>, Task<ReportApiResult<string>>> run,
+        string report, string fromDate, string toDate, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(report) || !known.TryGetValue(report, out var filters))
             return Json(new { success = false, message = "Unknown report." });
 
         var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
@@ -312,7 +372,7 @@ public class ReportsController : Controller
         };
         foreach (var f in filters) query[f] = Request.Query[f].ToString();
 
-        var result = await _reportApi.RunLabReportRawAsync(report, query);
+        var result = await run(report, query);
         if (!result.IsSuccess)
             return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
         return Content("{\"success\":true,\"scope\":\"" + (seeAll ? "ALL" : "SELF") + "\",\"data\":" + result.Data + "}", "application/json");

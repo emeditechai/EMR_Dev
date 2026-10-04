@@ -1,0 +1,79 @@
+@{
+    ViewData["Title"] = "OPD Daily Billing Register";
+    ViewData["ReportSubtitle"] = "OPD bills raised in the period: consulting, registration and services, discount, GST, net, paid and due";
+    ViewData["ReportIcon"] = "bi-receipt";
+    ViewData["ReportAccent"] = "#1d4ed8";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "OPD")';
+    const printBtn = r => r.OPDServiceId ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?id=${r.OPDServiceId}"><i class="bi bi-printer"></i></a>` : '';
+    const COMMON = {
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))'
+    };
+    const STATUS = { PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'], PARTIAL: ['Partial', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                     UNPAID: ['Unpaid', 'bg-danger-subtle text-danger border-danger-subtle'], CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'] };
+    const status = (v, h) => { const s = STATUS[v] || [v, '']; return h.pill(s[0], s[1]); };
+    const dash = '<span class="text-muted">—</span>';
+    LabReport.init({ ...COMMON,
+        report: 'billing-register', title: 'OPD Daily Billing Register', defaultRange: 'today',
+        searchPlaceholder: 'Bill No, Token, Patient ID, name or mobile...',
+        filters: [
+            { id: 'paymentStatus', label: 'Payment', allLabel: 'All', options: [['PAID', 'Paid'], ['PARTIAL', 'Partial'], ['UNPAID', 'Unpaid'], ['CANCELLED', 'Cancelled']] },
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId' },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Bills', color: '#1d4ed8', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.PatientCount)} patients · ${h.num(s.DoctorCount)} doctor(s) · ${h.num(s.CancelledBills)} cancelled` },
+            { label: 'Gross', color: '#475569', value: (s, h) => h.money(s.GrossAmount), sub: (s, h) => `consulting ${h.money(s.ConsultingAmount)} · registration ${h.money(s.RegistrationAmount)} · services ${h.money(s.ServiceAmount)}` },
+            { label: 'Discount', color: '#b45309', value: (s, h) => h.money(s.DiscountAmount), sub: (s, h) => Number(s.TaxAmount) ? `GST ${h.money(s.TaxAmount)}` : 'given on these bills' },
+            { label: 'Net billed', color: '#7c3aed', value: (s, h) => h.money(s.NetAmount), sub: () => 'after discount, GST & cancellation' },
+            { label: 'Collected', color: '#15803d', value: (s, h) => h.money(s.PaidAmount), sub: () => 'paid against these bills' },
+            { label: 'Due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount), sub: (s, h) => `${h.num(s.DueBills)} bill(s) still to collect` }
+        ],
+        groups: [
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byDoctor', label: 'Doctor', rowField: 'DoctorId', byId: true },
+            { key: 'byPaymentStatus', label: 'Payment status', rowField: 'PaymentStatus', name: (r, h) => status(r.GroupName, h) },
+            { key: 'byCreatedBy', label: 'Billed by', rowField: 'CreatedById', byId: true, adminOnly: true }
+        ],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true },
+            { field: 'ConsultingAmount', label: 'Consulting', money: true }, { field: 'RegistrationAmount', label: 'Registration', money: true },
+            { field: 'ServiceAmount', label: 'Services', money: true }, { field: 'GrossAmount', label: 'Gross', money: true },
+            { field: 'DiscountAmount', label: 'Discount', money: true }, { field: 'TaxAmount', label: 'GST', money: true },
+            { field: 'NetAmount', label: 'Net', money: true }, { field: 'PaidAmount', label: 'Collected', money: true }, { field: 'DueAmount', label: 'Due', money: true }
+        ],
+        shareOf: 'NetAmount',
+        cols: [
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.BillDate)}${r.IsBooked ? '<div class="text-muted fs-9">booked appointment</div>' : '<div class="text-muted fs-9">walk-in</div>'}`, text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Doctor', html: (r, h) => `<div>${h.esc(r.DoctorName)}</div>${r.Speciality ? `<div class="text-muted fs-9">${h.esc(r.Speciality)}</div>` : ''}<div class="text-muted fs-9">${h.esc(r.VisitStatus)}</div>`, text: r => r.DoctorName },
+            { label: 'Services', html: (r, h) => `<span class="badge bg-light text-dark border">${r.ItemCount || 0}</span> <span class="text-muted fs-9 d-inline-block text-truncate align-middle" style="max-width:200px" title="${h.esc(r.ItemNames || '')}">${h.esc(r.ItemNames || '')}</span>`, text: r => r.ItemNames || '' },
+            { label: 'Gross', cls: 'text-end amt', html: (r, h) => h.money(r.GrossAmount) + (Number(r.CancelledAmount) ? `<div class="text-muted fs-9">cancelled ${h.money(r.CancelledAmount)}</div>` : ''), text: r => r.GrossAmount, sum: 'GrossAmount' },
+            { label: 'Discount', cls: 'text-end amt', html: (r, h) => Number(r.DiscountAmount) ? `<span class="text-warning-emphasis">${h.money(r.DiscountAmount)}</span>` : dash, text: r => r.DiscountAmount, sum: 'DiscountAmount' },
+            { label: 'GST', cls: 'text-end amt', html: (r, h) => Number(r.TaxAmount) ? h.money(r.TaxAmount) : dash, text: r => r.TaxAmount, sum: 'TaxAmount' },
+            { label: 'Net', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.NetAmount), text: r => r.NetAmount, sum: 'NetAmount' },
+            { label: 'Collected', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Due', cls: 'text-end amt', html: (r, h) => Number(r.DueAmount) > 0 ? `<span class="text-danger fw-semibold">${h.money(r.DueAmount)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.DueAmount, sum: 'DueAmount' },
+            { label: 'Status', html: (r, h) => status(r.PaymentStatus, h), text: r => (STATUS[r.PaymentStatus] || [r.PaymentStatus])[0] },
+            { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => printBtn(r) }
+        ],
+        rowClass: r => r.IsCancelled ? 'row-muted' : ''
+    });
+})();
+</script>
+}

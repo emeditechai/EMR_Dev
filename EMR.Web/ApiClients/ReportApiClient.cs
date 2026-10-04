@@ -118,13 +118,20 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
         }
     }
 
-    public async Task<ReportApiResult<string>> RunLabReportRawAsync(string report, IDictionary<string, string?> query)
+    public Task<ReportApiResult<string>> RunLabReportRawAsync(string report, IDictionary<string, string?> query)
+        => RunRegisteredReportRawAsync("lab", report, query);
+
+    /// <summary>Reports > OPD registers (SQLScripts/2211): same shape as the LAB registers.</summary>
+    public Task<ReportApiResult<string>> RunOpdReportRawAsync(string report, IDictionary<string, string?> query)
+        => RunRegisteredReportRawAsync("opd", report, query);
+
+    private async Task<ReportApiResult<string>> RunRegisteredReportRawAsync(string module, string report, IDictionary<string, string?> query)
     {
         try
         {
             var qs = string.Join("&", query.Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
                                            .Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value!)}"));
-            var response = await _http.GetAsync($"/api/reports/lab/run/{Uri.EscapeDataString(report)}?{qs}");
+            var response = await _http.GetAsync($"/api/reports/{module}/run/{Uri.EscapeDataString(report)}?{qs}");
             if (response.IsSuccessStatusCode)
                 return ReportApiResult<string>.SuccessResult(await response.Content.ReadAsStringAsync());
             if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.NotFound)

@@ -1,280 +1,264 @@
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
-using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
 
+/// <summary>
+/// OPD > Doctor Commission & Disbursals: the doctor payout workbench (SQLScripts/2213).
+/// The doctor's share is earned on collection and kept up to date automatically; each day, each doctor's unsettled
+/// share goes on one settlement (payout voucher), which is prepared, approved by a different user (maker-checker) and
+/// paid. Every action is its own control of OPD.DOCTORDISBURSAL (Settings > Security); rules live in the procedures.
+/// </summary>
 [Authorize]
 public class DoctorDisbursalController(
     IDoctorCommissionApiClient apiClient,
-    ApplicationDbContext dbContext,
-    IAuditLogService auditLogService) : Controller
+    IDoctorPayoutApiClient payoutApi,
+    EMR.Shared.Security.IActionPermissionGuard permissionGuard,
+    IAuditLogService auditLogService,
+    ApplicationDbContext dbContext) : Controller
 {
-    private static readonly string[] ApprovalStatuses = ["NOT_ELIGIBLE", "ELIGIBLE", "CALCULATED", "SUBMITTED", "APPROVED", "ON_HOLD", "REJECTED", "ADJUSTED"];
-    private static readonly string[] PaymentStatuses = ["Pending", "Paid", "Adjusted", "Reversed"];
+    private const string Page = "OPD.DOCTORDISBURSAL";
+    private static readonly string[] Controls = ["PREPARE", "ADJUSTMENT", "CANCEL", "APPROVE", "PAYOUT", "PROFILE", "DETAILS"];
+
+    private int BranchId => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
 
     [HttpGet]
-    public async Task<IActionResult> Index(int? doctorId, string? period, string? approvalStatus, string? paymentStatus, DateTime? fromDate, DateTime? toDate, string? search)
+    public async Task<IActionResult> Index()
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
-        var companyId = User.GetCompanyId();
-
-        try
-        {
-            var items = await apiClient.GetDisbursalsAsync(branchId, doctorId, period, approvalStatus, paymentStatus, fromDate, toDate, search, companyId);
-
-            var vm = new DoctorDisbursalIndexViewModel
-            {
-                Items = items,
-                SelectedDoctorId = doctorId,
-                SelectedPeriod = period,
-                SelectedApprovalStatus = approvalStatus,
-                SelectedPaymentStatus = paymentStatus,
-                FromDate = fromDate,
-                ToDate = toDate,
-                SearchTerm = search,
-                DoctorOptions = await GetDoctorOptionsAsync(doctorId),
-                PeriodOptions = GetPeriodOptions(period),
-                ApprovalStatusOptions = GetApprovalStatusOptions(approvalStatus),
-                PaymentStatusOptions = GetPaymentStatusOptions(paymentStatus)
-            };
-
-            return View(vm);
-        }
-        catch (HttpRequestException)
-        {
-            return View("ApiDown");
-        }
+        // which buttons to offer; every action is checked again on the server when used
+        var perms = new Dictionary<string, bool>();
+        foreach (var c in Controls) perms[c] = await permissionGuard.ShowsAsync(HttpContext, Page, c);
+        ViewBag.Perms = perms;
+        ViewBag.UserId = User.GetUserId();
+        ViewBag.IsSuperAdmin = User.IsSuperAdmin();
+        return View();
     }
 
+    /// <summary>One share line (visit) of the old screen, read-only.</summary>
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
         var item = await apiClient.GetDisbursalByIdAsync(id);
         if (item is null) return NotFound();
-
         return View(item);
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Calculate(int? doctorId, DateTime? fromDate, DateTime? toDate, string? settlementPeriod)
+    // ── data for the page ─────────────────────────────────────────────────────
+    [HttpGet]
+    public Task<IActionResult> BoardData(string? date) =>
+        PassThrough(payoutApi.GetAsync("board", new Dictionary<string, string?>
+        {
+            ["companyId"] = User.GetCompanyId().ToString(), ["branchId"] = BranchId.ToString(),
+            ["date"] = (DateTime.TryParse(date, out var d) ? d : DateTime.Today).ToString("yyyy-MM-dd"),
+            ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+        }));
+
+    [HttpGet]
+    public Task<IActionResult> SettlementsData(string? fromDate, string? toDate, string? status, int? doctorId)
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
-        var companyId = User.GetCompanyId();
-        var userId = User.GetUserId();
-
-        try
+        if (!DateTime.TryParse(fromDate, out var f)) f = DateTime.Today.AddDays(-30);
+        if (!DateTime.TryParse(toDate, out var t)) t = DateTime.Today;
+        if (t < f) (f, t) = (t, f);
+        return PassThrough(payoutApi.GetAsync("settlements", new Dictionary<string, string?>
         {
-            var count = await apiClient.CalculateDisbursalsAsync(branchId, doctorId, fromDate, toDate, settlementPeriod, userId, companyId);
+            ["branchId"] = BranchId.ToString(), ["fromDate"] = f.ToString("yyyy-MM-dd"), ["toDate"] = t.ToString("yyyy-MM-dd"),
+            ["status"] = status, ["doctorId"] = doctorId?.ToString(),
+            ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+        }));
+    }
 
-            await auditLogService.LogAsync(
-                "Finance",
-                "DoctorDisbursal.Calculate",
-                $"Calculated OPD doctor commissions. Processed {count} visits.",
-                branchId: branchId);
+    [HttpGet]
+    public Task<IActionResult> SettlementData(int id) =>
+        PassThrough(payoutApi.GetAsync($"settlements/{id}", SettlementQuery()));
 
-            TempData["SuccessMessage"] = $"Commission calculation complete. {count} visit record(s) processed/refreshed.";
-        }
-        catch (Exception ex)
+    /// <summary>Who may approve settlements at this branch (Super Admins and users allowed Approve / reject settlement).</summary>
+    [HttpGet]
+    public Task<IActionResult> ApproversData() =>
+        PassThrough(payoutApi.GetAsync("approvers", new Dictionary<string, string?>
         {
-            TempData["ErrorMessage"] = "Failed to calculate commissions: " + ex.Message;
-        }
+            ["companyId"] = User.GetCompanyId().ToString(), ["branchId"] = BranchId.ToString(),
+            ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+        }));
 
-        return RedirectToAction(nameof(Index), new { doctorId, period = settlementPeriod });
+    [HttpGet]
+    public Task<IActionResult> ProfilesData() =>
+        PassThrough(payoutApi.GetAsync("profiles", new Dictionary<string, string?>
+        {
+            ["companyId"] = User.GetCompanyId().ToString(), ["branchId"] = BranchId.ToString(),
+            ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+        }));
+
+    /// <summary>Printable payout voucher (A4).</summary>
+    [HttpGet]
+    public async Task<IActionResult> Voucher(int id)
+    {
+        var result = await payoutApi.GetAsync($"settlements/{id}", SettlementQuery());
+        if (!result.IsSuccess) return Content(result.ErrorMessage ?? "Unable to load the voucher.");
+        using var doc = System.Text.Json.JsonDocument.Parse(result.Data!);
+        if (doc.RootElement.GetProperty("header").GetArrayLength() == 0) return NotFound();
+        ViewBag.Json = result.Data;
+        ViewBag.Settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == BranchId);
+        return View();
+    }
+
+    private Dictionary<string, string?> SettlementQuery() => new()
+    {
+        ["branchId"] = BranchId.ToString(), ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+    };
+
+    private static async Task<IActionResult> PassThrough(Task<ReportApiResult<string>> call)
+    {
+        var result = await call;
+        if (!result.IsSuccess) return new JsonResult(new { success = false, message = result.ErrorMessage ?? "Unable to load." });
+        return new ContentResult { Content = "{\"success\":true,\"data\":" + result.Data + "}", ContentType = "application/json" };
+    }
+
+    // ── actions ───────────────────────────────────────────────────────────────
+    public sealed class ProfileInput
+    {
+        public int DoctorId { get; set; }
+        public string? DoctorName { get; set; }
+        public string? PayeeName { get; set; }
+        public string? Pan { get; set; }
+        public bool TdsApplicable { get; set; } = true;
+        public decimal TdsPercent { get; set; } = 10;
+        public string? PreferredMode { get; set; }
+        public string? BankName { get; set; }
+        public string? AccountNo { get; set; }
+        public string? Ifsc { get; set; }
+        public string? UpiId { get; set; }
+        public string? Remarks { get; set; }
+    }
+
+    public sealed class PrepareInput
+    {
+        public int DoctorId { get; set; }
+        public string? DoctorName { get; set; }
+        public DateTime? UpTo { get; set; }
+        public decimal OtherAdjustment { get; set; }
+        public string? OtherAdjustmentReason { get; set; }
+        public string? Remarks { get; set; }
+    }
+
+    public sealed class ActionInput
+    {
+        public int SettlementId { get; set; }
+        public string? SettlementNo { get; set; }
+        public string? Remarks { get; set; }
+        public DateTime? PaymentDate { get; set; }
+        public string? PaymentMode { get; set; }
+        public string? PaymentReference { get; set; }
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddAdjustment(int disbursalId, string adjustmentType, decimal adjustmentAmount, string reason)
+    public async Task<IActionResult> SaveProfile([FromBody] ProfileInput input)
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
-        var userId = User.GetUserId();
-
-        if (string.IsNullOrWhiteSpace(reason))
+        if (input == null || input.DoctorId <= 0) return Json(new { success = false, message = "Choose the doctor." });
+        var result = await payoutApi.PostAsync("profiles", new
         {
-            TempData["ErrorMessage"] = "Adjustment reason is mandatory.";
-            return RedirectToAction(nameof(Index));
-        }
-
-        try
-        {
-            var success = await apiClient.UpdateAdjustmentAsync(disbursalId, adjustmentType, adjustmentAmount, reason, userId);
-            if (success)
-            {
-                await auditLogService.LogAsync(
-                    "Finance",
-                    "DoctorDisbursal.Adjustment",
-                    $"Added adjustment {adjustmentType} of ₹{adjustmentAmount} to Disbursal #{disbursalId}. Reason: {reason}",
-                    branchId: branchId);
-
-                TempData["SuccessMessage"] = "Adjustment added successfully.";
-            }
-            else
-            {
-                TempData["ErrorMessage"] = "Could not apply adjustment.";
-            }
-        }
-        catch (Exception ex)
-        {
-            TempData["ErrorMessage"] = "Adjustment error: " + ex.Message;
-        }
-
-        return RedirectToAction(nameof(Index));
+            CompanyId = User.GetCompanyId(), input.DoctorId, input.PayeeName, input.Pan, input.TdsApplicable, input.TdsPercent, input.PreferredMode,
+            input.BankName, input.AccountNo, input.Ifsc, input.UpiId, input.Remarks, UserId = User.GetUserId()
+        });
+        if (!result.IsSuccess) return Json(new { success = false, message = result.ErrorMessage });
+        await AuditAsync("DoctorPayout.ProfileSaved", $"Payout profile of {input.DoctorName} saved (PAN {(string.IsNullOrWhiteSpace(input.Pan) ? "not given" : input.Pan)}, TDS {(input.TdsApplicable ? input.TdsPercent + "%" : "not applicable")}).",
+            null, input.DoctorId, new { input.DoctorId, input.Pan, input.TdsApplicable, input.TdsPercent, input.PreferredMode, input.BankName, input.Ifsc, input.UpiId });
+        return Json(new { success = true, message = "Payout profile saved." });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdateStatus(int disbursalId, string approvalStatus, string? disbursalNotes)
+    public async Task<IActionResult> PrepareSettlement([FromBody] PrepareInput input)
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
-        var userId = User.GetUserId();
-
-        try
+        if (input == null || input.DoctorId <= 0) return Json(new { success = false, message = "Choose the doctor." });
+        if (input.OtherAdjustment != 0 && !await permissionGuard.AllowsAsync(HttpContext, Page, "ADJUSTMENT"))
+            return Json(new { success = false, code = "FORBIDDEN", message = "You do not have permission to add a deduction or incentive." });
+        var upTo = (input.UpTo ?? DateTime.Today).Date;
+        var result = await payoutApi.PostAsync("prepare", new
         {
-            var success = await apiClient.UpdateStatusAsync(disbursalId, approvalStatus, disbursalNotes, userId);
-            if (success)
-            {
-                await auditLogService.LogAsync(
-                    "Finance",
-                    "DoctorDisbursal.UpdateStatus",
-                    $"Updated Disbursal #{disbursalId} status to {approvalStatus}.",
-                    branchId: branchId);
-
-                TempData["SuccessMessage"] = $"Disbursal #{disbursalId} marked as {approvalStatus}.";
-            }
-            else
-            {
-                TempData["ErrorMessage"] = "Failed to update status.";
-            }
-        }
-        catch (Exception ex)
-        {
-            TempData["ErrorMessage"] = "Status update error: " + ex.Message;
-        }
-
-        return RedirectToAction(nameof(Index));
+            CompanyId = User.GetCompanyId(), BranchId, input.DoctorId, UpTo = upTo, input.OtherAdjustment, input.OtherAdjustmentReason, input.Remarks,
+            UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
+        });
+        if (!result.IsSuccess) return Json(new { success = false, message = result.ErrorMessage });
+        var id = ReadId(result.Data);
+        await AuditAsync("DoctorPayout.Prepared", $"Settlement prepared for {input.DoctorName}, shares up to {upTo:dd MMM yyyy}" +
+            (input.OtherAdjustment != 0 ? $", deduction / incentive ₹{input.OtherAdjustment} ({input.OtherAdjustmentReason})" : "") + ".",
+            null, id, new { input.DoctorId, UpTo = upTo, input.OtherAdjustment, input.OtherAdjustmentReason, input.Remarks });
+        return Json(new { success = true, id, message = "Settlement prepared. It now needs approval by another user." });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> BulkApprove(string disbursalIds)
+    public async Task<IActionResult> PrepareDay([FromBody] PrepareInput input)
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
-        var userId = User.GetUserId();
-
-        if (string.IsNullOrWhiteSpace(disbursalIds))
+        var upTo = (input?.UpTo ?? DateTime.Today).Date;
+        var result = await payoutApi.PostAsync("prepare-day", new
         {
-            TempData["ErrorMessage"] = "No disbursal records selected.";
-            return RedirectToAction(nameof(Index));
-        }
-
-        try
-        {
-            var success = await apiClient.BulkApproveAsync(disbursalIds, userId);
-            if (success)
-            {
-                await auditLogService.LogAsync(
-                    "Finance",
-                    "DoctorDisbursal.BulkApprove",
-                    $"Approved disbursals: {disbursalIds}",
-                    branchId: branchId);
-
-                TempData["SuccessMessage"] = "Selected disbursal records approved successfully.";
-            }
-            else
-            {
-                TempData["ErrorMessage"] = "Failed to bulk approve disbursals.";
-            }
-        }
-        catch (Exception ex)
-        {
-            TempData["ErrorMessage"] = "Bulk approve error: " + ex.Message;
-        }
-
-        return RedirectToAction(nameof(Index));
+            CompanyId = User.GetCompanyId(), BranchId, UpTo = upTo, UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
+        });
+        if (!result.IsSuccess) return Json(new { success = false, message = result.ErrorMessage });
+        await AuditAsync("DoctorPayout.PreparedDay", $"Day-end settlements prepared for shares up to {upTo:dd MMM yyyy}.", null, null, new { UpTo = upTo });
+        return new ContentResult { Content = "{\"success\":true,\"data\":" + result.Data + "}", ContentType = "application/json" };
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ProcessPayout(int disbursalId, string paymentMethod, string paymentReference, DateTime? paidDate, string? disbursalNotes)
+    public Task<IActionResult> ApproveSettlement([FromBody] ActionInput input) =>
+        SettlementActionAsync("APPROVE", input, "DoctorPayout.Approved", "approved", "Settlement approved. It can now be paid.");
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> RejectSettlement([FromBody] ActionInput input) =>
+        SettlementActionAsync("REJECT", input, "DoctorPayout.Rejected", "rejected", "Settlement rejected. Its shares are back to be settled again.");
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> CancelSettlement([FromBody] ActionInput input) =>
+        SettlementActionAsync("CANCEL", input, "DoctorPayout.Cancelled", "cancelled", "Settlement cancelled. Its shares are back to be settled again.");
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> PaySettlement([FromBody] ActionInput input) =>
+        SettlementActionAsync("PAY", input, "DoctorPayout.Paid", "paid", "Payment recorded.");
+
+    private async Task<IActionResult> SettlementActionAsync(string action, ActionInput input, string auditAction, string verb, string okMessage)
     {
-        var branchId = User.GetCurrentBranchId() ?? 1;
-        var userId = User.GetUserId();
-
-        if (string.IsNullOrWhiteSpace(paymentReference))
+        if (input == null || input.SettlementId <= 0) return Json(new { success = false, message = "Choose the settlement." });
+        var result = await payoutApi.PostAsync("action", new
         {
-            TempData["ErrorMessage"] = "Payment Reference / Transaction ID is required.";
-            return RedirectToAction(nameof(Index));
-        }
+            BranchId, input.SettlementId, Action = action, input.Remarks, input.PaymentDate, input.PaymentMode, input.PaymentReference,
+            UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
+        });
+        if (!result.IsSuccess) return Json(new { success = false, message = result.ErrorMessage });
+        await AuditAsync(auditAction, $"Doctor settlement {input.SettlementNo} {verb}" +
+            (action == "PAY" ? $" by {input.PaymentMode}{(string.IsNullOrWhiteSpace(input.PaymentReference) ? "" : " (" + input.PaymentReference + ")")}" : "") +
+            (string.IsNullOrWhiteSpace(input.Remarks) ? "." : $": {input.Remarks}"),
+            input.SettlementNo, input.SettlementId, new { input.SettlementId, input.Remarks, input.PaymentDate, input.PaymentMode, input.PaymentReference });
+        return Json(new { success = true, message = okMessage });
+    }
 
+    private static int ReadId(string? json)
+    {
         try
         {
-            var success = await apiClient.ProcessPayoutAsync(disbursalId, paymentMethod, paymentReference, paidDate, disbursalNotes, userId);
-            if (success)
-            {
-                await auditLogService.LogAsync(
-                    "Finance",
-                    "DoctorDisbursal.Payout",
-                    $"Disbursed payout for Disbursal #{disbursalId} via {paymentMethod} (Ref: {paymentReference})",
-                    branchId: branchId);
-
-                TempData["SuccessMessage"] = $"Payout recorded successfully for Disbursal #{disbursalId}. Marked as PAID.";
-            }
-            else
-            {
-                TempData["ErrorMessage"] = "Failed to process payout.";
-            }
+            using var doc = System.Text.Json.JsonDocument.Parse(json ?? "{}");
+            return doc.RootElement.TryGetProperty("id", out var v) && v.TryGetInt32(out var id) ? id : 0;
         }
-        catch (Exception ex)
+        catch { return 0; }
+    }
+
+    private async Task AuditAsync(string actionName, string description, string? referenceNo, long? referenceId, object metadata)
+    {
+        try
         {
-            TempData["ErrorMessage"] = "Payout error: " + ex.Message;
+            await auditLogService.LogActivityAsync(eventType: "Finance", actionName: actionName, description: description,
+                userId: User.GetUserId(), branchId: BranchId, moduleCode: "OPD", referenceNo: referenceNo, referenceId: referenceId, metadata: metadata);
         }
-
-        return RedirectToAction(nameof(Index));
-    }
-
-    // ── Dropdown Helpers ──────────────────────────────────────────────────────
-    private async Task<List<SelectListItem>> GetDoctorOptionsAsync(int? selected = null)
-    {
-        var list = await dbContext.DoctorMasters.Where(d => d.IsActive)
-            .OrderBy(d => d.FullName)
-            .Select(d => new SelectListItem { Value = d.DoctorId.ToString(), Text = d.FullName ?? ("Doctor #" + d.DoctorId), Selected = d.DoctorId == selected })
-            .ToListAsync();
-        list.Insert(0, new SelectListItem { Value = "", Text = "-- All Doctors --" });
-        return list;
-    }
-
-    private static List<SelectListItem> GetPeriodOptions(string? selected = null)
-    {
-        var periods = new List<SelectListItem> { new() { Value = "", Text = "-- All Periods --" } };
-        var now = DateTime.Today;
-        for (int i = 0; i < 12; i++)
-        {
-            var p = now.AddMonths(-i).ToString("yyyy-MM");
-            var text = now.AddMonths(-i).ToString("MMM yyyy");
-            periods.Add(new SelectListItem { Value = p, Text = text, Selected = p == selected });
-        }
-        return periods;
-    }
-
-    private static List<SelectListItem> GetApprovalStatusOptions(string? selected = null)
-    {
-        var list = ApprovalStatuses.Select(s => new SelectListItem { Value = s, Text = s, Selected = s == selected }).ToList();
-        list.Insert(0, new SelectListItem { Value = "", Text = "-- All Approval Statuses --" });
-        return list;
-    }
-
-    private static List<SelectListItem> GetPaymentStatusOptions(string? selected = null)
-    {
-        var list = PaymentStatuses.Select(s => new SelectListItem { Value = s, Text = s, Selected = s == selected }).ToList();
-        list.Insert(0, new SelectListItem { Value = "", Text = "-- All Payment Statuses --" });
-        return list;
+        catch { /* audit only */ }
     }
 }

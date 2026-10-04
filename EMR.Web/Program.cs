@@ -181,6 +181,7 @@ builder.Services.AddScoped<IShiftMasterApiClient,        ShiftMasterApiClient>()
 builder.Services.AddScoped<IHousekeepingApiClient,       HousekeepingApiClient>();
 builder.Services.AddScoped<IConsentMasterApiClient,      ConsentMasterApiClient>();
 builder.Services.AddScoped<IDoctorCommissionApiClient,   DoctorCommissionApiClient>();
+builder.Services.AddScoped<IDoctorPayoutApiClient,       DoctorPayoutApiClient>();
 builder.Services.AddScoped<IGeneralMasterApiClient,     GeneralMasterApiClient>();
 builder.Services.AddScoped<IOpdMasterApiClient,        OpdMasterApiClient>();
 builder.Services.AddScoped<ILabTestCategoryApiClient,   LabTestCategoryApiClient>();

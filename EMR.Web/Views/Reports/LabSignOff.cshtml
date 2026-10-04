@@ -1,0 +1,72 @@
+@{
+    ViewData["Title"] = "Pathologist Sign-off Register";
+    ViewData["ReportSubtitle"] = "who signed which test, at which level, how long it waited for them, and what is waiting with each approver now";
+    ViewData["ReportIcon"] = "bi-pen";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["DateLabel"] = "sign-off date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const KIND = { SIGNED: ['Signed', 'bg-success-subtle text-success border-success-subtle'], WAITING: ['Waiting now', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'] };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hrs = (v) => v === null || v === undefined ? '—' : (Number(v) >= 48 ? `${(Number(v) / 24).toLocaleString('en-IN', { maximumFractionDigits: 1 })} d` : `${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })} h`);
+    LabReport.init({
+        report: 'sign-off', title: 'Pathologist Sign-off Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient, test or pathologist...',
+        filters: [
+            { id: 'show', label: 'Show', allLabel: 'Signed and waiting', options: [['SIGNED', 'Signed in the period'], ['WAITING', 'Waiting now']] },
+            { id: 'level', label: 'Level', allLabel: 'All levels', options: [['1', 'Level 1'], ['2', 'Level 2'], ['3', 'Level 3']] },
+            { id: 'source', label: 'Signed on', allLabel: 'Any screen', options: [['FLOW', 'Pathologist Dashboard'], ['ENTRY', 'Report Entry']] },
+            { id: 'pathologistId', label: 'Pathologist', allLabel: 'All pathologists', fromOptions: 'pathologistId', adminOnly: true },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Tests signed', color: '#0f766e', value: (s, h) => h.num(s.SignedTests), sub: (s, h) => `${h.num(s.FinalSignoffs)} final · ${h.num(s.Pathologists)} pathologist(s)` },
+            { label: 'Average wait', color: '#0369a1', value: (s) => hrs(s.AvgWaitHours), sub: (s) => `longest ${hrs(s.MaxWaitHours)}` },
+            { label: 'Signed after a day', color: '#b45309', value: (s, h) => h.num(s.SignedAfterDay), sub: () => 'waited over 24 h for the signature' },
+            { label: 'Where signed', color: '#475569', value: (s, h) => `${h.num(s.ViaDashboard)} · ${h.num(s.ViaEntry)}`, sub: () => 'Pathologist Dashboard · Report Entry' },
+            { label: 'Waiting now', color: '#b91c1c', value: (s, h) => h.num(s.WaitingTests), sub: (s) => s.WaitingTests ? `oldest ${hrs(s.OldestWaitingHours)}` : 'nothing waiting' }
+        ],
+        groups: [
+            { key: 'byPathologist', label: 'Pathologist', rowField: 'PathologistId', byId: true },
+            { key: 'byLevel', label: 'Level', rowField: 'LevelNo', byId: true },
+            { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byDate', label: 'Sign-off date', rowField: 'SignedDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'Signed', label: 'Signed', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'FinalSignoffs', label: 'Final sign-offs', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'AvgWaitHours', label: 'Average wait', num: true, total: 'none', fmt: (v) => hrs(v) },
+            { field: 'MaxWaitHours', label: 'Longest wait', num: true, total: 'max', fmt: (v) => hrs(v) },
+            { field: 'Waiting', label: 'Waiting now', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'OldestWaitingHours', label: 'Oldest waiting', num: true, total: 'max', fmt: (v) => hrs(v) }
+        ],
+        shareOf: 'Signed',
+        cols: [
+            { label: 'Status', html: (r, h) => pillOf(KIND, r.Kind, h), text: r => (KIND[r.Kind] || [r.Kind])[0] },
+            { label: 'Pathologist', html: (r, h) => `<div class="fw-semibold">${h.esc(r.Pathologist || '—')}</div><div class="text-muted fs-9">${h.esc(r.LevelName)}</div>`,
+              text: r => `${r.Pathologist || ''} (${r.LevelName})` },
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}</div><div class="text-muted fs-9">${h.esc(r.Department)}${r.Parameters > 1 ? ` · ${h.num(r.Parameters)} parameters` : ''}</div>`, text: r => r.TestName },
+            { label: 'Ready for this level', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.AvailableSince) || '—'}${r.LevelNo > 1 ? '<div class="text-muted fs-9">after the previous level</div>' : '<div class="text-muted fs-9">validated</div>'}`,
+              text: (r, h) => h.fmtDT(r.AvailableSince) },
+            { label: 'Signed', cls: 'text-nowrap', html: (r, h) => r.SignedOn ? `${h.fmtDT(r.SignedOn)}<div class="text-muted fs-9">${h.esc(r.SourceName || '')}</div>` : '<span class="text-muted">not yet</span>',
+              text: (r, h) => r.SignedOn ? h.fmtDT(r.SignedOn) : '' },
+            { label: 'Waited', cls: 'text-nowrap text-end', html: (r) => `<span class="fw-bold ${Number(r.WaitHours) > 24 ? 'text-danger' : ''}">${hrs(r.WaitHours)}</span>${r.Kind === 'WAITING' ? '<div class="text-muted fs-9">so far</div>' : ''}`,
+              text: r => r.WaitHours ?? '' }
+        ]
+    });
+})();
+</script>
+}

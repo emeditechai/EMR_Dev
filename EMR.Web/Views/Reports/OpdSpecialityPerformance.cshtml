@@ -1,0 +1,168 @@
+@{
+    ViewData["Title"] = "Speciality & Department Performance";
+    ViewData["ReportSubtitle"] = "how does each speciality perform? doctors, visits, new patients, revenue, wait, follow-up return rate and LAB conversion, by speciality, department and doctor";
+    ViewData["ReportIcon"] = "bi-diagram-3";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+<style>
+    .sp-card { background:#fff; border:1px solid var(--lr-line, #e2e8f0); border-radius:.75rem; padding:.85rem 1rem; height:100%; display:flex; flex-direction:column; }
+    .sp-card h6 { font-size:.8rem; font-weight:700; color:#0f172a; margin:0 0 .15rem; }
+    .sp-card .sp-note { font-size:.7rem; color:#64748b; margin-bottom:.5rem; }
+    .sp-chart { position:relative; flex:1; min-height:240px; }
+    .sp-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:.4rem; }
+    .sp-head .sp-title { font-weight:700; font-size:.85rem; color:#0f172a; }
+</style>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const PALETTE = ['#0f766e', '#2563eb', '#7c3aed', '#db2777', '#f59e0b', '#16a34a', '#0891b2', '#b45309', '#64748b', '#be123c'];
+    const pctTxt = (v) => v === null || v === undefined ? '—' : `${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%`;
+    const minTxt = (v) => v === null || v === undefined ? '—' : `${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })} min`;
+    const wait = (v, n, h) => v === null || v === undefined ? '<span class="text-muted fs-9">not timed</span>'
+        : `${minTxt(v)}<div class="text-muted fs-9">${h.num(n)} visit(s) timed</div>`;
+    const short = (s, n = 24) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+    const monthName = (m, h) => h.fmtD(m + '-01').replace(/^\d+ /, '');
+
+    let charts = [];
+    const storeKey = 'emr.or26.insights';
+    const insightsOpen = () => { try { return localStorage.getItem(storeKey) !== 'hidden'; } catch { return true; } };
+    const card = (id, title, note) => `<div class="sp-card"><h6>${title}</h6><div class="sp-note">${note}</div><div class="sp-chart"><canvas id="${id}"></canvas></div></div>`;
+
+    function drawInsights(data, h) {
+        charts.forEach(c => c.destroy()); charts = [];
+        const groups = data.groups || [], s = data.summary || {};
+        if (!(data.rows || []).length) { $('#lrExtra').empty(); return; }
+        const grp = (k) => groups.filter(g => g.GroupKey === k);
+        const open = insightsOpen();
+        $('#lrExtra').html(`
+            <div class="lr-card p-2 px-3 mb-2">
+                <div class="sp-head">
+                    <span class="sp-title"><i class="bi bi-bar-chart-steps me-1" style="color:#0f766e"></i>Insights</span>
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none p-0" id="spToggle">${open ? '<i class="bi bi-chevron-up me-1"></i>Hide charts' : '<i class="bi bi-chevron-down me-1"></i>Show charts'}</button>
+                </div>
+                <div id="spBody" class="${open ? '' : 'd-none'}">
+                    <div class="row g-2 mb-2">
+                        <div class="col-12 col-xl-6">${card('spRevenue', 'Revenue and visits by speciality', 'bars: OPD revenue · line: visits')}</div>
+                        <div class="col-12 col-xl-6">${card('spRates', 'Follow-up and LAB conversion', `share of visits: patient came back to the speciality within ${s.FollowUpDays || 30} days · LAB bill within ${s.LabDays || 7} days`)}</div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-12 col-xl-8">${card('spMonth', 'Revenue by month and speciality', 'stacked: each speciality&rsquo;s OPD revenue in the month')}</div>
+                        <div class="col-12 col-xl-4">${card('spDoctors', 'Revenue by doctor', 'share of OPD revenue in the period')}</div>
+                    </div>
+                </div>
+            </div>`);
+        $('#spToggle').on('click', function () {
+            const nowOpen = $('#spBody').hasClass('d-none');
+            $('#spBody').toggleClass('d-none', !nowOpen);
+            $(this).html(nowOpen ? '<i class="bi bi-chevron-up me-1"></i>Hide charts' : '<i class="bi bi-chevron-down me-1"></i>Show charts');
+            try { localStorage.setItem(storeKey, nowOpen ? 'open' : 'hidden'); } catch { }
+            if (nowOpen) charts.forEach(c => c.resize());
+        });
+
+        const legend = { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } };
+        const base = { responsive: true, maintainAspectRatio: false };
+        const noGrid = { grid: { display: false }, ticks: { font: { size: 10 } } };
+        const money = { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => '₹' + Number(v).toLocaleString('en-IN') } };
+        const add = (id, cfg) => { const el = document.getElementById(id); if (el) charts.push(new Chart(el, cfg)); };
+
+        const spec = grp('bySpeciality');
+        const color = {}; spec.forEach((g, i) => color[g.GroupId] = PALETTE[i % PALETTE.length]);
+        // 1. revenue and visits by speciality
+        add('spRevenue', { data: { labels: spec.map(g => short(g.GroupName)), datasets: [
+                { type: 'bar', label: 'Revenue', data: spec.map(g => Number(g.Revenue) || 0), backgroundColor: spec.map(g => color[g.GroupId]), borderRadius: 3, yAxisID: 'y' },
+                { type: 'line', label: 'Visits', data: spec.map(g => Number(g.Visits) || 0), borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: .3, pointRadius: 3, yAxisID: 'y1' }] },
+            options: { ...base, interaction: { mode: 'index', intersect: false },
+                scales: { x: noGrid, y: money, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { precision: 0, font: { size: 10 } } } },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { title: (it) => spec[it[0].dataIndex].GroupName,
+                    label: (c) => c.dataset.label === 'Revenue' ? ` Revenue ${h.money(c.parsed.y)}` : ` Visits ${c.parsed.y}`,
+                    footer: (it) => { const g = spec[it[0].dataIndex]; return `${g.Doctors} doctor(s) · ${g.Patients} patient(s) · ${g.NewPatients} new`; } } } } } });
+        // 2. follow-up and LAB conversion rates
+        add('spRates', { type: 'bar', data: { labels: spec.map(g => short(g.GroupName)), datasets: [
+                { label: 'Follow-up return', data: spec.map(g => Number(g.FollowUpRatePct) || 0), backgroundColor: '#0f766e', borderRadius: 3 },
+                { label: 'LAB conversion', data: spec.map(g => Number(g.LabConversionPct) || 0), backgroundColor: '#7c3aed', borderRadius: 3 }] },
+            options: { ...base, scales: { x: noGrid, y: { beginAtZero: true, suggestedMax: 100, ticks: { font: { size: 10 }, callback: v => v + '%' } } },
+                plugins: { legend, tooltip: { callbacks: { title: (it) => spec[it[0].dataIndex].GroupName,
+                    label: (c) => { const g = spec[c.dataIndex]; return c.datasetIndex === 0 ? ` Follow-up ${pctTxt(g.FollowUpRatePct)} (${g.FollowUps} of ${g.Visits})` : ` LAB ${pctTxt(g.LabConversionPct)} (${g.LabVisits} of ${g.Visits}) · ${h.money(g.LabRevenue)}`; } } } } } });
+        // 3. revenue by month and speciality
+        const sm = grp('specMonth');
+        const months = [...new Set(sm.map(g => g.GroupName))].sort();
+        add('spMonth', { type: 'bar', data: { labels: months.map(m => monthName(m, h)), datasets: spec.map(sg => ({
+                label: sg.GroupName, backgroundColor: color[sg.GroupId], borderRadius: 2,
+                data: months.map(m => { const x = sm.find(g => g.GroupId === sg.GroupId && g.GroupName === m); return x ? Number(x.Revenue) || 0 : 0; }) })) },
+            options: { ...base, interaction: { mode: 'index', intersect: false }, scales: { x: { ...noGrid, stacked: true }, y: { ...money, stacked: true } },
+                plugins: { legend, tooltip: { callbacks: { label: (c) => ` ${c.dataset.label} ${h.money(c.parsed.y)}` } } } } });
+        // 4. revenue by doctor
+        const docs = grp('byDoctor');
+        add('spDoctors', { type: 'doughnut', data: { labels: docs.map(g => g.GroupName), datasets: [{ data: docs.map(g => Number(g.Revenue) || 0),
+                backgroundColor: docs.map((g, i) => PALETTE[i % PALETTE.length]), borderWidth: 0 }] },
+            options: { ...base, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                tooltip: { callbacks: { label: (c) => ` ${c.label}: ${h.money(c.parsed)} · ${docs[c.dataIndex].Visits} visit(s)` } } } } });
+    }
+
+    LabReport.init({
+        report: 'speciality-performance', title: 'Speciality & Department Performance', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Doctor, speciality or department...',
+        filters: [
+            { id: 'specialityId', label: 'Speciality', allLabel: 'All specialities', fromOptions: 'specialityId' },
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId' },
+            { id: 'visitMode', label: 'Visit', allLabel: 'Booked and walk-in', options: [['BOOKED', 'Booked (appointment)'], ['WALKIN', 'Walk-in']] }
+        ],
+        kpis: [
+            { label: 'Revenue', color: '#0f766e', value: (s, h) => h.money(s.Revenue), sub: (s, h) => `top ${h.esc(s.TopSpeciality || '—')} ${s.TopSpecialityRevenue ? h.money(s.TopSpecialityRevenue) : ''}` },
+            { label: 'Visits', color: '#2563eb', value: (s, h) => h.num(s.Visits),
+              sub: (s, h) => `${h.num(s.Specialities)} speciality(ies) · ${h.num(s.Doctors)} doctor(s) · ${h.money(s.RevenuePerVisit)} a visit` },
+            { label: 'New patients', color: '#16a34a', value: (s, h) => h.num(s.NewPatients), sub: (s, h) => `of ${h.num(s.Patients)} patient(s) · first OPD visit here` },
+            { label: 'Average wait', color: '#b45309', value: (s) => minTxt(s.AvgWaitMin),
+              sub: (s, h) => Number(s.WaitMeasured) ? `registration to consultation, ${h.num(s.WaitMeasured)} visit(s) timed` : 'no visit timed yet (live token log from 2 Oct 2026)' },
+            { label: 'Follow-up · LAB', color: '#7c3aed', value: (s) => `<span class="fs-6">${pctTxt(s.FollowUpRatePct)} · ${pctTxt(s.LabConversionPct)}</span>`,
+              sub: (s, h) => `came back in ${s.FollowUpDays} days · LAB bill in ${s.LabDays} days (${h.num(s.LabBills)} bill(s), ${h.money(s.LabRevenue)})` }
+        ],
+        groups: [
+            { key: 'bySpeciality', label: 'Speciality', rowField: 'SpecialityId', byId: true },
+            { key: 'byDepartment', label: 'Department', rowField: 'Department' },
+            { key: 'byDoctor', label: 'Doctor', rowField: 'DoctorId', byId: true },
+            { key: 'byMonth', label: 'Month', rowField: 'none', noDrill: true, name: (r, h) => monthName(r.GroupName, h) }
+        ],
+        groupCols: [
+            { field: 'Doctors', label: 'Doctors', num: true, total: 'none', fmt: (v, h) => h.num(v) },
+            { field: 'Visits', label: 'Visits', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Patients', label: 'Patients', num: true, total: 'none', fmt: (v, h) => h.num(v) },
+            { field: 'NewPatients', label: 'New patients', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Revenue', label: 'Revenue', money: true },
+            { field: 'RevenuePerVisit', label: 'Per visit', num: true, total: 'none', fmt: (v, h) => h.money(v) },
+            { field: 'AvgWaitMin', label: 'Average wait', num: true, total: 'none', fmt: (v) => minTxt(v) },
+            { field: 'FollowUpRatePct', label: 'Follow-up return', num: true, total: 'none', fmt: (v) => pctTxt(v) },
+            { field: 'LabConversionPct', label: 'LAB conversion', num: true, total: 'none', fmt: (v) => pctTxt(v) },
+            { field: 'LabRevenue', label: 'LAB revenue', money: true }
+        ],
+        shareOf: 'Revenue',
+        cols: [
+            { label: 'Doctor', html: (r, h) => `<div class="fw-semibold">${h.esc(r.DoctorName)}</div><div class="text-muted fs-9">${h.esc(r.Speciality)} · ${h.esc(r.Department)}</div>`, text: r => r.DoctorName },
+            { label: 'Speciality', html: (r, h) => h.esc(r.Speciality), text: r => r.Speciality },
+            { label: 'Visits', cls: 'text-end text-nowrap', html: (r, h) => `<span class="fw-bold">${h.num(r.Visits)}</span><div class="text-muted fs-9">${h.num(r.BookedVisits)} booked · ${h.num(r.WalkInVisits)} walk-in</div>`, text: r => r.Visits },
+            { label: 'Patients', cls: 'text-end text-nowrap', html: (r, h) => `${h.num(r.Patients)}<div class="text-muted fs-9">${h.num(r.NewPatients)} new</div>`, text: r => r.Patients },
+            { label: 'Completed · documented', cls: 'text-end text-nowrap', html: (r, h) => `${h.num(r.Completed)} · ${h.num(r.Documented)}`, text: r => `${r.Completed} / ${r.Documented}` },
+            { label: 'Average wait', cls: 'text-end text-nowrap', html: (r, h) => wait(r.AvgWaitMin, r.WaitMeasured, h), text: r => r.AvgWaitMin ?? '' },
+            { label: 'Follow-up return', cls: 'text-end text-nowrap', html: (r, h) => `${pctTxt(r.FollowUpRatePct)}<div class="text-muted fs-9">${h.num(r.FollowUps)} of ${h.num(r.Visits)}</div>`, text: r => r.FollowUpRatePct ?? '' },
+            { label: 'LAB conversion', cls: 'text-end text-nowrap', html: (r, h) => `${pctTxt(r.LabConversionPct)}<div class="text-muted fs-9">${h.num(r.LabBills)} LAB bill(s)</div>`, text: r => r.LabConversionPct ?? '' },
+            { label: 'LAB revenue', cls: 'text-end', money: true, sum: 'LabRevenue', html: (r, h) => h.money(r.LabRevenue), text: r => Number(r.LabRevenue) || 0 },
+            { label: 'Revenue', cls: 'text-end', money: true, sum: 'Revenue', html: (r, h) => `<span class="fw-semibold">${h.money(r.Revenue)}</span><div class="text-muted fs-9">${h.money(r.RevenuePerVisit)} a visit</div>`, text: r => Number(r.Revenue) || 0 }
+        ],
+        afterLoad: drawInsights
+    });
+})();
+</script>
+}

@@ -1,0 +1,211 @@
+@{
+    ViewData["Title"] = "OPD Patient Analytics";
+    ViewData["ReportSubtitle"] = "who are our OPD patients, where do they come from, and do they come back? new and returning, visits, age and gender, area, and the specialities they see";
+    ViewData["ReportIcon"] = "bi-people";
+    ViewData["ReportAccent"] = "#7c3aed";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+<style>
+    .pa-card { background:#fff; border:1px solid var(--lr-line, #e2e8f0); border-radius:.75rem; padding:.85rem 1rem; height:100%; display:flex; flex-direction:column; }
+    .pa-card h6 { font-size:.8rem; font-weight:700; color:#0f172a; margin:0 0 .15rem; }
+    .pa-card .pa-note { font-size:.7rem; color:#64748b; margin-bottom:.5rem; }
+    .pa-chart { position:relative; flex:1; min-height:190px; }
+    .pa-chart.pa-tall { min-height:250px; }
+    .pa-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
+    .pa-center b { font-size:1.35rem; line-height:1; color:#0f172a; }
+    .pa-center span { font-size:.65rem; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+    .pa-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:.4rem; }
+    .pa-head .pa-title { font-weight:700; font-size:.85rem; color:#0f172a; }
+    .pa-empty { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#64748b; font-size:.75rem; padding:0 1rem; }
+    .pa-empty i { font-size:1.6rem; color:#cbd5e1; margin-bottom:.35rem; }
+</style>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const TYPE = { NEW: ['New', 'bg-primary-subtle text-primary border-primary-subtle'], RETURNING: ['Returning', 'bg-success-subtle text-success border-success-subtle'] };
+    const GENDER = { MALE: 'Male', FEMALE: 'Female', OTHER: 'Other / not recorded' };
+    const BAND = { '0-12': '0–12 years', '13-17': '13–17 years', '18-30': '18–30 years', '31-45': '31–45 years', '46-60': '46–60 years', '61+': '61+ years', UNKNOWN: 'Age not recorded' };
+    const VISITS = { '1': '1 visit', '2': '2 visits', '3+': '3 or more visits' };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const groupName = (map) => (r, h) => h.esc(map[r.GroupName] || r.GroupName);
+    const short = (s, n = 26) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+
+    // ── Insights: charts drawn from the same data as the figures and the list (filters and period included) ──
+    const C = { NEW: '#7c3aed', RETURNING: '#16a34a', MALE: '#2563eb', FEMALE: '#db2777', OTHER: '#94a3b8', REV: '#f59e0b' };
+    const AGE_KEYS = ['0-12', '13-17', '18-30', '31-45', '46-60', '61+', 'UNKNOWN'];
+    let charts = [];
+    const storeKey = 'emr.or25.insights';
+    const insightsOpen = () => { try { return localStorage.getItem(storeKey) !== 'hidden'; } catch { return true; } };
+    const card = (id, title, note, extra = '', tall = false) =>
+        `<div class="pa-card"><h6>${title}</h6><div class="pa-note">${note}</div><div class="pa-chart ${tall ? 'pa-tall' : ''}"><canvas id="${id}"></canvas>${extra}</div></div>`;
+
+    function drawInsights(data, h) {
+        charts.forEach(c => c.destroy()); charts = [];
+        const rows = data.rows || [], groups = data.groups || [], s = data.summary || {};
+        if (!rows.length) { $('#lrExtra').empty(); return; }
+        const grp = (k) => groups.filter(g => g.GroupKey === k);
+        const open = insightsOpen();
+        const retPct = s.ReturningPct === null || s.ReturningPct === undefined ? '—' : Math.round(Number(s.ReturningPct)) + '%';
+        const areas = grp('byArea').filter(g => g.GroupName !== 'Not recorded').sort((a, b) => (Number(b.Patients) || 0) - (Number(a.Patients) || 0)).slice(0, 10);
+        const noArea = areas.length ? '' : `<div class="pa-empty"><i class="bi bi-geo-alt"></i>No area or city is recorded on these patients yet.<br>Fill Area / City in Patient Master to see the catchment.</div>`;
+        $('#lrExtra').html(`
+            <div class="lr-card p-2 px-3 mb-2">
+                <div class="pa-head">
+                    <span class="pa-title"><i class="bi bi-bar-chart-steps me-1" style="color:#7c3aed"></i>Insights</span>
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none p-0" id="paToggle">${open ? '<i class="bi bi-chevron-up me-1"></i>Hide charts' : '<i class="bi bi-chevron-down me-1"></i>Show charts'}</button>
+                </div>
+                <div id="paBody" class="${open ? '' : 'd-none'}">
+                    <div class="row g-2 mb-2">
+                        <div class="col-12 col-md-6 col-xl-3">${card('paType', 'New vs returning', 'first OPD visit here in the period, or a patient seen before', `<div class="pa-center"><b>${retPct}</b><span>returning</span></div>`)}</div>
+                        <div class="col-12 col-md-6 col-xl-3">${card('paGender', 'Gender mix', 'patients by gender')}</div>
+                        <div class="col-12 col-md-6 col-xl-3">${card('paVisits', 'How often they came', 'patients by OPD visits in the period')}</div>
+                        <div class="col-12 col-md-6 col-xl-3">${card('paAge', 'Age &amp; gender', 'patients in each age band')}</div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-12 col-xl-7">${card('paTrend', 'Patients by day', 'new and returning patients on each bill date', '', true)}</div>
+                        <div class="col-12 col-xl-5">${card('paSpec', 'Specialities seen', 'patients by the consulting doctor&rsquo;s speciality', '', true)}</div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-12 col-md-6 col-xl-4">${card('paDoctors', 'Doctors seen', 'the 10 doctors who saw the most patients', '', true)}</div>
+                        <div class="col-12 col-md-6 col-xl-4">${card('paRevenue', 'Revenue by age band', 'bars: revenue · line: per patient', '', true)}</div>
+                        <div class="col-12 col-xl-4">${card('paArea', 'Where they come from', 'patients by area / city of their address (top 10)', noArea, true)}</div>
+                    </div>
+                </div>
+            </div>`);
+        $('#paToggle').on('click', function () {
+            const nowOpen = $('#paBody').hasClass('d-none');
+            $('#paBody').toggleClass('d-none', !nowOpen);
+            $(this).html(nowOpen ? '<i class="bi bi-chevron-up me-1"></i>Hide charts' : '<i class="bi bi-chevron-down me-1"></i>Show charts');
+            try { localStorage.setItem(storeKey, nowOpen ? 'open' : 'hidden'); } catch { }
+            if (nowOpen) charts.forEach(c => c.resize());
+        });
+
+        const legend = { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } };
+        const base = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } } };
+        const noGrid = { grid: { display: false }, ticks: { font: { size: 10 } } };
+        const intAxis = { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } };
+        const add = (id, cfg) => { const el = document.getElementById(id); if (el) charts.push(new Chart(el, cfg)); };
+        const newRet = (list) => [
+            { label: 'New', data: list.map(g => Number(g.NewPatients) || 0), backgroundColor: C.NEW, borderRadius: 3 },
+            { label: 'Returning', data: list.map(g => Number(g.Returning) || 0), backgroundColor: C.RETURNING, borderRadius: 3 }];
+
+        // 1. new vs returning
+        add('paType', { type: 'doughnut', data: { labels: ['New', 'Returning'], datasets: [{ data: [Number(s.NewPatients) || 0, Number(s.Returning) || 0], backgroundColor: [C.NEW, C.RETURNING], borderWidth: 0 }] },
+            options: { ...base, cutout: '68%', plugins: { ...base.plugins, legend } } });
+        // 2. gender
+        add('paGender', { type: 'pie', data: { labels: ['Male', 'Female', 'Other / not recorded'], datasets: [{ data: [Number(s.Male) || 0, Number(s.Female) || 0, Number(s.OtherGender) || 0], backgroundColor: [C.MALE, C.FEMALE, C.OTHER], borderWidth: 0 }] },
+            options: { ...base, plugins: { ...base.plugins, legend } } });
+        // 3. visits
+        const vis = ['1', '2', '3+'].map(k => grp('byVisits').find(g => g.GroupName === k) || {});
+        add('paVisits', { type: 'bar', data: { labels: ['1 visit', '2 visits', '3 or more'], datasets: newRet(vis) },
+            options: { ...base, scales: { x: { ...noGrid, stacked: true }, y: { ...intAxis, stacked: true } }, plugins: { ...base.plugins, legend } } });
+        // 4. age x gender, from the patient list
+        const bands = AGE_KEYS.filter(k => rows.some(r => r.AgeBand === k));
+        const count = (band, gender) => rows.filter(r => r.AgeBand === band && r.Gender === gender).length;
+        add('paAge', { type: 'bar', data: { labels: bands.map(b => b === 'UNKNOWN' ? 'Not recorded' : b), datasets: [
+                { label: 'Male', data: bands.map(b => count(b, 'MALE')), backgroundColor: C.MALE, borderRadius: 3 },
+                { label: 'Female', data: bands.map(b => count(b, 'FEMALE')), backgroundColor: C.FEMALE, borderRadius: 3 },
+                { label: 'Other', data: bands.map(b => count(b, 'OTHER')), backgroundColor: C.OTHER, borderRadius: 3 }] },
+            options: { ...base, indexAxis: 'y', scales: { x: { ...intAxis, stacked: true }, y: { ...noGrid, stacked: true } }, plugins: { ...base.plugins, legend } } });
+        // 5. patients by day
+        const trend = grp('trend').sort((a, b) => a.GroupName < b.GroupName ? -1 : 1);
+        add('paTrend', { type: 'bar', data: { labels: trend.map(t => h.fmtD(t.GroupName).replace(/ \d{4}$/, '')), datasets: newRet(trend) },
+            options: { ...base, interaction: { mode: 'index', intersect: false },
+                scales: { x: { ...noGrid, stacked: true, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } }, y: { ...intAxis, stacked: true } },
+                plugins: { ...base.plugins, legend } } });
+        // 6. specialities
+        const spec = grp('specialities').sort((a, b) => (Number(b.Patients) || 0) - (Number(a.Patients) || 0));
+        add('paSpec', { type: 'bar', data: { labels: spec.map(g => short(g.GroupName)), datasets: newRet(spec) },
+            options: { ...base, indexAxis: 'y', scales: { x: { ...intAxis, stacked: true }, y: { ...noGrid, stacked: true } },
+                plugins: { legend, tooltip: { callbacks: { title: (it) => spec[it[0].dataIndex].GroupName,
+                    footer: (it) => `${spec[it[0].dataIndex].Visits} visit(s) · ${h.money(spec[it[0].dataIndex].Revenue)}` } } } } });
+        // 7. doctors
+        const docs = grp('doctors');
+        add('paDoctors', { type: 'bar', data: { labels: docs.map(g => short(g.GroupName, 22)), datasets: [
+                { label: 'Patients', data: docs.map(g => Number(g.Patients) || 0), backgroundColor: 'rgba(124,58,237,.8)', borderRadius: 3 }] },
+            options: { ...base, indexAxis: 'y', scales: { x: intAxis, y: noGrid },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { title: (it) => docs[it[0].dataIndex].GroupName,
+                    afterLabel: (it) => `${docs[it.dataIndex].Visits} visit(s) · ${h.money(docs[it.dataIndex].Revenue)}` } } } } });
+        // 8. revenue by age band
+        const ageGroups = AGE_KEYS.map(k => grp('byAgeBand').find(g => g.GroupName === k)).filter(Boolean);
+        add('paRevenue', { data: { labels: ageGroups.map(g => g.GroupName === 'UNKNOWN' ? 'Not recorded' : g.GroupName), datasets: [
+                { type: 'bar', label: 'Revenue', data: ageGroups.map(g => Number(g.Revenue) || 0), backgroundColor: 'rgba(124,58,237,.75)', borderRadius: 3, yAxisID: 'y' },
+                { type: 'line', label: 'Per patient', data: ageGroups.map(g => Number(g.RevenuePerPatient) || 0), borderColor: C.REV, backgroundColor: C.REV, tension: .3, pointRadius: 3, yAxisID: 'y1' }] },
+            options: { ...base, interaction: { mode: 'index', intersect: false },
+                scales: { x: noGrid, y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => '₹' + Number(v).toLocaleString('en-IN') } },
+                          y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 10 }, callback: v => '₹' + Number(v).toLocaleString('en-IN') } } },
+                plugins: { legend, tooltip: { callbacks: { label: (c) => ` ${c.dataset.label} ${h.money(c.parsed.y)}` } } } } });
+        // 9. catchment
+        if (areas.length)
+            add('paArea', { type: 'bar', data: { labels: areas.map(g => short(g.GroupName)), datasets: newRet(areas) },
+                options: { ...base, indexAxis: 'y', scales: { x: { ...intAxis, stacked: true }, y: { ...noGrid, stacked: true } },
+                    plugins: { legend, tooltip: { callbacks: { title: (it) => areas[it[0].dataIndex].GroupName } } } } });
+    }
+
+    LabReport.init({
+        report: 'patient-analytics', title: 'OPD Patient Analytics', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Patient ID, name or phone...',
+        filters: [
+            { id: 'patientType', label: 'Patients', allLabel: 'New and returning', options: [['NEW', 'New'], ['RETURNING', 'Returning']] },
+            { id: 'ageBand', label: 'Age', allLabel: 'All ages', options: Object.keys(BAND).map(k => [k, BAND[k]]) },
+            { id: 'gender', label: 'Gender', allLabel: 'All', options: [['MALE', 'Male'], ['FEMALE', 'Female'], ['OTHER', 'Other / not recorded']] },
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId' },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Patients', color: '#7c3aed', value: (s, h) => h.num(s.Patients), sub: (s, h) => `${h.num(s.NewPatients)} new · ${h.num(s.Returning)} returning` },
+            { label: 'Returning', color: '#15803d', value: (s) => s.ReturningPct === null || s.ReturningPct === undefined ? '—' : `${Number(s.ReturningPct).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%`,
+              sub: (s) => s.AvgDaysBetweenVisits ? `came back after ${Number(s.AvgDaysBetweenVisits).toLocaleString('en-IN', { maximumFractionDigits: 1 })} days on average` : 'had an OPD visit here before the period' },
+            { label: 'Visits per patient', color: '#0369a1', value: (s) => s.AvgVisits ? Number(s.AvgVisits).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—',
+              sub: (s, h) => `${h.num(s.Visits)} visit(s) · ${h.num(s.RepeatInPeriod)} came more than once` },
+            { label: 'Revenue per patient', color: '#b45309', value: (s, h) => h.money(s.RevenuePerPatient), sub: (s, h) => `${h.money(s.Revenue)} · most seen ${h.esc(s.TopSpeciality || '—')}` },
+            { label: 'Mix', color: '#be185d', value: (s, h) => `<span class="fs-6">${h.num(s.Male)} M · ${h.num(s.Female)} F</span>`,
+              sub: (s, h) => `average age ${s.AvgAge ?? '—'} · most ${h.esc(BAND[s.TopAgeBand] || '—')} · ${s.TopArea ? 'top area ' + h.esc(s.TopArea) : 'area not recorded'}` }
+        ],
+        groups: [
+            { key: 'byType', label: 'New / returning', rowField: 'PatientType', name: groupName({ NEW: 'New', RETURNING: 'Returning' }) },
+            { key: 'byAgeBand', label: 'Age band', rowField: 'AgeBand', name: groupName(BAND) },
+            { key: 'byGender', label: 'Gender', rowField: 'Gender', name: groupName(GENDER) },
+            { key: 'byVisits', label: 'Visits in the period', rowField: 'VisitBand', name: groupName(VISITS) },
+            { key: 'byArea', label: 'Area / city', rowField: 'Area' }
+        ],
+        groupCols: [
+            { field: 'Patients', label: 'Patients', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'NewPatients', label: 'New', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Returning', label: 'Returning', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Visits', label: 'Visits', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'AvgVisits', label: 'Visits per patient', num: true, total: 'none', fmt: (v) => v === null || v === undefined ? '—' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) },
+            { field: 'BookedVisits', label: 'Booked visits', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Revenue', label: 'Revenue', money: true },
+            { field: 'RevenuePerPatient', label: 'Per patient', num: true, total: 'none', fmt: (v, h) => h.money(v) },
+            { field: 'TopSpecialities', label: 'Specialities seen most', fmt: (v, h) => `<span class="fs-9">${h.esc(v || '—')}</span>` }
+        ],
+        shareOf: 'Patients',
+        cols: [
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Age · gender', cls: 'text-nowrap', html: (r, h) => `${r.AgeYears === null || r.AgeYears === undefined ? '—' : h.num(r.AgeYears) + ' y'} · ${h.esc(GENDER[r.Gender] || r.Gender)}<div class="text-muted fs-9">${h.esc(BAND[r.AgeBand] || r.AgeBand)}</div>`,
+              text: r => `${r.AgeYears ?? ''} ${GENDER[r.Gender] || r.Gender}` },
+            { label: 'Area', html: (r, h) => r.Area === 'Not recorded' ? '<span class="text-muted fs-9">Not recorded</span>' : h.esc(r.Area), text: r => r.Area },
+            { label: 'Patient type', cls: 'text-nowrap', html: (r, h) => pillOf(TYPE, r.PatientType, h) + `<div class="text-muted fs-9">first here ${h.fmtD(r.FirstEver)}</div>`, text: r => (TYPE[r.PatientType] || [r.PatientType])[0] },
+            { label: 'Visits', cls: 'text-end text-nowrap', html: (r, h) => `<span class="fw-bold">${h.num(r.Visits)}</span><div class="text-muted fs-9">${h.num(r.VisitsEver)} in all · ${h.num(r.BookedVisits)} booked</div>`, text: r => r.Visits },
+            { label: 'Last visit', cls: 'text-nowrap', html: (r, h) => `${h.fmtD(r.LastInPeriod)}${r.DaysSincePrevious !== null && r.DaysSincePrevious !== undefined ? `<div class="text-muted fs-9">back after ${h.num(r.DaysSincePrevious)} day(s)</div>` : ''}`, text: (r, h) => h.fmtD(r.LastInPeriod) },
+            { label: 'Doctors seen', html: (r, h) => `<div class="fs-9">${h.esc(r.DoctorsSeen || '—')}</div><div class="text-muted fs-9">${h.esc(r.Specialities || '')}</div>`, text: r => r.DoctorsSeen || '' },
+            { label: 'Spent', cls: 'text-end', money: true, sum: 'Spent', html: (r, h) => `<span class="fw-semibold">${h.money(r.Spent)}</span>`, text: r => Number(r.Spent) || 0 }
+        ],
+        afterLoad: drawInsights
+    });
+})();
+</script>
+}

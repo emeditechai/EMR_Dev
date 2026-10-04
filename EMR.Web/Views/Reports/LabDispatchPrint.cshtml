@@ -1,0 +1,80 @@
+@{
+    ViewData["Title"] = "Report Dispatch & Print Register";
+    ViewData["ReportSubtitle"] = "reports that are ready, handed over (printed, emailed or sent on WhatsApp) or still waiting at the counter";
+    ViewData["ReportIcon"] = "bi-printer";
+    ViewData["ReportAccent"] = "#1d4ed8";
+    ViewData["DateLabel"] = "ready date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const STATUS = {
+        DELIVERED: ['Handed over', 'bg-success-subtle text-success border-success-subtle'],
+        NOT_COLLECTED: ['Not collected', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+        HELD_DUES: ['Held for dues', 'bg-danger-subtle text-danger border-danger-subtle'],
+        PARTIAL: ['Partly ready', 'bg-secondary-subtle text-secondary-emphasis border-secondary-subtle']
+    };
+    const VIA = { PRINT: 'printed', EMAIL: 'emailed', WHATSAPP: 'WhatsApp' };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hrs = (v) => v === null || v === undefined ? '—' : (Number(v) >= 48 ? `${(Number(v) / 24).toLocaleString('en-IN', { maximumFractionDigits: 1 })} d` : `${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })} h`);
+    LabReport.init({
+        report: 'dispatch-print', title: 'Report Dispatch & Print Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, token, patient or phone...',
+        filters: [
+            { id: 'dispatchStatus', label: 'Status', allLabel: 'All reports', options: [['NOT_COLLECTED', 'Not collected'], ['HELD_DUES', 'Held for dues'], ['DELIVERED', 'Handed over'], ['PARTIAL', 'Partly ready']] },
+            { id: 'billingType', label: 'Billing', allLabel: 'B2C and B2B', options: [['B2C', 'B2C'], ['B2B', 'B2B']] },
+            { id: 'printedBy', label: 'Printed by', allLabel: 'Anyone', fromOptions: 'printedBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Reports ready', color: '#1d4ed8', value: (s, h) => h.num(s.ReadyBills), sub: (s, h) => `${h.num(s.PartialBills)} partly ready` },
+            { label: 'Handed over', color: '#15803d', value: (s, h) => h.num(s.Delivered), sub: (s, h) => `${h.num(s.Printed)} printed · ${h.num(s.Emailed)} emailed · ${h.num(s.WhatsApp)} WhatsApp` },
+            { label: 'Not collected', color: '#b45309', value: (s, h) => h.num(s.NotCollected), sub: (s) => s.OldestWaitingDays ? `oldest waiting ${s.OldestWaitingDays} day(s)` : 'none waiting' },
+            { label: 'Held for dues', color: '#b91c1c', value: (s, h) => h.num(s.HeldForDues), sub: (s, h) => `${h.money(s.HeldDueAmount)} to collect` },
+            { label: 'Duplicate prints', color: '#7c3aed', value: (s, h) => h.num(s.DuplicatePrints), sub: (s) => `average hand-over ${hrs(s.AvgHoursToDeliver)} after ready` }
+        ],
+        groups: [
+            { key: 'byDay', label: 'Ready date', rowField: 'ReadyDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byStatus', label: 'Status', rowField: 'DispatchStatus', name: (r, h) => h.esc((STATUS[r.GroupName] || [r.GroupName])[0]) },
+            { key: 'byPrintedBy', label: 'First printed by', rowField: 'FirstPrintedById', byId: true },
+            { key: 'byBillingType', label: 'Billing', rowField: 'BillingType' }
+        ],
+        groupCols: [
+            { field: 'Bills', label: 'Bills', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'ReadyBills', label: 'Ready', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Delivered', label: 'Handed over', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Printed', label: 'Printed', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'DuplicatePrints', label: 'Duplicate prints', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'NotCollected', label: 'Not collected', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'HeldForDues', label: 'Held for dues', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'HeldDueAmount', label: 'Dues held', money: true },
+            { field: 'AvgHoursToDeliver', label: 'Average hand-over', num: true, total: 'none', fmt: (v) => hrs(v) }
+        ],
+        shareOf: 'Bills',
+        rowClass: r => r.DispatchStatus === 'HELD_DUES' ? 'table-danger' : '',
+        cols: [
+            { label: 'Ready', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.ReadyOn)}<div class="text-muted fs-9">${h.num(r.ApprovedTests)} of ${h.num(r.TotalTests)} test(s) approved</div>`, text: (r, h) => h.fmtDT(r.ReadyOn) },
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')} · ${h.esc(r.BillingType)}${r.PartnerName ? ' · ' + h.esc(r.PartnerName) : ''}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PatientPhone ? ' · ' + h.esc(r.PatientPhone) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Status', html: (r, h) => pillOf(STATUS, r.DispatchStatus, h) + (r.DeliveredOn ? `<div class="text-muted fs-9">${h.esc(VIA[r.DeliveredVia] || '')} ${h.fmtDT(r.DeliveredOn)}</div>` : ''),
+              text: r => (STATUS[r.DispatchStatus] || [r.DispatchStatus])[0] },
+            { label: 'Prints', cls: 'text-nowrap', html: (r, h) => r.FinalPrints ? `<span class="fw-semibold">${h.num(r.FinalPrints)}</span>${r.DuplicatePrints ? ` <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">${h.num(r.DuplicatePrints)} duplicate</span>` : ''}<div class="text-muted fs-9">first ${h.fmtDT(r.FirstPrintOn)}</div><div class="text-muted fs-9">${h.esc(r.PrintedByNames || '')}</div>` : '<span class="text-muted">not printed</span>',
+              text: r => r.FinalPrints || 0 },
+            { label: 'Email · WhatsApp', cls: 'text-nowrap', html: (r, h) => `<div class="fs-9">${r.EmailedOn ? 'Emailed ' + h.fmtDT(r.EmailedOn) : 'Email: ' + h.esc(r.LastEmailStatus || 'not sent')}</div><div class="fs-9">${r.WhatsAppOn ? 'WhatsApp ' + h.fmtDT(r.WhatsAppOn) : '<span class="text-muted">WhatsApp: not sent</span>'}</div>`,
+              text: (r, h) => [r.EmailedOn ? 'Emailed ' + h.fmtDT(r.EmailedOn) : '', r.WhatsAppOn ? 'WhatsApp ' + h.fmtDT(r.WhatsAppOn) : ''].filter(Boolean).join('; ') },
+            { label: 'Due', cls: 'text-end text-nowrap', money: true, sum: 'DueAmount', html: (r, h) => Number(r.DueAmount) > 0 ? `<span class="fw-bold text-danger">${h.money(r.DueAmount)}</span>` : '<span class="text-muted">—</span>', text: r => Number(r.DueAmount) || 0 },
+            { label: 'Days waiting', cls: 'text-end', html: (r, h) => r.DaysWaiting === null || r.DaysWaiting === undefined ? '—' : `<span class="fw-bold ${!r.DeliveredOn && r.DaysWaiting > 2 ? 'text-danger' : ''}">${h.num(r.DaysWaiting)}</span>${r.DeliveredOn ? '<div class="text-muted fs-9">to hand-over</div>' : '<div class="text-muted fs-9">so far</div>'}`,
+              text: r => r.DaysWaiting ?? '' }
+        ]
+    });
+})();
+</script>
+}

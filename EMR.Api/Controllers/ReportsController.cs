@@ -126,6 +126,14 @@ public class ReportsController : ControllerBase
             ["critical-values"]     = ("dbo.usp_Api_LabReport_CriticalValues",    new[] { "Severity", "ResultStatus", "Communication" }, new[] { "DepartmentId" }),
             ["delta-check"]         = ("dbo.usp_Api_LabReport_DeltaCheck",        new[] { "Direction" },                            new[] { "DeltaLimit", "DepartmentId" }),
             ["abnormal-results"]    = ("dbo.usp_Api_LabReport_AbnormalResults",   new[] { "Signal" },                               new[] { "DepartmentId" }),
+            // LR-19 / LR-20 / LR-22 approval & dispatch (SQLScripts/2209)
+            ["sign-off"]            = ("dbo.usp_Api_LabReport_SignOff",           new[] { "Show", "Level", "Source" },              new[] { "PathologistId", "DepartmentId" }),
+            ["dispatch-print"]      = ("dbo.usp_Api_LabReport_DispatchPrint",     new[] { "DispatchStatus", "BillingType" },        new[] { "PrintedBy" }),
+            ["unauthorized"]        = ("dbo.usp_Api_LabReport_Unauthorized",      new[] { "WithdrawAction", "Outcome", "Amended" }, new[] { "UnapprovedBy", "DepartmentId" }),
+            // LR-24 / LR-26 / LR-27 management (SQLScripts/2210)
+            ["revenue-trend"]       = ("dbo.usp_Api_LabReport_RevenueTrend",      new[] { "BillingType" },                          new[] { "CreatedBy" }),
+            ["patient-analytics"]   = ("dbo.usp_Api_LabReport_PatientAnalytics",  new[] { "PatientType", "AgeBand", "Gender" },     new[] { "CreatedBy" }),
+            ["staff-productivity"]  = ("dbo.usp_Api_LabReport_StaffProductivity", new[] { "Activity" },                             new[] { "StaffId" }),
         };
 
     /// <summary>LR-13: an outsourced test sent to an outside lab (or its sending details corrected). Validated by the procedure.</summary>
@@ -198,7 +206,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("lab/run/{report}")]
-    public async Task<IActionResult> RunLabReport(
+    public Task<IActionResult> RunLabReport(
         string report,
         [FromQuery] int branchId,
         [FromQuery] DateTime fromDate,
@@ -207,8 +215,48 @@ public class ReportsController : ControllerBase
         [FromQuery] int userId = 0,
         [FromQuery] bool isAdmin = false,
         [FromQuery] bool isSuperAdmin = false)
+        => RunRegisteredReport(LabReports, report, branchId, fromDate, toDate, search, userId, isAdmin, isSuperAdmin);
+
+    // ── Reports > OPD: same register shape as the LAB reports (SQLScripts/2211) ──
+    private static readonly Dictionary<string, (string Procedure, string[] TextFilters, string[] IdFilters)> OpdReports =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["billing-register"]    = ("dbo.usp_Api_OpdReport_BillingRegister",    new[] { "PaymentStatus" },                    new[] { "DoctorId", "CreatedBy" }),
+            ["cashier-closing"]     = ("dbo.usp_Api_OpdReport_CashierClosing",     Array.Empty<string>(),                        new[] { "PaymentMethodId", "CollectedBy" }),
+            ["outstanding-dues"]    = ("dbo.usp_Api_OpdReport_OutstandingDues",    new[] { "AgeBucket" },                        new[] { "DoctorId", "CreatedBy" }),
+            ["discount-register"]   = ("dbo.usp_Api_OpdReport_DiscountRegister",   new[] { "ReasonStatus" },                     new[] { "ApprovedBy", "DoctorId", "EnteredBy" }),
+            ["cancellation-refund"] = ("dbo.usp_Api_OpdReport_CancellationRefund", new[] { "CancellationType", "RefundStatus" }, new[] { "CancelledBy" }),
+            // OR-24 / OR-25 / OR-26 (SQLScripts/2212)
+            ["revenue-trend"]          = ("dbo.usp_Api_OpdReport_RevenueTrend",          new[] { "VisitMode" },                          new[] { "DoctorId", "CreatedBy" }),
+            ["patient-analytics"]      = ("dbo.usp_Api_OpdReport_PatientAnalytics",      new[] { "PatientType", "AgeBand", "Gender" },   new[] { "DoctorId", "CreatedBy" }),
+            ["speciality-performance"] = ("dbo.usp_Api_OpdReport_SpecialityPerformance", new[] { "VisitMode" },                          new[] { "SpecialityId", "DoctorId" }),
+            // OR-31 to OR-36 doctor payout (SQLScripts/2214)
+            ["doctor-share"]           = ("dbo.usp_Api_OpdReport_DoctorShareRegister",   new[] { "LineType", "SettleStatus" },           new[] { "DoctorId" }),
+            ["doctor-payout"]          = ("dbo.usp_Api_OpdReport_DoctorPayoutRegister",  new[] { "Status", "PaymentMode" },              new[] { "DoctorId" }),
+            ["doctor-payable"]         = ("dbo.usp_Api_OpdReport_DoctorPayable",         new[] { "Stage", "AgeBucket" },                 new[] { "DoctorId" }),
+            ["doctor-statement"]       = ("dbo.usp_Api_OpdReport_DoctorStatement",       new[] { "EntryType" },                          new[] { "DoctorId" }),
+            ["doctor-tds"]             = ("dbo.usp_Api_OpdReport_DoctorTdsRegister",     new[] { "PanStatus" },                          new[] { "DoctorId" }),
+            ["doctor-revenue-share"]   = ("dbo.usp_Api_OpdReport_DoctorRevenueShare",    new[] { "RuleStatus" },                         new[] { "SpecialityId", "DoctorId" }),
+        };
+
+    [HttpGet("opd/run/{report}")]
+    public Task<IActionResult> RunOpdReport(
+        string report,
+        [FromQuery] int branchId,
+        [FromQuery] DateTime fromDate,
+        [FromQuery] DateTime toDate,
+        [FromQuery] string? search = null,
+        [FromQuery] int userId = 0,
+        [FromQuery] bool isAdmin = false,
+        [FromQuery] bool isSuperAdmin = false)
+        => RunRegisteredReport(OpdReports, report, branchId, fromDate, toDate, search, userId, isAdmin, isSuperAdmin);
+
+    /// <summary>Runs a whitelisted register procedure with the common parameters and only its own filters.</summary>
+    private async Task<IActionResult> RunRegisteredReport(
+        Dictionary<string, (string Procedure, string[] TextFilters, string[] IdFilters)> reports,
+        string report, int branchId, DateTime fromDate, DateTime toDate, string? search, int userId, bool isAdmin, bool isSuperAdmin)
     {
-        if (!LabReports.TryGetValue(report, out var def)) return NotFound(new { message = "Unknown report." });
+        if (!reports.TryGetValue(report, out var def)) return NotFound(new { message = "Unknown report." });
         if (branchId <= 0) return BadRequest(new { message = "Valid branchId is required." });
         if (Math.Abs((toDate.Date - fromDate.Date).TotalDays) > 366)
             return BadRequest(new { message = "Please select a date range of up to one year." });
