@@ -395,21 +395,25 @@ namespace EMR.Web.Controllers
         }
 
     /// <summary>
-    /// Collection date &amp; time must not be earlier than the booking date &amp; time (compared to the minute).
-    /// A missing date/time means "now". Returns the error message, or null when the collection time is acceptable.
-    /// The stored procedures enforce the same rule; this gives the user the message before the round trip.
+    /// Collection date &amp; time (to the minute): not earlier than the bill - when it was made, or its booking time
+    /// when that is earlier (a back-dated bill) - and not in the future. A booking slot later than now (a home
+    /// collection booked for this evening) does not hold the collection back. A missing date/time means "now".
+    /// Returns the error message, or null when the collection time is acceptable. The stored procedures enforce the
+    /// same rule (SQLScripts/2203); this gives the user the message before the round trip.
     /// </summary>
     private static string? CollectionBeforeBooking(SampleCollectionOrderDetailDto detail, DateTime? collectionDate, TimeSpan? collectionTime)
     {
-        var booking = detail.BookingDateTime ?? detail.OrderDate;
+        var earliest = detail.EarliestCollectionOn ?? detail.BookingDateTime ?? detail.OrderDate;
         var now = DateTime.Now;
         var collectAt = (collectionDate ?? now).Date + (collectionTime ?? now.TimeOfDay);
 
         static DateTime ToMinute(DateTime d) => new(d.Year, d.Month, d.Day, d.Hour, d.Minute, 0);
 
-        return ToMinute(collectAt) < ToMinute(booking)
-            ? $"Sample collection date and time ({collectAt:dd-MMM-yyyy HH:mm}) cannot be earlier than the booking date and time ({booking:dd-MMM-yyyy HH:mm})."
-            : null;
+        if (ToMinute(collectAt) < ToMinute(earliest))
+            return $"Sample collection date and time ({collectAt:dd-MMM-yyyy HH:mm}) cannot be earlier than the bill date and time ({earliest:dd-MMM-yyyy HH:mm}).";
+        if (collectAt > now.AddMinutes(5))
+            return $"Sample collection date and time ({collectAt:dd-MMM-yyyy HH:mm}) cannot be in the future.";
+        return null;
     }
     }
 }
