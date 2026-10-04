@@ -123,7 +123,7 @@ public class ReportsController : ControllerBase
             ["cashier-closing"]     = ("dbo.usp_Api_LabReport_CashierClosing",    Array.Empty<string>(),                           new[] { "PaymentMethodId", "CollectedBy" }),
             ["work-pending"]        = ("dbo.usp_Api_LabReport_WorkPending",       new[] { "Stage", "WaitBand" },                    new[] { "DepartmentId" }),
             ["turnaround"]          = ("dbo.usp_Api_LabReport_Turnaround",        new[] { "TatStatus" },                            new[] { "DepartmentId" }),
-            ["critical-values"]     = ("dbo.usp_Api_LabReport_CriticalValues",    new[] { "Severity", "ResultStatus" },             new[] { "DepartmentId" }),
+            ["critical-values"]     = ("dbo.usp_Api_LabReport_CriticalValues",    new[] { "Severity", "ResultStatus", "Communication" }, new[] { "DepartmentId" }),
             ["delta-check"]         = ("dbo.usp_Api_LabReport_DeltaCheck",        new[] { "Direction" },                            new[] { "DeltaLimit", "DepartmentId" }),
             ["abnormal-results"]    = ("dbo.usp_Api_LabReport_AbnormalResults",   new[] { "Signal" },                               new[] { "DepartmentId" }),
         };

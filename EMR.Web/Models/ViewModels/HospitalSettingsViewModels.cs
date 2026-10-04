@@ -114,6 +114,13 @@ public class HospitalSettingsViewModel
     [Display(Name = "Show LAB Report Print on List")]
     public bool ShowLabReportPrintOnList { get; set; } = false;
 
+    [Display(Name = "Critical Value Communication Required")]
+    public bool CriticalValueCommunicationRequired { get; set; } = false;
+
+    [Display(Name = "Critical Value: Inform Within (minutes)")]
+    [Range(1, 1440, ErrorMessage = "Enter between 1 and 1440 minutes.")]
+    public int? CriticalValueInformMinutes { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

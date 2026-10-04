@@ -150,7 +150,7 @@ public class ReportsController : Controller
         ["cashier-closing"]     = new[] { "paymentMethodId", "collectedBy" },
         ["work-pending"]        = new[] { "stage", "waitBand", "departmentId" },
         ["turnaround"]          = new[] { "tatStatus", "departmentId" },
-        ["critical-values"]     = new[] { "severity", "resultStatus", "departmentId" },
+        ["critical-values"]     = new[] { "severity", "resultStatus", "communication", "departmentId" },
         ["delta-check"]         = new[] { "deltaLimit", "direction", "departmentId" },
         ["abnormal-results"]    = new[] { "signal", "departmentId" },
     };
@@ -175,7 +175,18 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabCashierClosing() => LabReportPage("LabCashierClosing");
     [HttpGet] public IActionResult LabWorkPending() => LabReportPage("LabWorkPending");
     [HttpGet] public IActionResult LabTurnaroundTime() => LabReportPage("LabTurnaroundTime");
-    [HttpGet] public IActionResult LabCriticalValues() => LabReportPage("LabCriticalValues");
+    [HttpGet]
+    public async Task<IActionResult> LabCriticalValues([FromServices] EMR.Web.Data.ApplicationDbContext db)
+    {
+        // Communication columns only when the branch uses the feature (Hospital Settings > LAB, SQLScripts/2202);
+        // rows then offer "Record communication" to users allowed the page's CRITICAL_COMM control
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        var enabled = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            db.HospitalSettings.Where(s => s.BranchId == branchId).Select(s => (bool?)s.CriticalValueCommunicationRequired)) ?? false;
+        ViewBag.CriticalCommEnabled = enabled;
+        ViewBag.CanRecordCritical = enabled && await _permissionGuard.AllowsAsync(HttpContext, "REPORTS.LABCRITICAL", "CRITICAL_COMM");
+        return LabReportPage("LabCriticalValues");
+    }
     [HttpGet] public IActionResult LabDeltaCheck() => LabReportPage("LabDeltaCheck");
     [HttpGet] public IActionResult LabAbnormalResults() => LabReportPage("LabAbnormalResults");
 

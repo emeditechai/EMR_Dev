@@ -519,6 +519,7 @@
 @section Scripts {
     <partial name="_LabAuditHistoryScripts" />
     <partial name="_LabReportPrintScripts" />
+    <partial name="_CriticalCommunicationModal" />
     <script>
         $(function () {
             const url = '@Url.Action("ApproveJson", "PathologistDashboard")';
@@ -561,6 +562,12 @@
             $('#btnSign').on('click', async function () {
                 const ids = selected();
                 if (!ids.length) return;
+
+                // NABL: a Critical / Panic result at its final level needs its communication recorded first (SQLScripts/2202)
+                if (window.CriticalComm) {
+                    const commOk = await CriticalComm.ensure({ labOrderId: labOrderId, sampleIds: ids, context: 'SIGNOFF' });
+                    if (!commOk) return;
+                }
                 const names = $('.chk-test:checked').map(function () {
                     return $(this).closest('tr').find('td:nth-child(2) .fw-semibold').text().trim();
                 }).get();

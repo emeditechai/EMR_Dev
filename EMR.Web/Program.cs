@@ -211,11 +211,13 @@ builder.Services.AddScoped<ILabReportingConditionApiClient,   LabReportingCondit
 builder.Services.AddScoped<ILabReportDispatchApiClient,       LabReportDispatchApiClient>();
 builder.Services.AddScoped<ILabUnapproveApiClient,             LabUnapproveApiClient>();
 builder.Services.AddScoped<IPathologistDashboardApiClient,    PathologistDashboardApiClient>();
+builder.Services.AddScoped<ILabCriticalApiClient,             LabCriticalApiClient>();
 builder.Services.AddScoped<ILabDefaultSignatoryApiClient,     LabDefaultSignatoryApiClient>();
 builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowApiClient>();
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
 builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
+builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotificationService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();

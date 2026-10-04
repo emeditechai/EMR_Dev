@@ -414,11 +414,25 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b91c1c;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-exclamation-octagon-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Critical Value Communication Required</div>
+                            <div class="lp-desc">A Critical / Panic result needs a record of who was informed before its final approval.</div>
+                            <span class="lp-pill @(Model.CriticalValueCommunicationRequired ? "yes" : "no")"><i class="bi @(Model.CriticalValueCommunicationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.CriticalValueCommunicationRequired ? "YES" : "NO")</span>
+                            @if (Model.CriticalValueCommunicationRequired)
+                            {
+                                <span class="lp-pill yes ms-1"><i class="bi bi-stopwatch"></i>INFORM WITHIN @(Model.CriticalValueInformMinutes ?? 30) MIN</span>
+                            }
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
-                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Critical Alert", "Print Header on Report", "Barcode on Sample" })
+                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Print Header on Report", "Barcode on Sample" })
                 {
                     <span class="lab-soon-chip">@soon</span>
                 }

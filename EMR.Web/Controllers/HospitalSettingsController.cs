@@ -282,6 +282,8 @@ public class HospitalSettingsController(
             existing.LabReportEmailNotificationRequired = model.LabReportEmailNotificationRequired;
             existing.PathologistApprovalRequired = model.PathologistApprovalRequired;
             existing.ShowLabReportPrintOnList = model.ShowLabReportPrintOnList;
+            existing.CriticalValueCommunicationRequired = model.CriticalValueCommunicationRequired;
+            existing.CriticalValueInformMinutes = model.CriticalValueInformMinutes;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -333,6 +335,8 @@ public class HospitalSettingsController(
             LabReportEmailNotificationRequired = s.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = s.PathologistApprovalRequired,
             ShowLabReportPrintOnList = s.ShowLabReportPrintOnList,
+            CriticalValueCommunicationRequired = s.CriticalValueCommunicationRequired,
+            CriticalValueInformMinutes = s.CriticalValueInformMinutes,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -371,6 +375,8 @@ public class HospitalSettingsController(
             LabReportEmailNotificationRequired = m.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = m.PathologistApprovalRequired,
             ShowLabReportPrintOnList = m.ShowLabReportPrintOnList,
+            CriticalValueCommunicationRequired = m.CriticalValueCommunicationRequired,
+            CriticalValueInformMinutes = m.CriticalValueInformMinutes,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

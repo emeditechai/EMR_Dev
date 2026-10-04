@@ -1544,6 +1544,7 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <partial name="_CriticalCommunicationModal" />
     <script>
         $(document).ready(function () {
             toastr.options = {
@@ -2243,10 +2244,27 @@
                     confirmButtonText: '<i class="bi bi-patch-check-fill me-1"></i>Yes, Approve ' + (isPartial ? `(${validatedRecords} Tests)` : 'Report')
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        saveReporting(5, 'Report Approve');
+                        // NABL: a Critical / Panic result needs its communication recorded before approval (SQLScripts/2202)
+                        const approveIds = approvalSampleIds();
+                        if (window.CriticalComm && approveIds.length) {
+                            CriticalComm.ensure({ labOrderId: labOrderId, sampleIds: approveIds, context: 'ENTRY' })
+                                .then(function (ok) { if (ok) saveReporting(5, 'Report Approve'); });
+                        } else {
+                            saveReporting(5, 'Report Approve');
+                        }
                     }
                 });
             });
+
+            // the rows an approval would send (same filter as saveReporting(5)): validated, with a value, editable
+            function approvalSampleIds() {
+                return $('.test-item-row').filter(function () {
+                    const $row = $(this);
+                    return !$row.find('.txt-test-val').prop('disabled')
+                        && (parseInt($row.attr('data-report-status-id')) || 0) === 3
+                        && ($row.find('.txt-test-val').val()?.trim() || '').length > 0;
+                }).map(function () { return parseInt($(this).data('samplecollection-id')); }).get();
+            }
 
             function saveReporting(statusId, statusLabel) {
                 const entries = [];

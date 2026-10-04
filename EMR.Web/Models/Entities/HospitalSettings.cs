@@ -78,6 +78,10 @@ public class HospitalSettings
     public bool PathologistApprovalRequired { get; set; } = false;
     /// <summary>Show a "Print" action against each report row in LAB listing screens (default No).</summary>
     public bool ShowLabReportPrintOnList { get; set; } = false;
+    /// <summary>Critical / Panic results need a "who was informed" record before final approval (default No = approval as before). SQLScripts/2202.</summary>
+    public bool CriticalValueCommunicationRequired { get; set; } = false;
+    /// <summary>Critical / Panic result: target minutes from result entry to informing the doctor / patient (empty = 30). SQLScripts/2202.</summary>
+    public int? CriticalValueInformMinutes { get; set; }
 
     public bool IsActive { get; set; } = true;
 

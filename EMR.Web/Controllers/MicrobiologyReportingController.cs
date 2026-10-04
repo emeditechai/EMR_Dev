@@ -29,6 +29,7 @@ namespace EMR.Web.Controllers
     [Authorize]
     public class MicrobiologyReportingController(
         ILabReportingApiClient labReportingApiClient,
+        ILabCriticalApiClient labCriticalApiClient,
         ILabOrderApiClient labOrderApiClient,
         ISampleCollectionApiClient sampleCollectionApiClient,
         ILabSampleRejectionReasonApiClient rejectionReasonApiClient,
@@ -382,6 +383,15 @@ namespace EMR.Web.Controllers
 
             if (request.ReportStatusId == 5 && await PathologistApprovalRequiredAsync())
                 return Json(new { success = false, message = "Pathologist approval is required for this branch. Approve the report from the Pathologist Dashboard." });
+
+            // NABL: a Critical / Panic result needs its communication recorded before it is approved (SQLScripts/2202)
+            if (request.ReportStatusId == 5)
+            {
+                var criticalBlock = await labCriticalApiClient.GetSignoffBlockAsync(CurrentBranchId(), request.LabOrderId,
+                    (request.Entries ?? new()).Select(e => e.SamplecollectionID), "ENTRY", User.GetUserId(), User.IsSuperAdmin());
+                if (criticalBlock != null)
+                    return Json(new { success = false, code = "CRITICAL_COMM_REQUIRED", message = criticalBlock });
+            }
 
             request.Entries ??= new();
             if (!request.Entries.Any(e => !string.IsNullOrWhiteSpace(e.TestValue)))
