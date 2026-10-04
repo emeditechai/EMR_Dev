@@ -473,9 +473,41 @@
                 </div>
             </div>
 
+            <div class="lab-section-title">Printing</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#1d4ed8;--lp-bg:#dbeafe;">
+                        <div class="lp-icon"><i class="bi bi-receipt"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Required B2C Bill Print Header</div>
+                            <div class="lp-desc">Yes: the B2C lab bill prints the hospital header. No: the header area is left blank for pre-printed letterhead paper. B2B bills always print it.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="LabB2CBillPrintHeaderRequired">
+                                <label class="form-check-label" asp-for="LabB2CBillPrintHeaderRequired">Print the header on B2C bills</label>
+                            </div>
+                            <span asp-validation-for="LabB2CBillPrintHeaderRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-file-earmark-medical-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Required B2C Lab Report Print Header</div>
+                            <div class="lp-desc">Yes: the printed B2C lab report carries the hospital header. No: the header area is left blank for pre-printed letterhead paper. B2B reports and the copies emailed / sent on WhatsApp always carry it.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="LabB2CReportPrintHeaderRequired">
+                                <label class="form-check-label" asp-for="LabB2CReportPrintHeaderRequired">Print the header on B2C reports</label>
+                            </div>
+                            <span asp-validation-for="LabB2CReportPrintHeaderRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
-                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Print Header on Report", "Barcode on Sample" })
+                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })
                 {
                     <span class="lab-soon-chip">@soon</span>
                 }

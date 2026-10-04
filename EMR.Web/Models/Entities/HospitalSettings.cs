@@ -82,6 +82,10 @@ public class HospitalSettings
     public bool CriticalValueCommunicationRequired { get; set; } = false;
     /// <summary>Critical / Panic result: target minutes from result entry to informing the doctor / patient (empty = 30). SQLScripts/2202.</summary>
     public int? CriticalValueInformMinutes { get; set; }
+    /// <summary>B2C LAB bill prints the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
+    public bool LabB2CBillPrintHeaderRequired { get; set; } = true;
+    /// <summary>Printed B2C LAB report carries the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
+    public bool LabB2CReportPrintHeaderRequired { get; set; } = true;
 
     public bool IsActive { get; set; } = true;
 

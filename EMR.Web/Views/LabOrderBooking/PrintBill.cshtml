@@ -65,6 +65,7 @@
         }
 
         /* ── Header ── */
+        .letterhead-space { height: 30mm; }
         .bill-header {
             margin-bottom: 4mm;
             padding-bottom: 3mm;
@@ -260,6 +261,13 @@
             border-top: 1.5px solid #111;
         }
 
+        /* ── Payment receipts table ── */
+        .rcpt-table { margin-top: 4mm; }
+        .rcpt-table th, .rcpt-table td { font-size: 9.5px; padding: 2.5px 5px; vertical-align: top; }
+        .rcpt-table th.rcpt-caption { background: #fff; border: none; border-bottom: 1.5px solid #111; padding: 0 0 2px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+        .rcpt-table th.num { text-align: right; }
+        .rcpt-table .rcpt-tag { font-family: Arial, Helvetica, sans-serif; font-size: 8px; font-weight: bold; color: #92400e; text-transform: uppercase; letter-spacing: 0.3px; }
+
         /* ── Summary block ── */
         .summary-block {
             width: 55%;
@@ -343,6 +351,13 @@
 <div class="page-wrap">
 
     <!-- ══ HEADER ══ -->
+    @if (!Model.ShowHeaderFooter)
+    {
+        @* Hospital Settings > LAB > Required B2C Bill Print Header = No: blank space for pre-printed letterhead *@
+        <div class="letterhead-space"></div>
+    }
+    else
+    {
     <div class="bill-header">
         <div class="header-top">
             <div class="header-left">
@@ -426,6 +441,7 @@
             }
         </div>
     </div>
+    }
 
     <!-- ══ BILL TITLE ══ -->
     <div class="section-title">
@@ -611,20 +627,50 @@
 
     @if (Model.Payments.Any())
     {
-        <div class="payment-methods">
-            <strong>Payment Details:</strong>
+        <!-- ══ PAYMENT RECEIPTS: every receipt of this bill (SQLScripts/2205) ══ -->
+        <table class="inv-table rcpt-table">
+            <thead>
+                <tr><th colspan="7" class="rcpt-caption">Payment Receipts</th></tr>
+                <tr>
+                    <th style="width:4%;">#</th>
+                    <th style="width:17%;">Receipt No</th>
+                    <th style="width:16%;">Date &amp; Time</th>
+                    <th style="width:12%;">Payment Mode</th>
+                    <th>Mode Details</th>
+                    <th style="width:14%;">Received By</th>
+                    <th class="num" style="width:12%;">Amount (₹)</th>
+                </tr>
+            </thead>
+            <tbody>
+            @{ var rcptIdx = 0; }
             @foreach (var p in Model.Payments)
             {
-                <span>@p.MethodName: ₹@p.PaidAmount.ToString("N2")</span>
-                @if (!string.IsNullOrWhiteSpace(p.TransactionRef))
-                {
-                    <span> (Ref: @p.TransactionRef)</span>
-                }
-                <span>&nbsp;&nbsp;</span>
+                rcptIdx++;
+                <tr>
+                    <td>@rcptIdx</td>
+                    <td class="font-monospace">
+                        @(p.ReceiptNo ?? "—")
+                        @if (p.IsDueCollection) { <div class="rcpt-tag">Due collection</div> }
+                    </td>
+                    <td>@(p.PaymentDate.HasValue ? p.PaymentDate.Value.ToString(p.PaymentDate.Value.TimeOfDay == TimeSpan.Zero ? "dd-MMM-yyyy" : "dd-MMM-yyyy hh:mm tt") : "—")</td>
+                    <td>@(p.MethodName ?? "—")</td>
+                    <td>@(string.IsNullOrEmpty(p.ModeDetails) ? "—" : p.ModeDetails)</td>
+                    <td>@(p.ReceivedByName ?? "—")</td>
+                    <td class="num">@p.PaidAmount.ToString("N2")</td>
+                </tr>
             }
-        </div>
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td colspan="6" style="text-align:right; font-weight:bold;">Total Received</td>
+                    <td class="num" style="font-weight:bold;">@Model.Payments.Sum(x => x.PaidAmount).ToString("N2")</td>
+                </tr>
+            </tfoot>
+        </table>
     }
 
+    @if (Model.ShowHeaderFooter)
+    {
     <hr style="margin:5mm 0 3mm 0; border:none; border-top:1px solid #bbb;" />
 
     <!-- ══ FOOTER NOTES ══ -->
@@ -652,14 +698,18 @@
             <p>Address : @Model.HospitalAddress</p>
         }
     </div>
+    }
 
 </div>
 
+@if (Model.ShowHeaderFooter)
+{
 <!-- ══ PAGE FOOTER ══ -->
 <div class="page-footer">
     <span>@printDate</span>
     <span>Page 1 of 1</span>
 </div>
+}
 
 </body>
 </html>

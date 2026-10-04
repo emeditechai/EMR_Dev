@@ -105,6 +105,18 @@ public class LabReportPdfDocument : IDocument
     {
         container.Column(col =>
         {
+            // Pre-printed letterhead paper (in-app B2C print, Required B2C Lab Report Print Header = No): the letterhead
+            // area stays blank (the duplicate flag is still printed). Emailed / WhatsApp copies always have it.
+            if (!vm.ShowLetterhead)
+            {
+                col.Item().Height(30, Unit.Millimetre).AlignBottom().AlignRight().Element(c =>
+                {
+                    if (vm.IsDuplicate)
+                        c.Border(0.6f).BorderColor(Crimson).PaddingHorizontal(3).PaddingVertical(1)
+                            .Text($"DUPLICATE COPY · Print #{vm.PrintSequence}").FontSize(6.5f).Bold().FontColor(Crimson).LetterSpacing(0.05f);
+                });
+            }
+            else
             // Letterhead
             col.Item().PaddingBottom(4).BorderBottom(1.6f).BorderColor(Navy).Row(row =>
             {
@@ -440,6 +452,14 @@ public class LabReportPdfDocument : IDocument
                         row.RelativeItem().Text(string.Empty);
                     }
                 });
+            }
+
+            // Pre-printed letterhead (in-app B2C print, Required B2C Lab Report Print Header = No): no footer lines,
+            // the bottom strip stays blank for the letterhead's own footer. The signatures above are still printed.
+            if (!vm.ShowLetterhead)
+            {
+                col.Item().Height(15, Unit.Millimetre);
+                return;
             }
 
             var lab = vm.ProcessingLabName ?? vm.HospitalName;

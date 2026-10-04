@@ -305,6 +305,13 @@
         }
 
         <!-- Letterhead -->
+        @if (ViewBag.ShowLetterhead is false)
+        {
+            @* Hospital Settings > LAB > Required B2C Lab Report Print Header = No: blank space for pre-printed letterhead *@
+            <div style="height: 30mm;"></div>
+        }
+        else
+        {
         <div class="header-brand">
             <div style="display: flex; align-items: center; gap: 10px;">
                 @if (!string.IsNullOrWhiteSpace(ViewBag.LogoPath as string))
@@ -333,6 +340,7 @@
                 @if (!string.IsNullOrWhiteSpace(ViewBag.RegistrationNumber as string)) { <div>Reg. No.: @ViewBag.RegistrationNumber</div> }
             </div>
         </div>
+        }
 
         <!-- 3 Info Boxes -->
         <div class="info-boxes-container">
@@ -428,7 +436,13 @@
             }
         </div>
 
-        <!-- Page Footer -->
+        <!-- Page Footer (Required B2C Lab Report Print Header = No: blank strip for the pre-printed letterhead's footer) -->
+        @if (ViewBag.ShowLetterhead is false)
+        {
+        <div style="height: 15mm;"></div>
+        }
+        else
+        {
         <div class="page-footer">
             <div class="footer-note">This test has been performed at @(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
             <div class="footer-meta">
@@ -436,6 +450,7 @@
                 <div>Page @pageNo of @printItems.Count</div>
             </div>
         </div>
+        }
         </div>
     </div>
     }

@@ -284,6 +284,8 @@ public class HospitalSettingsController(
             existing.ShowLabReportPrintOnList = model.ShowLabReportPrintOnList;
             existing.CriticalValueCommunicationRequired = model.CriticalValueCommunicationRequired;
             existing.CriticalValueInformMinutes = model.CriticalValueInformMinutes;
+            existing.LabB2CBillPrintHeaderRequired = model.LabB2CBillPrintHeaderRequired;
+            existing.LabB2CReportPrintHeaderRequired = model.LabB2CReportPrintHeaderRequired;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -337,6 +339,8 @@ public class HospitalSettingsController(
             ShowLabReportPrintOnList = s.ShowLabReportPrintOnList,
             CriticalValueCommunicationRequired = s.CriticalValueCommunicationRequired,
             CriticalValueInformMinutes = s.CriticalValueInformMinutes,
+            LabB2CBillPrintHeaderRequired = s.LabB2CBillPrintHeaderRequired,
+            LabB2CReportPrintHeaderRequired = s.LabB2CReportPrintHeaderRequired,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -377,6 +381,8 @@ public class HospitalSettingsController(
             ShowLabReportPrintOnList = m.ShowLabReportPrintOnList,
             CriticalValueCommunicationRequired = m.CriticalValueCommunicationRequired,
             CriticalValueInformMinutes = m.CriticalValueInformMinutes,
+            LabB2CBillPrintHeaderRequired = m.LabB2CBillPrintHeaderRequired,
+            LabB2CReportPrintHeaderRequired = m.LabB2CReportPrintHeaderRequired,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

@@ -1959,6 +1959,9 @@ public class OPDController(
             ViewBag.Settings   = settings;
             ViewBag.BranchName = branch?.BranchName ?? string.Empty;
             ViewBag.Payment    = payment;
+            // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Bill Print Header = No prints this in-app
+            // OPD bill without header / footer. PrintBillAnonymous (the email / WhatsApp link) is not touched.
+            ViewBag.ShowHeaderFooter = settings?.LabB2CBillPrintHeaderRequired ?? true;
             return View(detail);
         }
         catch (HttpRequestException)

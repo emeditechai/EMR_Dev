@@ -335,7 +335,7 @@ else
         <div class="tab-pane fade module-tab-pane" id="tabLab" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#fd7e14"><i class="bi bi-eyedropper me-1"></i>LAB Configuration</span>
-                <span class="coming-soon-badge">7 active parameters</span>
+                <span class="coming-soon-badge">10 active parameters</span>
             </div>
 
             <div class="lab-section-title">Billing &amp; Sample Collection</div>
@@ -430,9 +430,33 @@ else
                 </div>
             </div>
 
+            <div class="lab-section-title">Printing</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#1d4ed8;--lp-bg:#dbeafe;">
+                        <div class="lp-icon"><i class="bi bi-receipt"></i></div>
+                        <div>
+                            <div class="lp-label">Required B2C Bill Print Header</div>
+                            <div class="lp-desc">Yes: the B2C lab bill prints the hospital header. No: the header area is left blank for pre-printed letterhead paper.</div>
+                            <span class="lp-pill @(Model.LabB2CBillPrintHeaderRequired ? "yes" : "no")"><i class="bi @(Model.LabB2CBillPrintHeaderRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.LabB2CBillPrintHeaderRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-file-earmark-medical-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Required B2C Lab Report Print Header</div>
+                            <div class="lp-desc">Yes: the printed B2C lab report carries the hospital header. No: the header area is left blank for pre-printed letterhead paper.</div>
+                            <span class="lp-pill @(Model.LabB2CReportPrintHeaderRequired ? "yes" : "no")"><i class="bi @(Model.LabB2CReportPrintHeaderRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.LabB2CReportPrintHeaderRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
-                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Print Header on Report", "Barcode on Sample" })
+                @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })
                 {
                     <span class="lab-soon-chip">@soon</span>
                 }

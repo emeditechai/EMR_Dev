@@ -79,6 +79,8 @@ public static class LabReportPrintBuilder
         FillLetterhead(vm, settings);
         FillPatient(vm, detail, order);
         FillClient(vm, detail, order, meta, settings, billingBranch);
+        // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Lab Report Print Header (B2B always prints it)
+        vm.ShowLetterhead = vm.IsB2B || (settings?.LabB2CReportPrintHeaderRequired ?? true);
 
         // ── Specimen timestamps ───────────────────────────────────────────────
         vm.Barcodes = string.Join(", ", included.Select(i => i.BarcodeNo).Where(b => !string.IsNullOrWhiteSpace(b)).Distinct());
@@ -198,6 +200,7 @@ public static class LabReportPrintBuilder
                 ? string.Equals(partner.ClientType, "FRANCHISE", StringComparison.OrdinalIgnoreCase)
                 : !string.Equals(order?.AgentType, "C", StringComparison.OrdinalIgnoreCase);
 
+            vm.IsB2B = true;
             vm.ClientLabel = isFranchise ? "Franchise" : "Company";
             vm.ClientCode = partner?.Code ?? order?.AgentCode;
             vm.ClientName = partner?.Name ?? order?.AgentName;

@@ -133,6 +133,7 @@ public class LabReportEmailService(
             foreach (var type in new[] { LabReportTypes.Numeric, LabReportTypes.Template })
             {
                 var rvm = await reportPdfService.BuildAsync(labOrderId, user, LabReportPrintBuilder.ScopeApproved, type);
+                if (rvm != null) rvm.ShowLetterhead = true;   // the patient's digital copy always carries the letterhead
                 if (rvm == null || rvm.IncludedTestCount == 0) continue;
                 rvm.PrintSequence = 1;   // the patient's copy is an original, never "DUPLICATE"
                 reports.Add((type, rvm, LabReportPdfDocument.Generate(rvm, reportPdfService.LoadLogo(rvm.HospitalLogoPath))));

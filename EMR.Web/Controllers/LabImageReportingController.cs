@@ -574,6 +574,8 @@ namespace EMR.Web.Controllers
             ViewBag.Email = settings?.EmailAddress;
             ViewBag.Website = settings?.Website;
             ViewBag.RegistrationNumber = settings?.RegistrationNumber;
+            // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Lab Report Print Header (B2B always prints it)
+            ViewBag.ShowLetterhead = detail.IsB2B || (settings?.LabB2CReportPrintHeaderRequired ?? true);
             ViewBag.PrintedBy = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System";
             // embed = shown inside the Pathologist Dashboard's report viewer, which has its own Print / Close.
             ViewBag.Embed = embed;

@@ -121,6 +121,12 @@ public class HospitalSettingsViewModel
     [Range(1, 1440, ErrorMessage = "Enter between 1 and 1440 minutes.")]
     public int? CriticalValueInformMinutes { get; set; }
 
+    [Display(Name = "Required B2C Bill Print Header")]
+    public bool LabB2CBillPrintHeaderRequired { get; set; } = true;
+
+    [Display(Name = "Required B2C Lab Report Print Header")]
+    public bool LabB2CReportPrintHeaderRequired { get; set; } = true;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

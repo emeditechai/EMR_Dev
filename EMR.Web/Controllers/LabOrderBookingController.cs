@@ -2195,6 +2195,22 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
+        // One receipt row of the bill print (receipt no, date, mode, mode details, amount, received by; SQLScripts/2205)
+        private static PrintBillPaymentRow ToPrintBillPaymentRow(LabOrderPaymentDetailDto p) => new()
+        {
+            MethodName      = p.MethodName,
+            PaidAmount      = p.PaidAmount,
+            TransactionRef  = p.TransactionRef,
+            ReceiptNo       = p.ReceiptNo,
+            PaymentDate     = p.PaymentDate == default ? null : p.PaymentDate,
+            ChequeNo        = p.ChequeNo,
+            BankName        = p.BankName,
+            UPIRefNo        = p.UPIRefNo,
+            CardLast4       = p.CardLast4,
+            ReceivedByName  = p.ReceivedByName,
+            IsDueCollection = p.IsDueCollection
+        };
+
         public async Task<IActionResult> PrintBill(int labOrderId)
         {
             if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
@@ -2236,6 +2252,9 @@ namespace EMR.Web.Controllers
             var vm = new PrintBillViewModel
             {
                 IsActive              = detail.IsActive,
+                // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Bill Print Header = No prints this
+                // in-app B2C bill without header / footer (B2B always has them; PrintBillAnonymous is not touched)
+                ShowHeaderFooter      = detail.IsB2B || (settings?.LabB2CBillPrintHeaderRequired ?? true),
                 // Hospital
                 HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
                 HospitalType          = settings?.HospitalType,
@@ -2292,12 +2311,11 @@ namespace EMR.Web.Controllers
                 LineItems = lineItems,
                 Payments  = detail.IsB2B
                     ? (detail.Payments.Any()
-                        ? detail.Payments.Select(p => new PrintBillPaymentRow
+                        ? detail.Payments.Select(p =>
                           {
-                              MethodName     = p.MethodName,
-                              PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
-                              TransactionRef = p.TransactionRef,
-                              ReceiptNo      = p.ReceiptNo
+                              var row = ToPrintBillPaymentRow(p);
+                              row.PaidAmount = grossAmount - headerDiscount + detail.RoundOffAmount;
+                              return row;
                           }).ToList()
                         : new List<PrintBillPaymentRow>
                           {
@@ -2308,13 +2326,7 @@ namespace EMR.Web.Controllers
                                   ReceiptNo      = detail.BillNo
                               }
                           })
-                    : detail.Payments.Select(p => new PrintBillPaymentRow
-                      {
-                          MethodName     = p.MethodName,
-                          PaidAmount     = p.PaidAmount,
-                          TransactionRef = p.TransactionRef,
-                          ReceiptNo      = p.ReceiptNo
-                      }).ToList()
+                    : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
             };
 
             return View(vm);
@@ -3034,12 +3046,11 @@ namespace EMR.Web.Controllers
                 LineItems = lineItems,
                 Payments  = detail.IsB2B
                     ? (detail.Payments.Any()
-                        ? detail.Payments.Select(p => new PrintBillPaymentRow
+                        ? detail.Payments.Select(p =>
                           {
-                              MethodName     = p.MethodName,
-                              PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
-                              TransactionRef = p.TransactionRef,
-                              ReceiptNo      = p.ReceiptNo
+                              var row = ToPrintBillPaymentRow(p);
+                              row.PaidAmount = grossAmount - headerDiscount + detail.RoundOffAmount;
+                              return row;
                           }).ToList()
                         : new List<PrintBillPaymentRow>
                           {
@@ -3050,13 +3061,7 @@ namespace EMR.Web.Controllers
                                   ReceiptNo      = detail.BillNo
                               }
                           })
-                    : detail.Payments.Select(p => new PrintBillPaymentRow
-                      {
-                          MethodName     = p.MethodName,
-                          PaidAmount     = p.PaidAmount,
-                          TransactionRef = p.TransactionRef,
-                          ReceiptNo      = p.ReceiptNo
-                      }).ToList()
+                    : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
             };
 
             return View("PrintBill", vm);
