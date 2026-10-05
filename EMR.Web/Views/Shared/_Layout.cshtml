@@ -253,6 +253,7 @@
                                 <li><a class="dropdown-item" asp-controller="Users" asp-action="Index"><i class="bi bi-people me-2"></i>User Master</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="HospitalSettings" asp-action="Index"><i class="bi bi-hospital-fill me-2"></i>Hospital Settings</a></li>
+                                <li><a class="dropdown-item" asp-controller="License" asp-action="Index"><i class="bi bi-shield-check me-2 text-primary"></i>Licence</a></li>
                                 <li><a class="dropdown-item" asp-controller="LabApprovalFlows" asp-action="Index"><i class="bi bi-diagram-3-fill me-2 text-success"></i>Pathologist Approval Flow</a></li>
                                 <li><a class="dropdown-item" asp-controller="SmtpConfig" asp-action="Index"><i class="bi bi-envelope-at me-2"></i>Email Configuration</a></li>
                                 <li><a class="dropdown-item" asp-controller="WhatsAppConfig" asp-action="Index"><i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp Configuration</a></li>
@@ -412,6 +413,7 @@
 
     <div class="container-fluid px-3 px-lg-4 py-3 py-lg-4" style="flex:1 0 auto;">
         <main role="main">
+            @await Component.InvokeAsync("LicenseBanner")
             @RenderBody()
         </main>
     </div>

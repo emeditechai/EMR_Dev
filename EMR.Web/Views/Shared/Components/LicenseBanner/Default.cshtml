@@ -1,0 +1,10 @@
+@model IReadOnlyList<EMR.Web.Services.Licensing.LicenseBanner>
+@foreach (var b in Model)
+{
+    var icon = b.Kind switch { "danger" => "bi-exclamation-octagon-fill", "warning" => "bi-exclamation-triangle-fill", _ => "bi-megaphone-fill" };
+    <div class="alert alert-@b.Kind alert-dismissible fade show d-flex align-items-center gap-2 py-2 mb-3 shadow-sm" role="alert" data-license-banner="@b.Message.GetHashCode()">
+        <i class="bi @icon"></i>
+        <div class="small fw-semibold">@b.Message</div>
+        <button type="button" class="btn-close btn-sm py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}

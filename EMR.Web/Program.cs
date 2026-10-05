@@ -122,6 +122,23 @@ builder.Services.AddHttpClient("Whereby", client =>
 builder.Services.AddScoped<IWherebyService, WherebyService>();
 builder.Services.AddScoped<IVideoConsultationService, VideoConsultationService>();
 
+// eCare360 licensing (Services/Licensing). Always on outside Development; a missing secret stops startup. The rules,
+// approvers and mailbox are compiled in (LicensingPolicy), not read from appsettings.json.
+var licensingOptions = new EMR.Web.Services.Licensing.LicensingOptions();
+builder.Configuration.GetSection(EMR.Web.Services.Licensing.LicensingOptions.Section).Bind(licensingOptions);
+// outside Development the licence is always enforced: Licensing:Enabled can switch it off only on a developer machine
+if (!builder.Environment.IsDevelopment()) licensingOptions.Enabled = true;
+EMR.Web.Services.Licensing.LicensingOptions.LoadSecretsAndValidate(licensingOptions, builder.Configuration);
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(licensingOptions));
+// the licensing mailbox (OTP and welcome e-mails only), separate from the hospital's own mail settings
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailSender, EMR.Web.Services.Licensing.LicenseMailSender>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.IMachineFingerprintProvider, EMR.Web.Services.Licensing.MachineFingerprintProvider>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseCrypto, EMR.Web.Services.Licensing.LicenseCrypto>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralLicenseRepository, EMR.Web.Services.Licensing.CentralLicenseRepository>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILocalLicenseRepository, EMR.Web.Services.Licensing.LocalLicenseRepository>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailer, EMR.Web.Services.Licensing.LicenseMailer>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicensingService, EMR.Web.Services.Licensing.LicensingService>();
+
 // Sign-in throttling per client address (staff and patient portal sign-in; accounts also lock after repeated wrong passwords)
 builder.Services.AddRateLimiter(o =>
 {
@@ -129,11 +146,18 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy(EMR.Web.Controllers.AccountController.SignInRateLimit, http =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // licence OTP sends per client address (registration and hardware renewal)
+    o.AddPolicy(EMR.Web.Controllers.LicenseController.OtpRateLimit, http =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter("otp:" + (http.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = Math.Max(1, licensingOptions.OtpSendsPerIpPer15Min), Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     o.OnRejected = async (ctx, ct) =>
     {
-        ctx.HttpContext.Response.Headers.RetryAfter = "60";
+        var isLicense = ctx.HttpContext.Request.Path.StartsWithSegments("/License", StringComparison.OrdinalIgnoreCase);
+        ctx.HttpContext.Response.Headers.RetryAfter = isLicense ? "900" : "60";
         ctx.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
-        await ctx.HttpContext.Response.WriteAsync("Too many sign-in attempts from this network. Wait a minute and try again.", ct);
+        await ctx.HttpContext.Response.WriteAsync(isLicense
+            ? "Too many OTP requests from this network. Wait 15 minutes and try again."
+            : "Too many sign-in attempts from this network. Wait a minute and try again.", ct);
     };
 });
 
@@ -253,6 +277,23 @@ builder.Services.AddSingleton<IQueryStringEncryptionService, QueryStringEncrypti
 
 var app = builder.Build();
 
+if (!app.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(licensingOptions.EmailPickupDirectory))
+    app.Logger.LogWarning("Licensing:EmailPickupDirectory is ignored outside Development; licence e-mails are sent by SMTP.");
+
+// licensing on: read the hardware fingerprint and make sure the local licence tables exist, off the request path
+if (licensingOptions.Enabled)
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            _ = app.Services.GetRequiredService<EMR.Web.Services.Licensing.IMachineFingerprintProvider>().Current;
+            await app.Services.GetRequiredService<EMR.Web.Services.Licensing.ILocalLicenseRepository>().EnsureSchemaAsync();
+        }
+        catch (Exception ex) { app.Logger.LogWarning(ex, "Licensing warm-up failed; it is retried on the first request."); }
+    });
+}
+
 // Configure the HTTP request pipeline.
 
 // Trust X-Forwarded-For / X-Forwarded-Proto from any proxy (IIS, Nginx, load balancer)
@@ -360,6 +401,9 @@ app.Use(async (context, next) =>
 
     await next();
 });
+
+// eCare360 licence gate: after sign-in (so a blocked licence signs the user out), before authorization
+app.UseMiddleware<EMR.Web.Middleware.LicensingMiddleware>();
 
 app.UseAuthorization();
 
