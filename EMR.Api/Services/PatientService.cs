@@ -130,6 +130,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         data.TodayRoster = (await multi.ReadAsync<OpdDoctorRosterSummary>()).ToList();
         data.RecentBookings = (await multi.ReadAsync<OpdRecentBooking>()).ToList();
         data.Appointments = (await multi.ReadAsync<OpdRecentBooking>()).ToList();
+        if (!multi.IsConsumed) data.Trend = (await multi.ReadAsync<OpdDayTrend>()).ToList();
 
         return data;
     }
