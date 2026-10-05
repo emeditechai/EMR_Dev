@@ -18,7 +18,8 @@ public interface ILocalLicenseRepository
     Task<int> DeleteAsync(string fingerprintHash, string appUrl);
     Task LogAsync(LicenseRecord? license, string? fingerprintHash, LicenseGateStatus result, bool isMatch, bool isExpired,
         bool remoteReachable, bool offlineGrace, string? reason, string? requestIp, string appUrl);
-    Task<IReadOnlyList<LicenseLogEntry>> RecentLogsAsync(int count);
+    Task<IReadOnlyList<LicenseLogEntry>> RecentLogsAsync(int count, string? appUrl = null);
+    Task<(string ClientCode, string? LicenseKey)?> LastLicenceForUrlAsync(string appUrl);
 }
 
 public sealed class LocalLicenseRepository(IConfiguration configuration, ILicenseCrypto crypto, ILogger<LocalLicenseRepository> logger) : ILocalLicenseRepository
@@ -181,11 +182,22 @@ VALUES (@ClientCode, @LicenseKey, GETDATE(), @Hash, @IsMatch, @IsExpired, @Remot
         catch (Exception ex) { logger.LogWarning(ex, "Licence evaluation could not be logged locally."); }
     }
 
-    public async Task<IReadOnlyList<LicenseLogEntry>> RecentLogsAsync(int count)
+    /// <summary>The latest checks, only this installation's (by URL) when appUrl is given.</summary>
+    public async Task<IReadOnlyList<LicenseLogEntry>> RecentLogsAsync(int count, string? appUrl = null)
     {
         await using var cn = Open();
         return (await cn.QueryAsync<LicenseLogEntry>(
-            "SELECT TOP (@N) ValidatedAt, Result, IsRemoteReachable, IsOfflineGrace, FailureReason, RequestIp FROM dbo.ClientAppLicenseValidationLog ORDER BY Id DESC",
-            new { N = count })).ToList();
+            "SELECT TOP (@N) ValidatedAt, Result, IsRemoteReachable, IsOfflineGrace, FailureReason, RequestIp FROM dbo.ClientAppLicenseValidationLog WHERE (@U IS NULL OR AppUrl = @U) ORDER BY Id DESC",
+            new { N = count, U = appUrl })).ToList();
+    }
+
+    /// <summary>The licence this URL last held, from its validation log (kept even when the local copy is gone): a
+    /// server that has had a licence is never sent back to registration.</summary>
+    public async Task<(string ClientCode, string? LicenseKey)?> LastLicenceForUrlAsync(string appUrl)
+    {
+        await using var cn = Open();
+        return await cn.QueryFirstOrDefaultAsync<(string ClientCode, string? LicenseKey)?>(
+            "SELECT TOP 1 ClientCode, LicenseKey FROM dbo.ClientAppLicenseValidationLog WHERE AppUrl = @U AND NULLIF(ClientCode, '') IS NOT NULL ORDER BY Id DESC",
+            new { U = appUrl });
     }
 }

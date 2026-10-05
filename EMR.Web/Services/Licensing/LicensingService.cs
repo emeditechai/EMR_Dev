@@ -21,7 +21,7 @@ public interface ILicensingService
     Task<(bool Ok, string Message)> VerifyRenewalOtpAsync(HttpContext http, string otp);
     Task<IReadOnlyList<LicenseBanner>> GetBannersAsync(HttpContext http);
     Task<LicenseOverview> GetOverviewAsync(HttpContext http);
-    Task<LicenseLogEntry?> LastCheckAsync();
+    Task<LicenseLogEntry?> LastCheckAsync(HttpContext http);
     MachineFingerprint Machine { get; }
     void ClearCaches(HttpContext http);
     Task<LicenseGateResult> RevalidateAsync(HttpContext http);
@@ -138,6 +138,15 @@ public sealed class LicensingService(
             }
             else
             {
+                // this address had a licence before (its log remembers it): never back to registration - say what happened
+                var previous = await local.LastLicenceForUrlAsync(url);
+                if (previous != null)
+                {
+                    var lost = await DescribeMissingAsync(previous.Value.ClientCode, previous.Value.LicenseKey, url);
+                    await local.LogAsync(new LicenseRecord { ClientCode = previous.Value.ClientCode, LicenseKey = previous.Value.LicenseKey ?? string.Empty },
+                        fp.Hash, lost.Status, false, false, true, false, lost.Reason, Ip(http), url);
+                    return lost;
+                }
                 LicenseRecord? moved = null;
                 try { moved = await central.FindByHardwareAsync(fp, null); } catch { /* read-only hint only */ }   // C3 without URL
                 return new LicenseGateResult
@@ -173,7 +182,7 @@ public sealed class LicensingService(
             _clockSuspect = skew > TimeSpan.FromHours(1);
             if (_clockSuspect) logger.LogWarning("This server's clock is {Skew} away from the licence server's; the licence is checked hourly until it is corrected.", skew);
         }
-        if (remote is null) { status = LicenseGateStatus.RemoteNotFound; reason = "The licence no longer exists on the licence server."; }
+        if (remote is null) { var lost = await DescribeMissingAsync(row.ClientCode, row.LicenseKey, url); status = lost.Status; reason = lost.Reason; }
         else if (!remote.OtpVerified) { status = LicenseGateStatus.PendingActivation; reason = "The licence is waiting for activation by the vendor."; }
         else if (!remote.IsActive) { status = LicenseGateStatus.Inactive; reason = "The licence has been deactivated by the vendor."; }
         else if (remote.ExpiryDate <= centralNow) { status = LicenseGateStatus.Expired; reason = $"The licence expired on {remote.ExpiryDate:dd MMM yyyy}."; }
@@ -226,7 +235,12 @@ public sealed class LicensingService(
     {
         ClearCaches(http);
         var gate = await EvaluateAccessAsync(http, force: true);
-        if (gate.Status is LicenseGateStatus.DataMismatch or LicenseGateStatus.RemoteNotFound)
+        // rebuild the local copy only when the licence server holds this address's licence to rebuild it from; a licence
+        // that is gone or recorded under another product keeps its copy, so the server shows why instead of registration
+        LicenseRecord? byUrl = null;
+        if (gate.Status == LicenseGateStatus.DataMismatch)
+            try { byUrl = await central.FindByAppUrlAsync(AppUrl(http)); } catch { /* unreachable: keep the copy */ }
+        if (byUrl != null)
         {
             var removed = await local.DeleteAsync(fingerprints.Current.Hash, AppUrl(http));
             logger.LogWarning("Licence re-validation: {Status}; removed {Rows} local licence copy row(s) to rebuild it from the licence server.", gate.Status, removed);
@@ -234,6 +248,22 @@ public sealed class LicensingService(
             gate = await EvaluateAccessAsync(http, force: true);
         }
         return gate;
+    }
+
+    /// <summary>Why this product's lookup no longer finds a licence: recorded under another product (the vendor admin app
+    /// saves products it does not know as eRestoPOS), moved to another address, or deleted.</summary>
+    private async Task<LicenseGateResult> DescribeMissingAsync(string clientCode, string? licenseKey, string url)
+    {
+        (string ProductType, string? AppUrl)? other = null;
+        try { other = await central.FindAnyProductAsync(clientCode, licenseKey); } catch { /* diagnosis only */ }
+        if (other is { } o && !string.Equals(o.ProductType, _o.ProductType, StringComparison.OrdinalIgnoreCase))
+            return LicenseGateResult.Of(LicenseGateStatus.DataMismatch,
+                $"Licence {clientCode} is recorded for product '{o.ProductType}' on the licence server, not {_o.ProductType}. Ask the vendor to set its product back to {_o.ProductType}.");
+        if (other is { } m && NormalizeUrl(m.AppUrl) != NormalizeUrl(url))
+            return LicenseGateResult.Of(LicenseGateStatus.DataMismatch,
+                $"Licence {clientCode} is now registered for {m.AppUrl}, not for this address. Contact the vendor.");
+        return LicenseGateResult.Of(LicenseGateStatus.RemoteNotFound,
+            $"This server's licence {clientCode} no longer exists on the licence server. Contact the vendor to restore it.");
     }
 
     private async Task<LicenseGateResult> UnavailableAsync(LicenseRecord? row, bool trusted, MachineFingerprint fp, string url, HttpContext http, Exception ex)
@@ -544,13 +574,13 @@ public sealed class LicensingService(
         return new LicenseOverview
         {
             Enabled = true, Status = gate.Status, Reason = gate.Reason, License = l, SignatureTrusted = trusted,
-            Machine = fingerprints.Current, AppUrl = url, ProductType = _o.ProductType, RecentChecks = await local.RecentLogsAsync(10)
+            Machine = fingerprints.Current, AppUrl = url, ProductType = _o.ProductType, RecentChecks = await local.RecentLogsAsync(10, url)
         };
     }
 
-    public async Task<LicenseLogEntry?> LastCheckAsync()
+    public async Task<LicenseLogEntry?> LastCheckAsync(HttpContext http)
     {
-        try { await EnsureSchemaAsync(); return (await local.RecentLogsAsync(1)).FirstOrDefault(); }
+        try { await EnsureSchemaAsync(); return (await local.RecentLogsAsync(1, AppUrl(http))).FirstOrDefault(); }
         catch { return null; }
     }
 }
