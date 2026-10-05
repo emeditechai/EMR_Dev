@@ -24,6 +24,7 @@ public interface ICentralLicenseRepository
         string? clientCode, string? licenseKey, DateTime generatedAt, DateTime expiresAt, string? requestIp);   // C10
     Task UpdateOtpChallengeAsync(Guid challengeId, bool isValidated, DateTime? validatedAt, string? failureReason,
         string? clientCode = null, string? licenseKey = null);                                     // C11
+    Task<string?> GetMailboxPasswordAsync(string smtpUsername);                                    // C12 (read-only)
 }
 
 public sealed class CentralLicenseRepository(IOptions<LicensingOptions> options) : ICentralLicenseRepository
@@ -192,6 +193,16 @@ SET IsValidated = @IsValidated, ValidatedAt = @ValidatedAt, FailureReason = @Fai
     ClientCode = COALESCE(@ClientCode, ClientCode), LicenseKey = COALESCE(@LicenseKey, LicenseKey)
 WHERE ChallengeId = @ChallengeId",
             new { ChallengeId = challengeId, IsValidated = isValidated, ValidatedAt = validatedAt, FailureReason = Cut(failureReason, 500), ClientCode = clientCode, LicenseKey = licenseKey });
+    }
+
+    // C12: the licensing mailbox password from the vendor's central mail configuration (as eRestoPOS reads it). Only
+    // the password is taken; server, port, account and certificate stay fixed in LicensingPolicy.Mail.
+    public async Task<string?> GetMailboxPasswordAsync(string smtpUsername)
+    {
+        await using var cn = Open();
+        return await cn.ExecuteScalarAsync<string?>(@"
+SELECT TOP 1 SmtpPassword FROM dbo.tbl_centralmailconfiguration
+WHERE IsActive = 1 AND SmtpUsername = @U AND NULLIF(SmtpPassword, '') IS NOT NULL ORDER BY Id DESC", new { U = smtpUsername });
     }
 
     private static string? Cut(string? value, int max) => value is null ? null : value.Length <= max ? value : value[..max];

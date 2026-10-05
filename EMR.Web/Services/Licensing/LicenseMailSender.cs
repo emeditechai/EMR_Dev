@@ -11,14 +11,15 @@ namespace EMR.Web.Services.Licensing;
 /// <summary>
 /// Sends one HTML e-mail from the eCare360 licensing mailbox (info@emeditechplus.com on webmail.emeditechplus.com), used only for licence OTP and
 /// welcome e-mails and separate from the hospital's own mail settings. Server, account, sender and certificate are
-/// compiled in (<see cref="LicensingPolicy.Mail"/>); only the password is a secret (LicensingMail__Password).
+/// compiled in (<see cref="LicensingPolicy.Mail"/>); the password comes from LicensingMail__Password when set, otherwise
+/// from the vendor's central mail configuration (tbl_centralmailconfiguration), as in eRestoPOS.
 /// </summary>
 public interface ILicenseMailSender
 {
     Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default);
 }
 
-public sealed class LicenseMailSender(IOptions<LicensingOptions> options, ILogger<LicenseMailSender> logger) : ILicenseMailSender
+public sealed class LicenseMailSender(IOptions<LicensingOptions> options, ICentralLicenseRepository central, ILogger<LicenseMailSender> logger) : ILicenseMailSender
 {
     private static readonly HashSet<string> Pins = LicensingPolicy.Mail.CertificateSha256.Select(Normalize).ToHashSet();
     private readonly LicensingOptions _o = options.Value;
@@ -39,7 +40,11 @@ public sealed class LicenseMailSender(IOptions<LicensingOptions> options, ILogge
         using var client = new SmtpClient { Timeout = LicensingPolicy.Mail.TimeoutSeconds * 1000, LocalDomain = LicensingPolicy.Mail.LocalDomain };
         client.ServerCertificateValidationCallback = ValidateCertificate;
         await client.ConnectAsync(LicensingPolicy.Mail.Host, LicensingPolicy.Mail.Port, SecureSocketOptions.SslOnConnect, ct);
-        await client.AuthenticateAsync(LicensingPolicy.Mail.Username, _o.MailPassword, ct);
+        // a configured password wins; otherwise the vendor's central mail configuration supplies it (no server setup)
+        var password = !string.IsNullOrEmpty(_o.MailPassword) ? _o.MailPassword : await central.GetMailboxPasswordAsync(LicensingPolicy.Mail.Username);
+        if (string.IsNullOrEmpty(password))
+            throw new InvalidOperationException($"No password for {LicensingPolicy.Mail.Username} in the central mail configuration.");
+        await client.AuthenticateAsync(LicensingPolicy.Mail.Username, password, ct);
         await client.SendAsync(message, ct);
         await client.DisconnectAsync(true, ct);
     }

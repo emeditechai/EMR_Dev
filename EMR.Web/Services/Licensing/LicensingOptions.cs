@@ -23,6 +23,19 @@ public static class LicensingPolicy
     public const int MaxTermDays = 366;
     public const int OfflineGraceDays = 0;
 
+    /// <summary>The vendor's central licence database. Fixed: pointing the application at another server or database
+    /// would be a way round the licence.</summary>
+    public static class Central
+    {
+        public const string Server = "103.178.113.61,1232";
+        public const string Database = "Central_Lic_DB";
+#if DEBUG
+        /// <summary>Debug builds only (developers' tests): CENTRAL_LICENSE_REMOTE_DATABASE may choose this test copy.
+        /// A Release build (every publish) always uses <see cref="Database"/>.</summary>
+        public const string TestDatabase = "Dev_CentralLic_DB";
+#endif
+    }
+
     /// <summary>The licensing mailbox (MailEnable on Plesk). 465 with SSL from the first byte is the only SMTP port open.</summary>
     public static class Mail
     {
@@ -43,20 +56,24 @@ public static class LicensingPolicy
 }
 
 /// <summary>
-/// eCare360 licensing settings that may differ per installation ("Licensing" section of appsettings.json): AppUrl,
-/// VendorContact, ExpiryWarningDays, RemoteConnectionTimeoutSeconds, CentralTrustServerCertificate, and in Development
-/// only Enabled and EmailPickupDirectory. The rules in <see cref="LicensingPolicy"/> are read-only here, so a value for
-/// them in appsettings.json is ignored. Secrets come from environment variables or user-secrets only:
-///   CENTRAL_LICENSE_REMOTE_SERVER, CENTRAL_LICENSE_REMOTE_USERNAME, CENTRAL_LICENSE_REMOTE_PASSWORD,
-///   CENTRAL_LICENSE_REMOTE_DATABASE, Licensing:LocalSigningKey, Licensing:LocalEncryptionKey (32 random bytes,
-///   base64 each), LicensingMail:Password (environment variable LicensingMail__Password).
-/// Outside Development the licence is always enforced (Enabled is forced on); a missing secret stops startup.
+/// eCare360 licensing settings. The licence is enforced on every machine that runs the application - server or local,
+/// any environment - and there is no switch to turn it off. Per installation ("Licensing" section of appsettings.json):
+/// AppUrl, VendorContact, ExpiryWarningDays, RemoteConnectionTimeoutSeconds, CentralTrustServerCertificate, and in
+/// Development only EmailPickupDirectory. The rules in <see cref="LicensingPolicy"/> are read-only here, so a value for
+/// them in appsettings.json is ignored. Nothing has to be set on a server (as in eRestoPOS): the licence database login
+/// is the application's own DefaultConnection login when that database is on the licence server, and the mailbox
+/// password comes from the vendor's central mail configuration. Either can be overridden (environment / user-secrets):
+///   CENTRAL_LICENSE_REMOTE_USERNAME, CENTRAL_LICENSE_REMOTE_PASSWORD, LicensingMail:Password (LicensingMail__Password).
+/// The local signing and encryption keys are created per machine on first start (<see cref="LocalKeyStore"/>) unless
+/// Licensing:LocalSigningKey / Licensing:LocalEncryptionKey are configured. A missing password does not stop the
+/// application: every page shows "Licensing not configured" (ConfigurationMissing) until it is set.
 /// </summary>
 public sealed class LicensingOptions
 {
     public const string Section = "Licensing";
 
-    public bool Enabled { get; set; }
+    /// <summary>Always true: every machine must hold a registered licence.</summary>
+    public bool Enabled => true;
     public string? VendorContact { get; set; }
     public int ExpiryWarningDays { get; set; } = 15;
     public int RemoteConnectionTimeoutSeconds { get; set; } = 10;
@@ -82,14 +99,21 @@ public sealed class LicensingOptions
     public int MaxTermDays => LicensingPolicy.MaxTermDays;
     public int OfflineGraceDays => LicensingPolicy.OfflineGraceDays;
 
-    // secrets (bound by LicensingSecrets.Load, not from the Licensing section of appsettings.json)
-    public string CentralServer { get; set; } = string.Empty;
+    // licence server (fixed) and secrets (read by LoadSecretsAndValidate, not from the Licensing section)
+    public string CentralServer => LicensingPolicy.Central.Server;
+    public string CentralDatabase { get; private set; } = LicensingPolicy.Central.Database;
     public string CentralUsername { get; set; } = string.Empty;
     public string CentralPassword { get; set; } = string.Empty;
-    public string CentralDatabase { get; set; } = string.Empty;
     public byte[] LocalSigningKey { get; set; } = Array.Empty<byte>();
     public byte[] LocalEncryptionKey { get; set; } = Array.Empty<byte>();
     public string MailPassword { get; set; } = string.Empty;
+    /// <summary>Set when licensing cannot work on this machine (a password missing, a malformed setting, no place for
+    /// the local keys): the gate then answers ConfigurationMissing with this text instead of the application failing.</summary>
+    public string? ConfigurationProblem { get; private set; }
+    /// <summary>"DefaultConnection" when the licence database login is the application's own database login.</summary>
+    public string CentralLoginSource { get; private set; } = "configuration";
+    /// <summary>Where this machine's generated local keys are kept (null when they come from configuration).</summary>
+    public string? LocalKeyLocation { get; private set; }
 
     public string CentralConnectionString => new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
     {
@@ -103,24 +127,31 @@ public sealed class LicensingOptions
         ApplicationName = "eCare360 Licensing"
     }.ConnectionString;
 
-    /// <summary>Reads the secrets into the options and, when licensing is enabled, refuses to start without them.</summary>
-    public static void LoadSecretsAndValidate(LicensingOptions o, IConfiguration config)
+    /// <summary>Reads the passwords and the local keys (creating them on first start). Never throws: anything missing is
+    /// recorded in <see cref="ConfigurationProblem"/>, which blocks every page until it is fixed.</summary>
+    public static void LoadSecretsAndValidate(LicensingOptions o, IConfiguration config, string contentRootPath)
     {
-        o.CentralServer = config["CENTRAL_LICENSE_REMOTE_SERVER"] ?? string.Empty;
-        o.CentralUsername = config["CENTRAL_LICENSE_REMOTE_USERNAME"] ?? string.Empty;
-        o.CentralPassword = config["CENTRAL_LICENSE_REMOTE_PASSWORD"] ?? string.Empty;
-        o.CentralDatabase = config["CENTRAL_LICENSE_REMOTE_DATABASE"] ?? string.Empty;
-        o.MailPassword = config["LicensingMail:Password"] ?? string.Empty;
         var errors = new List<string>();
-        o.LocalSigningKey = Base64(config["Licensing:LocalSigningKey"], 32, "Licensing:LocalSigningKey", errors);
-        o.LocalEncryptionKey = Base64(config["Licensing:LocalEncryptionKey"], 32, "Licensing:LocalEncryptionKey", errors);
-        if (!o.Enabled) return;
+#if DEBUG
+        if (string.Equals(config["CENTRAL_LICENSE_REMOTE_DATABASE"]?.Trim(), LicensingPolicy.Central.TestDatabase, StringComparison.OrdinalIgnoreCase))
+            o.CentralDatabase = LicensingPolicy.Central.TestDatabase;
+#endif
+        // licence database login: configured values win; otherwise the application's own DefaultConnection login is used,
+        // but only when that connection is on the licence server itself (it is never sent to any other server)
+        o.CentralUsername = config["CENTRAL_LICENSE_REMOTE_USERNAME"]?.Trim() ?? string.Empty;
+        o.CentralPassword = config["CENTRAL_LICENSE_REMOTE_PASSWORD"] ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(o.CentralUsername) && string.IsNullOrEmpty(o.CentralPassword)
+            && TryLoginFromDefaultConnection(config, out var user, out var password))
+        {
+            o.CentralUsername = user;
+            o.CentralPassword = password;
+            o.CentralLoginSource = "DefaultConnection";
+        }
+        if (string.IsNullOrWhiteSpace(o.CentralUsername) || string.IsNullOrEmpty(o.CentralPassword))
+            errors.Add($"No login for the licence server: the application's database is not on {LicensingPolicy.Central.Server}, so set CENTRAL_LICENSE_REMOTE_USERNAME and CENTRAL_LICENSE_REMOTE_PASSWORD.");
+        // the mailbox password is optional here: without it, it is read from the central mail configuration when sending
+        o.MailPassword = config["LicensingMail:Password"] ?? string.Empty;
 
-        if (string.IsNullOrWhiteSpace(o.CentralServer)) errors.Add("CENTRAL_LICENSE_REMOTE_SERVER is not set.");
-        if (string.IsNullOrWhiteSpace(o.CentralUsername)) errors.Add("CENTRAL_LICENSE_REMOTE_USERNAME is not set.");
-        if (string.IsNullOrWhiteSpace(o.CentralPassword)) errors.Add("CENTRAL_LICENSE_REMOTE_PASSWORD is not set.");
-        if (string.IsNullOrWhiteSpace(o.CentralDatabase)) errors.Add("CENTRAL_LICENSE_REMOTE_DATABASE is not set.");
-        if (string.IsNullOrWhiteSpace(o.MailPassword)) errors.Add("LicensingMail:Password is not set (environment variable LicensingMail__Password).");
         if (!string.IsNullOrWhiteSpace(o.AppUrl))
         {
             if (!Uri.TryCreate(o.AppUrl.Trim(), UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https") || !string.IsNullOrEmpty(u.Query))
@@ -128,14 +159,44 @@ public sealed class LicensingOptions
             else o.AppUrl = o.AppUrl.Trim().TrimEnd('/').ToLowerInvariant();
         }
 
-        // a key that is set but malformed is reported by Base64 above; a missing one only matters when enabled
-        if (errors.Count > 0 || o.LocalSigningKey.Length == 0 || o.LocalEncryptionKey.Length == 0)
+        // local keys: configured ones win (both or neither); otherwise this machine's own, created on first start
+        var signing = Base64(config["Licensing:LocalSigningKey"], 32, "Licensing:LocalSigningKey", errors);
+        var encryption = Base64(config["Licensing:LocalEncryptionKey"], 32, "Licensing:LocalEncryptionKey", errors);
+        if (signing.Length == 32 && encryption.Length == 32) { o.LocalSigningKey = signing; o.LocalEncryptionKey = encryption; }
+        else
         {
-            if (o.LocalSigningKey.Length == 0 && !errors.Any(e => e.Contains("LocalSigningKey"))) errors.Add("Licensing:LocalSigningKey is not set.");
-            if (o.LocalEncryptionKey.Length == 0 && !errors.Any(e => e.Contains("LocalEncryptionKey"))) errors.Add("Licensing:LocalEncryptionKey is not set.");
-            throw new InvalidOperationException("eCare360 licensing is enabled but not configured: " + string.Join(" ", errors));
+            var keys = LocalKeyStore.LoadOrCreate(contentRootPath, out var location, out var keyError);
+            if (keys is null) errors.Add("The local licence keys could not be stored on this machine: " + keyError);
+            else { o.LocalSigningKey = keys.Value.Signing; o.LocalEncryptionKey = keys.Value.Encryption; o.LocalKeyLocation = location; }
         }
+        // the application still needs keys to run its pages, even while blocked
+        if (o.LocalSigningKey.Length == 0) o.LocalSigningKey = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        if (o.LocalEncryptionKey.Length == 0) o.LocalEncryptionKey = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+
+        o.ConfigurationProblem = errors.Count == 0 ? null : string.Join(" ", errors);
     }
+
+    /// <summary>The User Id / Password of ConnectionStrings:DefaultConnection when that connection points at the licence
+    /// server (same host and port), so a server whose database lives there needs no licensing setup at all.</summary>
+    private static bool TryLoginFromDefaultConnection(IConfiguration config, out string user, out string password)
+    {
+        user = password = string.Empty;
+        try
+        {
+            var cs = config.GetConnectionString("DefaultConnection");
+            if (string.IsNullOrWhiteSpace(cs)) return false;
+            var b = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(cs);
+            if (b.IntegratedSecurity || string.IsNullOrWhiteSpace(b.UserID) || string.IsNullOrEmpty(b.Password)) return false;
+            if (NormalizeServer(b.DataSource) != NormalizeServer(LicensingPolicy.Central.Server)) return false;
+            user = b.UserID.Trim();
+            password = b.Password;
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static string NormalizeServer(string? dataSource) =>
+        new string((dataSource ?? string.Empty).Trim().ToLowerInvariant().Replace("tcp:", string.Empty).Where(c => !char.IsWhiteSpace(c)).ToArray());
 
     private static byte[] Base64(string? value, int length, string name, List<string> errors)
     {

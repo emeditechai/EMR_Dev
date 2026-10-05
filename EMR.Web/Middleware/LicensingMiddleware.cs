@@ -8,7 +8,7 @@ namespace EMR.Web.Middleware;
 /// eCare360 licence gate: every request (after authentication) needs a Valid licence, except the licence pages, the
 /// sign-in pages, the error page and static files. Unregistered goes to the registration form, any other status signs
 /// the user out and goes to the blocked page; an AJAX call gets 403 JSON instead of a redirect.
-/// Does nothing while Licensing:Enabled is false.
+/// Runs on every machine: there is no switch to turn licensing off.
 /// </summary>
 public sealed class LicensingMiddleware(RequestDelegate next, ILogger<LicensingMiddleware> logger)
 {

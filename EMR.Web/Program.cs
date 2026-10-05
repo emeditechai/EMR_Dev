@@ -122,13 +122,12 @@ builder.Services.AddHttpClient("Whereby", client =>
 builder.Services.AddScoped<IWherebyService, WherebyService>();
 builder.Services.AddScoped<IVideoConsultationService, VideoConsultationService>();
 
-// eCare360 licensing (Services/Licensing). Always on outside Development; a missing secret stops startup. The rules,
-// approvers and mailbox are compiled in (LicensingPolicy), not read from appsettings.json.
+// eCare360 licensing (Services/Licensing). Enforced on every machine (server or local, any environment) with no switch;
+// the rules, approvers, mailbox and licence server are compiled in (LicensingPolicy), not read from appsettings.json.
+// A missing password blocks every page with "Licensing not configured" instead of stopping the application.
 var licensingOptions = new EMR.Web.Services.Licensing.LicensingOptions();
 builder.Configuration.GetSection(EMR.Web.Services.Licensing.LicensingOptions.Section).Bind(licensingOptions);
-// outside Development the licence is always enforced: Licensing:Enabled can switch it off only on a developer machine
-if (!builder.Environment.IsDevelopment()) licensingOptions.Enabled = true;
-EMR.Web.Services.Licensing.LicensingOptions.LoadSecretsAndValidate(licensingOptions, builder.Configuration);
+EMR.Web.Services.Licensing.LicensingOptions.LoadSecretsAndValidate(licensingOptions, builder.Configuration, builder.Environment.ContentRootPath);
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(licensingOptions));
 // the licensing mailbox (OTP and welcome e-mails only), separate from the hospital's own mail settings
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailSender, EMR.Web.Services.Licensing.LicenseMailSender>();
@@ -279,6 +278,10 @@ var app = builder.Build();
 
 if (!app.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(licensingOptions.EmailPickupDirectory))
     app.Logger.LogWarning("Licensing:EmailPickupDirectory is ignored outside Development; licence e-mails are sent by SMTP.");
+if (licensingOptions.ConfigurationProblem != null)
+    app.Logger.LogError("eCare360 licensing is not configured, every page is blocked until it is: {Problem}", licensingOptions.ConfigurationProblem);
+app.Logger.LogInformation("eCare360 licensing: licence database {Database} (login from {LoginSource}); local keys {KeyLocation}.",
+    licensingOptions.CentralDatabase, licensingOptions.CentralLoginSource, licensingOptions.LocalKeyLocation ?? "from configuration");
 
 // licensing on: read the hardware fingerprint and make sure the local licence tables exist, off the request path
 if (licensingOptions.Enabled)
