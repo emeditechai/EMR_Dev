@@ -147,6 +147,8 @@ public class OPDController(
             }
         }
         ViewBag.DoctorRoomMap = doctorRoomMap;
+        // roster button: a doctor opens their own roster (My Roster); an administrator the full Doctor Roster if allowed
+        ViewBag.CanOpenFullRoster = ViewBag.IsDoctor != true && await permissionGuard.ShowsAsync(HttpContext, "OPD.DOCTORROSTER", "VIEW");
 
         ViewData["Title"] = "Doctor Dashboard";
         return View();
@@ -1923,6 +1925,120 @@ public class OPDController(
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    // ─── My Roster: the Doctor Roster page for the signed-in doctor only ─────
+    // Opened from the Doctor Dashboard and part of that page's permission (script 2217). Every look-up below uses the
+    // doctor linked to this login, whatever the browser sends, so no other doctor's roster or bookings can be read here.
+
+    [HttpGet]
+    public async Task<IActionResult> MyRoster()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId == null)
+        {
+            TempData["Error"] = "Please select a branch first.";
+            return RedirectToAction("SelectBranch", "Account");
+        }
+
+        // administrators see every doctor on the full Doctor Roster (and are never matched to a doctor here)
+        if (await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext)) return RedirectToAction("Index", "DoctorRoster");
+
+        var own = await OwnDoctorAsync();
+        var doctors = new List<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>();
+        if (own is not null)
+        {
+            // same entry the full roster shows (name format), else the Doctor Master row
+            var opd = (await patientService.GetOpdDoctorsAsync(branchId.Value)).Where(d => d.DoctorId == own.DoctorId).ToList();
+            doctors.Add(opd.Count > 0 ? opd[0] : (own.DoctorId, own.FullName, own.PrimarySpecialityId, own.Gender ?? ""));
+        }
+
+        ViewBag.SelfRoster = true;
+        ViewBag.SelfDoctorName = doctors.Count > 0 ? doctors[0].FullName : null;
+        ViewBag.Doctors = doctors;
+        ViewBag.Specialities = await specialityService.GetActiveAsync();
+        ViewBag.CanConfigureScheduler = await permissionGuard.ShowsAsync(HttpContext, "MASTER.DOCTORS", "CONFIGURE_SCHEDULER");
+        return View("~/Views/DoctorRoster/Index.cshtml");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> MyRosterSchedules()
+    {
+        var own = await MyRosterDoctorAsync();
+        if (own is null) return Json(new { schedules = Array.Empty<object>(), exceptions = Array.Empty<object>() });
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            var schedules = await scheduleApiClient.GetByDoctorAsync(own.DoctorId, branchId);
+            var exceptions = await scheduleApiClient.GetExceptionsAsync(own.DoctorId, branchId);
+            return Json(new { schedules, exceptions });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Open bookings per day between two dates (yyyy-MM-dd) for the signed-in doctor.</summary>
+    [HttpGet]
+    public async Task<IActionResult> MyRosterBookingCounts(string from, string to)
+    {
+        if (!DateOnly.TryParse(from, out var f) || !DateOnly.TryParse(to, out var t) || t < f || t.DayNumber - f.DayNumber > 400)
+            return BadRequest(new { error = "Invalid date range" });
+        var own = await MyRosterDoctorAsync();
+        if (own is null) return Json(Array.Empty<object>());
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            var rows = await patientService.GetRosterBookingCountsAsync(branchId, f, t);
+            return Json(rows.Where(r => r.DoctorId == own.DoctorId)
+                .Select(r => new { doctorId = r.DoctorId, date = r.VisitDate.ToString("yyyy-MM-dd"), count = r.Bookings }));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>The signed-in doctor's bookings on one day (a doctorId sent by the page is ignored).</summary>
+    [HttpGet]
+    public async Task<IActionResult> MyRosterDateBookings(string date)
+    {
+        if (!DateOnly.TryParse(date, out var dateOnly)) return BadRequest(new { error = "Invalid date" });
+        var own = await MyRosterDoctorAsync();
+        if (own is null) return Json(new { bookings = Array.Empty<object>() });
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            var bookings = await patientService.GetBookingsByDoctorDateAsync(own.DoctorId, dateOnly, branchId);
+            return Json(new { bookings });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>The signed-in doctor's free slots on one day (a doctorId sent by the page is ignored).</summary>
+    [HttpGet]
+    public async Task<IActionResult> MyRosterSlots(string date)
+    {
+        var own = await MyRosterDoctorAsync();
+        if (own is null || !DateTime.TryParse(date, out var dt))
+            return Json(new { hasException = false, slots = Array.Empty<object>() });
+        var branchId = User.GetCurrentBranchId() ?? 0;
+        try
+        {
+            return Json(await scheduleApiClient.GetAvailableSlotsAsync(own.DoctorId, branchId, dt));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>The doctor My Roster shows: the login's own doctor; none for administrators (they use the full roster).</summary>
+    private async Task<OwnDoctorRow?> MyRosterDoctorAsync() =>
+        await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext) ? null : await OwnDoctorAsync();
 
     // ─── Print Bill (via EMR.Api) ─────────────────────────────────────────────
 
