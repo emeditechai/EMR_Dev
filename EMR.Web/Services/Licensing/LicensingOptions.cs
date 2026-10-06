@@ -56,8 +56,9 @@ public static class LicensingPolicy
 }
 
 /// <summary>
-/// eCare360 licensing settings. The licence is enforced on every machine that runs the application - server or local,
-/// any environment - and there is no switch to turn it off. Per installation ("Licensing" section of appsettings.json):
+/// eCare360 licensing settings. A Release build (every published package) enforces the licence on every machine, in
+/// any environment, with no switch to turn it off. A Debug build (a developer running from source) skips it unless
+/// Licensing:EnforceInDebug is true. Per installation ("Licensing" section of appsettings.json):
 /// AppUrl, VendorContact, ExpiryWarningDays, RemoteConnectionTimeoutSeconds, CentralTrustServerCertificate, and in
 /// Development only EmailPickupDirectory. The rules in <see cref="LicensingPolicy"/> are read-only here, so a value for
 /// them in appsettings.json is ignored. Nothing has to be set on a server (as in eRestoPOS): the licence database login
@@ -72,8 +73,16 @@ public sealed class LicensingOptions
 {
     public const string Section = "Licensing";
 
-    /// <summary>Always true: every machine must hold a registered licence.</summary>
+#if DEBUG
+    /// <summary>Debug builds only (a developer's `dotnet run` / F5): licensing is skipped unless this is true
+    /// (Licensing:EnforceInDebug, e.g. environment Licensing__EnforceInDebug=true to test the licence flow locally).</summary>
+    public bool EnforceInDebug { get; set; }
+    public bool Enabled => EnforceInDebug;
+#else
+    /// <summary>Release builds (every published package): always true - every server must hold a registered licence.
+    /// The developer bypass does not exist in a Release build, whatever the environment or configuration says.</summary>
     public bool Enabled => true;
+#endif
     public string? VendorContact { get; set; }
     public int ExpiryWarningDays { get; set; } = 15;
     public int RemoteConnectionTimeoutSeconds { get; set; } = 10;

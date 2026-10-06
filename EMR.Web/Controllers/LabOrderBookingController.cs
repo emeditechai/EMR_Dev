@@ -45,7 +45,8 @@ namespace EMR.Web.Controllers
         ICorporateApiClient corporateApiClient,
         IB2BBillingApiClient b2bBillingApiClient,
         ILogger<LabOrderBookingController> logger,
-        EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
+        EMR.Shared.Security.IActionPermissionGuard permissionGuard,
+        IPatientPortalLoginService portalLoginService) : Controller
     {
         [HttpGet]
         public async Task<IActionResult> B2BBooking(int? patientId)
@@ -1028,10 +1029,37 @@ namespace EMR.Web.Controllers
                     Items = lineItems!.Select(x => new { x.InvestigationId, x.Price, x.Type })
                 });
 
+            await TryCreatePortalLoginForB2CAsync(branchId.Value, actualPatientId, patient.PatientCode, patient);
+
             TempData["NewPatientName"]  = patientFullName;
             TempData["BillNo"]          = labOrderRes.BillNo;
             TempData["NewLabOrderId"]   = labOrderRes.LabOrderId.ToString();
             return RedirectToAction(nameof(B2CBooking), new { registered = true });
+        }
+
+        /// <summary>
+        /// Hospital Settings > LAB "Required Patient Portal" (B2C only, default No; script 2219): when Yes, the booked
+        /// patient gets a Patient Portal login with the credentials e-mailed, as OPD registration does (once per patient,
+        /// only with a mobile number and an e-mail). Never stops or delays the booking.
+        /// </summary>
+        private async Task TryCreatePortalLoginForB2CAsync(int branchId, int patientId, string? patientCode, PatientMaster patient)
+        {
+            try
+            {
+                var required = await dbContext.HospitalSettings
+                    .Where(s => s.BranchId == branchId && s.IsActive)
+                    .Select(s => s.LabPatientPortalRequired)
+                    .FirstOrDefaultAsync();
+                if (!required) return;
+                if (string.IsNullOrWhiteSpace(patientCode)) patientCode = (await patientService.GetByIdAsync(patientId))?.PatientCode;
+                if (string.IsNullOrWhiteSpace(patientCode)) return;
+                await portalLoginService.TryGenerateAsync(patientId, patientCode, patient.PhoneNumber ?? "", patient.EmailId ?? "",
+                    patient.FirstName + " " + patient.LastName, branchId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Patient Portal login for B2C LAB patient {PatientId} was not created.", patientId);
+            }
         }
 
         [HttpPost]
@@ -1271,6 +1299,8 @@ namespace EMR.Web.Controllers
                     ItemCount = lineItems.Count,
                     Items = lineItems.Select(x => new { x.InvestigationId, x.Price, x.Type })
                 });
+
+            await TryCreatePortalLoginForB2CAsync(branchId.Value, actualPatientId, actualPatientCode, patient);
 
             // Process Payment
             SavePaymentResult? paymentResult = null;

@@ -1,10 +1,57 @@
 @model IReadOnlyList<EMR.Web.Services.Licensing.LicenseBanner>
+@*
+    Licence banners (vendor alert, licence / AMC expiry, offline grace) as a news-ticker bar: a fixed label, the message
+    scrolling right to left, and a close button. Closing hides it for this page only, so it shows again on every page
+    load. The scroll pauses on hover / keyboard focus and is replaced by static, wrapping text for reduced motion.
+*@
+@if (Model.Count > 0)
+{
+    <style>
+        .lic-ticker { display: flex; align-items: stretch; min-height: 42px; margin-bottom: 14px; border-radius: 12px; overflow: hidden;
+                      border: 1px solid var(--lt-border); background: var(--lt-bg); color: var(--lt-text);
+                      box-shadow: 0 2px 10px rgba(15, 23, 42, .06); }
+        .lic-ticker.lt-info    { --lt-accent: #4f46e5; --lt-bg: #eef2ff; --lt-border: #c7d2fe; --lt-text: #312e81; }
+        .lic-ticker.lt-warning { --lt-accent: #d97706; --lt-bg: #fffbeb; --lt-border: #fde68a; --lt-text: #78350f; }
+        .lic-ticker.lt-danger  { --lt-accent: #dc2626; --lt-bg: #fef2f2; --lt-border: #fecaca; --lt-text: #7f1d1d; }
+        .lic-ticker-label { display: flex; align-items: center; gap: 7px; padding: 0 14px; flex-shrink: 0; color: #fff;
+                            background: var(--lt-accent); font-size: .74rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+                            position: relative; }
+        .lic-ticker-label::after { content: ''; position: absolute; right: -10px; top: 0; bottom: 0; width: 10px;
+                                   background: var(--lt-accent); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+        .lic-ticker-label .bi { font-size: .95rem; }
+        .lic-ticker-track { flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center; padding-left: 18px;
+                            -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+                                    mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%); }
+        .lic-ticker-text { display: inline-block; white-space: nowrap; padding-left: 100%; font-size: .86rem; font-weight: 600;
+                           animation: licTicker var(--lt-duration, 22s) linear infinite; will-change: transform; }
+        .lic-ticker:hover .lic-ticker-text, .lic-ticker:focus-within .lic-ticker-text { animation-play-state: paused; }
+        @@keyframes licTicker { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+        .lic-ticker-close { flex-shrink: 0; width: 42px; border: none; border-left: 1px solid var(--lt-border); background: transparent;
+                            color: var(--lt-text); font-size: 1rem; display: grid; place-items: center; transition: background .15s ease; }
+        .lic-ticker-close:hover { background: rgba(0, 0, 0, .06); }
+        .lic-ticker-close:focus-visible { outline: 2px solid var(--lt-accent); outline-offset: -2px; }
+        @@media (prefers-reduced-motion: reduce) {
+            .lic-ticker-text { animation: none; white-space: normal; padding: 8px 0; }
+            .lic-ticker-track { -webkit-mask-image: none; mask-image: none; }
+        }
+        body.dark-mode .lic-ticker.lt-info    { --lt-bg: #1e1b4b; --lt-border: #3730a3; --lt-text: #e0e7ff; }
+        body.dark-mode .lic-ticker.lt-warning { --lt-bg: #2a1d06; --lt-border: #92400e; --lt-text: #fde68a; }
+        body.dark-mode .lic-ticker.lt-danger  { --lt-bg: #2a0f0f; --lt-border: #991b1b; --lt-text: #fecaca; }
+    </style>
+}
 @foreach (var b in Model)
 {
-    var icon = b.Kind switch { "danger" => "bi-exclamation-octagon-fill", "warning" => "bi-exclamation-triangle-fill", _ => "bi-megaphone-fill" };
-    <div class="alert alert-@b.Kind alert-dismissible fade show d-flex align-items-center gap-2 py-2 mb-3 shadow-sm" role="alert" data-license-banner="@b.Message.GetHashCode()">
-        <i class="bi @icon"></i>
-        <div class="small fw-semibold">@b.Message</div>
-        <button type="button" class="btn-close btn-sm py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+    var kind = b.Kind is "danger" or "warning" ? b.Kind : "info";
+    var icon = kind switch { "danger" => "bi-exclamation-octagon-fill", "warning" => "bi-exclamation-triangle-fill", _ => "bi-megaphone-fill" };
+    var label = kind switch { "danger" => "Important", "warning" => "Attention", _ => "Notice" };
+    // longer messages scroll for longer, so every message moves at a readable, similar speed
+    var seconds = Math.Clamp(12 + b.Message.Length / 6, 14, 60);
+    <div class="lic-ticker lt-@kind" role="@(kind == "info" ? "status" : "alert")" data-license-banner="@b.Message.GetHashCode()">
+        <div class="lic-ticker-label"><i class="bi @icon"></i><span>@label</span></div>
+        <div class="lic-ticker-track" tabindex="0" title="@b.Message" aria-label="@label: @b.Message">
+            <span class="lic-ticker-text" style="--lt-duration: @(seconds)s">@b.Message</span>
+        </div>
+        <button type="button" class="lic-ticker-close" aria-label="Close" title="Close"
+                onclick="this.closest('.lic-ticker').remove()"><i class="bi bi-x-lg"></i></button>
     </div>
 }

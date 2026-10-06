@@ -100,6 +100,9 @@ public class HospitalSettings
         "Dear {PatientName}, welcome to the {PlanName} membership of {HospitalName}. Your card number is {CardNo}, valid from {ValidFrom} to {ValidTo}. Your membership card is attached.";
     /// <summary>Time of day the scheduled Doctor IP commission job runs (Automatic / Both).</summary>
     public TimeSpan? DoctorIpAutoRunTime { get; set; }
+    /// <summary>B2C LAB booking creates the patient's Patient Portal login and e-mails the credentials, as OPD does
+    /// (default No = LAB never creates portal logins). B2B is never affected. SQLScripts/2219.</summary>
+    public bool LabPatientPortalRequired { get; set; }
 
     public bool IsActive { get; set; } = true;
 

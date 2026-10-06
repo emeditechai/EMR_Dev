@@ -44,6 +44,20 @@
     .lp-pill.na  { background:#f1f5f9; color:#64748b; }
     .lab-soon-row { display:flex; flex-wrap:wrap; gap:.5rem; }
     .lab-soon-chip { border:1px dashed #cbd5e1; border-radius:2rem; padding:.3rem .85rem; font-size:.76rem; color:#94a3b8; background:#f8fafc; }
+
+    /* compact parameter cards: smaller padding and icon, the YES / NO pill beside the title, the description clamped to
+       two lines (full text on hover), tighter gaps between cards and sections */
+    .tab-pane .row.g-3:has(> div > .lab-param) { --bs-gutter-x:.75rem; --bs-gutter-y:.75rem; margin-bottom:1rem !important; }
+    .tab-pane .lab-section-title { margin-bottom:.55rem; }
+    .lab-param { gap:.65rem; padding:.6rem .75rem; border-radius:10px; border-left-width:3px; }
+    .lab-param .lp-icon { width:32px; height:32px; border-radius:8px; font-size:.95rem; }
+    .lab-param > div:last-child { flex:1; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:.5rem; align-items:start; }
+    .lab-param .lp-label { grid-column:1; grid-row:1; font-size:.68rem; letter-spacing:.05em; }
+    .lab-param .lp-desc { grid-column:1 / -1; font-size:.7rem; margin-top:.15rem; line-height:1.3;
+                          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .lab-param:hover .lp-desc { -webkit-line-clamp:unset; overflow:visible; }
+    .lab-param .lp-pill { grid-column:2; grid-row:1; margin-top:0; font-size:.68rem; padding:.08rem .55rem; white-space:nowrap; }
+    .lab-param .lp-pill + .lp-pill { grid-column:1 / -1; grid-row:auto; justify-self:start; margin-top:.35rem; }
     .coming-soon-badge { font-size:.65rem; background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; border:1px solid #e2e8f0; }
 </style>
 }
@@ -335,7 +349,7 @@ else
         <div class="tab-pane fade module-tab-pane" id="tabLab" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#fd7e14"><i class="bi bi-eyedropper me-1"></i>LAB Configuration</span>
-                <span class="coming-soon-badge">10 active parameters</span>
+                <span class="coming-soon-badge">11 active parameters</span>
             </div>
 
             <div class="lab-section-title">Billing &amp; Sample Collection</div>
@@ -484,6 +498,20 @@ else
                             <span class="lp-pill @(Model.MembershipCardWhatsAppRequired ? "yes" : "no") ms-1"><i class="bi bi-whatsapp"></i>WHATSAPP @(Model.MembershipCardWhatsAppRequired ? "ON" : "OFF")</span>
                             <span class="lp-pill @(Model.MembershipCardEmailRequired ? "yes" : "no") ms-1"><i class="bi bi-envelope-fill"></i>EMAIL @(Model.MembershipCardEmailRequired ? "ON" : "OFF")</span>
                             <span class="lp-pill @(Model.MembershipCardAutoSendOnIssue ? "yes" : "no") ms-1"><i class="bi bi-send-check-fill"></i>@(Model.MembershipCardAutoSendOnIssue ? "SENT ON ISSUE" : "SENT ON DEMAND")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lab-section-title">Patient Access</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-person-badge-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Required Patient Portal</div>
+                            <div class="lp-desc">Yes: a B2C lab booking creates the patient's Patient Portal login and e-mails the credentials. No: lab bookings do not create portal logins. B2B is not affected.</div>
+                            <span class="lp-pill @(Model.LabPatientPortalRequired ? "yes" : "no")"><i class="bi @(Model.LabPatientPortalRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.LabPatientPortalRequired ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>

@@ -150,6 +150,8 @@ public class HospitalSettingsViewModel
 
     [Display(Name = "Doctor IP Scheduled Time")]
     public string? DoctorIpAutoRunTime { get; set; }   // "HH:mm" string for HTML time input
+    [Display(Name = "Required Patient Portal")]
+    public bool LabPatientPortalRequired { get; set; }
 
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;

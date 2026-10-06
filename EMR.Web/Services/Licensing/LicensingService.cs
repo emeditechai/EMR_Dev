@@ -87,6 +87,7 @@ public sealed class LicensingService(
     // ── the gate ──────────────────────────────────────────────────────────────
     public async Task<LicenseGateResult> EvaluateAccessAsync(HttpContext http, bool force = false)
     {
+        if (!_o.Enabled) return LicenseGateResult.Of(LicenseGateStatus.Valid);   // Debug build of a developer (see LicensingOptions)
         // a missing password or setting blocks every page (the application itself keeps running to say so)
         if (_o.ConfigurationProblem != null)
             return LicenseGateResult.Of(LicenseGateStatus.ConfigurationMissing, _o.ConfigurationProblem);

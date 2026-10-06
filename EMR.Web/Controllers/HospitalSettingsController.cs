@@ -296,6 +296,7 @@ public class HospitalSettingsController(
             existing.MembershipCardAutoSendOnIssue = model.MembershipCardAutoSendOnIssue;
             existing.MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(model.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : model.MembershipCardMessageTemplate.Trim();
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
+            existing.LabPatientPortalRequired = model.LabPatientPortalRequired;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -358,6 +359,7 @@ public class HospitalSettingsController(
             MembershipCardAutoSendOnIssue = s.MembershipCardAutoSendOnIssue,
             MembershipCardMessageTemplate = s.MembershipCardMessageTemplate,
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
+            LabPatientPortalRequired = s.LabPatientPortalRequired,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -407,6 +409,7 @@ public class HospitalSettingsController(
             MembershipCardAutoSendOnIssue = m.MembershipCardAutoSendOnIssue,
             MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(m.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : m.MembershipCardMessageTemplate.Trim(),
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
+            LabPatientPortalRequired = m.LabPatientPortalRequired,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId
