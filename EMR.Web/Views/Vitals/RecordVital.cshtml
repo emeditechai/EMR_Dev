@@ -1193,11 +1193,13 @@
         var td = btn.closest('td');
         if (!td) return;
 
-        var d = td.dataset;
+        // the cells carry each value with its unit; '—' means no reading
+        var d = {};
+        Object.keys(td.dataset).forEach(function (k) { d[k] = td.dataset[k] === '—' ? '' : td.dataset[k]; });
 
         // header
         val('mvDate', d.date || '');
-        val('mvBy',   d.by   || '');
+        val('mvBy',   d.by   || '—');
 
         // anthropometric
         val('mvHeight', d.height ? d.height : null);

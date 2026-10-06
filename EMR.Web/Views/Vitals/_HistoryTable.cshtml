@@ -154,7 +154,7 @@ else
                         data-glucose="@(v.BloodGlucose.HasValue  ? v.BloodGlucose + " mg/dL" + (v.GlucoseType!=null?" ("+v.GlucoseType+")":"") : "—")"
                         data-pain="@(v.PainScore.HasValue        ? v.PainScore + "/10" : "—")"
                         data-paincls="@(v.PainScore.HasValue     ? (v.PainScore<=3?"ok":v.PainScore<=6?"warn":"high") : "na")"
-                        data-notes="@Html.Encode(v.Notes ?? "")">
+                        data-notes="@(v.Notes ?? "")">
                         <div class="d-flex gap-1 justify-content-center align-items-center">
                             @* View always *@
                             <button type="button" class="btn btn-xs btn-outline-info py-0 px-1 btn-view-vital" title="View Details" style="font-size: 0.72rem;">

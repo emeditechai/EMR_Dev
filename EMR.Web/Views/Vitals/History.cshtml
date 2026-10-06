@@ -356,15 +356,17 @@
         var td = btn.closest('td');
         if (!td) return;
 
-        var d = td.dataset;
+        // the cells carry each value with its unit; '—' means no reading
+        var d = {};
+        Object.keys(td.dataset).forEach(function (k) { d[k] = td.dataset[k] === '—' ? '' : td.dataset[k]; });
 
         // header
         val('mvDate', d.date || '');
-        val('mvBy',   d.by   || '');
+        val('mvBy',   d.by   || '—');
 
         // anthropometric
-        val('mvHeight', d.height ? d.height + ' cm' : null);
-        val('mvWeight', d.weight ? d.weight + ' kg' : null);
+        val('mvHeight', d.height || null);
+        val('mvWeight', d.weight || null);
         val('mvBmi',    d.bmi    || null);
 
         var bmiEl = document.getElementById('mvBmiCat');
@@ -378,19 +380,19 @@
         }
 
         // cardiovascular
-        chip('mvBp',    d.bp    ? d.bp    + ' mmHg' : null, d.bpcls);
-        chip('mvPulse', d.pulse ? d.pulse + ' bpm'  : null, d.pulsecls);
-        chip('mvSpo2',  d.spo2  ? d.spo2  + '%'     : null, d.spo2cls);
+        chip('mvBp',    d.bp    || null, d.bpcls);
+        chip('mvPulse', d.pulse || null, d.pulsecls);
+        chip('mvSpo2',  d.spo2  || null, d.spo2cls);
 
         // general
-        chip('mvTemp',  d.temp  ? d.temp  + ' °F'         : null, d.tempcls);
-        chip('mvRr',    d.rr    ? d.rr    + ' breaths/min' : null, d.rrcls);
+        chip('mvTemp',  d.temp  || null, d.tempcls);
+        chip('mvRr',    d.rr    || null, d.rrcls);
 
         // optional
         var hasGlucose = d.glucose && d.glucose !== '';
         var hasPain    = d.pain    && d.pain    !== '';
         if (hasGlucose) {
-            val('mvGlucose', d.glucose + ' mg/dL');
+            val('mvGlucose', d.glucose);
             show('mvGlucoseCol');
         } else {
             hide('mvGlucoseCol');
@@ -398,7 +400,7 @@
         if (hasPain) {
             var painNum = parseInt(d.pain, 10);
             var painCls = d.paincls || (painNum <= 3 ? 'ok' : painNum <= 6 ? 'warn' : 'high');
-            chip('mvPain', d.pain + '/10', painCls);
+            chip('mvPain', d.pain, painCls);
             show('mvPainCol');
         } else {
             hide('mvPainCol');

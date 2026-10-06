@@ -59,6 +59,10 @@ public class VitalRow
     public string?  Notes             { get; set; }
     public DateTime RecordedOn        { get; set; }
     public string?  RecordedByName    { get; set; }
+    /// <summary>Older usp_PatientVital_GetByPatient (before script 2218) names the recorder column RecordedByUsername;
+    /// read it into RecordedByName so "Recorded by" is never lost. Not sent to clients.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string?  RecordedByUsername { get => null; set { if (!string.IsNullOrWhiteSpace(value)) RecordedByName ??= value; } }
     public int      TotalCount        { get; set; }
     public bool     CanModify         { get; set; }
 }
