@@ -87,6 +87,9 @@ public class LabFranchiseWizardViewModel
     [Display(Name = "Preprinted Barcode")]
     public bool PreprintedBarcode { get; set; } = true;
 
+    [Display(Name = "Report Header Required")]
+    public bool IsReportHeaderRequired { get; set; }
+
     // === Tab 2: Credit Limit ===
     public int Credit_ID { get; set; }
 

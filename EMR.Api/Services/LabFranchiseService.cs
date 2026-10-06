@@ -57,6 +57,7 @@ public class LabFranchiseService(IDbConnectionFactory connectionFactory) : ILabF
         parameters.Add("@IsActive", request.IsActive);
         parameters.Add("@IsNotificationRequired", request.IsNotificationRequired);
         parameters.Add("@PreprintedBarcode", request.PreprintedBarcode);
+        parameters.Add("@IsReportHeaderRequired", request.IsReportHeaderRequired);
         parameters.Add("@Credit_Facility_Type", request.Credit_Facility_Type);
         parameters.Add("@Credit_Limit", request.Credit_Limit);
         parameters.Add("@Credit_Days", request.Credit_Days);
@@ -97,6 +98,7 @@ public class LabFranchiseService(IDbConnectionFactory connectionFactory) : ILabF
         parameters.Add("@IsActive", request.IsActive);
         parameters.Add("@IsNotificationRequired", request.IsNotificationRequired);
         parameters.Add("@PreprintedBarcode", request.PreprintedBarcode);
+        parameters.Add("@IsReportHeaderRequired", request.IsReportHeaderRequired);
         parameters.Add("@Credit_Facility_Type", request.Credit_Facility_Type);
         parameters.Add("@Credit_Limit", request.Credit_Limit);
         parameters.Add("@Credit_Days", request.Credit_Days);

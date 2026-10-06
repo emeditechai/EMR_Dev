@@ -144,6 +144,7 @@ public class LabFranchisesController(
                 IsActive = model.IsActive,
                 IsNotificationRequired = model.IsNotificationRequired,
                 PreprintedBarcode = model.PreprintedBarcode,
+                IsReportHeaderRequired = model.IsReportHeaderRequired,
                 Credit_Facility_Type = model.Credit_Facility_Type,
                 Credit_Limit = model.Credit_Limit,
                 Credit_Days = model.Credit_Days,
@@ -219,6 +220,7 @@ public class LabFranchisesController(
                 IsActive = item.IsActive,
                 IsNotificationRequired = item.IsNotificationRequired,
                 PreprintedBarcode = item.PreprintedBarcode,
+                IsReportHeaderRequired = item.IsReportHeaderRequired,
 
                 Credit_ID = item.Credit_ID,
                 Credit_Facility_Type = item.Credit_Facility_Type,
@@ -287,6 +289,7 @@ public class LabFranchisesController(
                 IsActive = model.IsActive,
                 IsNotificationRequired = model.IsNotificationRequired,
                 PreprintedBarcode = model.PreprintedBarcode,
+                IsReportHeaderRequired = model.IsReportHeaderRequired,
                 Credit_Facility_Type = model.Credit_Facility_Type,
                 Credit_Limit = model.Credit_Limit,
                 Credit_Days = model.Credit_Days,

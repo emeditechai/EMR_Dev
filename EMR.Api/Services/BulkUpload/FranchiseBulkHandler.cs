@@ -213,7 +213,7 @@ public class FranchiseBulkHandler(ILabFranchiseService service, LabBulkLookups l
         Franchise_ID = f.Franchise_ID, Franchise_Name = f.Franchise_Name, Mobile_No = f.Mobile_No, Email = f.Email,
         Franchise_Type = f.Franchise_Type, Parent_Branch_ID = f.Parent_Branch_ID, Onboarding_Date = f.Onboarding_Date, Go_Live_Date = f.Go_Live_Date,
         Agreement_Doc_Path = f.Agreement_Doc_Path, Agreement_Valid_From = f.Agreement_Valid_From, Agreement_Valid_To = f.Agreement_Valid_To,
-        Status = f.Status, IsActive = f.IsActive, IsNotificationRequired = f.IsNotificationRequired, PreprintedBarcode = f.PreprintedBarcode,
+        Status = f.Status, IsActive = f.IsActive, IsNotificationRequired = f.IsNotificationRequired, PreprintedBarcode = f.PreprintedBarcode, IsReportHeaderRequired = f.IsReportHeaderRequired,
         Credit_Facility_Type = f.Credit_Facility_Type == 0 ? 1 : f.Credit_Facility_Type, Credit_Limit = f.Credit_Limit, Credit_Days = f.Credit_Days,
         Grace_Days = f.Grace_Days, Security_Deposit_Amount = f.Security_Deposit_Amount, Security_Deposit_Received_On = f.Security_Deposit_Received_On,
         Interest_On_Overdue_Percent = f.Interest_On_Overdue_Percent, Temporary_Limit_Increase = f.Temporary_Limit_Increase, Temp_Limit_Valid_Till = f.Temp_Limit_Valid_Till
@@ -224,7 +224,7 @@ public class FranchiseBulkHandler(ILabFranchiseService service, LabBulkLookups l
         CompanyId = ctx.CompanyId, Franchise_Name = u.Franchise_Name, Mobile_No = u.Mobile_No, Email = u.Email, Franchise_Type = u.Franchise_Type,
         Parent_Branch_ID = u.Parent_Branch_ID, Onboarding_Date = u.Onboarding_Date, Go_Live_Date = u.Go_Live_Date,
         Agreement_Valid_From = u.Agreement_Valid_From, Agreement_Valid_To = u.Agreement_Valid_To, Status = false, IsActive = u.IsActive,
-        IsNotificationRequired = u.IsNotificationRequired, PreprintedBarcode = u.PreprintedBarcode, Credit_Facility_Type = u.Credit_Facility_Type,
+        IsNotificationRequired = u.IsNotificationRequired, PreprintedBarcode = u.PreprintedBarcode, IsReportHeaderRequired = u.IsReportHeaderRequired, Credit_Facility_Type = u.Credit_Facility_Type,
         Credit_Limit = u.Credit_Limit, Credit_Days = u.Credit_Days, Grace_Days = u.Grace_Days, Security_Deposit_Amount = u.Security_Deposit_Amount,
         Security_Deposit_Received_On = u.Security_Deposit_Received_On, Interest_On_Overdue_Percent = u.Interest_On_Overdue_Percent, UserId = ctx.UserId
     };

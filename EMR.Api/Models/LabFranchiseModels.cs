@@ -22,6 +22,7 @@ public class LabFranchiseModel
     public bool IsActive { get; set; }
     public bool IsNotificationRequired { get; set; }
     public bool PreprintedBarcode { get; set; } = true;
+    public bool IsReportHeaderRequired { get; set; }
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; }
     public int? ModifiedBy { get; set; }
@@ -58,6 +59,7 @@ public class LabFranchiseCreateRequestModel
     public bool IsActive { get; set; } = true;
     public bool IsNotificationRequired { get; set; } = false;
     public bool PreprintedBarcode { get; set; } = true;
+    public bool IsReportHeaderRequired { get; set; }
 
     // Credit Limit Details
     public int Credit_Facility_Type { get; set; } = 1;
@@ -90,6 +92,7 @@ public class LabFranchiseUpdateRequestModel
     public bool IsActive { get; set; }
     public bool IsNotificationRequired { get; set; }
     public bool PreprintedBarcode { get; set; }
+    public bool IsReportHeaderRequired { get; set; }
 
     // Credit Limit Details
     public int Credit_Facility_Type { get; set; }
