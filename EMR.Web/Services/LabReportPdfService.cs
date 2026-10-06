@@ -100,6 +100,9 @@ public class LabReportPdfService(
         catch (HttpRequestException) { /* the report still prints without the signature panel */ }
 
         var vm = LabReportPrintBuilder.Build(detail, order, meta, settings, branch, printedBy, DateTime.Now, scope, signoffLevels);
+        // franchise B2B bill whose Report Header Required is No: no header / footer (B2C and company B2B unchanged)
+        vm.FranchiseHeaderRequired = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId);
+        if (vm.FranchiseHeaderRequired == false) vm.ShowLetterhead = false;
 
         // the uploaded signature images live outside wwwroot and are read here, by file name only
         foreach (var level in vm.LevelSignatories)

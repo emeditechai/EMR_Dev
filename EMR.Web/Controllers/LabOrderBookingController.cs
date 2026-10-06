@@ -2282,12 +2282,15 @@ namespace EMR.Web.Controllers
                 };
             }).ToList();
 
+            // franchise B2B bill: the franchise's Report Header Required decides (null for B2C / company B2B)
+            var franchiseHeader = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId);
+
             var vm = new PrintBillViewModel
             {
                 IsActive              = detail.IsActive,
-                // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Bill Print Header = No prints this
-                // in-app B2C bill without header / footer (B2B always has them; PrintBillAnonymous is not touched)
-                ShowHeaderFooter      = detail.IsB2B || (settings?.LabB2CBillPrintHeaderRequired ?? true),
+                // B2C: Hospital Settings > LAB > Required B2C Bill Print Header. B2B: a franchise's Report Header Required
+                // (Franchise Master); a company's B2B bill always has the header / footer.
+                ShowHeaderFooter      = detail.IsB2B ? (franchiseHeader ?? true) : (settings?.LabB2CBillPrintHeaderRequired ?? true),
                 // Hospital
                 HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
                 HospitalType          = settings?.HospitalType,
@@ -3026,6 +3029,9 @@ namespace EMR.Web.Controllers
             var vm = new PrintBillViewModel
             {
                 IsActive              = detail.IsActive,
+                // the e-mailed / sent bill PDF: a franchise B2B bill follows the franchise's Report Header Required;
+                // B2C and company B2B bills keep the header / footer as before
+                ShowHeaderFooter      = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId) ?? true,
                 HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
                 HospitalType          = settings?.HospitalType,
                 RegistrationNumber    = settings?.RegistrationNumber,

@@ -16,6 +16,9 @@ public class LabReportPrintViewModel
     /// <summary>False = no letterhead header / footer, for pre-printed letterhead paper (in-app B2C report print,
     /// Hospital Settings > LAB > Required B2C Lab Report Print Header, SQLScripts/2206). Emailed / WhatsApp copies set it back to true.</summary>
     public bool ShowLetterhead { get; set; } = true;
+    /// <summary>Franchise B2B bill: the franchise's Report Header Required (Franchise Master, script 2217); No = the
+    /// report prints and is e-mailed without header / footer. Null for B2C and company B2B bills.</summary>
+    public bool? FranchiseHeaderRequired { get; set; }
     public bool IsB2B { get; set; }
 
     // ── Patient ───────────────────────────────────────────────────────────────
