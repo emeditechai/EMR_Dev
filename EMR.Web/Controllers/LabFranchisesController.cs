@@ -5,6 +5,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using EMR.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -221,6 +222,9 @@ public class LabFranchisesController(
                 IsNotificationRequired = item.IsNotificationRequired,
                 PreprintedBarcode = item.PreprintedBarcode,
                 IsReportHeaderRequired = item.IsReportHeaderRequired,
+                Bypass_Credit_Limit = item.Bypass_Credit_Limit,
+                Bypass_Effective_From = item.Bypass_Effective_From,
+                Bypass_Effective_To = item.Bypass_Effective_To,
 
                 Credit_ID = item.Credit_ID,
                 Credit_Facility_Type = item.Credit_Facility_Type,
@@ -418,6 +422,51 @@ public class LabFranchisesController(
         }
 
         return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequiresPermission("MASTER.LABFRANCHISES", PermissionControls.Edit)]
+    public async Task<IActionResult> UpdateCreditBypass(int id, bool bypassCreditLimit, DateTime? effectiveFrom, DateTime? effectiveTo)
+    {
+        if (bypassCreditLimit)
+        {
+            if (effectiveFrom is null || effectiveTo is null)
+                return Json(new { success = false, message = "Effective From and Effective To are required to bypass the credit limit." });
+            if (effectiveTo < effectiveFrom)
+                return Json(new { success = false, message = "Effective To cannot be earlier than Effective From." });
+        }
+
+        try
+        {
+            await franchiseApiClient.UpdateCreditBypassAsync(new LabFranchiseCreditBypassRequestModel
+            {
+                Franchise_ID = id,
+                Bypass_Credit_Limit = bypassCreditLimit,
+                Bypass_Effective_From = bypassCreditLimit ? effectiveFrom : null,
+                Bypass_Effective_To = bypassCreditLimit ? effectiveTo : null,
+                UserId = User.GetUserId()
+            });
+
+            await auditLogService.LogAsync(
+                "Lab Franchise Credit Limit Bypass",
+                "UpdateCreditBypass",
+                bypassCreditLimit
+                    ? $"Credit limit bypass ON for Lab Franchise #{id} from {effectiveFrom:dd-MMM-yyyy} to {effectiveTo:dd-MMM-yyyy}"
+                    : $"Credit limit bypass OFF for Lab Franchise #{id}",
+                User.GetUserId(),
+                User.GetCurrentBranchId() ?? 1);
+
+            return Json(new { success = true, message = bypassCreditLimit ? "Credit limit bypass saved." : "Credit limit bypass turned off." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The service is not reachable. Please try again." });
+        }
     }
 
     [HttpPost]

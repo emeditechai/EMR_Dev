@@ -122,6 +122,24 @@ public class LabFranchiseController(ILabFranchiseService service, ILogger<LabFra
         }
     }
 
+    [HttpPatch("{id:int}/credit-bypass")]
+    public async Task<IActionResult> UpdateCreditBypass(int id, [FromBody] LabFranchiseCreditBypassRequestModel request)
+    {
+        if (id != request.Franchise_ID)
+            return BadRequest(new { message = "ID mismatch." });
+
+        try
+        {
+            await service.UpdateCreditBypassAsync(request);
+            return Ok(new { message = "Credit limit bypass updated successfully." });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occurred while updating credit bypass for Lab Franchise #{Id}", id);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, [FromQuery] int? userId = null)
     {

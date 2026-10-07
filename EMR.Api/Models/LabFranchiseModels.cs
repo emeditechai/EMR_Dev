@@ -23,6 +23,9 @@ public class LabFranchiseModel
     public bool IsNotificationRequired { get; set; }
     public bool PreprintedBarcode { get; set; } = true;
     public bool IsReportHeaderRequired { get; set; }
+    public bool Bypass_Credit_Limit { get; set; }
+    public DateTime? Bypass_Effective_From { get; set; }
+    public DateTime? Bypass_Effective_To { get; set; }
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; }
     public int? ModifiedBy { get; set; }
@@ -120,5 +123,14 @@ public class LabFranchiseToggleSuspensionRequestModel
     public int Franchise_ID { get; set; }
     public bool Status { get; set; } // true = Suspended, false = Active
     public string? Suspension_Reason { get; set; }
+    public int? UserId { get; set; }
+}
+
+public class LabFranchiseCreditBypassRequestModel
+{
+    public int Franchise_ID { get; set; }
+    public bool Bypass_Credit_Limit { get; set; }
+    public DateTime? Bypass_Effective_From { get; set; }
+    public DateTime? Bypass_Effective_To { get; set; }
     public int? UserId { get; set; }
 }

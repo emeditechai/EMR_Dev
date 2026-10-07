@@ -90,6 +90,11 @@ public class LabFranchiseWizardViewModel
     [Display(Name = "Report Header Required")]
     public bool IsReportHeaderRequired { get; set; }
 
+    // Shown and changed only through the "Bypass Cr Limit" popup on Edit - not posted with the main form.
+    public bool Bypass_Credit_Limit { get; set; }
+    public DateTime? Bypass_Effective_From { get; set; }
+    public DateTime? Bypass_Effective_To { get; set; }
+
     // === Tab 2: Credit Limit ===
     public int Credit_ID { get; set; }
 

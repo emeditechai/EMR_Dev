@@ -20,7 +20,20 @@
                 <i class="bi bi-pencil-square me-2"></i>Edit Franchise: @Model.Franchise_Name (@Model.Franchise_Code)
             </h4>
         </div>
-        <div>
+        <div class="d-flex align-items-center gap-2">
+            <span id="bypassStatusBadge" class="badge @(Model.Bypass_Credit_Limit ? "bg-warning text-dark" : "bg-light text-muted border") p-2 px-3">
+                @if (Model.Bypass_Credit_Limit)
+                {
+                    <text><i class="bi bi-unlock-fill me-1"></i>Credit limit bypassed @Model.Bypass_Effective_From?.ToString("dd MMM yyyy") – @Model.Bypass_Effective_To?.ToString("dd MMM yyyy")</text>
+                }
+                else
+                {
+                    <text><i class="bi bi-lock me-1"></i>Credit limit enforced</text>
+                }
+            </span>
+            <button type="button" class="btn btn-warning px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#creditBypassModal">
+                <i class="bi bi-shield-slash me-1"></i> Bypass Cr Limit
+            </button>
             <a asp-action="Index" class="btn btn-outline-secondary px-3 shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
@@ -303,9 +316,86 @@
     </div>
 </div>
 
+<!-- Bypass Credit Limit popup: saved on its own, not with the main Edit form -->
+<div class="modal fade" id="creditBypassModal" tabindex="-1" aria-labelledby="creditBypassModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title fw-bold" id="creditBypassModalLabel"><i class="bi bi-shield-slash me-2"></i>Bypass Credit Limit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">@Model.Franchise_Name (@Model.Franchise_Code) — allow billing beyond the credit limit for a set period.</p>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="bypassCreditLimitSwitch" @(Model.Bypass_Credit_Limit ? "checked" : "")>
+                    <label class="form-check-label fw-bold" for="bypassCreditLimitSwitch">Bypass credit limit</label>
+                </div>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label for="bypassEffectiveFrom" class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="bypassEffectiveFrom" value="@Model.Bypass_Effective_From?.ToString("yyyy-MM-dd")">
+                    </div>
+                    <div class="col-6">
+                        <label for="bypassEffectiveTo" class="form-label fw-semibold">Effective To <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="bypassEffectiveTo" value="@Model.Bypass_Effective_To?.ToString("yyyy-MM-dd")">
+                    </div>
+                </div>
+                <div id="bypassError" class="alert alert-danger py-2 small mt-3 d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="btnUpdateCreditBypass"><i class="bi bi-check2-circle me-1"></i>Update</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        (function () {
+            var sw = document.getElementById('bypassCreditLimitSwitch');
+            var from = document.getElementById('bypassEffectiveFrom');
+            var to = document.getElementById('bypassEffectiveTo');
+            var err = document.getElementById('bypassError');
+            var btn = document.getElementById('btnUpdateCreditBypass');
+
+            function syncDates() { from.disabled = to.disabled = !sw.checked; }
+            sw.addEventListener('change', syncDates);
+            syncDates();
+
+            function showError(msg) { err.textContent = msg; err.classList.remove('d-none'); }
+
+            btn.addEventListener('click', function () {
+                err.classList.add('d-none');
+                if (sw.checked) {
+                    if (!from.value || !to.value) { showError('Effective From and Effective To are required.'); return; }
+                    if (to.value < from.value) { showError('Effective To cannot be earlier than Effective From.'); return; }
+                }
+                var body = new URLSearchParams();
+                body.append('id', '@Model.Franchise_ID');
+                body.append('bypassCreditLimit', sw.checked ? 'true' : 'false');
+                if (sw.checked) { body.append('effectiveFrom', from.value); body.append('effectiveTo', to.value); }
+                body.append('__RequestVerificationToken', document.querySelector('#franchiseWizardEditForm input[name="__RequestVerificationToken"]').value);
+
+                btn.disabled = true;
+                fetch('@Url.Action("UpdateCreditBypass", "LabFranchises")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: body
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res.success) { showError(res.message || 'Could not update the credit limit bypass.'); return; }
+                    bootstrap.Modal.getInstance(document.getElementById('creditBypassModal')).hide();
+                    Swal.fire({ icon: 'success', title: 'Saved', text: res.message, timer: 1600, showConfirmButton: false })
+                        .then(function () { location.reload(); });
+                })
+                .catch(function () { showError('Could not reach the server. Please try again.'); })
+                .finally(function () { btn.disabled = false; });
+            });
+        })();
+
         function goToStep(stepNumber) {
             var tabTrigger = document.querySelector('#tab-step' + stepNumber);
             var tab = new bootstrap.Tab(tabTrigger);

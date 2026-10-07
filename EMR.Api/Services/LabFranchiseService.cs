@@ -148,6 +148,23 @@ public class LabFranchiseService(IDbConnectionFactory connectionFactory) : ILabF
         );
     }
 
+    public async Task UpdateCreditBypassAsync(LabFranchiseCreditBypassRequestModel request)
+    {
+        using var connection = connectionFactory.CreateConnection();
+        var parameters = new DynamicParameters();
+        parameters.Add("@Franchise_ID", request.Franchise_ID);
+        parameters.Add("@Bypass_Credit_Limit", request.Bypass_Credit_Limit);
+        parameters.Add("@Bypass_Effective_From", request.Bypass_Effective_From?.Date);
+        parameters.Add("@Bypass_Effective_To", request.Bypass_Effective_To?.Date);
+        parameters.Add("@UserId", request.UserId);
+
+        await connection.ExecuteAsync(
+            "dbo.usp_Api_LabFranchiseMaster_UpdateCreditBypass",
+            parameters,
+            commandType: CommandType.StoredProcedure
+        );
+    }
+
     public async Task DeleteAsync(int id, int? userId = null)
     {
         using var connection = connectionFactory.CreateConnection();

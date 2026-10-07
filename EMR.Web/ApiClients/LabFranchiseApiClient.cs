@@ -87,6 +87,17 @@ public class LabFranchiseApiClient(IHttpClientFactory httpClientFactory, ILogger
         }
     }
 
+    public async Task UpdateCreditBypassAsync(LabFranchiseCreditBypassRequestModel request)
+    {
+        var response = await Client.PatchAsJsonAsync($"api/LabFranchise/{request.Franchise_ID}/credit-bypass", request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+            var msg = err?.TryGetValue("message", out var m) == true ? m?.ToString() : "Failed to update the credit limit bypass.";
+            throw new InvalidOperationException(msg);
+        }
+    }
+
     public async Task DeleteAsync(int id, int? userId = null)
     {
         var url = $"api/LabFranchise/{id}";
