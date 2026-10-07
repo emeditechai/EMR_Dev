@@ -1681,8 +1681,19 @@
             // ── Initial load of investigations ──
             loadInvestigations();
 
+            // ── Booking Date & Time: an untouched field is refreshed to "now" at save (as B2C does), so the time the page
+            //    was opened is never rejected as "less than current Date & Time"; once the user focuses, opens the picker or
+            //    changes it, their value is kept and the existing checks apply unchanged ──
+            window.isB2BBookingDateTouched = false;
+            $('#BookingDateTime').on('focus click input change', function () { window.isB2BBookingDateTouched = true; });
+
             // ── Form submit validation (Strictly matching B2C + B2B Partner check) ──
             $('#frmB2BBooking').on('submit', function(e) {
+                if (!window.isB2BBookingDateTouched) {
+                    var _n = new Date(), _p = function (v) { return String(v).padStart(2, '0'); };
+                    $('#BookingDateTime').val(`${_n.getFullYear()}-${_p(_n.getMonth() + 1)}-${_p(_n.getDate())}T${_p(_n.getHours())}:${_p(_n.getMinutes())}`);
+                    $('span[data-valmsg-for="BookingDateTime"]').text('');   // a message from an earlier attempt no longer applies
+                }
                 // Partner Selection Validation
                 var chosenAgentId = currentAgentType === 'C' ? parseInt($('#ddlCompany').val()) : parseInt($('#ddlFranchise').val());
                 if (chosenAgentId > 0) {
