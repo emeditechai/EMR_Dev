@@ -225,6 +225,8 @@ public class LabFranchisesController(
                 Bypass_Credit_Limit = item.Bypass_Credit_Limit,
                 Bypass_Effective_From = item.Bypass_Effective_From,
                 Bypass_Effective_To = item.Bypass_Effective_To,
+                Bypass_Updated_Date = item.Bypass_Updated_Date,
+                Bypass_Updated_By_Name = item.Bypass_Updated_By_Name,
 
                 Credit_ID = item.Credit_ID,
                 Credit_Facility_Type = item.Credit_Facility_Type,

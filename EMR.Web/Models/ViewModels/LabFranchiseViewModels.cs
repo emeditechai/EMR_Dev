@@ -94,6 +94,8 @@ public class LabFranchiseWizardViewModel
     public bool Bypass_Credit_Limit { get; set; }
     public DateTime? Bypass_Effective_From { get; set; }
     public DateTime? Bypass_Effective_To { get; set; }
+    public DateTime? Bypass_Updated_Date { get; set; }
+    public string? Bypass_Updated_By_Name { get; set; }
 
     // === Tab 2: Credit Limit ===
     public int Credit_ID { get; set; }

@@ -26,6 +26,9 @@ public class LabFranchiseModel
     public bool Bypass_Credit_Limit { get; set; }
     public DateTime? Bypass_Effective_From { get; set; }
     public DateTime? Bypass_Effective_To { get; set; }
+    public int? Bypass_Updated_By { get; set; }
+    public DateTime? Bypass_Updated_Date { get; set; }
+    public string? Bypass_Updated_By_Name { get; set; }
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; }
     public int? ModifiedBy { get; set; }

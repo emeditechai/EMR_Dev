@@ -169,6 +169,7 @@
                             <th>Parent Branch</th>
                             <th>Credit Facility</th>
                             <th class="text-end">Credit Limit</th>
+                            <th class="text-center">Cr Limit Bypass</th>
                             <th class="text-center">Suspended?</th>
                             <th class="text-center">IsActive</th>
                             <th class="text-end pe-3" style="width: 200px;">Actions</th>
@@ -178,7 +179,7 @@
                         @if (!Model.Franchises.Any())
                         {
                             <tr>
-                                <td colspan="10" class="text-center py-5 text-muted">
+                                <td colspan="11" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                     No Franchise records found matching the criteria.
                                 </td>
@@ -216,6 +217,21 @@
                                         @if (item.Temporary_Limit_Increase > 0)
                                         {
                                             <div class="small text-success">+₹@item.Temporary_Limit_Increase.ToString("N0") (Temp)</div>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (item.Bypass_Credit_Limit)
+                                        {
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-unlock-fill me-1"></i>Bypassed</span>
+                                            <div class="small text-muted mt-1">@item.Bypass_Effective_From?.ToString("dd MMM yy") – @item.Bypass_Effective_To?.ToString("dd MMM yy")</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border">Off</span>
+                                        }
+                                        @if (item.Bypass_Updated_Date.HasValue)
+                                        {
+                                            <div class="small text-muted" title="@item.Bypass_Updated_By_Name">Updated @item.Bypass_Updated_Date.Value.ToString("dd MMM yy")</div>
                                         }
                                     </td>
                                     <td class="text-center">
