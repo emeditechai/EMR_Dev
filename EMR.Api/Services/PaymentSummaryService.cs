@@ -42,6 +42,12 @@ public class PaymentSummaryService(IDbConnectionFactory db) : IPaymentSummarySer
             summary.TotalPaid     = (decimal)existing.TotalPaid;
             summary.BalanceDue    = (decimal)existing.BalanceDue;
             summary.PaymentStatus = (string)existing.PaymentStatus;
+
+            // what the bill's receipts add up to - the payment is checked against this (double-payment guard)
+            using var con2 = db.CreateConnection();
+            summary.PaidFromReceipts = await con2.ExecuteScalarAsync<decimal>(
+                "SELECT ISNULL(SUM(PaidAmount), 0) FROM dbo.PaymentDetail WHERE PaymentHeaderId = @Id AND IsActive = 1",
+                new { Id = (int)existing.PaymentHeaderId });
         }
         else
         {

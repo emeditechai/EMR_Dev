@@ -1339,6 +1339,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 discountApprovedBy:   approval.approvedBy,
                 roundOffAmount:       roundOff,
                 netAmount:            roundedNet,
+                // double-payment guard (payment on a saved bill): what the bill had received when this screen opened;
+                // the server refuses the payment if another one was saved meanwhile. A booking's first payment is not checked.
+                expectedTotalPaid:    _isPreSave ? null : expectedPaidForGuard(),
                 payments,
                 lineItems
             };
@@ -1411,6 +1414,14 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.innerHTML = originalBtnHtml;
             _isSubmitting = false;
         }
+    }
+
+    // Double-payment guard: what the bill had received (its receipts) when this screen opened. Only sent when the
+    // summary carries that figure - without it the server's other checks (lock, over-payment) still apply.
+    function expectedPaidForGuard() {
+        if (!_summary?.hasExistingPayment) return 0;
+        const v = _summary.paidFromReceipts;
+        return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
     }
 
     // Money Receipt of a due collection (MoneyReceipt/Print, SQLScripts/2204). The tab is opened from the button's own

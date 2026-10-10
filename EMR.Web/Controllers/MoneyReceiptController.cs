@@ -74,7 +74,15 @@ public class MoneyReceiptController(
                 Amount         = (decimal)head.Amount,
                 BalanceAfter   = (decimal)head.BalanceAfter,
                 ReceivedByName = (string?)head.ReceivedByName,
-                Lines          = lines
+                Lines          = lines,
+                GrossAmount    = (decimal?)head.GrossAmount ?? 0m,
+                DiscountAmount = (decimal?)head.DiscountAmount ?? 0m,
+                DiscountType   = (string?)head.DiscountType,
+                DiscountValue  = (decimal?)head.DiscountValue,
+                RoundOffAmount = (decimal?)head.RoundOffAmount ?? 0m,
+                DiscountReason = (string?)head.DiscountReason,
+                DiscountApprovedByName = (string?)head.DiscountApprovedByName,
+                DiscountOnThisReceipt  = (bool?)head.DiscountOnThisReceipt ?? false
             };
         }
         catch (Exception ex)

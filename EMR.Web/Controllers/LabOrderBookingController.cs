@@ -3198,35 +3198,7 @@ namespace EMR.Web.Controllers
             }
         }
 
-        [HttpPost]
-        public async Task<IActionResult> FranchiseWalletTopUp([FromBody] WalletTopUpDto request)
-        {
-            try
-            {
-                var branchId = User.GetCurrentBranchId();
-                if (branchId.HasValue) request.BranchId = branchId.Value;
-
-                var result = await b2bBillingApiClient.TopUpWalletAsync(request);
-                if (result != null && result.Success)
-                {
-                    await auditLogService.LogActivityAsync(
-                        eventType: "Franchise Wallet Top-Up",
-                        actionName: "LAB.FranchiseWalletTopUp",
-                        description: $"Wallet top-up of ₹{request.Amount:F2} processed for Franchise #{request.FranchiseId}. Receipt: {result.ReceiptNo}. New Balance: ₹{result.NewBalance:F2}.",
-                        userId: User.GetUserId(),
-                        branchId: branchId,
-                        moduleCode: "LAB",
-                        referenceNo: result.ReceiptNo
-                    );
-                    return Json(new { success = true, receiptNo = result.ReceiptNo, newBalance = result.NewBalance, message = result.Message });
-                }
-                return Json(new { success = false, error = result?.Message ?? "Wallet top-up failed." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, error = ex.Message });
-            }
-        }
+        // Franchise wallet top-up moved to Utility > Franchise Top-Up (FranchiseTopUpController, SQLScripts/2225).
 
         [HttpGet]
         public async Task<IActionResult> FranchiseWalletStatement(int franchiseId, DateTime? fromDate, DateTime? toDate)
@@ -3342,10 +3314,27 @@ namespace EMR.Web.Controllers
                 }
                 return Json(new { success = false, error = result?.Message ?? "Payment settlement failed." });
             }
+            catch (HttpRequestException ex)
+            {
+                // the procedure's own reason (already settled, more than due, reference reused ...) comes back as {"message": "..."}
+                return Json(new { success = false, error = ApiErrorMessage(ex.Message) ?? ex.Message });
+            }
             catch (Exception ex)
             {
                 return Json(new { success = false, error = ex.Message });
             }
+        }
+
+        private static string? ApiErrorMessage(string raw)
+        {
+            var i = raw.IndexOf('{');
+            if (i < 0) return null;
+            try
+            {
+                using var doc = JsonDocument.Parse(raw[i..]);
+                return doc.RootElement.TryGetProperty("message", out var m) ? m.GetString() : null;
+            }
+            catch (JsonException) { return null; }
         }
 
         [HttpGet]

@@ -75,7 +75,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
                     RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
                     DiscountReason, DiscountApprovedBy,
-                    (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName
+                    (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName,
+                    (SELECT ISNULL(SUM(pd.PaidAmount), 0) FROM PaymentDetail pd WHERE pd.PaymentHeaderId = PaymentHeader.PaymentHeaderId AND pd.IsActive = 1) AS PaidFromReceipts
                 FROM PaymentHeader
                 WHERE ModuleCode = 'OPD' AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { ModuleRefId = moduleRefId });
@@ -96,6 +97,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 summary.RoundOffAmount = (decimal)existing.RoundOffAmount;
                 summary.NetAmount    = (decimal)existing.NetAmount;
                 summary.TotalPaid    = (decimal)existing.TotalPaid;
+                summary.PaidFromReceipts = (decimal)existing.PaidFromReceipts;
                 summary.BalanceDue   = (decimal)existing.BalanceDue;
                 summary.PaymentStatus = (string)existing.PaymentStatus;
 
@@ -175,7 +177,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
                     RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
                     DiscountReason, DiscountApprovedBy,
-                    (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName
+                    (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName,
+                    (SELECT ISNULL(SUM(pd.PaidAmount), 0) FROM PaymentDetail pd WHERE pd.PaymentHeaderId = PaymentHeader.PaymentHeaderId AND pd.IsActive = 1) AS PaidFromReceipts
                 FROM PaymentHeader
                 WHERE ModuleCode = 'LAB' AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { ModuleRefId = moduleRefId });
@@ -196,6 +199,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 summary.RoundOffAmount = (decimal)existing.RoundOffAmount;
                 summary.NetAmount    = (decimal)existing.NetAmount;
                 summary.TotalPaid    = (decimal)existing.TotalPaid;
+                summary.PaidFromReceipts = (decimal)existing.PaidFromReceipts;
                 summary.BalanceDue   = (decimal)existing.BalanceDue;
                 summary.PaymentStatus = (string)existing.PaymentStatus;
 
@@ -265,6 +269,65 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
         }
     }
 
+    /// <summary>
+    /// Locks the bill row (LabOrder / PatientOPDService) for the rest of the payment transaction, so two payments of the
+    /// same bill can never be checked and saved at the same time. Returns an error when the bill is missing or cancelled.
+    /// </summary>
+    private static async Task<string?> LockBillAsync(System.Data.IDbConnection con, System.Data.IDbTransaction tx, SavePaymentRequest request)
+    {
+        bool? active = null;
+        if (request.ModuleCode == "LAB")
+            active = await con.QuerySingleOrDefaultAsync<bool?>(
+                "SELECT CAST(ISNULL(IsActive, 0) AS BIT) FROM dbo.LabOrder WITH (UPDLOCK, ROWLOCK) WHERE LabOrderId = @Id",
+                new { Id = request.ModuleRefId }, tx);
+        else if (request.ModuleCode == "OPD")
+            active = await con.QuerySingleOrDefaultAsync<bool?>(
+                "SELECT CAST(ISNULL(IsActive, 0) AS BIT) FROM dbo.PatientOPDService WITH (UPDLOCK, ROWLOCK) WHERE OPDServiceId = @Id",
+                new { Id = request.OPDServiceId is > 0 ? request.OPDServiceId.Value : request.ModuleRefId }, tx);
+        else
+            return null;   // other modules: unchanged
+
+        if (active is null) return "The bill was not found. Nothing was saved.";
+        if (active == false) return "This bill has been cancelled. A payment cannot be collected on it.";
+        return null;
+    }
+
+    /// <summary>
+    /// Checks the payment lines before anything is written: no negative amount, at most two decimals, an active payment
+    /// mode, and a UPI / bank reference that is not already recorded on another receipt (nor twice in this payment).
+    /// </summary>
+    private static async Task<string?> ValidatePaymentRowsAsync(System.Data.IDbConnection con, System.Data.IDbTransaction tx, IReadOnlyList<PaymentDetailRow>? payments)
+    {
+        if (payments is null || payments.Count == 0) return null;
+        if (payments.Any(p => p.PaidAmount < 0)) return "A payment amount cannot be negative.";
+        if (payments.Any(p => decimal.Round(p.PaidAmount, 2) != p.PaidAmount)) return "A payment amount can have at most two decimals.";
+
+        var paying = payments.Where(p => p.PaidAmount > 0).ToList();
+        if (paying.Count == 0) return null;
+
+        var methodIds = paying.Select(p => p.PaymentMethodId).Distinct().ToList();
+        var active = (await con.QueryAsync<int>(
+            "SELECT PaymentMethodId FROM dbo.PaymentMethodMaster WHERE IsActive = 1 AND PaymentMethodId IN @Ids",
+            new { Ids = methodIds }, tx)).ToHashSet();
+        if (methodIds.Any(id => !active.Contains(id))) return "Choose a valid payment mode for every amount entered.";
+
+        static string? Ref(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        var refs = paying.SelectMany(p => new[] { Ref(p.UPIRefNo), Ref(p.TransactionRef) }).Where(r => r != null).Select(r => r!).ToList();
+        var twice = refs.GroupBy(r => r, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+        if (twice != null) return $"Reference {twice.Key} is entered on more than one payment line.";
+        if (refs.Count > 0)
+        {
+            var used = await con.QueryFirstOrDefaultAsync<(string Ref, string? ReceiptNo)>(@"
+                SELECT TOP 1 COALESCE(NULLIF(LTRIM(RTRIM(pd.UPIRefNo)), ''), NULLIF(LTRIM(RTRIM(pd.TransactionRef)), '')) AS Ref, pd.ReceiptNo
+                FROM dbo.PaymentDetail pd
+                WHERE pd.IsActive = 1 AND (LTRIM(RTRIM(pd.UPIRefNo)) IN @Refs OR LTRIM(RTRIM(pd.TransactionRef)) IN @Refs)",
+                new { Refs = refs }, tx);
+            if (used.Ref != null)
+                return $"Reference {used.Ref} is already recorded on receipt {used.ReceiptNo ?? "(no receipt no.)"}. The same UPI / bank transaction cannot be collected twice.";
+        }
+        return null;
+    }
+
     public async Task<SavePaymentResult> SavePaymentAsync(SavePaymentRequest request, int? userId)
     {
         try
@@ -272,6 +335,15 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             using var con = db.CreateConnection();
             con.Open();
             using var tx = con.BeginTransaction();
+
+            // ── Double-payment guard 1: lock the bill itself, so payments of one bill are saved one after another
+            //    (from any screen or counter), and refuse a bill that does not exist or was cancelled ──
+            var billCheck = await LockBillAsync(con, tx, request);
+            if (billCheck != null) { tx.Rollback(); return new SavePaymentResult { Success = false, Error = billCheck }; }
+
+            // ── Double-payment guard 2: every amount, mode and reference is checked before anything is written ──
+            var paymentCheck = await ValidatePaymentRowsAsync(con, tx, request.Payments);
+            if (paymentCheck != null) { tx.Rollback(); return new SavePaymentResult { Success = false, Error = paymentCheck }; }
 
             // ── Real-time Master/Order Resolution & SubTotal Calculation ─────────────
             decimal dbSubTotal = 0m;
@@ -459,12 +531,20 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         ? request.HeaderDiscountValue
                         : ((decimal?)existingHeader.HeaderDiscountValue ?? 0m);
 
+                    // Due collection: when every item of the bill may be discounted, a % / ₹ discount is taken on the
+                    // balance due (as the payment screen calculates it); with non-discountable items it stays on the
+                    // discountable items' amount (unchanged).
+                    bool allItemsDiscountable = discountableSubTotal >= dbSubTotal - 0.001m && opdLines == null;
+                    decimal discBase = allItemsDiscountable
+                        ? Math.Max(0, (decimal)existingHeader.NetAmount - currentTotalPaid)
+                        : discountableSubTotal;
+
                     if (deptMode)
                         hDiscAmt = deptTotal;
                     else if (discType == "P")
-                        hDiscAmt = Math.Round(discountableSubTotal * (discVal / 100m), 2);
+                        hDiscAmt = Math.Min(discBase, Math.Round(discBase * (discVal / 100m), 2));
                     else
-                        hDiscAmt = Math.Min(discountableSubTotal, request.HeaderDiscountAmount > 0 ? request.HeaderDiscountAmount : discVal);
+                        hDiscAmt = Math.Min(discBase, request.HeaderDiscountAmount > 0 ? request.HeaderDiscountAmount : discVal);
 
                     if (existingDiscount > 0 && Math.Abs(hDiscAmt - existingDiscount) >= 0.01m)
                         return new SavePaymentResult { Success = false, Error = string.Format(DiscountAlreadyGivenMessage, existingDiscount) };
@@ -692,6 +772,19 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             int targetModuleRefId = (request.OPDServiceId.HasValue && request.OPDServiceId.Value > 0)
                 ? request.OPDServiceId.Value
                 : request.ModuleRefId;
+
+            // ── Double-payment guard 3: the bill must still have received exactly what the payment screen showed. If
+            //    another payment was saved meanwhile (second click, retried request, another counter) nothing is saved ──
+            if (request.ExpectedTotalPaid is { } expectedPaid && Math.Abs(currentTotalPaid - expectedPaid) >= 0.01m)
+            {
+                tx.Rollback();
+                return new SavePaymentResult
+                {
+                    Success = false,
+                    Error = $"This bill was updated while the payment screen was open: ₹{currentTotalPaid:N2} has now been received " +
+                            $"(the screen showed ₹{expectedPaid:N2}). Nothing was saved. Close and reopen the payment to see the current balance before collecting again."
+                };
+            }
 
             // ── Real-Time Balance Check & Overpayment Validation ─────────────────────
             decimal realTimeBalanceDue = Math.Max(0, realTimeNetAmount - currentTotalPaid);

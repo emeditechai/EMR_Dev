@@ -48,6 +48,7 @@ namespace EMR.Api.Services
             p.Add("@Narration", request.Narration);
             p.Add("@ReceiptNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
             p.Add("@NewBalance", dbType: DbType.Decimal, direction: ParameterDirection.Output);
+            p.Add("@ExpectedBalance", request.ExpectedBalance);
 
             await conn.ExecuteAsync("dbo.usp_B2B_FranchiseWallet_TopUp", p, commandType: CommandType.StoredProcedure);
 

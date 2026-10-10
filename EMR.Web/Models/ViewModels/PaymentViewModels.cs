@@ -47,6 +47,8 @@ public class PaymentSummaryViewModel
     public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TotalPaid { get; set; }
+    /// <summary>What the bill's receipts add up to (PaymentDetail) - the figure a payment is checked against.</summary>
+    public decimal PaidFromReceipts { get; set; }
     public decimal BalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
     public string? ReceiptNos { get; set; }
@@ -102,6 +104,11 @@ public class SavePaymentRequest
     /// <summary>B2C LAB department-wise discount (HeaderDiscountType "D"): one row per discount head - a department or
     /// "PKG" for packages. The server recalculates every line from these; not sent = the overall discount as before.</summary>
     public List<DepartmentDiscountRow>? DepartmentDiscounts { get; set; }
+
+    /// <summary>Double-payment guard: what the bill had received when the payment screen was opened (0 for a new bill).
+    /// When sent, the payment is refused if the bill's receipts no longer add up to this - another payment was saved
+    /// meanwhile (a second click, a retried request, another counter). Not sent = not checked (as before).</summary>
+    public decimal? ExpectedTotalPaid { get; set; }
 }
 
 /// <summary>One discount head of a department-wise discount: GroupKey "D{DeptId}" or "PKG", Type "P" (%) or "F" (₹).</summary>

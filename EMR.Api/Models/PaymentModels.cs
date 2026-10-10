@@ -31,6 +31,8 @@ public class PaymentSummaryResult
     public string? ExistingDiscountApprovedByName { get; set; }
     public decimal NetAmount    { get; set; }
     public decimal TotalPaid    { get; set; }
+    /// <summary>What the bill's receipts (PaymentDetail) add up to - a payment is checked against it.</summary>
+    public decimal? PaidFromReceipts { get; set; }
     public decimal BalanceDue   { get; set; }
     public string  PaymentStatus { get; set; } = "U";
 }

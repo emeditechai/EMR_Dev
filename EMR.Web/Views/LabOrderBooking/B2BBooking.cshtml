@@ -366,7 +366,7 @@
                         <div id="partnerDetailsGrid" style="display:none;">
                             <!-- Prepaid Wallet Section -->
                             <div id="sectionPrepaidWallet" class="row g-2 align-items-center mb-1" style="display:none;">
-                                <div class="col-7">
+                                <div class="col-12">
                                     <div class="d-flex align-items-baseline gap-1">
                                         <span class="text-muted small">Wallet Balance:</span>
                                         <span class="fs-6 fw-bold text-success font-monospace" id="lblWalletBalance">₹ 0.00</span>
@@ -378,11 +378,7 @@
                                         </label>
                                     </div>
                                 </div>
-                                <div class="col-5 text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-success py-1 px-2.5" asp-permission="LAB.LABORDERBOOKING.B2BBOOKING:SETTLE" onclick="openWalletTopUpModal()">
-                                        <i class="bi bi-wallet2 me-1"></i>Top-Up
-                                    </button>
-                                </div>
+                                @* the wallet is topped up from Utility > Franchise Top-Up (SQLScripts/2225), not from billing *@
                             </div>
 
                             <!-- Postpaid Credit Section -->
@@ -928,57 +924,6 @@
                         <i class="bi bi-plus-circle me-1"></i> New B2B Booking
                     </a>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Franchise Wallet Top-Up Modal -->
-<div class="modal fade" id="walletTopUpModal" tabindex="-1" aria-labelledby="walletTopUpModalLabel" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
-        <div class="modal-content shadow-lg border-0" style="border-radius:12px;">
-            <div class="modal-header bg-success text-white py-2 px-3">
-                <h6 class="modal-title fw-bold mb-0" id="walletTopUpModalLabel">
-                    <i class="bi bi-wallet2 me-2"></i>Franchise Wallet Top-Up / Recharge
-                </h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-3">
-                <div class="p-2 mb-3 bg-light rounded border text-center">
-                    <div class="text-muted small">Franchise Account:</div>
-                    <div class="fw-bold fs-6 text-dark" id="txtTopUpFranchiseName">--</div>
-                    <div class="small text-muted mt-1">Current Balance: <strong class="text-success font-monospace" id="txtTopUpCurrentBal">₹ 0.00</strong></div>
-                </div>
-                <form id="frmWalletTopUp" onsubmit="submitWalletTopUp(event)">
-                    <div class="mb-2.5">
-                        <label class="form-label fw-semibold small">Top-Up Amount (₹) <span class="text-danger">*</span></label>
-                        <input type="number" step="0.01" min="1" class="form-control font-monospace fw-bold" id="txtTopUpAmount" required placeholder="Enter recharge amount" />
-                    </div>
-                    <div class="mb-2.5">
-                        <label class="form-label fw-semibold small">Payment Mode <span class="text-danger">*</span></label>
-                        <select class="form-select form-select-sm" id="ddlTopUpMethod">
-                            <option value="1">Cash</option>
-                            <option value="2">Bank Transfer (NEFT/RTGS)</option>
-                            <option value="3">UPI / QR</option>
-                            <option value="4">Cheque</option>
-                        </select>
-                    </div>
-                    <div class="mb-2.5">
-                        <label class="form-label fw-semibold small">Reference / UTR / Cheque No</label>
-                        <input type="text" class="form-control form-control-sm" id="txtTopUpRef" placeholder="Bank transaction ID or UTR number" />
-                    </div>
-                    <div class="mb-2.5">
-                        <label class="form-label fw-semibold small">Narration / Remarks</label>
-                        <input type="text" class="form-control form-control-sm" id="txtTopUpNarration" placeholder="e.g. Advance deposit for lab tests" />
-                    </div>
-                    <div id="topUpErrorAlert" class="alert alert-danger py-1 px-2 small d-none mb-2"></div>
-                    <div class="d-flex justify-content-end gap-2 mt-3">
-                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-success btn-sm px-4 fw-bold" id="btnSubmitTopUp">
-                            <i class="bi bi-check2-circle me-1"></i>Recharge Wallet
-                        </button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>
@@ -1953,18 +1898,16 @@
                                 Swal.fire({
                                     icon: 'warning',
                                     title: 'Insufficient Wallet Balance',
-                                    html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>Please top up the franchise wallet or switch to Spot Payment.`,
+                                    html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>Top up the franchise wallet in <b>Utility &rsaquo; Franchise Top-Up</b> and save again, or switch to Spot Payment.`,
                                     showCloseButton: true,          // ✕ button — closes popup, no action (user can edit the form)
                                     showCancelButton: true,
-                                    confirmButtonText: '<i class="bi bi-wallet2 me-1"></i>Top-Up Wallet',
-                                    cancelButtonText: '<i class="bi bi-cash-coin me-1"></i>Spot Payment',
-                                    confirmButtonColor: '#198754',
-                                    cancelButtonColor: '#0d6efd',
+                                    confirmButtonText: '<i class="bi bi-cash-coin me-1"></i>Spot Payment',
+                                    cancelButtonText: 'Back to booking',
+                                    confirmButtonColor: '#0d6efd',
+                                    cancelButtonColor: '#6c757d',
                                     allowOutsideClick: false        // prevent accidental dismiss via backdrop
                                 }).then((result) => {
                                     if (result.isConfirmed) {
-                                        openWalletTopUpModal();
-                                    } else if (result.dismiss === Swal.DismissReason.cancel) {
                                         $('#chkDeductWallet').prop('checked', false);
                                         $('#hdnDeductFromWallet').val('false');
                                         validateCreditPolicy();
@@ -2445,7 +2388,7 @@
                     if (partnerCreditData.walletBalance < b2bTotal) {
                         var shortfall = b2bTotal - partnerCreditData.walletBalance;
                         alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
-                            .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. Top up wallet or uncheck to collect spot payment.`);
+                            .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. Top up the wallet in Utility &rsaquo; Franchise Top-Up, or uncheck to collect spot payment.`);
                         $('#btnSaveB2BSubmit').prop('disabled', false);
                         return;
                     } else {
@@ -2470,74 +2413,6 @@
             var checked = $(el).is(':checked');
             $('#hdnDeductFromWallet').val(checked ? 'true' : 'false');
             validateCreditPolicy();
-        }
-
-        function openWalletTopUpModal() {
-            if (!partnerCreditData || partnerCreditData.agentType !== 'F') {
-                Swal.fire({ icon: 'info', title: 'Franchise Wallet', text: 'Please select a Franchise partner first.' });
-                return;
-            }
-            $('#txtTopUpFranchiseName').text(partnerCreditData.partnerName);
-            $('#txtTopUpCurrentBal').text(`₹ ${partnerCreditData.walletBalance.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
-            $('#txtTopUpAmount').val('');
-            $('#txtTopUpRef').val('');
-            $('#txtTopUpNarration').val('');
-            $('#topUpErrorAlert').addClass('d-none').text('');
-            var modal = new bootstrap.Modal(document.getElementById('walletTopUpModal'));
-            modal.show();
-        }
-
-        function submitWalletTopUp(e) {
-            e.preventDefault();
-            if (!partnerCreditData || partnerCreditData.agentType !== 'F') return;
-
-            var amt = parseFloat($('#txtTopUpAmount').val()) || 0;
-            if (amt <= 0) {
-                $('#topUpErrorAlert').removeClass('d-none').text('Please enter a valid recharge amount.');
-                return;
-            }
-
-            var payload = {
-                franchiseId: partnerCreditData.agentId,
-                amount: amt,
-                paymentMethodId: parseInt($('#ddlTopUpMethod').val()) || 1,
-                transactionRef: $('#txtTopUpRef').val(),
-                narration: $('#txtTopUpNarration').val()
-            };
-
-            $('#btnSubmitTopUp').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Processing...');
-
-            $.ajax({
-                url: '/LabOrderBooking/FranchiseWalletTopUp',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(payload),
-                success: function(res) {
-                    $('#btnSubmitTopUp').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Recharge Wallet');
-                    if (res && res.success) {
-                        var modalEl = document.getElementById('walletTopUpModal');
-                        var modal = bootstrap.Modal.getInstance(modalEl);
-                        if (modal) modal.hide();
-
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Wallet Recharged!',
-                            text: `Successfully added ₹${amt.toFixed(2)}. Receipt: ${res.receiptNo}. New Balance: ₹${res.newBalance.toFixed(2)}.`,
-                            confirmButtonColor: '#198754'
-                        });
-
-                        partnerCreditData.walletBalance = res.newBalance;
-                        $('#lblWalletBalance').text(`₹ ${res.newBalance.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
-                        validateCreditPolicy();
-                    } else {
-                        $('#topUpErrorAlert').removeClass('d-none').text(res.error || res.message || 'Failed to top-up wallet.');
-                    }
-                },
-                error: function() {
-                    $('#btnSubmitTopUp').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Recharge Wallet');
-                    $('#topUpErrorAlert').removeClass('d-none').text('Error connecting to server.');
-                }
-            });
         }
 
         function triggerPrepaidSpotPayment() {

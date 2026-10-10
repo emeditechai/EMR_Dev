@@ -110,6 +110,9 @@
         .bp-title { font-weight: bold; color: #1e293b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; margin-bottom: 4px; }
         .bp-row { display: flex; justify-content: space-between; color: #334155; padding: 1.5px 0; font-variant-numeric: tabular-nums; }
         .bp-row.this { color: #166534; font-weight: bold; }
+        .bp-row.disc { color: #b45309; }
+        .bp-row.disc span:first-child { min-width: 0; padding-right: 6px; }
+        .bp-row.net { font-weight: bold; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; margin-bottom: 2px; }
         .bp-row.bal { border-top: 1px solid #e2e8f0; margin-top: 3px; padding-top: 4px; font-weight: 900; color: #b91c1c; }
         .bp-row.bal.nil { color: #166534; }
 
@@ -212,6 +215,15 @@ else
                 <span class="rsub">@(Model.BillDate.HasValue ? "dated " + Model.BillDate.Value.ToString("dd-MMM-yyyy") : "") (balance due)</span>
             </span>
         </div>
+        @if (Model.HasDiscount && Model.DiscountOnThisReceipt)
+        {
+            <div class="rline">
+                <span class="rlbl">after a discount of</span>
+                <span class="rval">₹ @Model.DiscountAmount.ToString("N2")
+                    <span class="rsub">(@Model.DiscountLabel@(string.IsNullOrWhiteSpace(Model.DiscountReason) ? "" : " · " + Model.DiscountReason)@(string.IsNullOrWhiteSpace(Model.DiscountApprovedByName) ? "" : " · approved by " + Model.DiscountApprovedByName))</span>
+                </span>
+            </div>
+        }
     </div>
 
     <!-- ══ PAYMENT DETAILS ══ -->
@@ -246,7 +258,20 @@ else
         </div>
         <div class="bill-pos">
             <div class="bp-title">Bill Position</div>
-            <div class="bp-row"><span>Bill amount</span><span>₹ @Model.NetAmount.ToString("N2")</span></div>
+            @if (Model.HasDiscount)
+            {
+                <div class="bp-row"><span>Bill amount (MRP)</span><span>₹ @Model.GrossAmount.ToString("N2")</span></div>
+                <div class="bp-row disc"><span>Discount @(string.IsNullOrEmpty(Model.DiscountLabel) ? "" : "(" + Model.DiscountLabel + ")")</span><span>− ₹ @Model.DiscountAmount.ToString("N2")</span></div>
+                @if (Model.RoundOffAmount != 0)
+                {
+                    <div class="bp-row"><span>Round off</span><span>@(Model.RoundOffAmount > 0 ? "+" : "−") ₹ @Math.Abs(Model.RoundOffAmount).ToString("N2")</span></div>
+                }
+                <div class="bp-row net"><span>Net payable</span><span>₹ @Model.NetAmount.ToString("N2")</span></div>
+            }
+            else
+            {
+                <div class="bp-row"><span>Bill amount</span><span>₹ @Model.NetAmount.ToString("N2")</span></div>
+            }
             <div class="bp-row"><span>Received earlier</span><span>₹ @Model.PaidBefore.ToString("N2")</span></div>
             <div class="bp-row this"><span>This receipt</span><span>₹ @Model.Amount.ToString("N2")</span></div>
             <div class="bp-row bal @(fullyPaid ? "nil" : "")"><span>Balance due</span><span>@(fullyPaid ? "NIL — Fully Paid" : "₹ " + Model.BalanceAfter.ToString("N2"))</span></div>
