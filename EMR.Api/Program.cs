@@ -65,6 +65,7 @@ builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IDoctorService,           DoctorService>();
 
 builder.Services.AddScoped<IDiscountTypeService,     DiscountTypeService>();
+builder.Services.AddScoped<IMembershipService,       MembershipService>();
 builder.Services.AddScoped<IPatientService,          PatientService>();
 builder.Services.AddScoped<IReportService,           ReportService>();
 builder.Services.AddScoped<IServiceBookingService,   ServiceBookingService>();

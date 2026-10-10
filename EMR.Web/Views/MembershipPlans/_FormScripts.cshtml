@@ -1,0 +1,92 @@
+@model EMR.Web.Models.ViewModels.MembershipPlanFormViewModel
+@{
+    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+}
+<script>
+    (function () {
+        var scopes = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Scopes, jsonOptions));
+        var benefits = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Benefits, jsonOptions));
+        var $body = $('#benefitTable tbody');
+
+        function targetOptions(scope, selected) {
+            var list = scope === 'Department' ? scopes.departments : scope === 'Category' ? scopes.categories : [];
+            var html = '<option value="">Select...</option>';
+            list.forEach(function (o) {
+                html += '<option value="' + o.id + '"' + (String(o.id) === String(selected) ? ' selected' : '') + '>' + $('<span>').text(o.name).html() + '</option>';
+            });
+            return html;
+        }
+
+        function addRow(b) {
+            b = b || { scope: 'All', scopeRefId: null, discountFlag: 'P', discountValue: '', isExcluded: false };
+            var $tr = $('<tr>');
+            $tr.append('<td><select class="form-select form-select-sm b-scope">' +
+                '<option value="All">All tests</option><option value="Department">Department</option><option value="Category">Test category</option></select></td>');
+            $tr.append('<td><select class="form-select form-select-sm b-target"></select></td>');
+            $tr.append('<td><select class="form-select form-select-sm b-flag"><option value="P">Percentage (%)</option><option value="A">Amount (₹)</option></select></td>');
+            $tr.append('<td><input type="number" class="form-control form-control-sm b-value" step="0.01" min="0" /></td>');
+            $tr.append('<td class="text-center"><input type="checkbox" class="form-check-input b-excluded" /></td>');
+            $tr.append('<td class="text-end"><button type="button" class="btn btn-light btn-sm text-danger b-remove" title="Remove"><i class="bi bi-trash"></i></button></td>');
+            $tr.find('.b-scope').val(b.scope);
+            $tr.find('.b-target').html(targetOptions(b.scope, b.scopeRefId));
+            $tr.find('.b-flag').val(b.discountFlag || 'P');
+            $tr.find('.b-value').val(b.isExcluded ? '' : b.discountValue);
+            $tr.find('.b-excluded').prop('checked', !!b.isExcluded);
+            $body.append($tr);
+            syncRow($tr);
+            syncEmpty();
+        }
+
+        function syncRow($tr) {
+            var scope = $tr.find('.b-scope').val(), excluded = $tr.find('.b-excluded').is(':checked');
+            $tr.find('.b-target').prop('disabled', scope === 'All');
+            $tr.find('.b-flag, .b-value').prop('disabled', excluded);
+            $tr.find('.b-value').attr('max', $tr.find('.b-flag').val() === 'P' ? 100 : null);
+        }
+
+        function syncEmpty() { $('#benefitEmpty').toggle($body.children().length === 0); }
+
+        function syncMembers() {
+            var single = ['Individual', 'Senior'].indexOf($('#PlanType').val()) >= 0;
+            if (single) $('#MaxMembers').val(1);
+            else if (parseInt($('#MaxMembers').val() || '0', 10) < 2) $('#MaxMembers').val(2);
+            $('#MaxMembers').prop('readonly', single);
+        }
+
+        $('#btnAddBenefit').on('click', function () { addRow(); });
+        $body.on('change', '.b-scope', function () {
+            var $tr = $(this).closest('tr');
+            $tr.find('.b-target').html(targetOptions($(this).val(), null));
+            syncRow($tr);
+        });
+        $body.on('change', '.b-flag, .b-excluded', function () { syncRow($(this).closest('tr')); });
+        $body.on('click', '.b-remove', function () { $(this).closest('tr').remove(); syncEmpty(); });
+        $('#PlanType').on('change', syncMembers);
+
+        $('#planForm').on('submit', function (e) {
+            var rows = [], error = null, seen = {};
+            $body.children('tr').each(function () {
+                var $tr = $(this), scope = $tr.find('.b-scope').val(), target = $tr.find('.b-target').val();
+                var excluded = $tr.find('.b-excluded').is(':checked'), flag = $tr.find('.b-flag').val();
+                var value = parseFloat($tr.find('.b-value').val() || '0');
+                if (scope !== 'All' && !target) error = 'Pick the department or category for every benefit rule.';
+                else if (!excluded && !(value > 0)) error = 'Enter the discount for every benefit rule, or mark it Excluded.';
+                else if (!excluded && flag === 'P' && value > 100) error = 'A percentage discount cannot exceed 100.';
+                var key = scope + ':' + (scope === 'All' ? '' : target);
+                if (seen[key]) error = 'The same department or category appears in more than one benefit rule.';
+                seen[key] = true;
+                rows.push({ scope: scope, scopeRefId: scope === 'All' ? null : parseInt(target, 10), discountFlag: flag, discountValue: excluded ? 0 : value, isExcluded: excluded });
+            });
+            if (error) {
+                e.preventDefault();
+                Swal.fire({ icon: 'warning', title: 'Benefit rules', text: error });
+                return false;
+            }
+            $('#BenefitsJson').val(JSON.stringify(rows));
+        });
+
+        benefits.forEach(addRow);
+        syncEmpty();
+        syncMembers();
+    })();
+</script>

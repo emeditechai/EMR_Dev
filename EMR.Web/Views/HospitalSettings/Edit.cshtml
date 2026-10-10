@@ -542,6 +542,71 @@
                 })();
             </script>
 
+            <div class="lab-section-title">Membership Card</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-credit-card-2-front-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Card Number Prefix</div>
+                            <div class="lp-desc">Letters put before the running number of a new membership card, e.g. MC000001.</div>
+                            <input asp-for="MembershipCardNoPrefix" class="form-control form-control-sm mt-2 text-uppercase" maxlength="10" />
+                            <span asp-validation-for="MembershipCardNoPrefix" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-whatsapp"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Send Card by WhatsApp</div>
+                            <div class="lp-desc">Yes: the card PDF goes to the primary member's mobile through this branch's WhatsApp configuration.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipCardWhatsAppRequired">
+                                <label class="form-check-label" asp-for="MembershipCardWhatsAppRequired">Send the card on WhatsApp</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-envelope-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Send Card by Email</div>
+                            <div class="lp-desc">Yes: the card PDF is emailed to the primary member through this branch's SMTP configuration.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipCardEmailRequired">
+                                <label class="form-check-label" asp-for="MembershipCardEmailRequired">Send the card by email</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-send-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Send Card on Issue</div>
+                            <div class="lp-desc">Yes: the card is sent as soon as it is issued. No: it is sent only from the Send button on the card.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipCardAutoSendOnIssue">
+                                <label class="form-check-label" asp-for="MembershipCardAutoSendOnIssue">Send automatically on issue</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="lab-param" style="--lp:#475569;--lp-bg:#e2e8f0;">
+                        <div class="lp-icon"><i class="bi bi-chat-left-text-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Card Message</div>
+                            <div class="lp-desc">Text sent with the card on WhatsApp and email. Placeholders: {PatientName}, {HospitalName}, {PlanName}, {CardNo}, {ValidFrom}, {ValidTo}. Leave blank for the standard message.</div>
+                            <textarea asp-for="MembershipCardMessageTemplate" class="form-control form-control-sm mt-2" rows="2" maxlength="1000"></textarea>
+                            <span asp-validation-for="MembershipCardMessageTemplate" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })

@@ -89,6 +89,15 @@ public class HospitalSettings
     /// <summary>How Doctor IP commission is computed: Manual (screen), Automatic (scheduled job) or Both.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(10)]
     public string DoctorIpComputeMode { get; set; } = "Manual";
+
+    // Membership card (script 2224): card number prefix and how the soft copy reaches the patient
+    public string MembershipCardNoPrefix { get; set; } = "MC";
+    public bool MembershipCardWhatsAppRequired { get; set; } = true;
+    public bool MembershipCardEmailRequired { get; set; } = true;
+    public bool MembershipCardAutoSendOnIssue { get; set; } = true;
+    public string MembershipCardMessageTemplate { get; set; } = DefaultMembershipCardMessage;
+    public const string DefaultMembershipCardMessage =
+        "Dear {PatientName}, welcome to the {PlanName} membership of {HospitalName}. Your card number is {CardNo}, valid from {ValidFrom} to {ValidTo}. Your membership card is attached.";
     /// <summary>Time of day the scheduled Doctor IP commission job runs (Automatic / Both).</summary>
     public TimeSpan? DoctorIpAutoRunTime { get; set; }
 

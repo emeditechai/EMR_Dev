@@ -1,0 +1,157 @@
+@model EMR.Web.Models.ViewModels.MembershipPlanIndexViewModel
+
+@{
+    ViewData["Title"] = "Membership Plan Master";
+    ViewData["PageIcon"] = "bi-award-fill";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Membership Plan" };
+}
+
+<div class="card emr-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Membership Plans</h5>
+        <div class="d-flex gap-2">
+            <a asp-controller="MembershipCards" asp-action="Index" class="btn btn-outline-primary btn-sm"><i class="bi bi-credit-card-2-front me-1"></i>Membership Cards</a>
+            <a asp-permission="MASTER.MEMBERSHIPPLANS:ADD" asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Add New</a>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-4 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select name="status" asp-for="SelectedStatus" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                    <input name="search" value="@Model.SearchTerm" class="form-control" placeholder="Search by plan name or code..." autocomplete="off" />
+                </div>
+            </div>
+            <div class="col-md-5">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filter</button>
+                <a asp-action="Index" class="btn btn-light btn-sm"><i class="bi bi-arrow-clockwise me-1"></i>Reset</a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle emr-table" id="membershipPlanTable">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Plan</th>
+                        <th>Type</th>
+                        <th class="text-end">Fee</th>
+                        <th class="text-end">Validity</th>
+                        <th class="text-end">Members</th>
+                        <th class="text-end">Benefit Rules</th>
+                        <th class="text-end">Cards Issued</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Plans.Any())
+                    {
+                        foreach (var item in Model.Plans)
+                        {
+                            <tr>
+                                <td class="font-monospace">@item.PlanCode</td>
+                                <td>
+                                    @item.PlanName
+                                    @if (item.MinAge.HasValue)
+                                    {
+                                        <div class="small text-muted">Age @item.MinAge+</div>
+                                    }
+                                </td>
+                                <td><span class="badge bg-info text-dark">@(item.PlanType == "Senior" ? "Senior Citizen" : item.PlanType)</span></td>
+                                <td class="text-end">
+                                    ₹@item.CardFee.ToString("N2")
+                                    @if (item.GstPercent is > 0)
+                                    {
+                                        <div class="small text-muted">+ @item.GstPercent.Value.ToString("0.##")% GST</div>
+                                    }
+                                </td>
+                                <td class="text-end">@item.ValidityDays days</td>
+                                <td class="text-end">@item.MaxMembers</td>
+                                <td class="text-end">@item.BenefitCount</td>
+                                <td class="text-end">@item.CardsIssued</td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <a asp-permission="MASTER.MEMBERSHIPPLANS:EDIT" asp-action="Edit" asp-route-id="@item.PlanId" class="btn btn-light text-primary" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPPLANS:DETAILS" asp-action="Details" asp-route-id="@item.PlanId" class="btn btn-light text-info" title="Details"><i class="bi bi-eye"></i></a>
+                                        <button asp-permission="MASTER.MEMBERSHIPPLANS:DELETE" type="button" class="btn btn-light text-danger" title="Delete"
+                                                data-id="@item.PlanId" data-name="@item.PlanName" data-cards="@item.CardsIssued" onclick="confirmDelete(this)"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <form asp-permission="MASTER.MEMBERSHIPPLANS:DELETE" id="deleteForm-@item.PlanId" asp-action="Delete" asp-route-id="@item.PlanId" method="post" style="display:none;"></form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
+                                No membership plans found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if ($('#membershipPlanTable tbody tr td').length > 1) {
+                $('#membershipPlanTable').DataTable({
+                    "pageLength": 10,
+                    "ordering": true,
+                    "info": true,
+                    "searching": false, // Handled by custom search box
+                    "lengthChange": true,
+                    "language": {
+                        "paginate": {
+                            "previous": "<i class='bi bi-chevron-left'></i>",
+                            "next": "<i class='bi bi-chevron-right'></i>"
+                        }
+                    }
+                });
+            }
+        });
+
+        function confirmDelete(btn) {
+            var id = btn.dataset.id, name = btn.dataset.name, cards = parseInt(btn.dataset.cards || '0', 10);
+            Swal.fire({
+                title: cards > 0 ? 'Deactivate Membership Plan?' : 'Delete Membership Plan?',
+                text: cards > 0
+                    ? '"' + name + '" has ' + cards + ' issued card(s). It will be deactivated so no new cards can be issued on it; existing cards stay valid.'
+                    : 'Are you sure you want to delete "' + name + '"?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: cards > 0 ? 'Yes, deactivate' : 'Yes, delete it!'
+            }).then(function (result) {
+                if (result.isConfirmed) $('#deleteForm-' + id).submit();
+            });
+        }
+    </script>
+}

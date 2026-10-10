@@ -1,0 +1,140 @@
+@model EMR.Web.Models.ViewModels.MembershipPlanFormViewModel
+
+<input type="hidden" asp-for="PlanId" />
+<input type="hidden" asp-for="CardsIssued" />
+<input type="hidden" asp-for="BenefitsJson" id="BenefitsJson" />
+
+<div class="row g-3">
+    <div class="col-md-3">
+        <label asp-for="PlanCode" class="form-label"></label>
+        @if (Model.PlanId == 0)
+        {
+            <input class="form-control font-monospace" disabled placeholder="Auto-generated on save (e.g. MP0001)" />
+        }
+        else
+        {
+            <input asp-for="PlanCode" class="form-control font-monospace" readonly />
+        }
+    </div>
+    <div class="col-md-5">
+        <label asp-for="PlanName" class="form-label required"></label>
+        <input asp-for="PlanName" class="form-control" autocomplete="off" maxlength="150" />
+        <span asp-validation-for="PlanName" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
+        <label asp-for="PlanType" class="form-label required"></label>
+        <select asp-for="PlanType" class="form-select" id="PlanType">
+            <option value="Individual">Individual</option>
+            <option value="Family">Family</option>
+            <option value="Senior">Senior Citizen</option>
+            <option value="Corporate">Corporate</option>
+        </select>
+        <span asp-validation-for="PlanType" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-3">
+        <label asp-for="CardFee" class="form-label required"></label>
+        <div class="input-group">
+            <span class="input-group-text">₹</span>
+            <input asp-for="CardFee" class="form-control" type="number" step="0.01" min="0" />
+        </div>
+        <span asp-validation-for="CardFee" class="text-danger"></span>
+        <div class="form-text">0 issues a free card with no receipt.</div>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="GstPercent" class="form-label"></label>
+        <div class="input-group">
+            <input asp-for="GstPercent" class="form-control" type="number" step="0.01" min="0" max="28" />
+            <span class="input-group-text">%</span>
+        </div>
+        <span asp-validation-for="GstPercent" class="text-danger"></span>
+        <div class="form-text">Added on top of the fee (CGST + SGST). Blank = none.</div>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="ValidityDays" class="form-label required"></label>
+        <input asp-for="ValidityDays" class="form-control" type="number" step="1" min="1" />
+        <span asp-validation-for="ValidityDays" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="MaxMembers" class="form-label required"></label>
+        <input asp-for="MaxMembers" class="form-control" type="number" step="1" min="1" max="20" id="MaxMembers" />
+        <span asp-validation-for="MaxMembers" class="text-danger"></span>
+        <div class="form-text">Including the primary member.</div>
+    </div>
+
+    <div class="col-md-3">
+        <label asp-for="MinAge" class="form-label"></label>
+        <input asp-for="MinAge" class="form-control" type="number" step="1" min="0" max="120" />
+        <span asp-validation-for="MinAge" class="text-danger"></span>
+        <div class="form-text">Of the primary member, at issue. Blank = no limit.</div>
+    </div>
+    <div class="col-md-3 d-flex align-items-center">
+        <div class="form-check form-switch mt-3">
+            <input class="form-check-input" type="checkbox" asp-for="FreeHomeCollection" role="switch">
+            <label class="form-check-label" asp-for="FreeHomeCollection"></label>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Terms" class="form-label"></label>
+        <textarea asp-for="Terms" class="form-control" rows="2" maxlength="1000"></textarea>
+        <span asp-validation-for="Terms" class="text-danger"></span>
+    </div>
+</div>
+
+<h6 class="mt-4 mb-3 text-muted text-uppercase small fw-bold">Reward points</h6>
+<div class="row g-3">
+    <div class="col-md">
+        <label asp-for="WelcomePoints" class="form-label"></label>
+        <input asp-for="WelcomePoints" class="form-control" type="number" step="1" min="0" />
+        <span asp-validation-for="WelcomePoints" class="text-danger"></span>
+    </div>
+    <div class="col-md">
+        <label asp-for="PointsEarnPercent" class="form-label"></label>
+        <input asp-for="PointsEarnPercent" class="form-control" type="number" step="0.01" min="0" max="100" />
+        <span asp-validation-for="PointsEarnPercent" class="text-danger"></span>
+    </div>
+    <div class="col-md">
+        <label asp-for="PointValue" class="form-label"></label>
+        <input asp-for="PointValue" class="form-control" type="number" step="0.01" min="0" />
+        <span asp-validation-for="PointValue" class="text-danger"></span>
+    </div>
+    <div class="col-md">
+        <label asp-for="MaxRedeemPercent" class="form-label"></label>
+        <input asp-for="MaxRedeemPercent" class="form-control" type="number" step="0.01" min="0" max="100" />
+        <span asp-validation-for="MaxRedeemPercent" class="text-danger"></span>
+    </div>
+    <div class="col-md">
+        <label asp-for="PointsExpiryDays" class="form-label"></label>
+        <input asp-for="PointsExpiryDays" class="form-control" type="number" step="1" min="1" />
+        <span asp-validation-for="PointsExpiryDays" class="text-danger"></span>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+    <h6 class="mb-0 text-muted text-uppercase small fw-bold">Benefit rules</h6>
+    <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddBenefit"><i class="bi bi-plus-lg me-1"></i>Add rule</button>
+</div>
+<div class="form-text mb-2">A category rule overrides its department's rule, which overrides the "All tests" rule. Mark a rule Excluded to give no benefit on that department or category.</div>
+<div class="table-responsive">
+    <table class="table table-sm align-middle emr-table mb-0" id="benefitTable">
+        <thead>
+            <tr>
+                <th style="width:18%">Applies to</th>
+                <th style="width:30%">Department / Category</th>
+                <th style="width:16%">Discount type</th>
+                <th style="width:16%">Value</th>
+                <th style="width:12%" class="text-center">Excluded</th>
+                <th style="width:8%"></th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+<div class="text-muted small py-2" id="benefitEmpty">No benefit rules yet. A plan without rules gives no discount at billing.</div>
+
+<div class="mt-4">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" asp-for="IsActive" role="switch">
+        <label class="form-check-label" asp-for="IsActive"></label>
+    </div>
+</div>

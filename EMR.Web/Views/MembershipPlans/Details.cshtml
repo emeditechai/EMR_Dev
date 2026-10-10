@@ -1,0 +1,117 @@
+@model EMR.Web.Models.ViewModels.MembershipPlanFormViewModel
+
+@{
+    ViewData["Title"] = "Membership Plan Details";
+    ViewData["PageIcon"] = "bi-info-circle";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Membership Plan", "Details" };
+}
+
+<div class="card emr-card">
+    <div class="card-body">
+        <h5 class="card-title mb-4">
+            <span class="font-monospace text-muted me-2">@Model.PlanCode</span>@Model.PlanName
+            @if (Model.IsActive)
+            {
+                <span class="badge bg-success-subtle text-success border border-success-subtle ms-2">Active</span>
+            }
+            else
+            {
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-2">Inactive</span>
+            }
+        </h5>
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Plan Type</label>
+                <div class="fw-medium">@(Model.PlanType == "Senior" ? "Senior Citizen" : Model.PlanType)</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Card Fee</label>
+                <div class="fw-medium">₹@Model.CardFee.ToString("N2")@(Model.GstPercent is > 0 ? $" + {Model.GstPercent.Value:0.##}% GST" : "")</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Validity</label>
+                <div class="fw-medium">@Model.ValidityDays days</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Maximum Members</label>
+                <div class="fw-medium">@Model.MaxMembers</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Minimum Age</label>
+                <div class="fw-medium">@(Model.MinAge.HasValue ? $"{Model.MinAge} years" : "-")</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Free Home Collection</label>
+                <div class="fw-medium">@(Model.FreeHomeCollection ? "Yes" : "No")</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Cards Issued</label>
+                <div class="fw-medium">@Model.CardsIssued</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted small mb-1">Points</label>
+                <div class="fw-medium">
+                    @if (Model.PointsEarnPercent > 0 || Model.WelcomePoints > 0)
+                    {
+                        <span>Earn @Model.PointsEarnPercent.ToString("0.##")%, 1 point = ₹@Model.PointValue.ToString("0.##"), redeem up to @Model.MaxRedeemPercent.ToString("0.##")%, expire in @Model.PointsExpiryDays days</span>
+                        @if (Model.WelcomePoints > 0)
+                        {
+                            <span>, @Model.WelcomePoints.ToString("0.##") welcome points</span>
+                        }
+                    }
+                    else
+                    {
+                        <span>-</span>
+                    }
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="form-label text-muted small mb-1">Terms</label>
+                <div class="fw-medium">@(string.IsNullOrWhiteSpace(Model.Terms) ? "-" : Model.Terms)</div>
+            </div>
+        </div>
+
+        <h6 class="mt-4 mb-2 text-muted text-uppercase small fw-bold">Benefit rules</h6>
+        @if (Model.Benefits.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle emr-table mb-0">
+                    <thead><tr><th>Applies to</th><th>Department / Category</th><th class="text-end">Benefit</th></tr></thead>
+                    <tbody>
+                        @foreach (var b in Model.Benefits)
+                        {
+                            <tr>
+                                <td>@(b.Scope == "All" ? "All tests" : b.Scope == "Category" ? "Test category" : b.Scope)</td>
+                                <td>@(b.Scope == "All" ? "-" : b.ScopeName)</td>
+                                <td class="text-end">
+                                    @if (b.IsExcluded)
+                                    {
+                                        <span class="badge bg-secondary">Excluded</span>
+                                    }
+                                    else if (b.DiscountFlag == "P")
+                                    {
+                                        <span>@b.DiscountValue.ToString("0.##")%</span>
+                                    }
+                                    else
+                                    {
+                                        <span>₹@b.DiscountValue.ToString("N2")</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-muted small">No benefit rules. This plan gives no discount at billing.</div>
+        }
+
+        <div class="mt-4 pt-3 border-top d-flex gap-2">
+            <a asp-permission="MASTER.MEMBERSHIPPLANS:EDIT" asp-action="Edit" asp-route-id="@Model.PlanId" class="btn btn-primary"><i class="bi bi-pencil-square me-1"></i>Edit</a>
+            <a asp-action="Index" class="btn btn-light">Back to List</a>
+        </div>
+    </div>
+</div>

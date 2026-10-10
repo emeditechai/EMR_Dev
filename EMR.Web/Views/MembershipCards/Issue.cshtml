@@ -1,0 +1,277 @@
+@model EMR.Web.Models.ViewModels.MembershipCardIssueViewModel
+
+@{
+    ViewData["Title"] = "Issue Membership Card";
+    ViewData["PageIcon"] = "bi-credit-card-2-front-fill";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Membership Cards", "Issue" };
+    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+}
+
+<style>
+    .mc-results { position:absolute; z-index:1050; left:0; right:0; max-height:260px; overflow:auto; background:#fff; border:1px solid #dee2e6; border-radius:.375rem; box-shadow:0 .5rem 1rem rgba(0,0,0,.12); display:none; }
+    .mc-results .mc-item { padding:.45rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+    .mc-results .mc-item:hover { background:#f1f5f9; }
+    .mc-results .mc-none { padding:.6rem .75rem; color:#64748b; font-size:.875rem; }
+</style>
+
+<form asp-action="Issue" method="post" id="issueForm" autocomplete="off">
+    <input type="hidden" asp-for="PrimaryPatientId" id="PrimaryPatientId" />
+    <input type="hidden" asp-for="MembersJson" id="MembersJson" />
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card emr-card mb-3">
+                <div class="card-header"><h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Primary Member</h6></div>
+                <div class="card-body">
+                    <div asp-validation-summary="All" class="alert alert-danger py-2 small" role="alert"></div>
+
+                    <div class="position-relative" id="primarySearchBox">
+                        <label class="form-label required">Patient</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control mc-search" id="primarySearch" placeholder="Type patient code, name or mobile number..." />
+                        </div>
+                        <div class="mc-results"></div>
+                    </div>
+                    <div class="alert alert-light border mt-3 mb-0 py-2" id="primaryCard" style="display:none;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-semibold" id="primaryName"></div>
+                                <div class="small text-muted" id="primaryMeta"></div>
+                                <div class="small text-warning-emphasis mt-1" id="primaryWarn" style="display:none;"></div>
+                            </div>
+                            <button type="button" class="btn btn-light btn-sm" id="btnClearPrimary"><i class="bi bi-x-lg"></i> Change</button>
+                        </div>
+                    </div>
+                    <div class="form-text">The patient must be registered first (Patient Master).</div>
+                </div>
+            </div>
+
+            <div class="card emr-card mb-3" id="familyCard" style="display:none;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-people-fill me-2"></i>Family Members</h6>
+                    <span class="small text-muted" id="memberCount"></span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-7 position-relative" id="memberSearchBox">
+                            <label class="form-label small text-muted mb-1">Patient</label>
+                            <input type="text" class="form-control form-control-sm mc-search" id="memberSearch" placeholder="Type patient code, name or mobile number..." />
+                            <div class="mc-results"></div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small text-muted mb-1">Relation (for the next member added)</label>
+                            <select class="form-select form-select-sm" id="memberRelation">
+                                @foreach (var r in new[] { "Spouse", "Son", "Daughter", "Father", "Mother", "Brother", "Sister", "Father-in-law", "Mother-in-law", "Employee", "Other" })
+                                {
+                                    <option value="@r">@r</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm align-middle emr-table mb-0" id="memberTable">
+                            <thead><tr><th>Patient</th><th>Mobile</th><th>Relation</th><th></th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="text-muted small pt-2" id="memberEmpty">No family members added. They can also be added later from the card.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card emr-card mb-3">
+                <div class="card-header"><h6 class="mb-0"><i class="bi bi-award me-2"></i>Plan &amp; Payment</h6></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="PlanId" class="form-label required"></label>
+                        <select asp-for="PlanId" class="form-select" id="PlanId">
+                            <option value="0">Select plan...</option>
+                            @foreach (var p in Model.Plans)
+                            {
+                                <option value="@p.PlanId">@p.PlanName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="ValidFrom" class="form-label required"></label>
+                        <input asp-for="ValidFrom" type="date" class="form-control" id="ValidFrom" />
+                    </div>
+
+                    <table class="table table-sm mb-3" id="planSummary" style="display:none;">
+                        <tbody>
+                            <tr><td class="text-muted">Valid to</td><td class="text-end fw-semibold" id="sumValidTo"></td></tr>
+                            <tr><td class="text-muted">Members allowed</td><td class="text-end" id="sumMembers"></td></tr>
+                            <tr id="sumAgeRow"><td class="text-muted">Minimum age</td><td class="text-end" id="sumAge"></td></tr>
+                            <tr><td class="text-muted">Card fee</td><td class="text-end" id="sumFee"></td></tr>
+                            <tr id="sumGstRow"><td class="text-muted">GST</td><td class="text-end" id="sumGst"></td></tr>
+                            <tr class="table-light"><td class="fw-semibold">Amount to collect</td><td class="text-end fw-bold fs-6" id="sumTotal"></td></tr>
+                        </tbody>
+                    </table>
+
+                    <div id="paymentBox">
+                        <div class="mb-3">
+                            <label asp-for="PaymentMethodId" class="form-label required"></label>
+                            <select asp-for="PaymentMethodId" class="form-select" id="PaymentMethodId">
+                                <option value="">Select...</option>
+                                @foreach (var m in Model.PaymentMethods)
+                                {
+                                    <option value="@m.PaymentMethodId" data-ref="@((m.RequiresRef || m.RequiresUPIRef || m.RequiresChequeNo || m.RequiresCardLast4) ? "1" : "0")">@m.MethodName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3" id="refBox" style="display:none;">
+                            <label asp-for="TransactionRef" class="form-label required"></label>
+                            <input asp-for="TransactionRef" class="form-control" maxlength="100" id="TransactionRef" placeholder="UPI / card / cheque reference" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Remarks" class="form-label"></label>
+                        <input asp-for="Remarks" class="form-control" maxlength="250" />
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" id="btnIssue"><i class="bi bi-check-circle me-1"></i>Issue Card</button>
+                        <a asp-action="Index" class="btn btn-light">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        (function () {
+            var plans = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Plans, jsonOptions));
+            var searchUrl = '@Url.Action("PatientSearch")';
+            var primary = null, members = [], timer = null;
+
+            function esc(s) { return $('<span>').text(s == null ? '' : s).html(); }
+            function plan() { var id = parseInt($('#PlanId').val() || '0', 10); return plans.filter(function (p) { return p.planId === id; })[0] || null; }
+            function money(n) { return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+            function meta(p) {
+                var parts = [p.patientCode];
+                if (p.phoneNumber) parts.push(p.phoneNumber);
+                if (p.gender) parts.push(p.gender);
+                if (p.age != null) parts.push(p.age + ' yrs');
+                return parts.join(' | ');
+            }
+
+            // ── Patient lookup (shared by the primary box and the family box) ──
+            $('.mc-search').on('input', function () {
+                var $input = $(this), $list = $input.closest('.position-relative').find('.mc-results'), term = $input.val().trim();
+                clearTimeout(timer);
+                if (term.length < 2) { $list.hide().empty(); return; }
+                timer = setTimeout(function () {
+                    $.getJSON(searchUrl, { term: term }).done(function (rows) {
+                        $list.empty();
+                        if (!rows.length) $list.append('<div class="mc-none">No registered patient matches.</div>');
+                        rows.forEach(function (p) {
+                            var $item = $('<div class="mc-item">').data('patient', p);
+                            $item.append('<div class="fw-semibold">' + esc(p.patientName) + '</div>');
+                            $item.append('<div class="small text-muted">' + esc(meta(p)) + '</div>');
+                            if (p.activeCardNo) $item.append('<div class="small text-warning-emphasis">On card ' + esc(p.activeCardNo) + ' (' + esc(p.activePlanName) + ')</div>');
+                            $list.append($item);
+                        });
+                        $list.show();
+                    });
+                }, 250);
+            });
+            $(document).on('click', function (e) { if (!$(e.target).closest('.position-relative').length) $('.mc-results').hide(); });
+
+            $('#primarySearchBox').on('click', '.mc-item', function () {
+                primary = $(this).data('patient');
+                members = members.filter(function (m) { return m.patientId !== primary.patientId; });
+                $('#primarySearch').val(''); $('.mc-results').hide();
+                render();
+            });
+            $('#btnClearPrimary').on('click', function () { primary = null; render(); $('#primarySearch').focus(); });
+
+            $('#memberSearchBox').on('click', '.mc-item', function () {
+                var p = $(this).data('patient'), pl = plan();
+                $('#memberSearch').val(''); $('.mc-results').hide();
+                if (primary && p.patientId === primary.patientId) return warn('This patient is the primary member.');
+                if (members.some(function (m) { return m.patientId === p.patientId; })) return warn('This patient is already added.');
+                if (pl && members.length + 1 >= pl.maxMembers) return warn('This plan covers at most ' + pl.maxMembers + ' member(s), including the primary member.');
+                members.push({ patientId: p.patientId, relation: $('#memberRelation').val(), name: p.patientName, code: p.patientCode, phone: p.phoneNumber });
+                render();
+            });
+            $('#memberTable').on('click', '.m-remove', function () {
+                var id = $(this).data('id');
+                members = members.filter(function (m) { return m.patientId !== id; });
+                render();
+            });
+
+            function warn(text) { Swal.fire({ icon: 'warning', title: 'Membership card', text: text }); }
+
+            function render() {
+                var pl = plan();
+
+                // Primary member
+                $('#PrimaryPatientId').val(primary ? primary.patientId : 0);
+                $('#primarySearchBox').toggle(!primary);
+                $('#primaryCard').toggle(!!primary);
+                if (primary) {
+                    $('#primaryName').text(primary.patientName);
+                    $('#primaryMeta').text(meta(primary));
+                    var notes = [];
+                    if (primary.activeCardNo) notes.push('Already on card ' + primary.activeCardNo + ' (' + primary.activePlanName + ').');
+                    if (pl && pl.minAge != null && (primary.age == null || primary.age < pl.minAge)) notes.push('This plan needs the primary member to be at least ' + pl.minAge + ' years old.');
+                    $('#primaryWarn').text(notes.join(' ')).toggle(notes.length > 0);
+                }
+
+                // Family members
+                var allowed = pl ? pl.maxMembers : 1;
+                if (allowed <= 1) members = [];
+                else if (members.length > allowed - 1) members = members.slice(0, allowed - 1);
+                $('#familyCard').toggle(allowed > 1);
+                $('#memberCount').text((members.length + 1) + ' of ' + allowed + ' members');
+                var $tb = $('#memberTable tbody').empty();
+                members.forEach(function (m) {
+                    $tb.append('<tr><td>' + esc(m.name) + '<div class="small text-muted">' + esc(m.code) + '</div></td><td>' + esc(m.phone || '-') + '</td><td>' + esc(m.relation) +
+                        '</td><td class="text-end"><button type="button" class="btn btn-light btn-sm text-danger m-remove" data-id="' + m.patientId + '"><i class="bi bi-trash"></i></button></td></tr>');
+                });
+                $('#memberEmpty').toggle(members.length === 0);
+                $('#MembersJson').val(JSON.stringify(members.map(function (m) { return { patientId: m.patientId, relation: m.relation }; })));
+
+                // Plan summary and payment
+                $('#planSummary').toggle(!!pl);
+                var total = 0;
+                if (pl) {
+                    var gstPct = pl.gstPercent || 0, half = Math.round(pl.cardFee * gstPct / 2) / 100, gst = half * 2;
+                    total = Math.round(pl.cardFee + gst);
+                    var from = new Date($('#ValidFrom').val());
+                    if (!isNaN(from)) {
+                        var to = new Date(from); to.setDate(to.getDate() + pl.validityDays - 1);
+                        $('#sumValidTo').text(to.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
+                    }
+                    $('#sumMembers').text(pl.maxMembers);
+                    $('#sumAgeRow').toggle(pl.minAge != null); $('#sumAge').text(pl.minAge + ' years');
+                    $('#sumFee').text(money(pl.cardFee));
+                    $('#sumGstRow').toggle(gst > 0); $('#sumGst').text(money(gst) + ' (' + gstPct + '%)');
+                    $('#sumTotal').text(total > 0 ? money(total) : 'Free');
+                }
+                $('#paymentBox').toggle(total > 0).data('total', total);
+                $('#refBox').toggle(total > 0 && $('#PaymentMethodId option:selected').data('ref') == 1);
+            }
+
+            $('#PlanId, #ValidFrom, #PaymentMethodId').on('change', render);
+
+            $('#issueForm').on('submit', function (e) {
+                var error = null, pl = plan(), total = $('#paymentBox').data('total') || 0;
+                if (!primary) error = 'Select the primary member (patient).';
+                else if (!pl) error = 'Select the membership plan.';
+                else if (!$('#ValidFrom').val()) error = 'Enter the card start date.';
+                else if (total > 0 && !$('#PaymentMethodId').val()) error = 'Select the payment method for the card fee.';
+                else if (total > 0 && $('#PaymentMethodId option:selected').data('ref') == 1 && !$('#TransactionRef').val().trim()) error = 'Enter the payment reference number.';
+                if (error) { e.preventDefault(); warn(error); return false; }
+                $('#btnIssue').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Issuing...');
+            });
+
+            render();
+        })();
+    </script>
+}

@@ -244,6 +244,8 @@ builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailServ
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
 builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotificationService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
+builder.Services.AddScoped<IMembershipApiClient,          MembershipApiClient>();
+builder.Services.AddScoped<IMembershipCardDeliveryService, MembershipCardDeliveryService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>

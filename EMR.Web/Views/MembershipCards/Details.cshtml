@@ -1,0 +1,316 @@
+@model EMR.Web.Models.ViewModels.MembershipCardDetailViewModel
+
+@{
+    ViewData["Title"] = "Membership Card " + Model.CardNo;
+    ViewData["PageIcon"] = "bi-credit-card-2-front-fill";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Membership Cards", Model.CardNo };
+    var badge = Model.Status switch { "Active" => "success", "Expired" => "secondary", "Blocked" => "warning", _ => "danger" };
+    bool isActive = Model.Status == "Active";
+    bool canSend = Model.WhatsAppEnabled || Model.EmailEnabled;
+    var channels = new List<string>();
+    if (Model.WhatsAppEnabled) { channels.Add("WhatsApp" + (string.IsNullOrWhiteSpace(Model.PhoneNumber) ? " (no mobile number)" : " to " + Model.PhoneNumber)); }
+    if (Model.EmailEnabled) { channels.Add("email" + (string.IsNullOrWhiteSpace(Model.EmailId) ? " (no email address)" : " to " + Model.EmailId)); }
+}
+
+<style>
+    .mc-results { position:absolute; z-index:1060; left:0; right:0; max-height:220px; overflow:auto; background:#fff; border:1px solid #dee2e6; border-radius:.375rem; box-shadow:0 .5rem 1rem rgba(0,0,0,.12); display:none; }
+    .mc-results .mc-item { padding:.45rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+    .mc-results .mc-item:hover { background:#f1f5f9; }
+    .mc-results .mc-none { padding:.6rem .75rem; color:#64748b; font-size:.875rem; }
+</style>
+
+<div class="card emr-card mb-3">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <div class="text-muted small text-uppercase">@Model.PlanName <span class="font-monospace">(@Model.PlanCode)</span></div>
+                <h4 class="mb-1 font-monospace">@Model.CardNo <span class="badge bg-@badge-subtle text-@badge border border-@badge-subtle fs-6 align-middle ms-1">@Model.Status</span></h4>
+                <div class="fw-semibold">@Model.PatientName</div>
+                <div class="small text-muted">
+                    @Model.PatientCode@(string.IsNullOrWhiteSpace(Model.PhoneNumber) ? "" : " | " + Model.PhoneNumber)@(string.IsNullOrWhiteSpace(Model.EmailId) ? "" : " | " + Model.EmailId)
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.StatusReason) && !isActive)
+                {
+                    <div class="small text-danger mt-1"><i class="bi bi-info-circle me-1"></i>@Model.StatusReason</div>
+                }
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-route-id="@Model.CardId" target="_blank" class="btn btn-primary btn-sm"><i class="bi bi-printer me-1"></i>Print Card</a>
+                <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-route-id="@Model.CardId" asp-route-download="true" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Download PDF</a>
+                <form asp-permission="MASTER.MEMBERSHIPCARDS:SEND" asp-action="Send" asp-route-id="@Model.CardId" method="post" class="d-inline" id="sendForm">
+                    <button type="button" class="btn btn-success btn-sm" id="btnSend" disabled="@(!canSend)"
+                            title="@(canSend ? "Send the card soft copy" : "Sending the card is switched off in Hospital Settings")">
+                        <i class="bi bi-send me-1"></i>Send Card
+                    </button>
+                </form>
+                @if (Model.Status != "Cancelled")
+                {
+                    <button asp-permission="MASTER.MEMBERSHIPCARDS:STATUS" type="button" class="btn btn-outline-danger btn-sm" id="btnStatus"
+                            data-status="@(Model.Status == "Blocked" ? "Active" : "Blocked")">
+                        <i class="bi @(Model.Status == "Blocked" ? "bi-unlock" : "bi-slash-circle") me-1"></i>@(Model.Status == "Blocked" ? "Unblock" : "Block")
+                    </button>
+                }
+                <a asp-action="Index" class="btn btn-light btn-sm">Back to List</a>
+            </div>
+        </div>
+
+        <hr />
+
+        <div class="row g-3">
+            <div class="col-6 col-md-2">
+                <label class="form-label text-muted small mb-1">Valid From</label>
+                <div class="fw-medium">@Model.ValidFrom.ToString("dd MMM yyyy")</div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label text-muted small mb-1">Valid To</label>
+                <div class="fw-medium">@Model.ValidTo.ToString("dd MMM yyyy")</div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label text-muted small mb-1">Fee Collected</label>
+                <div class="fw-medium">₹@Model.FeeAmount.ToString("N2")@(string.IsNullOrWhiteSpace(Model.PaymentMethodName) ? "" : " (" + Model.PaymentMethodName + ")")</div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label text-muted small mb-1">Receipt No</label>
+                <div class="fw-medium font-monospace">@(Model.ReceiptNo ?? "-")</div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label text-muted small mb-1">Points Balance</label>
+                <div class="fw-medium">@Model.PointsBalance.ToString("0.##")</div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label text-muted small mb-1">Issued</label>
+                <div class="fw-medium">@Model.CreatedDate.ToString("dd MMM yyyy HH:mm")</div>
+                <div class="small text-muted">@Model.IssueBranchName@(string.IsNullOrWhiteSpace(Model.IssuedByName) ? "" : " | " + Model.IssuedByName)</div>
+            </div>
+            <div class="col-12 small text-muted">
+                <i class="bi bi-printer me-1"></i>Printed @Model.PrintCount time(s)@(Model.LastPrintedOn.HasValue ? ", last on " + Model.LastPrintedOn.Value.ToString("dd MMM yyyy HH:mm") : "")
+                <span class="mx-2">|</span>
+                <i class="bi bi-whatsapp me-1"></i>@(Model.WhatsAppSentOn.HasValue ? "WhatsApp sent " + Model.WhatsAppSentOn.Value.ToString("dd MMM yyyy HH:mm") : "Not sent on WhatsApp")
+                <span class="mx-2">|</span>
+                <i class="bi bi-envelope me-1"></i>@(Model.EmailSentOn.HasValue ? "Email sent " + Model.EmailSentOn.Value.ToString("dd MMM yyyy HH:mm") : "Not sent by email")
+                @if (!string.IsNullOrWhiteSpace(Model.Remarks))
+                {
+                    <span class="mx-2">|</span><span>Remarks: @Model.Remarks</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card emr-card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-people-fill me-2"></i>Members (@Model.Members.Count of @Model.MaxMembers)</h6>
+                @if (isActive && Model.Members.Count < Model.MaxMembers)
+                {
+                    <button asp-permission="MASTER.MEMBERSHIPCARDS:ADDMEMBER" type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addMemberModal"><i class="bi bi-plus-lg me-1"></i>Add Member</button>
+                }
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle emr-table mb-0">
+                    <thead><tr><th>Patient</th><th>Mobile</th><th>Relation</th></tr></thead>
+                    <tbody>
+                        @foreach (var m in Model.Members)
+                        {
+                            <tr>
+                                <td>
+                                    @m.PatientName
+                                    @if (m.IsPrimary)
+                                    {
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1">Primary</span>
+                                    }
+                                    <div class="small text-muted">@m.PatientCode</div>
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(m.PhoneNumber) ? "-" : m.PhoneNumber)</td>
+                                <td>@m.Relation</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card emr-card h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-journal-text me-2"></i>Card Ledger (benefits &amp; points)</h6></div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle emr-table mb-0">
+                        <thead>
+                            <tr><th>Date</th><th>Type</th><th>Narration</th><th class="text-end">Amount</th><th class="text-end">Points</th><th class="text-end">Balance</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var l in Model.Ledger)
+                            {
+                                <tr>
+                                    <td class="text-nowrap small">@l.CreatedDate.ToString("dd MMM yyyy HH:mm")<div class="text-muted">@l.CreatedByName</div></td>
+                                    <td><span class="badge bg-light text-dark border">@l.TxnType</span></td>
+                                    <td class="small">
+                                        @l.Narration
+                                        @if (l.ExpiresOn.HasValue)
+                                        {
+                                            <div class="text-muted">Points expire @l.ExpiresOn.Value.ToString("dd MMM yyyy")</div>
+                                        }
+                                    </td>
+                                    <td class="text-end">@(l.Amount != 0 ? "₹" + l.Amount.ToString("N2") : "-")</td>
+                                    <td class="text-end">@(l.Points != 0 ? l.Points.ToString("+0.##;-0.##") : "-")</td>
+                                    <td class="text-end">@l.BalanceAfter.ToString("0.##")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card emr-card mt-3">
+    <div class="card-header"><h6 class="mb-0"><i class="bi bi-bank me-2"></i>Accounting Entries</h6></div>
+    <div class="card-body p-0">
+        @if (Model.Accounting.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle emr-table mb-0">
+                    <thead>
+                        <tr><th>Date</th><th>Voucher</th><th>Ledger</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th>Narration</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in Model.Accounting)
+                        {
+                            <tr>
+                                <td class="text-nowrap small">@a.TransactionDate.ToString("dd MMM yyyy HH:mm")</td>
+                                <td class="small">@a.VoucherTypeName<div class="text-muted font-monospace">@a.VoucherNo</div></td>
+                                <td>@a.LedgerName</td>
+                                <td class="text-end">@(a.DebitAmount != 0 ? "₹" + a.DebitAmount.ToString("N2") : "-")</td>
+                                <td class="text-end">@(a.CreditAmount != 0 ? "₹" + a.CreditAmount.ToString("N2") : "-")</td>
+                                <td class="small text-muted">@a.Narration</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-muted small p-3">No accounting entries: the card was issued without a fee.</div>
+        }
+    </div>
+</div>
+
+<form asp-permission="MASTER.MEMBERSHIPCARDS:STATUS" asp-action="SetStatus" asp-route-id="@Model.CardId" method="post" id="statusForm" style="display:none;">
+    <input type="hidden" name="status" id="statusValue" />
+    <input type="hidden" name="reason" id="statusReason" />
+</form>
+
+<div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form asp-action="AddMember" asp-route-id="@Model.CardId" method="post" class="modal-content" id="addMemberForm" autocomplete="off">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add Member to @Model.CardNo</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="patientId" id="addPatientId" value="0" />
+                <div class="position-relative mb-3">
+                    <label class="form-label required">Patient</label>
+                    <input type="text" class="form-control" id="addSearch" placeholder="Type patient code, name or mobile number..." />
+                    <div class="mc-results"></div>
+                    <div class="small text-success mt-1" id="addPicked" style="display:none;"></div>
+                </div>
+                <div>
+                    <label class="form-label required">Relation</label>
+                    <select name="relation" class="form-select">
+                        @foreach (var r in new[] { "Spouse", "Son", "Daughter", "Father", "Mother", "Brother", "Sister", "Father-in-law", "Mother-in-law", "Employee", "Other" })
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="btnAddMember" disabled><i class="bi bi-check-circle me-1"></i>Add Member</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var searchUrl = '@Url.Action("PatientSearch")', timer = null;
+            var channelText = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(string.Join(" and ", channels)));
+            function esc(s) { return $('<span>').text(s == null ? '' : s).html(); }
+
+            $('#btnSend').on('click', function () {
+                Swal.fire({
+                    title: 'Send the card?',
+                    text: 'The card PDF will be sent by ' + channelText + '.',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Send'
+                }).then(function (r) {
+                    if (!r.isConfirmed) return;
+                    $('#btnSend').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Sending...');
+                    $('#sendForm').submit();
+                });
+            });
+
+            $('#btnStatus').on('click', function () {
+                var status = $(this).data('status');
+                if (status === 'Active') {
+                    Swal.fire({ title: 'Unblock this card?', icon: 'question', showCancelButton: true, confirmButtonText: 'Unblock' }).then(function (r) {
+                        if (!r.isConfirmed) return;
+                        $('#statusValue').val('Active'); $('#statusReason').val(''); $('#statusForm').submit();
+                    });
+                    return;
+                }
+                Swal.fire({
+                    title: 'Block this card?',
+                    text: 'A blocked card gives no benefit until it is unblocked.',
+                    input: 'text',
+                    inputPlaceholder: 'Reason (lost card, misuse...)',
+                    inputValidator: function (v) { return !v || !v.trim() ? 'Give the reason.' : null; },
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: 'Block'
+                }).then(function (r) {
+                    if (!r.isConfirmed) return;
+                    $('#statusValue').val('Blocked'); $('#statusReason').val(r.value.trim()); $('#statusForm').submit();
+                });
+            });
+
+            $('#addSearch').on('input', function () {
+                var $list = $(this).siblings('.mc-results'), term = $(this).val().trim();
+                $('#addPatientId').val(0); $('#addPicked').hide(); $('#btnAddMember').prop('disabled', true);
+                clearTimeout(timer);
+                if (term.length < 2) { $list.hide().empty(); return; }
+                timer = setTimeout(function () {
+                    $.getJSON(searchUrl, { term: term }).done(function (rows) {
+                        $list.empty();
+                        if (!rows.length) $list.append('<div class="mc-none">No registered patient matches.</div>');
+                        rows.forEach(function (p) {
+                            var $item = $('<div class="mc-item">').data('patient', p);
+                            $item.append('<div class="fw-semibold">' + esc(p.patientName) + '</div>');
+                            $item.append('<div class="small text-muted">' + esc(p.patientCode + (p.phoneNumber ? ' | ' + p.phoneNumber : '')) + '</div>');
+                            $list.append($item);
+                        });
+                        $list.show();
+                    });
+                }, 250);
+            });
+            $('#addMemberModal').on('click', '.mc-item', function () {
+                var p = $(this).data('patient');
+                $('#addPatientId').val(p.patientId);
+                $('#addSearch').val(p.patientName);
+                $('#addPicked').text('Selected: ' + p.patientName + ' (' + p.patientCode + ')').show();
+                $('.mc-results').hide();
+                $('#btnAddMember').prop('disabled', false);
+            });
+        })();
+    </script>
+}

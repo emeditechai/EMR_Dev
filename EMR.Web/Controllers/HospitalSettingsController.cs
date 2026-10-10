@@ -290,6 +290,11 @@ public class HospitalSettingsController(
             existing.LabB2CBillPrintHeaderRequired = model.LabB2CBillPrintHeaderRequired;
             existing.LabB2CReportPrintHeaderRequired = model.LabB2CReportPrintHeaderRequired;
             existing.DoctorIpComputeMode = model.DoctorIpComputeMode;
+            existing.MembershipCardNoPrefix = string.IsNullOrWhiteSpace(model.MembershipCardNoPrefix) ? "MC" : model.MembershipCardNoPrefix.Trim().ToUpperInvariant();
+            existing.MembershipCardWhatsAppRequired = model.MembershipCardWhatsAppRequired;
+            existing.MembershipCardEmailRequired = model.MembershipCardEmailRequired;
+            existing.MembershipCardAutoSendOnIssue = model.MembershipCardAutoSendOnIssue;
+            existing.MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(model.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : model.MembershipCardMessageTemplate.Trim();
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
@@ -347,6 +352,11 @@ public class HospitalSettingsController(
             LabB2CBillPrintHeaderRequired = s.LabB2CBillPrintHeaderRequired,
             LabB2CReportPrintHeaderRequired = s.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = string.IsNullOrWhiteSpace(s.DoctorIpComputeMode) ? "Manual" : s.DoctorIpComputeMode,
+            MembershipCardNoPrefix = string.IsNullOrWhiteSpace(s.MembershipCardNoPrefix) ? "MC" : s.MembershipCardNoPrefix,
+            MembershipCardWhatsAppRequired = s.MembershipCardWhatsAppRequired,
+            MembershipCardEmailRequired = s.MembershipCardEmailRequired,
+            MembershipCardAutoSendOnIssue = s.MembershipCardAutoSendOnIssue,
+            MembershipCardMessageTemplate = s.MembershipCardMessageTemplate,
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
@@ -391,6 +401,11 @@ public class HospitalSettingsController(
             LabB2CBillPrintHeaderRequired = m.LabB2CBillPrintHeaderRequired,
             LabB2CReportPrintHeaderRequired = m.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = m.DoctorIpComputeMode,
+            MembershipCardNoPrefix = string.IsNullOrWhiteSpace(m.MembershipCardNoPrefix) ? "MC" : m.MembershipCardNoPrefix.Trim().ToUpperInvariant(),
+            MembershipCardWhatsAppRequired = m.MembershipCardWhatsAppRequired,
+            MembershipCardEmailRequired = m.MembershipCardEmailRequired,
+            MembershipCardAutoSendOnIssue = m.MembershipCardAutoSendOnIssue,
+            MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(m.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : m.MembershipCardMessageTemplate.Trim(),
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,

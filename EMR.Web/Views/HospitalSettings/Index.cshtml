@@ -472,6 +472,23 @@ else
                 </div>
             </div>
 
+            <div class="lab-section-title">Membership Card</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-credit-card-2-front-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Membership Card Delivery</div>
+                            <div class="lp-desc">Card number prefix, and how the card soft copy reaches the primary member.</div>
+                            <span class="lp-pill yes"><i class="bi bi-hash"></i>@(string.IsNullOrWhiteSpace(Model.MembershipCardNoPrefix) ? "MC" : Model.MembershipCardNoPrefix)</span>
+                            <span class="lp-pill @(Model.MembershipCardWhatsAppRequired ? "yes" : "no") ms-1"><i class="bi bi-whatsapp"></i>WHATSAPP @(Model.MembershipCardWhatsAppRequired ? "ON" : "OFF")</span>
+                            <span class="lp-pill @(Model.MembershipCardEmailRequired ? "yes" : "no") ms-1"><i class="bi bi-envelope-fill"></i>EMAIL @(Model.MembershipCardEmailRequired ? "ON" : "OFF")</span>
+                            <span class="lp-pill @(Model.MembershipCardAutoSendOnIssue ? "yes" : "no") ms-1"><i class="bi bi-send-check-fill"></i>@(Model.MembershipCardAutoSendOnIssue ? "SENT ON ISSUE" : "SENT ON DEMAND")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })

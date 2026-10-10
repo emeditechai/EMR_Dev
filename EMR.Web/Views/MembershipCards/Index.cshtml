@@ -1,0 +1,141 @@
+@model EMR.Web.Models.ViewModels.MembershipCardIndexViewModel
+
+@{
+    ViewData["Title"] = "Membership Cards";
+    ViewData["PageIcon"] = "bi-credit-card-2-front-fill";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Membership Cards" };
+}
+
+<div class="card emr-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Membership Cards</h5>
+        <div class="d-flex gap-2">
+            <a asp-controller="MembershipPlans" asp-action="Index" class="btn btn-outline-primary btn-sm"><i class="bi bi-award me-1"></i>Membership Plans</a>
+            <a asp-permission="MASTER.MEMBERSHIPCARDS:ISSUE" asp-action="Issue" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Issue Card</a>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-4 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Plan</label>
+                <select name="planId" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    @foreach (var p in Model.Plans)
+                    {
+                        <option value="@p.PlanId" selected="@(Model.PlanId == p.PlanId)">@p.PlanName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    @foreach (var s in new[] { "Active", "Expired", "Blocked", "Cancelled" })
+                    {
+                        <option value="@s" selected="@(Model.Status == s)">@s</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Issued From</label>
+                <input type="date" name="fromDate" value="@Model.FromDate?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Issued To</label>
+                <input type="date" name="toDate" value="@Model.ToDate?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <input name="search" value="@Model.Search" class="form-control form-control-sm" placeholder="Card no, patient, mobile..." autocomplete="off" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Filter</button>
+                <a asp-action="Index" class="btn btn-light btn-sm"><i class="bi bi-arrow-clockwise"></i></a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle emr-table" id="membershipCardTable">
+                <thead>
+                    <tr>
+                        <th>Card No</th>
+                        <th>Plan</th>
+                        <th>Primary Member</th>
+                        <th class="text-end">Members</th>
+                        <th>Valid</th>
+                        <th class="text-end">Fee</th>
+                        <th>Receipt</th>
+                        <th>Sent</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Cards.Any())
+                    {
+                        foreach (var c in Model.Cards)
+                        {
+                            var badge = c.Status switch { "Active" => "success", "Expired" => "secondary", "Blocked" => "warning", _ => "danger" };
+                            <tr>
+                                <td class="font-monospace fw-semibold">@c.CardNo</td>
+                                <td>@c.PlanName</td>
+                                <td>
+                                    @c.PatientName
+                                    <div class="small text-muted">@c.PatientCode@(string.IsNullOrWhiteSpace(c.PhoneNumber) ? "" : " | " + c.PhoneNumber)</div>
+                                </td>
+                                <td class="text-end">@c.MemberCount</td>
+                                <td data-order="@c.ValidTo.ToString("yyyyMMdd")">@c.ValidFrom.ToString("dd MMM yyyy") - @c.ValidTo.ToString("dd MMM yyyy")</td>
+                                <td class="text-end">₹@c.FeeAmount.ToString("N2")</td>
+                                <td class="font-monospace small">@(c.ReceiptNo ?? "-")</td>
+                                <td>
+                                    <i class="bi bi-whatsapp @(c.WhatsAppSentOn.HasValue ? "text-success" : "text-muted opacity-25")" title="@(c.WhatsAppSentOn.HasValue ? "WhatsApp sent " + c.WhatsAppSentOn.Value.ToString("dd MMM yyyy HH:mm") : "Not sent on WhatsApp")"></i>
+                                    <i class="bi bi-envelope-fill ms-1 @(c.EmailSentOn.HasValue ? "text-primary" : "text-muted opacity-25")" title="@(c.EmailSentOn.HasValue ? "Email sent " + c.EmailSentOn.Value.ToString("dd MMM yyyy HH:mm") : "Not sent by email")"></i>
+                                    <i class="bi bi-printer-fill ms-1 @(c.PrintCount > 0 ? "text-dark" : "text-muted opacity-25")" title="Printed @c.PrintCount time(s)"></i>
+                                </td>
+                                <td><span class="badge bg-@badge-subtle text-@badge border border-@badge-subtle">@c.Status</span></td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:DETAILS" asp-action="Details" asp-route-id="@c.CardId" class="btn btn-light text-info" title="Open card"><i class="bi bi-eye"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-route-id="@c.CardId" target="_blank" class="btn btn-light text-dark" title="Print card"><i class="bi bi-printer"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
+                                No membership cards found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if ($('#membershipCardTable tbody tr td').length > 1) {
+                $('#membershipCardTable').DataTable({
+                    "pageLength": 25,
+                    "order": [],
+                    "info": true,
+                    "searching": false, // Handled by the filter row
+                    "lengthChange": true,
+                    "language": {
+                        "paginate": {
+                            "previous": "<i class='bi bi-chevron-left'></i>",
+                            "next": "<i class='bi bi-chevron-right'></i>"
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+}
