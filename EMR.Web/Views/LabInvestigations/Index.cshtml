@@ -167,6 +167,10 @@
                                     </td>
                                     <td>
                                         <span class="fw-semibold text-dark">@item.Test_Name</span>
+                                        @if (!string.IsNullOrWhiteSpace(item.Reporting_Name) && !string.Equals(item.Reporting_Name.Trim(), item.Test_Name.Trim(), StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <div class="small text-muted"><i class="bi bi-file-earmark-text me-1"></i>Reports as: @item.Reporting_Name</div>
+                                        }
                                         @if (item.IsProfileTest)
                                         {
                                             <span class="badge bg-info bg-opacity-10 text-info border border-info ms-1 fs-8">Profile Test</span>

@@ -6,6 +6,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
 {
     private const string CCode = "Test Code";
     private const string CName = "Test Name";
+    private const string CReportingName = "Reporting Name";
     private const string CDept = "Department";
     private const string CCat = "Test Category";
     private const string CSub = "Sub Category";
@@ -64,6 +65,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             [
                 new() { Header = CCode, Note = "Leave blank to create a new investigation (code is generated, e.g. LAB-00012). Fill with an existing code to update it.", Width = 14 },
                 new() { Header = CName, Required = true, Note = "Unique within the department. Max 200 characters.", Width = 36 },
+                new() { Header = CReportingName, AllowNone = true, Note = "Optional. Name printed on reports; blank uses the Test Name. Max 200 characters.", Width = 36 },
                 new() { Header = CDept, RefSheet = RefDept, Note = "Optional: taken from the Test Category when blank. If given, it must match the category's department.", Width = 26 },
                 new() { Header = CCat, Required = true, RefSheet = RefCat, Note = "Must belong to the department.", Width = 30 },
                 new() { Header = CSub, AllowNone = true, RefSheet = RefSub, Note = "Must belong to the Test Category (see REF_SubCategory).", Width = 30 },
@@ -116,7 +118,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             var existing = await service.GetListAsync(null, null, null, null, ctx.CompanyId);
             t.DataRows.AddRange(existing.OrderBy(i => i.Department_Name).ThenBy(i => i.Category_Name).ThenBy(i => i.Test_Name).Select(i => new object?[]
             {
-                i.Test_Code, i.Test_Name,
+                i.Test_Code, i.Test_Name, i.Reporting_Name,
                 BulkValues.Pick(i.Department_Name, i.Department_Code),
                 BulkValues.Pick(i.Category_Name, i.Category_Code),
                 i.SubCategory_ID.HasValue ? BulkValues.Pick(i.SubCategory_Name ?? "", i.SubCategory_Code) : null,
@@ -166,6 +168,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             var isInsert = code == null;
 
             var name = r.Text(CName, required: isInsert, maxLength: 200);
+            var reportingName = r.Text(CReportingName, maxLength: 200);
             var dept = r.Ref(CDept, depts, master: "Department", current: current?.Department_Code);
             var cat = r.Ref(CCat, cats, required: isInsert, master: "Test Category", current: current?.Category_Code);
             var sub = r.Ref(CSub, subs, master: "Sub Category", current: current?.SubCategory_Code);
@@ -223,6 +226,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
                 r.Fail(CMethod, LabBulkUploadRules.MismatchedRef, $"Method '{methodRef.Name}' belongs to {methodRef.DepartmentName}, not to the selected department.");
 
             req.Test_Name = name ?? req.Test_Name;
+            req.Reporting_Name = r.IsNone(CReportingName) ? null : reportingName ?? req.Reporting_Name;
             req.Sample_Type_ID = r.IsNone(CSample) ? null : sample?.Id ?? req.Sample_Type_ID;
             req.Unit_ID = r.IsNone(CUnit) ? null : unit?.Id ?? req.Unit_ID;
             req.Reporting_Type = Keep(reporting, req.Reporting_Type)!;
@@ -287,7 +291,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
     private static LabInvestigationUpdateRequest ToUpdate(LabInvestigationListItem i) => new()
     {
         Test_ID = i.Test_ID, Department_ID = i.Department_ID, Category_ID = i.Category_ID, SubCategory_ID = i.SubCategory_ID,
-        Sample_Type_ID = i.Sample_Type_ID, Method_ID = i.Method_ID, Unit_ID = i.Unit_ID, Test_Name = i.Test_Name,
+        Sample_Type_ID = i.Sample_Type_ID, Method_ID = i.Method_ID, Unit_ID = i.Unit_ID, Test_Name = i.Test_Name, Reporting_Name = i.Reporting_Name,
         Reporting_Type = i.Reporting_Type, TAT_Hours = i.TAT_Hours ?? 24, NABL_Accredited = i.NABL_Accredited, NABL_Scope_No = i.NABL_Scope_No,
         Is_Outsourced = i.Is_Outsourced, Is_Profile_Test = i.Is_Profile_Test, Applicable_Gender = i.Applicable_Gender, Is_Billable = i.Is_Billable,
         Age_Operator = string.IsNullOrWhiteSpace(i.Age_Operator) ? null : i.Age_Operator, Applicable_Age = i.Applicable_Age,
@@ -299,7 +303,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
     private static LabInvestigationCreateRequest ToCreate(LabInvestigationUpdateRequest u, BulkContext ctx) => new()
     {
         CompanyId = ctx.CompanyId, Department_ID = u.Department_ID, Category_ID = u.Category_ID, SubCategory_ID = u.SubCategory_ID,
-        Sample_Type_ID = u.Sample_Type_ID, Method_ID = u.Method_ID, Unit_ID = u.Unit_ID, Test_Name = u.Test_Name,
+        Sample_Type_ID = u.Sample_Type_ID, Method_ID = u.Method_ID, Unit_ID = u.Unit_ID, Test_Name = u.Test_Name, Reporting_Name = u.Reporting_Name,
         Reporting_Type = u.Reporting_Type, TAT_Hours = u.TAT_Hours, NABL_Accredited = u.NABL_Accredited, NABL_Scope_No = u.NABL_Scope_No,
         Is_Outsourced = u.Is_Outsourced, Is_Profile_Test = u.Is_Profile_Test, Applicable_Gender = u.Applicable_Gender, Is_Billable = u.Is_Billable,
         Age_Operator = u.Age_Operator, Applicable_Age = u.Applicable_Age, Is_Fasting_Required = u.Is_Fasting_Required,
