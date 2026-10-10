@@ -66,6 +66,7 @@ public class DoctorIpDetailModel
 public class DoctorIpDetailInputModel
 {
     public long Test_ID { get; set; }
+    public string Item_Type { get; set; } = "Test";
     public decimal Commission_Rate { get; set; }
 }
 

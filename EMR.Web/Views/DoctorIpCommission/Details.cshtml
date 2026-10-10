@@ -1,0 +1,83 @@
+@model EMR.Web.ApiClients.Models.DoctorIpCommissionDetailModel
+@{
+    ViewData["Title"] = "Doctor IP Commission Details";
+    var h = Model.Header;
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">IPD Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index" asp-route-tab="computed">Doctor IP Commission</a></li>
+                    <li class="breadcrumb-item active">Details</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-eye me-2"></i>Commission #@h.Commission_Hdr_ID - @h.Doctor_Name</h4>
+        </div>
+        <a asp-action="Index" asp-route-tab="computed" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Doctor</div><div class="fw-semibold">@h.Doctor_Name</div></div>
+                <div class="col-md-2"><div class="text-muted small text-uppercase fw-semibold">Branch</div><div class="fw-semibold">@(h.Branch_Name ?? "-")</div></div>
+                <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Period</div><div class="fw-semibold">@h.Period_From.ToString("dd-MMM-yyyy") to @h.Period_To.ToString("dd-MMM-yyyy")</div></div>
+                <div class="col-md-2"><div class="text-muted small text-uppercase fw-semibold">Frequency</div><div class="fw-semibold">@(h.Frequency_Of_Disbursal ?? "-")</div></div>
+                <div class="col-md-2"><div class="text-muted small text-uppercase fw-semibold">Computed</div>
+                    <div class="fw-semibold">@h.Computed_Date.ToString("dd-MMM-yyyy HH:mm")</div>
+                    <div class="small text-muted">@h.Computed_By_Name (@(h.Source == "AUTO" ? "scheduled" : "manual"))</div>
+                </div>
+                <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Orders / Tests</div><div class="fw-semibold">@h.Total_Orders / @h.Total_Items</div></div>
+                <div class="col-md-2"><div class="text-muted small text-uppercase fw-semibold">Billed (₹)</div><div class="fw-semibold">@h.Total_Billed_Amount.ToString("N2")</div></div>
+                <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Commission (₹)</div><div class="fw-bold fs-5 text-primary">@h.Total_Commission.ToString("N2")</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold"><i class="bi bi-list-check me-1"></i>Order-wise Commission</h6>
+            <span class="badge bg-secondary">@Model.Details.Count tests</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">#</th><th>Order ID</th><th>Bill No</th><th>Order Date</th><th>Patient</th><th>Type</th><th>Code</th><th>Test / Profile / Package</th>
+                        <th class="text-end">Billed (₹)</th><th class="text-end">Commission %</th><th class="text-end pe-3">Commission (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var i = 0; }
+                    @foreach (var d in Model.Details)
+                    {
+                        i++;
+                        <tr>
+                            <td class="ps-3 text-muted">@i</td>
+                            <td class="font-monospace small">@d.LabOrderId</td>
+                            <td class="font-monospace small">@(d.BillNo ?? "-")</td>
+                            <td>@d.Order_Date.ToString("dd-MMM-yyyy")</td>
+                            <td>@(string.IsNullOrWhiteSpace(d.Patient_Name) ? "-" : d.Patient_Name)</td>
+                            <td>@d.Item_Type</td>
+                            <td class="font-monospace small">@d.Test_Code</td>
+                            <td>@d.Test_Name</td>
+                            <td class="text-end">@d.Billed_Amount.ToString("N2")</td>
+                            <td class="text-end">@d.Commission_Rate.ToString("0.##")</td>
+                            <td class="text-end pe-3 fw-semibold">@d.Commission_Amount.ToString("N2")</td>
+                        </tr>
+                    }
+                    <tr class="table-light fw-bold">
+                        <td colspan="8" class="ps-3">Total</td>
+                        <td class="text-end">@Model.Details.Sum(d => d.Billed_Amount).ToString("N2")</td>
+                        <td></td>
+                        <td class="text-end pe-3">@Model.Details.Sum(d => d.Commission_Amount).ToString("N2")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

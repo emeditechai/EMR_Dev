@@ -131,9 +131,18 @@
 
         <!-- 3. Select tests -->
         <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><span class="step-badge bg-primary text-white me-2">3</span>Select Tests & Commission %</h6></div>
+            <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold"><span class="step-badge bg-primary text-white me-2">3</span>Select Tests, Profiles, Packages & Commission %</h6></div>
             <div class="card-body">
                 <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold">Type</label>
+                        <select id="fType" class="form-select">
+                            <option value="">All types</option>
+                            <option value="Test">Test</option>
+                            <option value="Profile">Profile</option>
+                            <option value="Package">Package</option>
+                        </select>
+                    </div>
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">Department</label>
                         <select id="fDept" asp-items="Model.DepartmentOptions" class="form-select s2" data-placeholder="-- All Departments --"><option value=""></option></select>
@@ -142,12 +151,12 @@
                         <label class="form-label small fw-semibold">Category</label>
                         <select id="fCat" class="form-select s2" data-placeholder="-- All Categories --"><option value=""></option></select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label small fw-semibold">Sub Category</label>
                         <select id="fSub" class="form-select s2" data-placeholder="-- All Sub Categories --"><option value=""></option></select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-semibold">Commission % for new tests</label>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold">Commission % for new rows</label>
                         <div class="input-group">
                             <input type="number" id="fRate" class="form-control text-end" min="0" max="100" step="0.01" value="20" />
                             <span class="input-group-text">%</span>
@@ -157,10 +166,10 @@
                 <div class="row g-2 mt-2">
                     <div class="col-12">
                         <label class="form-label small fw-semibold d-flex justify-content-between align-items-center mb-1">
-                            <span>Select Test / Profile <span class="text-muted fw-normal">(picking one adds it to the grid)</span></span>
+                            <span>Select Test / Profile / Package <span class="text-muted fw-normal">(picking one adds it to the grid)</span></span>
                             <span class="badge bg-light text-muted border">Available: <strong id="lblAvail" class="text-primary font-monospace">0</strong></span>
                         </label>
-                        <select id="oneTest" class="form-select" data-placeholder="-- Search by Test Code or Name --"><option value=""></option></select>
+                        <select id="oneTest" class="form-select" data-placeholder="-- Search by Code or Name --"><option value=""></option></select>
                     </div>
                 </div>
                 <div class="d-flex flex-wrap gap-2 mt-3">
@@ -175,7 +184,7 @@
         <!-- 4. Grid -->
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h6 class="mb-0 fw-bold"><span class="step-badge bg-primary text-white me-2">4</span>Tests in this Doctor IP</h6>
+                <h6 class="mb-0 fw-bold"><span class="step-badge bg-primary text-white me-2">4</span>Tests, Profiles & Packages in this Doctor IP</h6>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     <span class="badge bg-secondary" id="bTotal">0 tests</span>
                     <span class="badge bg-info text-dark" id="bAvg">Avg 0%</span>
@@ -187,7 +196,7 @@
                 <table class="table table-sm table-hover align-middle mb-0" id="tblGrid">
                     <thead>
                         <tr>
-                            <th style="width:45px">#</th><th>Department</th><th>Category</th><th>Sub Category</th><th>Code</th><th>Test / Profile</th>
+                            <th style="width:45px">#</th><th>Type</th><th>Department</th><th>Category</th><th>Sub Category</th><th>Code</th><th>Test / Profile / Package</th>
                             <th class="text-end">MRP (₹)</th><th class="text-end" style="width:130px">Commission %</th><th class="text-end">Commission (₹)</th><th style="width:50px"></th>
                         </tr>
                     </thead>
@@ -225,14 +234,23 @@
         if (isNaN(v) || v < 0 || v > 100) { alertMsg('warning', 'Enter a Commission % between 0 and 100.'); return null; }
         return Math.round(v * 100) / 100;
     }
+    // Package ids overlap with test ids, so a row is identified by type + id.
+    function key(it) { return (it.Item_Type === 'Package' ? 'P' : 'T') + it.Test_ID; }
+    function typeBadge(t) {
+        var cls = t === 'Package' ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle'
+                : t === 'Profile' ? 'bg-primary-subtle text-primary border-primary-subtle'
+                : 'bg-secondary-subtle text-secondary border-secondary-subtle';
+        return '<span class="badge border ' + cls + '">' + esc(t || 'Test') + '</span>';
+    }
     function matches(it) {
-        var d = $('#fDept').val(), c = $('#fCat').val(), s = $('#fSub').val();
+        var t = $('#fType').val(), d = $('#fDept').val(), c = $('#fCat').val(), s = $('#fSub').val();
+        if (t && (it.Item_Type || 'Test') !== t) return false;
         if (d && String(it.Department_ID) !== d) return false;
         if (c && String(it.Category_ID) !== c) return false;
         if (s && String(it.Sub_Category_ID) !== s) return false;
         return true;
     }
-    function inGrid(id) { return rows.some(function (r) { return r.Test_ID === id; }); }
+    function inGrid(k) { return rows.some(function (r) { return key(r) === k; }); }
     function toRow(it, rate) {
         return { Test_ID: it.Test_ID, Test_Code: it.Test_Code, Test_Name: it.Test_Name, Item_Type: it.Item_Type,
                  Department_ID: it.Department_ID, Department_Name: it.Department_Name, Category_ID: it.Category_ID, Category_Name: it.Category_Name,
@@ -241,24 +259,26 @@
 
     function updateMatchInfo() {
         if (!allItems.length) return;
-        var m = allItems.filter(matches), notAdded = m.filter(function (i) { return !inGrid(i.Test_ID); }).length;
+        var m = allItems.filter(matches), notAdded = m.filter(function (i) { return !inGrid(key(i)); }).length;
         var inG = rows.filter(matches).length;
-        $('#matchInfo').html('<i class="bi bi-funnel me-1"></i><strong>' + m.length + '</strong> tests match the selected department / category; <strong>' + notAdded +
+        $('#matchInfo').html('<i class="bi bi-funnel me-1"></i><strong>' + m.length + '</strong> items match the selected filters; <strong>' + notAdded +
             '</strong> not yet added; <strong>' + inG + '</strong> already in the grid.');
         $('#lblAvail, #lblAvailBtn').text(notAdded);
     }
 
     // The dropdown lists only tests matching the department / category / sub category that are not yet in the grid.
     function refreshOneTest() {
-        var prof = '', single = '';
+        var pack = '', prof = '', single = '';
         allItems.forEach(function (i) {
-            if (inGrid(i.Test_ID) || !matches(i)) return;
-            var o = '<option value="' + i.Test_ID + '">' + esc(i.Test_Code + ' - ' + i.Test_Name + ' (' + (i.Category_Name || i.Department_Name || '') + ')') + '</option>';
-            if (i.Item_Type === 'Profile') prof += o; else single += o;
+            if (inGrid(key(i)) || !matches(i)) return;
+            var group = i.Item_Type === 'Package' ? 'Package' : (i.Category_Name || i.Department_Name || '');
+            var o = '<option value="' + key(i) + '">' + esc(i.Test_Code + ' - ' + i.Test_Name + (group ? ' (' + group + ')' : '')) + '</option>';
+            if (i.Item_Type === 'Package') pack += o; else if (i.Item_Type === 'Profile') prof += o; else single += o;
         });
         $('#oneTest').html('<option value=""></option>' +
             (prof ? '<optgroup label="Investigation Profiles">' + prof + '</optgroup>' : '') +
-            (single ? '<optgroup label="Single Investigations">' + single + '</optgroup>' : '')).val('').trigger('change.select2');
+            (single ? '<optgroup label="Single Investigations">' + single + '</optgroup>' : '') +
+            (pack ? '<optgroup label="Packages">' + pack + '</optgroup>' : '')).val('').trigger('change.select2');
         updateMatchInfo();
     }
 
@@ -274,18 +294,17 @@
             n++;
             var amt = (r.MRP || 0) * r.Commission_Rate / 100;
             html += '<tr data-idx="' + idx + '" class="' + (r.Saved ? '' : 'table-warning') + '">' +
-                '<td class="text-muted">' + n + '</td><td>' + esc(r.Department_Name) + '</td><td>' + esc(r.Category_Name) + '</td><td>' + esc(r.Sub_Category_Name) + '</td>' +
-                '<td class="font-monospace small">' + esc(r.Test_Code) + '</td><td>' + esc(r.Test_Name) +
-                (r.Item_Type === 'Profile' ? ' <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Profile</span>' : '') + '</td>' +
+                '<td class="text-muted">' + n + '</td><td>' + typeBadge(r.Item_Type) + '</td><td>' + esc(r.Department_Name) + '</td><td>' + esc(r.Category_Name) + '</td><td>' + esc(r.Sub_Category_Name) + '</td>' +
+                '<td class="font-monospace small">' + esc(r.Test_Code) + '</td><td>' + esc(r.Test_Name) + '</td>' +
                 '<td class="text-end">' + (r.MRP || 0).toFixed(2) + '</td>' +
                 '<td class="text-end"><div class="input-group input-group-sm inp-rate"><input type="number" class="form-control text-end rate" min="0" max="100" step="0.01" value="' + r.Commission_Rate + '"><span class="input-group-text">%</span></div></td>' +
                 '<td class="text-end amt">' + amt.toFixed(2) + '</td>' +
                 '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger del" title="Remove"><i class="bi bi-x-lg"></i></button></td></tr>';
         });
-        if (!rows.length) html = '<tr><td colspan="10" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No tests yet. Use the filters above and click "Add matching tests".</td></tr>';
-        else if (!n) html = '<tr><td colspan="10" class="text-center text-muted py-4">No tests match "' + esc(q) + '".</td></tr>';
+        if (!rows.length) html = '<tr><td colspan="11" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>Nothing added yet. Pick a test, profile or package above, or click "Add all available".</td></tr>';
+        else if (!n) html = '<tr><td colspan="11" class="text-center text-muted py-4">No tests match "' + esc(q) + '".</td></tr>';
         $('#tblGrid tbody').html(html);
-        $('#bTotal').text(rows.length + ' tests');
+        $('#bTotal').text(rows.length + ' items');
         $('#bAvg').text('Avg ' + (rows.length ? (sum / rows.length).toFixed(2) : '0') + '%');
         updateMatchInfo();
     }
@@ -336,11 +355,11 @@
             if (!c) { done(null); return; }
             $.ajax({ url: '@Url.Action("GetSubCategories")', data: { categoryId: c }, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).done(done).fail(locked);
         });
-        $('#fSub').on('change', refreshOneTest);
+        $('#fSub, #fType').on('change', refreshOneTest);
 
         $('#btnAddMatching').on('click', function () {
             var rate = rateInput(); if (rate === null) return;
-            var add = allItems.filter(function (i) { return matches(i) && !inGrid(i.Test_ID); });
+            var add = allItems.filter(function (i) { return matches(i) && !inGrid(key(i)); });
             if (!add.length) { alertMsg('info', 'No new tests match the filters.'); return; }
             add.forEach(function (i) { rows.push(toRow(i, rate)); });
             render(); refreshOneTest();
@@ -362,9 +381,9 @@
         });
         // Picking a test adds it straight to the grid (as in B2C / B2B booking).
         $('#oneTest').on('select2:select', function (e) {
-            var id = parseInt(e.params.data.id, 10), rate = rateInput();
+            var id = e.params.data.id, rate = rateInput();
             if (!id || rate === null) { $(this).val('').trigger('change.select2'); return; }
-            var it = allItems.find(function (i) { return i.Test_ID === id; });
+            var it = allItems.find(function (i) { return key(i) === id; });
             if (it && !inGrid(id)) {
                 rows.push(toRow(it, rate)); render(); refreshOneTest();
                 alertMsg('success', it.Test_Name + ' added at ' + rate + '%.');
@@ -403,7 +422,7 @@
                     if (!res.success) { alertMsg('danger', res.message); return; }
                     var copied = (res.data || []).map(function (d) { var r = toRow(d, Number(d.Commission_Rate)); return r; });
                     if (mode === 'replace') rows = copied;
-                    else copied.forEach(function (r) { if (!inGrid(r.Test_ID)) rows.push(r); });
+                    else copied.forEach(function (r) { if (!inGrid(key(r))) rows.push(r); });
                     render(); refreshOneTest();
                     alertMsg('success', copied.length + ' test(s) copied. Review the rates, then save.');
                 }).fail(locked);
@@ -411,7 +430,7 @@
 
         $('#frmDoctorIp').on('submit', function (e) {
             if (!$('#Doctor_ID').val() || $('#Doctor_ID').val() === '0') { e.preventDefault(); alertMsg('warning', 'Select the referral doctor.'); return; }
-            if (!rows.length) { e.preventDefault(); alertMsg('warning', 'Add at least one test.'); return; }
+            if (!rows.length) { e.preventDefault(); alertMsg('warning', 'Add at least one test, profile or package.'); return; }
             if ($('#tblGrid .rate.is-invalid').length) { e.preventDefault(); alertMsg('warning', 'Fix the highlighted Commission % values (0 - 100).'); return; }
             if ($('#Effective_To').val() < $('#Effective_From').val()) { e.preventDefault(); alertMsg('warning', 'Effective To must be on or after Effective From.'); return; }
             $('#DetailsJson').val(JSON.stringify(rows.map(function (r) {

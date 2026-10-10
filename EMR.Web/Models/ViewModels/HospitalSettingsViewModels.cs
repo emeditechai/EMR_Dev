@@ -114,6 +114,13 @@ public class HospitalSettingsViewModel
     [Display(Name = "Show LAB Report Print on List")]
     public bool ShowLabReportPrintOnList { get; set; } = false;
 
+    [Display(Name = "Doctor IP Commission Run")]
+    [RegularExpression("^(Manual|Automatic|Both)$", ErrorMessage = "Choose Manual, Automatic or Both.")]
+    public string DoctorIpComputeMode { get; set; } = "Manual";
+
+    [Display(Name = "Doctor IP Scheduled Time")]
+    public string? DoctorIpAutoRunTime { get; set; }   // "HH:mm" string for HTML time input
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

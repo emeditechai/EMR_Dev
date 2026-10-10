@@ -37,7 +37,11 @@
                 @if (!string.IsNullOrWhiteSpace(branchName)) { <span>&middot; Branch <strong>@branchName</strong></span> }
                 &middot; <span id="lrRange"></span></div>
             <div class="fs-9 mt-1">
-                @if (branchWide)
+                @if (ViewData["ScopeNote"] is string scopeNote)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-shield-lock me-1"></i>@scopeNote</span>
+                }
+                else if (branchWide)
                 {
                     <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-building me-1"></i>Branch-wide partner report &middot; all users' data of this branch</span>
                 }

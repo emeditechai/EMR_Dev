@@ -193,6 +193,7 @@ builder.Services.AddScoped<ILabParameterOptionApiClient, LabParameterOptionApiCl
 builder.Services.AddScoped<ILabExpertRuleApiClient, LabExpertRuleApiClient>();
 builder.Services.AddScoped<ILabBreakpointApiClient, LabBreakpointApiClient>();
 builder.Services.AddScoped<IDoctorIpApiClient, DoctorIpApiClient>();
+builder.Services.AddScoped<IDoctorIpCommissionApiClient, DoctorIpCommissionApiClient>();
 builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectionReasonApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabFranchiseBarcodeApiClient,     LabFranchiseBarcodeApiClient>();

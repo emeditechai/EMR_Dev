@@ -454,6 +454,43 @@
                 </div>
             </div>
 
+            <div class="lab-section-title">Doctor IP Commission</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-calculator-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Doctor IP Commission Run</div>
+                            <div class="lp-desc">Manual: from the Doctor IP Commission screen. Automatic: by the scheduled job. Both: either way.</div>
+                            <select asp-for="DoctorIpComputeMode" class="form-select form-select-sm mt-2" id="selDoctorIpMode">
+                                <option value="Manual">Manual</option>
+                                <option value="Automatic">Automatic (scheduled)</option>
+                                <option value="Both">Both</option>
+                            </select>
+                            <span asp-validation-for="DoctorIpComputeMode" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-4" id="divDoctorIpRunTime">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-alarm-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Doctor IP Scheduled Time <span class="text-danger">*</span></div>
+                            <div class="lp-desc">Time of day (server time) the scheduled job computes commission for doctors whose disbursal period has closed.</div>
+                            <input asp-for="DoctorIpAutoRunTime" type="time" class="form-control form-control-sm mt-2" />
+                            <span asp-validation-for="DoctorIpAutoRunTime" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+                (function () {
+                    var sel = document.getElementById('selDoctorIpMode'), box = document.getElementById('divDoctorIpRunTime');
+                    function sync() { box.style.display = sel.value === 'Manual' ? 'none' : ''; }
+                    sel.addEventListener('change', sync); sync();
+                })();
+            </script>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Critical Alert", "Print Header on Report", "Barcode on Sample" })

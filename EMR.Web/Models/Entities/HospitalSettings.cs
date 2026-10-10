@@ -78,6 +78,11 @@ public class HospitalSettings
     public bool PathologistApprovalRequired { get; set; } = false;
     /// <summary>Show a "Print" action against each report row in LAB listing screens (default No).</summary>
     public bool ShowLabReportPrintOnList { get; set; } = false;
+    /// <summary>How Doctor IP commission is computed: Manual (screen), Automatic (scheduled job) or Both.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(10)]
+    public string DoctorIpComputeMode { get; set; } = "Manual";
+    /// <summary>Time of day the scheduled Doctor IP commission job runs (Automatic / Both).</summary>
+    public TimeSpan? DoctorIpAutoRunTime { get; set; }
 
     public bool IsActive { get; set; } = true;
 

@@ -108,6 +108,7 @@ builder.Services.AddScoped<ILabParameterOptionService, LabParameterOptionService
 builder.Services.AddScoped<ILabExpertRuleService, LabExpertRuleService>();
 builder.Services.AddScoped<ILabBreakpointService, LabBreakpointService>();
 builder.Services.AddScoped<IDoctorIpService, DoctorIpService>();
+builder.Services.AddScoped<IDoctorIpCommissionService, DoctorIpCommissionService>();
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();
@@ -145,6 +146,7 @@ builder.Services.AddCors(opt =>
          .AllowAnyMethod()));
 
 builder.Services.AddSingleton<IQueryStringEncryptionService, QueryStringEncryptionService>();
+builder.Services.AddHostedService<DoctorIpCommissionBackgroundService>();
 
 var app = builder.Build();
 

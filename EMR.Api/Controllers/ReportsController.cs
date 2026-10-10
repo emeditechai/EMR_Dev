@@ -112,6 +112,12 @@ public class ReportsController : ControllerBase
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner" },              Array.Empty<string>()),
             ["franchise-wallet"]    = ("dbo.usp_Api_LabReport_FranchiseWallet",    new[] { "TransactionType" },                     new[] { "FranchiseId" }),
             ["b2b-outstanding"]     = ("dbo.usp_Api_LabReport_B2BOutstanding",     new[] { "PartnerType", "AgeBucket" },            Array.Empty<string>()),
+            // Doctor IP (referral doctor commission) reports: branch-wide (SQLScripts/2222)
+            ["doctorip-statement"]    = ("dbo.usp_Api_LabReport_DoctorIpStatement",    new[] { "ItemType" },              new[] { "DoctorId" }),
+            ["doctorip-itemwise"]     = ("dbo.usp_Api_LabReport_DoctorIpStatement",    new[] { "ItemType" },              new[] { "DoctorId" }),
+            ["doctorip-business"]     = ("dbo.usp_Api_LabReport_DoctorIpBusiness",     new[] { "CommissionStatus" },      new[] { "DoctorId" }),
+            ["doctorip-pending"]      = ("dbo.usp_Api_LabReport_DoctorIpPending",      new[] { "ItemType", "Frequency" }, new[] { "DoctorId" }),
+            ["doctorip-unconfigured"] = ("dbo.usp_Api_LabReport_DoctorIpUnconfigured", new[] { "Reason" },                new[] { "DoctorId" }),
         };
 
     [HttpGet("lab/run/{report}")]

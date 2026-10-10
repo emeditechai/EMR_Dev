@@ -42,12 +42,12 @@
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h6 class="mb-0 fw-bold"><i class="bi bi-list-check me-1"></i>Tests & Commission</h6>
-            <span class="badge bg-secondary">@Model.Details.Count tests</span>
+            <span class="badge bg-secondary">@Model.Details.Count items</span>
         </div>
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-light">
-                    <tr><th class="ps-3">#</th><th>Department</th><th>Category</th><th>Sub Category</th><th>Code</th><th>Test / Profile</th><th class="text-end">MRP (₹)</th><th class="text-end">Commission %</th><th class="text-end pe-3">Commission (₹)</th></tr>
+                    <tr><th class="ps-3">#</th><th>Type</th><th>Department</th><th>Category</th><th>Sub Category</th><th>Code</th><th>Test / Profile / Package</th><th class="text-end">MRP (₹)</th><th class="text-end">Commission %</th><th class="text-end pe-3">Commission (₹)</th></tr>
                 </thead>
                 <tbody>
                     @{ var i = 0; }
@@ -56,11 +56,12 @@
                         i++;
                         <tr>
                             <td class="ps-3 text-muted">@i</td>
+                            <td><span class="badge border @(d.Item_Type == "Package" ? "bg-warning-subtle text-warning-emphasis border-warning-subtle" : d.Item_Type == "Profile" ? "bg-primary-subtle text-primary border-primary-subtle" : "bg-secondary-subtle text-secondary border-secondary-subtle")">@d.Item_Type</span></td>
                             <td>@d.Department_Name</td>
                             <td>@d.Category_Name</td>
                             <td>@d.Sub_Category_Name</td>
                             <td class="font-monospace small">@d.Test_Code</td>
-                            <td>@d.Test_Name @if (d.Item_Type == "Profile") { <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1">Profile</span> }</td>
+                            <td>@d.Test_Name</td>
                             <td class="text-end">@d.MRP.ToString("N2")</td>
                             <td class="text-end fw-semibold">@d.Commission_Rate.ToString("0.##")</td>
                             <td class="text-end pe-3">@((d.MRP * d.Commission_Rate / 100).ToString("N2"))</td>

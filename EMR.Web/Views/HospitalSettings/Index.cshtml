@@ -416,6 +416,24 @@ else
                 </div>
             </div>
 
+            <div class="lab-section-title">Doctor IP Commission</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-calculator-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Doctor IP Commission Run</div>
+                            <div class="lp-desc">Manual: from the Doctor IP Commission screen. Automatic: by the scheduled job. Both: either way.</div>
+                            <span class="lp-pill yes"><i class="bi bi-gear-fill"></i>@((Model.DoctorIpComputeMode ?? "Manual").ToUpperInvariant())</span>
+                            @if (Model.DoctorIpComputeMode != "Manual" && !string.IsNullOrEmpty(Model.DoctorIpAutoRunTime))
+                            {
+                                <span class="lp-pill yes ms-1"><i class="bi bi-alarm-fill"></i>DAILY AT @Model.DoctorIpAutoRunTime</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Critical Alert", "Print Header on Report", "Barcode on Sample" })

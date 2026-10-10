@@ -229,6 +229,9 @@ public class HospitalSettingsController(
         model.BranchId = branchId.Value;
 
         ValidateLogoFile(model);
+        model.DoctorIpComputeMode = string.IsNullOrWhiteSpace(model.DoctorIpComputeMode) ? "Manual" : model.DoctorIpComputeMode;
+        if (model.DoctorIpComputeMode != "Manual" && !TimeSpan.TryParse(model.DoctorIpAutoRunTime, out _))
+            ModelState.AddModelError(nameof(model.DoctorIpAutoRunTime), "Enter the scheduled time for the automatic Doctor IP commission run.");
 
         if (!ModelState.IsValid)
         {
@@ -282,6 +285,8 @@ public class HospitalSettingsController(
             existing.LabReportEmailNotificationRequired = model.LabReportEmailNotificationRequired;
             existing.PathologistApprovalRequired = model.PathologistApprovalRequired;
             existing.ShowLabReportPrintOnList = model.ShowLabReportPrintOnList;
+            existing.DoctorIpComputeMode = model.DoctorIpComputeMode;
+            existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -333,6 +338,8 @@ public class HospitalSettingsController(
             LabReportEmailNotificationRequired = s.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = s.PathologistApprovalRequired,
             ShowLabReportPrintOnList = s.ShowLabReportPrintOnList,
+            DoctorIpComputeMode = string.IsNullOrWhiteSpace(s.DoctorIpComputeMode) ? "Manual" : s.DoctorIpComputeMode,
+            DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -371,6 +378,8 @@ public class HospitalSettingsController(
             LabReportEmailNotificationRequired = m.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = m.PathologistApprovalRequired,
             ShowLabReportPrintOnList = m.ShowLabReportPrintOnList,
+            DoctorIpComputeMode = m.DoctorIpComputeMode,
+            DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

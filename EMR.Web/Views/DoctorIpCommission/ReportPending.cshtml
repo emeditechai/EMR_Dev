@@ -1,0 +1,67 @@
+@{
+    ViewData["Title"] = "Doctor IP Commission Pending";
+    ViewData["ReportSubtitle"] = "referred tests that have a commission rate but are not computed yet";
+    ViewData["ReportIcon"] = "bi-hourglass-split";
+    ViewData["ReportAccent"] = "#b45309";
+    ViewData["DateLabel"] = "order date";
+    ViewData["ScopeNote"] = "Confidential - all referral doctors of this branch";
+}
+<partial name="~/Views/Reports/_LabReportShell.cshtml" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const pct = v => (Number(v) || 0).toFixed(2) + '%';
+    const share = (a, b) => (Number(b) ? (Number(a) || 0) * 100 / Number(b) : 0).toFixed(2) + '%';
+    const typePill = (t, h) => h.pill(h.esc(t || 'Test'), t === 'Package' ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle'
+        : t === 'Profile' ? 'bg-primary-subtle text-primary border-primary-subtle' : 'bg-secondary-subtle text-secondary border-secondary-subtle');
+    const TYPES = [['Test', 'Test'], ['Profile', 'Profile'], ['Package', 'Package']];
+    const DOCTOR = { id: 'doctorId', label: 'Referral doctor', allLabel: 'All doctors', fromOptions: 'doctorId' };
+    const G_DOCTOR = { key: 'byDoctor', label: 'Doctor', rowField: 'DoctorId', byId: true };
+    const G_DATE = { key: 'byDate', label: 'Date', rowField: 'OrderDay', name: (r, h) => h.fmtD(r.GroupName) };
+    const G_MONTH = { key: 'byMonth', label: 'Month', rowField: 'OrderMonth' };
+    const C_DATE = { label: 'Order date', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.OrderDate), text: (r, h) => h.fmtD(r.OrderDate) };
+    const C_BILL = { label: 'Bill No', html: (r, h) => `<span class="font-monospace fs-9">${h.esc(r.BillNo || '-')}</span>`, text: r => r.BillNo || '' };
+    const C_PATIENT = { label: 'Patient', html: (r, h) => h.esc(r.PatientName || '-'), text: r => r.PatientName || '' };
+    const C_DOCTOR = { label: 'Doctor', html: (r, h) => `<span class="fw-semibold">${h.esc(r.DoctorName)}</span>`, text: r => r.DoctorName };
+    const C_TYPE = { label: 'Type', html: (r, h) => typePill(r.ItemType, h), text: r => r.ItemType };
+    const C_ITEM = { label: 'Test / Profile / Package', html: (r, h) => h.esc(r.ItemLabel), text: r => r.ItemLabel };
+    const C_BILLED = { label: 'Billed', cls: 'text-end amt', html: (r, h) => h.money(r.BilledAmount), text: r => r.BilledAmount, sum: 'BilledAmount' };
+    const C_RATE = { label: 'Rate %', cls: 'text-end', html: r => pct(r.CommissionRate), text: r => r.CommissionRate };
+
+    LabReport.init({
+        report: 'doctorip-pending', title: 'Doctor IP Commission Pending', defaultRange: 'month', seeAll: true,
+        dataUrl: '@Url.Action("GetReportData", "DoctorIpCommission")',
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient or test...',
+        filters: [DOCTOR, { id: 'itemType', label: 'Type', allLabel: 'All types', options: TYPES },
+                  { id: 'frequency', label: 'Disbursal', allLabel: 'Any frequency', options: [['Daily', 'Daily'], ['Weekly', 'Weekly'], ['Monthly', 'Monthly'], ['Quarterly', 'Quarterly'], ['Annually', 'Annually']] }],
+        kpis: [
+            { label: 'Commission pending', color: '#b45309', value: (s, h) => h.money(s.CommissionAmount), sub: (s, h) => `${h.num(s.DoctorCount)} doctor(s)` },
+            { label: 'Billed amount', color: '#1d4ed8', value: (s, h) => h.money(s.BilledAmount), sub: () => 'waiting for computation' },
+            { label: 'Bills', color: '#475569', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.ItemCount)} test(s) / package(s)` },
+            { label: 'Oldest pending', color: '#b91c1c', value: (s, h) => h.num(s.OldestDays) + ' day(s)', sub: () => 'since the order date' }
+        ],
+        groups: [G_DOCTOR, { key: 'byFrequency', label: 'Disbursal frequency', rowField: 'Frequency' }, { key: 'byItemType', label: 'Type', rowField: 'ItemType' }, G_DATE],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'ItemCount', label: 'Items', num: true },
+            { field: 'BilledAmount', label: 'Billed', money: true }, { field: 'CommissionAmount', label: 'Estimated commission', money: true },
+            { field: 'OldestDays', label: 'Oldest (days)', num: true, total: 'max' }
+        ],
+        shareOf: 'CommissionAmount',
+        cols: [
+            C_DATE,
+            { label: 'Days', cls: 'text-end', html: (r, h) => h.num(r.DaysPending), text: r => r.DaysPending },
+            C_BILL, C_PATIENT, C_DOCTOR,
+            { label: 'Disbursal', html: (r, h) => h.esc(r.Frequency || '-'), text: r => r.Frequency || '' },
+            C_TYPE, C_ITEM, C_BILLED, C_RATE,
+            { label: 'Estimated commission', cls: 'text-end amt fw-bold', html: (r, h) => h.money(r.CommissionAmount), text: r => r.CommissionAmount, sum: 'CommissionAmount' }
+        ]
+    });
+})();
+</script>
+}

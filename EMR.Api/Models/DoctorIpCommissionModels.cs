@@ -1,0 +1,114 @@
+namespace EMR.Api.Models;
+
+public class DoctorIpCommissionPendingItem
+{
+    public int Doctor_ID { get; set; }
+    public string Doctor_Name { get; set; } = string.Empty;
+    public string? Frequency_Of_Disbursal { get; set; }
+    public int Pending_Orders { get; set; }
+    public int Pending_Items { get; set; }
+    public decimal Pending_Amount { get; set; }
+    public decimal Estimated_Commission { get; set; }
+    public DateTime First_Order_Date { get; set; }
+    public DateTime Last_Order_Date { get; set; }
+}
+
+public class DoctorIpCommissionCalculateRequest
+{
+    public int BranchId { get; set; }
+    public int? DoctorId { get; set; }
+    public DateTime FromDate { get; set; }
+    public DateTime ToDate { get; set; }
+    public int? CompanyId { get; set; }
+    public int? UserId { get; set; }
+    public string Source { get; set; } = "MANUAL";
+}
+
+public class DoctorIpCommissionCalculateResult
+{
+    public int Doctor_ID { get; set; }
+    public string Doctor_Name { get; set; } = string.Empty;
+    public int Orders_Computed { get; set; }
+    public int Items_Computed { get; set; }
+    public decimal Total_Commission { get; set; }
+}
+
+public class DoctorIpCommissionListItem
+{
+    public long Commission_Hdr_ID { get; set; }
+    public int Doctor_ID { get; set; }
+    public string Doctor_Name { get; set; } = string.Empty;
+    public int Branch_ID { get; set; }
+    public string? Branch_Name { get; set; }
+    public int Doctor_IP_Hdr_ID { get; set; }
+    public string? Frequency_Of_Disbursal { get; set; }
+    public DateTime Period_From { get; set; }
+    public DateTime Period_To { get; set; }
+    public int Total_Orders { get; set; }
+    public int Total_Items { get; set; }
+    public decimal Total_Billed_Amount { get; set; }
+    public decimal Total_Commission { get; set; }
+    public DateTime Computed_Date { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public string Computed_By_Name { get; set; } = string.Empty;
+}
+
+public class DoctorIpCommissionHeader
+{
+    public long Commission_Hdr_ID { get; set; }
+    public int Doctor_ID { get; set; }
+    public string Doctor_Name { get; set; } = string.Empty;
+    public int Branch_ID { get; set; }
+    public string? Branch_Name { get; set; }
+    public int Doctor_IP_Hdr_ID { get; set; }
+    public string? Frequency_Of_Disbursal { get; set; }
+    public DateTime Period_From { get; set; }
+    public DateTime Period_To { get; set; }
+    public int Total_Orders { get; set; }
+    public int Total_Items { get; set; }
+    public decimal Total_Billed_Amount { get; set; }
+    public decimal Total_Commission { get; set; }
+    public DateTime Computed_Date { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public string Computed_By_Name { get; set; } = string.Empty;
+}
+
+public class DoctorIpCommissionDetailItem
+{
+    public long Commission_Dtl_ID { get; set; }
+    public int LabOrderId { get; set; }
+    public string? BillNo { get; set; }
+    public string? Patient_Name { get; set; }
+    public string Item_Type { get; set; } = "Test";
+    public long Test_ID { get; set; }
+    public string? Test_Code { get; set; }
+    public string Test_Name { get; set; } = string.Empty;
+    public decimal Billed_Amount { get; set; }
+    public decimal Commission_Rate { get; set; }
+    public decimal Commission_Amount { get; set; }
+    public DateTime Order_Date { get; set; }
+}
+
+public class DoctorIpCommissionDetail
+{
+    public DoctorIpCommissionHeader Header { get; set; } = new();
+    public List<DoctorIpCommissionDetailItem> Details { get; set; } = [];
+}
+
+public class DoctorIpCommissionDueBranch
+{
+    public int Branch_ID { get; set; }
+    public string Compute_Mode { get; set; } = string.Empty;
+    public TimeSpan Run_Time { get; set; }
+}
+
+public class DoctorIpCommissionDueSchedule
+{
+    public int Doctor_IP_Hdr_ID { get; set; }
+    public int Doctor_ID { get; set; }
+    public int Branch_ID { get; set; }
+    public int CompanyId { get; set; }
+    public string Frequency_Of_Disbursal { get; set; } = string.Empty;
+    public DateTime Period_From { get; set; }
+    public DateTime Period_To { get; set; }
+}

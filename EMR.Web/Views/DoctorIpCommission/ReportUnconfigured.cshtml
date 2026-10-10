@@ -1,0 +1,60 @@
+@{
+    ViewData["Title"] = "Referrals without Commission Rate";
+    ViewData["ReportSubtitle"] = "referred tests that earn no commission because no Doctor IP rate applies to them";
+    ViewData["ReportIcon"] = "bi-exclamation-diamond";
+    ViewData["ReportAccent"] = "#b91c1c";
+    ViewData["DateLabel"] = "order date";
+    ViewData["ScopeNote"] = "Confidential - all referral doctors of this branch";
+}
+<partial name="~/Views/Reports/_LabReportShell.cshtml" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const pct = v => (Number(v) || 0).toFixed(2) + '%';
+    const share = (a, b) => (Number(b) ? (Number(a) || 0) * 100 / Number(b) : 0).toFixed(2) + '%';
+    const typePill = (t, h) => h.pill(h.esc(t || 'Test'), t === 'Package' ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle'
+        : t === 'Profile' ? 'bg-primary-subtle text-primary border-primary-subtle' : 'bg-secondary-subtle text-secondary border-secondary-subtle');
+    const TYPES = [['Test', 'Test'], ['Profile', 'Profile'], ['Package', 'Package']];
+    const DOCTOR = { id: 'doctorId', label: 'Referral doctor', allLabel: 'All doctors', fromOptions: 'doctorId' };
+    const G_DOCTOR = { key: 'byDoctor', label: 'Doctor', rowField: 'DoctorId', byId: true };
+    const G_DATE = { key: 'byDate', label: 'Date', rowField: 'OrderDay', name: (r, h) => h.fmtD(r.GroupName) };
+    const G_MONTH = { key: 'byMonth', label: 'Month', rowField: 'OrderMonth' };
+    const C_DATE = { label: 'Order date', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.OrderDate), text: (r, h) => h.fmtD(r.OrderDate) };
+    const C_BILL = { label: 'Bill No', html: (r, h) => `<span class="font-monospace fs-9">${h.esc(r.BillNo || '-')}</span>`, text: r => r.BillNo || '' };
+    const C_PATIENT = { label: 'Patient', html: (r, h) => h.esc(r.PatientName || '-'), text: r => r.PatientName || '' };
+    const C_DOCTOR = { label: 'Doctor', html: (r, h) => `<span class="fw-semibold">${h.esc(r.DoctorName)}</span>`, text: r => r.DoctorName };
+    const C_TYPE = { label: 'Type', html: (r, h) => typePill(r.ItemType, h), text: r => r.ItemType };
+    const C_ITEM = { label: 'Test / Profile / Package', html: (r, h) => h.esc(r.ItemLabel), text: r => r.ItemLabel };
+    const C_BILLED = { label: 'Billed', cls: 'text-end amt', html: (r, h) => h.money(r.BilledAmount), text: r => r.BilledAmount, sum: 'BilledAmount' };
+    const C_RATE = { label: 'Rate %', cls: 'text-end', html: r => pct(r.CommissionRate), text: r => r.CommissionRate };
+
+    LabReport.init({
+        report: 'doctorip-unconfigured', title: 'Referrals without Commission Rate', defaultRange: 'month', seeAll: true,
+        dataUrl: '@Url.Action("GetReportData", "DoctorIpCommission")',
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient or test...',
+        filters: [DOCTOR, { id: 'reason', label: 'Reason', allLabel: 'Any reason', options: [['NO_SETUP', 'Doctor has no Doctor IP'], ['NO_PERIOD', 'No active Doctor IP on the order date'], ['NOT_LISTED', 'Item not in the Doctor IP']] }],
+        kpis: [
+            { label: 'Billed without a rate', color: '#b91c1c', value: (s, h) => h.money(s.BilledAmount), sub: (s, h) => `${h.num(s.BillCount)} bill(s) &middot; ${h.num(s.ItemCount)} item(s)` },
+            { label: 'Doctor has no Doctor IP', color: '#475569', value: (s, h) => h.money(s.NoSetupAmount), sub: (s, h) => `${h.num(s.DoctorCount)} doctor(s) in this report` },
+            { label: 'No active period', color: '#b45309', value: (s, h) => h.money(s.NoPeriodAmount), sub: () => 'inactive, or order outside the effective dates' },
+            { label: 'Item not listed', color: '#7c3aed', value: (s, h) => h.money(s.NotListedAmount), sub: () => 'test / package missing in the Doctor IP' }
+        ],
+        groups: [G_DOCTOR, { key: 'byReason', label: 'Reason', rowField: 'ReasonLabel' }, { key: 'byItem', label: 'Test / Profile / Package', rowField: 'ItemLabel' }, G_DATE],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'ItemCount', label: 'Items', num: true }, { field: 'BilledAmount', label: 'Billed', money: true }
+        ],
+        shareOf: 'BilledAmount',
+        cols: [
+            C_DATE, C_BILL, C_PATIENT, C_DOCTOR, C_TYPE, C_ITEM, C_BILLED,
+            { label: 'Reason', html: (r, h) => h.pill(h.esc(r.ReasonLabel), r.ReasonCode === 'NO_SETUP' ? 'bg-secondary-subtle text-secondary border-secondary-subtle' : r.ReasonCode === 'NO_PERIOD' ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle' : 'bg-danger-subtle text-danger border-danger-subtle'), text: r => r.ReasonLabel }
+        ]
+    });
+})();
+</script>
+}

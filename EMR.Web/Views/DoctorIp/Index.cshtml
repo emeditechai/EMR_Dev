@@ -24,6 +24,7 @@
             {
                 <a asp-action="SetAccessCode" class="btn btn-outline-secondary btn-sm"><i class="bi bi-key me-1"></i>Access Code</a>
             }
+            <a asp-controller="DoctorIpCommission" asp-action="Index" asp-permission="MASTER.DOCTORIP_COMMISSION:VIEW" class="btn btn-outline-primary btn-sm"><i class="bi bi-calculator me-1"></i>Commission</a>
             <form asp-action="Lock" method="post" class="d-inline">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-lock me-1"></i>Lock</button>
