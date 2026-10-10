@@ -153,6 +153,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Required Patient Portal")]
     public bool LabPatientPortalRequired { get; set; }
 
+    [Display(Name = "Follow up Notification Required")]
+    public bool OpdFollowUpNotificationRequired { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

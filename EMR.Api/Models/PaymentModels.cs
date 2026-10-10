@@ -39,6 +39,8 @@ public class PaymentSummaryResult
 
 public class PaymentLineItem
 {
+    /// <summary>A discount may be given on this item (OPD Service Master / LAB B2C rate card; SQLScripts/2228).</summary>
+    public bool IsDiscountAllowed { get; set; } = true;
     public int     LineRefId           { get; set; }
     public string? ServiceType         { get; set; }
     public string? ItemName            { get; set; }

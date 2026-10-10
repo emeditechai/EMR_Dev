@@ -2602,6 +2602,72 @@ public class OPDController(
         return View("PrintPrescription", vm);
     }
 
+    // ── EMR: Refer To Doctor (speciality -> doctor) and Follow-Up Date (SQLScripts/2229) ─────────────────────────
+    /// <summary>Specialities that have at least one active doctor other than the consulting doctor.</summary>
+    [HttpGet]
+    public async Task<IActionResult> EmrReferSpecialities(int? excludeDoctorId)
+    {
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync(@"
+            SELECT sp.SpecialityId AS id, sp.SpecialityName AS name
+            FROM dbo.DoctorSpecialityMaster sp
+            WHERE sp.IsActive = 1 AND sp.CompanyId = @CompanyId
+              AND EXISTS (SELECT 1 FROM dbo.DoctorMaster d
+                          WHERE d.IsActive = 1 AND ISNULL(d.IsReferralDoctor, 0) = 0 AND d.CompanyId = @CompanyId
+                            AND (d.PrimarySpecialityId = sp.SpecialityId OR d.SecondarySpecialityId = sp.SpecialityId)
+                            AND (@Exclude IS NULL OR d.DoctorId <> @Exclude))
+            ORDER BY sp.SpecialityName",
+            new { CompanyId = User.GetCompanyId(), Exclude = excludeDoctorId is > 0 ? excludeDoctorId : null });
+        return Json(rows);
+    }
+
+    /// <summary>Active doctors of a speciality (primary or secondary), the consulting doctor left out.</summary>
+    [HttpGet]
+    public async Task<IActionResult> EmrReferDoctors(int specialityId, int? excludeDoctorId)
+    {
+        if (specialityId <= 0) return Json(Array.Empty<object>());
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync(@"
+            SELECT d.DoctorId AS id, LTRIM(RTRIM(ISNULL(d.NamePrefix + ' ', '') + d.FullName)) AS name,
+                   CASE WHEN d.PrimarySpecialityId = @SpecialityId THEN 1 ELSE 0 END AS isPrimary
+            FROM dbo.DoctorMaster d
+            WHERE d.IsActive = 1 AND ISNULL(d.IsReferralDoctor, 0) = 0 AND d.CompanyId = @CompanyId
+              AND (d.PrimarySpecialityId = @SpecialityId OR d.SecondarySpecialityId = @SpecialityId)
+              AND (@Exclude IS NULL OR d.DoctorId <> @Exclude)
+            ORDER BY CASE WHEN d.PrimarySpecialityId = @SpecialityId THEN 0 ELSE 1 END, d.FullName",
+            new { SpecialityId = specialityId, CompanyId = User.GetCompanyId(), Exclude = excludeDoctorId is > 0 ? excludeDoctorId : null });
+        return Json(rows);
+    }
+
+    /// <summary>Both are optional. A referral needs a speciality and an active doctor of it (not the consulting doctor);
+    /// a follow-up date must be after the visit and within a year.</summary>
+    private async Task<string?> ValidateReferAndFollowUpAsync(SaveConsultationRequest req)
+    {
+        if (req.ReferToSpecialityId is not > 0) req.ReferToSpecialityId = null;
+        if (req.ReferToDoctorId is not > 0) req.ReferToDoctorId = null;
+        if (req.ReferToSpecialityId != null && req.ReferToDoctorId == null)
+            return "Select the doctor to refer to, or clear the speciality.";
+        if (req.ReferToDoctorId != null)
+        {
+            if (req.ReferToSpecialityId == null) return "Select the speciality of the doctor to refer to.";
+            if (req.ReferToDoctorId == req.DoctorId) return "A patient cannot be referred to the consulting doctor.";
+            using var con = db.CreateConnection();
+            var ok = await con.ExecuteScalarAsync<bool>(@"
+                SELECT CAST(COUNT(1) AS BIT) FROM dbo.DoctorMaster d
+                WHERE d.DoctorId = @DoctorId AND d.IsActive = 1 AND ISNULL(d.IsReferralDoctor, 0) = 0 AND d.CompanyId = @CompanyId
+                  AND (d.PrimarySpecialityId = @SpecialityId OR d.SecondarySpecialityId = @SpecialityId)",
+                new { DoctorId = req.ReferToDoctorId, SpecialityId = req.ReferToSpecialityId, CompanyId = User.GetCompanyId() });
+            if (!ok) return "The selected doctor is not an active doctor of the selected speciality.";
+        }
+        if (req.FollowUpDate is { } f)
+        {
+            req.FollowUpDate = f.Date;
+            if (f.Date <= DateTime.Today) return "The follow-up date must be after today.";
+            if (f.Date > DateTime.Today.AddYears(1)) return "The follow-up date can be at most one year ahead.";
+        }
+        return null;
+    }
+
     [HttpPost]
     public async Task<IActionResult> SavePatientConsultation([FromBody] SaveConsultationRequest req)
     {
@@ -2611,6 +2677,10 @@ public class OPDController(
             return Json(new { success = false, message = "This patient is not in your queue." });
         if (!await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext))
             req.DoctorId = (await OwnDoctorAsync())!.DoctorId;
+
+        var referFollowUpError = await ValidateReferAndFollowUpAsync(req);
+        if (referFollowUpError != null)
+            return Json(new { success = false, message = referFollowUpError });
 
         var userId = User.GetUserId();
         
@@ -2977,5 +3047,10 @@ public class SaveConsultationRequest
     public string VisitType { get; set; } = "New";
     public string ConsultationType { get; set; } = string.Empty;
     public string EmrDataJson { get; set; } = string.Empty;
+    /// <summary>Refer To Doctor (optional): the speciality and a doctor of it (SQLScripts/2229).</summary>
+    public int? ReferToSpecialityId { get; set; }
+    public int? ReferToDoctorId { get; set; }
+    /// <summary>Follow-Up Date (optional); reminders 7 days and 1 day before when the branch has them on.</summary>
+    public DateTime? FollowUpDate { get; set; }
     public int RequestedByUserId { get; set; }
 }

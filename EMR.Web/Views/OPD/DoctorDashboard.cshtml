@@ -270,6 +270,31 @@
                                     <option value="Video">Video Consultation</option>
                                 </select>
                             </div>
+                            @* Refer To Doctor (optional): search a speciality, then a doctor of it; Follow-Up Date (optional) - SQLScripts/2229 *@
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1" for="emrReferSpeciality">REFER TO &middot; SPECIALITY <span class="fw-normal text-muted">(optional)</span></label>
+                                <select id="emrReferSpeciality" class="form-control form-control-sm" data-live-search="true" data-container="body" data-size="8" title="Search speciality...">
+                                    <option value="">&mdash; No referral &mdash;</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1" for="emrReferDoctor">REFER TO &middot; DOCTOR</label>
+                                <select id="emrReferDoctor" class="form-control form-control-sm" data-live-search="true" data-container="body" data-size="8" title="Select a speciality first" disabled></select>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label fw-semibold text-muted mb-1" for="emrFollowUpDate">FOLLOW-UP DATE <span class="fw-normal text-muted">(optional)</span></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="date" id="emrFollowUpDate" class="form-control" autocomplete="off" />
+                                    <button type="button" class="btn btn-outline-secondary" id="btnClearFollowUp" title="Clear follow-up date" aria-label="Clear follow-up date"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                                <div class="form-text small mb-0" id="emrFollowUpHint"></div>
+                                <div class="d-flex flex-wrap gap-1 mt-1" id="emrFollowUpQuick">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-days="7">1 wk</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-days="15">15 d</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-days="30">1 mo</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" data-days="90">3 mo</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2014,6 +2039,8 @@
                     $('#emrVisitType').val('New');
                     $('#emrConsultationType').val(data.booking.bookedConsultingType || 'Walking');
                 }
+                // Refer To Doctor / Follow-Up Date (saved values, if any)
+                await emrReferLoad(doctorId, data.savedConsultation);
 
                 // Populate vitals reference bar
                 const bp = $('#vitalBP').text() || '--/--';
@@ -2642,8 +2669,13 @@
                 MobileNumber: $('#emrMobileNumber').val(),
                 VisitType: $('#emrVisitType').val(),
                 ConsultationType: $('#emrConsultationType').val(),
-                EmrDataJson: JSON.stringify(emrData)
+                EmrDataJson: JSON.stringify(emrData),
+                ReferToSpecialityId: parseInt($('#emrReferSpeciality').val()) || null,
+                ReferToDoctorId: parseInt($('#emrReferDoctor').val()) || null,
+                FollowUpDate: $('#emrFollowUpDate').val() || null
             };
+            const referFollowUpError = emrReferValidate();
+            if (referFollowUpError) { Swal.fire('Check the referral / follow-up', referFollowUpError, 'warning'); return; }
 
             Swal.fire({
                 title: 'Saving EMR Record...',
@@ -2689,6 +2721,89 @@
             }
         }
 
+        // ── Refer To Doctor (speciality -> doctor) and Follow-Up Date - SQLScripts/2229 ──────────────────────────
+        let _emrReferDoctorId = null;   // consulting doctor (left out of the referral list)
+        const pad2 = n => String(n).padStart(2, '0');
+        const isoDate = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+        function emrPicker($s, action) {
+            if (typeof $.fn.selectpicker === 'undefined') return;
+            if (action === 'init') { if (!$s.data('selectpicker')) $s.selectpicker(); else $s.selectpicker('refresh'); }
+            else $s.selectpicker(action);
+        }
+        async function emrReferLoad(doctorId, saved) {
+            _emrReferDoctorId = parseInt(doctorId) || null;
+            const $sp = $('#emrReferSpeciality'), $dr = $('#emrReferDoctor');
+            $sp.find('option:not(:first)').remove();
+            $dr.empty().prop('disabled', true);
+            try {
+                const res = await fetch(`/OPD/EmrReferSpecialities?excludeDoctorId=${_emrReferDoctorId || ''}`);
+                const rows = res.ok ? await res.json() : [];
+                rows.forEach(r => $sp.append(new Option(r.name, r.id)));
+            } catch { /* the referral stays optional */ }
+            $sp.val(saved?.referToSpecialityId ? String(saved.referToSpecialityId) : '');
+            emrPicker($sp, 'init');
+            await emrReferDoctors(saved?.referToDoctorId);
+            emrPicker($dr, 'init');
+
+            // follow-up date: tomorrow .. one year ahead
+            const t = new Date(), min = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1), max = new Date(t.getFullYear() + 1, t.getMonth(), t.getDate());
+            $('#emrFollowUpDate').attr({ min: isoDate(min), max: isoDate(max) })
+                .val(saved?.followUpDate ? String(saved.followUpDate).substring(0, 10) : '');
+            emrFollowUpHint();
+        }
+        let _emrReferDoctorsSeq = 0;   // only the latest load fills the list (loads can overlap)
+        async function emrReferDoctors(selectId) {
+            const seq = ++_emrReferDoctorsSeq;
+            const $dr = $('#emrReferDoctor'), sid = parseInt($('#emrReferSpeciality').val()) || 0;
+            if (!sid) { $dr.empty().prop('disabled', true).attr('title', 'Select a speciality first'); emrPicker($dr, 'refresh'); return; }
+            try {
+                const res = await fetch(`/OPD/EmrReferDoctors?specialityId=${sid}&excludeDoctorId=${_emrReferDoctorId || ''}`);
+                const rows = res.ok ? await res.json() : [];
+                if (seq !== _emrReferDoctorsSeq) return;   // a newer load is on its way
+                $dr.empty();
+                $dr.append(new Option('— Select doctor —', ''));
+                rows.forEach(r => $dr.append(new Option(r.name + (r.isPrimary ? '' : ' (secondary speciality)'), r.id)));
+                $dr.prop('disabled', rows.length === 0).attr('title', rows.length ? 'Search doctor...' : 'No doctor in this speciality');
+                $dr.val(selectId ? String(selectId) : (rows.length === 1 ? String(rows[0].id) : ''));
+            } catch { if (seq === _emrReferDoctorsSeq) $dr.empty().prop('disabled', true); }
+            if (seq === _emrReferDoctorsSeq) emrPicker($dr, 'refresh');
+        }
+        function emrReferValidate() {
+            const sid = parseInt($('#emrReferSpeciality').val()) || 0, did = parseInt($('#emrReferDoctor').val()) || 0;
+            if (sid && !did) return 'Select the doctor to refer to, or set the speciality back to "No referral".';
+            const f = $('#emrFollowUpDate').val();
+            if (f) {
+                if (f < $('#emrFollowUpDate').attr('min')) return 'The follow-up date must be after today.';
+                if (f > $('#emrFollowUpDate').attr('max')) return 'The follow-up date can be at most one year ahead.';
+            }
+            return null;
+        }
+        function emrFollowUpHint() {
+            const v = $('#emrFollowUpDate').val(), $h = $('#emrFollowUpHint');
+            if (!v) { $h.text(''); return; }
+            const d = new Date(v + 'T00:00:00'), t = new Date(); t.setHours(0, 0, 0, 0);
+            const days = Math.round((d - t) / 86400000);
+            $h.html(days > 0 ? `<i class="bi bi-calendar-event me-1"></i>In ${days} day${days === 1 ? '' : 's'} &middot; ${d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}` : '');
+        }
+        function emrReferPrintText() {
+            const did = parseInt($('#emrReferDoctor').val()) || 0;
+            if (!did) return '';
+            const doc = $('#emrReferDoctor option:selected').text().replace(' (secondary speciality)', '');
+            const sp = $('#emrReferSpeciality option:selected').text();
+            return `${doc} &mdash; ${sp}`;
+        }
+        function emrFollowUpPrintText() {
+            const v = $('#emrFollowUpDate').val();
+            return v ? new Date(v + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+        }
+        $(document).on('change', '#emrReferSpeciality', function () { emrReferDoctors(null); });
+        $(document).on('change input', '#emrFollowUpDate', emrFollowUpHint);
+        $(document).on('click', '#btnClearFollowUp', () => { $('#emrFollowUpDate').val(''); emrFollowUpHint(); });
+        $(document).on('click', '#emrFollowUpQuick [data-days]', function () {
+            const d = new Date(); d.setDate(d.getDate() + parseInt($(this).data('days')));
+            $('#emrFollowUpDate').val(isoDate(d)); emrFollowUpHint();
+        });
+
         function printEMRRecord() {
             const name = $('#emrPatientName').val();
             const patientCode = $('#emrPatientCode').val();
@@ -2699,6 +2814,8 @@
             const visitDate = $('#emrVisitDate').val() || new Date().toLocaleDateString();
             const visitType = $('#emrVisitType option:selected').text();
             const consultationType = $('#emrConsultationType option:selected').text();
+            const referText = emrReferPrintText();
+            const followUpText = emrFollowUpPrintText();
 
             const doctorSelect = document.getElementById('ddlDoctorDashboard');
             const doctorName = doctorSelect?.selectedOptions[0]?.text?.split(' (')[0] || 'Consulting Doctor';
@@ -3024,6 +3141,8 @@
                         <div class="p-item"><span>Visit Type</span><strong>${visitType}</strong></div>
                         <div class="p-item"><span>Consult Type</span><strong>${consultationType}</strong></div>
                     </div>
+                    ${referText ? `<div style="margin:-6px 0 18px;padding:10px 14px;border:1px solid #c7d2fe;border-left:4px solid #4f46e5;border-radius:6px;background:#eef2ff;font-size:13px;">
+                        <span style="font-size:11px;text-transform:uppercase;color:#4338ca;font-weight:700;">Referred to</span><br/><strong>${referText}</strong></div>` : ''}
 
                     <!-- Main Body Layout -->
                     <div class="main-layout">
@@ -3050,7 +3169,7 @@
                     <!-- Footer -->
                     <div class="footer">
                         <div>
-                            <strong>Follow-up Date:</strong> _______________________<br/><br/>
+                            <strong>Follow-up Date:</strong> ${followUpText || '_______________________'}<br/><br/>
                         </div>
                         <div class="signature">
                             ${doctorName}<br/>

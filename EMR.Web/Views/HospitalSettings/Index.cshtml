@@ -234,7 +234,7 @@ else
         <div class="tab-pane fade show active module-tab-pane" id="tabOpd" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#0d6efd"><i class="bi bi-person-plus-fill me-1"></i>OPD Module Settings</span>
-                <span class="coming-soon-badge">3 active parameters</span>
+                <span class="coming-soon-badge">4 active parameters</span>
             </div>
 
             <div class="lab-section-title">Registration &amp; Notifications</div>
@@ -273,6 +273,16 @@ else
                             <div class="lp-label">Email Notification Required</div>
                             <div class="lp-desc">Send emails for bills and prescriptions.</div>
                             <span class="lp-pill @(Model.EmailNotificationRequired ? "yes" : "no")"><i class="bi @(Model.EmailNotificationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EmailNotificationRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c2410c;--lp-bg:#ffedd5;">
+                        <div class="lp-icon"><i class="bi bi-bell-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Follow up Notification Required</div>
+                            <div class="lp-desc">Reminder by e-mail and WhatsApp 7 days and 1 day before the EMR follow-up date.</div>
+                            <span class="lp-pill @(Model.OpdFollowUpNotificationRequired ? "yes" : "no")"><i class="bi @(Model.OpdFollowUpNotificationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.OpdFollowUpNotificationRequired ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>

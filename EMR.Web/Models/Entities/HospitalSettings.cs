@@ -67,6 +67,10 @@ public class HospitalSettings
 
     public bool EmailNotificationRequired { get; set; } = true;
 
+    /// <summary>OPD follow-up reminders (e-mail + WhatsApp) 7 days and 1 day before the follow-up date set in the EMR
+    /// (default No = no reminders). SQLScripts/2229.</summary>
+    public bool OpdFollowUpNotificationRequired { get; set; } = false;
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;

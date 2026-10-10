@@ -112,6 +112,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 
 // WhatsApp Notification Service
 builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
+// OPD follow-up reminders (e-mail + WhatsApp, 7 days and 1 day before; Hospital Settings > OPD; SQLScripts/2229)
+builder.Services.AddHostedService<FollowUpReminderService>();
 
 // Video Consultation (Whereby)
 builder.Services.AddHttpClient("Whereby", client =>

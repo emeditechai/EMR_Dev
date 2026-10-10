@@ -297,6 +297,7 @@ public class HospitalSettingsController(
             existing.MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(model.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : model.MembershipCardMessageTemplate.Trim();
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.LabPatientPortalRequired = model.LabPatientPortalRequired;
+            existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -360,6 +361,7 @@ public class HospitalSettingsController(
             MembershipCardMessageTemplate = s.MembershipCardMessageTemplate,
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             LabPatientPortalRequired = s.LabPatientPortalRequired,
+            OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -410,6 +412,7 @@ public class HospitalSettingsController(
             MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(m.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : m.MembershipCardMessageTemplate.Trim(),
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             LabPatientPortalRequired = m.LabPatientPortalRequired,
+            OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

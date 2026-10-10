@@ -105,9 +105,14 @@ public class EmrConsultationService(IDbConnectionFactory db) : IEmrConsultationS
 
         // 7. Get Saved Consultation
         var savedConsultation = await con.QueryFirstOrDefaultAsync<EmrSavedConsultationInfo>(@"
-            SELECT ConsultationId, VisitType, ConsultationType, EmrDataJson
-            FROM EmrPatientConsultation
-            WHERE OPDServiceId = @opdServiceId", 
+            SELECT c.ConsultationId, c.VisitType, c.ConsultationType, c.EmrDataJson,
+                   c.ReferToSpecialityId, sp.SpecialityName AS ReferToSpecialityName,
+                   c.ReferToDoctorId, LTRIM(RTRIM(ISNULL(rd.NamePrefix + ' ', '') + rd.FullName)) AS ReferToDoctorName,
+                   CAST(c.FollowUpDate AS DATETIME) AS FollowUpDate
+            FROM EmrPatientConsultation c
+            LEFT JOIN DoctorSpecialityMaster sp ON sp.SpecialityId = c.ReferToSpecialityId
+            LEFT JOIN DoctorMaster rd ON rd.DoctorId = c.ReferToDoctorId
+            WHERE c.OPDServiceId = @opdServiceId", 
             new { opdServiceId });
 
         return new EmrConsultationResponse
@@ -130,9 +135,11 @@ public class EmrConsultationService(IDbConnectionFactory db) : IEmrConsultationS
         {
             var sql = @"
                 INSERT INTO EmrPatientConsultation 
-                (OPDServiceId, PatientId, DoctorId, TemplateId, OPDBillNo, PatientCode, PatientName, Gender, Age, MobileNumber, VisitDate, VisitType, ConsultationType, EmrDataJson, CreatedBy, CreatedDate)
+                (OPDServiceId, PatientId, DoctorId, TemplateId, OPDBillNo, PatientCode, PatientName, Gender, Age, MobileNumber, VisitDate, VisitType, ConsultationType, EmrDataJson, CreatedBy, CreatedDate,
+                 ReferToSpecialityId, ReferToDoctorId, FollowUpDate, FollowUpSetOn)
                 VALUES 
-                (@OPDServiceId, @PatientId, @DoctorId, @TemplateId, @OPDBillNo, @PatientCode, @PatientName, @Gender, @Age, @MobileNumber, GETDATE(), @VisitType, @ConsultationType, @EmrDataJson, @RequestedByUserId, GETDATE())";
+                (@OPDServiceId, @PatientId, @DoctorId, @TemplateId, @OPDBillNo, @PatientCode, @PatientName, @Gender, @Age, @MobileNumber, GETDATE(), @VisitType, @ConsultationType, @EmrDataJson, @RequestedByUserId, GETDATE(),
+                 @ReferToSpecialityId, @ReferToDoctorId, @FollowUpDate, CASE WHEN @FollowUpDate IS NULL THEN NULL ELSE GETDATE() END)";
             
             await con.ExecuteAsync(sql, req);
         }
@@ -143,6 +150,14 @@ public class EmrConsultationService(IDbConnectionFactory db) : IEmrConsultationS
                 SET VisitType = @VisitType,
                     ConsultationType = @ConsultationType,
                     EmrDataJson = @EmrDataJson,
+                    ReferToSpecialityId = @ReferToSpecialityId,
+                    ReferToDoctorId = @ReferToDoctorId,
+                    -- a new / changed follow-up date starts its reminders again; an unchanged one keeps them as they are
+                    FollowUpSetOn = CASE WHEN @FollowUpDate IS NULL THEN NULL
+                                         WHEN FollowUpDate IS NULL OR FollowUpDate <> @FollowUpDate THEN GETDATE() ELSE FollowUpSetOn END,
+                    FollowUpReminder7SentOn = CASE WHEN @FollowUpDate IS NULL OR FollowUpDate IS NULL OR FollowUpDate <> @FollowUpDate THEN NULL ELSE FollowUpReminder7SentOn END,
+                    FollowUpReminder1SentOn = CASE WHEN @FollowUpDate IS NULL OR FollowUpDate IS NULL OR FollowUpDate <> @FollowUpDate THEN NULL ELSE FollowUpReminder1SentOn END,
+                    FollowUpDate = @FollowUpDate,
                     ModifiedBy = @RequestedByUserId,
                     ModifiedDate = GETDATE()
                 WHERE OPDServiceId = @OPDServiceId";

@@ -888,7 +888,11 @@ document.addEventListener('DOMContentLoaded', function () {
             discountableBase = base;
         }
 
-        let effectiveBase = hasRestrictions ? discountableBase : base;
+        // a saved bill (due collection): the discount is taken on the balance due, at most on the bill's discountable
+        // amount - the same rule the server applies (PaymentService.SavePaymentAsync)
+        let effectiveBase = _summary.hasExistingPayment
+            ? Math.min(base, hasRestrictions ? discountableBase : base)
+            : (hasRestrictions ? discountableBase : base);
 
         // Eligibility line: only when some items cannot be discounted
         const rowEligible = document.getElementById('pmDiscEligibilityRow');

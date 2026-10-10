@@ -531,13 +531,10 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         ? request.HeaderDiscountValue
                         : ((decimal?)existingHeader.HeaderDiscountValue ?? 0m);
 
-                    // Due collection: when every item of the bill may be discounted, a % / ₹ discount is taken on the
-                    // balance due (as the payment screen calculates it); with non-discountable items it stays on the
-                    // discountable items' amount (unchanged).
-                    bool allItemsDiscountable = discountableSubTotal >= dbSubTotal - 0.001m && opdLines == null;
-                    decimal discBase = allItemsDiscountable
-                        ? Math.Max(0, (decimal)existingHeader.NetAmount - currentTotalPaid)
-                        : discountableSubTotal;
+                    // Due collection (OPD and LAB alike): a % / ₹ discount is taken on the balance due, at most on the
+                    // bill's discountable amount (items marked discountable) - exactly as the payment screen calculates it.
+                    decimal balanceBeforeDiscount = Math.Max(0, (decimal)existingHeader.NetAmount - currentTotalPaid);
+                    decimal discBase = Math.Min(balanceBeforeDiscount, discountableSubTotal);
 
                     if (deptMode)
                         hDiscAmt = deptTotal;
