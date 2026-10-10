@@ -4,6 +4,7 @@
     var fromDate = Model.FromDate ?? DateTime.Today.ToString("yyyy-MM-dd");
     var toDate   = Model.ToDate   ?? DateTime.Today.ToString("yyyy-MM-dd");
     var dateType = Model.DateType == "C" ? "C" : "B";
+    var payStatus = (ViewBag.PaymentStatus as string) ?? string.Empty;   // payment status filter (script 2233)
     var today    = DateTime.Today.ToString("yyyy-MM-dd");
     var from     = Model.TotalCount > 0 ? (Model.Page - 1) * Model.PageSize + 1 : 0;
     var to       = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
@@ -126,6 +127,15 @@
                 </div>
             </div>
             <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1" for="ddlPaymentStatus">Payment Status</label>
+                <select name="paymentStatus" id="ddlPaymentStatus" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var (val, text) in new[] { ("", "All"), ("DUE", "Full Due"), ("PARTIAL", "Partial Due"), ("PAID", "Paid"), ("PCAN", "Partial Cancelled"), ("FCAN", "Full Cancelled") })
+                    {
+                        <option value="@val" selected="@(payStatus == val ? "selected" : null)">@text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">Per page</label>
                 <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
                     @foreach (var ps in new[] { 10, 25, 50, 100 })
@@ -236,9 +246,37 @@
                                         <span class="text-muted small">—</span>
                                     }
                                 </td>
-                                <td class="text-center"><span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span></td>
+                                @{
+                                    // tests cancelled after billing / refunds (Services/LabBillAdjustments)
+                                    var adjMap = ViewBag.Adjustments as Dictionary<int, EMR.Web.Services.LabBillAdjustment>;
+                                    var adj = adjMap != null && adjMap.TryGetValue(o.LabOrderId, out var a0) ? a0 : null;
+                                    var partlyCancelled = o.IsActive && adj is { CancelledTests: > 0 };
+                                }
+                                <td class="text-center">
+                                    @if (partlyCancelled)
+                                    {
+                                        <span class="badge rounded-pill bg-light text-dark border" title="@adj!.ActiveTests active, @adj.CancelledTests cancelled">@adj.ActiveTests</span>
+                                        <div class="text-danger" style="font-size:.66rem;">+@adj.CancelledTests cancelled</div>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span>
+                                    }
+                                </td>
                                 <td class="text-end fw-semibold @(o.PaymentStatus == "P" ? "text-success" : (o.PaymentStatus == "R" ? "text-warning-emphasis" : "text-danger"))">
-                                    ₹@o.TotalAmount.ToString("N2")
+                                    @if (partlyCancelled)
+                                    {
+                                        <div>₹@adj!.ActiveAmount.ToString("N2")</div>
+                                        <div class="text-muted fw-normal" style="font-size:.68rem;"><s>₹@o.TotalAmount.ToString("N2")</s> &middot; −₹@adj.CancelledAmount.ToString("N2") cancelled</div>
+                                    }
+                                    else
+                                    {
+                                        <text>₹@o.TotalAmount.ToString("N2")</text>
+                                    }
+                                    @if (adj is { RefundedAmount: > 0 })
+                                    {
+                                        <div class="text-danger fw-normal" style="font-size:.68rem;">₹@adj.RefundedAmount.ToString("N2") refunded</div>
+                                    }
                                 </td>
                                 <td>
                                     @if (!o.IsActive)
@@ -330,7 +368,7 @@
                                        asp-route-dateType="@dateType"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search">
+                                       asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">
                                         <i class="bi bi-chevron-left"></i>
                                     </a>
                                 </li>
@@ -343,7 +381,7 @@
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="1"
                                            asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">1</a>
                                     </li>
                                     @if (startPage > 2)
                                     {
@@ -355,7 +393,7 @@
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@pg"
                                            asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">@pg</a>
                                     </li>
                                 }
                                 @if (endPage < Model.TotalPages)
@@ -367,7 +405,7 @@
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@Model.TotalPages"
                                            asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">@Model.TotalPages</a>
                                     </li>
                                 }
                                 <li class="page-item @(!Model.HasNext ? "disabled" : "")">
@@ -378,7 +416,7 @@
                                        asp-route-dateType="@dateType"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search">
+                                       asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
                                 </li>
@@ -553,7 +591,15 @@
             }
 
             let payHtml = '';
-            if (d.payments && d.payments.length > 0) {
+            const refundRows = (d.adjustments?.refunds || []).map(r => `
+                <tr class="table-danger">
+                    <td>${r.refundDate ? new Date(r.refundDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
+                    <td><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle">Refund · ${escHtml(r.mode || '—')}</span></td>
+                    <td><span class="font-monospace">${escHtml(r.cancellationNo || '—')}</span></td>
+                    <td class="small text-muted">${escHtml(r.transactionRef || '—')}</td>
+                    <td class="text-end font-monospace fw-bold text-danger">-₹${(r.amount || 0).toFixed(2)}</td>
+                </tr>`).join('');
+            if ((d.payments && d.payments.length > 0) || refundRows) {
                 payHtml = `
                     <div class="mt-4">
                         <h6 class="fw-bold text-dark mb-2"><i class="bi bi-credit-card-2-front me-2 text-success"></i>Payment History</h6>
@@ -569,7 +615,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${d.payments.map(p => `
+                                    ${(d.payments || []).map(p => `
                                         <tr>
                                             <td>${p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
                                             <td><span class="badge bg-light text-dark border">${p.methodName ?? '—'}</span></td>
@@ -578,6 +624,7 @@
                                             <td class="text-end font-monospace fw-bold text-success">₹${(p.paidAmount || 0).toFixed(2)}</td>
                                         </tr>
                                     `).join('')}
+                                    ${refundRows}
                                 </tbody>
                             </table>
                         </div>
@@ -585,6 +632,11 @@
                 `;
             }
 
+            // tests cancelled after billing, cancellation notes and refunds (Services/LabBillAdjustments)
+            const adj = d.adjustments || null;
+            const money2 = n => '₹' + (Number(n) || 0).toFixed(2);
+            const fmtDT = s => s ? new Date(s).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
+            const cancelNotes = (adj?.cancellations || []).map(c => `${escHtml(c.cancellationNo || '')} · ${fmtDT(c.cancellationDate)} · ${money2(c.amount)}${c.reason ? ' · ' + escHtml(c.reason) : ''}`).join('<br>');
             const cancelledBanner = d.isActive === false
                 ? `<div class="alert alert-danger py-2 mb-3 fw-bold text-center"><i class="bi bi-x-circle-fill me-2"></i>This order has been cancelled.</div>`
                 : '';
@@ -639,7 +691,8 @@
                 </div>
 
                 <div class="mt-3">
-                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-checklist me-2 text-primary"></i>Investigation Tests (${d.items?.length || 0})</h6>
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-checklist me-2 text-primary"></i>Investigation Tests (${adj && adj.cancelledTests > 0 && d.isActive !== false
+                        ? `${adj.activeTests} active · <span class="text-danger">${adj.cancelledTests} cancelled</span>` : (d.items?.length || 0)})</h6>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover table-bordered align-middle">
                             <thead class="table-light">
@@ -667,6 +720,12 @@
                             <span class="text-muted">Sub Total:</span>
                             <span class="fw-bold font-monospace">₹${(d.totalAmount || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.cancelledAmount > 0 && d.isActive !== false ? `
+                            <div class="d-flex justify-content-between mb-1 small text-danger">
+                                <span>Less: Cancelled tests (${adj.cancelledTests}):</span>
+                                <span class="font-monospace">-${money2(adj.cancelledAmount)}</span>
+                            </div>
+                            ${cancelNotes ? `<div class="mb-2 px-2 py-1 rounded border border-danger-subtle bg-danger-subtle text-danger-emphasis" style="font-size:.72rem;">${cancelNotes}</div>` : ''}` : ''}
                         ${d.discountAmount > 0 ? `
                             <div class="d-flex justify-content-between mb-1 small text-danger">
                                 <span>Discount:</span>
@@ -684,8 +743,17 @@
                             <span class="text-muted">Net Amount:</span>
                             <span class="fw-bold font-monospace text-primary">₹${(d.netAmount || d.totalAmount || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.refundedAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small text-success">
+                                <span>Paid:</span>
+                                <span class="font-monospace">${money2((d.totalPaid || 0) + adj.refundedAmount)}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1 small text-danger">
+                                <span>Less: Refunded:</span>
+                                <span class="font-monospace">-${money2(adj.refundedAmount)}</span>
+                            </div>` : ''}
                         <div class="d-flex justify-content-between mb-1 small text-success">
-                            <span>Paid Amount:</span>
+                            <span>${adj && adj.refundedAmount > 0 ? 'Net Paid' : 'Paid Amount'}:</span>
                             <span class="fw-bold font-monospace">₹${(d.totalPaid || 0).toFixed(2)}</span>
                         </div>
                         <div class="d-flex justify-content-between border-top pt-1 mt-1 fw-bold ${d.balanceDue > 0 ? 'text-danger' : 'text-success'}">

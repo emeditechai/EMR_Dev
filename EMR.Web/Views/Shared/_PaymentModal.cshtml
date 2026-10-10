@@ -319,7 +319,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var pmModalEl = document.getElementById('paymentModal');
     var pmModal   = new bootstrap.Modal(pmModalEl, {backdrop:'static'});
-    var LAST_METHOD_KEY = 'emr.pm.lastMethodId';
 
     // ─── Payment-mode cards: colour + icon per method code ────────────────────
     var MODE_STYLE = {
@@ -1056,12 +1055,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ─── Payment lines: mode cards + amount + mode-specific fields ─────────────
+    // The payment screen always opens on Cash; a split line takes the next mode not used yet
     function defaultMethodId(excludeIds) {
         const ok = m => !excludeIds.includes(String(m.paymentMethodId));
-        let last = null;
-        try { last = localStorage.getItem(LAST_METHOD_KEY); } catch (e) { /* storage blocked */ }
-        const byLast = last && _methods.find(m => String(m.paymentMethodId) === String(last) && ok(m));
-        if (byLast) return String(byLast.paymentMethodId);
         const cash = _methods.find(m => String(m.methodCode).toUpperCase() === 'CASH' && ok(m));
         if (cash) return String(cash.paymentMethodId);
         const first = _methods.find(ok);
@@ -1157,7 +1153,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
         div.querySelector('.pm-paid-amount').value = fmt(Math.max(0, net - othersFilled));
 
-        // Pre-select a mode: last used on this computer (else Cash); a split line takes a different mode
+        // Pre-select a mode: Cash; a split line takes a different mode
         const used = [...document.querySelectorAll('.pm-method-select')].filter(s => s !== select).map(s => String(s.value)).filter(Boolean);
         pick(defaultMethodId(used));
         recalcTotal();
@@ -1301,7 +1297,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     showError(`Total paid amount (₹${fmtIN(totalEntering)}) cannot exceed the payable amount of ₹${fmtIN(net)}.`);
                     return;
                 }
-                try { localStorage.setItem(LAST_METHOD_KEY, String(payments[0].paymentMethodId)); } catch (e) { /* storage blocked */ }
             }
 
             _isSubmitting = true;

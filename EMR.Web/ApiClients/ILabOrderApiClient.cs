@@ -11,7 +11,7 @@ namespace EMR.Web.ApiClients
         Task<IEnumerable<DepartmentDto>> GetDepartmentsAsync();
         Task<IEnumerable<CategoryDto>> GetCategoriesAsync(int? departmentId = null);
         Task<IEnumerable<SubCategoryDto>> GetSubCategoriesAsync(int? categoryId = null);
-        Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null, string? dateType = null);
+        Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null);
         Task<LabOrderDetailDto?> GetOrderDetailAsync(int labOrderId);
         Task<bool> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId, int? userId = null);
     }

@@ -2119,7 +2119,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> B2COrderList(string? dateType, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> B2COrderList(string? dateType, string? fromDate, string? toDate, string? search, string? paymentStatus, int page = 1, int pageSize = 10)
         {
             // always the signed-in branch (no branch picker: a branch in the address cannot list another branch's orders)
             int? currentBranchId = User.GetCurrentBranchId()
@@ -2136,7 +2136,12 @@ namespace EMR.Web.Controllers
             if (page < 1) page = 1;
             if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 10;
 
-            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: false, dateType: effectiveDateType);
+            // payment status filter (script 2233): All / Full Due / Partial Due / Paid / Partial Cancelled / Full Cancelled
+            var effectivePaymentStatus = paymentStatus?.Trim().ToUpperInvariant() is "DUE" or "PARTIAL" or "PAID" or "PCAN" or "FCAN"
+                ? paymentStatus.Trim().ToUpperInvariant() : null;
+            ViewBag.PaymentStatus = effectivePaymentStatus ?? string.Empty;
+
+            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: false, dateType: effectiveDateType, paymentFilter: effectivePaymentStatus);
 
             var currentBranch = await dbContext.BranchMasters
                 .Where(b => b.BranchId == resolvedBranchId)
@@ -2147,6 +2152,10 @@ namespace EMR.Web.Controllers
                 .Where(s => s.BranchId == resolvedBranchId && s.IsActive)
                 .Select(s => s.ShowLabReportPrintOnList)
                 .FirstOrDefaultAsync();
+
+            // cancelled tests / refunds of the orders on this page (the list shows the bill after cancellation)
+            ViewBag.Adjustments = await EMR.Web.Services.LabBillAdjustments.LoadAsync(
+                dbContext.Database.GetDbConnection(), (result?.Items ?? new List<LabOrderListItemDto>()).Select(o => o.LabOrderId));
 
             var vm = new LabOrderPagedListViewModel
             {
@@ -2167,7 +2176,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> B2BRegistration(int? branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> B2BRegistration(int? branchId, string? fromDate, string? toDate, string? search, string? agentType, int? agentId, int page = 1, int pageSize = 10)
         {
             int resolvedBranchId = branchId 
                 ?? User.GetCurrentBranchId() 
@@ -2178,7 +2187,19 @@ namespace EMR.Web.Controllers
             var effectiveFromDate = fromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
             var effectiveToDate = toDate ?? DateTime.Today.ToString("yyyy-MM-dd");
 
-            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: true);
+            // Partner Type (F franchise / C company) and one partner of that type - script 2234; a partner needs its type
+            var effectiveAgentType = agentType?.Trim().ToUpperInvariant() is "F" or "C" ? agentType.Trim().ToUpperInvariant() : null;
+            var effectiveAgentId = effectiveAgentType != null && agentId is > 0 ? agentId : null;
+            ViewBag.AgentType = effectiveAgentType ?? string.Empty;
+            ViewBag.AgentId = effectiveAgentId ?? 0;
+            ViewBag.Partners = (await dbContext.Database.GetDbConnection().QueryAsync<(string Type, int Id, string Name, string? Code)>(@"
+                SELECT 'F', Franchise_ID, Franchise_Name, Franchise_Code FROM dbo.LabFranchiseMaster WHERE ISNULL(IsDeleted, 0) = 0
+                UNION ALL
+                SELECT 'C', Corporate_ID, Corporate_Name, Corporate_Code FROM dbo.CorporateMaster
+                ORDER BY 1, 3")).ToList();
+
+            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: true,
+                agentType: effectiveAgentType, agentId: effectiveAgentId);
 
             var branches = await dbContext.BranchMasters
                 .Where(b => b.IsActive)
@@ -2295,7 +2316,11 @@ namespace EMR.Web.Controllers
             if (id <= 0) return BadRequest("Invalid order ID.");
             var detail = await labOrderApiClient.GetOrderDetailAsync(id);
             if (detail == null) return NotFound();
-            return Json(detail);
+            // + cancelled tests, cancellation notes and refunds, so the order details add up after a cancellation
+            var node = System.Text.Json.JsonSerializer.SerializeToNode(detail, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+            var adj = (await EMR.Web.Services.LabBillAdjustments.LoadAsync(dbContext.Database.GetDbConnection(), [id])).GetValueOrDefault(id);
+            node["adjustments"] = adj is null ? null : System.Text.Json.JsonSerializer.SerializeToNode(adj, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            return Content(node.ToJsonString(), "application/json");
         }
 
         [HttpGet]
@@ -2333,6 +2358,9 @@ namespace EMR.Web.Controllers
             // Non-discountable items have DiscountAmount == 0.
             // Proportional split is only used as a fallback for legacy orders with no line-level discount data.
             decimal grossAmount = detail.Items.Sum(i => i.Price);
+            // tests cancelled after billing: shown as "Less: cancelled tests" so gross - cancelled - discount = the bill
+            decimal cancelledAmount = detail.Items.Where(i => !i.IsActive).Sum(i => i.Price);
+            var printAdj = (await EMR.Web.Services.LabBillAdjustments.LoadAsync(dbContext.Database.GetDbConnection(), [labOrderId])).GetValueOrDefault(labOrderId);
             decimal headerDiscount = detail.DiscountAmount;
             bool hasRecordedLineDiscounts = detail.Items.Any(i => i.DiscountAmount > 0);
 
@@ -2410,8 +2438,10 @@ namespace EMR.Web.Controllers
                 GrossAmount     = grossAmount,
                 DiscountAmount  = headerDiscount,
                 RoundOffAmount  = detail.RoundOffAmount,
-                GrandTotal      = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
-                ReceivedAmount  = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
+                CancelledAmount = cancelledAmount,
+                RefundedAmount  = detail.IsB2B ? 0m : (printAdj?.RefundedAmount ?? 0m),
+                GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
+                ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
                 Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
                 PaymentStatus   = detail.IsB2B ? "P" : detail.PaymentStatus,
 
@@ -3077,6 +3107,9 @@ namespace EMR.Web.Controllers
                 .FirstOrDefaultAsync();
 
             decimal grossAmount = detail.Items.Sum(i => i.Price);
+            // tests cancelled after billing: shown as "Less: cancelled tests" so gross - cancelled - discount = the bill
+            decimal cancelledAmount = detail.Items.Where(i => !i.IsActive).Sum(i => i.Price);
+            var printAdj = (await EMR.Web.Services.LabBillAdjustments.LoadAsync(dbContext.Database.GetDbConnection(), [labOrderId])).GetValueOrDefault(labOrderId);
             decimal headerDiscount = detail.DiscountAmount;
             bool hasRecordedLineDiscounts = detail.Items.Any(i => i.DiscountAmount > 0);
 
@@ -3148,8 +3181,10 @@ namespace EMR.Web.Controllers
                 GrossAmount     = grossAmount,
                 DiscountAmount  = headerDiscount,
                 RoundOffAmount  = detail.RoundOffAmount,
-                GrandTotal      = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
-                ReceivedAmount  = detail.IsB2B ? (grossAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
+                CancelledAmount = cancelledAmount,
+                RefundedAmount  = detail.IsB2B ? 0m : (printAdj?.RefundedAmount ?? 0m),
+                GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
+                ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
                 Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
                 PaymentStatus   = detail.IsB2B ? "P" : detail.PaymentStatus,
 

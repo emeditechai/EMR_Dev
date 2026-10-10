@@ -835,8 +835,10 @@
             const noNotice = document.getElementById('crNoCancelNotice');
             const refForm  = document.getElementById('crRefundForm');
 
-            if (!cancels.length) { noNotice.style.display = ''; refForm.style.display = 'none'; return; }
-            noNotice.style.display = 'none'; refForm.style.display = '';
+            // the notice carries Bootstrap's d-flex (display:flex !important), so it is shown / hidden by class
+            const showNotice = on => { noNotice.classList.toggle('d-flex', on); noNotice.classList.toggle('d-none', !on); };
+            if (!cancels.length) { showNotice(true); refForm.style.display = 'none'; return; }
+            showNotice(false); refForm.style.display = '';
 
             const sel = document.getElementById('crCancellationSelect');
             sel.innerHTML = cancels.map(c => {
@@ -844,17 +846,22 @@
                 return `<option value="${c.cancellationId}" data-amount="${netCanc}">${c.cancellationNo} — ₹${fmt(netCanc)} (${fmtDate(c.cancellationDate)})</option>`;
             }).join('');
 
-            const totalPaid      = currentBill.totalPaid;
-            const alreadyRefunded = refunds.reduce((s, r) => s + r.refundAmount, 0);
-            
-            // netAmount is already reduced by the DB during cancellation
-            const refundable = Math.max(0, (totalPaid - currentBill.netAmount) - alreadyRefunded);
+            // Standard rule (B2C, B2B, OPD): received = paid - refunds already given (the bill's TotalPaid is already
+            // net of refunds); refundable = what was received over the bill as it stands after cancellation.
+            const alreadyRefunded = refunds.reduce((s, r) => s + (r.refundAmount || 0), 0);
+            const received        = currentBill.totalPaid || 0;
+            const totalPaid       = received + alreadyRefunded;
+            const billNow         = currentBill.netAmount || 0;     // already reduced by the cancellation
+            const refundable      = Math.max(0, Math.round((received - billNow) * 100) / 100);
+            const dueNow          = Math.max(0, Math.round((billNow - received) * 100) / 100);
 
             document.getElementById('crRefundAmount').max = refundable;
             document.getElementById('crRefundSummaryNotice').innerHTML =
-                `<strong>Refund Summary:</strong> Total Paid: ₹${fmt(totalPaid)} &nbsp;|&nbsp; ` +
-                `Already Refunded: ₹${fmt(alreadyRefunded)} &nbsp;|&nbsp; ` +
-                `<strong class="text-success">Refundable: ₹${fmt(refundable)}</strong>`;
+                `<strong>Refund Summary:</strong> Paid: ₹${fmt(totalPaid)} &nbsp;|&nbsp; ` +
+                `Already Refunded: ₹${fmt(alreadyRefunded)} &nbsp;|&nbsp; Bill now: ₹${fmt(billNow)} &nbsp;|&nbsp; ` +
+                (refundable > 0
+                    ? `<strong class="text-success">Refundable: ₹${fmt(refundable)}</strong>`
+                    : `<strong class="${dueNow > 0 ? 'text-danger' : 'text-muted'}">${dueNow > 0 ? `Nothing to refund - ₹${fmt(dueNow)} still due` : 'Nothing to refund'}</strong>`);
             document.getElementById('btnSubmitRefund').disabled = refundable <= 0;
         } catch(e) { console.warn(e); }
     }

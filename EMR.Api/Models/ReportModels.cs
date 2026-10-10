@@ -210,4 +210,6 @@ public class LabReportResult
     public List<Dictionary<string, object?>> Groups { get; set; } = new();
     public List<Dictionary<string, object?>> Rows { get; set; } = new();
     public List<Dictionary<string, object?>> Options { get; set; } = new();
+    /// <summary>Optional fifth result set: line detail of the rows (e.g. the tests of each cancellation, SQLScripts/2235).</summary>
+    public List<Dictionary<string, object?>> Lines { get; set; } = new();
 }

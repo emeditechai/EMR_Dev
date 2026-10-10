@@ -108,7 +108,7 @@ public class ReportsController : ControllerBase
             ["billing-register"]    = ("dbo.usp_Api_LabReport_BillingRegister",    new[] { "BillingType", "PaymentStatus" },       new[] { "CreatedBy" }),
             ["outstanding-dues"]    = ("dbo.usp_Api_LabReport_OutstandingDues",    new[] { "AgeBucket" },                          new[] { "CreatedBy" }),
             ["patient-orders"]      = ("dbo.usp_Api_LabReport_PatientOrders",      new[] { "ReportStatus" },                       new[] { "CreatedBy" }),
-            ["cancellation-refund"] = ("dbo.usp_Api_LabReport_CancellationRefund", new[] { "CancellationType", "RefundStatus" },   new[] { "CancelledBy" }),
+            ["cancellation-refund"] = ("dbo.usp_Api_LabReport_CancellationRefund", new[] { "CancellationType", "RefundStatus", "BillingType" }, new[] { "CancelledBy" }),
             // B2B partner-account reports: branch-wide, not limited to the user's own records (SQLScripts/2125)
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
             ["franchise-wallet"]    = ("dbo.usp_Api_LabReport_FranchiseWallet",    new[] { "TransactionType" },                     new[] { "FranchiseId" }),

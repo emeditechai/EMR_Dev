@@ -598,6 +598,13 @@
                 <td class="s-lbl" style="width:55%;">Gross Amount :</td>
                 <td class="s-val">@Model.GrossAmount.ToString("N2")</td>
             </tr>
+            @if (Model.CancelledAmount > 0)
+            {
+                <tr>
+                    <td class="s-lbl">Less: Cancelled Tests :</td>
+                    <td class="s-val">-@Model.CancelledAmount.ToString("N2")</td>
+                </tr>
+            }
             <tr>
                 <td class="s-lbl">Discount :</td>
                 <td class="s-val">@Model.DiscountAmount.ToString("N2")</td>
@@ -613,6 +620,17 @@
                 <td class="s-lbl">Grand Total :</td>
                 <td class="s-val">@Model.GrandTotal.ToString("N2")</td>
             </tr>
+            @if (Model.RefundedAmount > 0)
+            {
+                <tr>
+                    <td class="s-lbl">Paid :</td>
+                    <td class="s-val">@((Model.ReceivedAmount + Model.RefundedAmount).ToString("N2"))</td>
+                </tr>
+                <tr>
+                    <td class="s-lbl">Less: Refunded :</td>
+                    <td class="s-val">-@Model.RefundedAmount.ToString("N2")</td>
+                </tr>
+            }
             <tr>
                 <td class="s-lbl">Received Amount :</td>
                 <td class="s-val">@Model.ReceivedAmount.ToString("N2")</td>

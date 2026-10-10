@@ -199,7 +199,7 @@ public class ReportsController : Controller
         ["billing-register"]    = new[] { "billingType", "paymentStatus", "createdBy" },
         ["outstanding-dues"]    = new[] { "ageBucket", "createdBy" },
         ["patient-orders"]      = new[] { "reportStatus", "createdBy" },
-        ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy" },
+        ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy", "billingType" },
         // B2B partner-account reports: branch-wide for every user of the branch
         ["b2b-partner-billing"] = new[] { "partnerType", "partner", "paymentMethod" },
         ["franchise-wallet"]    = new[] { "transactionType", "franchiseId" },

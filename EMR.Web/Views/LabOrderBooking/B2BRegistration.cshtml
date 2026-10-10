@@ -5,6 +5,11 @@
     var toDate   = Model.ToDate   ?? DateTime.Today.ToString("yyyy-MM-dd");
     var from     = Model.TotalCount > 0 ? (Model.Page - 1) * Model.PageSize + 1 : 0;
     var to       = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
+    // Partner Type / Franchise-Company filters (script 2234)
+    var agentType = (ViewBag.AgentType as string) ?? string.Empty;
+    var agentId   = ViewBag.AgentId is int aid ? aid : 0;
+    var partners  = ViewBag.Partners as List<(string Type, int Id, string Name, string? Code)> ?? new();
+    var agentIdRoute = agentId > 0 ? agentId.ToString() : null;
 }
 
 @section HeadStyles {
@@ -102,6 +107,21 @@
 </div>
 
 @* ── Filter bar ── *@
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const type = document.getElementById('ddlAgentType'), partner = document.getElementById('ddlAgentId');
+        if (!type || !partner) return;
+        // Franchise / Company lists only partners of the chosen type; "All" types = all partners
+        type.addEventListener('change', function () {
+            const t = type.value;
+            [...partner.options].forEach(o => { if (o.value) o.hidden = !!t && o.dataset.type !== t; });
+            partner.value = '';
+            partner.disabled = !t;
+            type.form.submit();
+        });
+        partner.addEventListener('change', () => partner.form.submit());
+    });
+</script>
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body py-2 px-3">
         <form method="get" asp-action="B2BRegistration" class="row g-2 align-items-end">
@@ -116,6 +136,25 @@
             <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">Search</label>
                 <input type="text" name="search" value="@Model.Search" placeholder="Bill / Token / Patient / Partner..." class="form-control form-control-sm" style="min-width:260px;" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1" for="ddlAgentType">Partner Type</label>
+                <select name="agentType" id="ddlAgentType" class="form-select form-select-sm">
+                    <option value="" selected="@(agentType == "" ? "selected" : null)">All</option>
+                    <option value="F" selected="@(agentType == "F" ? "selected" : null)">Franchise</option>
+                    <option value="C" selected="@(agentType == "C" ? "selected" : null)">Company</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1" for="ddlAgentId">Franchise / Company</label>
+                <select name="agentId" id="ddlAgentId" class="form-select form-select-sm" style="min-width:230px;" disabled="@(agentType == "" ? "disabled" : null)">
+                    <option value="">All</option>
+                    @foreach (var p in partners)
+                    {
+                        <option value="@p.Id" data-type="@p.Type" selected="@(p.Type == agentType && p.Id == agentId ? "selected" : null)"
+                                hidden="@(agentType != "" && p.Type != agentType ? "hidden" : null)">@p.Name@(string.IsNullOrWhiteSpace(p.Code) ? "" : $" ({p.Code})")</option>
+                    }
+                </select>
             </div>
             <div class="col-auto">
                 <button type="submit" class="btn btn-sm btn-primary px-3 fw-semibold">
@@ -289,16 +328,16 @@
             <nav>
                 <ul class="pagination pagination-sm mb-0">
                     <li class="page-item @(!Model.HasPrevious ? "disabled" : "")">
-                        <a class="page-link" asp-action="B2BRegistration" asp-route-page="@(Model.Page - 1)" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">&laquo;</a>
+                        <a class="page-link" asp-action="B2BRegistration" asp-route-page="@(Model.Page - 1)" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-agentType="@agentType" asp-route-agentId="@agentIdRoute">&laquo;</a>
                     </li>
                     @for (int p = Math.Max(1, Model.Page - 2); p <= Math.Min(Model.TotalPages, Model.Page + 2); p++)
                     {
                         <li class="page-item @(p == Model.Page ? "active" : "")">
-                            <a class="page-link" asp-action="B2BRegistration" asp-route-page="@p" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@p</a>
+                            <a class="page-link" asp-action="B2BRegistration" asp-route-page="@p" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-agentType="@agentType" asp-route-agentId="@agentIdRoute">@p</a>
                         </li>
                     }
                     <li class="page-item @(!Model.HasNext ? "disabled" : "")">
-                        <a class="page-link" asp-action="B2BRegistration" asp-route-page="@(Model.Page + 1)" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">&raquo;</a>
+                        <a class="page-link" asp-action="B2BRegistration" asp-route-page="@(Model.Page + 1)" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-agentType="@agentType" asp-route-agentId="@agentIdRoute">&raquo;</a>
                     </li>
                 </ul>
             </nav>

@@ -24,6 +24,17 @@
     .lr-scroll { max-height:60vh;overflow:auto; }
     .lr-table tr.grp-row { cursor:pointer; } .lr-table tr.grp-row:hover td { background:#f0fdfa; }
     .lr-table tr.row-muted td { background:#fff7f7; }
+    .lr-tog { border:0;background:transparent;padding:0 4px 0 0;color:var(--lr-accent);font-size:.8rem;line-height:1; }
+    .lr-tog .bi { transition:transform .15s ease;display:inline-block; }
+    .lr-table tr.lr-has-lines { cursor:pointer; }
+    .lr-table tr.lr-open .lr-tog .bi { transform:rotate(90deg); }
+    .lr-table tr.lr-open td { background:#f8fafc; }
+    .lr-table tr.lr-lines > td { background:#fbfcfe !important;padding:.35rem .75rem .75rem 2.4rem !important; }
+    .lr-sub { width:100%;border:1px solid #e2e8f0;border-radius:.5rem;overflow:hidden;background:#fff; }
+    .lr-sub th { font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--lr-muted);background:#f8fafc;padding:.35rem .6rem;white-space:nowrap; }
+    .lr-sub td { font-size:.76rem;padding:.3rem .6rem;border-top:1px solid #eef2f6; }
+    .lr-sub tfoot td { font-weight:800;background:#fafafa; }
+    @@media print { .lr-table tr.lr-lines.d-none { display:table-row !important; } }
     .lr-bar { height:5px;border-radius:3px;background:#f1f5f9;overflow:hidden;margin-top:3px;min-width:70px; }
     .lr-bar > span { display:block;height:100%;background:var(--lr-accent); }
     @@media print { .emr-topbar, footer, .no-print { display:none !important; } .lr-scroll { max-height:none;overflow:visible; } }
@@ -105,6 +116,12 @@
                     <select id="lrGroup" class="form-select form-select-sm" style="width:auto;"></select>
                 </div>
                 <span id="lrDrill" class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-none"></span>
+                @* rows that open to show their lines (lab-report.js "expand") *@
+                <span id="lrExpandBox" class="d-none no-print fs-8">
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="lrExpandAll"><i class="bi bi-arrows-expand me-1"></i>Expand all</button>
+                    <span class="text-muted mx-1">·</span>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="lrCollapseAll"><i class="bi bi-arrows-collapse me-1"></i>Collapse all</button>
+                </span>
             </div>
             <span class="fs-8 text-muted" id="lrCount"></span>
         </div>

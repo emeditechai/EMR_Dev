@@ -45,8 +45,12 @@ public class PaymentSummaryService(IDbConnectionFactory db) : IPaymentSummarySer
 
             // what the bill's receipts add up to - the payment is checked against this (double-payment guard)
             using var con2 = db.CreateConnection();
-            summary.PaidFromReceipts = await con2.ExecuteScalarAsync<decimal>(
-                "SELECT ISNULL(SUM(PaidAmount), 0) FROM dbo.PaymentDetail WHERE PaymentHeaderId = @Id AND IsActive = 1",
+            // received = receipts less the refunds made on the bill (a cancelled line refunded)
+            summary.PaidFromReceipts = await con2.ExecuteScalarAsync<decimal>(@"
+                SELECT ISNULL((SELECT SUM(PaidAmount) FROM dbo.PaymentDetail WHERE PaymentHeaderId = @Id AND IsActive = 1), 0)
+                     - ISNULL((SELECT SUM(r.RefundAmount) FROM dbo.PaymentHeader h
+                               INNER JOIN dbo.BillRefund r ON r.ModuleCode = h.ModuleCode AND r.ModuleRefId = h.ModuleRefId AND r.IsActive = 1
+                               WHERE h.PaymentHeaderId = @Id), 0)",
                 new { Id = (int)existing.PaymentHeaderId });
         }
         else

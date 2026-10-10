@@ -115,6 +115,7 @@ public class ReportService : IReportService
         result.Groups = (await multi.ReadAsync()).Select(Row).ToList();
         result.Rows = (await multi.ReadAsync()).Select(Row).ToList();
         if (!multi.IsConsumed) result.Options = (await multi.ReadAsync()).Select(Row).ToList();
+        if (!multi.IsConsumed) result.Lines = (await multi.ReadAsync()).Select(Row).ToList();
         return result;
     }
 

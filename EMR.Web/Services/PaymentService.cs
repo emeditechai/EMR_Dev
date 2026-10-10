@@ -76,7 +76,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
                     DiscountReason, DiscountApprovedBy,
                     (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName,
-                    (SELECT ISNULL(SUM(pd.PaidAmount), 0) FROM PaymentDetail pd WHERE pd.PaymentHeaderId = PaymentHeader.PaymentHeaderId AND pd.IsActive = 1) AS PaidFromReceipts
+                    (SELECT ISNULL(SUM(pd.PaidAmount), 0) FROM PaymentDetail pd WHERE pd.PaymentHeaderId = PaymentHeader.PaymentHeaderId AND pd.IsActive = 1)
+                    - (SELECT ISNULL(SUM(br.RefundAmount), 0) FROM BillRefund br WHERE br.ModuleCode = PaymentHeader.ModuleCode AND br.ModuleRefId = PaymentHeader.ModuleRefId AND br.IsActive = 1) AS PaidFromReceipts
                 FROM PaymentHeader
                 WHERE ModuleCode = 'OPD' AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { ModuleRefId = moduleRefId });
@@ -178,7 +179,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
                     DiscountReason, DiscountApprovedBy,
                     (SELECT ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) FROM Users u WHERE u.Id = PaymentHeader.DiscountApprovedBy) AS DiscountApprovedByName,
-                    (SELECT ISNULL(SUM(pd.PaidAmount), 0) FROM PaymentDetail pd WHERE pd.PaymentHeaderId = PaymentHeader.PaymentHeaderId AND pd.IsActive = 1) AS PaidFromReceipts
+                    (SELECT ISNULL(SUM(pd.PaidAmount), 0) FROM PaymentDetail pd WHERE pd.PaymentHeaderId = PaymentHeader.PaymentHeaderId AND pd.IsActive = 1)
+                    - (SELECT ISNULL(SUM(br.RefundAmount), 0) FROM BillRefund br WHERE br.ModuleCode = PaymentHeader.ModuleCode AND br.ModuleRefId = PaymentHeader.ModuleRefId AND br.IsActive = 1) AS PaidFromReceipts
                 FROM PaymentHeader
                 WHERE ModuleCode = 'LAB' AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { ModuleRefId = moduleRefId });
@@ -508,12 +510,13 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             {
                 paymentHeaderId = (int)existingHeader.PaymentHeaderId;
 
-                // Existing real-time paid amount from details
+                // Received so far = the bill's receipts less the refunds made on it (a cancelled line refunded)
                 currentTotalPaid = await con.QuerySingleAsync<decimal>(@"
-                    SELECT ISNULL(SUM(PaidAmount), 0)
-                    FROM   PaymentDetail WITH (UPDLOCK, HOLDLOCK)
-                    WHERE  PaymentHeaderId = @PaymentHeaderId AND IsActive = 1",
-                    new { PaymentHeaderId = paymentHeaderId }, tx);
+                    SELECT ISNULL((SELECT SUM(PaidAmount) FROM PaymentDetail WITH (UPDLOCK, HOLDLOCK)
+                                   WHERE PaymentHeaderId = @PaymentHeaderId AND IsActive = 1), 0)
+                         - ISNULL((SELECT SUM(RefundAmount) FROM BillRefund
+                                   WHERE ModuleCode = @ModuleCode AND ModuleRefId = @ModuleRefId AND IsActive = 1), 0)",
+                    new { PaymentHeaderId = paymentHeaderId, ModuleCode = (string)existingHeader.ModuleCode, ModuleRefId = (int)existingHeader.ModuleRefId }, tx);
 
                 // A bill is discounted only once: once it carries a discount, a later payment (due collection) cannot
                 // add, raise, lower or replace it. Repeating the same discount is not a new one and is accepted.
@@ -792,6 +795,24 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             // Scenario 1: Bill is ALREADY fully paid (e.g. duplicate click / duplicate request)
             if (realTimeBalanceDue <= 0)
             {
+                // Nothing is due on a saved bill: an amount or a discount entered now is refused, and nothing is saved
+                // (it used to report success while saving nothing - or keeping only the discount).
+                bool collecting = incomingPaidTotal > 0;
+                bool discounting = existingHeader != null && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0);
+                if (collecting || discounting)
+                {
+                    tx.Rollback();
+                    var over = currentTotalPaid - realTimeNetAmount;
+                    return new SavePaymentResult
+                    {
+                        Success = false,
+                        Error = $"Nothing is due on this bill: ₹{currentTotalPaid:N2} has been received (after refunds) against a bill of ₹{realTimeNetAmount:N2}"
+                              + (over >= 0.01m ? $" - ₹{over:N2} more than the bill" : "")
+                              + ". Nothing was saved."
+                    };
+                }
+                await con.ExecuteAsync("dbo.usp_Ledger_PostBillMoney",
+                    new { Kind = "ADJUST", RefId = paymentHeaderId, UserId = userId ?? 1 }, tx, commandType: CommandType.StoredProcedure);
                 tx.Commit();
 
                 string? existingToken = null;
@@ -848,11 +869,12 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 {
                     if (p.PaidAmount <= 0) continue;
 
-                    await con.ExecuteAsync(@"
+                    var paymentDetailId = await con.ExecuteScalarAsync<int>(@"
                         INSERT INTO PaymentDetail
                             (PaymentHeaderId, PaymentMethodId, PaidAmount,
                              TransactionRef, ChequeNo, BankName, UPIRefNo, CardLast4,
                              PaymentDate, Notes, CreatedDate, CreatedBy, IsActive, ReceiptNo)
+                        OUTPUT INSERTED.PaymentDetailId
                         VALUES
                             (@PaymentHeaderId, @PaymentMethodId, @PaidAmount,
                              @TransactionRef, @ChequeNo, @BankName, @UPIRefNo, @CardLast4,
@@ -871,14 +893,19 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                             CreatedBy = userId,
                             ReceiptNo = batchReceiptNo
                         }, tx);
+
+                    // ledger: Dr Cash / Bank, Cr the bill's receivable (SQLScripts/2232)
+                    await con.ExecuteAsync("dbo.usp_Ledger_PostBillMoney",
+                        new { Kind = "RECEIPT", RefId = paymentDetailId, UserId = userId ?? 1 }, tx, commandType: CommandType.StoredProcedure);
                 }
             }
 
             // ── Final Recalculate totals on header ─────────────────────────────
             var newTotalPaid = await con.QuerySingleAsync<decimal>(@"
-                SELECT ISNULL(SUM(PaidAmount), 0)
-                FROM   PaymentDetail
-                WHERE  PaymentHeaderId = @PaymentHeaderId AND IsActive = 1",
+                SELECT ISNULL((SELECT SUM(d.PaidAmount) FROM PaymentDetail d WHERE d.PaymentHeaderId = @PaymentHeaderId AND d.IsActive = 1), 0)
+                     - ISNULL((SELECT SUM(r.RefundAmount) FROM PaymentHeader h
+                               INNER JOIN BillRefund r ON r.ModuleCode = h.ModuleCode AND r.ModuleRefId = h.ModuleRefId AND r.IsActive = 1
+                               WHERE h.PaymentHeaderId = @PaymentHeaderId), 0)",
                 new { PaymentHeaderId = paymentHeaderId }, tx);
 
             decimal newBalanceDue = Math.Max(0, realTimeNetAmount - newTotalPaid);
@@ -902,6 +929,10 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     LastModifiedBy  = userId,
                     PaymentHeaderId = paymentHeaderId
                 }, tx);
+
+            // ledger: discount / round-off entries follow the bill (SQLScripts/2232)
+            await con.ExecuteAsync("dbo.usp_Ledger_PostBillMoney",
+                new { Kind = "ADJUST", RefId = paymentHeaderId, UserId = userId ?? 1 }, tx, commandType: CommandType.StoredProcedure);
 
             tx.Commit();
 

@@ -58,6 +58,10 @@ public class PrintBillViewModel
     public decimal RoundOffAmount { get; set; }
     public decimal GrandTotal { get; set; }
     public decimal ReceivedAmount { get; set; }
+    /// <summary>MRP of tests cancelled after billing (shown as "Less: Cancelled tests").</summary>
+    public decimal CancelledAmount { get; set; }
+    /// <summary>Money refunded on the bill (ReceivedAmount is already net of it).</summary>
+    public decimal RefundedAmount { get; set; }
     public decimal Balance { get; set; }
     public string PaymentStatus { get; set; } = "U";
     public bool IsActive { get; set; }

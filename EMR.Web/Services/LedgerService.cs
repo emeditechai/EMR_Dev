@@ -80,10 +80,30 @@ public class LedgerService(IDbConnectionFactory db, ILogger<LedgerService> logge
 
             // 3. Post Entry
             await PostLedgerEntryAsync(dto);
+            await AdjustBillAsync("OPD", opdServiceId, userId);   // payment may have been saved before the bill entry
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to post OPD bill ledger entry for OpdServiceId {OpdServiceId}", opdServiceId);
+        }
+    }
+
+    /// <summary>Discount / round-off entries of a bill, after its revenue entry (SQLScripts/2232; idempotent).</summary>
+    private async Task AdjustBillAsync(string moduleCode, int moduleRefId, int? userId)
+    {
+        try
+        {
+            using var con = db.CreateConnection();
+            var headerId = await con.QueryFirstOrDefaultAsync<int?>(
+                "SELECT TOP 1 PaymentHeaderId FROM PaymentHeader WHERE ModuleCode = @M AND ModuleRefId = @Id AND IsActive = 1",
+                new { M = moduleCode, Id = moduleRefId });
+            if (headerId is > 0)
+                await con.ExecuteAsync("dbo.usp_Ledger_PostBillMoney", new { Kind = "ADJUST", RefId = headerId.Value, UserId = userId ?? 1 },
+                    commandType: CommandType.StoredProcedure);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to post discount / round-off ledger for {ModuleCode} #{ModuleRefId}", moduleCode, moduleRefId);
         }
     }
 
@@ -121,6 +141,7 @@ public class LedgerService(IDbConnectionFactory db, ILogger<LedgerService> logge
             };
 
             await PostLedgerEntryAsync(dto);
+            await AdjustBillAsync("LAB", labOrderId, userId);   // payment may have been saved before the bill entry
         }
         catch (Exception ex)
         {
