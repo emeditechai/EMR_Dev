@@ -1962,6 +1962,7 @@
 
                 window.pmOpenPreSave({
                     moduleCode: 'LAB',
+                    isB2C: true,   // department-wise discount is offered on B2C bills
                     patientName: fullName,
                     patientCode: pCode,
                     patientPhone: phone,
@@ -1973,7 +1974,8 @@
                             serviceType: x.isProfileTest ? 'Profile' : 'Test',
                             originalAmount: x.price,
                             isGstRequired: false,
-                            isDiscountAllowed: x.isDiscountAllowed === true
+                            isDiscountAllowed: x.isDiscountAllowed === true,
+                            isPackage: x.isPackage === true   // packages are their own discount head
                         };
                     }),
                     onCancel: function () {

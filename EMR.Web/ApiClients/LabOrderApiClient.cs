@@ -81,13 +81,14 @@ namespace EMR.Web.ApiClients
             return await response.Content.ReadFromJsonAsync<IEnumerable<SubCategoryDto>>();
         }
 
-        public async Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null)
+        public async Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null, string? dateType = null)
         {
             string query = $"?branchId={branchId}&pageNumber={page}&pageSize={pageSize}";
             if (!string.IsNullOrEmpty(fromDate)) query += $"&fromDate={fromDate}";
             if (!string.IsNullOrEmpty(toDate)) query += $"&toDate={toDate}";
             if (!string.IsNullOrEmpty(search)) query += $"&search={System.Uri.EscapeDataString(search)}";
             if (isB2B.HasValue) query += $"&isB2B={isB2B.Value}";
+            if (!string.IsNullOrEmpty(dateType)) query += $"&dateType={System.Uri.EscapeDataString(dateType)}";
 
             var response = await httpClient.GetAsync($"api/LabOrders/paged{query}");
             response.EnsureSuccessStatusCode();

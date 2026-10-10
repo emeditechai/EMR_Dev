@@ -1,7 +1,9 @@
 @model EMR.Web.Models.ViewModels.PrintBillViewModel
 @{
     Layout = null;
-    var billDate    = Model.OrderDate.ToString("dd-MMM-yyyy hh:mm tt");
+    // Bill Date = when the bill was created; the (possibly later) appointment is the Booking Date & Time below.
+    // OrderDate holds the booking time for an advance booking, so it is only the fallback for an old row without CreatedDate.
+    var billDate    = (Model.CreatedDate > DateTime.MinValue ? Model.CreatedDate : Model.OrderDate).ToString("dd-MMM-yyyy hh:mm tt");
     var bookingDate = Model.BookingDate.HasValue
                         ? Model.BookingDate.Value.ToString("dd-MMM-yyyy hh:mm tt")
                         : "—";

@@ -1,4 +1,5 @@
 using EMR.Web.ApiClients;
+using EMR.Web.ApiClients.Models;
 using EMR.Web.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -127,6 +128,68 @@ public class ReportsController : Controller
         if (result.IsSuccess)
             return Json(new { success = true, data = result.Data, scope = seeAll ? "ALL" : "SELF" });
         return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the discount register." });
+    }
+
+    /// <summary>
+    /// Discount Register as Excel or PDF, built on the server: bill by bill with each bill's tests and their discount.
+    /// Same data, scope and filters as <see cref="GetLabDiscountRegisterData"/>; drillKey / drillName narrow it to one
+    /// summary group (the Detail tab after clicking a Summary line).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> ExportLabDiscountRegister(string format, string fromDate, string toDate, string? billingType, int? approvedBy,
+        int? enteredBy, string? search, string? drillKey, string? drillName)
+    {
+        var pdf = string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase);
+        if (!pdf && !string.Equals(format, "excel", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { success = false, message = "Choose Excel or PDF." });
+
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
+        if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
+        if (tDate < fDate) (fDate, tDate) = (tDate, fDate);
+        if ((tDate - fDate).TotalDays > 366)
+            return BadRequest(new { success = false, message = "Please select a date range of up to one year." });
+
+        var seeAll = CanSeeAllCollections();
+        var result = await _reportApi.GetLabDiscountRegisterAsync(branchId, fDate, tDate, billingType, approvedBy,
+            seeAll ? enteredBy : User.GetUserId(), search, User.GetUserId(), seeAll, User.IsSuperAdmin());
+        if (!result.IsSuccess || result.Data is null)
+            return StatusCode(StatusCodes.Status502BadGateway, new { success = false, message = result.ErrorMessage ?? "Unable to load the discount register." });
+
+        var data = result.Data;
+        var bills = data.Bills.Where(b => InDiscountGroup(b, drillKey, drillName)).ToList();
+
+        var filters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(billingType)) filters.Add("Type: " + billingType);
+        if (approvedBy is > 0) filters.Add("Approved by: " + (data.ByApprover.FirstOrDefault(g => g.ApprovedById == approvedBy)?.GroupName ?? "#" + approvedBy));
+        if (seeAll && enteredBy is > 0) filters.Add("Entered by: " + (data.ByEnteredBy.FirstOrDefault(g => g.EnteredById == enteredBy)?.GroupName ?? "#" + enteredBy));
+        if (!string.IsNullOrWhiteSpace(search)) filters.Add($"Search: \"{search.Trim()}\"");
+        if (!string.IsNullOrWhiteSpace(drillKey) && drillName != null)
+            filters.Add(drillKey switch { "byApprover" => "Approved by", "byReason" => "Reason", "byEnteredBy" => "Entered by", _ => "Bill date" } + ": " +
+                        (drillKey == "byDate" && DateTime.TryParse(drillName, out var dd) ? dd.ToString("dd MMM yyyy") : drillName));
+
+        var info = new EMR.Web.Services.Reports.DiscountRegisterExportInfo(
+            User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? string.Empty,
+            fDate, tDate, filters, User.GetDisplayName(), DateTime.Now, seeAll);
+        var name = $"Discount_Register_{fDate:yyyy-MM-dd}_to_{tDate:yyyy-MM-dd}";
+        return pdf
+            ? File(EMR.Web.Services.Reports.LabDiscountRegisterExport.BuildPdf(data, bills, info), "application/pdf", name + ".pdf")
+            : File(EMR.Web.Services.Reports.LabDiscountRegisterExport.BuildExcel(data, bills, info),
+                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name + ".xlsx");
+    }
+
+    // a bill belongs to a Summary group when its key matches (as on the page)
+    private static bool InDiscountGroup(DiscountRegisterBillRow b, string? key, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(key) || name is null) return true;
+        return key switch
+        {
+            "byApprover" => (string.IsNullOrEmpty(b.ApprovedBy) ? "Not recorded" : b.ApprovedBy) == name,
+            "byReason" => (string.IsNullOrEmpty(b.DiscountReason) ? "Not recorded" : b.DiscountReason) == name,
+            "byEnteredBy" => (b.EnteredBy ?? string.Empty) == name,
+            "byDate" => b.BillDate.ToString("yyyy-MM-dd") == name,
+            _ => true
+        };
     }
 
     // ── Reports > LAB: Billing Register, Outstanding Dues, Patient-wise Orders, Cancellation & Refund ──

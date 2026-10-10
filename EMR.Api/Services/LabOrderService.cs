@@ -118,7 +118,7 @@ namespace EMR.Api.Services
             return await connection.QueryAsync<SubCategoryDto>("dbo.usp_GetLabSubCategories", new { CategoryId = categoryId }, commandType: CommandType.StoredProcedure);
         }
 
-        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null)
+        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null)
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -131,7 +131,8 @@ namespace EMR.Api.Services
                     Search = search,
                     PageNumber = pageNumber,
                     PageSize = pageSize,
-                    IsB2B = isB2B
+                    IsB2B = isB2B,
+                    DateType = dateType is "B" or "C" ? dateType : null   // script 2220; anything else = order date
                 },
                 commandType: CommandType.StoredProcedure
             );

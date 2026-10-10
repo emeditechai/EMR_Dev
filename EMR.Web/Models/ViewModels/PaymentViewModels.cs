@@ -98,6 +98,18 @@ public class SavePaymentRequest
 
     // Line items (sent from client for snapshot + future line-level discount)
     public List<PaymentLineItemRow> LineItems { get; set; } = [];
+
+    /// <summary>B2C LAB department-wise discount (HeaderDiscountType "D"): one row per discount head - a department or
+    /// "PKG" for packages. The server recalculates every line from these; not sent = the overall discount as before.</summary>
+    public List<DepartmentDiscountRow>? DepartmentDiscounts { get; set; }
+}
+
+/// <summary>One discount head of a department-wise discount: GroupKey "D{DeptId}" or "PKG", Type "P" (%) or "F" (₹).</summary>
+public class DepartmentDiscountRow
+{
+    public string GroupKey { get; set; } = string.Empty;
+    public string Type { get; set; } = "P";
+    public decimal Value { get; set; }
 }
 
 public class PaymentDetailRow

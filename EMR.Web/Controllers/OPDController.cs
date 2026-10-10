@@ -441,8 +441,11 @@ public class OPDController(
             model.PhotoPath = $"/uploads/patients/{fileName}";
         }
 
-        // ── Uniqueness: Phone Number + Relation must be unique per active patient ──
-        if (model.RelationId.HasValue)
+        // ── Uniqueness: one active "Self" patient per phone number / e-mail; every other relation (Brother, Son, ...)
+        //    may repeat on the same phone and e-mail (script 2221 applies the same rule in the database) ──
+        var isSelfRelation = model.RelationId.HasValue && await dbContext.RelationMasters
+            .AnyAsync(r => r.RelationId == model.RelationId && r.RelationName == "Self");
+        if (isSelfRelation)
         {
             var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
                 p.PhoneNumber == model.PhoneNumber.Trim() &&
@@ -463,8 +466,7 @@ public class OPDController(
             }
         }
 
-        // ── Uniqueness: Email ID + Relation must be unique per active patient ──
-        if (!string.IsNullOrWhiteSpace(model.EmailId) && model.RelationId.HasValue)
+        if (!string.IsNullOrWhiteSpace(model.EmailId) && isSelfRelation)
         {
             var dupEmailExists = await dbContext.PatientMasters.AnyAsync(p =>
                 p.EmailId == model.EmailId.Trim() &&

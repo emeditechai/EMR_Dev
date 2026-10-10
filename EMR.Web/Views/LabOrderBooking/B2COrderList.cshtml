@@ -1,8 +1,10 @@
 @model EMR.Web.Models.ViewModels.LabOrderPagedListViewModel
 @{
     ViewData["Title"] = "B2C Order List";
-    var fromDate = Model.FromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
+    var fromDate = Model.FromDate ?? DateTime.Today.ToString("yyyy-MM-dd");
     var toDate   = Model.ToDate   ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var dateType = Model.DateType == "C" ? "C" : "B";
+    var today    = DateTime.Today.ToString("yyyy-MM-dd");
     var from     = Model.TotalCount > 0 ? (Model.Page - 1) * Model.PageSize + 1 : 0;
     var to       = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
 }
@@ -94,18 +96,14 @@
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body py-2 px-3">
         <form method="get" asp-action="B2COrderList" class="row g-2 align-items-end">
-            @if (ViewBag.Branches is IEnumerable<SelectListItem> branchList && branchList.Any())
-            {
-                <div class="col-auto">
-                    <label class="form-label small fw-semibold mb-1">Branch</label>
-                    <select name="branchId" class="form-select form-select-sm" onchange="this.form.submit()">
-                        @foreach (var b in branchList)
-                        {
-                            <option value="@b.Value" selected="@(b.Selected ? "selected" : null)">@b.Text</option>
-                        }
-                    </select>
-                </div>
-            }
+            @* orders of the signed-in branch only; the date range applies to the booking or the bill date *@
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1" for="ddlDateType">Date Filter</label>
+                <select name="dateType" id="ddlDateType" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="B" selected="@(dateType == "B" ? "selected" : null)">Booking Date</option>
+                    <option value="C" selected="@(dateType == "C" ? "selected" : null)">Bill Date (Created)</option>
+                </select>
+            </div>
             <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">From Date</label>
                 <input type="date" name="fromDate" value="@fromDate" class="form-control form-control-sm" />
@@ -142,11 +140,11 @@
                     <i class="bi bi-funnel-fill me-1"></i>Filter
                 </button>
                 <a asp-action="B2COrderList"
-                   asp-route-branchId="@Model.BranchId"
-                   asp-route-fromDate="@DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd")"
-                   asp-route-toDate="@DateTime.Today.ToString("yyyy-MM-dd")"
+                   asp-route-dateType="B"
+                   asp-route-fromDate="@today"
+                   asp-route-toDate="@today"
                    asp-route-pageSize="@Model.PageSize"
-                   class="btn btn-sm btn-outline-secondary">Reset</a>
+                   class="btn btn-sm btn-outline-secondary" title="Today's bookings">Reset</a>
             </div>
         </form>
     </div>
@@ -196,7 +194,7 @@
                             var payText  = o.PaymentStatus switch { "P" => "Paid", "R" => "Partial", _ => "Unpaid" };
                             var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
                             <tr data-search="@searchText">
-                                <td class="text-nowrap">@o.OrderDate.ToString("dd MMM yyyy HH:mm")</td>
+                                <td class="text-nowrap">@((o.CreatedDate > DateTime.MinValue ? o.CreatedDate : o.OrderDate).ToString("dd MMM yyyy HH:mm"))</td>
                                 <td class="text-nowrap">@(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")</td>
                                 <td>
                                     <span class="badge text-bg-light font-monospace border">@(o.BillNo ?? "—")</span>
@@ -329,7 +327,7 @@
                                        asp-action="B2COrderList"
                                        asp-route-page="@(Model.Page - 1)"
                                        asp-route-pageSize="@Model.PageSize"
-                                       asp-route-branchId="@Model.BranchId"
+                                       asp-route-dateType="@dateType"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
                                        asp-route-search="@Model.Search">
@@ -344,7 +342,7 @@
                                 {
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="1"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
                                            asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
                                     </li>
                                     @if (startPage > 2)
@@ -356,7 +354,7 @@
                                 {
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@pg"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
                                            asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
                                     </li>
                                 }
@@ -368,7 +366,7 @@
                                     }
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@Model.TotalPages"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
+                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
                                            asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
                                     </li>
                                 }
@@ -377,7 +375,7 @@
                                        asp-action="B2COrderList"
                                        asp-route-page="@(Model.Page + 1)"
                                        asp-route-pageSize="@Model.PageSize"
-                                       asp-route-branchId="@Model.BranchId"
+                                       asp-route-dateType="@dateType"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
                                        asp-route-search="@Model.Search">
@@ -622,7 +620,7 @@
                                 <div class="col-4 text-muted">Token No:</div>
                                 <div class="col-8 fw-bold font-monospace text-warning-emphasis">${d.tokenNo ?? 'Pending Payment'}</div>
                                 <div class="col-4 text-muted">Bill Date:</div>
-                                <div class="col-8">${d.orderDate ? new Date(d.orderDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
+                                <div class="col-8">${(d.createdDate || d.orderDate) ? new Date(d.createdDate || d.orderDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
                                 <div class="col-4 text-muted">Booking Date:</div>
                                 <div class="col-8 fw-semibold text-danger">${d.bookingDate ? new Date(d.bookingDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
                                 <div class="col-4 text-muted">Collection:</div>

@@ -220,6 +220,10 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
     public const string DiscountApprovalRequiredMessage =
         "A discount needs a reason and the name of the person who approved it.";
 
+    /// <summary>{0} = the discount already on the bill.</summary>
+    public const string DiscountAlreadyGivenMessage =
+        "A discount of ₹{0:N2} has already been given on this bill. A bill can be discounted only once - collect the payment without a new discount.";
+
     public const string DiscountNotPermittedMessage =
         "You do not have permission to give a discount. Ask a user with the Discount right on this screen.";
 
@@ -234,6 +238,32 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
         request != null
         && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0)
         && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0);
+
+    /// <summary>Department-wise discount given at due collection: writes each test's discount onto the bill's existing
+    /// line rows (matched by lab order item, or by investigation for older rows).</summary>
+    private static async Task UpdateLabLineDiscountsAsync(System.Data.IDbConnection con, System.Data.IDbTransaction tx, int paymentHeaderId,
+        IReadOnlyList<LabDiscountLine> lines, IReadOnlyList<LabLineDiscount> perLine, int? userId)
+    {
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var d = perLine[i];
+            var args = new
+            {
+                PaymentHeaderId = paymentHeaderId,
+                ItemId = lines[i].LabOrderItemId,
+                lines[i].InvestigationId,
+                Type = d.Amount > 0 ? d.Type : null,
+                Value = d.Amount > 0 ? d.Value : (decimal?)null,
+                d.Amount,
+                ModifiedBy = userId
+            };
+            const string set = @"SET LineDiscountType = @Type, LineDiscountValue = @Value, LineDiscountAmount = @Amount,
+                                     NetLineAmount = CASE WHEN OriginalAmount - @Amount < 0 THEN 0 ELSE OriginalAmount - @Amount END";
+            var n = await con.ExecuteAsync($"UPDATE PaymentLineItem {set} WHERE PaymentHeaderId = @PaymentHeaderId AND IsActive = 1 AND ModuleLineRefId = @ItemId", args, tx);
+            if (n == 0)
+                await con.ExecuteAsync($"UPDATE PaymentLineItem {set} WHERE PaymentHeaderId = @PaymentHeaderId AND IsActive = 1 AND ModuleLineRefId = @InvestigationId", args, tx);
+        }
+    }
 
     public async Task<SavePaymentResult> SavePaymentAsync(SavePaymentRequest request, int? userId)
     {
@@ -343,6 +373,29 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 discountableSubTotal = eligibleSum ?? 0m;
             }
 
+            // ── B2C LAB department-wise discount (type "D"): every line's discount comes from its head - its department,
+            //    or Packages - recalculated here from the bill's own lines (the page only previews it) ──
+            List<LabDiscountLine>? deptLines = null;
+            List<LabLineDiscount>? deptPerLine = null;
+            decimal deptTotal = 0m;
+            bool deptMode = request.ModuleCode == "LAB"
+                && string.Equals(request.HeaderDiscountType, LabDepartmentDiscount.HeaderType, StringComparison.OrdinalIgnoreCase);
+            if (deptMode)
+            {
+                var (lines, isB2BOrder, _) = await LabDepartmentDiscount.LoadForOrderAsync(con, request.ModuleRefId, tx);
+                if (isB2BOrder)
+                    return new SavePaymentResult { Success = false, Error = "A department-wise discount is for B2C lab bills only." };
+                var (perLine, total, deptError) = LabDepartmentDiscount.Compute(lines, request.DepartmentDiscounts);
+                if (deptError != null)
+                    return new SavePaymentResult { Success = false, Error = deptError };
+                deptLines = lines;
+                deptPerLine = perLine;
+                deptTotal = total;
+                request.HeaderDiscountType = LabDepartmentDiscount.HeaderType;
+                request.HeaderDiscountValue = total;
+                request.HeaderDiscountAmount = total;
+            }
+
             // ── OPD: only services marked "Is Discountable" in Service Master take a bill discount (script 2190) ──
             // When every service of the bill is discountable nothing changes (opdLines stays null).
             List<(int ItemId, int ServiceId, decimal Charges, bool IsDiscountable)>? opdLines = null;
@@ -390,8 +443,13 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     WHERE  PaymentHeaderId = @PaymentHeaderId AND IsActive = 1",
                     new { PaymentHeaderId = paymentHeaderId }, tx);
 
+                // A bill is discounted only once: once it carries a discount, a later payment (due collection) cannot
+                // add, raise, lower or replace it. Repeating the same discount is not a new one and is accepted.
+                decimal existingDiscount = Math.Max((decimal)existingHeader.HeaderDiscountAmount, (decimal)existingHeader.LineDiscountTotal);
+                bool requestHasDiscount = request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0;
+
                 // Recompute net amount if new discount is applied, or maintain current net amount
-                if (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0)
+                if (requestHasDiscount)
                 {
                     decimal hDiscAmt = 0m;
                     string? discType = !string.IsNullOrEmpty(request.HeaderDiscountType)
@@ -401,10 +459,15 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         ? request.HeaderDiscountValue
                         : ((decimal?)existingHeader.HeaderDiscountValue ?? 0m);
 
-                    if (discType == "P")
+                    if (deptMode)
+                        hDiscAmt = deptTotal;
+                    else if (discType == "P")
                         hDiscAmt = Math.Round(discountableSubTotal * (discVal / 100m), 2);
                     else
                         hDiscAmt = Math.Min(discountableSubTotal, request.HeaderDiscountAmount > 0 ? request.HeaderDiscountAmount : discVal);
+
+                    if (existingDiscount > 0 && Math.Abs(hDiscAmt - existingDiscount) >= 0.01m)
+                        return new SavePaymentResult { Success = false, Error = string.Format(DiscountAlreadyGivenMessage, existingDiscount) };
 
                     bool discountChanged = hDiscAmt > 0
                         && (hDiscAmt != (decimal)existingHeader.HeaderDiscountAmount || string.IsNullOrWhiteSpace((string?)existingHeader.DiscountReason));
@@ -447,6 +510,10 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                             ModifiedBy = userId,
                             PaymentHeaderId = paymentHeaderId
                         }, tx);
+
+                    // department-wise: the bill's line rows carry each test's own discount
+                    if (deptMode && deptLines != null && deptPerLine != null)
+                        await UpdateLabLineDiscountsAsync(con, tx, paymentHeaderId, deptLines, deptPerLine, userId);
                 }
                 else
                 {
@@ -458,7 +525,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             {
                 // Calculating for new PaymentHeader
                 decimal hDiscAmt = 0m;
-                if (request.HeaderDiscountType == "P")
+                if (deptMode)
+                    hDiscAmt = deptTotal;
+                else if (request.HeaderDiscountType == "P")
                     hDiscAmt = Math.Round(discountableSubTotal * (request.HeaderDiscountValue / 100m), 2);
                 else if (request.HeaderDiscountAmount > 0)
                     hDiscAmt = Math.Min(discountableSubTotal, request.HeaderDiscountAmount);
@@ -530,9 +599,23 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         }
                     }
 
+                    // Department-wise (B2C LAB): each line takes the discount of its own head, from the bill's lines
+                    if (deptMode && deptLines != null && deptPerLine != null)
+                    {
+                        foreach (var li in request.LineItems)
+                        {
+                            int k = deptLines.FindIndex(l => l.LabOrderItemId == li.ModuleLineRefId);
+                            if (k < 0) k = deptLines.FindIndex(l => l.InvestigationId == li.ModuleLineRefId);
+                            var d = k >= 0 ? deptPerLine[k] : null;
+                            li.LineDiscountType = d is { Amount: > 0 } ? d.Type : null;
+                            li.LineDiscountValue = d is { Amount: > 0 } ? d.Value : 0m;
+                            li.LineDiscountAmount = d?.Amount ?? 0m;
+                            li.NetLineAmount = Math.Max(0, li.OriginalAmount - li.LineDiscountAmount);
+                        }
+                    }
                     // Reconcile line item discounts for LAB (and OPD bills with a non-discountable service)
                     // so only eligible items receive discount
-                    if (request.ModuleCode == "LAB" || opdLines != null)
+                    else if (request.ModuleCode == "LAB" || opdLines != null)
                     {
                         var eligibleLines = request.LineItems.Where(x => x.IsDiscountAllowed).ToList();
                         if (hDiscAmt > 0 && discountableSubTotal > 0 && eligibleLines.Any())

@@ -205,6 +205,8 @@ namespace EMR.Web.Models.ViewModels
         public string? FromDate { get; set; }
         public string? ToDate { get; set; }
         public string? Search { get; set; }
+        /// <summary>B2C Order List: the date the From / To range applies to - "B" booking date, "C" bill (created) date.</summary>
+        public string DateType { get; set; } = "B";
 
         public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 0;
         public bool HasPrevious => Page > 1;

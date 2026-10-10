@@ -86,12 +86,55 @@
 @@media (max-width: 991.98px) {
     #paymentModal .pm-left { border-right:0; border-bottom:1px solid var(--pm-line); }
 }
+/* department-wise discount (B2C LAB): summary chip in the Discount card and the popup over the dialog */
+#paymentModal .pm-dept-sum { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 10px; border-radius:10px;
+                             background:#eef2ff; border:1px solid #c7d2fe; color:#312e81; font-size:.78rem; }
+#paymentModal .pm-dept-sum .pm-dept-chip { background:#fff; border:1px solid #c7d2fe; border-radius:999px; padding:2px 8px; font-weight:600; white-space:nowrap; }
+#paymentModal .pm-dept-popup { position:absolute; inset:0; z-index:1060; background:rgba(15,23,42,.45); display:flex;
+                               align-items:flex-start; justify-content:center; padding:48px 16px; overflow:auto; }
+#paymentModal .pm-dept-panel { background:#fff; border-radius:14px; box-shadow:0 20px 50px rgba(15,23,42,.3); width:100%; max-width:760px; padding:16px 18px; }
+#paymentModal .pm-dept-panel table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:var(--pm-muted); }
+#paymentModal .pm-dept-type .btn { padding:2px 9px; font-size:.75rem; }
+#paymentModal .pm-dept-nd { font-size:.7rem; color:#94a3b8; }
 </style>
 
 <div class="modal fade" id="paymentModal" tabindex="-1"
      data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true" aria-labelledby="pmTitle">
     <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width:1040px">
         <div class="modal-content border-0 shadow-lg overflow-hidden">
+
+            <!-- Department-wise discount popup (B2C LAB) -->
+            <div id="pmDeptPopup" class="pm-dept-popup d-none" role="dialog" aria-modal="true" aria-labelledby="pmDeptTitle">
+                <div class="pm-dept-panel">
+                    <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                        <div>
+                            <div class="fw-bold" id="pmDeptTitle"><i class="bi bi-diagram-3 me-1 text-primary"></i>Department-wise discount</div>
+                            <div class="small text-muted">A department's discount applies to all its tests; packages have their own discount head.
+                                Only tests allowed a discount in the rate card are discounted.</div>
+                        </div>
+                        <button type="button" class="btn-close" id="pmDeptClose" aria-label="Close"></button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-2">
+                            <thead><tr>
+                                <th>Discount head</th><th class="text-end">Eligible</th><th class="text-center">Type</th>
+                                <th style="width:120px">Value</th><th class="text-end">Discount</th><th class="text-end">Net</th>
+                            </tr></thead>
+                            <tbody id="pmDeptRows"></tbody>
+                            <tfoot><tr>
+                                <td colspan="4" class="text-end fw-semibold">Total discount</td>
+                                <td class="text-end fw-bold text-danger amt" id="pmDeptTotal">₹0.00</td><td></td>
+                            </tr></tfoot>
+                        </table>
+                    </div>
+                    <div id="pmDeptMsg" class="small text-danger fw-semibold d-none mb-2"></div>
+                    <div class="d-flex gap-2 justify-content-end">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="pmDeptClearAll"><i class="bi bi-eraser me-1"></i>Clear all</button>
+                        <button type="button" class="btn btn-sm btn-light border" id="pmDeptCancel">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="pmDeptApply"><i class="bi bi-check2 me-1"></i>Apply</button>
+                    </div>
+                </div>
+            </div>
 
             <!-- Header: who is paying, and bill / token once they exist -->
             <div class="pm-head d-flex align-items-center gap-3">
@@ -163,6 +206,13 @@
                                         <button type="button" class="btn btn-outline-secondary" data-pct="20">20%</button>
                                         <button type="button" class="btn btn-outline-danger" data-pct="0" title="Remove the discount"><i class="bi bi-x"></i> Clear</button>
                                     </div>
+                                    <!-- B2C LAB: a % or ₹ per department (and one for packages) instead of one discount for the bill -->
+                                    <div class="mt-2 d-none" id="pmDeptDiscWrap">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="pmDeptDiscBtn">
+                                            <i class="bi bi-diagram-3 me-1"></i>Department-wise discount
+                                        </button>
+                                    </div>
+                                    <div class="mt-2 d-none" id="pmDeptDiscSummary"></div>
                                 }
                                 <div class="mt-2 small d-none" id="pmDiscEligibilityRow">
                                     <span class="text-muted">Eligible for discount: <strong class="text-dark amt" id="pmDiscEligibleAmt">₹0.00</strong>
@@ -182,6 +232,8 @@
                                     <select id="pmDiscApprover" class="form-select form-select-sm"><option value="">-- Select the approving person --</option></select>
                                 </div>
                                 <div class="mt-2 small d-none" id="pmDiscApprovalInfo"></div>
+                                <!-- a bill is discounted only once: an existing discount is shown here and the controls are locked -->
+                                <div class="mt-2 small alert alert-secondary py-2 px-2 mb-0 d-none" id="pmDiscLocked"></div>
                                 @if (!pmCanDiscount)
                                 {
                                     <div class="mt-2 small text-muted"><i class="bi bi-lock-fill me-1"></i>You do not have permission to give a discount on this screen.</div>
@@ -385,6 +437,29 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('pmDiscValue').value = pct > 0 ? pct : '';
         recalcDiscount();
     });
+    // Department-wise discount: open, edit, remove, popup controls
+    document.getElementById('pmDeptDiscBtn')?.addEventListener('click', openDeptPopup);
+    document.getElementById('pmDeptDiscSummary')?.addEventListener('click', function (e) {
+        if (e.target.closest('#pmDeptEdit')) openDeptPopup();
+        else if (e.target.closest('#pmDeptRemove')) removeDeptDiscount();
+    });
+    document.getElementById('pmDeptClose')?.addEventListener('click', closeDeptPopup);
+    document.getElementById('pmDeptCancel')?.addEventListener('click', closeDeptPopup);
+    document.getElementById('pmDeptApply')?.addEventListener('click', applyDeptPopup);
+    document.getElementById('pmDeptClearAll')?.addEventListener('click', function () {
+        if (!_deptDraft) return; _deptDraft.forEach(r => r.value = ''); renderDeptRows();
+    });
+    document.getElementById('pmDeptRows')?.addEventListener('input', function (e) {
+        const inp = e.target.closest('.pm-dept-val'); if (!inp || !_deptDraft) return;
+        _deptDraft[parseInt(inp.closest('tr').dataset.i)].value = inp.value;
+        updateDeptTotals();
+    });
+    document.getElementById('pmDeptRows')?.addEventListener('click', function (e) {
+        const b = e.target.closest('.pm-dept-type button[data-type]'); if (!b || !_deptDraft) return;
+        const row = _deptDraft[parseInt(b.closest('tr').dataset.i)];
+        if (row.type !== b.dataset.type) { row.type = b.dataset.type; row.value = ''; renderDeptRows(); }
+    });
+
     // Reason chips fill the reason box
     document.getElementById('pmReasonChips')?.addEventListener('click', function (e) {
         const b = e.target.closest('.pm-reason-chip'); if (!b) return;
@@ -457,8 +532,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function executeSkipPayment() {
         if (_isPreSave) {
-            const discType  = document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null;
-            const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
+            const discType  = currentDiscType();
+            const discVal   = currentDiscValue();
             const discAmt   = _discAmt;
             const net       = getNetAmount();
             const approval  = await ensureDiscountApproval(discAmt);
@@ -484,6 +559,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 headerDiscountType:   discType,
                 headerDiscountValue:  discVal,
                 headerDiscountAmount: discAmt,
+                departmentDiscounts:  currentDeptDiscounts(),
                 discountReason:       approval.reason,
                 discountApprovedBy:   approval.approvedBy,
                 netAmount:            net,
@@ -567,6 +643,12 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('pmExistingPaySection').classList.add('d-none');
         }
 
+        // A bill is discounted only once: an earlier discount locks the discount controls
+        applyDiscountLock();
+        // B2C LAB: department-wise discount heads (the button shows once they are loaded)
+        _deptDisc = null;
+        loadDeptHeads();
+
         // Trigger calculation to include GST initially
         recalcDiscount();
 
@@ -579,6 +661,206 @@ document.addEventListener('DOMContentLoaded', function () {
         pmFooter.style.removeProperty('display');
         setTimeout(() => document.querySelector('#pmMethodRows .pm-paid-amount')?.focus(), 250);
     }
+
+    // ─── One discount per bill ─────────────────────────────────────────────────
+    // A bill that already carries a discount (given at billing or at an earlier payment) cannot get another one:
+    // the controls are locked and the earlier discount is shown. The server refuses a second discount as well.
+    function existingBillDiscount() {
+        if (!_summary?.hasExistingPayment) return 0;
+        return Math.max(parseFloat(_summary.existingHeaderDiscountAmount) || 0, parseFloat(_summary.existingLineDiscountTotal) || 0);
+    }
+    function applyDiscountLock() {
+        const given = existingBillDiscount();
+        const locked = given > 0;
+        ['pmDiscTypeP', 'pmDiscTypeF', 'pmDiscValue'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = locked || !_canDiscount;
+        });
+        if (locked) document.getElementById('pmDiscValue').value = '';
+        document.getElementById('pmDiscQuick')?.classList.toggle('d-none', locked);
+        const box = document.getElementById('pmDiscLocked');
+        if (!box) return;
+        if (!locked) { box.classList.add('d-none'); box.innerHTML = ''; return; }
+        const who = _summary.existingDiscountReason
+            ? ` &middot; ${esc(_summary.existingDiscountReason)}${_summary.existingDiscountApprovedByName ? ', approved by ' + esc(_summary.existingDiscountApprovedByName) : ''}`
+            : '';
+        box.innerHTML = `<i class="bi bi-lock-fill me-1"></i>A discount of <strong>₹${fmtIN(given)}</strong> was already given on this bill${who}. `
+                      + `A bill can be discounted only once.`;
+        box.classList.remove('d-none');
+    }
+
+    // ─── Department-wise discount (B2C LAB) ────────────────────────────────────
+    // Each discount head - a department on the bill, or Packages - takes its own % (default) or ₹. A % discounts each
+    // eligible test by round(price × % / 100, 2); a ₹ amount is spread over the head's eligible tests in proportion to
+    // price, the last test taking the remainder. The server recalculates the same way from the saved bill.
+    var _deptHeads = null;   // { isB2B, heads:[{key,name,isPackages,tests,eligibleAmount,nonEligibleAmount}], lines:[...] }
+    var _deptDisc = null;    // applied: { rows:[{key,name,type,value,amount}], total, per:[amount by line] }
+    var _deptDraft = null;   // the popup's working rows
+    var _isB2CHint = false;  // the booking screen says this is a B2C bill
+
+    const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+
+    function deptAvailable() {
+        return _moduleCode === 'LAB' && _canDiscount && existingBillDiscount() === 0 && !!_deptHeads && !_deptHeads.isB2B
+            && (_deptHeads.heads || []).some(h => h.eligibleAmount > 0);
+    }
+
+    async function loadDeptHeads() {
+        _deptHeads = null;
+        refreshDeptUi();
+        if (_moduleCode !== 'LAB' || !_canDiscount || existingBillDiscount() > 0) return;
+        let body;
+        if (_isPreSave) {
+            if (!_isB2CHint) return;
+            body = { items: (_summary.items || []).map(it => ({ investigationId: parseInt(it.lineRefId) || 0, isPackage: !!it.isPackage, price: parseFloat(it.originalAmount) || 0 })) };
+        } else {
+            body = { labOrderId: _summary?.moduleRefId ?? _moduleRefId };
+        }
+        try {
+            const r = await fetch('/LabOrderBooking/DiscountHeads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (r.ok) _deptHeads = await r.json();
+        } catch (e) { _deptHeads = null; }
+        refreshDeptUi();
+    }
+
+    // discount of every line (same order as _deptHeads.lines) for the given rows
+    function deptCompute(rows) {
+        const lines = _deptHeads?.lines || [];
+        const per = lines.map(() => 0);
+        (rows || []).forEach(r => {
+            const v = parseFloat(r.value) || 0;
+            if (v <= 0) return;
+            const idx = lines.map((l, i) => i).filter(i => lines[i].eligible && lines[i].price > 0 && lines[i].groupKey === r.key);
+            if (!idx.length) return;
+            if (r.type === 'P') {
+                idx.forEach(i => per[i] = round2(lines[i].price * Math.min(v, 100) / 100));
+            } else {
+                const tot = idx.reduce((sum, i) => sum + lines[i].price, 0);
+                const amt = Math.min(v, tot);
+                let alloc = 0;
+                idx.forEach((i, k) => {
+                    const share = k === idx.length - 1 ? Math.max(0, round2(amt - alloc)) : round2(amt * lines[i].price / tot);
+                    alloc = round2(alloc + share);
+                    per[i] = Math.min(share, lines[i].price);
+                });
+            }
+        });
+        return { per, total: round2(per.reduce((sum, a) => sum + a, 0)) };
+    }
+
+    // the applied department discount of one bill line of the dialog (matched by order line, then by test)
+    function deptLineDiscount(item, itemIndex) {
+        if (!_deptDisc || !_deptHeads) return 0;
+        const lines = _deptHeads.lines || [];
+        let k = _isPreSave ? lines.findIndex(l => l.index === itemIndex) : -1;
+        if (k < 0) k = lines.findIndex(l => l.labOrderItemId > 0 && l.labOrderItemId === parseInt(item.lineRefId));
+        if (k < 0) k = lines.findIndex(l => l.investigationId === parseInt(item.lineRefId));
+        return k >= 0 ? (_deptDisc.per[k] || 0) : 0;
+    }
+
+    function setOverallDiscountEnabled(on) {
+        const allow = on && _canDiscount && existingBillDiscount() === 0;
+        ['pmDiscTypeP', 'pmDiscTypeF', 'pmDiscValue'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !allow; });
+        document.getElementById('pmDiscQuick')?.classList.toggle('d-none', !allow);
+    }
+
+    function refreshDeptUi() {
+        const wrap = document.getElementById('pmDeptDiscWrap');
+        const sum = document.getElementById('pmDeptDiscSummary');
+        if (!wrap || !sum) return;
+        if (_deptDisc) {
+            wrap.classList.add('d-none');
+            sum.innerHTML = `<div class="pm-dept-sum"><span class="fw-semibold"><i class="bi bi-diagram-3 me-1"></i>Department-wise:</span>` +
+                _deptDisc.rows.map(r => `<span class="pm-dept-chip">${esc(r.name)} ${r.type === 'P' ? Number(r.value) + '%' : '₹' + fmtIN(r.value)} · −₹${fmtIN(r.amount)}</span>`).join('') +
+                `<span class="ms-auto d-flex gap-1"><button type="button" class="btn btn-sm btn-outline-primary py-0" id="pmDeptEdit"><i class="bi bi-pencil me-1"></i>Edit</button>` +
+                `<button type="button" class="btn btn-sm btn-outline-danger py-0" id="pmDeptRemove"><i class="bi bi-x me-1"></i>Remove</button></span></div>`;
+            sum.classList.remove('d-none');
+            setOverallDiscountEnabled(false);
+        } else {
+            sum.classList.add('d-none'); sum.innerHTML = '';
+            wrap.classList.toggle('d-none', !deptAvailable());
+            setOverallDiscountEnabled(true);
+        }
+    }
+
+    function openDeptPopup() {
+        if (!deptAvailable()) return;
+        const applied = Object.fromEntries((_deptDisc?.rows || []).map(r => [r.key, r]));
+        _deptDraft = (_deptHeads.heads || []).map(h => ({
+            key: h.key, name: h.name, tests: h.tests, eligible: h.eligibleAmount, nonEligible: h.nonEligibleAmount,
+            type: applied[h.key]?.type || 'P', value: applied[h.key]?.value ?? ''
+        }));
+        renderDeptRows();
+        document.getElementById('pmDeptMsg').classList.add('d-none');
+        document.getElementById('pmDeptPopup').classList.remove('d-none');
+        setTimeout(() => document.querySelector('#pmDeptRows input:not([disabled])')?.focus(), 50);
+    }
+    function closeDeptPopup() { document.getElementById('pmDeptPopup').classList.add('d-none'); _deptDraft = null; }
+
+    function renderDeptRows() {
+        document.getElementById('pmDeptRows').innerHTML = _deptDraft.map((r, i) => {
+            const off = !(r.eligible > 0);
+            return `<tr data-i="${i}">
+                <td><div class="fw-semibold">${r.key === 'PKG' ? '<i class="bi bi-box-seam me-1 text-secondary"></i>' : ''}${esc(r.name)}</div>
+                    <div class="pm-dept-nd">${r.tests} item${r.tests === 1 ? '' : 's'}${r.nonEligible > 0 ? ' · ₹' + fmtIN(r.nonEligible) + ' not discountable' : ''}</div></td>
+                <td class="text-end amt">₹${fmtIN(r.eligible)}</td>
+                <td class="text-center"><div class="btn-group pm-dept-type" role="group">
+                    <button type="button" class="btn ${r.type === 'P' ? 'btn-secondary' : 'btn-outline-secondary'}" data-type="P" ${off ? 'disabled' : ''}>%</button>
+                    <button type="button" class="btn ${r.type === 'F' ? 'btn-secondary' : 'btn-outline-secondary'}" data-type="F" ${off ? 'disabled' : ''}>₹</button></div></td>
+                <td><input type="number" class="form-control form-control-sm pm-dept-val" min="0" step="0.01" ${r.type === 'P' ? 'max="100"' : ''}
+                           value="${r.value === '' ? '' : r.value}" placeholder="${off ? 'not discountable' : (r.type === 'P' ? '%' : '₹')}" ${off ? 'disabled' : ''} /></td>
+                <td class="text-end amt text-danger pm-dept-amt">—</td>
+                <td class="text-end amt fw-semibold pm-dept-net">—</td></tr>`;
+        }).join('');
+        updateDeptTotals();
+    }
+
+    function updateDeptTotals() {
+        const { per } = deptCompute(_deptDraft);
+        const lines = _deptHeads.lines || [];
+        let total = 0, bad = '';
+        _deptDraft.forEach((r, i) => {
+            const amt = round2(lines.reduce((sum, l, k) => sum + (l.groupKey === r.key ? per[k] : 0), 0));
+            total = round2(total + amt);
+            const tr = document.querySelector(`#pmDeptRows tr[data-i="${i}"]`);
+            if (!tr) return;
+            tr.querySelector('.pm-dept-amt').textContent = amt > 0 ? '−₹' + fmtIN(amt) : '—';
+            tr.querySelector('.pm-dept-net').textContent = '₹' + fmtIN(r.eligible + r.nonEligible - amt);
+            const v = parseFloat(r.value) || 0;
+            if (r.type === 'P' && v > 100) bad = `${r.name}: a % discount cannot be more than 100%.`;
+            if (r.type === 'F' && v > r.eligible + 0.001) bad = bad || `${r.name}: at most ₹${fmtIN(r.eligible)} can be discounted.`;
+        });
+        document.getElementById('pmDeptTotal').textContent = '₹' + fmtIN(total);
+        const msg = document.getElementById('pmDeptMsg');
+        msg.textContent = bad; msg.classList.toggle('d-none', !bad);
+        return total;
+    }
+
+    function applyDeptPopup() {
+        const total = updateDeptTotals();
+        const msg = document.getElementById('pmDeptMsg');
+        if (_deptDraft.some(r => r.type === 'P' && (parseFloat(r.value) || 0) > 100)) return;
+        if (!(total > 0)) { msg.textContent = 'Enter a discount for at least one department.'; msg.classList.remove('d-none'); return; }
+        const { per } = deptCompute(_deptDraft);
+        const lines = _deptHeads.lines || [];
+        const rows = _deptDraft.filter(r => (parseFloat(r.value) || 0) > 0).map(r => ({
+            key: r.key, name: r.name, type: r.type,
+            value: r.type === 'F' ? Math.min(parseFloat(r.value), r.eligible) : parseFloat(r.value),
+            amount: round2(lines.reduce((sum, l, k) => sum + (l.groupKey === r.key ? per[k] : 0), 0))
+        })).filter(r => r.amount > 0);
+        _deptDisc = { rows, total, per };
+        document.getElementById('pmDiscValue').value = '';   // the overall discount is replaced
+        closeDeptPopup();
+        refreshDeptUi();
+        recalcDiscount();
+    }
+
+    function removeDeptDiscount() { _deptDisc = null; refreshDeptUi(); recalcDiscount(); }
+
+    // what the save request carries for the discount
+    function currentDiscType() { return _deptDisc ? 'D' : (document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null); }
+    function currentDiscValue() { return _deptDisc ? _deptDisc.total : (parseFloat(document.getElementById('pmDiscValue').value) || 0); }
+    function currentDeptDiscounts() { return _deptDisc ? _deptDisc.rows.map(r => ({ groupKey: r.key, type: r.type, value: r.value })) : null; }
 
     // ─── Discount recalc (calculation unchanged) ──────────────────────────────
     function recalcDiscount() {
@@ -636,6 +918,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 discAmt = Math.min(effectiveBase, raw);
             }
         }
+        if (_deptDisc) { discAmt = _deptDisc.total; setWarn(''); }   // department-wise replaces the overall discount
         discAmt = parseFloat(discAmt.toFixed(2));
         _discAmt = discAmt;
         document.getElementById('pmDiscAmt').textContent = '₹' + fmtIN(discAmt);
@@ -652,7 +935,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!_summary.hasExistingPayment && _summary.items) {
             // Allocate discount among eligible items
-            let eligibleItems = _summary.items.filter(it => it.isDiscountAllowed !== false);
+            let eligibleItems = _deptDisc ? [] : _summary.items.filter(it => it.isDiscountAllowed !== false);
+            if (_deptDisc) {
+                _summary.items.forEach((item, i) => {
+                    item.lineDiscountAmount = deptLineDiscount(item, i);
+                    item.netLineAmount = Math.max(0, item.originalAmount - item.lineDiscountAmount);
+                });
+            }
             let runningAlloc = 0;
             eligibleItems.forEach((item, idx) => {
                 if (idx === eligibleItems.length - 1) {
@@ -665,7 +954,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 item.netLineAmount = Math.max(0, item.originalAmount - item.lineDiscountAmount);
             });
 
-            _summary.items.filter(it => it.isDiscountAllowed === false).forEach(item => {
+            _summary.items.filter(it => !_deptDisc && it.isDiscountAllowed === false).forEach(item => {
                 item.lineDiscountAmount = 0;
                 item.netLineAmount = item.originalAmount;
             });
@@ -969,8 +1258,8 @@ document.addEventListener('DOMContentLoaded', function () {
         hideError();
 
         try {
-            const discType  = document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null;
-            const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
+            const discType  = currentDiscType();
+            const discVal   = currentDiscValue();
             const discAmt   = _discAmt;
             const net       = getNetAmount();
 
@@ -1045,6 +1334,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 headerDiscountType:   discType,
                 headerDiscountValue:  discVal,
                 headerDiscountAmount: discAmt,
+                departmentDiscounts:  currentDeptDiscounts(),
                 discountReason:       approval.reason,
                 discountApprovedBy:   approval.approvedBy,
                 roundOffAmount:       roundOff,
@@ -1196,6 +1486,10 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('pmDiscApprovalBox')?.classList.add('d-none');
         document.getElementById('pmDiscApprovalInfo')?.classList.add('d-none');
         _discAmt = 0; _roundedNetAmount = 0; _roundOffAmount = 0; _isSubmitting = false;
+        _deptDisc = null; _deptHeads = null; _deptDraft = null;
+        document.getElementById('pmDeptPopup')?.classList.add('d-none');
+        document.getElementById('pmDeptDiscWrap')?.classList.add('d-none');
+        document.getElementById('pmDeptDiscSummary')?.classList.add('d-none');
         const btn = document.getElementById('btnSavePayment');
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-circle me-2"></i><span id="pmCollectLabel">Save Payment</span>'; }
     }
@@ -1204,6 +1498,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Trigger this payment modal for any service from other JS contexts
     window.pmOpenFor = function (svcId, onSuccessCb, moduleCode) {
         _isPreSave = false;
+        _isB2CHint = false;   // an existing bill: the server says whether it is B2C
         _summary = null; _methods = []; _rowIdx = 0; _discApproval = null;
         _moduleRefId = svcId;
         if (moduleCode) {
@@ -1234,6 +1529,7 @@ document.addEventListener('DOMContentLoaded', function () {
             items: config.items || []
         };
         _moduleCode = config.moduleCode || 'LAB';
+        _isB2CHint  = config.isB2C === true;
         _onSave     = config.onSave;
         _onSkip     = config.onSkip || config.onSave;
         _onCancel   = config.onCancel;

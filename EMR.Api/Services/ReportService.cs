@@ -98,7 +98,9 @@ public class ReportService : IReportService
             ByReason = (await multi.ReadAsync<DiscountRegisterGroupRow>()).ToList(),
             ByEnteredBy = (await multi.ReadAsync<DiscountRegisterGroupRow>()).ToList(),
             ByDate = (await multi.ReadAsync<DiscountRegisterGroupRow>()).ToList(),
-            Bills = (await multi.ReadAsync<DiscountRegisterBillRow>()).ToList()
+            Bills = (await multi.ReadAsync<DiscountRegisterBillRow>()).ToList(),
+            // RS7 (script 2223): test-wise discount; absent before the script is run
+            Lines = multi.IsConsumed ? new() : (await multi.ReadAsync<DiscountRegisterLineRow>()).ToList()
         };
     }
 

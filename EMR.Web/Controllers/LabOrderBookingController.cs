@@ -2119,32 +2119,29 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> B2COrderList(int? branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> B2COrderList(string? dateType, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10)
         {
-            int resolvedBranchId = branchId 
-                ?? User.GetCurrentBranchId() 
-                ?? HttpContext.Session.GetInt32("SelectedBranchId") 
-                ?? HttpContext.Session.GetInt32("BranchId") 
-                ?? 1;
+            // always the signed-in branch (no branch picker: a branch in the address cannot list another branch's orders)
+            int? currentBranchId = User.GetCurrentBranchId()
+                ?? HttpContext.Session.GetInt32("SelectedBranchId")
+                ?? HttpContext.Session.GetInt32("BranchId");
+            if (currentBranchId is not > 0) return RedirectToAction("SelectBranch", "Account");
+            int resolvedBranchId = currentBranchId.Value;
 
-            var effectiveFromDate = fromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
-            var effectiveToDate = toDate ?? DateTime.Today.ToString("yyyy-MM-dd");
+            // the range applies to the booking date (default) or the bill (created) date; both ends default to today
+            var effectiveDateType = string.Equals(dateType, "C", StringComparison.OrdinalIgnoreCase) ? "C" : "B";
+            var effectiveFromDate = DateOnly.TryParse(fromDate, out var f) ? f.ToString("yyyy-MM-dd") : DateTime.Today.ToString("yyyy-MM-dd");
+            var effectiveToDate = DateOnly.TryParse(toDate, out var t) ? t.ToString("yyyy-MM-dd") : DateTime.Today.ToString("yyyy-MM-dd");
+            if (string.CompareOrdinal(effectiveFromDate, effectiveToDate) > 0) (effectiveFromDate, effectiveToDate) = (effectiveToDate, effectiveFromDate);
+            if (page < 1) page = 1;
+            if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 10;
 
-            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: false);
+            var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: false, dateType: effectiveDateType);
 
-            var branches = await dbContext.BranchMasters
-                .Where(b => b.IsActive)
-                .OrderBy(b => b.BranchName)
-                .Select(b => new SelectListItem
-                {
-                    Value = b.BranchId.ToString(),
-                    Text = b.BranchName,
-                    Selected = b.BranchId == resolvedBranchId
-                })
-                .ToListAsync();
-            ViewBag.Branches = branches;
-
-            var currentBranch = branches.FirstOrDefault(b => b.Selected)?.Text;
+            var currentBranch = await dbContext.BranchMasters
+                .Where(b => b.BranchId == resolvedBranchId)
+                .Select(b => b.BranchName)
+                .FirstOrDefaultAsync();
 
             ViewBag.ShowLabReportPrintOnList = await dbContext.HospitalSettings
                 .Where(s => s.BranchId == resolvedBranchId && s.IsActive)
@@ -2162,7 +2159,8 @@ namespace EMR.Web.Controllers
                 BranchName = currentBranch,
                 FromDate = effectiveFromDate,
                 ToDate = effectiveToDate,
-                Search = search
+                Search = search,
+                DateType = effectiveDateType
             };
 
             return View(vm);
@@ -2216,6 +2214,79 @@ namespace EMR.Web.Controllers
             };
 
             return View(vm);
+        }
+
+        // ─── Department-wise discount: the discount heads of a B2C bill ─────────────
+        /// <summary>
+        /// Discount heads for the payment screen's "Department-wise" popup: one per department on the bill plus
+        /// "Packages", each line's head and whether the B2C rate card allows a discount on it. For a saved bill
+        /// (labOrderId, own branch only) or for the tests of a bill still being booked (items). B2B bills: isB2B = true.
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> DiscountHeads([FromBody] DiscountHeadsRequest? request)
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (branchId is not > 0 || request is null) return BadRequest(new { error = "Select a branch first." });
+
+            var con = dbContext.Database.GetDbConnection();
+            if (con.State != System.Data.ConnectionState.Open) await con.OpenAsync();
+
+            List<LabDiscountLine> lines;
+            bool isB2B = false;
+            if (request.LabOrderId is > 0)
+            {
+                var (orderLines, orderIsB2B, orderBranch) = await LabDepartmentDiscount.LoadForOrderAsync(con, request.LabOrderId.Value);
+                if (orderBranch != branchId.Value) return NotFound(new { error = "Bill not found." });
+                lines = orderLines;
+                isB2B = orderIsB2B;
+            }
+            else
+            {
+                var items = (request.Items ?? new())
+                    .Where(x => x.InvestigationId > 0)
+                    .Take(200)
+                    .Select(x => (x.InvestigationId, x.IsPackage, Math.Max(0m, x.Price)))
+                    .ToList();
+                lines = await LabDepartmentDiscount.LoadForItemsAsync(con, branchId.Value, items);
+            }
+
+            var heads = lines
+                .GroupBy(l => l.GroupKey)
+                .Select(g => new
+                {
+                    key = g.Key,
+                    name = g.First().GroupName,
+                    isPackages = g.Key == LabDepartmentDiscount.PackagesKey,
+                    tests = g.Count(),
+                    eligibleAmount = g.Where(l => l.Eligible).Sum(l => l.Price),
+                    nonEligibleAmount = g.Where(l => !l.Eligible).Sum(l => l.Price)
+                })
+                .OrderBy(h => h.isPackages).ThenBy(h => h.name)
+                .ToList();
+
+            return Json(new
+            {
+                isB2B,
+                heads,
+                lines = lines.Select(l => new
+                {
+                    index = l.Index, labOrderItemId = l.LabOrderItemId, investigationId = l.InvestigationId,
+                    isPackage = l.IsPackage, price = l.Price, eligible = l.Eligible, groupKey = l.GroupKey
+                })
+            });
+        }
+
+        public sealed class DiscountHeadsRequest
+        {
+            public int? LabOrderId { get; set; }
+            public List<DiscountHeadItem>? Items { get; set; }
+        }
+
+        public sealed class DiscountHeadItem
+        {
+            public int InvestigationId { get; set; }
+            public bool IsPackage { get; set; }
+            public decimal Price { get; set; }
         }
 
         [HttpGet]
