@@ -22,6 +22,7 @@ namespace EMR.Web.Controllers
     [Authorize]
     public class LabReportingController(
         ILabReportingApiClient labReportingApiClient,
+        ILabCriticalApiClient labCriticalApiClient,
         ILabOrderApiClient labOrderApiClient,
         ISampleCollectionApiClient sampleCollectionApiClient,
         ILabSampleRejectionReasonApiClient rejectionReasonApiClient,
@@ -62,6 +63,9 @@ namespace EMR.Web.Controllers
 
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
                 branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
+            // Save Draft is no longer part of the flow (entry starts at Submit): the "Draft" bucket now means
+            // "some tests further along than others on this bill", shown as In Progress as on Image Reporting.
+            LabImageReportingController.RelabelDraftAsInProgress(headerResult);
 
             var statuses = await labReportingApiClient.GetStatusesAsync();
 
@@ -180,12 +184,17 @@ namespace EMR.Web.Controllers
         /// Calculated parameters of this order (Lab Master &gt; Lab Formula Component), keyed by test code.
         /// The hint shows the formula with test names instead of codes where the test is on the order.
         /// </summary>
-        private async Task<Dictionary<string, LabFormulaTargetInfo>> GetFormulaTargetsAsync(int labOrderId, LabReportingOrderDetailDto detail)
+        private Task<Dictionary<string, LabFormulaTargetInfo>> GetFormulaTargetsAsync(int labOrderId, LabReportingOrderDetailDto detail)
+            => LoadFormulaTargetsAsync(labFormulaApiClient, User.GetCompanyId(), labOrderId, detail);
+
+        /// <summary>The order's calculated parameters (Lab Master > Lab Formula Component), by target test code.</summary>
+        internal static async Task<Dictionary<string, LabFormulaTargetInfo>> LoadFormulaTargetsAsync(
+            ILabFormulaParameterApiClient labFormulaApiClient, int companyId, int labOrderId, LabReportingOrderDetailDto detail)
         {
             var targets = new Dictionary<string, LabFormulaTargetInfo>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                var formulas = await labFormulaApiClient.GetForOrderAsync(labOrderId, User.GetCompanyId());
+                var formulas = await labFormulaApiClient.GetForOrderAsync(labOrderId, companyId);
                 var names = detail.Items
                     .Where(i => !string.IsNullOrWhiteSpace(i.TestCode))
                     .GroupBy(i => i.TestCode!, StringComparer.OrdinalIgnoreCase)
@@ -289,11 +298,26 @@ namespace EMR.Web.Controllers
 
             // Lab Report Entry belongs only to Numeric Report tests
             FilterNumericReportingOnly(detail);
+
+            // Microbiology (Reporting Type Template) tests of the bill are reported on Microbiology Report Entry:
+            // a bill with only those opens there (links from Un-Authorize, reports ...), a mixed bill links to it.
+            var hasTemplateTests = false;
+            try
+            {
+                var template = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), LabReportTypes.Template);
+                hasTemplateTests = template?.Items is { Count: > 0 };
+            }
+            catch (HttpRequestException) { /* the link is a convenience only */ }
+
             if (detail.Items.Count == 0)
             {
+                if (hasTemplateTests)
+                    return RedirectToAction("Entry", "MicrobiologyReporting", new { labOrderId });
                 TempData["ErrorMessage"] = "This order does not contain any eligible Numeric report tests.";
                 return RedirectToAction(nameof(Index));
             }
+            if (hasTemplateTests)
+                ViewData["RelatedReportLink"] = ("MicrobiologyReporting", "Microbiology Report Entry", "This bill also has microbiology tests");
 
             var statuses = await labReportingApiClient.GetStatusesAsync();
             var sampleStatuses = await sampleCollectionApiClient.GetStatusesAsync();
@@ -345,6 +369,9 @@ namespace EMR.Web.Controllers
 
             var headerResult = await labReportingApiClient.GetHeaderListAsync(
                 branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
+            // Save Draft is no longer part of the flow (entry starts at Submit): the "Draft" bucket now means
+            // "some tests further along than others on this bill", shown as In Progress as on Image Reporting.
+            LabImageReportingController.RelabelDraftAsInProgress(headerResult);
 
             var encMap = headerResult.Headers.ToDictionary(
                 h => h.LabOrderId,
@@ -414,6 +441,15 @@ namespace EMR.Web.Controllers
                     success = false,
                     message = "Pathologist approval is required for this branch. Approve the report from the Pathologist Dashboard."
                 });
+
+            // NABL: a Critical / Panic result needs its communication recorded before it is approved (SQLScripts/2202)
+            if (request.ReportStatusId == 5)
+            {
+                var criticalBlock = await labCriticalApiClient.GetSignoffBlockAsync(CurrentBranchId(), request.LabOrderId,
+                    (request.Entries ?? new()).Select(e => e.SamplecollectionID), "ENTRY", User.GetUserId(), User.IsSuperAdmin());
+                if (criticalBlock != null)
+                    return Json(new { success = false, code = "CRITICAL_COMM_REQUIRED", message = criticalBlock });
+            }
 
             var enteredEntries = request.Entries?.Where(e => !string.IsNullOrWhiteSpace(e.TestValue)).ToList() ?? new List<LabReportingItemValueDto>();
             if (enteredEntries.Count == 0)
@@ -688,8 +724,11 @@ namespace EMR.Web.Controllers
         /// Prints Validated + Approved tests; a "NOT APPROVED" watermark is applied while any printed test is not yet approved.
         /// Each Department / Test Category starts on a new page.
         /// </summary>
+        /// reportingType: omitted / "Numeric" = the Lab Report (as always); "Template" = the Microbiology Report;
+        /// "auto" (the shared print modal on list pages) = whichever the bill can print, the Lab Report first -
+        /// X-Report-Available then names every report of the bill so the modal can offer the other one.
         [HttpGet]
-        public async Task<IActionResult> PrintReportPdf(int labOrderId, bool download = false, bool conditions = true, string? scope = null)
+        public async Task<IActionResult> PrintReportPdf(int labOrderId, bool download = false, bool conditions = true, string? scope = null, string? reportingType = null)
         {
             if (labOrderId <= 0)
                 return BadRequest(new { message = "Valid LabOrderId is required." });
@@ -697,7 +736,19 @@ namespace EMR.Web.Controllers
             try
             {
                 scope = LabReportPrintBuilder.NormalizeScope(scope);
-                var vm = await reportPdfService.BuildAsync(labOrderId, User, scope);
+                var available = new List<string>();
+                string reportType;
+                if (string.Equals(reportingType, "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    available = await reportPdfService.GetPrintableReportTypesAsync(labOrderId, scope);
+                    reportType = available.FirstOrDefault() ?? LabReportTypes.Numeric;
+                }
+                else
+                {
+                    reportType = LabReportTypes.Normalize(reportingType);
+                }
+
+                var vm = await reportPdfService.BuildAsync(labOrderId, User, scope, reportType);
                 if (vm == null)
                     return NotFound(new { message = "Lab report details not found." });
 
@@ -715,14 +766,16 @@ namespace EMR.Web.Controllers
                 var pdf = LabReportPdfDocument.Generate(vm, reportPdfService.LoadLogo(vm.HospitalLogoPath), conditions);
 
                 var safeBill = new string((vm.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
-                var fileName = $"LabReport_{safeBill}{(vm.ShowNotApprovedWatermark ? "_NOT-APPROVED" : "")}.pdf";
+                var fileName = $"{LabReportTypes.FilePrefix(reportType)}_{safeBill}{(vm.ShowNotApprovedWatermark ? "_NOT-APPROVED" : "")}.pdf";
 
                 Response.Headers["X-Report-Scope"] = scope;
+                Response.Headers["X-Report-Type"] = reportType;
+                Response.Headers["X-Report-Available"] = string.Join(",", available);
                 Response.Headers.CacheControl = "no-store";
                 Response.Headers["X-Report-Status"] = vm.IsFinal ? "final" : "provisional";
                 Response.Headers["X-Report-Watermark"] = vm.ShowNotApprovedWatermark ? "1" : "0";
                 Response.Headers["X-Report-Tests"] = vm.IncludedTestCount.ToString();
-                Response.Headers["Access-Control-Expose-Headers"] = "X-Report-Status, X-Report-Watermark, X-Report-Tests, X-Report-Scope";
+                Response.Headers["Access-Control-Expose-Headers"] = "X-Report-Status, X-Report-Watermark, X-Report-Tests, X-Report-Scope, X-Report-Type, X-Report-Available";
 
                 if (download)
                     return File(pdf, "application/pdf", fileName);
@@ -738,14 +791,15 @@ namespace EMR.Web.Controllers
 
         /// <summary>Records that the report was printed (called by the Print modal when the user clicks Print).</summary>
         [HttpPost]
-        public async Task<IActionResult> LogReportPrintedJson(int labOrderId, string? scope = null)
+        public async Task<IActionResult> LogReportPrintedJson(int labOrderId, string? scope = null, string? reportingType = null)
         {
             if (labOrderId <= 0)
                 return Json(new { success = false });
 
+            var reportType = LabReportTypes.Normalize(reportingType);
             try
             {
-                var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
+                var detail = await labReportingApiClient.GetDetailAsync(labOrderId, null, reportType);
                 if (detail == null) return Json(new { success = false });
 
                 scope = LabReportPrintBuilder.NormalizeScope(scope);
@@ -756,7 +810,7 @@ namespace EMR.Web.Controllers
                 await auditLogService.LogActivityAsync(
                     eventType: "Lab Reporting",
                     actionName: "LAB.ReportPrinted",
-                    description: $"Lab report printed - {kind}{(scope == LabReportPrintBuilder.ScopePending ? " " + LabReportPdfService.PendingCopyMarker : scope == LabReportPrintBuilder.ScopeApproved ? " (approved tests only)" : "")} - for patient {detail.PatientName} ({detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}. {summary.IncludedTestCount} test(s) on the printout.",
+                    description: $"{LabReportTypes.Title(reportType)} printed{LabReportTypes.Marker(reportType)} - {kind}{(scope == LabReportPrintBuilder.ScopePending ? " " + LabReportPdfService.PendingCopyMarker : scope == LabReportPrintBuilder.ScopeApproved ? " (approved tests only)" : "")} - for patient {detail.PatientName} ({detail.PatientCode}). Order: {detail.BillNo}, Token: {detail.TokenNo}. {summary.IncludedTestCount} test(s) on the printout.",
                     userId: User.GetUserId(),
                     branchId: User.GetCurrentBranchId(),
                     moduleCode: "LAB",
@@ -768,6 +822,7 @@ namespace EMR.Web.Controllers
                         detail.LabOrderId,
                         detail.BillNo,
                         Scope = scope,
+                        ReportType = reportType,
                         IsFinal = summary.IsFinal,
                         NotApprovedWatermark = summary.ShowNotApprovedWatermark,
                         TestsPrinted = summary.IncludedTestCount,
@@ -819,7 +874,7 @@ namespace EMR.Web.Controllers
         private const int AuditValueMaxLength = 200;
 
         /// <summary>One test line inside an audit entry's metadata ("Tests" array). Unused members stay null.</summary>
-        private sealed record AuditTestEntry
+        internal sealed record AuditTestEntry
         {
             public long SampleCollectionId { get; init; }
             public int InvestigationId { get; init; }
@@ -871,7 +926,7 @@ namespace EMR.Web.Controllers
             : i.PackageName;
 
         /// <summary>Compares the order before/after a save and lists only the tests whose value, remarks or status changed.</summary>
-        private static List<AuditTestEntry> BuildReportTestChanges(LabReportingOrderDetailDto? before, LabReportingOrderDetailDto? after)
+        internal static List<AuditTestEntry> BuildReportTestChanges(LabReportingOrderDetailDto? before, LabReportingOrderDetailDto? after)
         {
             var changes = new List<AuditTestEntry>();
             if (before?.Items == null || after?.Items == null) return changes;
@@ -923,7 +978,7 @@ namespace EMR.Web.Controllers
         }
 
         /// <summary>Lists the tests targeted by a sample status change, with the result/status that existed before it (re-collect/reject clears results).</summary>
-        private static List<AuditTestEntry> BuildSampleStatusTests(LabReportingOrderDetailDto? before, UpdateLabSampleStatusRequestDto request, string newStatusLabel)
+        internal static List<AuditTestEntry> BuildSampleStatusTests(LabReportingOrderDetailDto? before, UpdateLabSampleStatusRequestDto request, string newStatusLabel)
         {
             var tests = new List<AuditTestEntry>();
             if (before?.Items == null) return tests;
@@ -960,7 +1015,7 @@ namespace EMR.Web.Controllers
         }
 
         /// <summary>Appends "Tests: a, b, c" to a description, keeping it within the AuditLogs.Description limit (2000).</summary>
-        private static string AppendTestSummary(string description, List<AuditTestEntry> tests)
+        internal static string AppendTestSummary(string description, List<AuditTestEntry> tests)
         {
             if (tests.Count == 0) return description;
 

@@ -158,20 +158,15 @@ public class DoctorCommissionService(IDbConnectionFactory db) : IDoctorCommissio
 
     public async Task<int> CalculateDisbursalsAsync(DoctorDisbursalCalculateRequest request)
     {
+        // Shares are kept up to date by the payout flow (SQLScripts/2213): the old engine is no longer called, so it can't
+        // overwrite lines that are already on a settlement.
         using var con = db.CreateConnection();
-        return await con.ExecuteScalarAsync<int>(
-            "dbo.usp_Api_DoctorDisbursal_CalculateForVisits",
-            new
-            {
-                request.BranchId,
-                request.DoctorId,
-                request.FromDate,
-                request.ToDate,
-                request.SettlementPeriod,
-                request.UserId,
-                request.CompanyId
-            },
+        var to = (request.ToDate ?? DateTime.Today).Date;
+        await con.ExecuteAsync(
+            "dbo.usp_DoctorPayout_Accrue",
+            new { request.BranchId, FromDate = (request.FromDate ?? to.AddDays(-30)).Date, ToDate = to, request.DoctorId, request.UserId },
             commandType: CommandType.StoredProcedure);
+        return 0;
     }
 
     public async Task<bool> UpdateAdjustmentAsync(DoctorDisbursalAdjustmentRequest request)

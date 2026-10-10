@@ -65,6 +65,8 @@ namespace EMR.Api.Models
         public string? Address { get; set; }
         public DateTime OrderDate { get; set; }
         public DateTime? BookingDateTime { get; set; }
+        /// <summary>Earliest collection time allowed: when the bill was made, or its booking time when earlier (SQLScripts/2203).</summary>
+        public DateTime? EarliestCollectionOn { get; set; }
         public string BillNo { get; set; } = string.Empty;
         public string? TokenNo { get; set; }
         public bool IsUrgent { get; set; }

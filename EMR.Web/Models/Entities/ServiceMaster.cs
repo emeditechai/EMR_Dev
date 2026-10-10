@@ -20,6 +20,8 @@ public class ServiceMaster
     public string? ConsultingType { get; set; }
     public bool IsGstRequired { get; set; }
     public decimal? GstPercentage { get; set; }
+    /// <summary>A bill discount may be applied to this service (OPD payment window); script 2190.</summary>
+    public bool IsDiscountable { get; set; } = true;
     public int BranchId { get; set; }
     public int CompanyId { get; set; } = 1;
     public bool IsActive { get; set; } = true;

@@ -1,12 +1,17 @@
 @inject EMR.Shared.Security.IActionPermissionGuard PermissionGuard
 @*
-    _PaymentModal.cshtml  –  Reusable payment collection modal.
+    _PaymentModal.cshtml  –  Reusable payment collection modal (OPD and LAB).
     Include in any view via:  <partial name="_PaymentModal" />
 
     Required ViewData (set BEFORE the <partial> tag in the calling view):
       "PaymentModuleCode"     → string  e.g. "OPD"
       "PaymentModuleRefId"    → int     the bill/service primary key
       "PaymentSuccessModalId" → string  id of the success modal to open after save/skip
+
+    Public API (unchanged): window.pmOpenFor(svcId, onSuccess, moduleCode) for an existing bill,
+    window.pmOpenPreSave(config) while booking. The payload sent to /OPD/SavePayment or to onSave / onSkip is
+    unchanged; only the layout and flow of the dialog were redesigned (two panels, payment-mode cards, inline
+    discount approval, split payment, cash change helper).
 
     Bootstrap 5 JS is loaded by _Layout – no extra script needed.
     Script is inline (NOT in @section Scripts which is invalid in partials).
@@ -24,161 +29,217 @@
 }
 
 <style>
-.btn-close-red {
-    background-color: #fee2e2 !important;
-    border-radius: 50% !important;
-    opacity: 0.9 !important;
-    padding: 0.5rem !important;
-    filter: invert(27%) sepia(85%) saturate(7024%) hue-rotate(352deg) brightness(97%) contrast(92%) !important;
-    transition: all 0.2s ease-in-out;
-}
-.btn-close-red:hover {
-    background-color: #fecaca !important;
-    opacity: 1 !important;
-    transform: scale(1.1);
+#paymentModal { --pm-ink:#0f172a; --pm-muted:#64748b; --pm-line:#e2e8f0; --pm-soft:#f8fafc; --pm-brand:#0d6efd; }
+#paymentModal .modal-content { border-radius:14px; }
+#paymentModal .pm-head { padding:14px 20px; border-bottom:1px solid var(--pm-line); background:#fff; }
+#paymentModal .pm-title { font-size:1.05rem; font-weight:700; color:var(--pm-ink); }
+#paymentModal .pm-chip { display:inline-flex; align-items:center; gap:4px; font-size:.72rem; font-weight:600; padding:3px 9px; border-radius:999px;
+                         background:var(--pm-soft); border:1px solid var(--pm-line); color:#334155; white-space:nowrap; }
+#paymentModal .pm-close { width:32px; height:32px; border-radius:50%; border:0; background:#fee2e2; color:#b91c1c; display:inline-flex;
+                          align-items:center; justify-content:center; transition:.15s; }
+#paymentModal .pm-close:hover { background:#fecaca; transform:scale(1.06); }
+#paymentModal .pm-body { padding:0; }
+#paymentModal .pm-pane { padding:16px 20px; }
+#paymentModal .pm-left { background:var(--pm-soft); border-right:1px solid var(--pm-line); }
+#paymentModal .pm-sec { font-size:.66rem; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--pm-muted); margin-bottom:8px; }
+#paymentModal .pm-items { background:#fff; border:1px solid var(--pm-line); border-radius:10px; overflow:hidden; }
+#paymentModal .pm-items table { margin:0; font-size:.8rem; }
+#paymentModal .pm-items thead th { background:#f1f5f9; color:var(--pm-muted); font-size:.64rem; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
+                                   border-bottom:1px solid var(--pm-line); padding:6px 10px; white-space:nowrap; }
+#paymentModal .pm-items td { padding:7px 10px; vertical-align:top; border-color:#eef2f6; }
+#paymentModal .pm-items tfoot td { background:#f8fafc; font-weight:700; }
+#paymentModal .amt { font-variant-numeric:tabular-nums; white-space:nowrap; }
+#paymentModal .pm-card { background:#fff; border:1px solid var(--pm-line); border-radius:10px; padding:12px 14px; }
+#paymentModal .pm-quick .btn { font-size:.72rem; padding:2px 9px; border-radius:999px; }
+#paymentModal .pm-totals .row-t { display:flex; justify-content:space-between; align-items:center; font-size:.82rem; padding:3px 0; color:#334155; }
+#paymentModal .pm-totals .row-net { border-top:1px dashed #cbd5e1; margin-top:6px; padding-top:8px; }
+#paymentModal .pm-net { font-size:1.45rem; font-weight:800; color:var(--pm-brand); }
+#paymentModal .pm-due-card { border-radius:12px; padding:12px 16px; background:linear-gradient(135deg,#eff6ff,#f5f3ff); border:1px solid #dbeafe; }
+#paymentModal .pm-due-amt { font-size:1.6rem; font-weight:800; color:var(--pm-ink); line-height:1.1; }
+#paymentModal .pm-line { border:1px solid var(--pm-line); border-radius:12px; padding:12px; background:#fff; }
+#paymentModal .pm-line + .pm-line { margin-top:10px; }
+#paymentModal .pm-tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:8px; }
+#paymentModal .pm-tile { --c:#475569; --cb:#f1f5f9; border:1.5px solid var(--pm-line); background:#fff; border-radius:10px; padding:8px 6px 7px;
+                         display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; transition:.12s; font-size:.72rem;
+                         font-weight:600; color:#334155; text-align:center; line-height:1.15; user-select:none; }
+#paymentModal .pm-tile i { font-size:1.15rem; color:var(--c); }
+#paymentModal .pm-tile:hover { border-color:var(--c); background:var(--cb); }
+#paymentModal .pm-tile.active { border-color:var(--c); background:var(--cb); color:var(--pm-ink); box-shadow:0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent); }
+#paymentModal .pm-tile.active::after { content:'\2713'; position:absolute; }
+#paymentModal .pm-tile { position:relative; }
+#paymentModal .pm-tile.active::after { top:3px; right:6px; font-size:.7rem; color:var(--c); font-weight:800; }
+#paymentModal .pm-tile:focus-visible { outline:2px solid var(--c); outline-offset:2px; }
+#paymentModal .pm-lbl { font-size:.66rem; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:var(--pm-muted); margin-bottom:3px; }
+#paymentModal .pm-amount-input { font-size:1.05rem; font-weight:700; font-variant-numeric:tabular-nums; }
+#paymentModal .pm-change { font-size:.8rem; }
+#paymentModal .pm-status { display:flex; align-items:center; gap:8px; border-radius:10px; padding:8px 12px; font-size:.8rem; font-weight:600; }
+#paymentModal .pm-status.full { background:#dcfce7; color:#166534; }
+#paymentModal .pm-status.partial { background:#fef3c7; color:#92400e; }
+#paymentModal .pm-status.none { background:#f1f5f9; color:#475569; }
+#paymentModal .pm-status.over { background:#fee2e2; color:#991b1b; }
+#paymentModal .pm-foot { border-top:1px solid var(--pm-line); padding:12px 20px; background:#fff; }
+#paymentModal .pm-collect { min-width:200px; font-weight:700; font-size:.95rem; }
+#paymentModal .pm-approval { border:1px dashed #f59e0b; background:#fffbeb; border-radius:10px; padding:10px 12px; }
+#paymentModal .pm-reason-chip { font-size:.7rem; padding:1px 8px; border-radius:999px; }
+#paymentModal .pm-reason-chip.active { background:#0f766e; border-color:#0f766e; color:#fff; }
+#paymentModal .pm-badge-nd { font-size:.62rem; font-weight:600; padding:1px 6px; border-radius:999px; background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+@@media (max-width: 991.98px) {
+    #paymentModal .pm-left { border-right:0; border-bottom:1px solid var(--pm-line); }
 }
 </style>
 
 <div class="modal fade" id="paymentModal" tabindex="-1"
-     data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width:680px">
+     data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true" aria-labelledby="pmTitle">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width:1040px">
         <div class="modal-content border-0 shadow-lg overflow-hidden">
 
-            <div style="height:5px;background:linear-gradient(90deg,#0d6efd 0%,#6f42c1 100%)"></div>
-
-            <div class="modal-header border-0 pb-0 px-4 pt-3">
-                <div>
-                    <h5 class="modal-title fw-bold mb-0">
-                        <i class="bi bi-cash-coin me-2 text-primary"></i>Collect Payment
-                    </h5>
-                    <div id="pmPatientLine" class="text-muted small mt-1"></div>
+            <!-- Header: who is paying, and bill / token once they exist -->
+            <div class="pm-head d-flex align-items-center gap-3">
+                <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width:38px;height:38px;background:#eff6ff;color:#0d6efd;">
+                    <i class="bi bi-cash-coin fs-5"></i>
                 </div>
-                <button type="button" id="btnPaymentSkip" class="btn-close btn-close-red ms-auto" aria-label="Close" title="Cancel & Close"></button>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="pm-title" id="pmTitle">Collect Payment</div>
+                    <div class="d-flex flex-wrap gap-1 mt-1" id="pmPatientLine"></div>
+                </div>
+                <div class="d-none d-md-flex flex-wrap gap-1 justify-content-end" id="pmInfoBoxes"></div>
+                <button type="button" id="btnPaymentSkip" class="pm-close ms-2" aria-label="Close" title="Cancel & close (Esc)"><i class="bi bi-x-lg"></i></button>
             </div>
 
-            <div class="modal-body px-4 py-3">
+            <div class="modal-body pm-body">
 
                 <!-- Loading spinner -->
                 <div id="pmLoader" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status"></div>
                     <p class="mt-2 text-muted small">Loading bill details…</p>
                 </div>
-                <div id="pmError" class="alert alert-danger d-none py-2 mb-2"></div>
+                <div id="pmLoadError" class="alert alert-danger d-none m-3"></div>
 
-                <!-- Main form (hidden until AJAX data loaded) -->
+                <!-- Main form (hidden until data loaded) -->
                 <div id="pmForm" class="d-none">
+                    <div class="row g-0">
 
-                    <!-- Bill info boxes (Bill No, Token, Total) -->
-                    <div class="d-flex flex-wrap gap-2 mb-3" id="pmInfoBoxes"></div>
-
-                    <!-- Line items table -->
-                    <div class="table-responsive mb-3">
-                        <table class="table table-sm table-bordered mb-0" style="font-size:.84rem">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width:40px">#</th>
-                                    <th>Item</th>
-                                    <th style="width:110px">Type</th>
-                                    <th style="width:80px" class="text-end d-none d-sm-table-cell">CGST</th>
-                                    <th style="width:80px" class="text-end d-none d-sm-table-cell">SGST</th>
-                                    <th style="width:110px" class="text-end">Amount (₹)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="pmLineItemsTbody"></tbody>
-                            <tfoot>
-                                <tr class="fw-semibold table-light">
-                                    <td colspan="3" class="text-end">Sub Total</td>
-                                    <td class="text-end" id="pmSubTotal">0.00</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-
-                    <!-- Header-level discount -->
-                    <div class="card border rounded-3 mb-3 p-3" style="background:#fafafa">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-12 col-sm-auto">
-                                <label class="form-label fw-semibold mb-0 small text-uppercase text-muted">Discount</label>
-                            </div>
-                            <div class="col-12 col-sm-auto">
-                                <div class="btn-group btn-group-sm" role="group" id="pmDiscTypeGroup">
-                                    <input type="radio" class="btn-check" name="pmDiscType" id="pmDiscTypeP" value="P" autocomplete="off" disabled="@(!pmCanDiscount)">
-                                    <label class="btn btn-outline-secondary" for="pmDiscTypeP">%</label>
-                                    <input type="radio" class="btn-check" name="pmDiscType" id="pmDiscTypeF" value="F" autocomplete="off" disabled="@(!pmCanDiscount)">
-                                    <label class="btn btn-outline-secondary" for="pmDiscTypeF">₹ Fixed</label>
+                        <!-- ═════ LEFT: bill summary, discount, totals ═════ -->
+                        <div class="col-lg-6 pm-pane pm-left">
+                            <div class="pm-sec"><i class="bi bi-receipt me-1"></i>Bill summary</div>
+                            <div class="pm-items mb-3">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead id="pmItemsHead"></thead>
+                                        <tbody id="pmLineItemsTbody"></tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td id="pmSubTotalLabel" class="text-end">Sub Total</td>
+                                                <td class="text-end amt" id="pmSubTotal">₹0.00</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
                                 </div>
                             </div>
-                            <div class="col-6 col-sm-3">
-                                <div class="input-group input-group-sm">
-                                    <input type="number" id="pmDiscValue" class="form-control" disabled="@(!pmCanDiscount)"
-                                           min="0" step="0.01" placeholder="0" />
-                                    <span class="input-group-text" id="pmDiscSymbol">%</span>
+
+                            <!-- Discount -->
+                            <div class="pm-card mb-3">
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <span class="pm-sec mb-0"><i class="bi bi-tag me-1"></i>Discount</span>
+                                    <div class="btn-group btn-group-sm" role="group" id="pmDiscTypeGroup">
+                                        <input type="radio" class="btn-check" name="pmDiscType" id="pmDiscTypeP" value="P" autocomplete="off" disabled="@(!pmCanDiscount)">
+                                        <label class="btn btn-outline-secondary" for="pmDiscTypeP">%</label>
+                                        <input type="radio" class="btn-check" name="pmDiscType" id="pmDiscTypeF" value="F" autocomplete="off" disabled="@(!pmCanDiscount)">
+                                        <label class="btn btn-outline-secondary" for="pmDiscTypeF">₹ Fixed</label>
+                                    </div>
+                                    <div class="input-group input-group-sm" style="width:120px">
+                                        <input type="number" id="pmDiscValue" class="form-control" disabled="@(!pmCanDiscount)"
+                                               min="0" step="0.01" placeholder="0" autocomplete="off" />
+                                        <span class="input-group-text" id="pmDiscSymbol">%</span>
+                                    </div>
+                                    <span class="ms-auto small text-muted">Discount <strong class="text-danger amt" id="pmDiscAmt">₹0.00</strong></span>
+                                </div>
+                                @if (pmCanDiscount)
+                                {
+                                    <div class="pm-quick d-flex flex-wrap gap-1 mt-2" id="pmDiscQuick">
+                                        <button type="button" class="btn btn-outline-secondary" data-pct="5">5%</button>
+                                        <button type="button" class="btn btn-outline-secondary" data-pct="10">10%</button>
+                                        <button type="button" class="btn btn-outline-secondary" data-pct="15">15%</button>
+                                        <button type="button" class="btn btn-outline-secondary" data-pct="20">20%</button>
+                                        <button type="button" class="btn btn-outline-danger" data-pct="0" title="Remove the discount"><i class="bi bi-x"></i> Clear</button>
+                                    </div>
+                                }
+                                <div class="mt-2 small d-none" id="pmDiscEligibilityRow">
+                                    <span class="text-muted">Eligible for discount: <strong class="text-dark amt" id="pmDiscEligibleAmt">₹0.00</strong>
+                                        <span class="text-secondary" id="pmDiscNonEligibleAmt">(Non-discountable: ₹0.00)</span></span>
+                                </div>
+                                <div id="pmDiscWarning" class="mt-1 small text-danger fw-semibold d-none"></div>
+
+                                <!-- Discount approval, inline: reason + who approved it (required for every discount) -->
+                                <div class="pm-approval mt-2 d-none" id="pmDiscApprovalBox">
+                                    <div class="d-flex align-items-center gap-1 mb-1 small fw-semibold text-warning-emphasis">
+                                        <i class="bi bi-shield-exclamation"></i>Discount approval required
+                                    </div>
+                                    <label class="pm-lbl" for="pmDiscReason">Reason <span class="text-danger">*</span></label>
+                                    <div class="d-flex flex-wrap gap-1 mb-1" id="pmReasonChips"></div>
+                                    <textarea id="pmDiscReason" class="form-control form-control-sm" rows="2" maxlength="250" placeholder="Why is this discount given?"></textarea>
+                                    <label class="pm-lbl mt-2" for="pmDiscApprover">Approved by <span class="text-danger">*</span></label>
+                                    <select id="pmDiscApprover" class="form-select form-select-sm"><option value="">-- Select the approving person --</option></select>
+                                </div>
+                                <div class="mt-2 small d-none" id="pmDiscApprovalInfo"></div>
+                                @if (!pmCanDiscount)
+                                {
+                                    <div class="mt-2 small text-muted"><i class="bi bi-lock-fill me-1"></i>You do not have permission to give a discount on this screen.</div>
+                                }
+                            </div>
+
+                            <!-- Totals -->
+                            <div class="pm-card pm-totals">
+                                <div class="row-t"><span>Sub total</span><span class="amt" id="pmTotSub">₹0.00</span></div>
+                                <div class="row-t d-none" id="pmTotDiscRow"><span>Discount</span><span class="amt text-danger" id="pmTotDisc">−₹0.00</span></div>
+                                <div class="row-t d-none" id="pmTaxRow"><span>GST</span><span class="amt" id="pmTotalTax">₹0.00</span></div>
+                                <div class="row-t d-none" id="pmRoundOffRow"><span>Round off</span><span class="amt" id="pmRoundOffAmt">₹0.00</span></div>
+                                <div class="row-t row-net"><span class="fw-bold text-dark">Net payable</span><span class="pm-net amt" id="pmNetAmount">₹0.00</span></div>
+                            </div>
+                        </div>
+
+                        <!-- ═════ RIGHT: payment ═════ -->
+                        <div class="col-lg-6 pm-pane">
+                            <div class="pm-due-card mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                <div>
+                                    <div class="pm-sec mb-1">Amount due now</div>
+                                    <div class="pm-due-amt amt" id="pmDueNow">₹0.00</div>
+                                </div>
+                                <div id="pmExistingPaySection" class="d-none text-end small">
+                                    <div class="text-muted">Already paid <strong class="text-success amt" id="pmAlreadyPaid"></strong></div>
+                                    <div class="text-muted">Balance due <strong class="text-danger amt" id="pmBalanceDue"></strong></div>
                                 </div>
                             </div>
-                            <div class="col-6 col-sm-auto text-end text-sm-start">
-                                <span class="text-muted small">Discount amt: </span>
-                                <span class="fw-semibold text-danger" id="pmDiscAmt">₹0.00</span>
+
+                            <div id="pmError" class="alert alert-danger d-none py-2 px-3 small d-flex align-items-start gap-2" role="alert"></div>
+
+                            <!-- Payment lines (hidden if net is 0) -->
+                            <div id="pmPaymentMethodsSection">
+                                <div class="pm-sec"><i class="bi bi-wallet2 me-1"></i>Payment mode</div>
+                                <div id="pmMethodRows"></div>
+                                <button type="button" class="btn btn-sm btn-link text-decoration-none px-0 mt-2" id="btnAddPayMethod">
+                                    <i class="bi bi-plus-circle me-1"></i>Split payment (add another mode)
+                                </button>
+
+                                <div class="mt-2" id="pmStatus"></div>
+                                <div class="d-flex justify-content-between align-items-center mt-2 small text-muted">
+                                    <span>Total entering now</span>
+                                    <span class="fw-bold text-primary amt fs-6" id="pmEnteringTotal">₹0.00</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="mt-2 pt-1 d-flex justify-content-between align-items-center" id="pmDiscEligibilityRow" style="font-size:0.75rem;display:none;">
-                            <span class="text-muted">Eligible for Discount: <strong class="text-dark" id="pmDiscEligibleAmt">₹0.00</strong> <span class="text-secondary" id="pmDiscNonEligibleAmt">(Non-discountable: ₹0.00)</span></span>
-                            <span id="pmDiscWarning" class="text-danger small fw-semibold" style="display:none;"></span>
-                        </div>
-                        <div class="mt-2 small" id="pmDiscApprovalInfo" style="display:none;"></div>
-                        @if (!pmCanDiscount)
-                        {
-                            <div class="mt-2 small text-muted"><i class="bi bi-lock-fill me-1"></i>You do not have permission to give a discount on this screen.</div>
-                        }
-                        <div class="mt-2 pt-2 d-flex justify-content-between align-items-center">
-                            <span class="text-muted small">Total Tax (GST)</span>
-                            <span class="fw-semibold text-danger" id="pmTotalTax">₹0.00</span>
-                        </div>
-                        <div class="mt-1 d-flex justify-content-between align-items-center" id="pmRoundOffRow" style="display:none;">
-                            <span class="text-muted small">Round Off</span>
-                            <span class="fw-semibold text-secondary" id="pmRoundOffAmt">₹0.00</span>
-                        </div>
-                        <div class="mt-2 border-top pt-2 d-flex justify-content-between align-items-center">
-                            <span class="fw-bold">Net Payable</span>
-                            <span class="fw-bold fs-5 text-primary" id="pmNetAmount">₹0.00</span>
+                            <div id="pmNothingToPay" class="alert alert-success py-2 small d-none mb-0"><i class="bi bi-check-circle me-1"></i>Nothing to collect on this bill.</div>
                         </div>
                     </div>
-
-                    <!-- Partial payment notice (shown when a previous payment exists) -->
-                    <div id="pmExistingPaySection" class="d-none alert alert-info py-2 mb-3">
-                        <span class="small">
-                            <i class="bi bi-info-circle me-1"></i>
-                            Already paid: <strong id="pmAlreadyPaid"></strong> |
-                            Balance due: <strong id="pmBalanceDue"></strong>
-                        </span>
-                    </div>
-
-                    <!-- Payment method controls (hidden if net is 0) -->
-                    <div id="pmPaymentMethodsSection">
-                        <!-- Payment method rows injected by JS -->
-                        <div id="pmMethodRows"></div>
-
-                        <div class="d-flex gap-2 mt-1">
-                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddPayMethod">
-                                <i class="bi bi-plus-circle me-1"></i>Add Payment Method
-                            </button>
-                        </div>
-
-                        <!-- Running total of amounts entered -->
-                        <div class="mt-3 border-top pt-2 d-flex justify-content-between align-items-center">
-                            <span class="text-muted small">Total entering now:</span>
-                            <span class="fw-bold text-success fs-6" id="pmEnteringTotal">₹0.00</span>
-                        </div>
-                    </div>
-
                 </div>
             </div>
 
-            <div class="modal-footer border-0 px-4 pb-4 pt-0" id="pmFooter" style="display:none!important">
-                <button type="button" class="btn btn-outline-secondary" id="btnPaymentSkip2">
-                    <i class="bi bi-skip-forward me-1"></i>Skip Payment
+            <div class="pm-foot d-flex flex-wrap align-items-center gap-2" id="pmFooter" style="display:none!important">
+                <button type="button" class="btn btn-outline-secondary" id="btnPaymentSkip2" title="Save the bill now; collect the amount later">
+                    <i class="bi bi-clock-history me-1"></i>Pay later (save as due)
                 </button>
-                <button type="button" class="btn btn-primary px-4 fw-semibold" id="btnSavePayment">
-                    <i class="bi bi-check2-circle me-2"></i>Save Payment
+                <span class="small text-muted ms-auto d-none d-md-inline"><kbd>Enter</kbd> to collect · <kbd>Esc</kbd> to cancel</span>
+                <button type="button" class="btn btn-primary pm-collect" id="btnSavePayment">
+                    <i class="bi bi-check2-circle me-2"></i><span id="pmCollectLabel">Save Payment</span>
                 </button>
             </div>
 
@@ -196,13 +257,32 @@ document.addEventListener('DOMContentLoaded', function () {
     var _moduleCode    = '@Html.Raw(pmCode)';
     var _moduleRefId   = @pmRefId;
     var _successModal  = '@Html.Raw(pmSuccess)';
+    var _canDiscount   = @(pmCanDiscount ? "true" : "false");
 
     /* ── state ── */
     var _summary = null, _methods = [], _rowIdx = 0, _onSuccess = null, _onCancel = null, _onSkip = null, _onSave = null, _isPreSave = false;
     var _isSubmitting = false;
     var _roundOffAmount = 0, _roundedNetAmount = 0;
+    var _discAmt = 0;   // discount amount as calculated (kept as a number, the shown text is formatted)
 
-    var pmModal   = new bootstrap.Modal(document.getElementById('paymentModal'), {backdrop:'static'});
+    var pmModalEl = document.getElementById('paymentModal');
+    var pmModal   = new bootstrap.Modal(pmModalEl, {backdrop:'static'});
+    var LAST_METHOD_KEY = 'emr.pm.lastMethodId';
+
+    // ─── Payment-mode cards: colour + icon per method code ────────────────────
+    var MODE_STYLE = {
+        CASH:   { c:'#15803d', cb:'#f0fdf4', i:'bi-cash-stack' },
+        UPI:    { c:'#7c3aed', cb:'#f5f3ff', i:'bi-qr-code-scan' },
+        CARD:   { c:'#2563eb', cb:'#eff6ff', i:'bi-credit-card-2-front' },
+        NEFT:   { c:'#0f766e', cb:'#f0fdfa', i:'bi-bank' },
+        RTGS:   { c:'#0f766e', cb:'#f0fdfa', i:'bi-bank' },
+        CHEQUE: { c:'#b45309', cb:'#fffbeb', i:'bi-journal-check' },
+        WALLET: { c:'#db2777', cb:'#fdf2f8', i:'bi-wallet2' }
+    };
+    function modeStyle(code) {
+        var k = String(code || '').toUpperCase();
+        return MODE_STYLE[k] || { c:'#475569', cb:'#f1f5f9', i:'bi-credit-card' };
+    }
 
     // ─── Discount approval: every discount records its reason and who approved it ─────────
     var _discApproval = null;   // { amount, reason, approvedBy, approvedByName } captured in this dialog
@@ -224,69 +304,58 @@ document.addEventListener('DOMContentLoaded', function () {
                   && Math.abs(discAmt - exAmt) < 0.01);
     }
 
-    function renderDiscApprovalInfo(discAmt) {
-        const el = document.getElementById('pmDiscApprovalInfo');
-        if (!el) return;
-        if (!(discAmt > 0)) { el.style.display = 'none'; return; }
-        let a = null;
-        if (_discApproval && Math.abs(_discApproval.amount - discAmt) < 0.01) a = _discApproval;
-        else if (discountAlreadyApproved(discAmt)) a = { reason: _summary.existingDiscountReason, approvedByName: _summary.existingDiscountApprovedByName };
-        el.innerHTML = a
-            ? `<span class="text-success"><i class="bi bi-shield-check me-1"></i>Reason: <strong>${esc(a.reason)}</strong> &middot; Approved by <strong>${esc(a.approvedByName || '')}</strong></span>`
-            : `<span class="text-warning-emphasis"><i class="bi bi-info-circle me-1"></i>You'll be asked for the discount reason and who approved it when you save.</span>`;
-        el.style.display = '';
+    // Fill the inline approval box once: reason chips and the approver list (with the earlier choice pre-selected)
+    var _approvalBoxReady = false;
+    async function prepareApprovalBox() {
+        if (_approvalBoxReady) return;
+        _approvalBoxReady = true;
+        const prevReason = _discApproval?.reason ?? _summary?.existingDiscountReason ?? '';
+        const prevBy = _discApproval?.approvedBy ?? _summary?.existingDiscountApprovedBy ?? '';
+        document.getElementById('pmReasonChips').innerHTML = DISCOUNT_REASONS.map(r =>
+            `<button type="button" class="btn btn-sm btn-outline-secondary pm-reason-chip">${esc(r)}</button>`).join('');
+        const ta = document.getElementById('pmDiscReason');
+        if (!ta.value) ta.value = prevReason || '';
+        const approvers = await loadApprovers();
+        const sel = document.getElementById('pmDiscApprover');
+        sel.innerHTML = '<option value="">-- Select the approving person --</option>' + approvers.map(u =>
+            `<option value="${u.id}" ${String(u.id) === String(prevBy) ? 'selected' : ''}>${esc(u.name)}${u.role ? ' (' + esc(u.role) + ')' : ''}</option>`).join('');
     }
 
-    // Resolves to { reason, approvedBy } (nulls when there is no discount), or null when the user goes back.
+    function renderDiscApprovalInfo(discAmt) {
+        const info = document.getElementById('pmDiscApprovalInfo');
+        const box = document.getElementById('pmDiscApprovalBox');
+        if (!info || !box) return;
+        if (!(discAmt > 0)) { info.classList.add('d-none'); box.classList.add('d-none'); return; }
+        if (discountAlreadyApproved(discAmt)) {
+            // an unchanged discount approved earlier: shown, not asked again
+            box.classList.add('d-none');
+            info.innerHTML = `<span class="text-success"><i class="bi bi-shield-check me-1"></i>Reason: <strong>${esc(_summary.existingDiscountReason)}</strong> &middot; Approved by <strong>${esc(_summary.existingDiscountApprovedByName || '')}</strong></span>`;
+            info.classList.remove('d-none');
+            return;
+        }
+        info.classList.add('d-none');
+        box.classList.remove('d-none');
+        prepareApprovalBox();
+    }
+
+    // Resolves to { reason, approvedBy } (nulls when there is no discount), or null when the approval is incomplete.
     async function ensureDiscountApproval(discAmt) {
         if (!(discAmt > 0)) return { reason: null, approvedBy: null };
         if (discountAlreadyApproved(discAmt))
             return { reason: _summary.existingDiscountReason, approvedBy: _summary.existingDiscountApprovedBy };
-        if (_discApproval && Math.abs(_discApproval.amount - discAmt) < 0.01) return _discApproval;
 
-        const approvers = await loadApprovers();
-        const prevReason = _discApproval?.reason ?? _summary?.existingDiscountReason ?? '';
-        const prevBy = _discApproval?.approvedBy ?? _summary?.existingDiscountApprovedBy ?? '';
-        const options = approvers.map(u => `<option value="${u.id}" ${String(u.id) === String(prevBy) ? 'selected' : ''}>${esc(u.name)}${u.role ? ' (' + esc(u.role) + ')' : ''}</option>`).join('');
-        const chips = DISCOUNT_REASONS.map(r => `<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2 pm-reason-chip">${esc(r)}</button>`).join(' ');
-
-        if (typeof Swal === 'undefined') { showError('Discount approval could not be shown. Please reload the page.'); return null; }
-        const res = await Swal.fire({
-            target: document.getElementById('paymentModal'),   // inside the dialog, so its focus trap allows typing
-            title: 'Discount approval',
-            html: `<div class="text-start small">
-                     <div class="alert alert-warning py-2 mb-3">Discount of <strong>&#8377;${fmt(discAmt)}</strong> on this bill.</div>
-                     <label class="form-label fw-semibold mb-1" for="pmDiscReason">Reason <span class="text-danger">*</span></label>
-                     <div class="d-flex flex-wrap gap-1 mb-2">${chips}</div>
-                     <textarea id="pmDiscReason" class="form-control form-control-sm" rows="2" maxlength="250" placeholder="Why is this discount given?">${esc(prevReason)}</textarea>
-                     <label class="form-label fw-semibold mb-1 mt-3" for="pmDiscApprover">Approved by <span class="text-danger">*</span></label>
-                     <select id="pmDiscApprover" class="form-select form-select-sm"><option value="">-- Select the approving person --</option>${options}</select>
-                   </div>`,
-            showCancelButton: true,
-            confirmButtonText: '<i class="bi bi-check2-circle me-1"></i>Confirm discount',
-            cancelButtonText: 'Back',
-            confirmButtonColor: '#198754',
-            reverseButtons: true,
-            focusConfirm: false,
-            didOpen: (popup) => {
-                popup.querySelectorAll('.pm-reason-chip').forEach(b => b.addEventListener('click', () => {
-                    const ta = popup.querySelector('#pmDiscReason'); ta.value = b.textContent; ta.focus();
-                }));
-                if (!prevReason) popup.querySelector('#pmDiscReason').focus();
-            },
-            preConfirm: () => {
-                const reason = (document.getElementById('pmDiscReason').value || '').trim();
-                const sel = document.getElementById('pmDiscApprover');
-                if (reason.length < 3) { Swal.showValidationMessage('Enter the reason for the discount.'); return false; }
-                if (!sel.value) { Swal.showValidationMessage('Select who approved the discount.'); return false; }
-                return { reason, approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '') };
-            }
-        });
-        if (!res.isConfirmed) return null;
-        _discApproval = { amount: discAmt, ...res.value };
-        renderDiscApprovalInfo(discAmt);
+        await prepareApprovalBox();
+        const ta = document.getElementById('pmDiscReason');
+        const sel = document.getElementById('pmDiscApprover');
+        const reason = (ta.value || '').trim();
+        ta.classList.toggle('is-invalid', reason.length < 3);
+        sel.classList.toggle('is-invalid', !sel.value);
+        if (reason.length < 3) { showError('Enter the reason for the discount.'); ta.focus(); return null; }
+        if (!sel.value) { showError('Select who approved the discount.'); sel.focus(); return null; }
+        _discApproval = { amount: discAmt, reason, approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '') };
         return _discApproval;
     }
+
     var pmLoader  = document.getElementById('pmLoader');
     var pmError   = document.getElementById('pmError');
     var pmForm    = document.getElementById('pmForm');
@@ -298,13 +367,50 @@ document.addEventListener('DOMContentLoaded', function () {
         fetchData();
     }
 
-    // Top Red cross icon → Cancel without saving anything
+    // Top close icon → Cancel without saving anything
     document.getElementById('btnPaymentSkip')?.addEventListener('click', cancelPayment);
-    // Skip Payment button in footer
+    // Pay later button in footer
     document.getElementById('btnPaymentSkip2')?.addEventListener('click', skipPayment);
-    // Save Payment button in footer
+    // Collect button in footer
     document.getElementById('btnSavePayment')?.addEventListener('click', savePayment);
-    document.getElementById('btnAddPayMethod')?.addEventListener('click', addMethodRow);
+    document.getElementById('btnAddPayMethod')?.addEventListener('click', function () { addMethodRow(); });
+
+    // Discount: type, value, quick percentages
+    document.querySelectorAll('input[name="pmDiscType"]').forEach(r => r.addEventListener('change', function () { if (_summary) recalcDiscount(); }));
+    document.getElementById('pmDiscValue').addEventListener('input', function () { if (_summary) recalcDiscount(); });
+    document.getElementById('pmDiscQuick')?.addEventListener('click', function (e) {
+        const b = e.target.closest('button[data-pct]'); if (!b || !_summary) return;
+        const pct = parseFloat(b.dataset.pct) || 0;
+        document.getElementById('pmDiscTypeP').checked = true;
+        document.getElementById('pmDiscValue').value = pct > 0 ? pct : '';
+        recalcDiscount();
+    });
+    // Reason chips fill the reason box
+    document.getElementById('pmReasonChips')?.addEventListener('click', function (e) {
+        const b = e.target.closest('.pm-reason-chip'); if (!b) return;
+        const ta = document.getElementById('pmDiscReason');
+        ta.value = b.textContent; ta.classList.remove('is-invalid'); ta.focus(); hideError();
+        this.querySelectorAll('.pm-reason-chip').forEach(x => x.classList.toggle('active', x === b));
+    });
+    // fixing a flagged field clears its mark and the message
+    document.getElementById('pmDiscApprovalBox')?.addEventListener('input', function (e) { e.target.classList?.remove('is-invalid'); hideError(); });
+    document.getElementById('pmDiscApprovalBox')?.addEventListener('change', function (e) { e.target.classList?.remove('is-invalid'); hideError(); });
+    document.getElementById('pmMethodRows')?.addEventListener('input', function () { hideError(); });
+
+    // Keyboard: Enter collects (not inside a text area / button / select), Esc cancels
+    pmModalEl.addEventListener('keydown', function (e) {
+        if (document.querySelector('.swal2-container')) return;   // a confirmation is open on top
+        if (e.key === 'Escape') { e.preventDefault(); cancelPayment(); return; }
+        if (e.key === 'Enter') {
+            const t = e.target;
+            if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.tagName === 'SELECT')) return;
+            if (t && t.tagName === 'INPUT' && !t.classList.contains('pm-paid-amount')) return;   // discount, references: no accidental collect
+            if (pmForm.classList.contains('d-none')) return;
+            e.preventDefault();
+            const btn = document.getElementById('btnSavePayment');
+            if (btn && !btn.disabled) savePayment();
+        }
+    });
 
     function cancelPayment() {
         pmModal.hide();
@@ -316,22 +422,23 @@ document.addEventListener('DOMContentLoaded', function () {
     async function skipPayment() {
         if (typeof Swal !== 'undefined') {
             const result = await Swal.fire({
-                title: 'Skip Payment Confirmation',
+                title: 'Pay later?',
                 html: `
                     <div class="text-start">
-                        <p class="mb-2 text-dark">Are you sure you want to <strong>Skip Payment</strong>?</p>
+                        <p class="mb-2 text-dark">The bill will be saved <strong>without collecting payment now</strong>.</p>
                         <div class="alert alert-warning py-2 px-3 mb-0 small border-warning-subtle text-dark">
                             <i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
-                            This will create the bill with <strong>Full Due Amount</strong> (Payment Status: <strong>Unpaid</strong>).
+                            The <strong>full amount stays due</strong> (Payment Status: <strong>Unpaid</strong>).
                         </div>
                     </div>
                 `,
                 icon: 'warning',
+                target: pmModalEl,
                 showCancelButton: true,
                 confirmButtonColor: '#0d6efd',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: '<i class="bi bi-check2-circle me-1"></i> Yes, Skip & Save Due',
-                cancelButtonText: '<i class="bi bi-x-lg me-1"></i> No, Return',
+                confirmButtonText: '<i class="bi bi-check2-circle me-1"></i> Yes, save as due',
+                cancelButtonText: '<i class="bi bi-arrow-left me-1"></i> Back',
                 reverseButtons: true,
                 focusCancel: true
             });
@@ -340,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
         } else {
-            if (!confirm('Are you sure you want to skip payment? This will save the bill with full due amount (Unpaid).')) {
+            if (!confirm('Save the bill without payment? The full amount stays due (Unpaid).')) {
                 return;
             }
         }
@@ -352,10 +459,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (_isPreSave) {
             const discType  = document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null;
             const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
-            const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace('₹','')) || 0;
+            const discAmt   = _discAmt;
             const net       = getNetAmount();
             const approval  = await ensureDiscountApproval(discAmt);
-            if (!approval) return;   // user went back to the dialog
+            if (!approval) return;   // approval incomplete: the fields are highlighted
             const lineItems = (_summary.items || []).map(li => ({
                 moduleLineRefId: li.lineRefId,
                 itemDescription: li.itemName,
@@ -386,6 +493,7 @@ document.addEventListener('DOMContentLoaded', function () {
             };
 
             const btn = document.getElementById('btnPaymentSkip2');
+            const btnHtml = btn ? btn.innerHTML : '';
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
@@ -400,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-skip-forward me-1"></i>Skip Payment';
+                    btn.innerHTML = btnHtml;
                 }
             }
             return;
@@ -425,63 +533,55 @@ document.addEventListener('DOMContentLoaded', function () {
             renderForm();
         } catch (e) {
             pmLoader.classList.add('d-none');
-            pmError.textContent = e.message;
-            pmError.classList.remove('d-none');
+            showLoadError(e.message);
         }
     }
 
     // ─── Render form ──────────────────────────────────────────────────────────
     function renderForm() {
         pmLoader.classList.add('d-none');
+        pmError.classList.add('d-none');
 
-        // Patient line
-        document.getElementById('pmPatientLine').textContent =
-            `${_summary.patientName ?? ''} · ${_summary.patientCode ?? ''} · ${_summary.patientPhone ?? ''}`;
+        // Patient line as chips
+        const chips = [];
+        if (_summary.patientName) chips.push(`<span class="pm-chip"><i class="bi bi-person"></i>${esc(_summary.patientName)}</span>`);
+        if (_summary.patientCode) chips.push(`<span class="pm-chip">${esc(_summary.patientCode)}</span>`);
+        if (_summary.patientPhone) chips.push(`<span class="pm-chip"><i class="bi bi-telephone"></i>${esc(_summary.patientPhone)}</span>`);
+        document.getElementById('pmPatientLine').innerHTML = chips.join('');
 
-        // Info boxes
-        const boxes = document.getElementById('pmInfoBoxes');
-        boxes.innerHTML = infoBox('Bill No', _summary.opdBillNo, '#f0fff4', 'text-success') +
-                          infoBox('Token',   _summary.tokenNo,   '#fffbeb', 'text-warning-emphasis');
+        // Bill No / Token only once they exist (not during booking)
+        const real = v => v && String(v).trim() && String(v).trim() !== '—';
+        document.getElementById('pmInfoBoxes').innerHTML =
+            (real(_summary.opdBillNo) ? `<span class="pm-chip" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534"><i class="bi bi-receipt"></i>Bill ${esc(_summary.opdBillNo)}</span>` : '') +
+            (real(_summary.tokenNo) ? `<span class="pm-chip" style="background:#fffbeb;border-color:#fde68a;color:#92400e"><i class="bi bi-ticket-perforated"></i>Token ${esc(_summary.tokenNo)}</span>` : '');
 
-        // Line items
-        const tbody = document.getElementById('pmLineItemsTbody');
-        // Line items are rendered dynamically in recalcDiscount
-        document.getElementById('pmSubTotal').textContent = '₹' + fmt(_summary.subTotal);
+        document.getElementById('pmSubTotal').textContent = '₹' + fmtIN(_summary.subTotal);
+        document.getElementById('pmTotSub').textContent = '₹' + fmtIN(_summary.subTotal);
 
         // Existing payment info
         if (_summary.hasExistingPayment) {
-            document.getElementById('pmAlreadyPaid').textContent = '₹' + fmt(_summary.totalPaid);
-            document.getElementById('pmBalanceDue').textContent  = '₹' + fmt(_summary.balanceDue);
+            document.getElementById('pmAlreadyPaid').textContent = '₹' + fmtIN(_summary.totalPaid);
+            document.getElementById('pmBalanceDue').textContent  = '₹' + fmtIN(_summary.balanceDue);
             document.getElementById('pmExistingPaySection').classList.remove('d-none');
+        } else {
+            document.getElementById('pmExistingPaySection').classList.add('d-none');
         }
-
-        // Discount inputs
-        document.querySelectorAll('input[name="pmDiscType"]').forEach(r =>
-            r.addEventListener('change', recalcDiscount));
-        document.getElementById('pmDiscValue').addEventListener('input', recalcDiscount);
 
         // Trigger calculation to include GST initially
         recalcDiscount();
 
-        // Clear and add exactly one payment method row by default
+        // Clear and add exactly one payment line by default
         document.getElementById('pmMethodRows').innerHTML = '';
         _rowIdx = 0;
         addMethodRow();
 
         pmForm.classList.remove('d-none');
         pmFooter.style.removeProperty('display');
+        setTimeout(() => document.querySelector('#pmMethodRows .pm-paid-amount')?.focus(), 250);
     }
 
-    function infoBox(label, val, bg, cls) {
-        return `<div class="border rounded px-3 py-2 text-center" style="min-width:108px;background:${bg}">
-            <div class="text-muted fw-bold" style="font-size:.62rem;letter-spacing:.07em;text-transform:uppercase">${label}</div>
-            <div class="fw-bold font-monospace ${cls}" style="font-size:.95rem">${esc(val??'—')}</div>
-        </div>`;
-    }
-
-    // ─── Discount recalc ──────────────────────────────────────────────────────
+    // ─── Discount recalc (calculation unchanged) ──────────────────────────────
     function recalcDiscount() {
-        setTimeout(() => renderDiscApprovalInfo(parseFloat((document.getElementById('pmDiscAmt').textContent || '').replace(/[^\d.-]/g, '')) || 0), 0);
         const type  = document.querySelector('input[name="pmDiscType"]:checked')?.value;
         const discSym = document.getElementById('pmDiscSymbol');
         if (discSym) discSym.textContent = type === 'F' ? '₹' : '%';
@@ -508,53 +608,47 @@ document.addEventListener('DOMContentLoaded', function () {
 
         let effectiveBase = hasRestrictions ? discountableBase : base;
 
-        // Update eligibility row
+        // Eligibility line: only when some items cannot be discounted
         const rowEligible = document.getElementById('pmDiscEligibilityRow');
         const elEligible = document.getElementById('pmDiscEligibleAmt');
         const elNonEligible = document.getElementById('pmDiscNonEligibleAmt');
         const elWarning = document.getElementById('pmDiscWarning');
+        const setWarn = (msg) => { if (!elWarning) return; elWarning.textContent = msg || ''; elWarning.classList.toggle('d-none', !msg); };
 
         if (rowEligible) {
+            rowEligible.classList.toggle('d-none', !hasRestrictions);
             if (hasRestrictions) {
-                rowEligible.style.display = 'flex';
-                if (elEligible) elEligible.textContent = '₹' + fmt(discountableBase);
-                if (elNonEligible) elNonEligible.textContent = `(Non-discountable: ₹${fmt(nonDiscountableBase)})`;
-            } else {
-                rowEligible.style.display = 'none';
+                if (elEligible) elEligible.textContent = '₹' + fmtIN(discountableBase);
+                if (elNonEligible) elNonEligible.textContent = `(Non-discountable: ₹${fmtIN(nonDiscountableBase)})`;
             }
         }
 
         let discAmt = 0;
         if (effectiveBase <= 0) {
             discAmt = 0;
-            if (raw > 0 && elWarning) {
-                elWarning.textContent = 'No discount allowed on selected items.';
-                elWarning.style.display = '';
-            } else if (elWarning) {
-                elWarning.style.display = 'none';
-            }
+            setWarn(raw > 0 ? 'No discount allowed on selected items.' : '');
         } else {
             if (type === 'P') {
                 discAmt = Math.min(effectiveBase, effectiveBase * raw / 100);
-                if (elWarning) elWarning.style.display = 'none';
+                setWarn('');
             } else if (type === 'F') {
-                if (raw > effectiveBase && elWarning) {
-                    elWarning.textContent = `Max discountable is ₹${fmt(effectiveBase)}.`;
-                    elWarning.style.display = '';
-                } else if (elWarning) {
-                    elWarning.style.display = 'none';
-                }
+                setWarn(raw > effectiveBase ? `Max discountable is ₹${fmtIN(effectiveBase)}.` : '');
                 discAmt = Math.min(effectiveBase, raw);
             }
         }
         discAmt = parseFloat(discAmt.toFixed(2));
-        document.getElementById('pmDiscAmt').textContent = '₹' + fmt(discAmt);
-        
+        _discAmt = discAmt;
+        document.getElementById('pmDiscAmt').textContent = '₹' + fmtIN(discAmt);
+        document.getElementById('pmTotDisc').textContent = '−₹' + fmtIN(discAmt);
+        document.getElementById('pmTotDiscRow').classList.toggle('d-none', !(discAmt > 0));
+        document.querySelectorAll('#pmDiscQuick button[data-pct]').forEach(b => {
+            const pct = parseFloat(b.dataset.pct) || 0;
+            b.classList.toggle('active', pct > 0 && type === 'P' && Math.abs(raw - pct) < 0.0001);
+        });
+        renderDiscApprovalInfo(discAmt);
+
         let totalCgst = 0;
         let totalSgst = 0;
-
-        const tbody = document.getElementById('pmLineItemsTbody');
-        tbody.innerHTML = '';
 
         if (!_summary.hasExistingPayment && _summary.items) {
             // Allocate discount among eligible items
@@ -576,7 +670,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 item.netLineAmount = item.originalAmount;
             });
 
-            _summary.items.forEach((item, i) => {
+            _summary.items.forEach(item => {
                 item.cgstAmount = 0;
                 item.sgstAmount = 0;
                 item.igstAmount = 0;
@@ -588,60 +682,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     totalCgst += item.cgstAmount;
                     totalSgst += item.sgstAmount;
                 }
-
-                let isEligible = item.isDiscountAllowed !== false;
-                let discBadge = isEligible
-                    ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-tag-fill me-1"></i>Discountable</span>`
-                    : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-slash-circle me-1"></i>Non-discountable</span>`;
-
-                let discDetailsHtml = '';
-                if (item.lineDiscountAmount > 0) {
-                    discDetailsHtml = `<div class="text-success small fw-semibold" style="font-size:0.73rem;margin-top:2px;"><i class="bi bi-arrow-down-short"></i>Disc: -₹${fmt(item.lineDiscountAmount)} (Net: ₹${fmt(item.netLineAmount)})</div>`;
-                }
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${i+1}</td>
-                                <td>
-                                    <div class="d-flex align-items-center flex-wrap gap-1">
-                                        <span class="fw-semibold text-dark">${esc(item.itemName)}</span>
-                                        ${discBadge}
-                                    </div>
-                                    ${discDetailsHtml}
-                                </td>
-                                <td class="text-muted">${esc(item.serviceType??'')}</td>
-                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${item.cgstAmount > 0 ? '₹'+fmt(item.cgstAmount) : '—'}</td>
-                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${item.sgstAmount > 0 ? '₹'+fmt(item.sgstAmount) : '—'}</td>
-                                <td class="text-end font-monospace">₹${fmt(item.originalAmount)}</td>`;
-                tbody.appendChild(tr);
             });
         } else if (_summary.hasExistingPayment && _summary.items) {
-            _summary.items.forEach((item, i) => {
-                let isEligible = item.isDiscountAllowed !== false;
-                let discBadge = isEligible
-                    ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-tag-fill me-1"></i>Discountable</span>`
-                    : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1" style="font-size:0.67rem;padding:0.18rem 0.4rem;font-weight:600;"><i class="bi bi-slash-circle me-1"></i>Non-discountable</span>`;
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${i+1}</td>
-                                <td>
-                                    <div class="d-flex align-items-center flex-wrap gap-1">
-                                        <span class="fw-semibold text-dark">${esc(item.itemName)}</span>
-                                        ${discBadge}
-                                    </div>
-                                </td>
-                                <td class="text-muted">${esc(item.serviceType??'')}</td>
-                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${(item.cgstAmount && item.cgstAmount > 0) ? '₹'+fmt(item.cgstAmount) : '—'}</td>
-                                <td class="text-end text-muted d-none d-sm-table-cell" style="font-size:0.8rem">${(item.sgstAmount && item.sgstAmount > 0) ? '₹'+fmt(item.sgstAmount) : '—'}</td>
-                                <td class="text-end font-monospace">₹${fmt(item.originalAmount)}</td>`;
-                tbody.appendChild(tr);
+            _summary.items.forEach(item => {
                 totalCgst += (item.cgstAmount || 0);
                 totalSgst += (item.sgstAmount || 0);
             });
         }
-        
+        renderItems(hasRestrictions);
+
         let totalTax = totalCgst + totalSgst;
         let elTax = document.getElementById('pmTotalTax');
-        if (elTax) elTax.textContent = '₹' + fmt(totalTax);
+        if (elTax) elTax.textContent = '₹' + fmtIN(totalTax);
+        document.getElementById('pmTaxRow').classList.toggle('d-none', !(totalTax > 0));
 
         let unroundedNet = Math.max(0, base - discAmt + totalTax);
         let roundedNet = Math.round(unroundedNet);
@@ -653,51 +706,83 @@ document.addEventListener('DOMContentLoaded', function () {
         let roundOffRow = document.getElementById('pmRoundOffRow');
         let roundOffEl = document.getElementById('pmRoundOffAmt');
         if (roundOffRow && roundOffEl) {
-            if (roundOff !== 0) {
-                roundOffRow.style.display = 'flex';
-                roundOffEl.textContent = (roundOff > 0 ? '+₹' : '-₹') + fmt(Math.abs(roundOff));
-                roundOffEl.className = 'fw-semibold ' + (roundOff > 0 ? 'text-primary' : 'text-danger');
-            } else {
-                roundOffRow.style.display = 'none';
-                roundOffEl.textContent = '₹0.00';
-            }
+            roundOffRow.classList.toggle('d-none', roundOff === 0);
+            roundOffEl.textContent = roundOff === 0 ? '₹0.00' : (roundOff > 0 ? '+₹' : '−₹') + fmtIN(Math.abs(roundOff));
         }
 
         updateNetAmount(roundedNet);
     }
 
-    function updateNetAmount(net) {
-        document.getElementById('pmNetAmount').textContent = '₹' + fmt(net);
-        
-        // Hide payment method controls if nothing to pay
-        const section = document.getElementById('pmPaymentMethodsSection');
-        if (section) {
-            section.style.display = net > 0 ? '' : 'none';
-        }
+    // Bill lines: item + type, MRP, discount, net; GST columns only when an item carries GST
+    function renderItems(hasRestrictions) {
+        const items = _summary.items || [];
+        const hasGst = items.some(it => (it.cgstAmount || 0) > 0 || (it.sgstAmount || 0) > 0 || (it.isGstRequired && it.gstPercentage));
+        const showNet = !_summary.hasExistingPayment;
+        document.getElementById('pmItemsHead').innerHTML = `<tr><th>Item</th><th class="text-end">MRP</th>` +
+            (showNet ? '<th class="text-end">Disc.</th>' : '') +
+            (hasGst ? '<th class="text-end">CGST</th><th class="text-end">SGST</th>' : '') +
+            (showNet ? '<th class="text-end">Net</th>' : '') + '</tr>';
+        const cols = 2 + (showNet ? 2 : 0) + (hasGst ? 2 : 0);
+        document.getElementById('pmSubTotalLabel').colSpan = cols - 1;
 
-        // If only one payment row exists, always sync its amount to the net payable
+        document.getElementById('pmLineItemsTbody').innerHTML = items.map(item => {
+            const nd = item.isDiscountAllowed === false;
+            const lineDisc = item.lineDiscountAmount || 0;
+            return `<tr>
+                <td><div class="fw-semibold text-dark">${esc(item.itemName)}</div>
+                    <div class="text-muted" style="font-size:.7rem">${esc(item.serviceType ?? '')}${nd && hasRestrictions ? ' <span class="pm-badge-nd ms-1"><i class="bi bi-slash-circle me-1"></i>No discount</span>' : ''}</div></td>
+                <td class="text-end amt">₹${fmtIN(item.originalAmount)}</td>` +
+                (showNet ? `<td class="text-end amt ${lineDisc > 0 ? 'text-danger' : 'text-muted'}">${lineDisc > 0 ? '−₹' + fmtIN(lineDisc) : '—'}</td>` : '') +
+                (hasGst ? `<td class="text-end amt text-muted">${(item.cgstAmount || 0) > 0 ? '₹' + fmtIN(item.cgstAmount) : '—'}</td>
+                           <td class="text-end amt text-muted">${(item.sgstAmount || 0) > 0 ? '₹' + fmtIN(item.sgstAmount) : '—'}</td>` : '') +
+                (showNet ? `<td class="text-end amt fw-semibold">₹${fmtIN(item.netLineAmount ?? item.originalAmount)}</td>` : '') +
+                `</tr>`;
+        }).join('');
+    }
+
+    function updateNetAmount(net) {
+        document.getElementById('pmNetAmount').textContent = '₹' + fmtIN(net);
+        document.getElementById('pmDueNow').textContent = '₹' + fmtIN(net);
+
+        // Hide payment controls if nothing to pay
+        const section = document.getElementById('pmPaymentMethodsSection');
+        if (section) section.style.display = net > 0 ? '' : 'none';
+        document.getElementById('pmNothingToPay')?.classList.toggle('d-none', net > 0);
+
+        // If only one payment line exists, always sync its amount to the net payable
         var allAmtFields = document.querySelectorAll('.pm-paid-amount');
         if (allAmtFields.length === 1) {
             allAmtFields[0].value = fmt(net);
+            updateChange(allAmtFields[0].closest('.pm-method-row'));
         }
         recalcTotal();
     }
 
     function getNetAmount() {
-        if (_roundedNetAmount > 0) return _roundedNetAmount;
-        const text = document.getElementById('pmNetAmount')?.textContent || '0';
-        return parseFloat(text.replace(/[^\d.-]/g, '')) || 0;
+        return _roundedNetAmount > 0 ? _roundedNetAmount : 0;
     }
 
-    // ─── Payment method rows ──────────────────────────────────────────────────
+    // ─── Payment lines: mode cards + amount + mode-specific fields ─────────────
+    function defaultMethodId(excludeIds) {
+        const ok = m => !excludeIds.includes(String(m.paymentMethodId));
+        let last = null;
+        try { last = localStorage.getItem(LAST_METHOD_KEY); } catch (e) { /* storage blocked */ }
+        const byLast = last && _methods.find(m => String(m.paymentMethodId) === String(last) && ok(m));
+        if (byLast) return String(byLast.paymentMethodId);
+        const cash = _methods.find(m => String(m.methodCode).toUpperCase() === 'CASH' && ok(m));
+        if (cash) return String(cash.paymentMethodId);
+        const first = _methods.find(ok);
+        return first ? String(first.paymentMethodId) : '';
+    }
+
     function addMethodRow() {
         const idx = _rowIdx++;
         const container = document.getElementById('pmMethodRows');
         const div = document.createElement('div');
-        div.className = 'border rounded p-3 mb-2 pm-method-row';
+        div.className = 'pm-line pm-method-row';
         div.dataset.idx = idx;
 
-        // Build options
+        // hidden select keeps the method id and what each method requires
         const opts = _methods.map(m =>
             `<option value="${m.paymentMethodId}" data-code="${esc(m.methodCode)}"
               data-ref="${m.requiresRef?1:0}"
@@ -706,46 +791,103 @@ document.addEventListener('DOMContentLoaded', function () {
               data-upi="${m.requiresUPIRef?1:0}"
               data-card="${m.requiresCardLast4?1:0}">${esc(m.methodName)}</option>`
         ).join('');
+        const tiles = _methods.map(m => {
+            const s = modeStyle(m.methodCode);
+            return `<div class="pm-tile" role="radio" tabindex="0" aria-checked="false" data-id="${m.paymentMethodId}"
+                         style="--c:${s.c};--cb:${s.cb}" title="${esc(m.methodName)}"><i class="bi ${s.i}"></i><span>${esc(m.methodName)}</span></div>`;
+        }).join('');
 
         div.innerHTML = `
-          <div class="row g-2 align-items-start">
-            <div class="col-12 col-sm-4">
-              <label class="form-label small fw-semibold mb-1 text-muted text-uppercase" style="font-size:.7rem">Payment Method</label>
-              <select class="form-select form-select-sm pm-method-select" data-idx="${idx}">
-                <option value="">— Select —</option>${opts}
-              </select>
+          ${idx > 0 ? `<div class="d-flex justify-content-between align-items-center mb-2"><span class="pm-lbl mb-0">Payment ${document.querySelectorAll('.pm-method-row').length + 1}</span>
+                         <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-0 pm-remove-row" data-idx="${idx}"><i class="bi bi-trash3 me-1"></i>Remove</button></div>` : ''}
+          <select class="d-none pm-method-select" data-idx="${idx}" aria-hidden="true"><option value="">— Select —</option>${opts}</select>
+          <div class="pm-tiles" role="radiogroup" aria-label="Payment mode">${tiles}</div>
+          <div class="row g-2 mt-2 align-items-end">
+            <div class="col-7">
+              <div class="pm-lbl">Amount</div>
+              <div class="input-group">
+                <span class="input-group-text">₹</span>
+                <input type="number" class="form-control pm-paid-amount pm-amount-input" min="0" step="0.01" placeholder="0.00" data-idx="${idx}" />
+              </div>
             </div>
-            <div class="col-6 col-sm-4">
-              <label class="form-label small fw-semibold mb-1 text-muted text-uppercase" style="font-size:.7rem">Amount (₹)</label>
-              <input type="number" class="form-control form-control-sm pm-paid-amount font-monospace"
-                     min="0" step="0.01" placeholder="0.00" data-idx="${idx}" />
+            <div class="col-5 d-grid">
+              <button type="button" class="btn btn-outline-primary pm-full-due" title="Fill the remaining amount"><i class="bi bi-arrow-repeat me-1"></i>Full due</button>
             </div>
-            <div class="col-6 col-sm-4 d-flex align-items-end pb-1 gap-1 flex-wrap pm-extra-fields" data-idx="${idx}">
-              ${idx > 0 ? `<button type="button" class="btn btn-sm btn-outline-danger ms-auto mt-1 pm-remove-row" data-idx="${idx}"><i class="bi bi-trash3"></i></button>` : ''}
+          </div>
+          <div class="row g-2 mt-1 pm-cash-box" data-idx="${idx}" style="display:none">
+            <div class="col-7">
+              <div class="pm-lbl">Cash received <span class="text-muted text-lowercase fw-normal">(optional)</span></div>
+              <div class="input-group input-group-sm"><span class="input-group-text">₹</span>
+                <input type="number" class="form-control pm-cash-received" min="0" step="0.01" placeholder="e.g. 500" /></div>
             </div>
+            <div class="col-5 d-flex align-items-end"><div class="pm-change w-100 text-end"></div></div>
           </div>
           <div class="row g-2 mt-1 pm-cond-fields" data-idx="${idx}" style="display:none"></div>`;
 
         container.appendChild(div);
 
-        div.querySelector(`.pm-method-select`).addEventListener('change', function () {
-            renderConditionalFields(this, idx);
+        const select = div.querySelector('.pm-method-select');
+        const pick = (id) => {
+            select.value = id || '';
+            div.querySelectorAll('.pm-tile').forEach(t => {
+                const on = String(t.dataset.id) === String(id);
+                t.classList.toggle('active', on);
+                t.setAttribute('aria-checked', on ? 'true' : 'false');
+            });
+            renderConditionalFields(select, idx);
+            updateChange(div);
+        };
+        div.querySelectorAll('.pm-tile').forEach(t => {
+            t.addEventListener('click', () => pick(t.dataset.id));
+            t.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pick(t.dataset.id); } });
         });
-        div.querySelector('.pm-paid-amount')?.addEventListener('input', recalcTotal);
+        div.querySelector('.pm-paid-amount')?.addEventListener('input', function () { updateChange(div); recalcTotal(); });
+        div.querySelector('.pm-cash-received')?.addEventListener('input', function () { updateChange(div); });
+        div.querySelector('.pm-full-due')?.addEventListener('click', function () {
+            const others = [...document.querySelectorAll('.pm-method-row')].filter(r => r !== div)
+                .reduce((sum, r) => sum + (parseFloat(r.querySelector('.pm-paid-amount')?.value) || 0), 0);
+            div.querySelector('.pm-paid-amount').value = fmt(Math.max(0, getNetAmount() - others));
+            updateChange(div); recalcTotal();
+        });
         div.querySelector('.pm-remove-row')?.addEventListener('click', function () {
             div.remove();
-            // If only one row remains after removal, sync it to the full net amount
+            // If only one line remains after removal, sync it to the full net amount
             var remaining = document.querySelectorAll('.pm-paid-amount');
             if (remaining.length === 1) remaining[0].value = fmt(getNetAmount());
+            document.querySelectorAll('.pm-method-row').forEach(r => updateChange(r));
             recalcTotal();
         });
 
-        // Auto-fill: first row gets full net; subsequent rows get what's still unpaid
+        // Auto-fill: first line gets full net; further lines get what's still unpaid
         var net = getNetAmount();
         var othersFilled = [...document.querySelectorAll('.pm-paid-amount')]
             .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
         div.querySelector('.pm-paid-amount').value = fmt(Math.max(0, net - othersFilled));
+
+        // Pre-select a mode: last used on this computer (else Cash); a split line takes a different mode
+        const used = [...document.querySelectorAll('.pm-method-select')].filter(s => s !== select).map(s => String(s.value)).filter(Boolean);
+        pick(defaultMethodId(used));
         recalcTotal();
+    }
+
+    // Cash: received vs amount → change to return (on screen only; the saved amount is the line amount)
+    function updateChange(row) {
+        if (!row) return;
+        const sel = row.querySelector('.pm-method-select');
+        const code = sel?.options[sel.selectedIndex]?.dataset.code || '';
+        const box = row.querySelector('.pm-cash-box');
+        const isCash = String(code).toUpperCase() === 'CASH';
+        if (box) box.style.display = isCash ? '' : 'none';
+        if (!isCash) return;
+        const amt = parseFloat(row.querySelector('.pm-paid-amount')?.value) || 0;
+        const rec = parseFloat(row.querySelector('.pm-cash-received')?.value);
+        const out = row.querySelector('.pm-change');
+        if (!out) return;
+        if (isNaN(rec) || rec <= 0) { out.innerHTML = ''; return; }
+        const change = rec - amt;
+        out.innerHTML = change >= 0
+            ? `<span class="text-muted">Change to return</span><div class="fw-bold text-success fs-6 amt">₹${fmtIN(change)}</div>`
+            : `<span class="text-danger fw-semibold">₹${fmtIN(-change)} short</span>`;
     }
 
     function renderConditionalFields(select, idx) {
@@ -753,6 +895,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const condRow = document.querySelector(`.pm-cond-fields[data-idx="${idx}"]`);
         if (!condRow) return;
         condRow.innerHTML = '';
+        if (!opt || !opt.value) { condRow.style.display = 'none'; return; }
         const needRef   = opt.dataset.ref   === '1';
         const needCheq  = opt.dataset.cheque === '1';
         const needBank  = opt.dataset.bank   === '1';
@@ -771,8 +914,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function field(idx, name, label, type, maxLen) {
         const col = document.createElement('div');
-        col.className = 'col-6 col-sm-4';
-        col.innerHTML = `<label class="form-label small fw-semibold mb-1 text-muted text-uppercase" style="font-size:.7rem">${label}</label>
+        col.className = 'col-6';
+        col.innerHTML = `<div class="pm-lbl">${label}</div>
           <input type="${type}" class="form-control form-control-sm pm-cond-input"
                  data-idx="${idx}" data-field="${name}" placeholder="${label}"
                  ${maxLen ? `maxlength="${maxLen}"` : ''} />`;
@@ -785,20 +928,31 @@ document.addEventListener('DOMContentLoaded', function () {
         const net = getNetAmount();
         const totalEl = document.getElementById('pmEnteringTotal');
         if (totalEl) {
-            totalEl.textContent = '₹' + fmt(total);
-            if (total > net + 0.001) {
-                totalEl.classList.remove('text-primary');
-                totalEl.classList.add('text-danger', 'fw-bold');
-            } else {
-                totalEl.classList.remove('text-danger', 'fw-bold');
-                totalEl.classList.add('text-primary');
-            }
+            totalEl.textContent = '₹' + fmtIN(total);
+            totalEl.classList.toggle('text-danger', total > net + 0.001);
+            totalEl.classList.toggle('text-primary', !(total > net + 0.001));
         }
+
+        // live status of this collection
+        const st = document.getElementById('pmStatus');
+        if (st) {
+            let cls, html;
+            if (total > net + 0.001) { cls = 'over'; html = `<i class="bi bi-exclamation-octagon-fill"></i>₹${fmtIN(total - net)} more than the payable ₹${fmtIN(net)}`; }
+            else if (net > 0 && Math.abs(total - net) <= 0.001) { cls = 'full'; html = '<i class="bi bi-check-circle-fill"></i>Fully paid'; }
+            else if (total > 0) { cls = 'partial'; html = `<i class="bi bi-hourglass-split"></i>Partial payment &middot; balance ₹${fmtIN(net - total)} stays due`; }
+            else { cls = 'none'; html = '<i class="bi bi-info-circle"></i>Enter an amount, or use Pay later'; }
+            st.innerHTML = `<div class="pm-status ${cls}">${html}</div>`;
+        }
+
+        // the main button says what will happen
+        const label = document.getElementById('pmCollectLabel');
+        if (label) label.textContent = net > 0 ? (total > 0 ? `Collect ₹${fmtIN(total)}` : 'Collect payment') : 'Save';
+
         const saveBtn = document.getElementById('btnSavePayment');
         if (saveBtn && !_isSubmitting) {
             if (total > net + 0.001) {
                 saveBtn.disabled = true;
-                saveBtn.title = 'Paid amount cannot exceed payable amount of ₹' + fmt(net);
+                saveBtn.title = 'Paid amount cannot exceed payable amount of ₹' + fmtIN(net);
             } else {
                 saveBtn.disabled = false;
                 saveBtn.removeAttribute('title');
@@ -811,24 +965,26 @@ document.addEventListener('DOMContentLoaded', function () {
         if (_isSubmitting) return;
 
         const btn = document.getElementById('btnSavePayment');
-        const originalBtnHtml = '<i class="bi bi-check2-circle me-2"></i>Save Payment';
+        const originalBtnHtml = btn.innerHTML;
+        hideError();
 
         try {
             const discType  = document.querySelector('input[name="pmDiscType"]:checked')?.value ?? null;
             const discVal   = parseFloat(document.getElementById('pmDiscValue').value) || 0;
-            const discAmt   = parseFloat(document.getElementById('pmDiscAmt').textContent.replace(/[^\d.-]/g, '')) || 0;
+            const discAmt   = _discAmt;
             const net       = getNetAmount();
 
             const approval = await ensureDiscountApproval(discAmt);
-            if (!approval) return;   // user went back to the dialog
+            if (!approval) return;   // approval incomplete: the fields are highlighted
 
             const payments = [];
+            let missingMode = false;
             if (net > 0) {
                 document.querySelectorAll('.pm-method-row').forEach(row => {
-                    const idx    = parseInt(row.dataset.idx);
                     const sel    = row.querySelector('.pm-method-select');
                     const amt    = parseFloat(row.querySelector('.pm-paid-amount')?.value) || 0;
                     const mId    = parseInt(sel?.value) || 0;
+                    if (amt > 0 && !mId) missingMode = true;
                     if (!mId || amt <= 0) return;
 
                     const extra = {};
@@ -838,6 +994,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     payments.push({ paymentMethodId: mId, paidAmount: amt, ...extra });
                 });
 
+                if (missingMode) {
+                    showError('Choose a payment mode for every amount entered.');
+                    return;
+                }
                 if (!payments.length) {
                     showError('Please enter at least one payment method and amount.');
                     return;
@@ -845,9 +1005,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const totalEntering = payments.reduce((sum, p) => sum + (parseFloat(p.paidAmount) || 0), 0);
                 if (totalEntering > net + 0.001) {
-                    showError(`Total paid amount (₹${fmt(totalEntering)}) cannot exceed the payable amount of ₹${fmt(net)}.`);
+                    showError(`Total paid amount (₹${fmtIN(totalEntering)}) cannot exceed the payable amount of ₹${fmtIN(net)}.`);
                     return;
                 }
+                try { localStorage.setItem(LAST_METHOD_KEY, String(payments[0].paymentMethodId)); } catch (e) { /* storage blocked */ }
             }
 
             _isSubmitting = true;
@@ -922,6 +1083,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             pmModal.hide();
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHtml;
+            _isSubmitting = false;
 
             // ── If full payment → assign the token number into the success modal ──
             if (data.paymentStatus === 'P' && data.tokenNo) {
@@ -940,6 +1104,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
+            // Due collection (the bill was already saved with a balance) → offer the A5 Money Receipt before the page moves on
+            if (!_isPreSave && _summary?.hasExistingPayment && data.receiptNo) {
+                await offerMoneyReceipt(data);
+            }
+
             if (typeof _onSuccess === 'function') {
                 _onSuccess(data);
             } else {
@@ -954,27 +1123,84 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function showError(msg) {
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'error',
-                title: 'Payment Error',
-                text: msg
+    // Money Receipt of a due collection (MoneyReceipt/Print, SQLScripts/2204). The tab is opened from the button's own
+    // click so the browser does not block it. Never throws: the payment is already saved.
+    async function offerMoneyReceipt(data) {
+        const url = '/MoneyReceipt/Print?receiptNo=' + encodeURIComponent(data.receiptNo);
+        const openIt = () => { window.open(url, '_blank'); };
+        try {
+            if (typeof Swal === 'undefined') {
+                if (confirm('Payment collected. Receipt ' + data.receiptNo + '.\n\nPrint the Money Receipt now?')) openIt();
+                return;
+            }
+            const balance = Number(data.balanceDue) || 0;
+            await Swal.fire({
+                icon: 'success',
+                title: 'Payment collected',
+                html: `<div class="text-center">
+                           <div class="text-muted small">Receipt No</div>
+                           <div class="fw-bold font-monospace fs-5 text-primary">${esc(data.receiptNo)}</div>
+                           <div class="small mt-1 ${balance > 0 ? 'text-danger' : 'text-success'}">
+                               ${balance > 0 ? 'Balance still due: ₹' + fmtIN(balance) : 'Bill fully paid'}
+                           </div>
+                       </div>`,
+                showCancelButton: true,
+                confirmButtonText: '<i class="bi bi-printer me-1"></i> Print Money Receipt',
+                cancelButtonText: 'Done',
+                confirmButtonColor: '#1e3a8a',
+                cancelButtonColor: '#6c757d',
+                reverseButtons: true,
+                focusConfirm: true,
+                allowOutsideClick: false,
+                preConfirm: () => { openIt(); return true; }
             });
-        }
-        if (pmError) {
-            pmError.textContent = msg;
-            pmError.classList.remove('d-none');
-            pmError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setTimeout(() => pmError?.classList.add('d-none'), 8000);
-        }
+        } catch (e) { /* the receipt can be reprinted later; never hold up the page */ }
+    }
+
+    // One clear error banner inside the dialog
+    function showError(msg) {
+        if (!pmError) { if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Payment Error', text: msg }); return; }
+        pmError.innerHTML = `<i class="bi bi-exclamation-octagon-fill mt-1"></i><span>${esc(msg)}</span>`;
+        pmError.classList.remove('d-none');
+        pmError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        clearTimeout(showError._t);
+        showError._t = setTimeout(() => pmError?.classList.add('d-none'), 10000);
+    }
+    function hideError() { pmError?.classList.add('d-none'); }
+    function showLoadError(msg) {
+        const el = document.getElementById('pmLoadError');
+        if (!el) return;
+        el.innerHTML = `<i class="bi bi-exclamation-octagon-fill me-2"></i>${esc(msg)}`;
+        el.classList.remove('d-none');
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
-    function fmt(n)  { return (parseFloat(n) || 0).toFixed(2); }
-    function esc(s)  { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function fmt(n)  { return (parseFloat(n) || 0).toFixed(2); }                       // values written into inputs
+    function fmtIN(n) { return (parseFloat(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }  // display
+    function esc(s)  { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
 
-    // ─── Public API ─────────────────────────────────────────────────────────────
+    function resetDialog() {
+        pmLoader.classList.remove('d-none');
+        pmError.classList.add('d-none');
+        document.getElementById('pmLoadError')?.classList.add('d-none');
+        pmForm.classList.add('d-none');
+        pmFooter.style.display = 'none';
+        document.getElementById('pmMethodRows').innerHTML = '';
+        document.getElementById('pmDiscValue').value = '';
+        document.getElementById('pmDiscAmt').textContent = '₹0.00';
+        document.querySelectorAll('input[name="pmDiscType"]').forEach(function (r) { r.checked = r.value === 'P'; });
+        // fresh approval box for this bill
+        _approvalBoxReady = false;
+        const ta = document.getElementById('pmDiscReason'); if (ta) { ta.value = ''; ta.classList.remove('is-invalid'); }
+        const ap = document.getElementById('pmDiscApprover'); if (ap) ap.classList.remove('is-invalid');
+        document.getElementById('pmDiscApprovalBox')?.classList.add('d-none');
+        document.getElementById('pmDiscApprovalInfo')?.classList.add('d-none');
+        _discAmt = 0; _roundedNetAmount = 0; _roundOffAmount = 0; _isSubmitting = false;
+        const btn = document.getElementById('btnSavePayment');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-circle me-2"></i><span id="pmCollectLabel">Save Payment</span>'; }
+    }
+
+    // ─── Public API (unchanged) ───────────────────────────────────────────────
     // Trigger this payment modal for any service from other JS contexts
     window.pmOpenFor = function (svcId, onSuccessCb, moduleCode) {
         _isPreSave = false;
@@ -987,14 +1213,7 @@ document.addEventListener('DOMContentLoaded', function () {
         _onCancel    = null;
         _onSkip      = null;
         _onSave      = null;
-        pmLoader.classList.remove('d-none');
-        pmError.classList.add('d-none');
-        pmForm.classList.add('d-none');
-        pmFooter.style.display = 'none';
-        document.getElementById('pmMethodRows').innerHTML = '';
-        document.getElementById('pmDiscValue').value = '';
-        document.getElementById('pmDiscAmt').textContent = '₹0.00';
-        document.querySelectorAll('input[name="pmDiscType"]').forEach(function (r) { r.checked = r.value === 'P'; });
+        resetDialog();
         fetchData();
         pmModal.show();
     };
@@ -1020,14 +1239,7 @@ document.addEventListener('DOMContentLoaded', function () {
         _onCancel   = config.onCancel;
         _onSuccess  = config.onSuccess;
 
-        pmLoader.classList.remove('d-none');
-        pmError.classList.add('d-none');
-        pmForm.classList.add('d-none');
-        pmFooter.style.display = 'none';
-        document.getElementById('pmMethodRows').innerHTML = '';
-        document.getElementById('pmDiscValue').value = '';
-        document.getElementById('pmDiscAmt').textContent = '₹0.00';
-        document.querySelectorAll('input[name="pmDiscType"]').forEach(function (r) { r.checked = r.value === 'P'; });
+        resetDialog();
 
         fetch('/OPD/GetPaymentMethods')
             .then(res => res.json())
@@ -1038,8 +1250,7 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(err => {
                 pmLoader.classList.add('d-none');
-                pmError.textContent = err.message || 'Failed to load payment methods';
-                pmError.classList.remove('d-none');
+                showLoadError(err.message || 'Failed to load payment methods');
                 pmModal.show();
             });
     };

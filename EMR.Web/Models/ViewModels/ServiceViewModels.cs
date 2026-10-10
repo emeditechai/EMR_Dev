@@ -39,6 +39,9 @@ public class ServiceFormViewModel
     [Range(0, 100, ErrorMessage = "GST must be between 0 and 100.")]
     public decimal? GstPercentage { get; set; }
 
+    [Display(Name = "Is Discountable")]
+    public bool IsDiscountable { get; set; } = true;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 }

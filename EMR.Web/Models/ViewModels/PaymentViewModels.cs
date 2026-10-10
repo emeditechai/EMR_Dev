@@ -195,4 +195,6 @@ public class SavePaymentResult
     /// NULL when payment is partial or zero-amount was skipped.
     /// </summary>
     public string? TokenNo { get; set; }
+    /// <summary>Receipt number of the PaymentDetail rows saved by this call (NULL when nothing was collected).</summary>
+    public string? ReceiptNo { get; set; }
 }

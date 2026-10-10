@@ -78,6 +78,14 @@ public class HospitalSettings
     public bool PathologistApprovalRequired { get; set; } = false;
     /// <summary>Show a "Print" action against each report row in LAB listing screens (default No).</summary>
     public bool ShowLabReportPrintOnList { get; set; } = false;
+    /// <summary>Critical / Panic results need a "who was informed" record before final approval (default No = approval as before). SQLScripts/2202.</summary>
+    public bool CriticalValueCommunicationRequired { get; set; } = false;
+    /// <summary>Critical / Panic result: target minutes from result entry to informing the doctor / patient (empty = 30). SQLScripts/2202.</summary>
+    public int? CriticalValueInformMinutes { get; set; }
+    /// <summary>B2C LAB bill prints the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
+    public bool LabB2CBillPrintHeaderRequired { get; set; } = true;
+    /// <summary>Printed B2C LAB report carries the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
+    public bool LabB2CReportPrintHeaderRequired { get; set; } = true;
     /// <summary>How Doctor IP commission is computed: Manual (screen), Automatic (scheduled job) or Both.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(10)]
     public string DoctorIpComputeMode { get; set; } = "Manual";

@@ -3,8 +3,14 @@
         // Report PDF preview / print (QuestPDF report streamed by LabReporting/PrintReportPdf)
         (function () {
             let labOrderId = 0;
-            const pdfUrl = '@Url.Action("PrintReportPdf", "LabReporting")';
-            const logUrl = '@Url.Action("LogReportPrintedJson", "LabReporting")';
+            // Lab Report Entry by default; Microbiology Report Entry prints its own (Template) report
+            const pdfUrl = '@Url.Action("PrintReportPdf", ViewData["ReportPrintController"] as string ?? "LabReporting")';
+            const logUrl = '@Url.Action("LogReportPrintedJson", ViewData["ReportPrintController"] as string ?? "LabReporting")';
+            // A screen that prints one report (Lab / Microbiology Report Entry) fixes it. Elsewhere the server prints the
+            // report the bill has ("auto": the Lab Report first) and names the others, so the modal can switch between them.
+            const AUTO_TYPE = @(ViewData["ReportPrintController"] == null ? "true" : "false");
+            let reportType = AUTO_TYPE ? 'auto' : '';
+            const REPORT_TITLES = { Numeric: 'Lab Report', Template: 'Microbiology Report' };
             let blobUrl = null;
             let fileName = 'LabReport.pdf';
             let printScope = 'all';   // all | approved | pending
@@ -31,7 +37,8 @@
             async function load() {
                 reset();
                 try {
-                    const res = await fetch(pdfUrl + '?labOrderId=' + labOrderId + '&scope=' + printScope + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' });
+                    const res = await fetch(pdfUrl + '?labOrderId=' + labOrderId + '&scope=' + printScope
+                        + (reportType ? '&reportingType=' + reportType : '') + '&_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' });
                     const type = res.headers.get('content-type') || '';
 
                     if (!res.ok) {
@@ -42,6 +49,22 @@
                     if (res.redirected || type.indexOf('pdf') === -1) {
                         return fail('Your session may have expired. Please refresh the page and sign in again.');
                     }
+
+                    // which report this is, and (auto) which others the bill has
+                    const servedType = res.headers.get('X-Report-Type');
+                    if (AUTO_TYPE && servedType) {
+                        const available = (res.headers.get('X-Report-Available') || '').split(',').filter(Boolean);
+                        if (available.length) $('#printReportSwitch').data('available', available);
+                        const offered = $('#printReportSwitch').data('available') || [];
+                        $('#printReportSwitch').toggleClass('d-none', offered.length < 2)
+                            .find('[data-report-type]').each(function () {
+                                const t = $(this).attr('data-report-type');
+                                $(this).toggleClass('d-none', offered.indexOf(t) === -1)
+                                       .toggleClass('active', t === servedType);
+                            });
+                        reportType = servedType;
+                    }
+                    $('#printReportTitle').text(REPORT_TITLES[servedType] || 'Lab Report');
 
                     const watermark = res.headers.get('X-Report-Watermark') === '1';
                     const status = res.headers.get('X-Report-Status');
@@ -69,7 +92,9 @@
                 }
             }
 
-            function logPrinted() { $.post(logUrl + '?labOrderId=' + labOrderId + '&scope=' + printScope); }
+            function logPrinted() {
+                $.post(logUrl + '?labOrderId=' + labOrderId + '&scope=' + printScope + (reportType && reportType !== 'auto' ? '&reportingType=' + reportType : ''));
+            }
 
             $(function () {
                 const modalEl = document.getElementById('modalReportPrint');
@@ -79,6 +104,10 @@
                 $(document).on('click', '.btn-print-report', function () {
                     printScope = $(this).attr('data-scope') || 'all';
                     labOrderId = parseInt($(this).attr('data-laborderid')) || labOrderId;
+                    if (AUTO_TYPE) {
+                        reportType = 'auto';
+                        $('#printReportSwitch').addClass('d-none').removeData('available');
+                    }
                     const bill = $(this).attr('data-bill');
                     if (bill) $('#printBillChip').text(bill);
                     bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -105,6 +134,12 @@
                     logPrinted();
                 });
                 $('#btnReportNewTab').on('click', function () { if (blobUrl) window.open(blobUrl, '_blank'); });
+                $('#printReportSwitch').on('click', '[data-report-type]', function () {
+                    const t = $(this).attr('data-report-type');
+                    if (t === reportType) return;
+                    reportType = t;
+                    load();
+                });
             });
         })();
     </script>

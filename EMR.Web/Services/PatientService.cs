@@ -432,6 +432,33 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
     }
 
 
+    public async Task<IEnumerable<RosterBookingCount>> GetRosterBookingCountsAsync(int branchId, DateOnly from, DateOnly to)
+    {
+        // Same rows as usp_RosterBookings_GetByDoctorDate, less the Completed ones (the roster pop-up leaves those out too).
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<RosterBookingCount>(@"
+            SELECT s.ConsultingDoctorId AS DoctorId, CAST(s.VisitDate AS DATE) AS VisitDate, COUNT(*) AS Bookings
+            FROM PatientOPDService s
+            INNER JOIN PatientMaster p ON p.PatientId = s.PatientId
+            WHERE s.IsActive = 1 AND p.IsActive = 1
+              AND ISNULL(s.Status, '') <> 'Completed'
+              AND s.ConsultingDoctorId IS NOT NULL
+              AND s.VisitDate >= @From AND s.VisitDate < DATEADD(DAY, 1, @To)
+              AND s.BranchId = @BranchId
+            GROUP BY s.ConsultingDoctorId, CAST(s.VisitDate AS DATE)",
+            new { BranchId = branchId, From = from.ToDateTime(TimeOnly.MinValue), To = to.ToDateTime(TimeOnly.MinValue) });
+    }
+
+    public async Task<Dictionary<int, bool>> GetServiceDiscountableMapAsync(IEnumerable<int> serviceIds)
+    {
+        var ids = serviceIds.Where(i => i > 0).Distinct().ToArray();
+        if (ids.Length == 0) return new Dictionary<int, bool>();
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync<(int ServiceId, bool IsDiscountable)>(
+            "SELECT ServiceId, IsDiscountable FROM ServiceMaster WHERE ServiceId IN @ids", new { ids });
+        return rows.ToDictionary(r => r.ServiceId, r => r.IsDiscountable);
+    }
+
     // ─── Latest OPD Service ───────────────────────────────────────────────────
 
     public async Task<PatientOPDService?> GetLatestOPDServiceAsync(int patientId)
@@ -488,7 +515,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             WHERE s.IsActive = 1
               AND s.ServiceType = @ServiceType
               AND (@BranchId IS NULL OR s.BranchId = @BranchId)
-            ORDER BY s.ItemName",
+            ORDER BY s.IsRegistration DESC, s.ItemName   -- the Registration service always first in the OPD item lists",
             new { ServiceType = serviceType, BranchId = branchId });
 
         return rows.Select(r => ((int)r.ServiceId, (string)r.ItemName, (decimal)r.ItemCharges, (bool)r.IsRegistration));

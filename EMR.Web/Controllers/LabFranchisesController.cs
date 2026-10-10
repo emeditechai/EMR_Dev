@@ -2,8 +2,10 @@ using EMR.Web.ApiClients;
 using EMR.Web.ApiClients.Models;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
+using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using EMR.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -16,7 +18,9 @@ public class LabFranchisesController(
     ILabFranchiseApiClient franchiseApiClient,
     ApplicationDbContext dbContext,
     IWebHostEnvironment environment,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IPasswordHasherService passwordHasherService,
+    IEmailService emailService) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(
@@ -141,6 +145,7 @@ public class LabFranchisesController(
                 IsActive = model.IsActive,
                 IsNotificationRequired = model.IsNotificationRequired,
                 PreprintedBarcode = model.PreprintedBarcode,
+                IsReportHeaderRequired = model.IsReportHeaderRequired,
                 Credit_Facility_Type = model.Credit_Facility_Type,
                 Credit_Limit = model.Credit_Limit,
                 Credit_Days = model.Credit_Days,
@@ -154,6 +159,8 @@ public class LabFranchisesController(
             };
 
             var newId = await franchiseApiClient.CreateAsync(req);
+
+            await CreateLinkedUserAsync(model, newId, companyId);
 
             await auditLogService.LogAsync(
                 "Create Lab Franchise",
@@ -214,6 +221,12 @@ public class LabFranchisesController(
                 IsActive = item.IsActive,
                 IsNotificationRequired = item.IsNotificationRequired,
                 PreprintedBarcode = item.PreprintedBarcode,
+                IsReportHeaderRequired = item.IsReportHeaderRequired,
+                Bypass_Credit_Limit = item.Bypass_Credit_Limit,
+                Bypass_Effective_From = item.Bypass_Effective_From,
+                Bypass_Effective_To = item.Bypass_Effective_To,
+                Bypass_Updated_Date = item.Bypass_Updated_Date,
+                Bypass_Updated_By_Name = item.Bypass_Updated_By_Name,
 
                 Credit_ID = item.Credit_ID,
                 Credit_Facility_Type = item.Credit_Facility_Type,
@@ -282,6 +295,7 @@ public class LabFranchisesController(
                 IsActive = model.IsActive,
                 IsNotificationRequired = model.IsNotificationRequired,
                 PreprintedBarcode = model.PreprintedBarcode,
+                IsReportHeaderRequired = model.IsReportHeaderRequired,
                 Credit_Facility_Type = model.Credit_Facility_Type,
                 Credit_Limit = model.Credit_Limit,
                 Credit_Days = model.Credit_Days,
@@ -414,6 +428,51 @@ public class LabFranchisesController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RequiresPermission("MASTER.LABFRANCHISES", PermissionControls.Edit)]
+    public async Task<IActionResult> UpdateCreditBypass(int id, bool bypassCreditLimit, DateTime? effectiveFrom, DateTime? effectiveTo)
+    {
+        if (bypassCreditLimit)
+        {
+            if (effectiveFrom is null || effectiveTo is null)
+                return Json(new { success = false, message = "Effective From and Effective To are required to bypass the credit limit." });
+            if (effectiveTo < effectiveFrom)
+                return Json(new { success = false, message = "Effective To cannot be earlier than Effective From." });
+        }
+
+        try
+        {
+            await franchiseApiClient.UpdateCreditBypassAsync(new LabFranchiseCreditBypassRequestModel
+            {
+                Franchise_ID = id,
+                Bypass_Credit_Limit = bypassCreditLimit,
+                Bypass_Effective_From = bypassCreditLimit ? effectiveFrom : null,
+                Bypass_Effective_To = bypassCreditLimit ? effectiveTo : null,
+                UserId = User.GetUserId()
+            });
+
+            await auditLogService.LogAsync(
+                "Lab Franchise Credit Limit Bypass",
+                "UpdateCreditBypass",
+                bypassCreditLimit
+                    ? $"Credit limit bypass ON for Lab Franchise #{id} from {effectiveFrom:dd-MMM-yyyy} to {effectiveTo:dd-MMM-yyyy}"
+                    : $"Credit limit bypass OFF for Lab Franchise #{id}",
+                User.GetUserId(),
+                User.GetCurrentBranchId() ?? 1);
+
+            return Json(new { success = true, message = bypassCreditLimit ? "Credit limit bypass saved." : "Credit limit bypass turned off." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The service is not reachable. Please try again." });
+        }
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
         var branchId = User.GetCurrentBranchId() ?? 1;
@@ -490,5 +549,81 @@ public class LabFranchisesController(
         await file.CopyToAsync(fileStream);
 
         return $"/uploads/franchise_docs/{uniqueFileName}";
+    }
+
+    private async Task CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId)
+    {
+        var email = model.Email.Trim();
+
+        if (await dbContext.Users.AnyAsync(u => u.Username == email))
+            return;
+
+        var defaultPassword = "Welcome@123";
+        var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);
+
+        var newUser = new Models.Entities.User
+        {
+            CompanyId       = companyId,
+            Username        = email,
+            Email           = email,
+            PasswordHash    = hash,
+            Salt            = salt,
+            FullName        = model.Franchise_Name,
+            FirstName       = model.Franchise_Name,
+            PhoneNumber     = model.Mobile_No,
+            Phone           = model.Mobile_No,
+            IsActive        = true,
+            UserType        = Models.Entities.UserTypes.Franchise,
+            ReferenceUserId = franchiseId,
+            MustChangePassword  = true,
+            PasswordLastChanged = DateTime.Now,
+            CreatedDate         = DateTime.Now,
+            LastModifiedDate    = DateTime.Now
+        };
+
+        dbContext.Users.Add(newUser);
+        await dbContext.SaveChangesAsync();
+
+        var branchId = model.Parent_Branch_ID > 0 ? model.Parent_Branch_ID : (User.GetCurrentBranchId() ?? 1);
+        dbContext.UserBranches.Add(new UserBranch
+        {
+            UserId      = newUser.Id,
+            BranchId    = branchId,
+            IsActive    = true,
+            CreatedDate = DateTime.Now,
+            ModifiedDate = DateTime.Now,
+            CreatedBy   = User.GetUserId(),
+            ModifiedBy  = User.GetUserId()
+        });
+        await dbContext.SaveChangesAsync();
+
+        await SendCredentialsEmailAsync(branchId, model.Franchise_Name, email, defaultPassword);
+    }
+
+    private async Task SendCredentialsEmailAsync(int branchId, string name, string email, string password)
+    {
+        var baseUrl = await emailService.GetApplicationBaseUrlAsync(branchId) ?? $"{Request.Scheme}://{Request.Host}";
+        var loginUrl = $"{baseUrl}/Account/Login";
+        Func<string?, string?> enc = System.Net.WebUtility.HtmlEncode;
+        var htmlBody = $@"
+            <h3>Welcome to eClinicPlus+</h3>
+            <p>Dear <strong>{enc(name)}</strong>,</p>
+            <p>Your account has been created. Here are your login details:</p>
+            <table style='border-collapse:collapse;'>
+                <tr><td style='padding:4px 12px;font-weight:bold;'>User ID</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
+                <tr><td style='padding:4px 12px;font-weight:bold;'>Email</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
+                <tr><td style='padding:4px 12px;font-weight:bold;'>Password</td><td style='padding:4px 12px;'>{password}</td></tr>
+            </table>
+            <p>Please change your password after your first login.</p>
+            <p><a href='{loginUrl}'>Click here to login</a></p>
+            <br/><p>Regards,<br/>eClinicPlus+ Team</p>";
+
+        try
+        {
+            await emailService.SendEmailAsync(branchId, email, "eClinicPlus+ — Your Login Credentials", htmlBody);
+        }
+        catch
+        {
+        }
     }
 }

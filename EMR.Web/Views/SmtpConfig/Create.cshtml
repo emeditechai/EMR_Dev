@@ -175,6 +175,12 @@
                     <input asp-for="SenderDisplayName" class="form-control" placeholder="eClinicPlus+ Hospital" />
                     <span asp-validation-for="SenderDisplayName" class="text-danger small"></span>
                 </div>
+                <div class="mt-3">
+                    <label asp-for="ApplicationBaseUrl" class="form-label fw-semibold">Application Base URL</label>
+                    <input asp-for="ApplicationBaseUrl" class="form-control" placeholder="https://emr.yourhospital.com" />
+                    <div class="form-text">Used for links in emails (e.g. the login page link sent to new users).</div>
+                    <span asp-validation-for="ApplicationBaseUrl" class="text-danger small"></span>
+                </div>
             </div>
 
             @* Configuration Meta *@

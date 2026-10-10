@@ -40,10 +40,11 @@ public class LabFranchiseWizardViewModel
     [Display(Name = "Mobile Number")]
     public string Mobile_No { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Email Address is mandatory.")]
     [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
     [StringLength(200, ErrorMessage = "Email cannot exceed 200 characters.")]
     [Display(Name = "Email Address")]
-    public string? Email { get; set; }
+    public string Email { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Franchise Type is required.")]
     [Display(Name = "Franchise Type")]
@@ -85,6 +86,16 @@ public class LabFranchiseWizardViewModel
 
     [Display(Name = "Preprinted Barcode")]
     public bool PreprintedBarcode { get; set; } = true;
+
+    [Display(Name = "Report Header Required")]
+    public bool IsReportHeaderRequired { get; set; }
+
+    // Shown and changed only through the "Bypass Cr Limit" popup on Edit - not posted with the main form.
+    public bool Bypass_Credit_Limit { get; set; }
+    public DateTime? Bypass_Effective_From { get; set; }
+    public DateTime? Bypass_Effective_To { get; set; }
+    public DateTime? Bypass_Updated_Date { get; set; }
+    public string? Bypass_Updated_By_Name { get; set; }
 
     // === Tab 2: Credit Limit ===
     public int Credit_ID { get; set; }

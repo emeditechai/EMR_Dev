@@ -110,6 +110,18 @@
             </div>
         </div>
 
+        <!-- Is Discountable: a bill discount in the OPD payment window applies only to discountable services -->
+        <div class="row g-3 mb-3">
+            <div class="col-12">
+                <div class="form-check form-switch ms-1">
+                    <input asp-for="IsDiscountable" class="form-check-input" type="checkbox" id="IsDiscountable"
+                           role="switch" style="width:2.5em;height:1.3em;" />
+                    <label asp-for="IsDiscountable" class="form-check-label fw-semibold ms-2">Is Discountable</label>
+                </div>
+                <div class="form-text ms-1">When off, a discount given in the OPD payment window is not applied to this service - it is always charged in full.</div>
+            </div>
+        </div>
+
         <!-- IsRegistration — only visible when ServiceType = 'Service' -->
         <div id="isRegistrationRow" class="mb-4" style="display:none;">
             <div class="form-check">

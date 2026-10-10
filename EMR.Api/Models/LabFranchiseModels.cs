@@ -22,6 +22,13 @@ public class LabFranchiseModel
     public bool IsActive { get; set; }
     public bool IsNotificationRequired { get; set; }
     public bool PreprintedBarcode { get; set; } = true;
+    public bool IsReportHeaderRequired { get; set; }
+    public bool Bypass_Credit_Limit { get; set; }
+    public DateTime? Bypass_Effective_From { get; set; }
+    public DateTime? Bypass_Effective_To { get; set; }
+    public int? Bypass_Updated_By { get; set; }
+    public DateTime? Bypass_Updated_Date { get; set; }
+    public string? Bypass_Updated_By_Name { get; set; }
     public int? CreatedBy { get; set; }
     public DateTime CreatedDate { get; set; }
     public int? ModifiedBy { get; set; }
@@ -58,6 +65,7 @@ public class LabFranchiseCreateRequestModel
     public bool IsActive { get; set; } = true;
     public bool IsNotificationRequired { get; set; } = false;
     public bool PreprintedBarcode { get; set; } = true;
+    public bool IsReportHeaderRequired { get; set; }
 
     // Credit Limit Details
     public int Credit_Facility_Type { get; set; } = 1;
@@ -90,6 +98,7 @@ public class LabFranchiseUpdateRequestModel
     public bool IsActive { get; set; }
     public bool IsNotificationRequired { get; set; }
     public bool PreprintedBarcode { get; set; }
+    public bool IsReportHeaderRequired { get; set; }
 
     // Credit Limit Details
     public int Credit_Facility_Type { get; set; }
@@ -117,5 +126,14 @@ public class LabFranchiseToggleSuspensionRequestModel
     public int Franchise_ID { get; set; }
     public bool Status { get; set; } // true = Suspended, false = Active
     public string? Suspension_Reason { get; set; }
+    public int? UserId { get; set; }
+}
+
+public class LabFranchiseCreditBypassRequestModel
+{
+    public int Franchise_ID { get; set; }
+    public bool Bypass_Credit_Limit { get; set; }
+    public DateTime? Bypass_Effective_From { get; set; }
+    public DateTime? Bypass_Effective_To { get; set; }
     public int? UserId { get; set; }
 }

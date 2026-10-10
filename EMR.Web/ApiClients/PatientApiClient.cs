@@ -29,6 +29,15 @@ public class PatientApiClient : IPatientApiClient
         return response?.Data ?? new PagedResult<PatientListItem>();
     }
 
+    public async Task<PatientStats?> GetStatsAsync(int? branchId, int? companyId = null)
+    {
+        var qs = HttpUtility.ParseQueryString(string.Empty);
+        if (companyId.HasValue && companyId.Value > 0) qs["companyId"] = companyId.ToString();
+        if (branchId.HasValue) qs["branchId"] = branchId.ToString();
+        var response = await _http.GetFromJsonAsync<ApiResponse<PatientStats>>("api/patients/stats?" + qs);
+        return response?.Data;
+    }
+
     public async Task<PatientDetail?> GetByIdAsync(int patientId, int? companyId = null)
     {
         var url = $"api/patients/{patientId}";

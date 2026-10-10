@@ -74,7 +74,19 @@ public class LabReportDispatchController(
         try
         {
             var tests = await dispatchApiClient.GetBillTestsAsync(labOrderId);
-            return Json(new { success = true, tests });
+
+            // Which PDFs the bill can print (Lab Report / Microbiology Report), and the tests of the Microbiology one.
+            List<string>? reports = null;
+            var templateSampleIds = new List<long>();
+            try
+            {
+                reports = await reportPdfService.GetPrintableReportTypesAsync(labOrderId);
+                var template = await labReportingApiClient.GetDetailAsync(labOrderId, null, LabReportTypes.Template);
+                if (template?.Items != null) templateSampleIds = template.Items.Select(i => i.SamplecollectionID).ToList();
+            }
+            catch (HttpRequestException) { /* the page falls back to the tests' own types */ }
+
+            return Json(new { success = true, tests, reports, templateSampleIds });
         }
         catch (HttpRequestException)
         {
@@ -105,8 +117,10 @@ public class LabReportDispatchController(
     /// Every copy after the first carries a DUPLICATE marker.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> PrintReportPdf(int labOrderId, string mode = "preview", string? scope = null)
+    public async Task<IActionResult> PrintReportPdf(int labOrderId, string mode = "preview", string? scope = null, string? reportingType = null)
     {
+        // Numeric = the Lab Report (default, as always); Template = the Microbiology Report
+        var reportType = LabReportTypes.Normalize(reportingType);
         if (labOrderId <= 0) return BadRequest(new { message = "Valid LabOrderId is required." });
 
         // "approved" prints only the approved tests of a partly approved bill (a clean, final-looking copy);
@@ -118,7 +132,7 @@ public class LabReportDispatchController(
 
         try
         {
-            var vm = await reportPdfService.BuildAsync(labOrderId, User, scope);
+            var vm = await reportPdfService.BuildAsync(labOrderId, User, scope, reportType);
             if (vm == null)
                 return NotFound(new { message = "Lab report details not found." });
 
@@ -153,14 +167,14 @@ public class LabReportDispatchController(
             // Recorded only once the document exists, so a failed render is never counted as a print.
             if (!isPreview)
                 await LogPrintAsync(labOrderId, LabReportPdfService.PrintedAction,
-                    $"Lab report printed from the Report Dispatch dashboard "
+                    $"{LabReportTypes.Title(reportType)} printed{LabReportTypes.Marker(reportType)} from the Report Dispatch dashboard "
                     + $"({(vm.IsDuplicate ? $"duplicate copy, print #{vm.PrintSequence}" : "original copy")}"
                     + $"{(scope == LabReportPrintBuilder.ScopeApproved ? ", approved tests only" : "")}"
                     + $"{(scope == LabReportPrintBuilder.ScopePending ? $", {LabReportPdfService.PendingCopyMarker}" : "")}).",
                     vm.PrintSequence);
 
             var safeBill = new string((vm.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
-            var fileName = $"LabReport_{safeBill}{(vm.ShowNotApprovedWatermark ? "_NOT-APPROVED" : "")}{(vm.IsDuplicate ? "_DUPLICATE" : "")}.pdf";
+            var fileName = $"{LabReportTypes.FilePrefix(reportType)}_{safeBill}{(vm.ShowNotApprovedWatermark ? "_NOT-APPROVED" : "")}{(vm.IsDuplicate ? "_DUPLICATE" : "")}.pdf";
 
             Response.Headers.CacheControl = "no-store";
             Response.Headers["X-Report-Status"] = vm.IsFinal ? "final" : "provisional";

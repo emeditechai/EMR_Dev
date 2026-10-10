@@ -201,10 +201,10 @@
             </div>
         </div>
         <div class="col-6 col-md">
-            <div class="card stat-card k-draft shadow-sm h-100" data-status="Draft">
+            <div class="card stat-card k-draft shadow-sm h-100" data-status="Draft" title="Some tests submitted and others not yet on this bill (there is no separate Save Draft step)">
                 <div class="card-body py-2 px-2.5 d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="stat-label d-block">Draft</span>
+                        <span class="stat-label d-block">In Progress</span>
                         <div class="stat-value mt-0.5" id="statDraftOrders">@Model.Stats.DraftOrders</div>
                     </div>
                     <div class="stat-icon"><i class="bi bi-pencil-square"></i></div>
@@ -327,6 +327,7 @@
             </span>
             <div class="lr-legend" id="statusLegend" role="group" aria-label="Filter rows by report status">
                 <button type="button" class="lg-item st-pending"   data-st="st-pending"   title="Show only Pending Entry rows"><span class="lg-dot"></span>Pending Entry<span class="lg-count"></span></button>
+                <button type="button" class="lg-item st-draft"     data-st="st-draft"     title="Show only In Progress rows"><span class="lg-dot"></span>In Progress<span class="lg-count"></span></button>
                 <button type="button" class="lg-item st-entered"   data-st="st-entered"   title="Show only Report Entry rows"><span class="lg-dot"></span>Report Entry<span class="lg-count"></span></button>
                 <button type="button" class="lg-item st-validated" data-st="st-validated" title="Show only Validated rows"><span class="lg-dot"></span>Validated<span class="lg-count"></span></button>
                 <button type="button" class="lg-item st-approved"  data-st="st-approved"  title="Show only Approved rows"><span class="lg-dot"></span>Approved<span class="lg-count"></span></button>
@@ -510,7 +511,7 @@
                                 : st.includes('validat')  ? 'st-validated'
                                 : st.includes('reject')   ? 'st-rejected'
                                 : st.includes('collect')  ? 'st-recollect'
-                                : st.includes('draft')    ? 'st-draft'
+                                : st.includes('draft') || st.includes('progress') ? 'st-draft'
                                 // "Pending Entry" must not fall into the "Report Entry" bucket
                                 : st.includes('pending')  ? 'st-pending'
                                 : st.includes('entry') || st.includes('entered') || st.includes('submit') ? 'st-entered'

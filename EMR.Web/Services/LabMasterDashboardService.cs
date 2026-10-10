@@ -22,7 +22,7 @@ public class LabMasterDashboardService(
         var subCategoriesTask = subCategoryApiClient.GetListAsync(companyId: companyId);
         var sampleTypesTask = sampleTypeApiClient.GetListAsync(companyId: companyId);
         var methodsTask = methodApiClient.GetListAsync(companyId: companyId);
-        var unitsTask = unitApiClient.GetListAsync(companyId: companyId);
+        var unitsTask = unitApiClient.GetListAsync();   // Unit Master is global
         var rejectionsTask = sampleRejectionApiClient.GetListAsync(companyId: companyId);
 
         await Task.WhenAll(categoriesTask, subCategoriesTask, sampleTypesTask, methodsTask, unitsTask, rejectionsTask);

@@ -87,6 +87,9 @@ public class RoleSelectionViewModel
     public string? ProfilePicturePath { get; set; }
     public bool RememberMe { get; set; }
     public List<RoleCardItem> Roles { get; set; } = new();
+
+    /// <summary>The role the user last worked in at this branch (pre-selected); null on a first sign-in.</summary>
+    public string? LastRoleName { get; set; }
 }
 
 public class RoleCardItem

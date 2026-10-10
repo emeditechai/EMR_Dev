@@ -21,8 +21,16 @@ namespace EMR.Api.Controllers
                 ? request.CreatedBy.Value
                 : (int.TryParse(userIdClaim, out var id) ? id : 1);
 
-            var response = await labOrderService.CreateOrderAsync(request, userId);
-            return Ok(new { isSuccess = true, data = response });
+            try
+            {
+                var response = await labOrderService.CreateOrderAsync(request, userId);
+                return Ok(new { isSuccess = true, data = response });
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50000 && ex.Class == 16)
+            {
+                // a rule of usp_CreateLabOrder (e.g. an item not on the branch's rate list - script 2199): tell the user why
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet("available-investigations")]

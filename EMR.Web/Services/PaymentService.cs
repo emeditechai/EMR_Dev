@@ -58,7 +58,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     ISNULL(sm.ItemName, '(Unknown)') AS ItemName,
                     ISNULL(si.ServiceCharges, 0)     AS OriginalAmount,
                     0                                AS LineDiscountAmount,
-                    ISNULL(si.ServiceCharges, 0)     AS NetLineAmount
+                    ISNULL(si.ServiceCharges, 0)     AS NetLineAmount,
+                    CAST(ISNULL(sm.IsDiscountable, 1) AS BIT) AS IsDiscountAllowed
                 FROM PatientOPDServiceItem si
                 LEFT JOIN ServiceMaster sm ON sm.ServiceId = si.ServiceId
                 WHERE si.OPDServiceId = @ModuleRefId AND si.IsActive = 1
@@ -342,6 +343,24 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 discountableSubTotal = eligibleSum ?? 0m;
             }
 
+            // ── OPD: only services marked "Is Discountable" in Service Master take a bill discount (script 2190) ──
+            // When every service of the bill is discountable nothing changes (opdLines stays null).
+            List<(int ItemId, int ServiceId, decimal Charges, bool IsDiscountable)>? opdLines = null;
+            if (request.ModuleCode == "OPD" && opdServiceIdToSave is > 0)
+            {
+                var rows = (await con.QueryAsync<(int ItemId, int ServiceId, decimal Charges, bool IsDiscountable)>(@"
+                    SELECT si.ItemId, ISNULL(si.ServiceId, 0), ISNULL(si.ServiceCharges, 0), CAST(ISNULL(sm.IsDiscountable, 1) AS BIT)
+                    FROM PatientOPDServiceItem si
+                    LEFT JOIN ServiceMaster sm ON sm.ServiceId = si.ServiceId
+                    WHERE si.OPDServiceId = @OPDServiceId AND si.IsActive = 1",
+                    new { OPDServiceId = opdServiceIdToSave.Value }, tx)).ToList();
+                if (rows.Any(r => !r.IsDiscountable))
+                {
+                    opdLines = rows;
+                    discountableSubTotal = rows.Where(r => r.IsDiscountable).Sum(r => r.Charges);
+                }
+            }
+
             // ── Concurrency-Safe Header Lookup with (UPDLOCK, HOLDLOCK) ────────────
             var existingHeader = await con.QuerySingleOrDefaultAsync(@"
                 SELECT PaymentHeaderId, ModuleCode, ModuleRefId, OPDServiceId, BranchId, PatientId,
@@ -500,8 +519,20 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 // Insert line items snapshot
                 if (request.LineItems != null && request.LineItems.Any())
                 {
-                    // Reconcile line item discounts for LAB so only eligible items receive discount
-                    if (request.ModuleCode == "LAB")
+                    // OPD: which lines may take the discount comes from Service Master, not from the page
+                    if (opdLines != null)
+                    {
+                        foreach (var li in request.LineItems)
+                        {
+                            var match = opdLines.Where(l => l.ItemId == li.ModuleLineRefId).ToList();
+                            if (match.Count == 0) match = opdLines.Where(l => l.ServiceId == li.ModuleLineRefId).ToList();
+                            if (match.Count > 0) li.IsDiscountAllowed = match[0].IsDiscountable;
+                        }
+                    }
+
+                    // Reconcile line item discounts for LAB (and OPD bills with a non-discountable service)
+                    // so only eligible items receive discount
+                    if (request.ModuleCode == "LAB" || opdLines != null)
                     {
                         var eligibleLines = request.LineItems.Where(x => x.IsDiscountAllowed).ToList();
                         if (hDiscAmt > 0 && discountableSubTotal > 0 && eligibleLines.Any())
@@ -629,27 +660,16 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             }
 
             // ── Insert PaymentDetail rows for valid payment ──────────────────────────
+            string? savedReceiptNo = null;
             if (incomingPaidTotal > 0 && request.Payments != null)
             {
-                var branchCode = await con.QuerySingleOrDefaultAsync<string>(
-                    "SELECT BranchCode FROM Branchmaster WHERE BranchId = @BranchId",
-                    new { request.BranchId }, tx) ?? "BR";
-                string financialYear = DateTime.Now.Month >= 4
-                    ? $"{DateTime.Now.Year}-{DateTime.Now.Year + 1}"
-                    : $"{DateTime.Now.Year - 1}-{DateTime.Now.Year}";
-                string datePart = DateTime.Now.ToString("ddMMyyyy");
-
-                int nextSeq = await con.QuerySingleAsync<int>(@"
-                    DECLARE @NextSeq INT;
-                    UPDATE ReceiptSequence SET @NextSeq = LastSeq = LastSeq + 1 WHERE BranchId = @BranchId AND FinancialYear = @FinancialYear;
-                    IF @NextSeq IS NULL
-                    BEGIN
-                        SET @NextSeq = 1;
-                        INSERT INTO ReceiptSequence (BranchId, FinancialYear, LastSeq) VALUES (@BranchId, @FinancialYear, @NextSeq);
-                    END
-                    SELECT @NextSeq;", new { request.BranchId, FinancialYear = financialYear }, tx);
-
-                string batchReceiptNo = $"{branchCode}{datePart}{nextSeq:D6}";
+                // Receipt number: <Branch Code><FY><8-digit serial>, e.g. HO262700000001 - one generator for every module (script 2193)
+                var receiptParams = new DynamicParameters();
+                receiptParams.Add("@BranchId", request.BranchId);
+                receiptParams.Add("@ReceiptNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
+                await con.ExecuteAsync("dbo.usp_Receipt_GetNextNo", receiptParams, tx, commandType: CommandType.StoredProcedure);
+                string batchReceiptNo = receiptParams.Get<string>("@ReceiptNo");
+                savedReceiptNo = batchReceiptNo;
 
                 foreach (var p in request.Payments)
                 {
@@ -767,7 +787,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 TotalPaid       = newTotalPaid,
                 BalanceDue      = newBalanceDue,
                 PaymentStatus   = status,
-                TokenNo         = assignedToken
+                TokenNo         = assignedToken,
+                ReceiptNo       = savedReceiptNo
             };
         }
         catch (Exception ex)

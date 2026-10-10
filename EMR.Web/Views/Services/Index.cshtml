@@ -82,6 +82,12 @@
                     </td>
                     <td class="fw-semibold">
                         <i class="bi bi-clipboard2-check text-primary me-2"></i>@item.ItemName
+                        @if (!item.IsDiscountable)
+                        {
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1 fw-semibold" title="A bill discount is not applied to this service">
+                                <i class="bi bi-slash-circle me-1"></i>No discount
+                            </span>
+                        }
                     </td>
                     <td>
                         @if (item.ServiceType == "Consulting")

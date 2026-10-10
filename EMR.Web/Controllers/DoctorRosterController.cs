@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Services;
+using EMR.Shared.Security;
 
 namespace EMR.Web.Controllers
 {
@@ -12,7 +13,8 @@ namespace EMR.Web.Controllers
     public class DoctorRosterController(
         IDoctorScheduleApiClient scheduleApiClient,
         IPatientService patientService,
-        IDoctorSpecialityService specialityService) : Controller
+        IDoctorSpecialityService specialityService,
+        IActionPermissionGuard permissionGuard) : Controller
     {
         public async Task<IActionResult> Index()
         {
@@ -29,6 +31,9 @@ namespace EMR.Web.Controllers
             // Get all active specialities from DoctorSpecialityMaster
             var specialities = await specialityService.GetActiveAsync();
             ViewBag.Specialities = specialities;
+
+            // "Mark leave / edit schedule" in the slots window opens Doctor Master > Configure Scheduler
+            ViewBag.CanConfigureScheduler = await permissionGuard.ShowsAsync(HttpContext, "MASTER.DOCTORS", "CONFIGURE_SCHEDULER");
             
             return View();
         }
@@ -96,6 +101,24 @@ namespace EMR.Web.Controllers
                 var schedules  = await scheduleApiClient.GetByDoctorAsync(doctorId, branchId, departmentId);
                 var exceptions = await scheduleApiClient.GetExceptionsAsync(doctorId, branchId, null, null, departmentId);
                 return Json(new { schedules, exceptions });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>Open bookings per doctor and day between two dates (yyyy-MM-dd), in one call for the whole view.</summary>
+        [HttpGet]
+        public async Task<IActionResult> GetBookingCounts(string from, string to)
+        {
+            var branchId = User.GetCurrentBranchId() ?? 1;
+            if (!DateOnly.TryParse(from, out var f) || !DateOnly.TryParse(to, out var t) || t < f || t.DayNumber - f.DayNumber > 400)
+                return BadRequest(new { error = "Invalid date range" });
+            try
+            {
+                var rows = await patientService.GetRosterBookingCountsAsync(branchId, f, t);
+                return Json(rows.Select(r => new { doctorId = r.DoctorId, date = r.VisitDate.ToString("yyyy-MM-dd"), count = r.Bookings }));
             }
             catch (Exception ex)
             {

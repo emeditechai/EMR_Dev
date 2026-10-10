@@ -192,8 +192,9 @@ public class OPDController(
     private sealed record OwnDoctorRow(int DoctorId, string FullName, int? PrimarySpecialityId, string? Gender);
 
     /// <summary>
-    /// The Doctor Master doctor of the signed-in user: linked by LinkedUserId, else matched once by e-mail or display
-    /// name and then linked (the rule the dashboard has always used). Null when there is none.
+    /// The Doctor Master doctor of the signed-in user: the doctor a doctor login (User_Type 'D') belongs to, else the
+    /// doctor linked to the user, else matched once by e-mail or display name and then recorded as that doctor's
+    /// login (the rule the dashboard has always used). Null when there is none.
     /// </summary>
     private async Task<OwnDoctorRow?> OwnDoctorAsync()
     {
@@ -204,13 +205,25 @@ public class OPDController(
         const string select = "SELECT TOP 1 DoctorId, ISNULL(NamePrefix + ' ', '') + FullName AS FullName, PrimarySpecialityId, Gender FROM DoctorMaster WHERE IsActive = 1 AND ";
 
         using var conn = db.CreateConnection();
-        var doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "LinkedUserId = @userId", new { userId });
+        // 1. a doctor login (Users.User_Type 'D') names its doctor
+        var doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select +
+            "DoctorId = (SELECT ReferenceUserID FROM Users WHERE Id = @userId AND User_Type = 'D')", new { userId });
+        // 2. the doctor's link to this user
+        doctor ??= await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "LinkedUserId = @userId", new { userId });
+        // 3. a general user matched once by e-mail / name to a doctor that has no login yet - then recorded as that
+        //    doctor's login (User_Type 'D') and linked
+        const string noLogin = " AND LinkedUserId IS NULL AND NOT EXISTS (SELECT 1 FROM Users x WHERE x.User_Type = 'D' AND x.ReferenceUserID = DoctorMaster.DoctorId)" +
+                               " AND EXISTS (SELECT 1 FROM Users me WHERE me.Id = @userId AND me.User_Type = 'U')";
+        var matched = false;
         if (doctor is null && !string.IsNullOrEmpty(userEmail))
-            doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "EmailId = @userEmail AND LinkedUserId IS NULL", new { userEmail });
+            matched = (doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "EmailId = @userEmail" + noLogin, new { userEmail, userId })) is not null;
         if (doctor is null && !string.IsNullOrEmpty(displayName))
-            doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "FullName = @displayName AND LinkedUserId IS NULL", new { displayName });
-        if (doctor is not null)
-            await conn.ExecuteAsync("UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId AND LinkedUserId IS NULL",
+            matched = (doctor = await conn.QueryFirstOrDefaultAsync<OwnDoctorRow>(select + "FullName = @displayName" + noLogin, new { displayName, userId })) is not null;
+        if (doctor is not null && matched)
+            await conn.ExecuteAsync(@"
+                UPDATE Users SET User_Type = 'D', ReferenceUserID = @doctorId WHERE Id = @userId AND User_Type = 'U'
+                  AND NOT EXISTS (SELECT 1 FROM Users x WHERE x.User_Type = 'D' AND x.ReferenceUserID = @doctorId);
+                UPDATE DoctorMaster SET LinkedUserId = @userId WHERE DoctorId = @doctorId AND LinkedUserId IS NULL;",
                 new { userId, doctorId = doctor.DoctorId });
         if (doctor is not null) HttpContext.Items["OwnDoctor"] = doctor;
         return doctor;
@@ -256,15 +269,21 @@ public class OPDController(
                     CreatedDate          = p.CreatedDate,
                     IsActive             = p.IsActive,
                     ConsultingDoctorName = p.ConsultingDoctorName,
+                    Address              = p.Address,
                     TotalCount           = apiResult.TotalCount
                 }).ToList(),
                 TotalCount = apiResult.TotalCount,
                 Page       = page,
                 PageSize   = pageSize,
-                Search     = search?.Trim()
+                Search     = search?.Trim(),
+                BranchName = User.FindFirstValue("BranchName")
             };
 
-            ViewData["Title"] = "Patient List";
+            // Summary cards: never block the list
+            try { paged.Stats = await patientApiClient.GetStatsAsync(branchId, User.GetCompanyId()); }
+            catch (Exception) { paged.Stats = null; }
+
+            ViewData["Title"] = "Patient Master";
             return View(paged);
         }
         catch (HttpRequestException)
@@ -284,6 +303,11 @@ public class OPDController(
             && !await permissionGuard.AllowsAsync(HttpContext, "OPD.DOCTORROSTER", "BOOK_SLOT"))
             return RedirectToAction("AccessDenied", "Account",
                 new { returnUrl = Request.Path + Request.QueryString, page = "OPD.DOCTORROSTER", control = "BOOK_SLOT" });
+
+        // Editing an existing patient's details is Patient Master's own action (Settings > Security: Patient Master > Edit patient, script 2208).
+        if (id.HasValue && !await permissionGuard.AllowsAsync(HttpContext, "MASTER.OPD", "EDIT"))
+            return RedirectToAction("AccessDenied", "Account",
+                new { returnUrl = Request.Path + Request.QueryString, page = "MASTER.OPD", control = "EDIT" });
 
         ViewData["Title"] = id.HasValue ? "Edit Patient" : "Patient Registration";
         PatientRegistrationViewModel model;
@@ -324,6 +348,12 @@ public class OPDController(
     public async Task<IActionResult> PatientRegistration(PatientRegistrationViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile)
     {
         Console.WriteLine($"[DEBUG] PatientRegistration POST: model.PatientId={model.PatientId}, model.PhoneNumber={model.PhoneNumber}, model.RelationId={model.RelationId}");
+
+        // Saving an existing patient's details (the Edit screen opened from Patient Master) needs Patient Master > Edit patient (script 2208).
+        if (model.DemographicsOnly && model.PatientId > 0 && !await permissionGuard.AllowsAsync(HttpContext, "MASTER.OPD", "EDIT"))
+            return RedirectToAction("AccessDenied", "Account",
+                new { returnUrl = Url.Action(nameof(PatientRegistration), new { id = model.PatientId }), page = "MASTER.OPD", control = "EDIT" });
+
         var branchId = User.GetCurrentBranchId();
         if (branchId is null)
         {
@@ -1068,7 +1098,43 @@ public class OPDController(
             .Where(item => !videoOpdIds.Contains(item.OPDServiceId))
             .ToList();
 
-        return Json(new { isSuccess = true, data = new { result.TotalCount, result.TotalFeesAll, result.RegisteredCount, result.CompletedCount, Items = filtered } });
+        // ── Time line of each token (OPDTokenStatusLog, script 2191): issued, called in, completed ─────────
+        var timing = new Dictionary<int, object>();
+        var ids = filtered.Select(i => i.OPDServiceId).Distinct().ToArray();
+        if (ids.Length > 0)
+        {
+            try
+            {
+                using var con = db.CreateConnection();
+                var rows = await con.QueryAsync(@"
+                    SELECT s.OPDServiceId, s.Status, s.VisitDate, s.AppointmentTime, s.CreatedDate,
+                           (SELECT MIN(l.ChangedAt) FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.EventType = 'TOKEN') AS IssuedAt,
+                           (SELECT MAX(l.ChangedAt) FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.EventType = 'STATUS' AND l.ToStatus = 'Consulting') AS ConsultingAt,
+                           (SELECT MAX(l.ChangedAt) FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.EventType = 'STATUS' AND l.ToStatus = 'Completed') AS CompletedAt,
+                           CAST(CASE WHEN EXISTS (SELECT 1 FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.Source = 'BACKFILL')
+                                      AND NOT EXISTS (SELECT 1 FROM OPDTokenStatusLog l WHERE l.OPDServiceId = s.OPDServiceId AND l.Source = 'LIVE' AND l.EventType = 'STATUS' AND l.FromStatus IS NOT NULL)
+                                     THEN 1 ELSE 0 END AS BIT) AS Approximate
+                    FROM PatientOPDService s
+                    WHERE s.OPDServiceId IN @ids", new { ids });
+                foreach (var r in rows)
+                {
+                    DateTime? slot = r.AppointmentTime is TimeSpan t && r.VisitDate is DateTime vd ? vd.Date + t : null;
+                    timing[(int)r.OPDServiceId] = new
+                    {
+                        issuedAt = (DateTime?)r.IssuedAt ?? (DateTime?)r.CreatedDate,
+                        slotAt = slot,
+                        consultingAt = (DateTime?)r.ConsultingAt,
+                        completedAt = (DateTime?)r.CompletedAt,
+                        approximate = (bool)r.Approximate
+                    };
+                }
+            }
+            catch { /* the board still works without timers */ }
+        }
+
+        // serverNow carries no offset, like the stamps above, so the browser reads them all the same way
+        return Json(new { isSuccess = true, serverNow = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified), timing,
+                          data = new { result.TotalCount, result.TotalFeesAll, result.RegisteredCount, result.CompletedCount, Items = filtered } });
     }
 
     [HttpPost]
@@ -1757,8 +1823,10 @@ public class OPDController(
     {
         if (string.IsNullOrWhiteSpace(type)) return Json(Array.Empty<object>());
         var branchId = User.GetCurrentBranchId();
-        var services = await patientService.GetServicesByTypeAsync(type, branchId);
-        return Json(services.Select(s => new { s.ServiceId, s.ItemName, s.ItemCharges, s.IsRegistration }));
+        var services = (await patientService.GetServicesByTypeAsync(type, branchId)).ToList();
+        var discountable = await patientService.GetServiceDiscountableMapAsync(services.Select(s => s.ServiceId));
+        return Json(services.Select(s => new { s.ServiceId, s.ItemName, s.ItemCharges, s.IsRegistration,
+                                                IsDiscountable = discountable.GetValueOrDefault(s.ServiceId, true) }));
     }
 
     [HttpGet]
@@ -1804,8 +1872,10 @@ public class OPDController(
     {
         if (doctorId <= 0) return Json(Array.Empty<object>());
         var branchId = User.GetCurrentBranchId() ?? 0;
-        var fees = await consultingFeeService.GetByDoctorAsync(doctorId, branchId);
-        return Json(fees.Select(f => new { ServiceId = f.ServiceId, ItemName = f.ItemName, ItemCharges = f.ItemCharges }));
+        var fees = (await consultingFeeService.GetByDoctorAsync(doctorId, branchId)).ToList();
+        var discountable = await patientService.GetServiceDiscountableMapAsync(fees.Select(f => f.ServiceId));
+        return Json(fees.Select(f => new { ServiceId = f.ServiceId, ItemName = f.ItemName, ItemCharges = f.ItemCharges,
+                                           IsDiscountable = discountable.GetValueOrDefault(f.ServiceId, true) }));
     }
 
     [HttpGet]
@@ -1906,6 +1976,9 @@ public class OPDController(
             ViewBag.Settings   = settings;
             ViewBag.BranchName = branch?.BranchName ?? string.Empty;
             ViewBag.Payment    = payment;
+            // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Bill Print Header = No prints this in-app
+            // OPD bill without header / footer. PrintBillAnonymous (the email / WhatsApp link) is not touched.
+            ViewBag.ShowHeaderFooter = settings?.LabB2CBillPrintHeaderRequired ?? true;
             return View(detail);
         }
         catch (HttpRequestException)

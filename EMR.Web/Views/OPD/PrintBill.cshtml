@@ -5,6 +5,8 @@
     var settings   = ViewBag.Settings   as EMR.Web.Models.Entities.HospitalSettings;
     var branchName = ViewBag.BranchName as string;
     var payment    = ViewBag.Payment    as BillPaymentSummary;
+    // false only for the in-app print when Required B2C Bill Print Header = No (SQLScripts/2206); the email / WhatsApp link keeps them
+    var showHeaderFooter = ViewBag.ShowHeaderFooter as bool? ?? true;
 
     var hospName    = settings?.HospitalName  ?? branchName ?? "Hospital";
     var hospAddress = settings?.Address       ?? string.Empty;
@@ -296,6 +298,13 @@
     <div class="bill-sheet">
 
         @* ── Hospital Header ── *@
+        @if (!showHeaderFooter)
+        {
+            @* blank space for pre-printed letterhead *@
+            <div style="height: 30mm;"></div>
+        }
+        else
+        {
         <div class="bill-header">
             @if (!string.IsNullOrWhiteSpace(hospLogo))
             {
@@ -331,6 +340,7 @@
                 </div>
             </div>
         </div>
+        }
 
         @* ── Bill Title Strip ── *@
         <div class="bill-title-strip">
@@ -617,11 +627,14 @@
         </div>
 
         @* ── Bill Footer ── *@
+        @if (showHeaderFooter)
+        {
         <div class="bill-footer">
             <span>Generated: @Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt") @(string.IsNullOrWhiteSpace(Model.CreatedByUser) ? "" : $"| Created By: {Model.CreatedByUser}")</span>
             <span>Powered by EMR System</span>
             <span>@hospName</span>
         </div>
+        }
 
     </div><!-- end bill-sheet -->
 

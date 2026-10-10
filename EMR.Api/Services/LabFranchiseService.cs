@@ -57,6 +57,7 @@ public class LabFranchiseService(IDbConnectionFactory connectionFactory) : ILabF
         parameters.Add("@IsActive", request.IsActive);
         parameters.Add("@IsNotificationRequired", request.IsNotificationRequired);
         parameters.Add("@PreprintedBarcode", request.PreprintedBarcode);
+        parameters.Add("@IsReportHeaderRequired", request.IsReportHeaderRequired);
         parameters.Add("@Credit_Facility_Type", request.Credit_Facility_Type);
         parameters.Add("@Credit_Limit", request.Credit_Limit);
         parameters.Add("@Credit_Days", request.Credit_Days);
@@ -97,6 +98,7 @@ public class LabFranchiseService(IDbConnectionFactory connectionFactory) : ILabF
         parameters.Add("@IsActive", request.IsActive);
         parameters.Add("@IsNotificationRequired", request.IsNotificationRequired);
         parameters.Add("@PreprintedBarcode", request.PreprintedBarcode);
+        parameters.Add("@IsReportHeaderRequired", request.IsReportHeaderRequired);
         parameters.Add("@Credit_Facility_Type", request.Credit_Facility_Type);
         parameters.Add("@Credit_Limit", request.Credit_Limit);
         parameters.Add("@Credit_Days", request.Credit_Days);
@@ -141,6 +143,23 @@ public class LabFranchiseService(IDbConnectionFactory connectionFactory) : ILabF
 
         await connection.ExecuteAsync(
             "dbo.usp_Api_LabFranchiseMaster_ToggleSuspension",
+            parameters,
+            commandType: CommandType.StoredProcedure
+        );
+    }
+
+    public async Task UpdateCreditBypassAsync(LabFranchiseCreditBypassRequestModel request)
+    {
+        using var connection = connectionFactory.CreateConnection();
+        var parameters = new DynamicParameters();
+        parameters.Add("@Franchise_ID", request.Franchise_ID);
+        parameters.Add("@Bypass_Credit_Limit", request.Bypass_Credit_Limit);
+        parameters.Add("@Bypass_Effective_From", request.Bypass_Effective_From?.Date);
+        parameters.Add("@Bypass_Effective_To", request.Bypass_Effective_To?.Date);
+        parameters.Add("@UserId", request.UserId);
+
+        await connection.ExecuteAsync(
+            "dbo.usp_Api_LabFranchiseMaster_UpdateCreditBypass",
             parameters,
             commandType: CommandType.StoredProcedure
         );

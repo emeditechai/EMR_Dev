@@ -7,6 +7,14 @@ namespace EMR.Web.Models.ViewModels;
 public class UserListItemViewModel
 {
     public int Id { get; set; }
+
+    /// <summary>Users.User_Type ('U' general, 'D' doctor, 'F' franchise, 'C' company) and the record a login belongs to.</summary>
+    public string UserType { get; set; } = "U";
+    public int? ReferenceUserId { get; set; }
+    /// <summary>Name of the record the login belongs to (e.g. the doctor), for a login created from another master.</summary>
+    public string? ReferenceName { get; set; }
+    /// <summary>A login created from another master: its name, e-mail, phone, username and status are maintained there.</summary>
+    public bool IsLinkedLogin => UserType != "U" && ReferenceUserId.HasValue;
     public string Username { get; set; } = string.Empty;
     public string EmployeeCode { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
@@ -27,6 +35,14 @@ public class UserListItemViewModel
 public class UserFormViewModel
 {
     public int Id { get; set; }
+
+    /// <summary>Users.User_Type ('U' general, 'D' doctor, 'F' franchise, 'C' company) and the record a login belongs to.</summary>
+    public string UserType { get; set; } = "U";
+    public int? ReferenceUserId { get; set; }
+    /// <summary>Name of the record the login belongs to (e.g. the doctor), for a login created from another master.</summary>
+    public string? ReferenceName { get; set; }
+    /// <summary>A login created from another master: its name, e-mail, phone, username and status are maintained there.</summary>
+    public bool IsLinkedLogin => UserType != "U" && ReferenceUserId.HasValue;
 
     [MaxLength(50)]
     [Display(Name = "Employee Code")]
@@ -203,6 +219,14 @@ public class RoleItem
 public class UserDetailsViewModel
 {
     public int Id { get; set; }
+
+    /// <summary>Users.User_Type ('U' general, 'D' doctor, 'F' franchise, 'C' company) and the record a login belongs to.</summary>
+    public string UserType { get; set; } = "U";
+    public int? ReferenceUserId { get; set; }
+    /// <summary>Name of the record the login belongs to (e.g. the doctor), for a login created from another master.</summary>
+    public string? ReferenceName { get; set; }
+    /// <summary>A login created from another master: its name, e-mail, phone, username and status are maintained there.</summary>
+    public bool IsLinkedLogin => UserType != "U" && ReferenceUserId.HasValue;
     public string Username { get; set; } = string.Empty;
     public string EmployeeCode { get; set; } = string.Empty;
     public string? Email { get; set; }
@@ -256,3 +280,6 @@ public class BranchRoleDetailItem
     public string? EmployeeCode { get; set; }
     public List<string> Roles { get; set; } = new();
 }
+
+/// <summary>Views/Users/_UserTypeBadge: the user type and the record a login belongs to.</summary>
+public record UserTypeBadgeModel(string UserType, int? ReferenceUserId, string? ReferenceName);

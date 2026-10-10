@@ -1,0 +1,67 @@
+@{
+    ViewData["Title"] = "Sample Transfer Register";
+    ViewData["ReportSubtitle"] = "samples sent to or received from other branches, and what is still in transit";
+    ViewData["ReportIcon"] = "bi-arrow-left-right";
+    ViewData["ReportAccent"] = "#1d4ed8";
+    ViewData["DateLabel"] = "transfer date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dash = '<span class="text-muted">—</span>';
+    const STATUS = { TRANSIT: ['In transit', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'], RECEIVED: ['Received', 'bg-success-subtle text-success border-success-subtle'] };
+    const DIRECTION = { SENT: ['Sent from here', 'bg-primary-subtle text-primary border-primary-subtle'], RECEIVED: ['Sent here', 'bg-info-subtle text-info-emphasis border-info-subtle'] };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hours = (v) => { if (v === null || v === undefined) return dash; const n = Number(v); return n >= 48 ? `${Math.floor(n / 24)} d ${Math.round(n % 24)} h` : `${n.toFixed(1)} h`; };
+    LabReport.init({
+        report: 'sample-transfer', title: 'Sample Transfer Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient, barcode or test...',
+        filters: [
+            { id: 'direction', label: 'Direction', allLabel: 'Sent & received', options: Object.keys(DIRECTION).map(k => [k, DIRECTION[k][0]]) },
+            { id: 'transferStatus', label: 'Status', allLabel: 'In transit & received', options: Object.keys(STATUS).map(k => [k, STATUS[k][0]]) },
+            { id: 'otherBranchId', label: 'Other branch', allLabel: 'All branches', fromOptions: 'otherBranchId' }
+        ],
+        kpis: [
+            { label: 'Samples transferred', color: '#1d4ed8', value: (s, h) => h.num(s.SampleCount), sub: (s, h) => `${h.num(s.TestCount)} test(s)` },
+            { label: 'Sent from here', color: '#4338ca', value: (s, h) => h.num(s.SentSamples) },
+            { label: 'Sent here', color: '#0891b2', value: (s, h) => h.num(s.IncomingSamples), sub: (s, h) => s.AwaitingReceiptHere ? `${h.num(s.AwaitingReceiptHere)} to receive here` : 'all received' },
+            { label: 'In transit now', color: '#b45309', value: (s, h) => h.num(s.InTransit), sub: (s) => s.LongestInTransitHours ? `longest ${hours(s.LongestInTransitHours)}` : '' },
+            { label: 'Avg transit time', color: '#15803d', value: (s) => hours(s.AvgTransitHours), sub: () => 'sent to received' }
+        ],
+        groups: [
+            { key: 'byBranchPair', label: 'From → to', rowField: 'BranchPair' },
+            { key: 'byStatus', label: 'Status', rowField: 'TransferStatus', name: (r, h) => pillOf(STATUS, r.GroupName, h) },
+            { key: 'byDirection', label: 'Direction', rowField: 'Direction', name: (r, h) => pillOf(DIRECTION, r.GroupName, h) },
+            { key: 'byDate', label: 'Transfer date', rowField: 'SentDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'SampleCount', label: 'Samples', num: true }, { field: 'TestCount', label: 'Tests', num: true },
+            { field: 'InTransit', label: 'In transit', num: true },
+            { field: 'AvgTransitHours', label: 'Avg transit', num: true, total: 'none', fmt: v => hours(v) },
+            { field: 'LongestHours', label: 'Longest', num: true, total: 'max', fmt: v => hours(v) }
+        ],
+        shareOf: 'SampleCount',
+        rowClass: r => r.TransferStatus === 'TRANSIT' ? 'row-muted' : '',
+        cols: [
+            { label: 'Sent', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.SentOn), text: (r, h) => h.fmtDT(r.SentOn) },
+            { label: 'From → to', html: (r, h) => `<div class="fw-semibold">${h.esc(r.FromBranch || '')} <i class="bi bi-arrow-right"></i> ${h.esc(r.ToBranch || '')}</div><div>${pillOf(DIRECTION, r.Direction, h)}</div>`, text: r => r.BranchPair },
+            { label: 'Barcode / Bill', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BarcodeNo || '—')}</div><div class="text-muted fs-9 font-monospace">${h.esc(r.BillNo)}</div>`, text: r => `${r.BarcodeNo || ''} / ${r.BillNo}` },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test / sample', html: (r, h) => `<div>${h.esc(r.TestNames)}</div><div class="text-muted fs-9">${h.esc(r.SampleType)}${r.TestRows > 1 ? ' · ' + h.num(r.TestRows) + ' parameters' : ''}</div>`, text: r => r.TestNames },
+            { label: 'Sent by', html: (r, h) => `${h.esc(r.SentBy || '')}${r.TransferRemarks ? `<div class="text-muted fs-9">${h.esc(r.TransferRemarks)}</div>` : ''}`, text: r => r.SentBy || '' },
+            { label: 'Received', cls: 'text-nowrap', html: (r, h) => r.ReceivedOn ? `${h.fmtDT(r.ReceivedOn)}<div class="text-muted fs-9">${h.esc(r.ReceivedBy || '')}</div>` : pillOf(STATUS, 'TRANSIT', h), text: (r, h) => r.ReceivedOn ? `${h.fmtDT(r.ReceivedOn)} (${r.ReceivedBy || ''})` : 'In transit' },
+            { label: 'In transit', cls: 'text-nowrap', html: (r) => `<span class="${r.TransferStatus === 'TRANSIT' ? 'fw-bold text-warning-emphasis' : ''}">${hours(r.TransitHours)}</span>`, text: r => r.TransitHours }
+        ]
+    });
+})();
+</script>
+}

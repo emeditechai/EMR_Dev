@@ -22,6 +22,18 @@ namespace EMR.Web.ApiClients
             if (!response.IsSuccessStatusCode)
             {
                 var errContent = await response.Content.ReadAsStringAsync();
+                // a billing rule refused the order (e.g. a test not on the branch's rate list): pass its message on as it is
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(errContent);
+                        if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                            && doc.RootElement.TryGetProperty("message", out var msg) && msg.GetString() is { Length: > 0 } text)
+                            throw new InvalidOperationException(text);
+                    }
+                    catch (System.Text.Json.JsonException) { /* not a rule message */ }
+                }
                 throw new HttpRequestException($"API error ({(int)response.StatusCode} {response.ReasonPhrase}): {errContent}");
             }
 

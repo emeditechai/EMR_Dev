@@ -27,6 +27,14 @@
     static bool IsImageTest(EMR.Web.Models.DTOs.PathologistTestDto x) =>
         string.Equals(x.ReportingType?.Trim(), "Image", StringComparison.OrdinalIgnoreCase);
     var imageOnly = Model.Tests.Count > 0 && Model.Tests.All(IsImageTest);
+
+    // Microbiology (Reporting Type Template) tests are corrected and printed on Microbiology Report Entry.
+    var templateIds = ViewData["TemplateSampleIds"] as HashSet<long> ?? new HashSet<long>();
+    var templateOnly = Model.Tests.Count > 0 && Model.Tests.All(t => templateIds.Contains(t.SamplecollectionID));
+    var hasTemplate = Model.Tests.Any(t => templateIds.Contains(t.SamplecollectionID));
+    var entryController = templateOnly ? "MicrobiologyReporting" : "LabReporting";
+    var entryTitle = templateOnly ? "Microbiology Report Entry" : "Lab Reporting Entry";
+    if (templateOnly) { ViewData["ReportPrintController"] = "MicrobiologyReporting"; }
 }
 
 @section HeadStyles {
@@ -91,13 +99,23 @@
             @if (!imageOnly)
             {
             @* A pathologist who needs to correct a value opens the same bill on the Report Entry screen. *@
-            <a asp-controller="LabReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
+            <a asp-controller="@entryController" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
                target="_blank" rel="noopener"
                class="btn btn-outline-primary btn-sm fs-8"
-               title="Open this bill on the Lab Reporting Entry screen to correct a result (opens in a new tab)">
+               title="Open this bill on the @entryTitle screen to correct a result (opens in a new tab)">
                 <i class="bi bi-pencil-square me-1"></i>Open Report Entry
                 <i class="bi bi-box-arrow-up-right ms-1 fs-9 opacity-75"></i>
             </a>
+            @if (hasTemplate && !templateOnly)
+            {
+                <a asp-controller="MicrobiologyReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
+                   target="_blank" rel="noopener"
+                   class="btn btn-outline-primary btn-sm fs-8"
+                   title="Open the microbiology tests of this bill on Microbiology Report Entry (opens in a new tab)">
+                    <i class="bi bi-virus me-1"></i>Open Microbiology Entry
+                    <i class="bi bi-box-arrow-up-right ms-1 fs-9 opacity-75"></i>
+                </a>
+            }
             }
             @if (showPrint && imageOnly)
             {
@@ -225,9 +243,9 @@
                 }
                 else
                 {
-                    <a asp-controller="LabReporting" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
+                    <a asp-controller="@entryController" asp-action="Entry" asp-encrypted-qs="labOrderId=@b.LabOrderId"
                        target="_blank" rel="noopener" class="ms-2 text-decoration-none fw-normal"
-                       style="letter-spacing:0;text-transform:none;" title="Correct a result on the Lab Reporting Entry screen (opens in a new tab)">
+                       style="letter-spacing:0;text-transform:none;" title="Correct a result on the @entryTitle screen (opens in a new tab)">
                         <i class="bi bi-pencil-square me-1"></i>Need to correct a value?
                     </a>
                 }
@@ -501,6 +519,7 @@
 @section Scripts {
     <partial name="_LabAuditHistoryScripts" />
     <partial name="_LabReportPrintScripts" />
+    <partial name="_CriticalCommunicationModal" />
     <script>
         $(function () {
             const url = '@Url.Action("ApproveJson", "PathologistDashboard")';
@@ -543,6 +562,12 @@
             $('#btnSign').on('click', async function () {
                 const ids = selected();
                 if (!ids.length) return;
+
+                // NABL: a Critical / Panic result at its final level needs its communication recorded first (SQLScripts/2202)
+                if (window.CriticalComm) {
+                    const commOk = await CriticalComm.ensure({ labOrderId: labOrderId, sampleIds: ids, context: 'SIGNOFF' });
+                    if (!commOk) return;
+                }
                 const names = $('.chk-test:checked').map(function () {
                     return $(this).closest('tr').find('td:nth-child(2) .fw-semibold').text().trim();
                 }).get();

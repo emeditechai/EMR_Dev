@@ -13,4 +13,7 @@ public class LabDashboardViewModel
     /// <summary>ALL | B2C | B2B - the client filter that drives every figure on the dashboard.</summary>
     public string ClientType { get; set; } = "ALL";
     public LabDashboardData Data { get; set; } = new();
+
+    /// <summary>The client tabs the user may use (ALL / B2C / B2B), in display order - Role Permissions, LAB.LABDASHBOARD CLIENT_*.</summary>
+    public List<string> AllowedClientTypes { get; set; } = new() { "ALL", "B2C", "B2B" };
 }

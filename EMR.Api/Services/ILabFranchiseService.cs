@@ -10,5 +10,6 @@ public interface ILabFranchiseService
     Task UpdateAsync(LabFranchiseUpdateRequestModel request);
     Task ToggleStatusAsync(LabFranchiseToggleStatusRequestModel request);
     Task ToggleSuspensionAsync(LabFranchiseToggleSuspensionRequestModel request);
+    Task UpdateCreditBypassAsync(LabFranchiseCreditBypassRequestModel request);
     Task DeleteAsync(int id, int? userId = null);
 }

@@ -1,0 +1,173 @@
+@*
+    Microbiology Report Entry (Reporting Type Template): behaviour of the Select (picklist) and narrative rows on the shared
+    Lab Report Entry page. Loaded after the page script, and only on that screen.
+
+    Every row keeps its value in the hidden .txt-test-val the page already works with (counts, Submit / Validate / Approve,
+    edit unlock, re-collect / reject). The visible control - a picklist or a Quill editor - follows that input: when the page
+    locks it (readonly), unlocks it, or disables it (sample re-collect / rejected), the control is locked, unlocked or cleared.
+*@
+<style>
+    .narrative-box { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: .45rem .5rem .5rem; }
+    .narrative-head { margin-bottom: .35rem; }
+    .narrative-box .ql-toolbar.ql-snow { border-radius: 6px 6px 0 0; padding: 3px 6px; border-color: #dbe3ec; }
+    .narrative-box .ql-container.ql-snow { border-radius: 0 0 6px 6px; border-color: #dbe3ec; font-size: .82rem; }
+    .narrative-box .ql-editor { min-height: 120px; max-height: 340px; overflow-y: auto; }
+    .narrative-box.is-locked .ql-toolbar { display: none; }
+    .narrative-box.is-locked .ql-container.ql-snow { border-top: 1px solid #dbe3ec; border-radius: 6px; background: #f8fafc; }
+    .picklist-select { min-width: 150px; }
+    .picklist-select.is-abnormal { border-color: #dc3545; color: #b02a37; font-weight: 600; background-color: #fff5f5; }
+    .picklist-select.is-normal { border-color: #86c5a4; }
+    .pick-normal-hint { white-space: normal; line-height: 1.25; }
+</style>
+<script>
+    (function () {
+        const editors = new Map();   // samplecollection id -> Quill
+
+        function rowById(id) { return $('.test-item-row[data-samplecollection-id="' + id + '"]'); }
+
+        // Hooks the page's save calls: the narrative text goes with the row, and is the new baseline once saved.
+        window.labEntryHooks = {
+            templateHtml: function ($row) {
+                const q = editors.get(String($row.data('samplecollection-id')));
+                return q ? q.root.innerHTML : null;
+            },
+            onSaved: function (id) {
+                const q = editors.get(String(id));
+                if (!q) return;
+                const $row = rowById(id);
+                $row.attr('data-initial-html', q.root.innerHTML).removeAttr('data-html-dirty');
+            }
+        };
+
+        // Runs fn whenever the page locks / unlocks / disables the hidden value input.
+        function watchLock(input, fn) {
+            new MutationObserver(fn).observe(input, { attributes: true, attributeFilter: ['readonly', 'disabled'] });
+        }
+
+        // ── Select (picklist): flag from the chosen option's Is_Abnormal ─────────────
+        function applyPickFlag($row) {
+            const $h = $row.find('.txt-test-val.is-picklist');
+            const $sel = $row.find('.picklist-select');
+            const val = $h.val() || '';
+            const abnormal = val.length > 0 && $sel.find('option:selected').attr('data-abnormal') === '1';
+            const flag = val.length === 0 ? '' : (abnormal ? 'Abnormal' : 'Normal');
+            $row.find('.flag-badge')
+                .attr('class', 'badge flag-badge ' + (flag === '' ? 'flag-none' : (abnormal ? 'flag-h' : 'flag-normal')) + ' fs-8 px-2 py-1')
+                .text(flag === '' ? '—' : flag);
+            $row.attr('data-current-flag', flag);
+            $sel.toggleClass('is-abnormal', abnormal).toggleClass('is-normal', val.length > 0 && !abnormal);
+        }
+
+        function initPicklist($row) {
+            const $h = $row.find('.txt-test-val.is-picklist');
+            const $sel = $row.find('.picklist-select');
+
+            watchLock($h[0], function () {
+                const off = $h.prop('disabled') || $h.prop('readonly');
+                if ($h.prop('disabled')) $sel.val('');
+                else $sel.val($h.val() || '');
+                $sel.prop('disabled', off).toggleClass('bg-light text-dark', off);
+                applyPickFlag($row);
+            });
+
+            $sel.on('change', function () {
+                $h.val($sel.val() || '').trigger('change');
+            });
+
+            // A parameter not reported yet starts on its default answer (Lab Parameter Option Master > Is Default).
+            const def = $h.attr('data-default-pick') || '';
+            if (!$h.val() && def && !$h.prop('disabled') && !$h.prop('readonly')) {
+                $sel.val(def);
+                if ($sel.val() === def) $h.val(def).trigger('change');
+            }
+            applyPickFlag($row);
+        }
+
+        // ── Narrative (Descriptive / Image / other types): Quill editor ──────────────
+        function initNarrative($row) {
+            const id = String($row.data('samplecollection-id'));
+            const $h = $row.find('.txt-test-val.is-narrative');
+            const $box = $row.find('.narrative-box');
+            const defaultHtml = $box.find('.narrative-default').val() || '';
+
+            const q = new Quill($box.find('.narrative-editor')[0], {
+                theme: 'snow',
+                placeholder: 'Write the report…',
+                modules: { toolbar: [[{ header: [false, 3, 4] }], ['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['clean']] }
+            });
+            const startHtml = $box.find('.narrative-start').val() || '';
+            if (startHtml) q.clipboard.dangerouslyPasteHTML(startHtml, 'silent');
+            editors.set(id, q);
+            $row.attr('data-initial-html', q.root.innerHTML);
+
+            let wasDisabled = $h.prop('disabled');
+            function applyLock() {
+                const disabled = $h.prop('disabled');
+                const locked = disabled || $h.prop('readonly');
+                if (disabled) {
+                    q.setText('', 'silent');                      // re-collect / rejected: the result was cleared
+                } else if (wasDisabled && q.getText().trim().length === 0 && defaultHtml) {
+                    q.clipboard.dangerouslyPasteHTML(defaultHtml, 'silent');   // back to Collected: start from the template
+                    $row.attr('data-initial-html', '');
+                }
+                wasDisabled = disabled;
+                q.enable(!locked);
+                $box.toggleClass('is-locked', locked);
+                $box.find('.btn-narrative-reset').toggleClass('d-none', locked || !defaultHtml);
+            }
+            watchLock($h[0], applyLock);
+            applyLock();
+
+            q.on('text-change', function (delta, old, source) {
+                if (source !== 'user') return;
+                const html = q.root.innerHTML;
+                if (html !== $row.attr('data-initial-html')) $row.attr('data-html-dirty', '1');
+                else $row.removeAttr('data-html-dirty');
+                $h.val(q.getText().trim().length ? 'Report Entered' : '').trigger('change');
+            });
+
+            $box.find('.btn-narrative-reset').on('click', function () {
+                Swal.fire({
+                    title: 'Reset to template?',
+                    text: 'The text written for this test is replaced with its template.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, reset'
+                }).then(function (r) {
+                    if (!r.isConfirmed) return;
+                    q.setContents([], 'silent');
+                    q.clipboard.dangerouslyPasteHTML(defaultHtml, 'user');
+                });
+            });
+
+            // A template-filled, not yet reported narrative counts as entered (like a picklist default), to Submit as is or edit.
+            if (!$h.val() && !$h.prop('disabled') && !$h.prop('readonly') && q.getText().trim().length) {
+                $h.val('Report Entered').trigger('change');
+            }
+        }
+
+        $(function () {
+            $('.test-item-row').each(function () {
+                const $row = $(this);
+                if ($row.find('.txt-test-val.is-picklist').length) initPicklist($row);
+                else if ($row.find('.txt-test-val.is-narrative').length) initNarrative($row);
+            });
+
+            // Registered after the page's own handler, so the picklist flag replaces the numeric evaluation.
+            $(document).on('input change', '.txt-test-val.is-picklist', function () {
+                applyPickFlag($(this).closest('.test-item-row'));
+            });
+
+            // An edited narrative of a submitted / validated row is "Modified (Unsaved)" (its marker value does not change).
+            $(document).on('input change', '.txt-test-val.is-narrative', function () {
+                const $row = $(this).closest('.test-item-row');
+                const statusId = parseInt($row.attr('data-report-status-id')) || 0;
+                if (statusId >= 2 && $row.attr('data-html-dirty') === '1') {
+                    $row.find('.row-status-badge')
+                        .attr('class', 'badge fs-9 row-status-badge bg-warning-subtle text-warning-emphasis border border-warning-subtle')
+                        .text('Modified (Unsaved)');
+                }
+            });
+        });
+    })();
+</script>

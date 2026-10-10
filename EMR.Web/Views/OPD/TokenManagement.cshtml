@@ -128,6 +128,29 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.08);
         }
+        /* Status timers: time in the current state, live; amber / red when it runs long */
+        .tk-timer { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 700;
+                    font-variant-numeric: tabular-nums; border-radius: 999px; padding: 3px 9px; border: 1px solid #e2e8f0;
+                    background: #f8fafc; color: #334155; white-space: nowrap; }
+        .tk-timer.tk-wait    { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .tk-timer.tk-consult { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+        .tk-timer.tk-done    { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+        .tk-timer.tk-due     { background: #f1f5f9; border-color: #e2e8f0; color: #475569; font-weight: 600; }
+        .tk-timer.tk-warn    { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+        .tk-timer.tk-alert   { background: #fee2e2; border-color: #ef4444; color: #b91c1c; animation: tkPulse 1.6s ease-in-out infinite; }
+        @@keyframes tkPulse { 50% { box-shadow: 0 0 0 4px rgba(239,68,68,.15); } }
+        .tk-meta { font-size: 0.72rem; color: #64748b; margin-top: 4px; }
+        .tk-meta b { color: #334155; font-weight: 600; }
+
+        /* Drag and drop: a card moves only where its button would take it (Waiting -> Consulting -> Completed) */
+        .token-card[draggable="true"] { cursor: grab; }
+        .token-card[draggable="true"]:active { cursor: grabbing; }
+        .token-card.dragging { opacity: 0.45; transform: none; }
+        .token-card .drag-grip { color: #adb5bd; font-size: 0.9rem; margin-left: 0.35rem; }
+        .board-col { transition: background-color .12s ease, opacity .12s ease; }
+        .board-col.drop-ok { outline: 2px dashed #0d6efd; outline-offset: -6px; background: #eef4ff; }
+        .board-col.drop-over { background: #dbe7ff; }
+        .board-col.drop-no { opacity: 0.5; }
         .token-card.has-due {
             border: 1.5px solid #ffc107;
             background: #fffdf0;
@@ -176,6 +199,11 @@
 
     <script>
         let allTodayTokens = [];
+        let tokenTiming = {};   // OPDServiceId -> { issuedAt, slotAt, consultingAt, completedAt, approximate } (script 2191)
+        let clockSkew = 0;      // server clock - browser clock, so timers follow the server
+
+        // How long a state may run before the timer turns amber / red (minutes)
+        const WAIT_WARN_MIN = 15, WAIT_ALERT_MIN = 30, CONSULT_WARN_MIN = 20, CONSULT_ALERT_MIN = 40;
 
         // Doctor → Room map (server-side rendered)
         const doctorRoomMap = {
@@ -187,7 +215,9 @@
         document.addEventListener('DOMContentLoaded', () => {
 
             fetchTokens();
-            setInterval(fetchTokens, 30000); // 30 sec refresh
+            setInterval(() => { if (!dragInfo) fetchTokens(); }, 30000); // 30 sec refresh (not while a card is being dragged)
+            setInterval(tickTimers, 1000);                                  // live timers between refreshes
+            initTokenDragAndDrop();
 
             // Speciality filter change
             $('#ddlSpeciality').on('change', function() {
@@ -228,6 +258,8 @@
                 const json = await res.json();
                 if (json.isSuccess) {
                     allTodayTokens = json.data.items || [];
+                    tokenTiming = json.timing || {};
+                    if (json.serverNow) clockSkew = Date.parse(json.serverNow) - Date.now();
                     applyFiltersAndRender();
                 } else {
                     console.error(json.message);
@@ -277,9 +309,11 @@
             });
 
             let html = '';
+            let boardIdx = 0;
             
             // Generate a Board for each Doctor
             for (const [docName, tokens] of Object.entries(grouped)) {
+                const board = boardIdx++;
                 
                 let waiting = [], consulting = [], completed = [];
                 tokens.forEach(t => {
@@ -320,8 +354,8 @@
                                 <span><i class="bi bi-hourglass-split me-2"></i>Waiting</span>
                                 <span class="badge bg-warning text-dark rounded-pill">${waiting.length}</span>
                             </div>
-                            <div class="board-col">
-                                ${waiting.length > 0 ? waiting.map(buildTokenCard).join('') : '<div class="text-center text-muted small mt-3">No waiting patients</div>'}
+                            <div class="board-col" data-board="${board}" data-status="registered">
+                                ${waiting.length > 0 ? waiting.map(t => buildTokenCard(t, board)).join('') : '<div class="text-center text-muted small mt-3">No waiting patients</div>'}
                             </div>
                         </div>
                         <div class="col-md-4 border-end">
@@ -329,8 +363,8 @@
                                 <span><i class="bi bi-heart-pulse-fill me-2"></i>Consulting</span>
                                 <span class="badge bg-primary rounded-pill">${consulting.length}</span>
                             </div>
-                            <div class="board-col">
-                                ${consulting.length > 0 ? consulting.map(buildTokenCard).join('') : '<div class="text-center text-muted small mt-3">No active consultations</div>'}
+                            <div class="board-col" data-board="${board}" data-status="consulting">
+                                ${consulting.length > 0 ? consulting.map(t => buildTokenCard(t, board)).join('') : '<div class="text-center text-muted small mt-3">No active consultations</div>'}
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -338,8 +372,8 @@
                                 <span><i class="bi bi-check-circle-fill me-2"></i>Completed</span>
                                 <span class="badge bg-success rounded-pill">${completed.length}</span>
                             </div>
-                            <div class="board-col">
-                                ${completed.length > 0 ? completed.map(buildTokenCard).join('') : '<div class="text-center text-muted small mt-3">No completed tokens</div>'}
+                            <div class="board-col" data-board="${board}" data-status="completed">
+                                ${completed.length > 0 ? completed.map(t => buildTokenCard(t, board)).join('') : '<div class="text-center text-muted small mt-3">No completed tokens</div>'}
                             </div>
                         </div>
                     </div>
@@ -347,9 +381,10 @@
             }
 
             container.innerHTML = html;
+            tickTimers();
         }
 
-        function buildTokenCard(item) {
+        function buildTokenCard(item, board) {
             const tokenNo   = item.tokenNo || 'N/A';
             const status     = (item.status || 'Registered').toLowerCase();
             const pyStatus   = (item.paymentStatus || 'U').toUpperCase();
@@ -385,10 +420,8 @@
                 </button>`;
             }
 
-            // Time/Slot formatting
-            const timeStr = item.visitDate
-                ? new Date(item.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-                : '--:--';
+            // Time in the current state (and, once completed, the whole visit)
+            const timer = tokenTimer(status, tokenTiming[item.opdServiceId] || {});
 
             let borderColor = hasDue && status === 'registered'
                 ? '#f59e0b'
@@ -396,11 +429,21 @@
                 : status === 'consulting' ? '#0d6efd'
                 : '#198754';
 
+            // Drag and drop offers exactly the move the card's button offers
+            const next = nextTokenStatus(status, hasDue);
+            const draggable = next && canChangeTokenStatus();
+            const dragAttrs = draggable
+                ? `draggable="true" data-id="${item.opdServiceId}" data-board="${board}" data-next="${next}" title="Drag to ${next === 'consulting' ? 'Consulting' : 'Completed'}"`
+                : '';
+
             return `
-                <div class="token-card ${hasDue ? 'has-due' : ''}" style="border-left: 4px solid ${borderColor};">
+                <div class="token-card ${hasDue ? 'has-due' : ''}" style="border-left: 4px solid ${borderColor};" ${dragAttrs}>
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span class="badge bg-dark fs-6 shadow-sm px-3 py-2">${tokenNo}</span>
-                        <span class="badge bg-light text-dark border"><i class="bi bi-clock me-1"></i>${timeStr}</span>
+                        <span class="d-inline-flex align-items-center">
+                            ${timer.badge}
+                            ${draggable ? '<i class="bi bi-grip-vertical drag-grip" aria-hidden="true"></i>' : ''}
+                        </span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <h6 class="fw-bold mb-0 text-dark">${item.patientName}</h6>
@@ -409,9 +452,133 @@
                     <div class="text-muted small">
                         <i class="bi bi-person me-1"></i>${item.gender || '-'}, ${item.age || '-'} Yrs
                     </div>
+                    ${timer.meta}
                     ${actionHtml}
                 </div>
             `;
+        }
+
+        // ── Status timers ──────────────────────────────────────────────────────────────────────────
+        // Waiting: from when the token was issued (or the appointment slot, if later) - live.
+        // Consulting: from when the patient was called in - live, with how long they waited.
+        // Completed: waited / consulted / total, and when it was completed.
+        const serverNow = () => Date.now() + clockSkew;
+        const at = v => v ? Date.parse(v) : null;
+        const hhmm = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        function clock(ms) {
+            const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+            return (h ? h + ':' + String(m).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(sec).padStart(2, '0');
+        }
+        function span(ms) {
+            if (ms == null || ms < 0) return '—';
+            const m = Math.round(ms / 60000);
+            if (m < 1) return '<1m';
+            return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+        }
+
+        function tokenTimer(status, tm) {
+            // only call-in / completion times can be estimates (tokens from before tracking started)
+            const estimated = tm.approximate && status !== 'registered';
+            const approx = estimated ? '~' : '';
+            const approxNote = estimated ? ' (approximate: recorded before status tracking started)' : '';
+            const issued = at(tm.issuedAt), slot = at(tm.slotAt), called = at(tm.consultingAt), done = at(tm.completedAt);
+            const waitFrom = slot && issued ? Math.max(slot, issued) : (issued || slot);
+
+            if (status === 'registered') {
+                if (slot && slot > serverNow()) {
+                    return { badge: `<span class="tk-timer tk-due" title="Appointment slot ${hhmm(slot)}"><i class="bi bi-calendar-event"></i>Due ${hhmm(slot)}</span>`,
+                             meta: `<div class="tk-meta">Token issued <b>${issued ? hhmm(issued) : '—'}</b> · slot <b>${hhmm(slot)}</b></div>` };
+                }
+                if (!waitFrom) return { badge: '<span class="tk-timer">--:--</span>', meta: '' };
+                return { badge: `<span class="tk-timer tk-wait" data-since="${waitFrom}" data-warn="${WAIT_WARN_MIN}" data-alert="${WAIT_ALERT_MIN}" data-prefix="${approx}"
+                                       title="Waiting since ${hhmm(waitFrom)}${approxNote}"><i class="bi bi-hourglass-split"></i><b>${approx}${clock(serverNow() - waitFrom)}</b></span>`,
+                         meta: `<div class="tk-meta">Waiting since <b>${hhmm(waitFrom)}</b>${slot ? ` · slot <b>${hhmm(slot)}</b>` : ''}</div>` };
+            }
+            if (status === 'consulting') {
+                if (!called) return { badge: '<span class="tk-timer tk-consult">--:--</span>', meta: '' };
+                return { badge: `<span class="tk-timer tk-consult" data-since="${called}" data-warn="${CONSULT_WARN_MIN}" data-alert="${CONSULT_ALERT_MIN}" data-prefix="${approx}"
+                                       title="In consultation since ${hhmm(called)}${approxNote}"><i class="bi bi-heart-pulse"></i><b>${approx}${clock(serverNow() - called)}</b></span>`,
+                         meta: `<div class="tk-meta">Called in <b>${hhmm(called)}</b>${waitFrom ? ` · waited <b>${approx}${span(called - waitFrom)}</b>` : ''}</div>` };
+            }
+            if (status === 'completed') {
+                const waited = called && waitFrom ? called - waitFrom : null;
+                const consulted = called && done ? done - called : null;
+                const total = done && waitFrom ? done - waitFrom : null;
+                return { badge: `<span class="tk-timer tk-done" title="Completed ${done ? hhmm(done) : ''}${approxNote}"><i class="bi bi-check2-circle"></i>${approx}${span(total)}</span>`,
+                         meta: `<div class="tk-meta">Waited <b>${span(waited)}</b> · consult <b>${span(consulted)}</b> · done <b>${done ? hhmm(done) : '—'}</b></div>` };
+            }
+            return { badge: '', meta: '' };
+        }
+
+        function tickTimers() {
+            const now = serverNow();
+            document.querySelectorAll('.tk-timer[data-since]').forEach(el => {
+                const ms = now - Number(el.dataset.since), min = ms / 60000;
+                const b = el.querySelector('b');
+                if (b) b.textContent = (el.dataset.prefix || '') + clock(ms);
+                el.classList.toggle('tk-alert', min >= Number(el.dataset.alert));
+                el.classList.toggle('tk-warn', min >= Number(el.dataset.warn) && min < Number(el.dataset.alert));
+            });
+        }
+
+        // ── Drag and drop between the Waiting / Consulting / Completed columns of a doctor's board ──
+        // Same rules as the buttons: Waiting -> Consulting (no payment due), Consulting -> Completed; the drop calls
+        // updateStatus exactly as the button does, so the server checks the permission and the move again.
+        let dragInfo = null;
+
+        function nextTokenStatus(status, hasDue) {
+            if (status === 'registered') return hasDue ? null : 'consulting';
+            if (status === 'consulting') return 'completed';
+            return null;
+        }
+        function canChangeTokenStatus() {
+            return typeof window.emrCan !== 'function' || window.emrCan('OPD.TOKENMANAGEMENT', 'TOKEN_STATUS');
+        }
+        function clearDropMarks() {
+            document.querySelectorAll('.board-col').forEach(c => c.classList.remove('drop-ok', 'drop-over', 'drop-no'));
+            document.querySelectorAll('.token-card.dragging').forEach(c => c.classList.remove('dragging'));
+        }
+        function isValidDrop(col) {
+            return dragInfo && col && col.dataset.board === dragInfo.board && col.dataset.status === dragInfo.next;
+        }
+
+        function initTokenDragAndDrop() {
+            const container = document.getElementById('doctor-boards-container');
+            if (!container) return;
+
+            container.addEventListener('dragstart', e => {
+                const card = e.target.closest('.token-card[draggable="true"]');
+                if (!card) return;
+                dragInfo = { id: card.dataset.id, board: card.dataset.board, next: card.dataset.next };
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', card.dataset.id);
+                card.classList.add('dragging');
+                container.querySelectorAll(`.board-col[data-board="${dragInfo.board}"]`).forEach(col => {
+                    if (col.dataset.status === dragInfo.next) col.classList.add('drop-ok');
+                    else if (!col.contains(card)) col.classList.add('drop-no');
+                });
+            });
+            container.addEventListener('dragover', e => {
+                const col = e.target.closest('.board-col');
+                if (!isValidDrop(col)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                col.classList.add('drop-over');
+            });
+            container.addEventListener('dragleave', e => {
+                const col = e.target.closest('.board-col');
+                if (col && !col.contains(e.relatedTarget)) col.classList.remove('drop-over');
+            });
+            container.addEventListener('drop', e => {
+                const col = e.target.closest('.board-col');
+                if (!isValidDrop(col)) return;
+                e.preventDefault();
+                const { id, next } = dragInfo;
+                dragInfo = null;
+                clearDropMarks();
+                updateStatus(Number(id), next === 'consulting' ? 'Consulting' : 'Completed');
+            });
+            container.addEventListener('dragend', () => { dragInfo = null; clearDropMarks(); });
         }
 
         async function updateStatus(id, newStatus) {

@@ -27,6 +27,17 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         };
     }
 
+    // ─── STATS (Patient Master summary cards, same scope as the list) ────────
+
+    public async Task<PatientStats> GetStatsAsync(int? companyId, int? branchId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryFirstOrDefaultAsync<PatientStats>(
+            "usp_Api_Patient_GetStats",
+            new { CompanyId = companyId, BranchId = branchId },
+            commandType: CommandType.StoredProcedure) ?? new PatientStats();
+    }
+
     // ─── GET BY ID ────────────────────────────────────────────────────────────
 
     public async Task<PatientDetail?> GetByIdAsync(int patientId, int? companyId = null)
@@ -119,6 +130,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         data.TodayRoster = (await multi.ReadAsync<OpdDoctorRosterSummary>()).ToList();
         data.RecentBookings = (await multi.ReadAsync<OpdRecentBooking>()).ToList();
         data.Appointments = (await multi.ReadAsync<OpdRecentBooking>()).ToList();
+        if (!multi.IsConsumed) data.Trend = (await multi.ReadAsync<OpdDayTrend>()).ToList();
 
         return data;
     }

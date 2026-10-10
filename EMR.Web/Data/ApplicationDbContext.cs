@@ -139,6 +139,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.ToTable("Users");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.Username).IsUnique();
+            entity.Property(x => x.UserType).HasColumnName("User_Type").HasMaxLength(1).IsFixedLength().IsUnicode(false);
+            entity.Property(x => x.ReferenceUserId).HasColumnName("ReferenceUserID");
             entity.HasOne(x => x.Company)
                 .WithMany(x => x.Users)
                 .HasForeignKey(x => x.CompanyId)
@@ -518,7 +520,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<PatientOPDService>(entity =>
         {
-            entity.ToTable("PatientOPDService");
+            // trg_PatientOPDService_TokenLog (script 2191) logs token / status changes; EF must not use OUTPUT on it
+            entity.ToTable("PatientOPDService", tb => tb.HasTrigger("trg_PatientOPDService_TokenLog"));
             entity.HasKey(x => x.OPDServiceId);
             entity.HasOne(x => x.Patient)
                   .WithMany()

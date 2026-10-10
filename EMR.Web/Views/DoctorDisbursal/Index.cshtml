@@ -1,522 +1,568 @@
-@model EMR.Web.Models.ViewModels.DoctorDisbursalIndexViewModel
 @{
-    ViewData["Title"] = "Doctor Commission & Disbursal Workbench";
+    ViewData["Title"] = "Doctor Commission & Disbursals";
+    var perms = ViewBag.Perms as Dictionary<string, bool> ?? new();
+    bool Can(string c) => perms.TryGetValue(c, out var v) && v;
 }
 
+<style>
+    .dp-flow { display:flex; flex-wrap:wrap; gap:.5rem; }
+    .dp-step { flex:1 1 180px; display:flex; gap:.6rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; padding:.6rem .8rem; }
+    .dp-step .n { width:26px; height:26px; border-radius:50%; background:#1d4ed8; color:#fff; font-weight:700; font-size:.8rem; display:flex; align-items:center; justify-content:center; flex:0 0 26px; }
+    .dp-step b { font-size:.82rem; color:#0f172a; display:block; }
+    .dp-step span { font-size:.72rem; color:#64748b; }
+    .dp-kpi { background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--k, #1d4ed8); border-radius:.75rem; padding:.7rem .9rem; height:100%; }
+    .dp-kpi .l { font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#64748b; }
+    .dp-kpi .v { font-size:1.35rem; font-weight:800; color:#0f172a; font-variant-numeric:tabular-nums; }
+    .dp-kpi .s { font-size:.72rem; color:#64748b; }
+    .dp-card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; }
+    .dp-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; white-space:nowrap; background:#f8fafc; }
+    .dp-table td { vertical-align:middle; font-size:.85rem; }
+    .dp-table .amt { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .dp-lines td { font-size:.78rem; background:#f8fafc; }
+    .dp-pill { font-size:.68rem; font-weight:700; letter-spacing:.03em; }
+    .nav-pills .nav-link { font-weight:600; }
+    .dp-sum { display:grid; grid-template-columns:1fr auto; gap:.2rem .75rem; font-size:.86rem; }
+    .dp-sum .t { border-top:1px solid #e2e8f0; padding-top:.3rem; font-weight:800; }
+</style>
+
 <div class="container-fluid px-0">
-    <!-- Top Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap justify-content-between align-items-start mb-3 gap-3">
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1 small">
                     <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
-                    <li class="breadcrumb-item"><a href="#">OPD</a></li>
+                    <li class="breadcrumb-item">OPD</li>
                     <li class="breadcrumb-item active" aria-current="page">Doctor Commission & Disbursals</li>
                 </ol>
             </nav>
-            <div class="d-flex align-items-center gap-2">
-                <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);">
-                    <i class="bi bi-wallet2 me-2 text-primary"></i>Doctor Commission & Disbursals
-                </h1>
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-1 fs-6">
-                    @Model.TotalVisitsCount Records
-                </span>
-            </div>
-            <p class="text-muted small mb-0 mt-1">End-to-end OPD doctor revenue entitlement, automated calculation, finance review & multi-mode disbursal payout management.</p>
+            <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);"><i class="bi bi-wallet2 me-2 text-primary"></i>Doctor Commission & Disbursals</h1>
+            <p class="text-muted small mb-0 mt-1">The doctor's share is worked out automatically from the commission rules as money is collected. Settle it day by day, doctor by doctor.</p>
         </div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-primary px-3 shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#calcModal">
-                <i class="bi bi-cpu-fill text-primary"></i>
-                <span>Calculate Commissions</span>
-            </button>
-            <button type="button" class="btn btn-success px-3 shadow-sm d-flex align-items-center gap-2" id="bulkApproveBtn" asp-permission="OPD.DOCTORDISBURSAL:APPROVE" onclick="submitBulkApprove()">
-                <i class="bi bi-check-all"></i>
-                <span>Bulk Approve</span>
-            </button>
+            <a class="btn btn-outline-secondary btn-sm" asp-controller="DoctorCommissionConfigs" asp-action="Index"><i class="bi bi-sliders me-1"></i>Commission rules</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-controller="Reports" asp-action="OpdDoctorStatement"><i class="bi bi-journal-text me-1"></i>Doctor statement</a>
         </div>
     </div>
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
-            <i class="bi bi-check-circle-fill fs-5"></i>
-            <div>@TempData["SuccessMessage"]</div>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm rounded-3 mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
-            <div>@TempData["ErrorMessage"]</div>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    <!-- KPI Metric Summary Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-2">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
-                <div class="text-muted small fw-semibold text-uppercase">Eligible Visits</div>
-                <div class="fs-4 fw-bold text-dark mt-1">@Model.TotalVisitsCount</div>
-                <div class="text-muted small mt-1"><i class="bi bi-people me-1"></i>OPD Patient Encounters</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
-                <div class="text-muted small fw-semibold text-uppercase">Collected Revenue</div>
-                <div class="fs-4 fw-bold text-primary mt-1">₹@Model.TotalEligibleCollection.ToString("N0")</div>
-                <div class="text-muted small mt-1"><i class="bi bi-cash-stack me-1"></i>Basis for Share</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
-                <div class="text-muted small fw-semibold text-uppercase">Commission Calc.</div>
-                <div class="fs-4 fw-bold text-info mt-1">₹@Model.TotalCommissionCalculated.ToString("N0")</div>
-                <div class="text-muted small mt-1"><i class="bi bi-percent me-1"></i>Doctor Entitlement</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
-                <div class="text-muted small fw-semibold text-uppercase">Net Payable</div>
-                <div class="fs-4 fw-bold text-dark mt-1">₹@Model.TotalNetPayable.ToString("N0")</div>
-                <div class="text-muted small mt-1"><i class="bi bi-calculator me-1"></i>After Adjustments</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-success">
-                <div class="text-muted small fw-semibold text-uppercase">Total Disbursed</div>
-                <div class="fs-4 fw-bold text-success mt-1">₹@Model.TotalPaid.ToString("N0")</div>
-                <div class="text-success small mt-1"><i class="bi bi-check-circle me-1"></i>Paid Out</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white border-start border-4 border-warning">
-                <div class="text-muted small fw-semibold text-uppercase">Yet to Pay</div>
-                <div class="fs-4 fw-bold text-warning mt-1">₹@Model.TotalYetToPay.ToString("N0")</div>
-                <div class="text-warning small mt-1"><i class="bi bi-hourglass-split me-1"></i>Pending Disbursal</div>
-            </div>
-        </div>
+    <div class="dp-flow mb-3">
+        <div class="dp-step"><div class="n">1</div><div><b>Share earned</b><span>automatic, on collection; refunds and cancellations recovered</span></div></div>
+        <div class="dp-step"><div class="n">2</div><div><b>Prepare day-end settlement</b><span>one payout voucher per doctor, TDS worked out</span></div></div>
+        <div class="dp-step"><div class="n">3</div><div><b>Approve</b><span>by a different user (maker-checker); a Super Admin may approve their own</span></div></div>
+        <div class="dp-step"><div class="n">4</div><div><b>Pay &amp; print voucher</b><span>mode, UTR / cheque no., date</span></div></div>
     </div>
 
-    <!-- Filter Bar Card -->
-    <div class="card border-0 shadow-sm rounded-3 mb-4">
-        <div class="card-body p-3">
-            <form asp-action="Index" method="get" class="row g-2 align-items-center">
-                <div class="col-md-3">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control border-start-0" placeholder="Search doctor, bill #, patient..." />
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <select name="doctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
-                </div>
-                <div class="col-md-2">
-                    <select name="period" asp-items="Model.PeriodOptions" class="form-select"></select>
-                </div>
-                <div class="col-md-2">
-                    <select name="approvalStatus" asp-items="Model.ApprovalStatusOptions" class="form-select"></select>
-                </div>
-                <div class="col-md-2">
-                    <select name="paymentStatus" asp-items="Model.PaymentStatusOptions" class="form-select"></select>
-                </div>
-                <div class="col-md-1 d-flex gap-1">
-                    <button type="submit" class="btn btn-primary w-100" title="Filter Records">
-                        <i class="bi bi-funnel-fill"></i>
-                    </button>
-                    <a asp-action="Index" class="btn btn-outline-secondary" title="Reset Filters">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
+    <ul class="nav nav-pills mb-3 gap-1" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabDay" type="button"><i class="bi bi-calendar-day me-1"></i>Day-end settlement</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabSet" type="button" id="tabSetBtn"><i class="bi bi-receipt me-1"></i>Settlements <span class="badge bg-warning text-dark ms-1 d-none" id="pendingBadge"></span></button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabProf" type="button" id="tabProfBtn"><i class="bi bi-person-vcard me-1"></i>Payout profiles</button></li>
+    </ul>
 
-    <!-- Disbursal Records Table Card -->
-    <div class="card border-0 shadow-sm rounded-3">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" id="disbursalTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th class="ps-3" style="width: 40px;">
-                                <input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleSelectAll(this)" />
-                            </th>
-                            <th>Doctor & Speciality</th>
-                            <th>Visit / Bill Details</th>
-                            <th>Eligible Collection</th>
-                            <th>Commission Rule</th>
-                            <th>Calculated</th>
-                            <th>Adj.</th>
-                            <th>Net Payable</th>
-                            <th>Period</th>
-                            <th>Approval Status</th>
-                            <th>Payment</th>
-                            <th class="text-end pe-3" style="width: 140px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (Model.Items.Any())
-                        {
-                            foreach (var item in Model.Items)
-                            {
-                                <tr>
-                                    <td class="ps-3">
-                                        <input type="checkbox" class="form-check-input row-chk" value="@item.DisbursalId" @(item.PaymentStatus == "Paid" ? "disabled" : "") />
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-dark">@item.DoctorName</div>
-                                        <small class="text-muted">
-                                            @(item.SpecialityName ?? "General OPD") &bull; Code: @(item.DoctorCode ?? "—")
-                                        </small>
-                                    </td>
-                                    <td>
-                                        <div>
-                                            <span class="badge bg-light text-dark border">Visit #@item.VisitId</span>
-                                            <span class="fw-semibold text-secondary small ms-1">@item.VisitDate.ToString("dd MMM yyyy")</span>
-                                        </div>
-                                        <small class="text-muted">
-                                            @(item.PatientName ?? "Patient") &bull; Bill: @(item.OPDBillNo ?? "—")
-                                        </small>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-dark">₹@item.CollectedAmount.ToString("N2")</div>
-                                        <small class="text-muted">Gross: ₹@item.GrossBillAmount.ToString("N0")</small>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-info bg-opacity-10 text-dark border border-info border-opacity-25">
-                                            @item.CommissionRule
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-primary">₹@item.CalculatedAmount.ToString("N2")</div>
-                                    </td>
-                                    <td>
-                                        @if (item.AdjustmentAmount != 0)
-                                        {
-                                            <span class="badge @(item.AdjustmentAmount > 0 ? "bg-success" : "bg-danger")" title="@item.AdjustmentReason">
-                                                @(item.AdjustmentAmount > 0 ? "+" : "")₹@item.AdjustmentAmount.ToString("N2")
-                                            </span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted small">—</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-success fs-6">₹@item.NetPayable.ToString("N2")</div>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border">@item.SettlementPeriod</span>
-                                    </td>
-                                    <td>
-                                        @switch (item.ApprovalStatus)
-                                        {
-                                            case "APPROVED":
-                                                <span class="badge text-bg-success">APPROVED</span>
-                                                break;
-                                            case "CALCULATED":
-                                                <span class="badge text-bg-primary">CALCULATED</span>
-                                                break;
-                                            case "SUBMITTED":
-                                                <span class="badge text-bg-info">SUBMITTED</span>
-                                                break;
-                                            case "ON_HOLD":
-                                                <span class="badge text-bg-warning">ON HOLD</span>
-                                                break;
-                                            case "REJECTED":
-                                                <span class="badge text-bg-danger">REJECTED</span>
-                                                break;
-                                            case "ADJUSTED":
-                                                <span class="badge text-bg-secondary">ADJUSTED</span>
-                                                break;
-                                            default:
-                                                <span class="badge text-bg-light border">@item.ApprovalStatus</span>
-                                                break;
-                                        }
-                                    </td>
-                                    <td>
-                                        @if (item.PaymentStatus == "Paid")
-                                        {
-                                            <span class="badge text-bg-success" title="Paid on @(item.PaidDate?.ToString("dd MMM yyyy") ?? "") (Ref: @item.PaymentReference)">
-                                                <i class="bi bi-check-circle-fill me-1"></i>PAID
-                                            </span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge text-bg-warning">Pending</span>
-                                        }
-                                    </td>
-                                    <td class="text-end pe-3">
-                                        <div class="btn-group btn-group-sm">
-                                            <a asp-permission="OPD.DOCTORDISBURSAL:DETAILS" asp-action="Details" asp-route-id="@item.DisbursalId" class="btn btn-outline-secondary" title="View Disbursal Voucher">
-                                                <i class="bi bi-eye-fill"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-outline-info" title="Add Adjustment" onclick="openAdjustmentModal(@item.DisbursalId, '@item.DoctorName', @item.NetPayable)">
-                                                <i class="bi bi-plus-slash-minus"></i>
-                                            </button>
-                                            <button type="button" class="btn btn-outline-primary" title="Update Approval Status" onclick="openStatusModal(@item.DisbursalId, '@item.ApprovalStatus')">
-                                                <i class="bi bi-check2-circle"></i>
-                                            </button>
-                                            @if (item.PaymentStatus != "Paid")
-                                            {
-                                                <button type="button" class="btn btn-success" title="Record Payout" onclick="openPayoutModal(@item.DisbursalId, '@item.DoctorName', @item.NetPayable)">
-                                                    <i class="bi bi-cash-stack"></i>
-                                                </button>
-                                            }
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="12" class="text-center py-5 text-muted">
-                                    <i class="bi bi-wallet2 fs-1 text-secondary opacity-50 d-block mb-2"></i>
-                                    <h6>No Doctor Disbursal records found for selected filters</h6>
-                                    <p class="small mb-3">Click below to run the calculation engine on recent completed visits.</p>
-                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#calcModal">
-                                        <i class="bi bi-cpu-fill me-1"></i>Calculate Commissions
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+    <div class="tab-content">
+        <!-- ── 1. Day-end settlement ───────────────────────────────────────── -->
+        <div class="tab-pane fade show active" id="tabDay">
+            <div class="dp-card p-2 px-3 mb-3 d-flex flex-wrap align-items-center gap-2">
+                <div class="input-group input-group-sm" style="width:auto;">
+                    <button class="btn btn-outline-secondary" id="dayPrev" title="Previous day"><i class="bi bi-chevron-left"></i></button>
+                    <input type="date" class="form-control" id="dayDate" style="width:150px;" />
+                    <button class="btn btn-outline-secondary" id="dayNext" title="Next day"><i class="bi bi-chevron-right"></i></button>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" id="dayToday">Today</button>
+                <span class="text-muted small ms-1" id="dayHint"></span>
+                <div class="ms-auto d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="dayRefresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+                    @if (Can("PREPARE"))
+                    {
+                        <button class="btn btn-sm btn-primary" id="prepareAll"><i class="bi bi-lightning-charge me-1"></i>Prepare all doctors</button>
+                    }
+                </div>
+            </div>
+            <div class="row g-2 mb-3" id="dayKpis"></div>
+            <div id="dayAlerts"></div>
+            <div class="dp-card">
+                <div class="table-responsive">
+                    <table class="table dp-table mb-0">
+                        <thead><tr>
+                            <th class="ps-3">Doctor</th><th class="text-end">Visits</th><th class="text-end">Collected</th><th class="text-end">Earned on the day</th>
+                            <th class="text-end">Earlier, not settled</th><th class="text-end">Recoveries</th><th class="text-end">To settle</th>
+                            <th>Settlements</th><th class="text-end pe-3">Actions</th>
+                        </tr></thead>
+                        <tbody id="dayBody"><tr><td colspan="9" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 2. Settlements ──────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tabSet">
+            <div class="dp-card p-2 px-3 mb-3 d-flex flex-wrap align-items-end gap-2">
+                <div><label class="form-label small fw-bold text-muted mb-0">From</label><input type="date" class="form-control form-control-sm" id="setFrom" /></div>
+                <div><label class="form-label small fw-bold text-muted mb-0">To</label><input type="date" class="form-control form-control-sm" id="setTo" /></div>
+                <div><label class="form-label small fw-bold text-muted mb-0">Status</label>
+                    <select class="form-select form-select-sm" id="setStatus">
+                        <option value="">All</option><option value="PREPARED">Awaiting approval</option><option value="APPROVED">Approved, to pay</option>
+                        <option value="PAID">Paid</option><option value="REJECTED">Rejected</option><option value="CANCELLED">Cancelled</option>
+                    </select></div>
+                <div class="flex-grow-1"><label class="form-label small fw-bold text-muted mb-0">Search</label><input class="form-control form-control-sm" id="setSearch" placeholder="Settlement no., doctor, UTR…" /></div>
+                <button class="btn btn-sm btn-primary" id="setLoad"><i class="bi bi-funnel me-1"></i>Apply</button>
+            </div>
+            <div class="small text-muted mb-2">Settlements awaiting approval or payment are always listed; the others by settlement or payment date.</div>
+            <div class="dp-card">
+                <div class="table-responsive">
+                    <table class="table dp-table mb-0">
+                        <thead><tr>
+                            <th class="ps-3">Settlement</th><th>Doctor</th><th>Shares of</th><th class="text-end">Visits</th><th class="text-end">Gross share</th>
+                            <th class="text-end">Recoveries / adj.</th><th class="text-end">TDS</th><th class="text-end">Net payable</th><th>Status</th><th class="text-end pe-3">Actions</th>
+                        </tr></thead>
+                        <tbody id="setBody"><tr><td colspan="10" class="text-center text-muted py-4">Open this tab to load.</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── 3. Payout profiles ──────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tabProf">
+            <div class="alert alert-info small py-2"><i class="bi bi-info-circle me-1"></i>A doctor needs a payout profile before they can be settled. TDS (section 194J) is taken from it: the TDS % with a PAN, 20% without a PAN (section 206AA), none when TDS is switched off.</div>
+            <div class="dp-card">
+                <div class="table-responsive">
+                    <table class="table dp-table mb-0">
+                        <thead><tr><th class="ps-3">Doctor</th><th>PAN</th><th>TDS</th><th>Preferred mode</th><th>Bank / UPI</th><th class="text-end">Commission rules</th><th class="text-end pe-3"></th></tr></thead>
+                        <tbody id="profBody"><tr><td colspan="7" class="text-center text-muted py-4">Open this tab to load.</td></tr></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal 1: Trigger Commission Auto-Calculation -->
-<div class="modal fade" id="calcModal" tabindex="-1" aria-labelledby="calcModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form asp-permission="OPD.DOCTORDISBURSAL:CALCULATE" asp-action="Calculate" method="post">
-                @Html.AntiForgeryToken()
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold" id="calcModalLabel">
-                        <i class="bi bi-cpu-fill text-primary me-2"></i>Calculate Doctor Commissions
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<!-- Prepare settlement -->
+<div class="modal fade" id="prepModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-receipt me-2 text-primary"></i>Prepare settlement</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <div class="fw-bold" id="prepDoctor"></div>
+            <div class="text-muted small mb-3" id="prepSub"></div>
+            <div class="dp-sum mb-3" id="prepSum"></div>
+            @if (Can("ADJUSTMENT"))
+            {
+                <div class="row g-2 mb-2">
+                    <div class="col-5"><label class="form-label small fw-bold mb-0">Deduction / incentive (₹)</label><input type="number" step="0.01" class="form-control form-control-sm" id="prepAdj" placeholder="-500 or 200" /></div>
+                    <div class="col-7"><label class="form-label small fw-bold mb-0">Reason</label><input class="form-control form-control-sm" id="prepAdjReason" maxlength="300" placeholder="e.g. advance recovery" /></div>
                 </div>
-                <div class="modal-body">
-                    <p class="text-muted small">Evaluate completed OPD visits, match commission rules, and compute eligible doctor shares.</p>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Doctor (Optional)</label>
-                        <select name="doctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">From Date</label>
-                            <input type="date" name="fromDate" value="@(DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"))" class="form-control" />
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">To Date</label>
-                            <input type="date" name="toDate" value="@(DateTime.Today.ToString("yyyy-MM-dd"))" class="form-control" />
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Settlement Period</label>
-                        <input type="text" name="settlementPeriod" value="@DateTime.Today.ToString("yyyy-MM")" class="form-control" placeholder="e.g. 2026-08" />
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-play-fill me-1"></i>Run Calculation Engine
-                    </button>
-                </div>
-            </form>
+                <div class="form-text mt-0 mb-2">Negative = deduction (advance, penalty), positive = incentive. Leave empty if none.</div>
+            }
+            <label class="form-label small fw-bold mb-0">Remarks</label>
+            <input class="form-control form-control-sm" id="prepRemarks" maxlength="500" />
         </div>
-    </div>
+        <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Close</button><button class="btn btn-primary" id="prepSave"><i class="bi bi-check2 me-1"></i>Prepare</button></div>
+    </div></div>
 </div>
 
-<!-- Modal 2: Add Adjustment -->
-<div class="modal fade" id="adjustmentModal" tabindex="-1" aria-labelledby="adjustmentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form asp-permission="OPD.DOCTORDISBURSAL:ADJUSTMENT" asp-action="AddAdjustment" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="disbursalId" id="adjDisbursalId" />
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold" id="adjustmentModalLabel">
-                        <i class="bi bi-plus-slash-minus text-info me-2"></i>Add Disbursal Adjustment
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-light border mb-3">
-                        <div class="small text-muted">Doctor: <strong id="adjDoctorName" class="text-dark"></strong></div>
-                        <div class="small text-muted">Current Net Payable: <strong id="adjNetPayable" class="text-success"></strong></div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Adjustment Type <span class="text-danger">*</span></label>
-                        <select name="adjustmentType" class="form-select" required>
-                            <option value="TDS Deduction">TDS Deduction (-)</option>
-                            <option value="Incentive">Incentive (+)</option>
-                            <option value="Manual Correction">Manual Correction (+/-)</option>
-                            <option value="Penalty">Penalty (-)</option>
-                            <option value="Recovery">Recovery (-)</option>
-                            <option value="Honorarium">Honorarium (+)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Adjustment Amount (₹) <span class="text-danger">*</span></label>
-                        <input type="number" step="0.01" name="adjustmentAmount" class="form-control" placeholder="e.g. -500.00 or 1000.00" required />
-                        <small class="text-muted">Use negative (-) for deductions/TDS, positive (+) for incentives</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Reason / Audit Justification <span class="text-danger">*</span></label>
-                        <textarea name="reason" class="form-control" rows="3" placeholder="Explain the rationale for this billing adjustment..." required></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-info text-white">Apply Adjustment</button>
-                </div>
-            </form>
+<!-- Pay settlement -->
+<div class="modal fade" id="payModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-cash-coin me-2 text-success"></i>Record payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <div class="fw-bold" id="payTitle"></div>
+            <div class="small text-muted mb-2" id="payPayee"></div>
+            <div class="row g-2">
+                <div class="col-6"><label class="form-label small fw-bold mb-0">Mode</label>
+                    <select class="form-select form-select-sm" id="payMode"><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>IMPS</option><option>Cheque</option></select></div>
+                <div class="col-6"><label class="form-label small fw-bold mb-0">Payment date</label><input type="date" class="form-control form-control-sm" id="payDate" /></div>
+                <div class="col-12"><label class="form-label small fw-bold mb-0" id="payRefLabel">Reference (UTR / transaction ID / cheque no.)</label><input class="form-control form-control-sm" id="payRef" maxlength="100" /></div>
+                <div class="col-12"><label class="form-label small fw-bold mb-0">Remarks</label><input class="form-control form-control-sm" id="payRemarks" maxlength="500" /></div>
+            </div>
         </div>
-    </div>
+        <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Close</button><button class="btn btn-success" id="paySave"><i class="bi bi-check2 me-1"></i>Record payment</button></div>
+    </div></div>
 </div>
 
-<!-- Modal 3: Update Status -->
-<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form asp-permission="OPD.DOCTORDISBURSAL:PAYOUT" asp-action="UpdateStatus" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="disbursalId" id="statusDisbursalId" />
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold" id="statusModalLabel">
-                        <i class="bi bi-check2-circle text-primary me-2"></i>Update Approval Status
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Approval Status</label>
-                        <select name="approvalStatus" id="statusSelect" class="form-select">
-                            <option value="APPROVED">APPROVED (Ready for Payout)</option>
-                            <option value="ON_HOLD">ON_HOLD (Under Review)</option>
-                            <option value="REJECTED">REJECTED (Disallowed)</option>
-                            <option value="SUBMITTED">SUBMITTED (For Higher Approval)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Finance Notes (Optional)</label>
-                        <textarea name="disbursalNotes" class="form-control" rows="3" placeholder="Remarks or audit trail notes..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Status</button>
-                </div>
-            </form>
-        </div>
-    </div>
+<!-- Settlement details -->
+<div class="modal fade" id="viewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title" id="viewTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body" id="viewBody"></div>
+        <div class="modal-footer" id="viewFoot"></div>
+    </div></div>
 </div>
 
-<!-- Modal 4: Process Payout -->
-<div class="modal fade" id="payoutModal" tabindex="-1" aria-labelledby="payoutModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form asp-permission="OPD.DOCTORDISBURSAL:PAYOUT" asp-action="ProcessPayout" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="disbursalId" id="payoutDisbursalId" />
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title fw-bold" id="payoutModalLabel">
-                        <i class="bi bi-cash-stack me-2"></i>Process Doctor Disbursal Payout
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-success bg-opacity-10 border-success mb-3">
-                        <div class="fw-bold fs-5 text-success" id="payoutAmount"></div>
-                        <div class="small text-muted">Payee: <strong id="payoutDoctor" class="text-dark"></strong></div>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">Payment Mode <span class="text-danger">*</span></label>
-                            <select name="paymentMethod" class="form-select" required>
-                                <option value="Bank Transfer">Bank Transfer (NEFT/RTGS)</option>
-                                <option value="UPI">UPI</option>
-                                <option value="Cheque">Cheque</option>
-                                <option value="Cash">Cash</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-semibold">Payment Date <span class="text-danger">*</span></label>
-                            <input type="date" name="paidDate" value="@(DateTime.Today.ToString("yyyy-MM-dd"))" class="form-control" required />
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Transaction Ref / Cheque # / UTR <span class="text-danger">*</span></label>
-                        <input type="text" name="paymentReference" class="form-control" placeholder="e.g. UTR1284918239 or CHQ-9901" required />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Disbursal Notes</label>
-                        <textarea name="disbursalNotes" class="form-control" rows="2" placeholder="Optional payment remarks..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success">
-                        <i class="bi bi-check2-circle me-1"></i>Confirm & Disburse Payout
-                    </button>
-                </div>
-            </form>
+<!-- Payout profile -->
+<div class="modal fade" id="profModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-person-vcard me-2 text-primary"></i>Payout profile · <span id="profDoctor"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <div class="row g-2">
+                <div class="col-md-6"><label class="form-label small fw-bold mb-0">Payee name (as on bank account / cheque)</label><input class="form-control form-control-sm" id="pfPayee" maxlength="200" /></div>
+                <div class="col-md-3"><label class="form-label small fw-bold mb-0">PAN</label><input class="form-control form-control-sm text-uppercase" id="pfPan" maxlength="10" placeholder="ABCDE1234F" /></div>
+                <div class="col-md-3"><label class="form-label small fw-bold mb-0">Preferred mode</label>
+                    <select class="form-select form-select-sm" id="pfMode"><option value="">—</option><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>IMPS</option><option>Cheque</option></select></div>
+                <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="pfTdsOn" checked /><label class="form-check-label small fw-bold" for="pfTdsOn">Deduct TDS (194J)</label></div></div>
+                <div class="col-md-3"><label class="form-label small fw-bold mb-0">TDS % (with PAN)</label><input type="number" step="0.01" min="0" max="30" class="form-control form-control-sm" id="pfTds" value="10" /></div>
+                <div class="col-md-6 d-flex align-items-end"><div class="small text-muted" id="pfTdsNote"></div></div>
+                <div class="col-md-4"><label class="form-label small fw-bold mb-0">Bank name</label><input class="form-control form-control-sm" id="pfBank" maxlength="150" /></div>
+                <div class="col-md-4"><label class="form-label small fw-bold mb-0">Account number</label><input class="form-control form-control-sm" id="pfAcc" maxlength="20" inputmode="numeric" /></div>
+                <div class="col-md-4"><label class="form-label small fw-bold mb-0">IFSC</label><input class="form-control form-control-sm text-uppercase" id="pfIfsc" maxlength="11" placeholder="SBIN0001234" /></div>
+                <div class="col-md-6"><label class="form-label small fw-bold mb-0">UPI ID</label><input class="form-control form-control-sm" id="pfUpi" maxlength="100" placeholder="name@@bank" /></div>
+                <div class="col-md-6"><label class="form-label small fw-bold mb-0">Remarks</label><input class="form-control form-control-sm" id="pfRemarks" maxlength="300" /></div>
+            </div>
         </div>
-    </div>
+        <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Close</button><button class="btn btn-primary" id="pfSave"><i class="bi bi-check2 me-1"></i>Save profile</button></div>
+    </div></div>
 </div>
-
-<!-- Hidden Bulk Approve Form -->
-<form asp-permission="OPD.DOCTORDISBURSAL:APPROVE" asp-action="BulkApprove" method="post" id="bulkApproveForm" style="display:none;">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="disbursalIds" id="bulkDisbursalIds" />
-</form>
 
 @section Scripts {
-    <script>
-        function toggleSelectAll(master) {
-            var chks = document.querySelectorAll('.row-chk:not(:disabled)');
-            chks.forEach(c => c.checked = master.checked);
-        }
+<script>
+(function () {
+    const CAN = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(perms));
+    const ME = { id: @(ViewBag.UserId ?? 0), superAdmin: @((ViewBag.IsSuperAdmin as bool? ?? false) ? "true" : "false") };
+    const URL = {
+        board: '@Url.Action("BoardData")', settlements: '@Url.Action("SettlementsData")', settlement: '@Url.Action("SettlementData")',
+        profiles: '@Url.Action("ProfilesData")', approvers: '@Url.Action("ApproversData")', voucher: '@Url.Action("Voucher")', saveProfile: '@Url.Action("SaveProfile")',
+        prepare: '@Url.Action("PrepareSettlement")', prepareDay: '@Url.Action("PrepareDay")', approve: '@Url.Action("ApproveSettlement")',
+        reject: '@Url.Action("RejectSettlement")', cancel: '@Url.Action("CancelSettlement")', pay: '@Url.Action("PaySettlement")',
+        ruleNew: '@Url.Action("Create", "DoctorCommissionConfigs")'
+    };
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = n => (Number(n) < 0 ? '-₹' : '₹') + Math.abs(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pad = n => String(n).padStart(2, '0');
+    const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const fmtD = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); };
+    const fmtDT = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : fmtD(s) + ', ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); };
+    const token = () => $('input[name="__RequestVerificationToken"]').first().val();
+    const toast = (icon, title) => Swal.fire({ toast: true, position: 'top-end', icon, title, showConfirmButton: false, timer: 3500, timerProgressBar: true });
+    const post = (url, body) => $.ajax({ url, type: 'POST', contentType: 'application/json', headers: { 'RequestVerificationToken': token() }, data: JSON.stringify(body) });
+    const STATUS = {
+        PREPARED: ['Awaiting approval', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+        APPROVED: ['Approved · to pay', 'bg-primary-subtle text-primary border-primary-subtle'],
+        PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'],
+        REJECTED: ['Rejected', 'bg-danger-subtle text-danger border-danger-subtle'],
+        CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'] };
+    const pill = (st) => { const s = STATUS[st] || [st, 'bg-light text-dark']; return `<span class="badge border dp-pill ${s[1]}">${esc(s[0])}</span>`; };
+    const LINE = { SHARE: ['Share', 'text-success'], TOPUP: ['Top-up', 'text-primary'], RECOVERY: ['Recovery', 'text-danger'] };
+    let board = null, current = null;
 
-        function submitBulkApprove() {
-            var checked = document.querySelectorAll('.row-chk:checked');
-            if (checked.length === 0) {
-                alert('Please select at least one eligible disbursal record to approve.');
-                return;
+    // ── 1. day-end board ────────────────────────────────────────────────
+    $('#dayDate').val(iso(new Date())).attr('max', iso(new Date()));
+    const shiftDay = (n) => { const d = new Date($('#dayDate').val()); d.setDate(d.getDate() + n); if (d > new Date()) return; $('#dayDate').val(iso(d)); loadBoard(); };
+    $('#dayPrev').on('click', () => shiftDay(-1));
+    $('#dayNext').on('click', () => shiftDay(1));
+    $('#dayToday').on('click', () => { $('#dayDate').val(iso(new Date())); loadBoard(); });
+    $('#dayDate').on('change', loadBoard);
+    $('#dayRefresh').on('click', loadBoard);
+
+    function kpi(label, value, sub, color) {
+        return `<div class="col-6 col-lg"><div class="dp-kpi" style="--k:${color}"><div class="l">${label}</div><div class="v">${value}</div><div class="s">${sub}</div></div></div>`;
+    }
+
+    function loadBoard() {
+        $('#dayBody').html('<tr><td colspan="9" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Bringing shares up to date…</td></tr>');
+        $.get(URL.board, { date: $('#dayDate').val() }).done(res => {
+            if (!res.success) { $('#dayBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">${esc(res.message)}</td></tr>`); return; }
+            board = res.data; renderBoard();
+        }).fail(() => $('#dayBody').html('<tr><td colspan="9" class="text-center text-danger py-4">Server error. Please try again.</td></tr>'));
+    }
+
+    function renderBoard() {
+        const s = (board.summary || [])[0] || {}, docs = board.doctors || [], lines = board.lines || [], noShare = board.noShare || [];
+        const day = $('#dayDate').val(), isToday = day === iso(new Date());
+        $('#dayHint').text(isToday ? 'Today' : fmtD(day));
+        $('#dayKpis').html(
+            kpi('Earned on the day', money(s.EarnedToday), `${s.VisitsToday || 0} visit(s) billed`, '#16a34a') +
+            kpi('To settle', money(s.ToSettle), `${s.DoctorsToSettle || 0} doctor(s) · ${money(s.CarriedForward)} from earlier days` + (Number(s.Recoveries) ? ` · recoveries ${money(s.Recoveries)}` : ''), '#1d4ed8') +
+            kpi('Awaiting approval', money(s.AwaitingApprovalAmount), `${s.AwaitingApproval || 0} settlement(s)`, '#d97706') +
+            kpi('Approved · to pay', money(s.AwaitingPaymentAmount), `${s.AwaitingPayment || 0} settlement(s)`, '#7c3aed') +
+            kpi('Paid on the day', money(s.PaidToday), `TDS deducted ${money(s.TdsToday)}`, '#0f766e'));
+        const pending = (Number(s.AwaitingApproval) || 0) + (Number(s.AwaitingPayment) || 0);
+        $('#pendingBadge').text(pending).toggleClass('d-none', !pending);
+
+        let alerts = '';
+        const noRule = noShare.filter(n => n.Reason === 'NO_RULE' || n.Reason === 'NO_CONSULTING_LINE');
+        const notCollected = noShare.filter(n => n.Reason === 'NOT_COLLECTED');
+        if (noRule.length) alerts += `<div class="alert alert-warning py-2 small d-flex align-items-center gap-2"><i class="bi bi-exclamation-triangle"></i>
+            <div><b>${noRule.length} visit(s) of the day earn no share</b>: no commission rule in force for the doctor (or no consulting charge on the bill).
+            <a href="#" class="ms-1" id="showNoRule">See visits</a> · <a href="${URL.ruleNew}">Add a commission rule</a></div></div>`;
+        if (notCollected.length) alerts += `<div class="alert alert-light border py-2 small"><i class="bi bi-hourglass-split me-1"></i>${notCollected.length} visit(s) of the day are not paid yet: their share is earned when the money is collected.</div>`;
+        $('#dayAlerts').html(alerts);
+        $('#showNoRule').on('click', e => {
+            e.preventDefault();
+            Swal.fire({ title: 'Visits without a share', width: 760, html: `<table class="table table-sm small text-start"><thead><tr><th>Bill</th><th>Patient</th><th>Doctor</th><th class="text-end">Bill</th><th>Why</th></tr></thead><tbody>` +
+                noRule.map(n => `<tr><td>${esc(n.BillNo)}</td><td>${esc(n.PatientName)}</td><td>${esc((docs.find(d => d.DoctorId === n.DoctorId) || {}).DoctorName || '')}</td><td class="text-end">${money(n.BillNet)}</td><td>${n.Reason === 'NO_RULE' ? 'No commission rule' : 'No consulting charge'}</td></tr>`).join('') + '</tbody></table>' });
+        });
+
+        if (!docs.length) { $('#dayBody').html('<tr><td colspan="9" class="text-center text-muted py-4">No OPD visits, shares or settlements for this day.</td></tr>'); return; }
+        $('#dayBody').html(docs.map(d => {
+            const toSettle = Number(d.ToSettle) || 0;
+            const profile = d.HasProfile ? `<span class="badge bg-light text-dark border dp-pill">${d.PAN ? 'PAN ' + esc(d.PAN) : 'No PAN'} · TDS ${Number(d.TdsPercent)}%</span>`
+                                         : `<span class="badge bg-danger-subtle text-danger border border-danger-subtle dp-pill">No payout profile</span>`;
+            const sets = [d.AwaitingApproval ? `<span class="badge bg-warning-subtle text-warning-emphasis border dp-pill">${d.AwaitingApproval} awaiting approval</span>` : '',
+                          d.AwaitingPayment ? `<span class="badge bg-primary-subtle text-primary border dp-pill">${d.AwaitingPayment} to pay</span>` : '',
+                          Number(d.PaidToday) ? `<span class="badge bg-success-subtle text-success border dp-pill">paid ${money(d.PaidToday)}</span>` : ''].join(' ');
+            const canPrep = CAN.PREPARE && toSettle > 0;
+            return `<tr data-doc="${d.DoctorId}">
+                <td class="ps-3"><div class="fw-semibold">${esc(d.DoctorName)}</div><div class="small text-muted">${esc(d.Speciality || '')}</div>${profile}
+                    ${Number(d.VisitsWithoutRule) ? `<div class="small text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> ${d.VisitsWithoutRule} visit(s) without a rule</div>` : ''}</td>
+                <td class="amt">${d.VisitsToday}</td><td class="amt">${money(d.CollectedToday)}</td>
+                <td class="amt fw-semibold text-success">${money(d.EarnedToday)}</td>
+                <td class="amt">${Number(d.CarriedForward) ? money(d.CarriedForward) + `<div class="small text-muted">since ${fmtD(d.OldestUnsettled)}</div>` : '—'}</td>
+                <td class="amt ${Number(d.Recoveries) ? 'text-danger' : ''}">${Number(d.Recoveries) ? money(d.Recoveries) : '—'}</td>
+                <td class="amt fw-bold ${toSettle < 0 ? 'text-danger' : ''}">${money(toSettle)}<div class="small text-muted fw-normal">${d.LinesToSettle} line(s)</div></td>
+                <td>${sets || '<span class="text-muted small">—</span>'}</td>
+                <td class="text-end pe-3 text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary dp-lines-btn" title="Show the visits"><i class="bi bi-list-ul"></i></button>
+                    ${canPrep ? `<button class="btn btn-sm btn-primary dp-prep" ${d.HasProfile ? '' : 'disabled title="Set up the payout profile first"'}><i class="bi bi-receipt me-1"></i>Prepare</button>` : ''}
+                </td></tr>`;
+        }).join(''));
+    }
+
+    $('#dayBody').on('click', '.dp-lines-btn', function () {
+        const tr = $(this).closest('tr'), id = tr.data('doc');
+        if (tr.next().hasClass('dp-lines')) { tr.next().remove(); return; }
+        const ls = (board.lines || []).filter(l => l.DoctorId === id);
+        const html = ls.length ? `<table class="table table-sm mb-0"><thead><tr><th>Share date</th><th>Type</th><th>Bill</th><th>Patient</th><th class="text-end">Bill net</th><th class="text-end">Collected</th><th>Rule</th><th class="text-end">Share</th><th>Status</th></tr></thead><tbody>` +
+            ls.map(l => { const t = LINE[l.LineType] || [l.LineType, '']; return `<tr><td>${fmtD(l.ShareDate)}</td><td class="${t[1]} fw-semibold">${t[0]}</td><td>${esc(l.BillNo)}<div class="text-muted">${esc(l.TokenNo || '')}</div></td>
+                <td>${esc(l.PatientName)}</td><td class="text-end">${money(l.NetBillAmount)}</td><td class="text-end">${money(l.CollectedAmount)}</td><td>${esc(l.CommissionRule)}</td>
+                <td class="text-end fw-semibold ${Number(l.NetPayable) < 0 ? 'text-danger' : ''}">${money(l.NetPayable)}</td>
+                <td>${l.IsOpen ? '<span class="badge bg-light text-dark border dp-pill">Not settled</span>' : pill(l.SettlementStatus) + ` <span class="text-muted">${esc(l.SettlementNo)}</span>`}</td></tr>`; }).join('') + '</tbody></table>'
+            : '<div class="text-muted p-2">No share lines.</div>';
+        tr.after(`<tr class="dp-lines"><td colspan="9" class="p-2 px-4">${html}</td></tr>`);
+    });
+
+    // prepare one doctor
+    $('#dayBody').on('click', '.dp-prep', function () {
+        const id = $(this).closest('tr').data('doc');
+        current = (board.doctors || []).find(d => d.DoctorId === id);
+        const ls = (board.lines || []).filter(l => l.DoctorId === id && l.IsOpen);
+        const gross = ls.filter(l => l.NetPayable > 0).reduce((a, l) => a + Number(l.NetPayable), 0);
+        const rec = ls.filter(l => l.NetPayable < 0).reduce((a, l) => a + Number(l.NetPayable), 0);
+        current._gross = gross; current._rec = rec;
+        $('#prepDoctor').text(current.DoctorName);
+        $('#prepSub').text(`All unsettled shares up to ${fmtD($('#dayDate').val())} · ${ls.length} line(s) · TDS ${Number(current.TdsPercent)}%${current.PAN ? '' : ' (no PAN on the profile)'}`);
+        $('#prepAdj, #prepAdjReason, #prepRemarks').val('');
+        prepSummary();
+        new bootstrap.Modal('#prepModal').show();
+    });
+    $('#prepAdj').on('input', prepSummary);
+    function prepSummary() {
+        const adj = Number($('#prepAdj').val()) || 0, taxable = current._gross + current._rec + adj;
+        const tds = Math.round(Math.max(taxable, 0) * Number(current.TdsPercent) / 100);
+        $('#prepSum').html(`<span>Gross share</span><span class="text-end">${money(current._gross)}</span>
+            <span>Recoveries</span><span class="text-end text-danger">${money(current._rec)}</span>
+            ${adj ? `<span>Deduction / incentive</span><span class="text-end">${money(adj)}</span>` : ''}
+            <span>TDS @@ ${Number(current.TdsPercent)}%</span><span class="text-end text-danger">${money(-tds)}</span>
+            <span class="t">Net payable</span><span class="t text-end">${money(taxable - tds)}</span>`);
+        $('#prepSave').prop('disabled', taxable <= 0);
+    }
+    $('#prepSave').on('click', function () {
+        const btn = $(this).prop('disabled', true);
+        post(URL.prepare, { doctorId: current.DoctorId, doctorName: current.DoctorName, upTo: $('#dayDate').val(),
+                            otherAdjustment: Number($('#prepAdj').val()) || 0, otherAdjustmentReason: $('#prepAdjReason').val(), remarks: $('#prepRemarks').val() })
+            .done(r => { if (r.success) { bootstrap.Modal.getInstance('#prepModal').hide(); toast('success', r.message); loadBoard(); setLoaded = false; } else Swal.fire({ icon: 'warning', text: r.message }); })
+            .fail(() => Swal.fire({ icon: 'error', text: 'Server error. Please try again.' }))
+            .always(() => btn.prop('disabled', false));
+    });
+
+    // prepare every doctor of the day
+    $('#prepareAll').on('click', function () {
+        Swal.fire({ icon: 'question', title: 'Prepare day-end settlements?', html: `One settlement per doctor for all unsettled shares up to <b>${fmtD($('#dayDate').val())}</b>. Doctors without a payout profile are skipped.`,
+                    showCancelButton: true, confirmButtonText: 'Prepare all' }).then(r => {
+            if (!r.isConfirmed) return;
+            post(URL.prepareDay, { upTo: $('#dayDate').val() }).done(res => {
+                if (!res.success) { Swal.fire({ icon: 'warning', text: res.message }); return; }
+                const out = res.data.results || [];
+                Swal.fire({ icon: out.some(o => o.Outcome === 'PREPARED') ? 'success' : 'info', title: 'Day-end settlements', width: 640,
+                    html: out.length ? '<table class="table table-sm small text-start"><tbody>' + out.map(o => `<tr><td>${esc(o.DoctorName)}</td><td>${o.Outcome === 'PREPARED'
+                        ? `<span class="text-success">${esc(o.SettlementNo)} · ${money(o.NetPayable)}</span>` : `<span class="text-danger">Skipped: ${esc(o.Message)}</span>`}</td></tr>`).join('') + '</tbody></table>'
+                        : 'Nothing to settle.' });
+                loadBoard(); setLoaded = false;
+            }).fail(() => Swal.fire({ icon: 'error', text: 'Server error. Please try again.' }));
+        });
+    });
+
+    // ── 2. settlements ──────────────────────────────────────────────────
+    let setRows = [], setLoaded = false, approvers = null;
+    // who may approve at this branch: shown on settlements awaiting approval (the one who prepared it is left out, except a Super Admin)
+    const loadApprovers = () => approvers ? $.Deferred().resolve().promise()
+        : $.get(URL.approvers).done(res => { approvers = res.success ? (res.data.rows || []) : []; });
+    const approversFor = r => (approvers || []).filter(a => a.UserId !== r.PreparedBy || a.IsSuperAdmin);
+    const today = new Date(), monthAgo = new Date(); monthAgo.setDate(today.getDate() - 30);
+    $('#setFrom').val(iso(monthAgo)); $('#setTo').val(iso(today));
+    $('#tabSetBtn').on('shown.bs.tab', () => { if (!setLoaded) loadSettlements(); });
+    $('#setLoad').on('click', loadSettlements);
+    $('#setSearch').on('input', renderSettlements);
+
+    function loadSettlements() {
+        setLoaded = true;
+        $('#setBody').html('<tr><td colspan="10" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>');
+        $.get(URL.settlements, { fromDate: $('#setFrom').val(), toDate: $('#setTo').val(), status: $('#setStatus').val() }).done(res => {
+            if (!res.success) { $('#setBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">${esc(res.message)}</td></tr>`); return; }
+            setRows = res.data.rows || [];
+            if (setRows.some(r => r.Status === 'PREPARED')) loadApprovers().always(renderSettlements); else renderSettlements();
+        });
+    }
+
+    function renderSettlements() {
+        const q = ($('#setSearch').val() || '').toLowerCase();
+        const rows = setRows.filter(r => !q || [r.SettlementNo, r.DoctorName, r.PaymentReference, r.PAN].some(v => String(v || '').toLowerCase().includes(q)));
+        if (!rows.length) { $('#setBody').html('<tr><td colspan="10" class="text-center text-muted py-4">No settlements.</td></tr>'); return; }
+        $('#setBody').html(rows.map(r => {
+            const acts = [];
+            if (CAN.DETAILS) acts.push(`<button class="btn btn-sm btn-outline-secondary st-view" title="View"><i class="bi bi-eye"></i></button>`,
+                                       `<a class="btn btn-sm btn-outline-secondary" title="Print voucher" target="_blank" href="${URL.voucher}/${r.SettlementId}"><i class="bi bi-printer"></i></a>`);
+            if (r.Status === 'PREPARED' && CAN.APPROVE) acts.push(r.PreparedByMe && !ME.superAdmin
+                ? `<button class="btn btn-sm btn-outline-success" disabled title="You prepared it: another user must approve (maker-checker)"><i class="bi bi-check2-circle"></i></button>`
+                : `<button class="btn btn-sm btn-success st-approve" title="${r.PreparedByMe ? 'Approve (Super Admin, your own settlement)' : 'Approve'}"><i class="bi bi-check2-circle"></i></button>`);
+            if ((r.Status === 'PREPARED' || r.Status === 'APPROVED') && CAN.APPROVE) acts.push(`<button class="btn btn-sm btn-outline-danger st-reject" title="Reject"><i class="bi bi-x-circle"></i></button>`);
+            if (r.Status === 'PREPARED' && CAN.CANCEL) acts.push(`<button class="btn btn-sm btn-outline-secondary st-cancel" title="Cancel"><i class="bi bi-trash"></i></button>`);
+            if (r.Status === 'APPROVED' && CAN.PAYOUT) acts.push(`<button class="btn btn-sm btn-primary st-pay" title="Record payment"><i class="bi bi-cash-coin me-1"></i>Pay</button>`);
+            const who = r.Status === 'PAID' ? `paid ${fmtD(r.PaymentDate)} · ${esc(r.PaymentMode)}${r.PaymentReference ? ' · ' + esc(r.PaymentReference) : ''}`
+                : r.Status === 'APPROVED' ? `approved by ${esc(r.ApprovedByName)}`
+                : (r.Status === 'REJECTED' || r.Status === 'CANCELLED') ? `${esc(r.ClosedByName)}: ${esc(r.CloseReason)}`
+                : `prepared by ${esc(r.PreparedByName)}`;
+            let canApprove = '';
+            if (r.Status === 'PREPARED') {
+                const list = approversFor(r);
+                canApprove = list.length
+                    ? `<div class="small mt-1"><i class="bi bi-person-check text-success me-1"></i>Can approve: ${list.map(a => `<span title="${esc(a.Roles || '')}">${esc(a.UserName)}${a.IsSuperAdmin ? ' <span class="text-muted">(Super Admin)</span>' : ''}</span>`).join(', ')}</div>`
+                    : `<div class="small mt-1 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>No one can approve yet: give a role "Approve / reject settlement" in Role Permissions.</div>`;
             }
-            var ids = Array.from(checked).map(c => c.value).join(',');
-            if (confirm(`Approve ${checked.length} selected doctor disbursals?`)) {
-                document.getElementById('bulkDisbursalIds').value = ids;
-                document.getElementById('bulkApproveForm').submit();
-            }
-        }
+            return `<tr data-id="${r.SettlementId}">
+                <td class="ps-3"><div class="fw-semibold font-monospace">${esc(r.SettlementNo)}</div><div class="small text-muted">${fmtDT(r.PreparedOn)}</div></td>
+                <td><div class="fw-semibold">${esc(r.DoctorName)}</div><div class="small text-muted">${r.PAN ? 'PAN ' + esc(r.PAN) : 'No PAN'}</div></td>
+                <td class="small">${r.PeriodFrom === r.PeriodTo ? fmtD(r.PeriodFrom) : fmtD(r.PeriodFrom) + ' – ' + fmtD(r.PeriodTo)}</td>
+                <td class="amt">${r.Visits}</td><td class="amt">${money(r.GrossShare)}</td>
+                <td class="amt text-danger">${Number(r.Recoveries) + Number(r.OtherAdjustment) ? money(Number(r.Recoveries) + Number(r.OtherAdjustment)) : '—'}</td>
+                <td class="amt">${money(r.TdsAmount)}<div class="small text-muted">${Number(r.TdsPercent)}%</div></td>
+                <td class="amt fw-bold">${money(r.NetPayable)}</td>
+                <td>${pill(r.Status)}<div class="small text-muted">${who}</div>${canApprove}</td>
+                <td class="text-end pe-3 text-nowrap"><div class="btn-group">${acts.join('')}</div></td></tr>`;
+        }).join(''));
+    }
+    const rowOf = el => setRows.find(r => r.SettlementId === $(el).closest('tr').data('id'));
 
-        function openAdjustmentModal(id, docName, netPayable) {
-            document.getElementById('adjDisbursalId').value = id;
-            document.getElementById('adjDoctorName').textContent = docName;
-            document.getElementById('adjNetPayable').textContent = '₹' + netPayable.toFixed(2);
-            new bootstrap.Modal(document.getElementById('adjustmentModal')).show();
-        }
+    function reason(title, label, confirmText, color) {
+        return Swal.fire({ title, input: 'textarea', inputLabel: label, inputAttributes: { maxlength: 500 }, showCancelButton: true, confirmButtonText: confirmText,
+                           confirmButtonColor: color, inputValidator: v => !v || !v.trim() ? 'Please give the reason.' : undefined });
+    }
+    function act(url, body, done) {
+        post(url, body).done(r => { if (r.success) { toast('success', r.message); loadSettlements(); loadBoard(); if (done) done(); } else Swal.fire({ icon: 'warning', text: r.message }); })
+            .fail(() => Swal.fire({ icon: 'error', text: 'Server error. Please try again.' }));
+    }
+    $('#setBody').on('click', '.st-approve', function () {
+        const r = rowOf(this);
+        Swal.fire({ title: `Approve ${r.SettlementNo}?`, html: `${esc(r.DoctorName)} · net payable <b>${money(r.NetPayable)}</b>` +
+                        (r.PreparedByMe ? '<div class="small text-warning-emphasis mt-2">You prepared this settlement. As Super Admin you may approve it yourself; it is recorded as "Self-approved by Super Admin".</div>' : ''),
+                    input: 'text', inputPlaceholder: 'Remarks (optional)',
+                    showCancelButton: true, confirmButtonText: 'Approve', confirmButtonColor: '#16a34a' })
+            .then(x => { if (x.isConfirmed) act(URL.approve, { settlementId: r.SettlementId, settlementNo: r.SettlementNo, remarks: x.value }); });
+    });
+    $('#setBody').on('click', '.st-reject', function () {
+        const r = rowOf(this);
+        reason(`Reject ${r.SettlementNo}?`, 'Reason (its shares go back to be settled again)', 'Reject', '#dc2626')
+            .then(x => { if (x.isConfirmed) act(URL.reject, { settlementId: r.SettlementId, settlementNo: r.SettlementNo, remarks: x.value }); });
+    });
+    $('#setBody').on('click', '.st-cancel', function () {
+        const r = rowOf(this);
+        reason(`Cancel ${r.SettlementNo}?`, 'Reason (its shares go back to be settled again)', 'Cancel settlement', '#64748b')
+            .then(x => { if (x.isConfirmed) act(URL.cancel, { settlementId: r.SettlementId, settlementNo: r.SettlementNo, remarks: x.value }); });
+    });
+    $('#setBody').on('click', '.st-pay', function () {
+        const r = rowOf(this); current = r;
+        $('#payTitle').text(`${r.SettlementNo} · ${r.DoctorName} · ${money(r.NetPayable)}`);
+        $('#payPayee').text('Loading payee details…');
+        $('#payRef, #payRemarks').val(''); $('#payDate').val(iso(new Date())).attr('max', iso(new Date()));
+        $.get(URL.settlement, { id: r.SettlementId }).done(res => {
+            const h = res.success ? (res.data.header || [])[0] || {} : {};
+            const parts = [h.PayeeName, h.BankName && h.AccountNo ? `${h.BankName} a/c ${h.AccountNo} · IFSC ${h.IFSC}` : (h.AccountNo ? `a/c ${h.AccountNo} · IFSC ${h.IFSC}` : ''), h.UpiId ? 'UPI ' + h.UpiId : ''].filter(Boolean);
+            $('#payPayee').text(parts.length ? 'Pay to: ' + parts.join(' · ') : 'No bank / UPI details on the doctor\'s payout profile.');
+            if (h.AccountNo) $('#payMode').val('NEFT'); else if (h.UpiId) $('#payMode').val('UPI'); else $('#payMode').val('Cash');
+            $('#payMode').trigger('change');
+        });
+        new bootstrap.Modal('#payModal').show();
+    });
+    $('#payMode').on('change', function () { $('#payRefLabel').text($(this).val() === 'Cash' ? 'Reference (optional for cash)' : $(this).val() === 'Cheque' ? 'Cheque number' : 'UTR / transaction ID'); });
+    $('#paySave').on('click', function () {
+        const btn = $(this).prop('disabled', true);
+        post(URL.pay, { settlementId: current.SettlementId, settlementNo: current.SettlementNo, paymentMode: $('#payMode').val(), paymentDate: $('#payDate').val(),
+                        paymentReference: $('#payRef').val(), remarks: $('#payRemarks').val() })
+            .done(r => { if (r.success) { bootstrap.Modal.getInstance('#payModal').hide(); toast('success', r.message); loadSettlements(); loadBoard(); } else Swal.fire({ icon: 'warning', text: r.message }); })
+            .fail(() => Swal.fire({ icon: 'error', text: 'Server error. Please try again.' }))
+            .always(() => btn.prop('disabled', false));
+    });
+    $('#setBody').on('click', '.st-view', function () {
+        const r = rowOf(this);
+        $('#viewTitle').text(`${r.SettlementNo} · ${r.DoctorName}`);
+        $('#viewBody').html('<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm"></span></div>');
+        $('#viewFoot').html(`<a class="btn btn-outline-secondary" target="_blank" href="${URL.voucher}/${r.SettlementId}"><i class="bi bi-printer me-1"></i>Print voucher</a><button class="btn btn-light" data-bs-dismiss="modal">Close</button>`);
+        new bootstrap.Modal('#viewModal').show();
+        $.get(URL.settlement, { id: r.SettlementId }).done(res => {
+            if (!res.success) { $('#viewBody').html(`<div class="text-danger">${esc(res.message)}</div>`); return; }
+            const h = (res.data.header || [])[0] || {}, ls = res.data.lines || [];
+            const step = (label, who, when, extra) => `<div class="col"><div class="small text-muted">${label}</div><div class="fw-semibold">${esc(who || '—')}</div><div class="small text-muted">${when ? fmtDT(when) : ''}${extra ? ' · ' + esc(extra) : ''}</div></div>`;
+            $('#viewBody').html(`<div class="row g-2 mb-3">${step('Prepared', h.PreparedByName, h.PreparedOn, h.PrepareRemarks)}${step('Approved', h.ApprovedByName, h.ApprovedOn, h.ApprovalRemarks)}
+                ${step('Paid', h.PaidByName, h.PaidOn, h.PaymentMode ? h.PaymentMode + (h.PaymentReference ? ' ' + h.PaymentReference : '') : '')}
+                ${h.ClosedByName ? step(h.Status === 'REJECTED' ? 'Rejected' : 'Cancelled', h.ClosedByName, h.ClosedOn, h.CloseReason) : ''}</div>
+                <div class="row g-3"><div class="col-lg-8"><table class="table table-sm small"><thead><tr><th>Share date</th><th>Type</th><th>Bill</th><th>Patient</th><th class="text-end">Collected</th><th>Rule</th><th class="text-end">Share</th></tr></thead><tbody>` +
+                (ls.length ? ls.map(l => { const t = LINE[l.LineType] || [l.LineType, '']; return `<tr><td>${fmtD(l.ShareDate)}</td><td class="${t[1]}">${t[0]}</td><td>${esc(l.BillNo)}</td><td>${esc(l.PatientName)}</td>
+                    <td class="text-end">${money(l.CollectedAmount)}</td><td>${esc(l.CommissionRule)}</td><td class="text-end fw-semibold">${money(l.NetPayable)}</td></tr>`; }).join('')
+                    : '<tr><td colspan="7" class="text-muted">Its shares went back to be settled again.</td></tr>') +
+                `</tbody></table></div><div class="col-lg-4"><div class="dp-card p-3"><div class="dp-sum">
+                    <span>Gross share</span><span class="text-end">${money(h.GrossShare)}</span>
+                    <span>Recoveries</span><span class="text-end">${money(h.Recoveries)}</span>
+                    <span>Deduction / incentive</span><span class="text-end">${money(h.OtherAdjustment)}</span>
+                    ${h.OtherAdjustmentReason ? `<span class="small text-muted" style="grid-column:1/3">${esc(h.OtherAdjustmentReason)}</span>` : ''}
+                    <span>Taxable</span><span class="text-end">${money(h.TaxableAmount)}</span>
+                    <span>TDS @@ ${Number(h.TdsPercent)}%</span><span class="text-end">${money(-h.TdsAmount)}</span>
+                    <span class="t">Net payable</span><span class="t text-end">${money(h.NetPayable)}</span></div>
+                    <div class="small text-muted mt-2">${h.PAN ? 'PAN ' + esc(h.PAN) : 'No PAN'}${h.AccountNo ? ' · a/c ' + esc(h.AccountNo) + ' · ' + esc(h.IFSC) : ''}${h.UpiId ? ' · UPI ' + esc(h.UpiId) : ''}</div></div></div></div>`);
+        });
+    });
 
-        function openStatusModal(id, currentStatus) {
-            document.getElementById('statusDisbursalId').value = id;
-            document.getElementById('statusSelect').value = currentStatus;
-            new bootstrap.Modal(document.getElementById('statusModal')).show();
-        }
+    // ── 3. payout profiles ──────────────────────────────────────────────
+    let profRows = [], profLoaded = false;
+    $('#tabProfBtn').on('shown.bs.tab', () => { if (!profLoaded) loadProfiles(); });
+    function loadProfiles() {
+        profLoaded = true;
+        $.get(URL.profiles).done(res => {
+            if (!res.success) { $('#profBody').html(`<tr><td colspan="7" class="text-center text-danger py-4">${esc(res.message)}</td></tr>`); return; }
+            profRows = res.data.rows || [];
+            $('#profBody').html(profRows.length ? profRows.map(p => `<tr data-doc="${p.DoctorId}">
+                <td class="ps-3"><div class="fw-semibold">${esc(p.DoctorName)}</div><div class="small text-muted">${esc(p.Speciality || '')}</div></td>
+                <td>${p.HasProfile ? (p.PAN ? `<span class="font-monospace">${esc(p.PAN)}</span>` : '<span class="text-warning-emphasis small">No PAN</span>') : '<span class="badge bg-danger-subtle text-danger border dp-pill">No profile</span>'}</td>
+                <td>${p.HasProfile ? (p.TdsApplicable ? Number(p.EffectiveTdsPercent) + '%' + (p.PAN ? '' : ' <span class="small text-muted">(206AA)</span>') : 'Not deducted') : '—'}</td>
+                <td>${esc(p.PreferredMode || '—')}</td>
+                <td class="small">${p.AccountNo ? esc(p.BankName || 'Bank') + ' · ' + esc(p.AccountNo) + ' · ' + esc(p.IFSC) : ''}${p.UpiId ? '<div>UPI ' + esc(p.UpiId) + '</div>' : ''}${!p.AccountNo && !p.UpiId ? '—' : ''}</td>
+                <td class="amt">${p.RulesInForce ? p.RulesInForce : '<span class="text-warning-emphasis small">none</span>'}</td>
+                <td class="text-end pe-3">${CAN.PROFILE ? `<button class="btn btn-sm btn-outline-primary pf-edit"><i class="bi bi-pencil me-1"></i>${p.HasProfile ? 'Edit' : 'Set up'}</button>` : ''}</td></tr>`).join('')
+                : '<tr><td colspan="7" class="text-center text-muted py-4">No doctors for this branch.</td></tr>');
+        });
+    }
+    function tdsNote() {
+        const on = $('#pfTdsOn').is(':checked'), pan = ($('#pfPan').val() || '').trim();
+        $('#pfTds').prop('disabled', !on);
+        $('#pfTdsNote').text(!on ? 'No TDS will be deducted.' : pan ? `TDS at ${Number($('#pfTds').val()) || 0}% on each payout.` : 'Without a PAN, TDS is 20% (section 206AA).');
+    }
+    $('#pfTdsOn, #pfPan, #pfTds').on('input change', tdsNote);
+    $('#profBody').on('click', '.pf-edit', function () {
+        current = profRows.find(p => p.DoctorId === $(this).closest('tr').data('doc'));
+        $('#profDoctor').text(current.DoctorName);
+        $('#pfPayee').val(current.PayeeName || current.DoctorName.replace(/^Dr\.?\s*/i, 'Dr ')); $('#pfPan').val(current.PAN || '');
+        $('#pfTdsOn').prop('checked', current.TdsApplicable !== false); $('#pfTds').val(Number(current.TdsPercent ?? 10));
+        $('#pfMode').val(current.PreferredMode || ''); $('#pfBank').val(current.BankName || ''); $('#pfAcc').val(current.AccountNo || '');
+        $('#pfIfsc').val(current.IFSC || ''); $('#pfUpi').val(current.UpiId || ''); $('#pfRemarks').val(current.Remarks || '');
+        tdsNote();
+        new bootstrap.Modal('#profModal').show();
+    });
+    $('#pfSave').on('click', function () {
+        const btn = $(this).prop('disabled', true);
+        post(URL.saveProfile, { doctorId: current.DoctorId, doctorName: current.DoctorName, payeeName: $('#pfPayee').val(), pan: $('#pfPan').val(),
+                                tdsApplicable: $('#pfTdsOn').is(':checked'), tdsPercent: Number($('#pfTds').val()) || 0, preferredMode: $('#pfMode').val(),
+                                bankName: $('#pfBank').val(), accountNo: $('#pfAcc').val(), ifsc: $('#pfIfsc').val(), upiId: $('#pfUpi').val(), remarks: $('#pfRemarks').val() })
+            .done(r => { if (r.success) { bootstrap.Modal.getInstance('#profModal').hide(); toast('success', r.message); loadProfiles(); loadBoard(); } else Swal.fire({ icon: 'warning', text: r.message }); })
+            .fail(() => Swal.fire({ icon: 'error', text: 'Server error. Please try again.' }))
+            .always(() => btn.prop('disabled', false));
+    });
 
-        function openPayoutModal(id, docName, netPayable) {
-            document.getElementById('payoutDisbursalId').value = id;
-            document.getElementById('payoutDoctor').textContent = docName;
-            document.getElementById('payoutAmount').textContent = '₹' + netPayable.toFixed(2);
-            new bootstrap.Modal(document.getElementById('payoutModal')).show();
-        }
-    </script>
+    loadBoard();
+})();
+</script>
 }

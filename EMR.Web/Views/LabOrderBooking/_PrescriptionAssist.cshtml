@@ -1,0 +1,223 @@
+@* LAB billing - AI assist (optional): upload a prescription, read on this server (Tesseract OCR), tests suggested by
+   ML.NET matching; the user ticks which to add and each goes through addInvestigationOption() - the same checks as the
+   search box. Needs #btnRxAssist, #ddlInvestigations, window.addInvestigationOption and window.getOrderItemKeys. *@
+<style>
+    .btn-rx-ai { color:#fff; background:linear-gradient(135deg,#7c3aed,#2563eb); border:0; font-weight:600; }
+    .btn-rx-ai:hover, .btn-rx-ai:focus { color:#fff; filter:brightness(1.08); }
+    #rxAssistModal .rx-drop { border:2px dashed #c7d2fe; border-radius:.75rem; background:#f8faff; padding:1.25rem; text-align:center; cursor:pointer; transition:.15s; }
+    #rxAssistModal .rx-drop.drag { border-color:#6366f1; background:#eef2ff; }
+    #rxAssistModal .rx-preview { max-height:220px; max-width:100%; border-radius:.5rem; border:1px solid #e2e8f0; }
+    #rxAssistModal .rx-row { display:flex; gap:.6rem; align-items:flex-start; padding:.55rem .65rem; border:1px solid #e2e8f0; border-radius:.6rem; }
+    #rxAssistModal .rx-row + .rx-row { margin-top:.4rem; }
+    #rxAssistModal .rx-row.is-added { background:#f8fafc; opacity:.75; }
+    #rxAssistModal .rx-score { font-size:.68rem; font-weight:700; padding:.15rem .45rem; border-radius:999px; white-space:nowrap; }
+    #rxAssistModal .rx-high { background:#dcfce7; color:#166534; }
+    #rxAssistModal .rx-mid { background:#fef3c7; color:#92400e; }
+    #rxAssistModal .rx-from { font-size:.72rem; color:#64748b; }
+    #rxAssistModal .rx-text { white-space:pre-wrap; font-size:.75rem; max-height:180px; overflow:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:.5rem; padding:.5rem; }
+</style>
+
+<div class="modal fade" id="rxAssistModal" tabindex="-1" aria-labelledby="rxAssistTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <div>
+                    <h5 class="modal-title mb-0" id="rxAssistTitle"><i class="bi bi-stars text-primary me-1"></i>AI Prescription Assist</h5>
+                    <div class="small text-muted">Reads the prescription on this server and suggests the tests it asks for. You choose what to add.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="rx-drop d-block mb-2" id="rxDrop" for="rxFile">
+                            <i class="bi bi-file-earmark-image fs-2 text-primary d-block mb-1"></i>
+                            <span class="fw-semibold d-block">Upload a photo, scan or PDF of the prescription</span>
+                            <span class="small text-muted">JPG, PNG, WEBP, BMP, TIFF or PDF &middot; up to 8 MB &middot; clear, well-lit, straight</span>
+                        </label>
+                        <input type="file" id="rxFile" class="d-none" accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff,application/pdf" />
+                        <div class="text-center d-none" id="rxPreviewWrap">
+                            <img id="rxPreview" class="rx-preview" alt="Prescription preview" />
+                            <div class="small text-muted mt-1 text-truncate" id="rxFileName"></div>
+                        </div>
+                        <button type="button" class="btn btn-primary w-100 mt-2" id="rxRead" disabled>
+                            <i class="bi bi-magic me-1"></i>Read prescription
+                        </button>
+                        <div class="small text-muted mt-2"><i class="bi bi-shield-lock me-1"></i>The image is read on this server and not stored.</div>
+                    </div>
+                    <div class="col-md-7">
+                        <div id="rxIdle" class="text-muted small h-100 d-flex align-items-center justify-content-center text-center p-3 border rounded-3 bg-light">
+                            Suggested tests will appear here.
+                        </div>
+                        <div id="rxBusy" class="text-center py-5 d-none">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <div class="small text-muted">Reading the prescription and matching tests&hellip;</div>
+                        </div>
+                        <div id="rxError" class="alert alert-warning small d-none mb-2"></div>
+                        <div id="rxResults" class="d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="fw-semibold small"><span id="rxCount">0</span> suggested test(s)</div>
+                                <div class="small">
+                                    <a href="#" id="rxAll" class="text-decoration-none">Select all</a> &middot;
+                                    <a href="#" id="rxNone" class="text-decoration-none">None</a>
+                                </div>
+                            </div>
+                            <div id="rxList"></div>
+                            <div id="rxUnmatchedWrap" class="mt-3 d-none">
+                                <div class="small fw-semibold mb-1"><i class="bi bi-question-circle me-1 text-warning"></i>Not matched &mdash; click to search</div>
+                                <div id="rxUnmatched" class="d-flex flex-wrap gap-1"></div>
+                            </div>
+                            <details class="mt-3">
+                                <summary class="small text-muted">Text read from the prescription</summary>
+                                <div class="rx-text mt-1" id="rxText"></div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <span class="small text-muted me-auto">Suggestions can be wrong &mdash; check them before adding.</span>
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="rxAdd" disabled><i class="bi bi-plus-lg me-1"></i>Add selected (<span id="rxSel">0</span>)</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(function () {   // after the page's own ready handler, which defines addInvestigationOption
+    const $btn = $('#btnRxAssist');
+    if (!$btn.length || typeof window.addInvestigationOption !== 'function') return;
+    const modalEl = document.getElementById('rxAssistModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    const url = '@Url.Action("PrescriptionAssist", "LabOrderBooking")';
+    const fileInput = document.getElementById('rxFile');
+    let file = null, suggestions = [];
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = n => '₹ ' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const show = (id, on) => document.getElementById(id).classList.toggle('d-none', !on);
+
+    function reset() {
+        file = null; suggestions = []; fileInput.value = '';
+        show('rxPreviewWrap', false); show('rxResults', false); show('rxBusy', false); show('rxError', false); show('rxIdle', true);
+        $('#rxRead').prop('disabled', true); updateCount();
+    }
+    $btn.on('click', () => { reset(); modal.show(); });
+
+    function pick(f) {
+        if (!f) return;
+        const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+        if (!isPdf && !/^image\//.test(f.type)) { error('Choose a photo, scan or PDF of the prescription (JPG, PNG, WEBP, BMP, TIFF or PDF).'); return; }
+        if (f.size > 8 * 1024 * 1024) { error('The image is larger than 8 MB. Use a smaller photo.'); return; }
+        file = f; show('rxError', false);
+        if (isPdf) {
+            // no image preview for a PDF: show a document icon instead
+            document.getElementById('rxPreview').src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="150" viewBox="0 0 120 150"><rect x="10" y="5" width="100" height="140" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="3"/><text x="60" y="88" font-family="Arial" font-size="28" font-weight="700" fill="#dc2626" text-anchor="middle">PDF</text></svg>');
+            show('rxPreviewWrap', true);
+        } else {
+            const r = new FileReader();
+            r.onload = e => { document.getElementById('rxPreview').src = e.target.result; show('rxPreviewWrap', true); };
+            r.readAsDataURL(f);
+        }
+        $('#rxFileName').text(f.name);
+        $('#rxRead').prop('disabled', false);
+    }
+    fileInput.addEventListener('change', () => pick(fileInput.files[0]));
+    const drop = document.getElementById('rxDrop');
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+    drop.addEventListener('drop', e => pick(e.dataTransfer.files[0]));
+
+    function error(msg) { $('#rxError').text(msg); show('rxError', true); }
+
+    $('#rxRead').on('click', function () {
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('prescription', file);
+        fd.append('gender', $('#ddlGender').val() || '');
+        fd.append('ageInYears', $('#AgeYears').val() || '');
+        fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').first().val() || '');
+        show('rxIdle', false); show('rxResults', false); show('rxError', false); show('rxBusy', true);
+        $('#rxRead').prop('disabled', true);
+        fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.ok ? r.json() : r.status === 403 ? { success: false, message: 'You do not have access to AI assist.' } : Promise.reject())
+            .then(res => {
+                show('rxBusy', false);
+                if (!res.success) { error(res.message || 'The prescription could not be read.'); show('rxIdle', true); return; }
+                render(res);
+            })
+            .catch(() => { show('rxBusy', false); show('rxIdle', true); error('Server error while reading the prescription. Please try again.'); })
+            .finally(() => $('#rxRead').prop('disabled', !file));
+    });
+
+    function render(res) {
+        const inOrder = new Set(window.getOrderItemKeys ? window.getOrderItemKeys() : []);
+        const $ddl = $('#ddlInvestigations');
+        suggestions = (res.suggestions || []).map(s => ({
+            ...s,
+            added: inOrder.has(s.optionKey),
+            listed: $ddl.find(`option[value="${s.optionKey}"]`).length > 0
+        }));
+        $('#rxCount').text(suggestions.length);
+        $('#rxList').html(suggestions.length ? suggestions.map((s, i) => {
+            const pct = Math.round(s.score * 100);
+            const note = s.added ? '<span class="badge bg-secondary-subtle text-secondary border">Already added</span>'
+                       : !s.listed ? '<span class="badge bg-warning-subtle text-warning-emphasis border" title="Hidden by the Department / Category filter above">Clear the filters to add</span>' : '';
+            return `<label class="rx-row ${s.added ? 'is-added' : ''}">
+                <input class="form-check-input mt-1 rx-chk" type="checkbox" data-i="${i}" ${(!s.added && s.listed && s.preselect) ? 'checked' : ''} ${(s.added || !s.listed) ? 'disabled' : ''}>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between gap-2">
+                        <span class="fw-semibold small">${esc(s.testName)} <span class="text-muted fw-normal">${esc(s.testCode)}</span>
+                            ${s.kind !== 'Investigation' ? `<span class="badge bg-info-subtle text-info-emphasis border ms-1">${esc(s.kind)}</span>` : ''}</span>
+                        <span class="small fw-semibold text-nowrap">${money(s.mrp)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between gap-2 mt-1">
+                        <span class="rx-from text-truncate">from &ldquo;${esc(s.matchedText)}&rdquo;</span>
+                        <span class="d-flex gap-1 align-items-center">${note}<span class="rx-score ${s.preselect ? 'rx-high' : 'rx-mid'}">${s.preselect ? 'High' : 'Possible'} · ${pct}%</span></span>
+                    </div>
+                </div>
+            </label>`;
+        }).join('') : '<div class="text-muted small p-3 border rounded-3 bg-light">No bookable test was recognised. Check the text below, or add the tests from the search box.</div>');
+
+        const unmatched = res.unmatched || [];
+        $('#rxUnmatched').html(unmatched.map(u => `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 rx-search" data-q="${esc(u)}">${esc(u)}</button>`).join(''));
+        show('rxUnmatchedWrap', unmatched.length > 0);
+        $('#rxText').text(res.text || '');
+        show('rxResults', true);
+        updateCount();
+    }
+
+    function selected() { return $('#rxList .rx-chk:checked').map((_, c) => suggestions[+c.dataset.i]).get(); }
+    function updateCount() { const n = $('#rxList .rx-chk:checked').length; $('#rxSel').text(n); $('#rxAdd').prop('disabled', n === 0); }
+    $('#rxList').on('change', '.rx-chk', updateCount);
+    $('#rxAll').on('click', e => { e.preventDefault(); $('#rxList .rx-chk:not(:disabled)').prop('checked', true); updateCount(); });
+    $('#rxNone').on('click', e => { e.preventDefault(); $('#rxList .rx-chk').prop('checked', false); updateCount(); });
+
+    // an unmatched line: search for it in the normal search box
+    $('#rxUnmatched').on('click', '.rx-search', function () {
+        const q = this.dataset.q;
+        modal.hide();
+        setTimeout(() => {
+            $('#ddlInvestigations').select2('open');
+            const $f = $('.select2-container--open .select2-search__field');
+            $f.val(q).trigger('input');
+        }, 300);
+    });
+
+    // add the ticked tests one by one through the search box's own add logic (duplicates, profiles, packages)
+    $('#rxAdd').on('click', async function () {
+        const picks = selected();
+        if (!picks.length) return;
+        $(this).prop('disabled', true);
+        modal.hide();
+        let added = 0;
+        for (const s of picks) {
+            try { if (await window.addInvestigationOption(s.optionKey, { keepClosed: true })) added++; }
+            catch (err) { console.error('AI assist: could not add', s.optionKey, err); }
+        }
+        if (typeof Swal !== 'undefined')
+            Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3500, timerProgressBar: true })
+                .fire({ icon: added ? 'success' : 'info', title: added ? `${added} test(s) added from the prescription` : 'No test was added' });
+    });
+});
+</script>

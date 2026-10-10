@@ -25,8 +25,7 @@ public class LabBulkLookups(IDbConnectionFactory db)
         await QueryAsync<RefDepartment>("""
             SELECT DeptId AS Id, DeptCode AS Code, DeptName AS Name
             FROM dbo.DepartmentMaster
-            WHERE IsActive = 1 AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%')
-              AND (CompanyId = @CompanyId OR CompanyId IS NULL)
+            WHERE IsActive = 1 AND (UPPER(DeptType) = 'LAB' OR DeptType LIKE '%Lab%')   -- Department Master is global
             ORDER BY DeptName
             """, companyId), x => x.Id, x => x.Code, x => x.Name);
 
@@ -73,7 +72,7 @@ public class LabBulkLookups(IDbConnectionFactory db)
         await QueryAsync<RefUnit>("""
             SELECT Unit_ID AS Id, Unit_Code AS Code, Unit_Name AS Name, Unit_Symbol AS Symbol
             FROM dbo.LabUnitMaster
-            WHERE ISNULL(IsDeleted, 0) = 0 AND Status = 1 AND CompanyId = @CompanyId
+            WHERE ISNULL(IsDeleted, 0) = 0 AND Status = 1   -- Unit Master is global
             ORDER BY Display_Order, Unit_Name
             """, companyId), x => x.Id, x => x.Code, x => x.Name);
 

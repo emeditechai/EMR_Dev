@@ -23,6 +23,7 @@ namespace EMR.Web.Controllers
     [Authorize]
     public class LabImageReportingController(
         ILabReportingApiClient labReportingApiClient,
+        ILabCriticalApiClient labCriticalApiClient,
         ILabOrderApiClient labOrderApiClient,
         ISampleCollectionApiClient sampleCollectionApiClient,
         ILabSampleRejectionReasonApiClient rejectionReasonApiClient,
@@ -408,6 +409,15 @@ namespace EMR.Web.Controllers
                 });
             }
 
+            // NABL: a Critical / Panic result needs its communication recorded before it is approved (SQLScripts/2202)
+            if (request.ReportStatusId == 5)
+            {
+                var criticalBlock = await labCriticalApiClient.GetSignoffBlockAsync(CurrentBranchId(), request.LabOrderId,
+                    (request.Entries ?? new()).Select(e => e.SamplecollectionID), "ENTRY", User.GetUserId(), User.IsSuperAdmin());
+                if (criticalBlock != null)
+                    return Json(new { success = false, code = "CRITICAL_COMM_REQUIRED", message = criticalBlock });
+            }
+
             if (request.Entries == null || request.Entries.Count == 0)
             {
                 return Json(new { success = false, message = "No report entries provided." });
@@ -564,6 +574,8 @@ namespace EMR.Web.Controllers
             ViewBag.Email = settings?.EmailAddress;
             ViewBag.Website = settings?.Website;
             ViewBag.RegistrationNumber = settings?.RegistrationNumber;
+            // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Lab Report Print Header (B2B always prints it)
+            ViewBag.ShowLetterhead = detail.IsB2B || (settings?.LabB2CReportPrintHeaderRequired ?? true);
             ViewBag.PrintedBy = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System";
             // embed = shown inside the Pathologist Dashboard's report viewer, which has its own Print / Close.
             ViewBag.Embed = embed;
@@ -618,14 +630,14 @@ namespace EMR.Web.Controllers
         /// <summary>
         /// The shared header-list procedure (usp_LabReporting_GetHeaderList) labels a bill "Draft" as its
         /// fallback bucket for "some tests entered, not uniformly at one stage yet" - a state that comes up
-        /// naturally in the numeric Lab Reporting flow, which has an explicit Save Draft action.
-        /// The Image Reporting editor has no Save Draft (see "Modal Footer ... No Save Draft" in Entry.cshtml):
-        /// every save is a full Submit, so a bill only ever lands in that bucket by having some tests further
-        /// along than others (e.g. one validated, one still pending). Relabelled here, in the image module only,
-        /// so the list never shows a status this workflow does not use. ReportStatusId (1) and the counts are
+        /// once had an explicit Save Draft action. Neither the Image nor the numeric Lab Reporting editor has Save Draft
+        /// any more: every save is a full Submit, so a bill only lands in that bucket by having some tests further
+        /// along than others (e.g. one submitted, one still pending), or from drafts saved before that change.
+        /// Relabelled for both screens (LabReportingController calls this too), so a list never shows a status the
+        /// workflow does not use. ReportStatusId (1) and the counts are
         /// left untouched - only the two things a person reads are relabelled: the text and the CSS class hook.
         /// </summary>
-        private static void RelabelDraftAsInProgress(LabReportingHeaderListResult result)
+        internal static void RelabelDraftAsInProgress(LabReportingHeaderListResult result)
         {
             if (result?.Headers == null) return;
             foreach (var h in result.Headers)

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using EMR.Web.Data;
+using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EMR.Web.Controllers;
 
 [Authorize]
-public class DashboardController(ApplicationDbContext dbContext) : Controller
+public class DashboardController(ApplicationDbContext dbContext, IHomeDashboardService home) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -52,10 +54,13 @@ public class DashboardController(ApplicationDbContext dbContext) : Controller
         // Sign-in and activity of the person looking at the page - nothing else on this dashboard.
         if (userId > 0)
         {
-            model.SignedInAt = await dbContext.Users
+            var account = await dbContext.Users
                 .Where(x => x.Id == userId)
-                .Select(x => x.LastLoginDate)
+                .Select(x => new { x.LastLoginDate, x.PasswordLastChanged, x.MustChangePassword, x.Username })
                 .FirstOrDefaultAsync();
+            model.SignedInAt = account?.LastLoginDate;
+            model.PasswordLastChanged = account?.PasswordLastChanged;
+            model.MustChangePassword = account?.MustChangePassword ?? false;
 
             // Where this session came from: the credentials check that started it.
             model.SignedInFromIp = await dbContext.AuditLogs
@@ -74,26 +79,45 @@ public class DashboardController(ApplicationDbContext dbContext) : Controller
                 .Select(x => (DateTime?)x.CreatedDate)
                 .FirstOrDefaultAsync();
 
-            // Real work in this branch only: opening a page or signing in is not an activity.
-            var lastActivity = await dbContext.AuditLogs
-                .Where(x => x.UserId == userId
-                            && x.BranchId == branchId
-                            && (x.ModuleCode == null || x.ModuleCode != "PAGE_VIEW")
-                            && x.EventType != "AuthSuccess" && x.EventType != "AuthFailure" && x.EventType != "Auth")
+            // The previous session in ANY branch, and the sign-ins refused on this account since then.
+            model.LastSessionAt = await dbContext.AuditLogs
+                .Where(x => x.UserId == userId && x.EventType == "AuthSuccess" && x.ActionName == "SelectBranch"
+                            && x.CreatedDate < sessionStart)
                 .OrderByDescending(x => x.Id)
-                .Select(x => new { x.Description, x.CreatedDate, x.ModuleCode, x.ControllerName, x.ActionName })
+                .Select(x => (DateTime?)x.CreatedDate)
                 .FirstOrDefaultAsync();
 
-            if (lastActivity != null)
+            var failedFrom = model.LastSessionAt ?? DateTime.Now.AddDays(-30);
+            var failedText = $"Failed login attempt for username: {account?.Username ?? User.Identity?.Name}";
+            var failed = dbContext.AuditLogs
+                .Where(x => x.EventType == "AuthFailure" && x.ActionName == "Login" && x.CreatedDate > failedFrom
+                            && (x.UserId == userId || x.Description == failedText));
+            model.FailedSignInsSinceLast = await failed.CountAsync();
+            model.LastFailedSignInAt = model.FailedSignInsSinceLast > 0
+                ? await failed.MaxAsync(x => (DateTime?)x.CreatedDate)
+                : null;
+
+            // Shortcuts and recent work - only pages and records the user may open.
+            var catalog = await home.GetPageCatalogAsync(HttpContext);
+            model.PageCatalog = catalog.ToList();
+            model.RecentScreens = (await home.GetRecentScreensAsync(HttpContext, catalog, userId, branchId, 8)).ToList();
+            model.RecentActivity = (await home.GetRecentActivityAsync(HttpContext, catalog, userId, branchId, 6)).ToList();
+
+            // The user's own work only: page views, sign-in steps and system notifications are left out (see the service).
+            if (model.RecentActivity.FirstOrDefault() is { } lastActivity)
             {
                 model.LastActivityDescription = lastActivity.Description;
-                model.LastActivityAt = lastActivity.CreatedDate;
-                model.LastActivityModule = lastActivity.ModuleCode;
-                model.LastActivityScreen = string.IsNullOrWhiteSpace(lastActivity.ControllerName)
-                    ? lastActivity.ActionName
-                    : $"{lastActivity.ControllerName} / {lastActivity.ActionName}";
+                model.LastActivityAt = lastActivity.At;
+                model.LastActivityModule = lastActivity.Module;
+                model.LastActivityScreen = lastActivity.ScreenTitle;
             }
         }
+
+        model.ActiveRole = User.GetActiveRole();
+        model.RoleCount = User.FindAll(ClaimTypes.Role).Select(x => x.Value)
+            .Where(x => !string.Equals(x, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        model.BranchCount = int.TryParse(User.FindFirstValue("BranchCount"), out var bc) ? bc : 1;
 
 
         ViewData["IsSuperAdmin"] = User.HasClaim("IsSuperAdmin", "true");

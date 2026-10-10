@@ -6,6 +6,7 @@ public interface IPatientApiClient
 {
     Task<PagedResult<PatientListItem>> GetByBranchAsync(
         int? branchId, int page = 1, int pageSize = 20, string? search = null, int? companyId = null);
+    Task<PatientStats?> GetStatsAsync(int? branchId, int? companyId = null);
 
     Task<PatientDetail?> GetByIdAsync(int patientId, int? companyId = null);
     Task<int?>           CreateAsync(PatientCreateRequest request);

@@ -1,0 +1,77 @@
+@{
+    ViewData["Title"] = "Doctor Payable & Ageing";
+    ViewData["ReportSubtitle"] = "what the hospital still owes each doctor as on the To date: shares not settled, settlements awaiting approval or payment, and how old they are";
+    ViewData["ReportIcon"] = "bi-hourglass-split";
+    ViewData["ReportAccent"] = "#b45309";
+    ViewData["DateLabel"] = "as on";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const COMMON = {
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))'
+    };
+    const voucherUrl = '@Url.Action("Voucher", "DoctorDisbursal")';
+    const dash = '<span class="text-muted">—</span>';
+    const voucherBtn = (id) => id ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print payout voucher" href="${voucherUrl}/${id}"><i class="bi bi-printer"></i></a>` : '';
+    const ST = { OPEN: ['Not settled', 'bg-light text-dark border-secondary-subtle'], PREPARED: ['Awaiting approval', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                 APPROVED: ['Approved · to pay', 'bg-primary-subtle text-primary border-primary-subtle'], PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'],
+                 REJECTED: ['Rejected', 'bg-danger-subtle text-danger border-danger-subtle'], CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'],
+                 NOT_SETTLED: ['Not settled', 'bg-light text-dark border-secondary-subtle'], AWAITING_APPROVAL: ['Awaiting approval', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                 AWAITING_PAYMENT: ['Approved · to pay', 'bg-primary-subtle text-primary border-primary-subtle'] };
+    const st = (v, h) => { const s = ST[v] || [v, '']; return h.pill(s[0], s[1]); };
+    const stName = (r, h) => st(r.GroupName, h);
+    const LT = { SHARE: ['Share', 'text-success'], TOPUP: ['Top-up', 'text-primary'], RECOVERY: ['Recovery', 'text-danger'] };
+    const lt = (v) => { const x = LT[v] || [v, '']; return `<span class="fw-semibold ${x[1]}">${x[0]}</span>`; };
+    const neg = (v, h) => Number(v) < 0 ? `<span class="text-danger">-${h.money(-v)}</span>` : (Number(v) ? h.money(v) : dash);
+
+    const AGE = { '0-1': '0–1 day', '2-7': '2–7 days', '8-30': '8–30 days', '30+': 'Over 30 days' };
+    LabReport.init({ ...COMMON,
+        report: 'doctor-payable', title: 'Doctor Payable & Ageing', defaultRange: 'today', summaryAlways: true,
+        searchPlaceholder: 'Bill No, settlement no, doctor...',
+        filters: [
+            { id: 'stage', label: 'Stage', allLabel: 'All', options: [['NOT_SETTLED', 'Not settled'], ['AWAITING_APPROVAL', 'Awaiting approval'], ['AWAITING_PAYMENT', 'Approved · to pay']] },
+            { id: 'ageBucket', label: 'Age', allLabel: 'All ages', options: Object.keys(AGE).map(k => [k, AGE[k]]) },
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Total payable', color: '#b45309', value: (s, h) => h.money(s.TotalPayable), sub: (s, h) => `${h.num(s.Doctors)} doctor(s) · ${h.num(s.Items)} item(s)` },
+            { label: 'Not settled', color: '#475569', value: (s, h) => h.money(s.NotSettled), sub: (s, h) => Number(s.RecoveriesPending) ? `incl. recoveries ${h.money(s.RecoveriesPending)} · before TDS` : 'before TDS' },
+            { label: 'Awaiting approval', color: '#d97706', value: (s, h) => h.money(s.AwaitingApproval), sub: () => 'net of TDS' },
+            { label: 'Approved · to pay', color: '#1d4ed8', value: (s, h) => h.money(s.AwaitingPayment), sub: () => 'net of TDS' },
+            { label: 'Over 30 days', color: '#b91c1c', value: (s, h) => h.money(s.Over30), sub: (s, h) => s.OldestDate ? `oldest ${h.fmtD(s.OldestDate)} (${s.OldestDays} days)` : 'nothing outstanding' }
+        ],
+        groups: [
+            { key: 'byDoctor', label: 'Doctor', rowField: 'DoctorId', byId: true },
+            { key: 'byStage', label: 'Stage', rowField: 'Stage', name: stName },
+            { key: 'byAge', label: 'Age', rowField: 'AgeBucket', name: (r, h) => h.esc(AGE[r.GroupName] || r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'Items', label: 'Items', num: true }, { field: 'NotSettled', label: 'Not settled', money: true },
+            { field: 'AwaitingApproval', label: 'Awaiting approval', money: true }, { field: 'AwaitingPayment', label: 'To pay', money: true },
+            { field: 'TotalPayable', label: 'Total payable', money: true }, { field: 'OldestDays', label: 'Oldest (days)', num: true, total: 'max' }
+        ],
+        shareOf: 'TotalPayable',
+        cols: [
+            { label: 'Date', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.ItemDate) + `<div class="text-muted fs-9">${r.AgeDays} day(s)</div>`, text: (r, h) => h.fmtD(r.ItemDate) },
+            { label: 'Doctor', html: (r, h) => `<div class="fw-semibold">${h.esc(r.DoctorName)}</div><div class="text-muted fs-9">${h.esc(r.Speciality)}</div>`, text: r => r.DoctorName },
+            { label: 'Item', html: (r, h) => `<div class="font-monospace">${h.esc(r.Ref || '')}</div><div class="text-muted fs-9">${r.ItemType === 'SETTLEMENT' ? 'settlement · ' + r.Visits + ' visit(s)' : 'share line'}</div>`, text: r => r.Ref },
+            { label: 'Detail', html: (r, h) => `<span class="fs-9">${h.esc(r.Detail || '')}</span>`, text: r => r.Detail },
+            { label: 'Stage', html: (r, h) => st(r.Stage, h), text: r => (ST[r.Stage] || [r.Stage])[0] },
+            { label: 'Age', html: (r, h) => h.pill(AGE[r.AgeBucket] || r.AgeBucket, r.AgeBucket === '30+' ? 'bg-danger-subtle text-danger border-danger-subtle' : 'bg-light text-dark border-secondary-subtle'), text: r => AGE[r.AgeBucket] },
+            { label: 'Amount', cls: 'text-end amt fw-semibold', html: (r, h) => neg(r.Amount, h), text: r => r.Amount, sum: 'Amount' },
+            { label: 'Voucher', cls: 'text-center no-print', noExport: true, html: r => r.ItemType === 'SETTLEMENT' ? voucherBtn(r.RefId) : '' }
+        ]
+    });
+})();
+</script>
+}

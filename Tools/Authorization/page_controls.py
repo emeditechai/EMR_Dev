@@ -27,17 +27,29 @@ STANDARD = {
     "STATUS": ("Activate / Deactivate", 50), "DELETE": ("Delete", 60), "PRINT": ("Print", 70), "EXPORT": ("Export", 80),
     "IMPORT": ("Bulk upload", 85), "APPROVE": ("Approve", 90), "UNAUTHORIZE": ("Un-approve", 92), "CANCEL": ("Cancel", 94),
     "REFUND": ("Refund", 96), "SETTLE": ("Settle", 97), "DISCOUNT": ("Discount", 98),
-    "BOOK_SLOT": ("Book slot", 20), "VALIDATE": ("Validate", 88),
+    "BOOK_SLOT": ("Book slot", 20), "VALIDATE": ("Validate", 88), "REGISTER": ("Register", 20),
+    # LAB Dashboard client tabs (script 2188)
+    "CLIENT_ALL": ("All Clients tab", 11), "CLIENT_B2C": ("B2C Patients tab", 12), "CLIENT_B2B": ("B2B Partners tab", 13),
 }
 
 # Controls that are not reached through an endpoint of their own (checked inside a save), or declared in code.
 IN_ACTION = {
     ("LAB.LABREPORTING", "APPROVE"), ("LAB.LABIMAGEREPORTING", "APPROVE"),
     ("LAB.LABREPORTING", "VALIDATE"), ("LAB.LABIMAGEREPORTING", "VALIDATE"),   # a save with status Validated (3)
+    ("LAB.MICROBIOLOGYREPORTING", "APPROVE"), ("LAB.MICROBIOLOGYREPORTING", "VALIDATE"),
     ("OPD.PATIENTREGISTRATION", "DISCOUNT"), ("OPD.SERVICEBOOKING", "DISCOUNT"), ("OPD.DASHBOARD", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CBOOKING", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BBOOKING", "DISCOUNT"),
     ("LAB.LABORDERBOOKING.B2CORDERLIST", "DISCOUNT"), ("LAB.LABORDERBOOKING.B2BREGISTRATION", "DISCOUNT"),
     ("OPD.DOCTORROSTER", "BOOK_SLOT"),       # a slot opens Patient Registration pre-filled; checked there
+    ("MASTER.OPD", "EDIT"),                  # Patient Master > Edit opens Patient Registration with the patient (script 2208); checked there
+    ("MASTER.OPD", "REGISTER"),              # Patient Master's Register Patient button (script 2208); registering is Patient Registration's
+    ("LAB.LABDASHBOARD", "CLIENT_ALL"), ("LAB.LABDASHBOARD", "CLIENT_B2C"), ("LAB.LABDASHBOARD", "CLIENT_B2B"),   # the tab is a parameter of Index
+}
+
+# Titles of IN_ACTION controls that are not the standard ones.
+IN_ACTION_TITLES = {
+    ("MASTER.OPD", "EDIT"): "Edit patient",
+    ("MASTER.OPD", "REGISTER"): "Register patient",
 }
 
 # ── curated groups: (page or "*", controller, action) -> (code, title) ──────
@@ -64,6 +76,7 @@ OVERRIDES = {
     ("OPD.SERVICEBOOKING", "OPD", "NewServiceBooking"): ("SAVE", "New service booking"),
     ("LAB.LABORDERBOOKING.B2CBOOKING", "LabOrderBooking", "B2CBooking"): ("SAVE", "Save booking"),
     ("LAB.LABORDERBOOKING.B2CBOOKING", "LabOrderBooking", "SaveBookingWithPayment"): ("SAVE", "Save booking"),
+    ("LAB.LABORDERBOOKING.B2CBOOKING", "LabOrderBooking", "PrescriptionAssist"): ("AI_ASSIST", "AI prescription assist"),   # script 2198
     ("LAB.LABORDERBOOKING.B2BBOOKING", "LabOrderBooking", "B2BBooking"): ("SAVE", "Save booking"),
     ("LAB.LABORDERBOOKING.B2BBOOKING", "LabOrderBooking", "FranchiseWalletStatement"): ("VIEW", None),
     ("LAB.LABORDERBOOKING.B2BINVOICES", "LabOrderBooking", "GenerateInvoice"): ("GENERATE_INVOICE", "Generate invoice"),
@@ -78,6 +91,24 @@ OVERRIDES = {
     ("LAB.LABIMAGEREPORTING", "LabImageReporting", "SaveReportJson"): ("ENTRY", "Report entry"),
     ("*", "LabReporting", "Entry"): ("VIEW", None),            # opening a report from another screen reads it
     ("*", "LabImageReporting", "Entry"): ("VIEW", None),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "Entry"): ("ENTRY", "Report entry"),
+    ("REPORTS.LABOUTSOURCED", "Reports", "MarkOutsourceSent"): ("OUTSOURCE_SEND", "Mark sent to outside lab"),
+    ("REPORTS.LABOUTSOURCED", "Reports", "MarkOutsourceReceived"): ("OUTSOURCE_RESULT", "Record outside-lab result"),
+    # critical value communication form, shared by four pages (script 2202)
+    ("LAB.PATHOLOGISTDASHBOARD", "LabCriticalCommunication", "Pending"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("LAB.PATHOLOGISTDASHBOARD", "LabCriticalCommunication", "Record"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("LAB.LABREPORTING", "LabCriticalCommunication", "Pending"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("LAB.LABREPORTING", "LabCriticalCommunication", "Record"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("LAB.MICROBIOLOGYREPORTING", "LabCriticalCommunication", "Pending"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("LAB.MICROBIOLOGYREPORTING", "LabCriticalCommunication", "Record"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("REPORTS.LABCRITICAL", "LabCriticalCommunication", "Pending"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("REPORTS.LABCRITICAL", "LabCriticalCommunication", "Record"): ("CRITICAL_COMM", "Record critical value communication"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "SaveEntryJson"): ("ENTRY", "Report entry"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "CalculateFormulasJson"): ("VIEW", None),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "UpdateSampleStatusJson"): ("SAMPLE_STATUS", "Reject / re-collect sample"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "PrintReportPdf"): ("PRINT", "Print"),
+    ("LAB.MICROBIOLOGYREPORTING", "MicrobiologyReporting", "LogReportPrintedJson"): ("PRINT", "Print"),
+    ("*", "MicrobiologyReporting", "Entry"): ("VIEW", None),
     ("*", "LabReporting", "LogReportPrintedJson"): ("PRINT", "Print"),
     ("LAB.SAMPLECOLLECTION", "SampleCollection", "CollectAllJson"): ("COLLECT", "Collect sample"),
     ("LAB.SAMPLECOLLECTION", "SampleCollection", "UpdateStatusJson"): ("COLLECT", "Collect sample"),
@@ -237,7 +268,7 @@ def build():
         page["placements"].append(dict(m=meth, ctl=c, act=a, c=code))
     for pc, code in IN_ACTION:
         if pc in pages:
-            pages[pc]["controls"].setdefault(code, dict(code=code, title=None, endpoints=["(checked inside the save)"], active=True))
+            pages[pc]["controls"].setdefault(code, dict(code=code, title=IN_ACTION_TITLES.get((pc, code)), endpoints=["(checked inside the save)"], active=True))
     for page in pages.values():
         for ctl in page["controls"].values():
             std = STANDARD.get(ctl["code"])

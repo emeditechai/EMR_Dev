@@ -94,11 +94,12 @@ public class ServicesController(
             ConsultingType = model.ServiceType == "Consulting" ? model.ConsultingType : null,
             IsGstRequired  = model.IsGstRequired,
             GstPercentage  = model.IsGstRequired ? model.GstPercentage : null,
+            IsDiscountable = model.IsDiscountable,
             BranchId       = branchId.Value,
             IsActive       = model.IsActive
         }, User.GetUserId());
 
-        await auditLogService.LogAsync("MasterData", "Services.Create", $"Created service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}");
+        await auditLogService.LogAsync("MasterData", "Services.Create", $"Created service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}{(model.IsDiscountable ? "" : ", not discountable")}");
         TempData["Success"] = "Service created successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -124,6 +125,7 @@ public class ServicesController(
             ConsultingType = entity.ConsultingType,
             IsGstRequired  = entity.IsGstRequired,
             GstPercentage  = entity.GstPercentage,
+            IsDiscountable = entity.IsDiscountable,
             IsActive       = entity.IsActive
         });
     }
@@ -182,11 +184,12 @@ public class ServicesController(
             ConsultingType = model.ServiceType == "Consulting" ? model.ConsultingType : null,
             IsGstRequired  = model.IsGstRequired,
             GstPercentage  = model.IsGstRequired ? model.GstPercentage : null,
+            IsDiscountable = model.IsDiscountable,
             BranchId       = branchId.Value,
             IsActive       = model.IsActive
         }, User.GetUserId());
 
-        await auditLogService.LogAsync("MasterData", "Services.Edit", $"Updated service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}");
+        await auditLogService.LogAsync("MasterData", "Services.Edit", $"Updated service: {itemCode} - {model.ItemName.Trim()} ({model.ServiceType}) ₹{model.ItemCharges}{(model.IsDiscountable ? "" : ", not discountable")}");
         TempData["Success"] = "Service updated successfully.";
         return RedirectToAction(nameof(Index));
     }

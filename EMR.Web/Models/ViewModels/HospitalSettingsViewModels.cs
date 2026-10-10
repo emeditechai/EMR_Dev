@@ -114,6 +114,19 @@ public class HospitalSettingsViewModel
     [Display(Name = "Show LAB Report Print on List")]
     public bool ShowLabReportPrintOnList { get; set; } = false;
 
+    [Display(Name = "Critical Value Communication Required")]
+    public bool CriticalValueCommunicationRequired { get; set; } = false;
+
+    [Display(Name = "Critical Value: Inform Within (minutes)")]
+    [Range(1, 1440, ErrorMessage = "Enter between 1 and 1440 minutes.")]
+    public int? CriticalValueInformMinutes { get; set; }
+
+    [Display(Name = "Required B2C Bill Print Header")]
+    public bool LabB2CBillPrintHeaderRequired { get; set; } = true;
+
+    [Display(Name = "Required B2C Lab Report Print Header")]
+    public bool LabB2CReportPrintHeaderRequired { get; set; } = true;
+
     [Display(Name = "Doctor IP Commission Run")]
     [RegularExpression("^(Manual|Automatic|Both)$", ErrorMessage = "Choose Manual, Automatic or Both.")]
     public string DoctorIpComputeMode { get; set; } = "Manual";

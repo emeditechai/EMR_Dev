@@ -4,339 +4,363 @@
     var selectedDateStr = Model.SelectedDate;
     var parsedDate = DateTime.TryParse(selectedDateStr, out var d) ? d : DateTime.Today;
     var displayDate = parsedDate.ToString("dd MMM yyyy");
+    var isToday = parsedDate.Date == DateTime.Today;
+    var nowTime = DateTime.Now.TimeOfDay;
+    var prevDate = parsedDate.AddDays(-1).ToString("yyyy-MM-dd");
+    var nextDate = parsedDate.AddDays(1).ToString("yyyy-MM-dd");
+    var s = Model.Data.Summary;
+    var inr = new System.Globalization.CultureInfo("en-IN");
+    string Money(decimal v) => "₹" + v.ToString("N2", inr);
+
+    // the day's bookings (all walk-ins and appointments), earliest first
+    var bookings = Model.Data.RecentBookings.Concat(Model.Data.Appointments)
+        .GroupBy(x => x.OPDServiceId).Select(g => g.First())
+        .OrderBy(x => x.AppointmentTime ?? x.RegisteredAt?.TimeOfDay ?? TimeSpan.MaxValue).ThenBy(x => x.OPDServiceId)
+        .ToList();
+    int Count(string st) => bookings.Count(b => b.Status == st);
+    var waiting = Count("Registered"); var consulting = Count("Consulting"); var completed = Count("Completed"); var cancelled = Count("Cancelled");
+    var activeVisits = Math.Max(1, waiting + consulting + completed + cancelled);
+    var completionPct = s.TodayTotalBookings - s.TodayCancelledCount > 0 ? (int)Math.Round(s.TodayCompletedCount * 100.0 / (s.TodayTotalBookings - s.TodayCancelledCount)) : 0;
+    var paidCount = bookings.Count(b => b.Status != "Cancelled" && b.PaymentStatus == "P");
+    var partialCount = bookings.Count(b => b.Status != "Cancelled" && b.PaymentStatus == "R");
+    var unpaidCount = bookings.Count(b => b.Status != "Cancelled" && b.PaymentStatus == "U");
+
+    // charts: visits by hour (appointment time, else registration time), 7-day trend, revenue mix
+    var hourly = bookings.Where(b => b.Status != "Cancelled")
+        .GroupBy(b => (b.AppointmentTime ?? b.RegisteredAt?.TimeOfDay ?? TimeSpan.Zero).Hours)
+        .ToDictionary(g => g.Key, g => g.Count());
+    var hFrom = hourly.Count > 0 ? Math.Min(8, hourly.Keys.Min()) : 8;
+    var hTo = hourly.Count > 0 ? Math.Max(20, hourly.Keys.Max()) : 20;
+    var hourLabels = Enumerable.Range(hFrom, hTo - hFrom + 1).Select(h => DateTime.Today.AddHours(h).ToString("h tt")).ToList();
+    var hourValues = Enumerable.Range(hFrom, hTo - hFrom + 1).Select(h => hourly.TryGetValue(h, out var c) ? c : 0).ToList();
+    var peakHour = hourly.Count > 0 ? hourly.OrderByDescending(x => x.Value).ThenBy(x => x.Key).First() : default;
+    var trend = Model.Data.Trend;
+    var json = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = null };
+    var chartData = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        hourLabels, hourValues,
+        trendLabels = trend.Select(t => t.Day.ToString("dd MMM")).ToList(),
+        trendVisits = trend.Select(t => t.Visits).ToList(),
+        trendRevenue = trend.Select(t => t.Revenue).ToList(),
+        mixLabels = Model.Data.BookingsByServiceType.Select(x => x.ServiceType).ToList(),
+        mixValues = Model.Data.BookingsByServiceType.Select(x => x.Revenue).ToList(),
+        payLabels = new[] { "Paid", "Partly paid", "Unpaid" },
+        payValues = new[] { paidCount, partialCount, unpaidCount }
+    }, json);
+    // roster: for today only the sessions not over yet (ending at or after now); other days show every session
+    var rosterShown = isToday ? Model.Data.TodayRoster.Where(r => r.EndTime >= nowTime).ToList() : Model.Data.TodayRoster;
+    var rosterOver = Model.Data.TodayRoster.Count - rosterShown.Count;
+    var trendVisits = trend.Sum(t => t.Visits);
+    var trendRevenue = trend.Sum(t => t.Revenue);
 }
 
 @section HeadStyles {
     <style>
-        .dashboard-page {
-            margin-top: 0.25rem;
-        }
-        .dashboard-hero-card {
-            background: linear-gradient(135deg, #644098 0%, #8960c7 100%);
-            border-radius: 16px;
-            padding: 2rem 2.5rem;
-            border: none;
-            box-shadow: 0 10px 30px rgba(100, 64, 152, 0.15);
-            position: relative;
-            overflow: hidden;
-        }
-        .dashboard-hero-card::after {
-            content: '';
-            position: absolute;
-            right: -10%;
-            top: -30%;
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 70%);
-            border-radius: 50%;
-            pointer-events: none;
-        }
-        .dashboard-hero-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            gap: 1.5rem;
-            flex-wrap: wrap;
-            position: relative;
-            z-index: 1;
-        }
-        .dashboard-title {
-            font-size: 2.2rem;
-            font-weight: 700;
-            color: #ffffff;
-            letter-spacing: -0.02em;
-        }
-        .dashboard-hero-subtitle {
-            color: rgba(255, 255, 255, 0.85);
-            font-size: 1.05rem;
-            font-weight: 400;
-        }
-        .dashboard-hero-pill {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            padding: 0.35rem 0.85rem;
-            font-weight: 600;
-            font-size: 0.95rem;
-            backdrop-filter: blur(4px);
-        }
-        .stat-card {
-            background: #fff;
-            border: 1px solid #e9ecef;
-            border-radius: 14px;
-            padding: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1.25rem;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-            transition: all 0.2s ease-in-out;
-            position: relative;
-        }
-        .stat-card:hover {
-            box-shadow: 0 8px 25px rgba(0,0,0,0.06);
-            transform: translateY(-3px);
-            border-color: #dee2e6;
-        }
-        .stat-card .stat-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.7rem;
-            flex-shrink: 0;
-        }
-        .stat-card .stat-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            line-height: 1.2;
-            color: #2b3445;
-            letter-spacing: -0.01em;
-        }
-        .stat-card .stat-label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #6c757d;
-            margin-top: 4px;
-        }
-        
-        .stat-blue .stat-icon   { background: #eff3ff; color: #3a5fd9; }
-        .stat-green .stat-icon  { background: #e6f8f2; color: #059c6e; }
-        .stat-purple .stat-icon { background: #f3edff; color: #6a3fbc; }
-        .stat-yellow .stat-icon { background: #fff5e6; color: #d97706; }
-        .stat-teal .stat-icon   { background: #e7f7f8; color: #0a7f8a; }
-        .stat-red .stat-icon    { background: #fce8e8; color: #d63447; }
+        .od-page { --od-primary:#6a3fbc; --od-ink:#0f172a; --od-muted:#64748b; --od-line:#e6e9f2; margin-top:.25rem; }
+        .od-page .num { font-variant-numeric: tabular-nums; }
 
-        .dashboard-panel {
-            background: #fff;
-            border: 1px solid #e3e8f3;
-            border-radius: 16px;
-            padding: 1.4rem;
-            box-shadow: 0 8px 24px rgba(15, 33, 60, 0.06);
-        }
-        .table>thead>tr>th {
-            font-size: .75rem;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-            color: #6c757d;
-            border-bottom: 2px solid #dee2e6;
-            white-space: nowrap;
-        }
-        .table>tbody>tr>td {
-            font-size: .88rem;
-            vertical-align: middle;
-        }
-        .badge-status-R { background:#cfe2ff;color:#084298; }
-        .badge-status-C { background:#d1e7dd;color:#0a3622; }
-        .badge-status-X { background:#f8d7da;color:#842029; }
+        /* header */
+        .od-hero { background: linear-gradient(120deg, #4c2a8f 0%, #6a3fbc 55%, #8b62d1 100%); border-radius: 18px; padding: 1.4rem 1.6rem; color:#fff;
+                   box-shadow: 0 12px 30px rgba(76,42,143,.18); position:relative; overflow:hidden; }
+        .od-hero::before { content:''; position:absolute; right:-80px; top:-120px; width:340px; height:340px; border-radius:50%; background: radial-gradient(circle, rgba(255,255,255,.12), rgba(255,255,255,0) 70%); }
+        .od-hero > * { position:relative; z-index:1; }
+        .od-hero-icon { width:52px; height:52px; border-radius:14px; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.25); display:flex; align-items:center; justify-content:center; font-size:1.55rem; flex:0 0 52px; }
+        .od-hero h1 { font-size:1.55rem; font-weight:800; letter-spacing:-.02em; margin:0; color:#fff; }
+        .od-hero .od-sub { color:rgba(255,255,255,.82); font-size:.88rem; }
+        .od-chip { display:inline-flex; align-items:center; gap:.35rem; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22); border-radius:999px; padding:.2rem .7rem; font-size:.78rem; font-weight:600; color:#fff; }
+        .od-live { width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 0 rgba(74,222,128,.7); animation: odPulse 1.8s infinite; }
+        @@keyframes odPulse { 0% { box-shadow:0 0 0 0 rgba(74,222,128,.7);} 70% { box-shadow:0 0 0 8px rgba(74,222,128,0);} 100% { box-shadow:0 0 0 0 rgba(74,222,128,0);} }
+        .od-datebar { display:flex; align-items:center; gap:.35rem; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22); border-radius:12px; padding:.3rem; }
+        .od-datebar .btn { color:#fff; border:none; padding:.3rem .55rem; }
+        .od-datebar .btn:hover { background:rgba(255,255,255,.16); }
+        .od-datebar input { border:none; border-radius:8px; font-weight:600; font-size:.88rem; padding:.3rem .5rem; width:150px; }
 
-        .doctor-roster-item {
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 0.95rem;
-            margin-bottom: 0.85rem;
-            transition: all 0.2s;
-        }
-        .doctor-roster-item:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            border-color: #ced4da;
-        }
-        .doctor-avatar-circle {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background: #f1f3f9;
-            color: #495057;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.15rem;
-            font-weight: 700;
-            border: 1.5px solid #dee2e6;
-        }
-        .progress-micro {
-            height: 6px;
-            border-radius: 99px;
-            margin-top: 0.4rem;
-        }
+        /* KPI cards */
+        .od-kpi { background:#fff; border:1px solid var(--od-line); border-radius:14px; padding:.95rem 1rem; height:100%; position:relative; overflow:hidden; transition: box-shadow .2s, transform .2s; }
+        .od-kpi:hover { box-shadow:0 10px 24px rgba(15,23,42,.07); transform:translateY(-2px); }
+        .od-kpi::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--k); }
+        .od-kpi .k-top { display:flex; align-items:center; justify-content:space-between; }
+        .od-kpi .k-label { font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--od-muted); }
+        .od-kpi .k-icon { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--kbg); color:var(--k); font-size:1.05rem; }
+        .od-kpi .k-val { font-size:1.6rem; font-weight:800; color:var(--od-ink); line-height:1.15; margin-top:.35rem; letter-spacing:-.01em; }
+        .od-kpi .k-sub { font-size:.74rem; color:var(--od-muted); margin-top:.15rem; }
+        .od-kpi .k-bar { height:5px; border-radius:99px; background:#eef1f6; margin-top:.5rem; overflow:hidden; }
+        .od-kpi .k-bar span { display:block; height:100%; background:var(--k); border-radius:99px; }
+
+        /* panels */
+        .od-panel { background:#fff; border:1px solid var(--od-line); border-radius:16px; padding:1.1rem 1.2rem; box-shadow:0 6px 18px rgba(15,23,42,.04); height:100%; }
+        .od-panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; margin-bottom:.85rem; }
+        .od-panel-head h3 { font-size:.98rem; font-weight:700; color:var(--od-ink); margin:0; }
+        .od-panel-head small { color:var(--od-muted); font-size:.76rem; }
+        .od-chart { position:relative; height:200px; }
+        .od-chart.sm { height:170px; }
+
+        /* patient flow */
+        .od-flow { display:flex; height:14px; border-radius:99px; overflow:hidden; background:#eef1f6; }
+        .od-flow span { height:100%; }
+        .od-flow-legend { display:grid; grid-template-columns: repeat(4, 1fr); gap:.5rem; margin-top:.75rem; }
+        .od-flow-legend div { border:1px solid var(--od-line); border-radius:10px; padding:.45rem .6rem; }
+        .od-flow-legend b { display:block; font-size:1.15rem; color:var(--od-ink); }
+        .od-flow-legend small { font-size:.7rem; color:var(--od-muted); display:flex; align-items:center; gap:.35rem; }
+        .od-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+        .c-wait { background:#f59e0b; } .c-cons { background:#3b82f6; } .c-done { background:#10b981; } .c-canc { background:#94a3b8; }
+
+        /* bookings */
+        .od-tools { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin-bottom:.75rem; }
+        .od-filter { border:1px solid var(--od-line); background:#fff; border-radius:999px; padding:.25rem .7rem; font-size:.76rem; font-weight:600; color:#475569; }
+        .od-filter .cnt { background:#eef1f6; border-radius:999px; padding:0 .4rem; margin-left:.25rem; font-size:.7rem; }
+        .od-filter.active { background:var(--od-primary); border-color:var(--od-primary); color:#fff; }
+        .od-filter.active .cnt { background:rgba(255,255,255,.22); }
+        .od-search { position:relative; margin-left:auto; }
+        .od-search input { padding-left:2rem; border-radius:999px; font-size:.82rem; width:230px; }
+        .od-search i { position:absolute; left:.7rem; top:50%; transform:translateY(-50%); color:#94a3b8; }
+        .od-table { margin:0; }
+        .od-table thead th { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--od-muted); background:#f8f9fc; border-bottom:1px solid var(--od-line); white-space:nowrap; padding:.6rem .6rem; }
+        .od-table tbody td { font-size:.85rem; vertical-align:middle; padding:.6rem .6rem; border-color:#f0f2f7; }
+        .od-table tbody tr:hover { background:#faf8ff; }
+        .od-avatar { width:34px; height:34px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:.78rem; flex:0 0 34px; }
+        .od-token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.76rem; font-weight:700; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px; padding:.1rem .4rem; }
+        .od-pill { display:inline-flex; align-items:center; gap:.3rem; border-radius:999px; padding:.18rem .55rem; font-size:.72rem; font-weight:700; white-space:nowrap; }
+        .p-wait { background:#fef3c7; color:#92400e; } .p-cons { background:#dbeafe; color:#1e40af; } .p-done { background:#d1fae5; color:#065f46; } .p-canc { background:#f1f5f9; color:#64748b; }
+        .p-paid { background:#ecfdf5; color:#047857; } .p-part { background:#fffbeb; color:#b45309; } .p-unpaid { background:#fef2f2; color:#b91c1c; }
+        .od-tag { font-size:.66rem; font-weight:700; border-radius:4px; padding:.05rem .35rem; }
+        .od-more { text-align:center; padding-top:.75rem; }
+
+        /* roster */
+        .od-doc { border:1px solid var(--od-line); border-radius:12px; padding:.8rem .9rem; margin-bottom:.65rem; transition: box-shadow .2s, border-color .2s; }
+        .od-doc:hover { box-shadow:0 6px 16px rgba(15,23,42,.06); border-color:#d8dcea; }
+        .od-doc .name { font-weight:700; color:var(--od-ink); font-size:.9rem; }
+        .od-doc .meta { font-size:.74rem; color:var(--od-muted); }
+        .od-doc .counts { display:grid; grid-template-columns: repeat(4, 1fr); gap:.35rem; margin-top:.55rem; }
+        .od-doc .counts div { background:#f8f9fc; border-radius:8px; padding:.3rem .4rem; text-align:center; }
+        .od-doc .counts b { display:block; font-size:.95rem; color:var(--od-ink); }
+        .od-doc .counts small { font-size:.64rem; color:var(--od-muted); text-transform:uppercase; letter-spacing:.04em; }
+        .od-session { font-size:.68rem; font-weight:700; border-radius:999px; padding:.15rem .55rem; white-space:nowrap; }
+        .s-on { background:#dcfce7; color:#166534; } .s-soon { background:#e0e7ff; color:#3730a3; } .s-over { background:#f1f5f9; color:#64748b; }
+        .od-empty { text-align:center; color:var(--od-muted); padding:2.2rem 1rem; }
+        .od-empty i { font-size:2rem; opacity:.45; display:block; margin-bottom:.4rem; }
+        @@media (max-width: 575.98px) { .od-search { margin-left:0; width:100%; } .od-search input { width:100%; } .od-flow-legend { grid-template-columns: repeat(2, 1fr); } }
     </style>
 }
 
-<div class="dashboard-page">
-    
-    @* Hero Welcome Card *@
-    <div class="dashboard-hero-card mb-4">
-        <div class="dashboard-hero-content">
-            <div>
-                <div class="d-flex align-items-center mb-2">
-                    <h1 class="dashboard-title mb-0">@Model.CurrentHospitalName OPD</h1>
-                    <a href="/OPD/Index" target="_blank" class="btn btn-sm btn-light rounded-circle ms-3 shadow-sm d-flex align-items-center justify-content-center text-primary" style="width: 36px; height: 36px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)';" onmouseout="this.style.transform='scale(1)';" title="Go to Patient List" data-bs-toggle="tooltip">
-                        <i class="bi bi-people-fill fs-5"></i>
-                    </a>
-                </div>
-                <p class="dashboard-hero-subtitle mb-3">OPD Department Performance & Summary Statistics</p>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                    <span class="dashboard-hero-pill d-flex align-items-center gap-1">
-                        <i class="bi bi-geo-alt-fill opacity-75"></i> @Model.CurrentBranchName
-                    </span>
+<div class="od-page">
+
+    @* ── Header ── *@
+    <div class="od-hero mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div class="d-flex align-items-start gap-3">
+                <div class="od-hero-icon"><i class="bi bi-hospital"></i></div>
+                <div>
+                    <h1>OPD Dashboard</h1>
+                    <div class="od-sub mb-2">@Model.CurrentHospitalName · outpatient flow, billing and doctors for the day</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="od-chip"><i class="bi bi-geo-alt-fill"></i>@Model.CurrentBranchName</span>
+                        <span class="od-chip"><i class="bi bi-calendar3"></i>@parsedDate.ToString("dddd, dd MMM yyyy")</span>
+                        @if (isToday)
+                        {
+                            <span class="od-chip"><span class="od-live"></span>Live · updated @DateTime.Now.ToString("hh:mm tt")</span>
+                        }
+                    </div>
                 </div>
             </div>
-            
-            @* Date Picker Widget *@
-            <div class="date-filter-widget">
-                <form method="get" asp-action="Dashboard" id="dateFilterForm" class="d-flex align-items-center gap-2 bg-white bg-opacity-25 rounded-3 p-1 ps-3 border border-white border-opacity-25 shadow-sm backdrop-blur">
-                    <label class="form-label small fw-semibold text-white mb-0 text-nowrap">
-                        <i class="bi bi-calendar-event me-1 opacity-75"></i>Filter Date:
-                    </label>
-                    <div class="input-group input-group-sm rounded bg-white shadow-sm overflow-hidden" style="width: auto;">
-                        <input type="date" name="date" value="@selectedDateStr" class="form-control border-0 shadow-none fw-semibold text-dark px-2" style="font-size: 0.9rem;" onchange="document.getElementById('dateFilterForm').submit()" />
-                    </div>
+            <div class="d-flex flex-column align-items-end gap-2">
+                <form method="get" asp-action="Dashboard" id="dateFilterForm" class="od-datebar">
+                    <a class="btn btn-sm" href="@Url.Action("Dashboard", new { date = prevDate })" title="Previous day"><i class="bi bi-chevron-left"></i></a>
+                    <input type="date" name="date" value="@selectedDateStr" onchange="document.getElementById('dateFilterForm').submit()" aria-label="Dashboard date" />
+                    <a class="btn btn-sm" href="@Url.Action("Dashboard", new { date = nextDate })" title="Next day"><i class="bi bi-chevron-right"></i></a>
+                    @if (!isToday)
+                    {
+                        <a class="btn btn-sm fw-semibold" href="@Url.Action("Dashboard")">Today</a>
+                    }
                 </form>
             </div>
         </div>
     </div>
 
-    @* KPI Cards Row *@
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card stat-blue">
-                <div class="stat-icon"><i class="bi bi-calendar2-check"></i></div>
-                <div>
-                    <div class="stat-value">@Model.Data.Summary.TodayTotalBookings</div>
-                    <div class="stat-label">Today's Bookings</div>
-                </div>
+    @* ── KPI cards ── *@
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="od-kpi" style="--k:#6a3fbc;--kbg:#f3edff">
+                <div class="k-top"><span class="k-label">Visits</span><span class="k-icon"><i class="bi bi-calendar2-check"></i></span></div>
+                <div class="k-val num">@s.TodayTotalBookings</div>
+                <div class="k-sub">@s.TodayBookedCount booked · @s.TodayWalkInCount walk-in · @s.TodayNewRegistrations new patient(s)</div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card stat-green">
-                <div class="stat-icon"><i class="bi bi-currency-rupee"></i></div>
-                <div>
-                    <div class="stat-value">₹@Model.Data.Summary.TodayTotalRevenue.ToString("N2")</div>
-                    <div class="stat-label">OPD Revenue</div>
-                </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="od-kpi" style="--k:#d97706;--kbg:#fff5e6">
+                <div class="k-top"><span class="k-label">Waiting</span><span class="k-icon"><i class="bi bi-hourglass-split"></i></span></div>
+                <div class="k-val num">@s.TodayRegisteredCount</div>
+                <div class="k-sub">registered, not yet with the doctor</div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card stat-teal">
-                <div class="stat-icon"><i class="bi bi-check2-circle"></i></div>
-                <div>
-                    <div class="stat-value">@Model.Data.Summary.TodayCompletedCount</div>
-                    <div class="stat-label">Completed Visits</div>
-                </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="od-kpi" style="--k:#2563eb;--kbg:#eff3ff">
+                <div class="k-top"><span class="k-label">In consultation</span><span class="k-icon"><i class="bi bi-chat-square-heart"></i></span></div>
+                <div class="k-val num">@s.TodayConsultingCount</div>
+                <div class="k-sub">with the doctor now</div>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card stat-yellow">
-                <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
-                <div>
-                    <div class="stat-value">@Model.Data.Summary.TodayRegisteredCount</div>
-                    <div class="stat-label">Registered / Waiting</div>
-                </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="od-kpi" style="--k:#059669;--kbg:#e6f8f2">
+                <div class="k-top"><span class="k-label">Completed</span><span class="k-icon"><i class="bi bi-check2-circle"></i></span></div>
+                <div class="k-val num">@s.TodayCompletedCount <small class="fs-6 text-muted fw-semibold">@completionPct%</small></div>
+                <div class="k-bar"><span style="width:@(completionPct)%"></span></div>
+                <div class="k-sub">@(s.TodayCancelledCount > 0 ? $"{s.TodayCancelledCount} cancelled" : "of today's visits")</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="od-kpi" style="--k:#7c3aed;--kbg:#f3edff">
+                <div class="k-top"><span class="k-label">Billed</span><span class="k-icon"><i class="bi bi-receipt"></i></span></div>
+                <div class="k-val num">@Money(s.TodayNetAmount)</div>
+                <div class="k-sub">gross @Money(s.TodayTotalRevenue)@(s.TodayDiscount > 0 ? " · discount " + Money(s.TodayDiscount) : "")</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="od-kpi" style="--k:#0f766e;--kbg:#e7f7f5">
+                <div class="k-top"><span class="k-label">Collected</span><span class="k-icon"><i class="bi bi-cash-coin"></i></span></div>
+                <div class="k-val num">@Money(s.TodayCollected)</div>
+                <div class="k-sub @(s.TodayDue > 0 ? "text-danger fw-semibold" : "")">@(s.TodayDue > 0 ? $"due {Money(s.TodayDue)} on {s.TodayDueBills} bill(s)" : "no dues on the day's bills")</div>
             </div>
         </div>
     </div>
 
-    @* Dashboard Content Split *@
-    <div class="row g-4">
-        
-        @* Left: Today's Bookings List *@
-        <div class="col-12 col-lg-7">
-            <div class="dashboard-panel">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h3 class="h5 m-0 fw-bold"><i class="bi bi-list-stars me-2 text-primary"></i>Today's OPD Bookings</h3>
-                        <small class="text-muted">Recent patients registered for OPD visits</small>
-                    </div>
-                    <a class="btn btn-sm btn-outline-primary fw-semibold px-3" asp-action="ServiceBooking" asp-route-fromDate="@selectedDateStr" asp-route-toDate="@selectedDateStr">
-                        View All
-                    </a>
+    @* ── Insights ── *@
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-5">
+            <div class="od-panel">
+                <div class="od-panel-head">
+                    <div><h3><i class="bi bi-diagram-3 me-2 text-primary"></i>Patient flow</h3><small>where the day's patients are now</small></div>
+                    @if (peakHour.Value > 0)
+                    {
+                        <span class="od-pill p-cons"><i class="bi bi-graph-up"></i>Peak @DateTime.Today.AddHours(peakHour.Key).ToString("h tt") · @peakHour.Value</span>
+                    }
                 </div>
-                
-                @{
-                    var combinedBookings = Model.Data.RecentBookings.Concat(Model.Data.Appointments)
-                                            .GroupBy(x => x.OPDServiceId)
-                                            .Select(g => g.First())
-                                            .OrderBy(x => x.AppointmentTime ?? TimeSpan.MaxValue)
-                                            .ToList();
-                }
-                
-                @if (!combinedBookings.Any())
+                <div class="od-flow" title="Waiting · In consultation · Completed · Cancelled">
+                    <span class="c-wait" style="width:@(waiting * 100.0 / activeVisits)%"></span>
+                    <span class="c-cons" style="width:@(consulting * 100.0 / activeVisits)%"></span>
+                    <span class="c-done" style="width:@(completed * 100.0 / activeVisits)%"></span>
+                    <span class="c-canc" style="width:@(cancelled * 100.0 / activeVisits)%"></span>
+                </div>
+                <div class="od-flow-legend">
+                    <div><small><span class="od-dot c-wait"></span>Waiting</small><b class="num">@waiting</b></div>
+                    <div><small><span class="od-dot c-cons"></span>In consultation</small><b class="num">@consulting</b></div>
+                    <div><small><span class="od-dot c-done"></span>Completed</small><b class="num">@completed</b></div>
+                    <div><small><span class="od-dot c-canc"></span>Cancelled</small><b class="num">@cancelled</b></div>
+                </div>
+                <div class="mt-3 small fw-semibold text-muted">Visits by hour</div>
+                <div class="od-chart sm"><canvas id="odHourly"></canvas></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-7 col-xl-4">
+            <div class="od-panel">
+                <div class="od-panel-head">
+                    <div><h3><i class="bi bi-activity me-2 text-primary"></i>Last 7 days</h3><small>@trendVisits visit(s) · @Money(trendRevenue) billed</small></div>
+                </div>
+                <div class="od-chart" style="height:282px"><canvas id="odTrend"></canvas></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-5 col-xl-3">
+            <div class="od-panel">
+                <div class="od-panel-head"><div><h3><i class="bi bi-pie-chart me-2 text-primary"></i>Revenue &amp; payments</h3><small>by service type, and bills by payment</small></div></div>
+                @if (!Model.Data.BookingsByServiceType.Any())
                 {
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-journal-x fs-1 opacity-50 d-block mb-2"></i>
-                        <span>No patient bookings found for this day.</span>
-                    </div>
+                    <div class="od-empty"><i class="bi bi-pie-chart"></i>No billing for this day.</div>
                 }
                 else
                 {
+                    <div class="od-chart sm"><canvas id="odMix"></canvas></div>
+                    <div class="d-flex justify-content-between small mt-3 mb-1"><span class="fw-semibold text-muted">Bills by payment</span><span class="text-muted">@(paidCount + partialCount + unpaidCount) bill(s)</span></div>
+                    <div class="od-flow" style="height:10px">
+                        @{ var billTotal = Math.Max(1, paidCount + partialCount + unpaidCount); }
+                        <span style="background:#10b981;width:@(paidCount * 100.0 / billTotal)%"></span>
+                        <span style="background:#f59e0b;width:@(partialCount * 100.0 / billTotal)%"></span>
+                        <span style="background:#ef4444;width:@(unpaidCount * 100.0 / billTotal)%"></span>
+                    </div>
+                    <div class="d-flex justify-content-between small mt-2">
+                        <span><span class="od-dot" style="background:#10b981"></span> Paid <b>@paidCount</b></span>
+                        <span><span class="od-dot" style="background:#f59e0b"></span> Partly <b>@partialCount</b></span>
+                        <span><span class="od-dot" style="background:#ef4444"></span> Unpaid <b>@unpaidCount</b></span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* ── Bookings and roster ── *@
+    <div class="row g-3">
+        <div class="col-12 col-xl-8">
+            <div class="od-panel">
+                <div class="od-panel-head">
+                    <div><h3><i class="bi bi-list-check me-2 text-primary"></i>OPD visits of the day</h3><small>@bookings.Count visit(s) · walk-ins and appointments in time order</small></div>
+                    <a class="btn btn-sm btn-outline-primary fw-semibold" asp-action="ServiceBooking" asp-route-fromDate="@selectedDateStr" asp-route-toDate="@selectedDateStr">Open booking register <i class="bi bi-arrow-right-short"></i></a>
+                </div>
+                @if (!bookings.Any())
+                {
+                    <div class="od-empty"><i class="bi bi-journal-x"></i>No OPD visits for this day.</div>
+                }
+                else
+                {
+                    <div class="od-tools">
+                        <button type="button" class="od-filter active" data-f="">All<span class="cnt">@bookings.Count</span></button>
+                        <button type="button" class="od-filter" data-f="Registered">Waiting<span class="cnt">@waiting</span></button>
+                        <button type="button" class="od-filter" data-f="Consulting">In consultation<span class="cnt">@consulting</span></button>
+                        <button type="button" class="od-filter" data-f="Completed">Completed<span class="cnt">@completed</span></button>
+                        @if (cancelled > 0) { <button type="button" class="od-filter" data-f="Cancelled">Cancelled<span class="cnt">@cancelled</span></button> }
+                        @if (unpaidCount + partialCount > 0) { <button type="button" class="od-filter" data-f="DUE">Payment due<span class="cnt">@(unpaidCount + partialCount)</span></button> }
+                        <div class="od-search"><i class="bi bi-search"></i><input type="search" class="form-control form-control-sm" id="odSearch" placeholder="Patient, ID, token, doctor..." /></div>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Token</th>
-                                    <th>Patient</th>
-                                    <th>Doctor</th>
-                                    <th class="text-end">Amount</th>
-                                    <th>Status</th>
-                                    <th class="text-center">Action</th>
-                                </tr>
-                            </thead>
+                        <table class="table od-table" id="odBookings">
+                            <thead><tr><th>Time</th><th>Token</th><th>Patient</th><th>Doctor</th><th class="text-end">Amount</th><th>Visit</th><th class="text-center"></th></tr></thead>
                             <tbody>
-                                @foreach (var b in combinedBookings)
+                                @foreach (var b in bookings)
                                 {
-                                    var badgeCls = b.Status switch { "Completed" => "badge-status-C", "Cancelled" => "badge-status-X", _ => "badge-status-R" };
-                                    var appTimeStr = b.AppointmentTime.HasValue ? DateTime.Today.Add(b.AppointmentTime.Value).ToString("hh:mm tt") : "—";
-                                    
-                                    var isFuture = false;
-                                    var amountColorCls = "";
-                                    if (parsedDate.Date == DateTime.Today && b.AppointmentTime.HasValue)
+                                    var t = b.AppointmentTime ?? b.RegisteredAt?.TimeOfDay;
+                                    var timeStr = t.HasValue ? DateTime.Today.Add(t.Value).ToString("hh:mm tt") : "—";
+                                    var isFuture = isToday && b.AppointmentTime.HasValue && b.AppointmentTime.Value > nowTime && b.Status == "Registered";
+                                    var (stCls, stIcon, stText) = b.Status switch
                                     {
-                                        isFuture = b.AppointmentTime.Value > DateTime.Now.TimeOfDay;
-                                    }
-
-                                    if (b.TotalAmount > 0)
-                                    {
-                                        if (b.PaymentStatus == "U") amountColorCls = "text-danger";
-                                        else if (b.PaymentStatus == "R") amountColorCls = "text-warning";
-                                    }
-
-                                    <tr class="@(isFuture ? "table-info-subtle" : "")">
-                                        <td class="fw-bold text-nowrap">
-                                            <i class="bi bi-clock me-1 text-primary"></i>@appTimeStr
-                                            @if (isFuture)
-                                            {
-                                                <span class="badge text-bg-info ms-1 text-white" style="font-size:0.65rem">Future</span>
-                                            }
+                                        "Completed" => ("p-done", "bi-check2-circle", "Completed"),
+                                        "Consulting" => ("p-cons", "bi-chat-square-heart", "In consultation"),
+                                        "Cancelled" => ("p-canc", "bi-x-circle", "Cancelled"),
+                                        _ => ("p-wait", "bi-hourglass-split", "Waiting")
+                                    };
+                                    var (payCls, payText) = b.Status == "Cancelled" ? ("p-canc", "—") : b.PaymentStatus switch { "P" => ("p-paid", "Paid"), "R" => ("p-part", "Partly paid"), _ => ("p-unpaid", "Unpaid") };
+                                    var due = b.NetAmount - b.TotalPaid;
+                                    var initials = string.Concat(b.PatientName.Replace("Mr. ", "").Replace("Mrs. ", "").Replace("Ms. ", "").Replace("Dr. ", "").Replace("Master ", "").Replace("Baby ", "")
+                                        .Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+                                    var hue = (Math.Abs(b.PatientCode.GetHashCode()) % 6) switch { 0 => "#ede9fe;color:#5b21b6", 1 => "#dbeafe;color:#1e40af", 2 => "#dcfce7;color:#166534", 3 => "#fef3c7;color:#92400e", 4 => "#fce7f3;color:#9d174d", _ => "#e0f2fe;color:#075985" };
+                                    <tr data-status="@b.Status" data-due="@(b.Status != "Cancelled" && b.PaymentStatus != "P" ? "1" : "0")"
+                                        data-text="@($"{b.PatientName} {b.PatientCode} {b.TokenNo} {b.ConsultingDoctorName} {b.OPDBillNo}".ToLowerInvariant())">
+                                        <td class="text-nowrap">
+                                            <div class="fw-semibold num">@timeStr</div>
+                                            @if (isFuture) { <span class="od-tag" style="background:#e0f2fe;color:#075985">Upcoming</span> }
+                                            else { <span class="od-tag" style="@(b.IsBooked ? "background:#ede9fe;color:#5b21b6" : "background:#f1f5f9;color:#475569")">@(b.IsBooked ? "Booked" : "Walk-in")</span> }
                                         </td>
-                                        <td><span class="badge text-bg-light font-monospace border">@(b.TokenNo ?? "—")</span></td>
+                                        <td><span class="od-token">@(b.TokenNo ?? "—")</span></td>
                                         <td>
-                                            <span class="fw-semibold text-primary d-block">@b.PatientName</span>
-                                            <small class="text-muted font-monospace" style="font-size:.78rem">@b.PatientCode</small>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="od-avatar" style="background:@hue">@(string.IsNullOrEmpty(initials) ? "?" : initials)</span>
+                                                <div class="lh-sm"><a href="#" class="fw-semibold text-decoration-none" onclick="viewBooking(@b.OPDServiceId);return false;">@b.PatientName</a>
+                                                    <div class="text-muted" style="font-size:.74rem">@b.PatientCode</div></div>
+                                            </div>
                                         </td>
-                                        <td><span class="fw-semibold">@b.ConsultingDoctorName</span></td>
-                                        <td class="text-end fw-bold @amountColorCls">₹@b.TotalAmount.ToString("N2")</td>
-                                        <td><span class="badge rounded-pill @badgeCls">@b.Status</span></td>
+                                        <td class="lh-sm"><div class="fw-semibold">@b.ConsultingDoctorName</div><div class="text-muted" style="font-size:.74rem">@b.Speciality</div></td>
+                                        <td class="text-end text-nowrap">
+                                            <div class="fw-bold num">@Money(b.NetAmount)</div>
+                                            <span class="od-pill @payCls" style="font-size:.66rem">@payText@(b.PaymentStatus == "R" && due > 0 ? " · due " + Money(due) : "")</span>
+                                        </td>
+                                        <td><span class="od-pill @stCls"><i class="bi @stIcon"></i>@stText</span></td>
                                         <td class="text-center">
                                             <div class="dropdown">
-                                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false">
-                                                    <i class="bi bi-three-dots-vertical"></i>
-                                                </button>
+                                                <button type="button" class="btn btn-sm btn-light border px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="bi bi-three-dots-vertical"></i></button>
                                                 <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                                    <li>
-                                                        <button type="button" class="dropdown-item" onclick="viewBooking(@b.OPDServiceId)">
-                                                            <i class="bi bi-eye-fill me-2 text-primary"></i>View Detail
-                                                        </button>
-                                                    </li>
-                                                    <li>
-                                                        <a asp-permission="OPD.DASHBOARD:PRINT" class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank">
-                                                            <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
-                                                        </a>
-                                                    </li>
+                                                    <li><button type="button" class="dropdown-item" onclick="viewBooking(@b.OPDServiceId)"><i class="bi bi-eye-fill me-2 text-primary"></i>View detail</button></li>
+                                                    @if (b.Status != "Cancelled" && b.PaymentStatus != "P")
+                                                    {
+                                                        <li><button asp-permission="OPD.DASHBOARD:COLLECT_PAYMENT" type="button" class="dropdown-item" onclick="odCollect(@b.OPDServiceId)"><i class="bi bi-cash-coin me-2 text-info"></i>Collect payment</button></li>
+                                                    }
+                                                    <li><a asp-permission="OPD.DASHBOARD:PRINT" class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank"><i class="bi bi-printer-fill me-2 text-success"></i>Print bill</a></li>
                                                 </ul>
                                             </div>
                                         </td>
@@ -345,78 +369,65 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="od-empty d-none" id="odNoMatch"><i class="bi bi-search"></i>No visit matches the filter.</div>
+                    <div class="od-more d-none" id="odMoreWrap"><button type="button" class="btn btn-sm btn-outline-secondary" id="odMore">Show more</button></div>
                 }
             </div>
         </div>
 
-        @* Right: Today's Doctor Roster *@
-        <div class="col-12 col-lg-5 d-flex flex-column">
-            <div class="dashboard-panel flex-grow-1">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h3 class="h5 m-0 fw-bold"><i class="bi bi-people-fill me-2 text-primary"></i>Doctor Roster</h3>
-                        <small class="text-muted">Doctors scheduled for consultation today</small>
-                    </div>
-                    <a class="btn btn-sm btn-outline-primary fw-semibold px-3" asp-controller="DoctorRoster" asp-action="Index">
-                        Roster Map
-                    </a>
+        <div class="col-12 col-xl-4">
+            <div class="od-panel">
+                <div class="od-panel-head">
+                    <div><h3><i class="bi bi-person-video2 me-2 text-primary"></i>Doctors on roster</h3><small>@(isToday ? $"{rosterShown.Count} current or upcoming session(s)" + (rosterOver > 0 ? $" · {rosterOver} already over" : "") : $"{rosterShown.Count} doctor session(s) for the day")</small></div>
+                    <a class="btn btn-sm btn-outline-primary fw-semibold" asp-controller="DoctorRoster" asp-action="Index">Roster</a>
                 </div>
-
                 @if (!Model.Data.TodayRoster.Any())
                 {
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-calendar-x fs-1 opacity-50 d-block mb-2"></i>
-                        <span>No doctors scheduled for this day.</span>
-                    </div>
+                    <div class="od-empty"><i class="bi bi-calendar-x"></i>No doctors scheduled for this day.</div>
+                }
+                else if (!rosterShown.Any())
+                {
+                    <div class="od-empty"><i class="bi bi-moon-stars"></i>All doctor sessions for today are over.</div>
                 }
                 else
                 {
-                    <div style="max-height: 480px; overflow-y: auto; padding-right: 4px;">
-                        @foreach (var doc in Model.Data.TodayRoster)
+                    <div style="max-height:620px; overflow-y:auto; padding-right:4px;">
+                        @foreach (var doc in rosterShown)
                         {
-                            var completionPct = doc.TotalVisits > 0 ? (doc.CompletedVisits * 100) / doc.TotalVisits : 0;
-                            var colorClass = completionPct == 100 && doc.TotalVisits > 0 ? "bg-success" : "bg-primary";
-                            var initials = string.Concat(doc.DoctorName.Split(' ').Select(w => w.FirstOrDefault())).ToUpper();
-                            if (initials.Length > 2) initials = initials.Substring(0, 2);
-
-                            <div class="doctor-roster-item bg-light-subtle">
-                                <div class="d-flex align-items-start gap-3">
-                                    <div class="doctor-avatar-circle text-primary">@initials</div>
-                                    <div class="flex-fill">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div>
-                                                <h5 class="h6 mb-0 fw-bold">@doc.DoctorName</h5>
-                                                <span class="badge text-bg-light border text-muted small p-1 py-0" style="font-size:0.7rem">@doc.Speciality</span>
-                                            </div>
-                                            <span class="text-muted small fw-semibold font-monospace" style="font-size: 0.75rem;">
-                                                <i class="bi bi-clock me-1 text-primary"></i>
-                                                @DateTime.Today.Add(doc.StartTime).ToString("hh:mm tt") - @DateTime.Today.Add(doc.EndTime).ToString("hh:mm tt")
-                                            </span>
+                            var pct = doc.TotalVisits > 0 ? doc.CompletedVisits * 100 / doc.TotalVisits : 0;
+                            var docInitials = string.Concat(doc.DoctorName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+                            string sessCls, sessText;
+                            if (!isToday) { sessCls = parsedDate.Date < DateTime.Today ? "s-over" : "s-soon"; sessText = parsedDate.Date < DateTime.Today ? "Session over" : "Scheduled"; }
+                            else if (nowTime < doc.StartTime) { sessCls = "s-soon"; sessText = "Starts " + DateTime.Today.Add(doc.StartTime).ToString("h:mm tt"); }
+                            else if (nowTime <= doc.EndTime) { sessCls = "s-on"; sessText = "On duty"; }
+                            else { sessCls = "s-over"; sessText = "Session over"; }
+                            <div class="od-doc">
+                                <div class="d-flex align-items-start gap-2">
+                                    <span class="od-avatar" style="background:#f3edff;color:#6a3fbc;width:40px;height:40px;flex-basis:40px">@docInitials</span>
+                                    <div class="flex-fill min-w-0">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div class="lh-sm"><div class="name">Dr. @doc.DoctorName</div><div class="meta">@(doc.Speciality ?? "—")</div></div>
+                                            <span class="od-session @sessCls">@if (sessCls == "s-on") { <span class="od-live me-1 d-inline-block" style="width:6px;height:6px"></span> }@sessText</span>
                                         </div>
-                                        
-                                        <div class="mt-2 d-flex justify-content-between align-items-center text-muted small" style="font-size:0.78rem">
-                                            <span>
-                                                Room: <strong class="text-dark">@(doc.RoomName ?? "—")</strong>
-                                                @if (!string.IsNullOrWhiteSpace(doc.RoomName) && !string.IsNullOrWhiteSpace(doc.FloorName))
-                                                {
-                                                    <span class="text-muted ms-1">(@doc.FloorName)</span>
-                                                }
-                                            </span>
-                                            <span>Completed: <strong>@doc.CompletedVisits / @doc.TotalVisits</strong></span>
-                                        </div>
-
-                                        <div class="progress progress-micro">
-                                            <div class="progress-bar @colorClass" role="progressbar" style="width: @(completionPct)%" aria-valuenow="@completionPct" aria-valuemin="0" aria-valuemax="100"></div>
+                                        <div class="meta mt-1">
+                                            <i class="bi bi-clock me-1"></i>@DateTime.Today.Add(doc.StartTime).ToString("hh:mm tt") – @DateTime.Today.Add(doc.EndTime).ToString("hh:mm tt")
+                                            <span class="ms-2"><i class="bi bi-door-open me-1"></i>@(doc.RoomName ?? "No room")@(!string.IsNullOrWhiteSpace(doc.FloorName) ? " · " + doc.FloorName : "")</span>
                                         </div>
                                     </div>
                                 </div>
+                                <div class="counts">
+                                    <div><b class="num">@doc.TotalVisits</b><small>Visits</small></div>
+                                    <div><b class="num text-warning">@doc.PendingVisits</b><small>Waiting</small></div>
+                                    <div><b class="num text-primary">@doc.InConsultationVisits</b><small>With dr</small></div>
+                                    <div><b class="num text-success">@doc.CompletedVisits</b><small>Done</small></div>
+                                </div>
+                                <div class="k-bar mt-2" style="height:5px;border-radius:99px;background:#eef1f6;overflow:hidden"><span style="display:block;height:100%;width:@(pct)%;background:#10b981"></span></div>
                             </div>
                         }
                     </div>
                 }
             </div>
         </div>
-
     </div>
 
 </div>
@@ -455,7 +466,67 @@
 <partial name="_PaymentModal" />
 
 @section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
+    // ── OPD dashboard: charts, visit filters and paging ──
+    (function () {
+        const D = @Html.Raw(chartData);
+        const money = v => '\u20b9' + Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+        const grid = { color: 'rgba(148,163,184,.18)' };
+        const tick = { color: '#64748b', font: { size: 10 } };
+        if (window.Chart) {
+            Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+            const hourly = document.getElementById('odHourly');
+            if (hourly) new Chart(hourly, { type: 'bar',
+                data: { labels: D.hourLabels, datasets: [{ label: 'Visits', data: D.hourValues, backgroundColor: 'rgba(106,63,188,.78)', hoverBackgroundColor: '#6a3fbc', borderRadius: 4, maxBarThickness: 22 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                           scales: { x: { grid: { display: false }, ticks: { ...tick, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } }, y: { beginAtZero: true, grid, ticks: { ...tick, precision: 0 } } } } });
+            const trend = document.getElementById('odTrend');
+            if (trend) new Chart(trend, {
+                data: { labels: D.trendLabels, datasets: [
+                    { type: 'bar', label: 'Billed', data: D.trendRevenue, backgroundColor: 'rgba(16,185,129,.25)', hoverBackgroundColor: 'rgba(16,185,129,.45)', borderRadius: 5, yAxisID: 'y1', maxBarThickness: 30 },
+                    { type: 'line', label: 'Visits', data: D.trendVisits, borderColor: '#6a3fbc', backgroundColor: '#6a3fbc', tension: .35, pointRadius: 3, pointHoverRadius: 5, yAxisID: 'y' }] },
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                           plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+                                      tooltip: { callbacks: { label: c => c.dataset.label === 'Billed' ? ' Billed ' + money(c.parsed.y) : ' Visits ' + c.parsed.y } } },
+                           scales: { x: { grid: { display: false }, ticks: tick }, y: { beginAtZero: true, grid, ticks: { ...tick, precision: 0 }, title: { display: true, text: 'Visits', color: '#64748b', font: { size: 10 } } },
+                                     y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { ...tick, callback: v => money(v) } } } } });
+            const mix = document.getElementById('odMix');
+            if (mix) new Chart(mix, { type: 'doughnut',
+                data: { labels: D.mixLabels, datasets: [{ data: D.mixValues, backgroundColor: ['#6a3fbc', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#94a3b8'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '64%',
+                           plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 11 } } }, tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + money(c.parsed) } } } } });
+        }
+
+        // visits table: status chips, search and paging (15 at a time)
+        const table = document.getElementById('odBookings');
+        if (!table) return;
+        const rows = Array.from(table.tBodies[0].rows);
+        const PAGE = 15;
+        let filter = '', query = '', shown = PAGE;
+        function apply() {
+            const match = rows.filter(r => (!filter || (filter === 'DUE' ? r.dataset.due === '1' : r.dataset.status === filter)) && (!query || r.dataset.text.includes(query)));
+            rows.forEach(r => r.classList.add('d-none'));
+            match.slice(0, shown).forEach(r => r.classList.remove('d-none'));
+            document.getElementById('odNoMatch').classList.toggle('d-none', match.length > 0);
+            document.getElementById('odMoreWrap').classList.toggle('d-none', match.length <= shown);
+            document.getElementById('odMore').textContent = `Show more (${match.length - shown} more)`;
+        }
+        document.querySelectorAll('.od-filter').forEach(b => b.addEventListener('click', () => {
+            document.querySelectorAll('.od-filter').forEach(x => x.classList.remove('active'));
+            b.classList.add('active'); filter = b.dataset.f; shown = PAGE; apply();
+        }));
+        document.getElementById('odSearch').addEventListener('input', e => { query = e.target.value.trim().toLowerCase(); shown = PAGE; apply(); });
+        document.getElementById('odMore').addEventListener('click', () => { shown += PAGE; apply(); });
+        apply();
+    })();
+
+    // collect payment straight from the visits list (same payment dialog as View detail)
+    function odCollect(id) {
+        if (typeof window.pmOpenFor !== 'function') return;
+        window.pmOpenFor(id, function () { setTimeout(function () { window.location.reload(); }, 800); });
+    }
+
     var _currentViewBookingId = null;
 
     async function viewBooking(id) {

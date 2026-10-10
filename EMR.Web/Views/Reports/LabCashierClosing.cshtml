@@ -1,0 +1,83 @@
+@{
+    ViewData["Title"] = "Cashier Day-end Closing";
+    ViewData["ReportSubtitle"] = "what each cashier collected, by payment mode, less refunds paid out: the shift hand-over";
+    ViewData["ReportIcon"] = "bi-cash-coin";
+    ViewData["ReportAccent"] = "#15803d";
+    ViewData["DateLabel"] = "receipt date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dash = '<span class="text-muted">—</span>';
+    const TYPE = { RECEIPT: ['Receipt', 'bg-success-subtle text-success border-success-subtle'],
+                   TOPUP: ['Wallet top-up', 'bg-primary-subtle text-primary border-primary-subtle'],
+                   WALLET: ['Paid from wallet', 'bg-secondary-subtle text-secondary border-secondary-subtle'],
+                   REFUND: ['Refund paid', 'bg-danger-subtle text-danger border-danger-subtle'] };
+    const pillOf = (v, h) => { const x = TYPE[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const m0 = (v, h) => Number(v) ? h.money(v) : dash;
+    LabReport.init({
+        report: 'cashier-closing', title: 'Cashier Day-end Closing', defaultRange: 'today',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Receipt No, Bill No, patient, partner or reference...',
+        filters: [
+            { id: 'paymentMethodId', label: 'Payment mode', allLabel: 'All modes', fromOptions: 'paymentMethodId' },
+            { id: 'collectedBy', label: 'Cashier', allLabel: 'All cashiers', fromOptions: 'collectedBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Net cash to hand over', color: '#15803d', value: (s, h) => h.money(s.NetCash),
+              sub: (s, h) => `cash ${h.money(s.Cash)} less cash refunds ${h.money(s.CashRefunds)}` },
+            { label: 'Total received', color: '#0f766e', value: (s, h) => h.money(s.TotalReceived),
+              sub: (s, h) => `${h.num(s.Receipts)} receipt(s)${s.FirstReceiptNo ? ` · ${h.esc(s.FirstReceiptNo)}${s.LastReceiptNo !== s.FirstReceiptNo ? ' – ' + h.esc(s.LastReceiptNo) : ''}` : ''}` },
+            { label: 'UPI · Card · Bank', color: '#2563eb', value: (s, h) => h.money((Number(s.Upi) || 0) + (Number(s.Card) || 0) + (Number(s.Bank) || 0)),
+              sub: (s, h) => `UPI ${h.money(s.Upi)} · card ${h.money(s.Card)} · cheque / bank ${h.money(s.Bank)}` },
+            { label: 'Wallet top-ups', color: '#7c3aed', value: (s, h) => h.money(s.TopUps), sub: () => 'franchise top-ups (mode not recorded)' },
+            { label: 'Refunds paid out', color: '#b91c1c', value: (s, h) => h.money(s.Refunds), sub: (s, h) => `${h.num(s.RefundCount)} refund(s) · cash ${h.money(s.CashRefunds)}` },
+            { label: 'Paid from wallet', color: '#64748b', value: (s, h) => h.money(s.WalletUsed), sub: (s, h) => `${h.num(s.WalletBills)} bill(s) · no money at the counter` }
+        ],
+        groups: [
+            { key: 'byCashier', label: 'Cashier', rowField: 'CashierId', byId: true },
+            { key: 'byCashierDay', label: 'Cashier & day', rowField: 'CashierDay' },
+            { key: 'byMode', label: 'Payment mode', rowField: 'ModeName' },
+            { key: 'byDate', label: 'Date', rowField: 'EntryDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'Receipts', label: 'Receipts', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Cash', label: 'Cash', money: true },
+            { field: 'Upi', label: 'UPI', money: true },
+            { field: 'Card', label: 'Card', money: true },
+            { field: 'Bank', label: 'Cheque / bank', money: true },
+            { field: 'Other', label: 'Other', money: true },
+            { field: 'TopUps', label: 'Top-ups', money: true },
+            { field: 'TotalReceived', label: 'Total received', money: true },
+            { field: 'Refunds', label: 'Refunds', money: true },
+            { field: 'NetCash', label: 'Net cash', money: true },
+            { field: 'WalletUsed', label: 'Paid from wallet', money: true },
+            { field: 'ReceiptRange', label: 'Receipt range', total: 'none', fmt: (v, h) => v ? `<span class="font-monospace fs-9">${h.esc(v)}</span>` : dash }
+        ],
+        shareOf: 'TotalReceived',
+        cols: [
+            { label: 'Date & time', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.EntryOn), text: (r, h) => h.fmtDT(r.EntryOn) },
+            { label: 'Type', html: (r, h) => pillOf(r.EntryType, h), text: r => (TYPE[r.EntryType] || [r.EntryType])[0] },
+            { label: 'Receipt / Cancellation No', html: (r, h) => `<span class="fw-semibold font-monospace">${h.esc(r.ReceiptNo || '')}</span>`, text: r => r.ReceiptNo || '' },
+            { label: 'Bill No', html: (r, h) => r.BillNo ? `<span class="font-monospace">${h.esc(r.BillNo)}</span>${r.IsB2B ? ' <span class="badge bg-light text-dark border">B2B</span>' : ''}` : dash, text: r => r.BillNo || '' },
+            { label: 'Patient / partner', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PartyName || '')}</div><div class="text-muted fs-9">${h.esc(r.PartyCode || '')}</div>`, text: r => `${r.PartyName || ''} (${r.PartyCode || ''})` },
+            { label: 'Mode', html: (r, h) => h.esc(r.ModeName), text: r => r.ModeName },
+            { label: 'Reference', html: (r, h) => r.Reference ? `<span class="fs-9">${h.esc(r.Reference)}</span>` : dash, text: r => r.Reference || '' },
+            { label: 'Received', cls: 'text-end amt', sum: 'Received', html: (r, h) => m0(r.Received, h), text: r => Number(r.Received) || 0 },
+            { label: 'Refunded', cls: 'text-end amt', sum: 'Refunded', html: (r, h) => Number(r.Refunded) ? `<span class="text-danger">${h.money(r.Refunded)}</span>` : dash, text: r => Number(r.Refunded) || 0 },
+            { label: 'Paid from wallet', cls: 'text-end amt', sum: 'WalletUsed', html: (r, h) => m0(r.WalletUsed, h), text: r => Number(r.WalletUsed) || 0 },
+            { label: 'Cashier', html: (r, h) => h.esc(r.Cashier), text: r => r.Cashier }
+        ],
+        rowClass: r => r.EntryType === 'REFUND' ? 'row-muted' : ''
+    });
+})();
+</script>
+}

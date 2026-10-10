@@ -18,6 +18,19 @@
     const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
     const typePill = (v, h) => v === 'Franchise' ? h.pill('Franchise', 'bg-info-subtle text-info-emphasis border-info-subtle') : h.pill('Corporate', 'bg-primary-subtle text-primary border-primary-subtle');
     const pct = (a, b) => b > 0 ? (a * 100 / b).toFixed(1) + '%' : '—';
+    // how the bill was paid: spot payment mode(s) at the counter, franchise wallet, or credit (partner's account)
+    const payChip = (part, h) => part === 'Credit' ? h.pill('Credit', 'bg-warning-subtle text-warning-emphasis border-warning-subtle')
+        : part === 'Wallet' ? h.pill('Wallet', 'bg-primary-subtle text-primary border-primary-subtle')
+        : h.pill(h.esc(part), 'bg-success-subtle text-success border-success-subtle');
+    const payParts = r => String(r.PaymentMethod || 'Credit').split(' + ');
+    const payHtml = (r, h) => {
+        const parts = payParts(r);
+        const chips = parts.map(p => payChip(p, h)).join(' ');
+        if (parts.length < 2 && !(r.SpotAmount > 0 && r.SpotModes && r.SpotModes.includes(' + '))) return chips;
+        const amounts = [r.SpotAmount > 0 ? `spot ${h.money(r.SpotAmount)}` : '', r.WalletAmount > 0 ? `wallet ${h.money(r.WalletAmount)}` : '',
+                         r.CreditAmount > 0 ? `credit ${h.money(r.CreditAmount)}` : ''].filter(Boolean).join(' · ');
+        return `${chips}<div class="text-muted fs-9">${amounts}</div>`;
+    };
     LabReport.init({
         report: 'b2b-partner-billing', title: 'B2B Partner Billing Register', defaultRange: 'month',
         dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
@@ -25,20 +38,24 @@
         searchPlaceholder: 'Bill No, Token, patient or partner name...',
         filters: [
             { id: 'partnerType', label: 'Partner type', allLabel: 'Franchise & corporate', options: [['F', 'Franchise'], ['C', 'Corporate']] },
-            { id: 'partner', label: 'Partner', allLabel: 'All partners', fromOptions: 'partner' }
+            { id: 'partner', label: 'Partner', allLabel: 'All partners', fromOptions: 'partner' },
+            { id: 'paymentMethod', label: 'Payment method', allLabel: 'All methods', fromOptions: 'paymentMethod',
+              options: [['CREDIT', 'Credit'], ['WALLET', 'Wallet'], ['SPOT', 'Spot payment (any mode)']] }
         ],
         kpis: [
             { label: 'Bills', color: '#0369a1', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.PartnerCount)} partners · ${h.num(s.TestCount)} tests` },
             { label: 'MRP value', color: '#475569', value: (s, h) => h.money(s.MrpAmount), sub: () => 'at standard rates' },
             { label: 'Contract billed', color: '#7c3aed', value: (s, h) => h.money(s.ContractAmount), sub: () => 'at partner rates' },
             { label: 'Margin given', color: '#b45309', value: (s, h) => h.money(s.MarginAmount), sub: (s) => `${(Number(s.MarginPercent) || 0).toFixed(1)}% of MRP` },
-            { label: 'Collected', color: '#15803d', value: (s, h) => h.money(s.PaidAmount) },
+            { label: 'Collected', color: '#15803d', value: (s, h) => h.money(s.PaidAmount),
+              sub: (s, h) => `spot ${h.money(s.SpotAmount)} · wallet ${h.money(s.WalletAmount)} · credit ${h.money(s.CreditAmount)}` },
             { label: 'Due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount), sub: (s, h) => `${h.num(s.NotInvoiced)} bill(s) not invoiced yet` }
         ],
         groups: [
             { key: 'byPartner', label: 'Partner', rowField: 'PartnerName', name: (r, h) => `${h.esc(r.GroupName)} <span class="ms-1">${typePill(r.Detail, h)}</span>` },
             { key: 'byPartnerType', label: 'Partner type', rowField: 'PartnerType', name: (r, h) => typePill(r.GroupName, h) },
-            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) }
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byPayMethod', label: 'Payment method', rowField: 'PaymentMethod', name: (r, h) => String(r.GroupName || 'Credit').split(' + ').map(p => payChip(p, h)).join(' ') }
         ],
         groupCols: [
             { field: 'BillCount', label: 'Bills', num: true }, { field: 'TestCount', label: 'Tests', num: true },
@@ -56,6 +73,7 @@
             { label: 'Contract', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.ContractAmount), text: r => r.ContractAmount, sum: 'ContractAmount' },
             { label: 'Margin', cls: 'text-end amt', html: (r, h) => `<span class="text-warning-emphasis">${h.money(r.MarginAmount)}</span><div class="text-muted fs-9">${pct(r.MarginAmount, r.MrpAmount)}</div>`, text: r => r.MarginAmount, sum: 'MarginAmount' },
             { label: 'Collected', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Payment method', html: (r, h) => payHtml(r, h), text: r => r.PaymentMethod || 'Credit' },
             { label: 'Due', cls: 'text-end amt', html: (r, h) => r.DueAmount > 0 ? `<span class="text-danger fw-semibold">${h.money(r.DueAmount)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.DueAmount, sum: 'DueAmount' },
             { label: 'Invoice', html: (r, h) => r.InvoiceNo ? `<span class="font-monospace fs-9">${h.esc(r.InvoiceNo)}</span>` : (r.IsCancelled ? '<span class="text-muted">cancelled</span>' : '<span class="text-warning-emphasis fs-9">Not invoiced</span>'), text: r => r.InvoiceNo || (r.IsCancelled ? 'cancelled' : 'Not invoiced') },
             { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },

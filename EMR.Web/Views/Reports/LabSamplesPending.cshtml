@@ -1,0 +1,77 @@
+@{
+    ViewData["Title"] = "Samples Pending Collection";
+    ViewData["ReportSubtitle"] = "billed tests whose sample is not collected yet, urgent and longest-waiting first";
+    ViewData["ReportIcon"] = "bi-eyedropper";
+    ViewData["ReportAccent"] = "#b45309";
+    ViewData["DateLabel"] = "bill date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const COLLECTION = { LAB: ['Lab', 'bg-secondary-subtle text-secondary border-secondary-subtle'],
+                         HOME: ['Home collection', 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                         B2B: ['B2B collector', 'bg-primary-subtle text-primary border-primary-subtle'] };
+    const WAIT = { '0-2': ['Under 2 h', 'bg-success-subtle text-success border-success-subtle'], '2-6': ['2–6 h', 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                   '6-24': ['6–24 h', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'], '24+': ['Over 24 h', 'bg-danger-subtle text-danger border-danger-subtle'] };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hours = (v, h) => { const n = Number(v) || 0; return n >= 48 ? `${h.num(Math.floor(n / 24))} d ${Math.round(n % 24)} h` : `${n.toFixed(1)} h`; };
+    LabReport.init({
+        report: 'samples-pending', title: 'Samples Pending Collection', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, Token, patient, barcode or test...',
+        filters: [
+            { id: 'pendingStatus', label: 'Status', allLabel: 'Pending & re-collect', options: [['PENDING', 'Not collected'], ['RECOLLECT', 'Re-collect requested']] },
+            { id: 'collectionType', label: 'Collection', allLabel: 'Lab, home & B2B', options: Object.keys(COLLECTION).map(k => [k, COLLECTION[k][0]]) },
+            { id: 'waitBand', label: 'Waiting', allLabel: 'Any wait', options: Object.keys(WAIT).map(k => [k, WAIT[k][0]]) },
+            { id: 'phlebotomistId', label: 'Phlebotomist', allLabel: 'All phlebotomists', fromOptions: 'phlebotomistId' },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Tests pending', color: '#b45309', value: (s, h) => h.num(s.PendingTests), sub: (s, h) => `${h.num(s.BillCount)} bills · ${h.num(s.PatientCount)} patients` },
+            { label: 'Urgent', color: '#b91c1c', value: (s, h) => h.num(s.UrgentTests), sub: () => 'collect first' },
+            { label: 'Re-collect requested', color: '#7c3aed', value: (s, h) => h.num(s.RecollectTests), sub: () => 'sample rejected, collect again' },
+            { label: 'Home collections', color: '#0891b2', value: (s, h) => h.num(s.HomeTests) },
+            { label: 'Waiting over 24 h', color: '#7f1d1d', value: (s, h) => h.num(s.Over24Tests), sub: (s) => s.LongestHours ? `longest ${hours(s.LongestHours, LabReport.helpers)}` : '' }
+        ],
+        groups: [
+            { key: 'bySampleType', label: 'Sample type', rowField: 'SampleType' },
+            { key: 'byCollectionType', label: 'Collection type', rowField: 'CollectionType', name: (r, h) => pillOf(COLLECTION, r.GroupName, h) },
+            { key: 'byWaitBand', label: 'Waiting', rowField: 'WaitBand', name: (r, h) => pillOf(WAIT, r.GroupName, h) },
+            { key: 'byPhlebotomist', label: 'Phlebotomist', rowField: 'PhlebotomistId', byId: true },
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byCreatedBy', label: 'Billed by', rowField: 'CreatedById', byId: true, adminOnly: true }
+        ],
+        groupCols: [
+            { field: 'PendingTests', label: 'Tests pending', num: true }, { field: 'BillCount', label: 'Bills', num: true },
+            { field: 'UrgentTests', label: 'Urgent', num: true }, { field: 'RecollectTests', label: 'Re-collect', num: true },
+            { field: 'LongestHours', label: 'Longest wait', num: true, total: 'max', fmt: (v, h) => hours(v, h) }
+        ],
+        shareOf: 'PendingTests',
+        rowClass: r => r.IsUrgent ? 'row-muted' : '',
+        cols: [
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Billed', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}${r.IsUrgent ? ' ' + h.pill('URGENT', 'bg-danger text-white border-danger') : ''}</div><div class="text-muted fs-9">${r.ParameterCount > 1 ? h.num(r.ParameterCount) + ' parameters' : ''}${r.PackageName ? (r.ParameterCount > 1 ? ' · ' : '') + h.esc(r.PackageName) : ''}</div>`, text: r => r.TestName + (r.IsUrgent ? ' (URGENT)' : '') },
+            { label: 'Sample / tube', html: (r, h) => `<div>${h.esc(r.SampleType)}</div><div class="text-muted fs-9">${h.esc(r.ContainerType || '')}</div>`, text: r => r.SampleType + (r.ContainerType ? ' / ' + r.ContainerType : '') },
+            { label: 'Status', html: (r, h) => r.PendingStatus === 'RECOLLECT'
+                    ? `${h.pill('Re-collect', 'bg-warning-subtle text-warning-emphasis border-warning-subtle')}${r.RejectionReason ? `<div class="text-muted fs-9 text-truncate" style="max-width:220px" title="${h.esc(r.RejectionReason)}">${h.esc(r.RejectionReason)}</div>` : ''}`
+                    : h.pill('Not collected', 'bg-secondary-subtle text-secondary border-secondary-subtle'),
+              text: r => r.PendingStatus === 'RECOLLECT' ? 'Re-collect' + (r.RejectionReason ? ' - ' + r.RejectionReason : '') : 'Not collected' },
+            { label: 'Waiting', cls: 'text-nowrap', html: (r, h) => `<div class="fw-semibold">${hours(r.HoursWaiting, h)}</div><div>${pillOf(WAIT, r.WaitBand, h)}</div>`, text: r => r.HoursWaiting },
+            { label: 'Collection', html: (r, h) => pillOf(COLLECTION, r.CollectionType, h), text: r => (COLLECTION[r.CollectionType] || [r.CollectionType])[0] },
+            { label: 'Phlebotomist', html: (r, h) => r.PhlebotomistName ? h.esc(r.PhlebotomistName) : '<span class="text-muted">Not assigned</span>', text: r => r.PhlebotomistName || '' },
+            { label: 'Billed by', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy }
+        ]
+    });
+})();
+</script>
+}

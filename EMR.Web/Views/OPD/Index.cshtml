@@ -1,235 +1,309 @@
 @model EMR.Web.Models.ViewModels.PatientPagedListViewModel
+@inject EMR.Shared.Security.IActionPermissionGuard PermissionGuard
 @{
-    ViewData["Title"] = "Patient List";
+    ViewData["Title"] = "Patient Master";
     var from = (Model.Page - 1) * Model.PageSize + 1;
     var to   = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
+    var stats = Model.Stats;
+    var avatarColors = new[] { "#2563eb", "#7c3aed", "#0d9488", "#d97706", "#db2777", "#0891b2" };
+    var today = DateTime.Today;
+    // Register / Edit open Patient Registration: Patient Master's own control (script 2208) and that screen are both needed
+    var canOpenRegistration = await PermissionGuard.ShowsAsync(Context, "OPD.PATIENTREGISTRATION", "VIEW");
+    var canRegister = canOpenRegistration && await PermissionGuard.ShowsAsync(Context, "MASTER.OPD", "REGISTER");
+    var canEdit     = canOpenRegistration && await PermissionGuard.ShowsAsync(Context, "MASTER.OPD", "EDIT");
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <div>
-        <h1 class="h3 mb-0 fw-bold">Outpatient Department</h1>
-        <small class="text-muted">OPD patient registration, appointments &amp; consultation queue</small>
-    </div>
-    <span class="badge text-bg-primary fs-6 px-3 py-2">OPD</span>
-</div>
+<style>
+    /* Same look as Doctor Master (Master > General) */
+    .pm-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .85rem; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
+    .pm-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
+    .pm-code { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: .74rem; color: #2563eb; background: #eff6ff; border: 1px solid #dbeafe; border-radius: .35rem; padding: 0 .4rem; }
+    .pm-sub { font-size: .76rem; color: #64748b; }
+    .pm-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; border-radius: 1rem; padding: .1rem .55rem; white-space: nowrap; border: 1px solid transparent; }
+    .pm-chip.male { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
+    .pm-chip.female { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+    .pm-chip.other { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+    .pm-chip.blood { background: #fef2f2; color: #b91c1c; border-color: #fecaca; font-weight: 700; }
+    .pm-table thead th { background: #f8fafc; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .pm-table tbody tr { transition: background .12s; }
+    .pm-table tbody tr.pm-inactive td { opacity: .62; }
+    .pm-table tbody tr.pm-inactive td:last-child { opacity: 1; }
+    .pm-addr { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pm-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
+    .pm-kpi .pm-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+    .pm-kpi .pm-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
+    #patientSearchDropdown .patient-sug:hover { background: #f8fafc; }
+</style>
 
-<div class="row g-3 mb-4">
-    <div class="col-sm-4">
-        <div class="stat-card stat-blue">
-            <div class="stat-icon"><i class="bi bi-calendar-check"></i></div>
-            <div>
-                <div class="stat-value">0</div>
-                <div class="stat-label">Today's Appointments</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card stat-green">
-            <div class="stat-icon"><i class="bi bi-person-check"></i></div>
-            <div>
-                <div class="stat-value">0</div>
-                <div class="stat-label">Consulted Today</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
-        <div class="stat-card stat-yellow">
-            <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
-            <div>
-                <div class="stat-value">0</div>
-                <div class="stat-label">Waiting</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <div>
-        <h2 class="h5 mb-0 fw-bold"><i class="bi bi-people-fill me-2 text-primary"></i>Patient Master</h2>
-        <small class="text-muted">
-            @if (Model.TotalCount > 0)
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">Patient Master</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-person-heart me-2"></i>Patient Master</h4>
+            @if (!string.IsNullOrWhiteSpace(Model.BranchName))
             {
-                <span>Showing @from–@to of @Model.TotalCount record(s)</span>
-            }
-            else
-            {
-                <span>No patients found</span>
-            }
-        </small>
-    </div>
-</div>
-
-<div class="dashboard-panel">
-
-    @* ── Search / Filter bar ──────────────────────────────────────────────── *@
-    <form method="get" asp-action="Index" class="row g-2 align-items-center mb-3">
-        <div class="col-auto">
-            <div class="input-group input-group-sm position-relative" id="patientSearchWrapper">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text" name="search" value="@Model.Search" id="txtPatientSearch" autocomplete="off"
-                       class="form-control" placeholder="Patient ID, name or phone…" style="min-width:260px;" />
-                <div id="patientSearchDropdown" class="dropdown-menu shadow-lg border-0 w-100 p-0 mt-1" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1060; max-height:280px; overflow-y:auto; border-radius:8px; border:1px solid #dee2e6;"></div>
-            </div>
-        </div>
-        <div class="col-auto">
-            <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
-                @foreach (var ps in new[] { 10, 25, 50, 100 })
-                {
-                    <option value="@ps" selected="@(Model.PageSize == ps ? "selected" : null)">@ps / page</option>
-                }
-            </select>
-        </div>
-        <input type="hidden" name="page" value="1" />
-        <div class="col-auto d-flex gap-2">
-            <button type="submit" class="btn btn-primary btn-sm">
-                <i class="bi bi-search me-1"></i>Search
-            </button>
-            @if (!string.IsNullOrEmpty(Model.Search))
-            {
-                <a asp-action="Index" asp-route-pageSize="@Model.PageSize" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-x-lg me-1"></i>Clear
-                </a>
+                <div class="text-muted small mt-1"><i class="bi bi-building me-1"></i>Branch: <strong class="text-dark">@Model.BranchName</strong></div>
             }
         </div>
-    </form>
+        @if (canRegister)
+        {
+            <a asp-action="PatientRegistration" class="btn btn-primary px-3 shadow-sm">
+                <i class="bi bi-person-plus-fill me-1"></i> Register Patient
+            </a>
+        }
+    </div>
 
-    @if (!Model.Items.Any())
+    @* ── Summary cards (hidden if the stats call failed; the list still works) ── *@
+    @if (stats != null)
     {
-        <div class="text-center py-5">
-            <i class="bi bi-person-slash fs-1 text-muted mb-3 d-block opacity-50"></i>
-            @if (!string.IsNullOrEmpty(Model.Search))
-            {
-                <h5 class="fw-semibold text-muted">No patients matched "@Model.Search"</h5>
-                <p class="text-muted">Try a different name, phone number or patient code.</p>
-            }
-            else
-            {
-                <h5 class="fw-semibold text-muted">No patients registered yet</h5>
-                <p class="text-muted">Start by registering the first patient.</p>
-                <a asp-action="PatientRegistration" class="btn btn-primary mt-2">
-                    <i class="bi bi-person-plus-fill me-1"></i>Register Patient
-                </a>
-            }
+        <div class="row g-3 mb-4">
+            <div class="col-xl-3 col-md-6 col-6">
+                <div class="card shadow-sm pm-kpi h-100" style="--k:#2563eb;--kb:#dbeafe;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Total Patients</span>
+                        <div class="pm-kpi-num">@stats.TotalPatients.ToString("N0")</div>
+                    </div>
+                    <div class="pm-kpi-icon"><i class="bi bi-people-fill"></i></div>
+                </div></div>
+            </div>
+            <div class="col-xl-3 col-md-6 col-6">
+                <div class="card shadow-sm pm-kpi h-100" style="--k:#16a34a;--kb:#dcfce7;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Active</span>
+                        <div class="pm-kpi-num">@stats.ActivePatients.ToString("N0")</div>
+                        @if (stats.InactivePatients > 0)
+                        {
+                            <span class="badge mt-1" style="background:#fef2f2;color:#b91c1c;">@stats.InactivePatients inactive</span>
+                        }
+                    </div>
+                    <div class="pm-kpi-icon"><i class="bi bi-person-check-fill"></i></div>
+                </div></div>
+            </div>
+            <div class="col-xl-3 col-md-6 col-6">
+                <div class="card shadow-sm pm-kpi h-100" style="--k:#7c3aed;--kb:#ede9fe;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase d-block mb-1">Registered Today</span>
+                        <div class="pm-kpi-num">@stats.RegisteredToday.ToString("N0")</div>
+                    </div>
+                    <div class="pm-kpi-icon"><i class="bi bi-person-plus-fill"></i></div>
+                </div></div>
+            </div>
+            <div class="col-xl-3 col-md-6 col-6">
+                <div class="card shadow-sm pm-kpi h-100" style="--k:#0d9488;--kb:#ccfbf1;"><div class="card-body p-3 d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase d-block mb-1">This Month</span>
+                        <div class="pm-kpi-num">@stats.RegisteredThisMonth.ToString("N0")</div>
+                        <span class="badge mt-1" style="background:#ccfbf1;color:#115e59;">since 1 @today.ToString("MMM")</span>
+                    </div>
+                    <div class="pm-kpi-icon"><i class="bi bi-calendar3"></i></div>
+                </div></div>
+            </div>
         </div>
     }
-    else
-    {
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="patientTable">
-                <thead class="table-light">
-                    <tr>
-                        <th>Patient ID</th>
-                        <th>Name</th>
-                        <th>Phone</th>
-                        <th>Gender</th>
-                        <th>Age</th>
-                        <th>Blood Group</th>
-                        <th>Doctor</th>
-                        <th>Registered</th>
-                        <th>Status</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in Model.Items)
+
+    @* ── Search (server side: patient ID, name, phone or email) ── *@
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3">
+            <form method="get" asp-action="Index" class="row g-3 align-items-end">
+                <div class="col-xl-5 col-md-6">
+                    <label class="form-label small fw-semibold text-muted mb-1" for="txtPatientSearch">Search</label>
+                    <div class="input-group position-relative" id="patientSearchWrapper">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" name="search" value="@Model.Search" id="txtPatientSearch" autocomplete="off"
+                               class="form-control border-start-0" placeholder="Patient ID, name, phone or email..." />
+                        <div id="patientSearchDropdown" class="dropdown-menu shadow-lg border-0 w-100 p-0 mt-1" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1060; max-height:300px; overflow-y:auto; border-radius:8px; border:1px solid #dee2e6;"></div>
+                    </div>
+                </div>
+                <div class="col-xl-2 col-md-3 col-6">
+                    <label class="form-label small fw-semibold text-muted mb-1" for="pmPageSize">Rows per page</label>
+                    <select name="pageSize" id="pmPageSize" class="form-select" onchange="this.form.submit()">
+                        @foreach (var ps in new[] { 10, 25, 50, 100 })
+                        {
+                            <option value="@ps" selected="@(Model.PageSize == ps ? "selected" : null)">@ps</option>
+                        }
+                    </select>
+                </div>
+                <input type="hidden" name="page" value="1" />
+                <div class="col-xl-3 col-md-3 col-6 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill"><i class="bi bi-search me-1"></i>Search</button>
+                    <a asp-action="Index" asp-route-pageSize="@Model.PageSize" class="btn btn-outline-secondary flex-fill @(string.IsNullOrEmpty(Model.Search) ? "disabled" : "")"
+                       aria-disabled="@(string.IsNullOrEmpty(Model.Search) ? "true" : "false")"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @* ── Patients ── *@
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="fw-bold text-dark">
+                <i class="bi bi-list-ul text-primary me-2"></i>Patients
+                @if (!string.IsNullOrEmpty(Model.Search))
+                {
+                    <span class="badge rounded-pill ms-2" style="background:#eff6ff;color:#1d4ed8;font-weight:600;">matching "@Model.Search"</span>
+                }
+            </span>
+            <span class="text-muted small">
+                @if (Model.TotalCount > 0)
+                {
+                    <span>Showing <strong>@from–@to</strong> of <strong>@Model.TotalCount.ToString("N0")</strong></span>
+                }
+                else
+                {
+                    <span>No records</span>
+                }
+            </span>
+        </div>
+        <div class="card-body p-0">
+            @if (!Model.Items.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-person-slash display-6 d-block mb-2 text-secondary"></i>
+                    @if (!string.IsNullOrEmpty(Model.Search))
                     {
-                        <tr>
-                            <td><span class="badge text-bg-info text-dark font-monospace">@p.PatientCode</span></td>
-                            <td class="fw-semibold">@p.FullName</td>
-                            <td>@p.PhoneNumber</td>
-                            <td>
-                                @if (p.Gender == "Male")
-                                {
-                                    <span class="badge text-bg-primary"><i class="bi bi-gender-male me-1"></i>Male</span>
-                                }
-                                else if (p.Gender == "Female")
-                                {
-                                    <span class="badge text-bg-danger"><i class="bi bi-gender-female me-1"></i>Female</span>
-                                }
-                                else
-                                {
-                                    <span class="badge text-bg-secondary">@(p.Gender ?? "--")</span>
-                                }
-                            </td>
-                            <td>@(string.IsNullOrEmpty(p.FormattedAge) ? (p.Age.HasValue ? p.Age.Value + " yrs" : "--") : p.FormattedAge)</td>
-                            <td>
-                                @if (!string.IsNullOrEmpty(p.BloodGroup))
-                                {
-                                    <span class="badge text-bg-danger fw-bold">@p.BloodGroup</span>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">--</span>
-                                }
-                            </td>
-                            <td>@(p.ConsultingDoctorName ?? "--")</td>
-                            <td class="text-muted small">@p.CreatedDate.ToString("dd MMM yyyy")</td>
-                            <td>
-                                @if (p.IsActive)
-                                {
-                                    <span class="badge text-bg-success">Active</span>
-                                }
-                                else
-                                {
-                                    <span class="badge text-bg-secondary">Inactive</span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                 <a asp-permission="MASTER.OPD:DETAILS" asp-action="Details" asp-route-id="@p.PatientId" target="_blank"
-                                    class="btn btn-sm btn-outline-info me-1" title="View Details">
-                                     <i class="bi bi-eye-fill"></i>
-                                 </a>
-                                <a asp-action="PatientRegistration" asp-route-id="@p.PatientId"
-                                   class="btn btn-sm btn-outline-primary me-1" title="Edit">
-                                    <i class="bi bi-pencil-fill"></i>
-                                </a>
-                                <button asp-permission="MASTER.OPD:DELETE" type="button" class="btn btn-sm btn-outline-danger"
-                                        data-bs-toggle="modal" data-bs-target="#deleteModal"
-                                        data-id="@p.PatientId" data-name="@p.FullName" title="Delete">
-                                    <i class="bi bi-trash-fill"></i>
-                                </button>
-                            </td>
-                        </tr>
+                        <div class="fw-semibold">No patients matched "@Model.Search"</div>
+                        <div class="small">Try a different name, phone number or patient ID.</div>
+                        <a asp-action="Index" asp-route-pageSize="@Model.PageSize" class="btn btn-sm btn-outline-secondary mt-3"><i class="bi bi-arrow-counterclockwise me-1"></i>Clear search</a>
                     }
-                </tbody>
-            </table>
+                    else
+                    {
+                        <div class="fw-semibold">No patients registered yet</div>
+                        @if (canRegister)
+                        {
+                            <a asp-action="PatientRegistration" class="btn btn-sm btn-primary mt-3">
+                                <i class="bi bi-person-plus-fill me-1"></i>Register the first patient
+                            </a>
+                        }
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 pm-table" id="patientTable">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Patient</th>
+                                <th>Contact</th>
+                                <th>Gender / Age</th>
+                                <th class="text-center">Blood Group</th>
+                                <th>Registered</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end pe-4" style="width:140px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in Model.Items)
+                            {
+                                var nameOnly = System.Text.RegularExpressions.Regex.Replace(p.FullName ?? "", @"^(Mr|Mrs|Ms|Miss|Master|Baby|Dr)\.?\s+", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                var initials = string.Concat(nameOnly.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+                                if (string.IsNullOrEmpty(initials)) { initials = "?"; }
+                                var color = avatarColors[p.PatientId % avatarColors.Length];
+                                var age = string.IsNullOrEmpty(p.FormattedAge) ? (p.Age.HasValue ? p.Age.Value + " yrs" : null) : p.FormattedAge;
+                                var genderCls = p.Gender == "Male" ? "male" : p.Gender == "Female" ? "female" : "other";
+                                var genderIcon = p.Gender == "Male" ? "bi-gender-male" : p.Gender == "Female" ? "bi-gender-female" : "bi-gender-ambiguous";
+
+                                <tr class="@(p.IsActive ? "" : "pm-inactive")">
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <span class="pm-avatar" style="background:@color">@initials</span>
+                                            <div style="min-width:0;">
+                                                <div class="pm-name">@p.FullName</div>
+                                                <span class="pm-code">@p.PatientCode</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="small">
+                                        <div class="text-nowrap"><i class="bi bi-telephone text-muted me-1"></i>@(string.IsNullOrWhiteSpace(p.PhoneNumber) ? "—" : p.PhoneNumber)</div>
+                                        @if (!string.IsNullOrWhiteSpace(p.Address))
+                                        {
+                                            <div class="pm-sub pm-addr" title="@p.Address"><i class="bi bi-geo-alt me-1"></i>@p.Address</div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="pm-chip @genderCls"><i class="bi @genderIcon"></i>@(string.IsNullOrWhiteSpace(p.Gender) ? "—" : p.Gender)</span>
+                                        <div class="pm-sub mt-1">@(age ?? "Age not recorded")</div>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (!string.IsNullOrWhiteSpace(p.BloodGroup))
+                                        {
+                                            <span class="pm-chip blood"><i class="bi bi-droplet-fill"></i>@p.BloodGroup</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">—</span>
+                                        }
+                                    </td>
+                                    <td class="small">
+                                        <div class="text-nowrap">@p.CreatedDate.ToString("dd MMM yyyy")</div>
+                                        @if (p.CreatedDate.Date == today)
+                                        {
+                                            <span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:.64rem;">Today</span>
+                                        }
+                                        else
+                                        {
+                                            <div class="pm-sub">@p.CreatedDate.ToString("hh:mm tt")</div>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (p.IsActive)
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group btn-group-sm shadow-sm" role="group">
+                                            <a asp-permission="MASTER.OPD:DETAILS" asp-action="Details" asp-route-id="@p.PatientId" target="_blank"
+                                               class="btn btn-outline-info" title="View details"><i class="bi bi-eye"></i></a>
+                                            @if (canEdit)
+                                            {
+                                                <a asp-action="PatientRegistration" asp-route-id="@p.PatientId"
+                                                   class="btn btn-outline-primary" title="Edit patient"><i class="bi bi-pencil"></i></a>
+                                            }
+                                            <button asp-permission="MASTER.OPD:DELETE" type="button" class="btn btn-outline-danger"
+                                                    data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                                    data-id="@p.PatientId" data-name="@p.FullName" data-code="@p.PatientCode" title="Delete patient">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </div>
 
-        @* ── Pagination controls ──────────────────────────────────────────── *@
+        @* ── Pagination ── *@
         @if (Model.TotalPages > 1)
         {
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3 pt-2 border-top">
-                <small class="text-muted">
-                    Page @Model.Page of @Model.TotalPages
-                </small>
-                <nav>
+            int startPage = Math.Max(1, Model.Page - 2);
+            int endPage   = Math.Min(Model.TotalPages, startPage + 4);
+            startPage     = Math.Max(1, endPage - 4);
+
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 px-4">
+                <small class="text-muted">Page <strong>@Model.Page</strong> of <strong>@Model.TotalPages</strong></small>
+                <nav aria-label="Patient pages">
                     <ul class="pagination pagination-sm mb-0">
-                        @* Previous *@
                         <li class="page-item @(!Model.HasPrev ? "disabled" : "")">
-                            <a class="page-link"
-                               asp-action="Index"
-                               asp-route-page="@(Model.Page - 1)"
-                               asp-route-pageSize="@Model.PageSize"
-                               asp-route-search="@Model.Search">
+                            <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search" aria-label="Previous">
                                 <i class="bi bi-chevron-left"></i>
                             </a>
                         </li>
-
-                        @* Page number buttons (window of 5 around current) *@
-                        @{
-                            int startPage = Math.Max(1, Model.Page - 2);
-                            int endPage   = Math.Min(Model.TotalPages, startPage + 4);
-                            startPage     = Math.Max(1, endPage - 4);
-                        }
                         @if (startPage > 1)
                         {
-                            <li class="page-item">
-                                <a class="page-link"
-                                   asp-action="Index"
-                                   asp-route-page="1"
-                                   asp-route-pageSize="@Model.PageSize"
-                                   asp-route-search="@Model.Search">1</a>
-                            </li>
+                            <li class="page-item"><a class="page-link" asp-action="Index" asp-route-page="1" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search">1</a></li>
                             @if (startPage > 2)
                             {
                                 <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -238,11 +312,7 @@
                         @for (int pg = startPage; pg <= endPage; pg++)
                         {
                             <li class="page-item @(pg == Model.Page ? "active" : "")">
-                                <a class="page-link"
-                                   asp-action="Index"
-                                   asp-route-page="@pg"
-                                   asp-route-pageSize="@Model.PageSize"
-                                   asp-route-search="@Model.Search">@pg</a>
+                                <a class="page-link" asp-action="Index" asp-route-page="@pg" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search">@pg</a>
                             </li>
                         }
                         @if (endPage < Model.TotalPages)
@@ -251,22 +321,10 @@
                             {
                                 <li class="page-item disabled"><span class="page-link">…</span></li>
                             }
-                            <li class="page-item">
-                                <a class="page-link"
-                                   asp-action="Index"
-                                   asp-route-page="@Model.TotalPages"
-                                   asp-route-pageSize="@Model.PageSize"
-                                   asp-route-search="@Model.Search">@Model.TotalPages</a>
-                            </li>
+                            <li class="page-item"><a class="page-link" asp-action="Index" asp-route-page="@Model.TotalPages" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search">@Model.TotalPages</a></li>
                         }
-
-                        @* Next *@
                         <li class="page-item @(!Model.HasNext ? "disabled" : "")">
-                            <a class="page-link"
-                               asp-action="Index"
-                               asp-route-page="@(Model.Page + 1)"
-                               asp-route-pageSize="@Model.PageSize"
-                               asp-route-search="@Model.Search">
+                            <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search" aria-label="Next">
                                 <i class="bi bi-chevron-right"></i>
                             </a>
                         </li>
@@ -274,24 +332,22 @@
                 </nav>
             </div>
         }
-    }
+    </div>
 </div>
 
-
-
-@* Delete Confirmation Modal *@
+@* ── Delete confirmation ── *@
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete Patient</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger fw-bold"><i class="bi bi-trash me-2"></i>Delete Patient</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete patient <strong id="deletePatientName"></strong>?</p>
-                <p class="text-muted small">This will mark the patient as inactive. The record will not be permanently removed.</p>
+                <p class="mb-2">Delete patient <strong id="deletePatientName"></strong> <span class="pm-code" id="deletePatientCode"></span>?</p>
+                <div class="alert alert-light border small mb-0"><i class="bi bi-info-circle me-1"></i>The patient is marked inactive. The record is not permanently removed.</div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer border-0 pt-0">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form asp-permission="MASTER.OPD:DELETE" asp-action="DeletePatient" method="post" id="deleteForm">
                     @Html.AntiForgeryToken()
@@ -312,38 +368,40 @@
         const btn = e.relatedTarget;
         document.getElementById('deletePatientId').value = btn.dataset.id;
         document.getElementById('deletePatientName').textContent = btn.dataset.name;
+        document.getElementById('deletePatientCode').textContent = btn.dataset.code || '';
     });
 
-    // ── Patient Auto Suggest ──────────────────────────────────────────────────
+    // ── Patient auto-suggest (same search as before) ──────────────────────────
     const searchInput = document.getElementById('txtPatientSearch');
     const searchDropdown = document.getElementById('patientSearchDropdown');
     const searchWrapper = document.getElementById('patientSearchWrapper');
+    const escHtml = s => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
     let searchDebounce;
 
-    if(searchInput) {
-        searchInput.addEventListener('input', function() {
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
             clearTimeout(searchDebounce);
             const term = this.value.trim();
-            if(term.length < 2) {
+            if (term.length < 2) {
                 searchDropdown.style.display = 'none';
                 return;
             }
             searchDebounce = setTimeout(async () => {
                 try {
                     const res = await fetch(`@Url.Action("SearchAnyPatient", "OPD")?term=${encodeURIComponent(term)}`);
-                    if(!res.ok) return;
+                    if (!res.ok) return;
                     const data = await res.json();
-                    
-                    if(data && data.length > 0) {
+
+                    if (data && data.length > 0) {
                         searchDropdown.innerHTML = data.map(p => `
-                            <a href="#" class="dropdown-item py-2 px-3 border-bottom patient-sug text-wrap" data-val="${p.patientCode}">
+                            <a href="#" class="dropdown-item py-2 px-3 border-bottom patient-sug text-wrap" data-val="${escHtml(p.patientCode)}">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="fw-bold text-primary font-monospace">${p.patientCode || ''}</span>
-                                    <span class="badge bg-secondary-subtle text-secondary-emphasis"><i class="bi bi-telephone me-1"></i>${p.phoneNumber || '—'}</span>
+                                    <span class="fw-bold text-primary font-monospace">${escHtml(p.patientCode)}</span>
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis"><i class="bi bi-telephone me-1"></i>${escHtml(p.phoneNumber || '—')}</span>
                                 </div>
-                                <div class="text-dark fw-bold mb-1">${p.fullName || '—'}</div>
+                                <div class="text-dark fw-bold mb-1">${escHtml(p.fullName || '—')}</div>
                                 <div class="text-muted d-flex gap-2" style="font-size:0.75rem;">
-                                    <span><i class="bi bi-gender-ambiguous me-1"></i>${p.gender || '—'}</span>
+                                    <span><i class="bi bi-gender-ambiguous me-1"></i>${escHtml(p.gender || '—')}</span>
                                     <span><i class="bi bi-calendar3 me-1"></i>${p.dateOfBirth ? new Date(p.dateOfBirth).toLocaleDateString('en-IN') : '—'}</span>
                                 </div>
                             </a>
@@ -351,7 +409,7 @@
                         searchDropdown.style.display = 'block';
 
                         searchDropdown.querySelectorAll('.patient-sug').forEach(a => {
-                            a.addEventListener('click', function(e) {
+                            a.addEventListener('click', function (e) {
                                 e.preventDefault();
                                 searchInput.value = this.dataset.val;
                                 searchDropdown.style.display = 'none';
@@ -362,13 +420,15 @@
                         searchDropdown.innerHTML = '<div class="p-3 text-muted small text-center">No matches found.</div>';
                         searchDropdown.style.display = 'block';
                     }
-                } catch(e) { console.error(e); }
+                } catch (e) { console.error(e); }
             }, 300);
         });
 
+        searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') searchDropdown.style.display = 'none'; });
+
         // Hide when clicking outside
-        document.addEventListener('click', function(e) {
-            if(!searchWrapper.contains(e.target)) {
+        document.addEventListener('click', function (e) {
+            if (!searchWrapper.contains(e.target)) {
                 searchDropdown.style.display = 'none';
             }
         });

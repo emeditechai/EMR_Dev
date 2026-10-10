@@ -1,0 +1,71 @@
+@{
+    ViewData["Title"] = "Sample Rejection & Re-collection";
+    ViewData["ReportSubtitle"] = "rejected samples, why, and how fast they were re-collected (NABL / NABH quality indicator)";
+    ViewData["ReportIcon"] = "bi-arrow-repeat";
+    ViewData["ReportAccent"] = "#9f1239";
+    ViewData["DateLabel"] = "rejection date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dash = '<span class="text-muted">—</span>';
+    const OUTCOME = { RECOLLECT: ['Re-collect', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'], REJECTED: ['Rejected', 'bg-danger-subtle text-danger border-danger-subtle'] };
+    const RECOLLECT = { DONE: ['Re-collected', 'bg-success-subtle text-success border-success-subtle'], WAITING: ['Waiting', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                        CLOSED: ['Not re-collected', 'bg-secondary-subtle text-secondary border-secondary-subtle'] };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hrs = (v, h) => v === null || v === undefined ? dash : `${Number(v).toFixed(1)} h`;
+    const pct = (v) => v === null || v === undefined ? dash : `${Number(v).toFixed(2)}%`;
+    LabReport.init({
+        report: 'sample-rejection', title: 'Sample Rejection & Re-collection', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient, barcode or test...',
+        filters: [
+            { id: 'outcome', label: 'Outcome', allLabel: 'Re-collect & rejected', options: [['RECOLLECT', 'Re-collect requested'], ['REJECTED', 'Rejected']] },
+            { id: 'reasonId', label: 'Reason', allLabel: 'All reasons', fromOptions: 'reasonId' },
+            { id: 'collectedBy', label: 'Collected by', allLabel: 'All collectors', fromOptions: 'collectedBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Rejection rate', color: '#9f1239', value: (s) => pct(s.RejectionRate), sub: (s, h) => `${h.num(s.RejectedSpecimens)} of ${h.num(s.CollectedSpecimens)} specimens collected` },
+            { label: 'Rejected specimens', color: '#b91c1c', value: (s, h) => h.num(s.RejectedSpecimens), sub: (s, h) => `${h.num(s.RejectedTests)} test(s) affected` },
+            { label: 'Re-collected', color: '#15803d', value: (s, h) => h.num(s.Recollected), sub: (s, h) => `${h.num(s.WaitingRecollect)} still waiting` },
+            { label: 'Re-collect turnaround', color: '#0891b2', value: (s) => s.AvgRecollectHours === null || s.AvgRecollectHours === undefined ? '—' : `${Number(s.AvgRecollectHours).toFixed(1)} h`, sub: () => 'average, rejection to new sample' },
+            { label: 'Top reason', color: '#475569', value: (s, h) => `<span class="fs-8 fw-semibold d-block lh-sm">${h.esc(s.TopReason || "—")}</span>` }
+        ],
+        groups: [
+            { key: 'byReason', label: 'Reason', rowField: 'ReasonId', byId: true },
+            { key: 'byTest', label: 'Test', rowField: 'TestName' },
+            { key: 'bySampleType', label: 'Sample type', rowField: 'SampleType' },
+            { key: 'byCollector', label: 'Collected by', rowField: 'CollectedById', byId: true },
+            { key: 'byDate', label: 'Rejection date', rowField: 'RejectedDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'RejectedSpecimens', label: 'Rejected', num: true },
+            { field: 'CollectedSpecimens', label: 'Collected', num: true, total: 'none', fmt: (v, h) => v === null || v === undefined ? dash : h.num(v) },
+            { field: 'RejectionRate', label: 'Rate / share', num: true, total: 'none', fmt: (v) => pct(v) },
+            { field: 'AvgRecollectHours', label: 'Avg re-collect', num: true, total: 'none', fmt: (v, h) => hrs(v, h) }
+        ],
+        shareOf: 'RejectedSpecimens',
+        cols: [
+            { label: 'Rejected', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.RejectedOn), text: (r, h) => h.fmtDT(r.RejectedOn) },
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.BarcodeNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test / sample', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}</div><div class="text-muted fs-9">${h.esc(r.SampleType)}${r.TestRows > 1 ? ' · ' + h.num(r.TestRows) + ' parameters' : ''}</div>`, text: r => `${r.TestName} / ${r.SampleType}` },
+            { label: 'Reason', html: (r, h) => `<div>${h.esc(r.Reason)}</div>${r.ReasonDetail && r.ReasonDetail !== r.Reason ? `<div class="text-muted fs-9">${h.esc(r.ReasonDetail)}</div>` : ''}`, text: r => r.ReasonDetail || r.Reason },
+            { label: 'Outcome', html: (r, h) => pillOf(OUTCOME, r.Outcome, h), text: r => (OUTCOME[r.Outcome] || [r.Outcome])[0] },
+            { label: 'Collected by', html: (r, h) => r.CollectedBy ? `${h.esc(r.CollectedBy)}<div class="text-muted fs-9">${h.fmtDT(r.CollectedOn)}</div>` : '<span class="text-muted">Not recorded</span>', text: r => r.CollectedBy || '' },
+            { label: 'Rejected by', html: (r, h) => h.esc(r.RejectedBy || ''), text: r => r.RejectedBy || '' },
+            { label: 'Re-collection', cls: 'text-nowrap', html: (r, h) => `${pillOf(RECOLLECT, r.RecollectStatus, h)}${r.RecollectedOn ? `<div class="text-muted fs-9">${h.fmtDT(r.RecollectedOn)} · ${hrs(r.RecollectHours, h)}</div>` : ''}`,
+              text: (r, h) => (RECOLLECT[r.RecollectStatus] || [r.RecollectStatus])[0] + (r.RecollectHours !== null && r.RecollectHours !== undefined ? ` (${Number(r.RecollectHours).toFixed(1)} h)` : '') }
+        ]
+    });
+})();
+</script>
+}

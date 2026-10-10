@@ -54,3 +54,7 @@ EMR.Web/wwwroot/uploads/lab-compliance/
 
 # Python byte-code (Tools/)
 __pycache__/
+
+# AI model files (large binaries) - fetched with Tools/AiModels/download-trocr.*
+EMR.Web/AiModels/**/*.onnx
+EMR.Web/AiModels/**/tokenizer.json

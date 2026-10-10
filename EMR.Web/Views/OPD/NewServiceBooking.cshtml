@@ -425,6 +425,7 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/emr-suggest-keys.js" asp-append-version="true"></script>
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script>
@@ -561,6 +562,7 @@
         searchInput.addEventListener('keypress', e => {
             if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnSearch').click(); }
         });
+        emrSuggestKeys(searchInput, autoDropdown);   // ↓ ↑ Enter Esc on the suggestion list (wwwroot/js/emr-suggest-keys.js)
 
         // ── Patient info display helpers ──────────────────────────────────────
         function unlockForm() {

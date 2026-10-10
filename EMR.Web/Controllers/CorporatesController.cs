@@ -1,10 +1,13 @@
 using EMR.Web.ApiClients;
+using EMR.Web.Data;
 using EMR.Web.Extensions;
+using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
 
@@ -14,7 +17,10 @@ public class CorporatesController(
     ICorporateHospitalRateApiClient rateApiClient,
     ICorporateService corporateService,
     ICorporateHospitalRateService rateService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    ApplicationDbContext dbContext,
+    IPasswordHasherService passwordHasherService,
+    IEmailService emailService) : Controller
 {
     private static readonly List<string> CorporateTypes = ["IPD", "OPD", "LAB", "MED", "GENERAL", "ALL"];
     private static readonly List<string> BillingCycles = ["Monthly", "Daily", "Yearly", "Bi-Monthly", "Half-Yearly"];
@@ -126,6 +132,8 @@ public class CorporatesController(
         try
         {
             var newId = await corporateApiClient.CreateAsync(model, User.GetUserId());
+
+            await CreateLinkedUserAsync(model, newId, companyId, branchId);
 
             await auditLogService.LogAsync("MasterData", "Corporate.Create",
                 $"Created Corporate: {model.Corporate_Name} ({model.Corporate_Code}) [{model.Corporate_Type}] - Contact: {model.Contact_No} [ID: {newId}]",
@@ -453,4 +461,74 @@ public class CorporatesController(
             Text = b,
             Selected = string.Equals(b, selected, StringComparison.OrdinalIgnoreCase)
         }).ToList();
+
+    private async Task CreateLinkedUserAsync(CorporateFormViewModel model, int corporateId, int companyId, int branchId)
+    {
+        var email = model.Email.Trim();
+
+        if (await dbContext.Users.AnyAsync(u => u.Username == email))
+            return;
+
+        var defaultPassword = "Welcome@123";
+        var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);
+
+        var newUser = new Models.Entities.User
+        {
+            CompanyId       = companyId,
+            Username        = email,
+            Email           = email,
+            PasswordHash    = hash,
+            Salt            = salt,
+            FullName        = model.Corporate_Name,
+            FirstName       = model.Corporate_Name,
+            PhoneNumber     = model.Contact_No,
+            Phone           = model.Contact_No,
+            IsActive        = true,
+            UserType        = Models.Entities.UserTypes.Company,
+            ReferenceUserId = corporateId,
+            MustChangePassword  = true,
+            PasswordLastChanged = DateTime.Now,
+            CreatedDate         = DateTime.Now,
+            LastModifiedDate    = DateTime.Now
+        };
+
+        dbContext.Users.Add(newUser);
+        await dbContext.SaveChangesAsync();
+
+        dbContext.UserBranches.Add(new UserBranch
+        {
+            UserId      = newUser.Id,
+            BranchId    = branchId,
+            IsActive    = true,
+            CreatedDate = DateTime.Now,
+            ModifiedDate = DateTime.Now,
+            CreatedBy   = User.GetUserId(),
+            ModifiedBy  = User.GetUserId()
+        });
+        await dbContext.SaveChangesAsync();
+
+        var baseUrl = await emailService.GetApplicationBaseUrlAsync(branchId) ?? $"{Request.Scheme}://{Request.Host}";
+        var loginUrl = $"{baseUrl}/Account/Login";
+        Func<string?, string?> enc = System.Net.WebUtility.HtmlEncode;
+        var htmlBody = $@"
+            <h3>Welcome to eClinicPlus+</h3>
+            <p>Dear <strong>{enc(model.Corporate_Name)}</strong>,</p>
+            <p>Your account has been created. Here are your login details:</p>
+            <table style='border-collapse:collapse;'>
+                <tr><td style='padding:4px 12px;font-weight:bold;'>User ID</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
+                <tr><td style='padding:4px 12px;font-weight:bold;'>Email</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
+                <tr><td style='padding:4px 12px;font-weight:bold;'>Password</td><td style='padding:4px 12px;'>{defaultPassword}</td></tr>
+            </table>
+            <p>Please change your password after your first login.</p>
+            <p><a href='{loginUrl}'>Click here to login</a></p>
+            <br/><p>Regards,<br/>eClinicPlus+ Team</p>";
+
+        try
+        {
+            await emailService.SendEmailAsync(branchId, email, "eClinicPlus+ — Your Login Credentials", htmlBody);
+        }
+        catch
+        {
+        }
+    }
 }

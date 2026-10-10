@@ -243,5 +243,7 @@ namespace EMR.Api.Models
         public string? UPIRefNo { get; set; }
         public string? CardLast4 { get; set; }
         public string? Notes { get; set; }
+        public string? ReceivedByName { get; set; }
+        public bool IsDueCollection { get; set; }
     }
 }

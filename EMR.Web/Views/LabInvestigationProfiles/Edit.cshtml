@@ -235,8 +235,14 @@
     </form>
 </div>
 
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+}
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script>
         var detailRows = [];
 
@@ -287,6 +293,14 @@
             }
             renderGrid();
 
+            // Component test: auto-suggest - type part of the name or code to filter the list
+            $('#selectTestId').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: '-- Type test name or code --',
+                allowClear: true
+            });
+
             $('#btnAddDetailRow').on('click', function () {
                 var $sel = $('#selectTestId');
                 var testId = $sel.val();
@@ -304,7 +318,7 @@
                 detailRows.push({ Detail_ID: 0, Test_ID: parseInt(testId), Test_Name: testText, Sequence: seq, TestMRP: mrpVal });
                 detailRows.sort(function(a, b) { return a.Sequence - b.Sequence; });
                 renderGrid();
-                $sel.val('');
+                $sel.val(null).trigger('change');
                 $('#inputSeq').val(detailRows.length + 1);
             });
 

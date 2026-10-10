@@ -36,6 +36,18 @@
 
 @* ─────────────── Step 1: Account ─────────────── *@
 <div class="uf-pane active" id="ufPane1" data-step="1" role="tabpanel">
+    @if (Model.IsLinkedLogin)
+    {
+        <div class="alert alert-info d-flex gap-2 align-items-start py-2 mb-3">
+            <i class="bi bi-link-45deg fs-5"></i>
+            <div class="small">
+                <div class="mb-1"><partial name="_UserTypeBadge" model="@(new EMR.Web.Models.ViewModels.UserTypeBadgeModel(Model.UserType, Model.ReferenceUserId, Model.ReferenceName))" /></div>
+                This login was created from @(Model.UserType == "D" ? "Doctor Master" : Model.UserType == "F" ? "the Franchise Master" : "the Company Master").
+                Its <strong>username, name, e-mail, phone and active status</strong> are maintained there and cannot be changed here.
+                Password, branches, roles, departments and other details can be changed here.
+            </div>
+        </div>
+    }
     <div class="uf-section mb-3">
         <div class="uf-section-header"><i class="bi bi-shield-lock-fill me-2"></i>Account Information</div>
         <div class="uf-section-body">
@@ -44,7 +56,7 @@
                         <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
                         <div class="input-icon-wrap">
                             <i class="bi bi-person input-icon"></i>
-                            <input asp-for="Username" class="form-control ps-icon" placeholder="Enter username" autocomplete="off" />
+                            <input asp-for="Username" class="form-control ps-icon" placeholder="Enter username" autocomplete="off" readonly="@(Model.IsLinkedLogin ? "readonly" : null)" />
                         </div>
                         <span asp-validation-for="Username" class="text-danger small"></span>
                     </div>
@@ -60,7 +72,7 @@
                         <label class="form-label fw-semibold">Email</label>
                         <div class="input-icon-wrap">
                             <i class="bi bi-envelope input-icon"></i>
-                            <input asp-for="Email" class="form-control ps-icon" placeholder="user@example.com" />
+                            <input asp-for="Email" class="form-control ps-icon" placeholder="user@example.com" readonly="@(Model.IsLinkedLogin ? "readonly" : null)" />
                         </div>
                         <span asp-validation-for="Email" class="text-danger small"></span>
                     </div>
@@ -116,7 +128,7 @@
                         <label class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
                         <div class="input-icon-wrap">
                             <i class="bi bi-layout-text-sidebar input-icon"></i>
-                            <input asp-for="FirstName" class="form-control ps-icon" placeholder="Enter first name" />
+                            <input asp-for="FirstName" class="form-control ps-icon" placeholder="Enter first name" readonly="@(Model.IsLinkedLogin ? "readonly" : null)" />
                         </div>
                         <span asp-validation-for="FirstName" class="text-danger small"></span>
                     </div>
@@ -124,7 +136,7 @@
                         <label class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
                         <div class="input-icon-wrap">
                             <i class="bi bi-layout-text-sidebar input-icon"></i>
-                            <input asp-for="LastName" class="form-control ps-icon" placeholder="Enter last name" />
+                            <input asp-for="LastName" class="form-control ps-icon" placeholder="Enter last name" readonly="@(Model.IsLinkedLogin ? "readonly" : null)" />
                         </div>
                         <span asp-validation-for="LastName" class="text-danger small"></span>
                     </div>
@@ -132,7 +144,7 @@
                         <label class="form-label fw-semibold">Phone Number</label>
                         <div class="input-icon-wrap">
                             <i class="bi bi-telephone input-icon"></i>
-                            <input asp-for="PhoneNumber" class="form-control ps-icon" placeholder="Enter phone number" />
+                            <input asp-for="PhoneNumber" class="form-control ps-icon" placeholder="Enter phone number" readonly="@(Model.IsLinkedLogin ? "readonly" : null)" />
                         </div>
                         <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
                     </div>
@@ -398,7 +410,7 @@
                                 </div>
                             </div>
                             <div class="form-check form-switch mb-0">
-                                <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch">
+                                <input asp-for="IsActive" class="form-check-input uf-big-toggle" id="isActiveToggle" role="switch" disabled="@(Model.IsLinkedLogin ? "disabled" : null)" title="@(Model.IsLinkedLogin ? "Switched on / off where this login was created" : null)">
                             </div>
                         </div>
                     </div>

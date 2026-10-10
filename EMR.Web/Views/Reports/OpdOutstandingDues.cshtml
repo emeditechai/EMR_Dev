@@ -1,0 +1,70 @@
+@{
+    ViewData["Title"] = "OPD Outstanding Dues & Ageing";
+    ViewData["ReportSubtitle"] = "OPD bills that still have money due, oldest first, and whether the patient has already seen the doctor";
+    ViewData["ReportIcon"] = "bi-hourglass-split";
+    ViewData["ReportAccent"] = "#b91c1c";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["ReportModule"] = "OPD";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "OPD")';
+    const printBtn = r => r.OPDServiceId ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?id=${r.OPDServiceId}"><i class="bi bi-printer"></i></a>` : '';
+    const COMMON = {
+        dataUrl: '@Url.Action("GetOpdReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))'
+    };
+    const BUCKET = { '0-2': '0–2 days', '3-7': '3–7 days', '8-30': '8–30 days', '30+': 'Over 30 days' };
+    LabReport.init({ ...COMMON,
+        report: 'outstanding-dues', title: 'OPD Outstanding Dues & Ageing', defaultRange: 'month',
+        searchPlaceholder: 'Bill No, Token, Patient ID, name or mobile...',
+        filters: [
+            { id: 'ageBucket', label: 'Age', allLabel: 'Any age', options: Object.keys(BUCKET).map(k => [k, BUCKET[k]]) },
+            { id: 'doctorId', label: 'Doctor', allLabel: 'All doctors', fromOptions: 'doctorId' },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount), sub: (s, h) => `${h.num(s.BillCount)} bill(s) · ${h.num(s.PatientCount)} patient(s)` },
+            { label: 'Over 30 days', color: '#7f1d1d', value: (s, h) => h.money(s.Due30Plus), sub: (s) => `oldest ${s.OldestDays || 0} day(s)` },
+            { label: '0–7 days', color: '#b45309', value: (s, h) => h.money((Number(s.Due0to2) || 0) + (Number(s.Due3to7) || 0)), sub: (s, h) => `8–30 days ${h.money(s.Due8to30)}` },
+            { label: 'Seen, not paid', color: '#7c3aed', value: (s, h) => h.num(s.SeenWithDue), sub: (s, h) => `${h.money(s.SeenWithDueAmount)} after consulting the doctor` },
+            { label: 'Payment never taken', color: '#475569', value: (s, h) => h.num(s.NotBilledForPayment), sub: () => 'the payment screen was never completed' }
+        ],
+        groups: [
+            { key: 'byAgeBucket', label: 'Age', rowField: 'AgeBucket', name: (r, h) => h.esc(BUCKET[r.GroupName] || r.GroupName) },
+            { key: 'byPatient', label: 'Patient', rowField: 'PatientId', byId: true },
+            { key: 'byDoctor', label: 'Doctor', rowField: 'DoctorId', byId: true },
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byCreatedBy', label: 'Billed by', rowField: 'CreatedById', byId: true, adminOnly: true }
+        ],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'NetAmount', label: 'Net', money: true },
+            { field: 'PaidAmount', label: 'Paid', money: true }, { field: 'DueAmount', label: 'Due', money: true },
+            { field: 'OldestDays', label: 'Oldest (days)', num: true, total: 'max' }
+        ],
+        shareOf: 'DueAmount',
+        cols: [
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Age', cls: 'text-nowrap', html: (r, h) => `<span class="fw-bold ${r.AgeDays > 30 ? 'text-danger' : ''}">${h.num(r.AgeDays)} d</span><div class="text-muted fs-9">${h.esc(BUCKET[r.AgeBucket] || r.AgeBucket)}</div>`, text: r => r.AgeDays },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode}) ${r.PhoneNumber || ''}` },
+            { label: 'Doctor', html: (r, h) => `<div>${h.esc(r.DoctorName)}</div><div class="fs-9 ${r.SeenByDoctor ? 'text-success' : 'text-muted'}">${r.SeenByDoctor ? 'seen' : 'not seen yet'} · ${h.esc(r.VisitStatus)}</div>`, text: r => r.DoctorName },
+            { label: 'Net', cls: 'text-end amt', html: (r, h) => h.money(r.NetAmount), text: r => r.NetAmount, sum: 'NetAmount' },
+            { label: 'Paid', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Due', cls: 'text-end amt', html: (r, h) => `<span class="text-danger fw-bold">${h.money(r.DueAmount)}</span>${r.PaymentNotStarted ? '<div class="text-muted fs-9">payment not taken</div>' : ''}`, text: r => r.DueAmount, sum: 'DueAmount' },
+            { label: 'Last payment', cls: 'text-nowrap', html: (r, h) => r.LastPaymentDate ? h.fmtD(r.LastPaymentDate) : '<span class="text-muted">none</span>', text: (r, h) => r.LastPaymentDate ? h.fmtD(r.LastPaymentDate) : '' },
+            { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => printBtn(r) }
+        ]
+    });
+})();
+</script>
+}

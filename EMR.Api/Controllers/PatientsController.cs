@@ -26,6 +26,17 @@ public class PatientsController(IPatientService patientService) : ControllerBase
         return Ok(ApiResponse<PagedResult<PatientListItem>>.Ok(data));
     }
 
+    // ── GET /api/patients/stats?companyId=1&branchId=1 ───────────────────────
+
+    /// <summary>Patient Master summary cards: total, active, inactive, registered today / this month (same scope as the list).</summary>
+    [HttpGet("stats")]
+    [ProducesResponseType(typeof(ApiResponse<PatientStats>), 200)]
+    public async Task<IActionResult> GetStats([FromQuery] int? companyId, [FromQuery] int? branchId)
+    {
+        var data = await patientService.GetStatsAsync(companyId, branchId);
+        return Ok(ApiResponse<PatientStats>.Ok(data));
+    }
+
     // ── GET /api/patients/13 ─────────────────────────────────────────────────
 
     /// <summary>Get a single patient by ID with full detail.</summary>

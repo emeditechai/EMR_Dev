@@ -5,6 +5,14 @@ using EMR.Web.Models.Entities;
 namespace EMR.Web.Models.ViewModels;
 
 // ─── Roster Calendar Booking Summary ─────────────────────────────────────────
+/// <summary>Doctor Roster: open bookings of one doctor on one day.</summary>
+public class RosterBookingCount
+{
+    public int DoctorId { get; set; }
+    public DateTime VisitDate { get; set; }
+    public int Bookings { get; set; }
+}
+
 public class RosterBookingSummary
 {
     public int      OPDServiceId        { get; set; }
@@ -38,6 +46,7 @@ public class PatientListItemViewModel
     public DateTime CreatedDate { get; set; }
     public bool IsActive { get; set; }
     public string? ConsultingDoctorName { get; set; }
+    public string? Address { get; set; }
     /// <summary>Populated by usp_GetPatientListPaged via COUNT(*) OVER().</summary>
     public int TotalCount { get; set; }
 }
@@ -50,6 +59,9 @@ public class PatientPagedListViewModel
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 10;
     public string? Search { get; set; }
+    /// <summary>Summary cards (null when the stats call fails - the list still shows).</summary>
+    public EMR.Web.ApiClients.Models.PatientStats? Stats { get; set; }
+    public string? BranchName { get; set; }
     public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 1;
     public bool HasPrev => Page > 1;
     public bool HasNext => Page < TotalPages;

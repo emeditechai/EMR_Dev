@@ -64,10 +64,7 @@ public class VitalsController(
         if (!HasAnyVital(model))
             ModelState.AddModelError(string.Empty, "Please enter at least one vital measurement.");
 
-        // BP cross-field validation
-        if (model.BPSystolic.HasValue && model.BPDiastolic.HasValue
-            && model.BPSystolic <= model.BPDiastolic)
-            ModelState.AddModelError("BPDiastolic", "Diastolic must be less than Systolic BP.");
+        // Diastolic not below systolic is warned about on the form (the user may still save it after confirming).
 
         var userId = User.GetUserId();
 

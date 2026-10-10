@@ -1,0 +1,75 @@
+@{
+    ViewData["Title"] = "Abnormal Results Summary";
+    ViewData["ReportSubtitle"] = "share of high, low and normal results per test, week by week: a sign of analyser drift or a calibration issue";
+    ViewData["ReportIcon"] = "bi-activity";
+    ViewData["ReportAccent"] = "#6d28d9";
+    ViewData["DateLabel"] = "result entry date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dash = '<span class="text-muted">—</span>';
+    const pct = (v) => v === null || v === undefined ? '—' : `${Number(v).toFixed(1)}%`;
+    const pts = (v) => v === null || v === undefined ? dash
+        : `<span class="${Number(v) >= 15 ? 'text-danger fw-semibold' : (Number(v) <= -15 ? 'text-success' : '')}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)} pts</span>`;
+    const rising = '<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" title="Share of out-of-range results in the latest week is 15 points or more above the earlier weeks"><i class="bi bi-graph-up-arrow me-1"></i>Rising</span>';
+    const weekOf = (d, h) => `Week of ${h.fmtD(d)}`;
+    LabReport.init({
+        report: 'abnormal-results', title: 'Abnormal Results Summary', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name or code...',
+        filters: [
+            { id: 'signal', label: 'Drift', allLabel: 'All tests', options: [['RISING', 'Rising abnormal share']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Results', color: '#6d28d9', value: (s, h) => h.num(s.Results), sub: (s, h) => `${h.num(s.TestsCount)} test parameter(s) with a flag` },
+            { label: 'High', color: '#b91c1c', value: (s) => pct(s.HighPct), sub: (s, h) => `${h.num(s.High)} result(s)` },
+            { label: 'Low', color: '#1d4ed8', value: (s) => pct(s.LowPct), sub: (s, h) => `${h.num(s.Low)} result(s)` },
+            { label: 'Normal', color: '#15803d', value: (s) => pct(s.NormalPct), sub: (s, h) => `${h.num(s.Normal)} · ${h.num(s.CriticalPanic)} critical / panic` },
+            { label: 'Rising tests', color: '#9f1239', value: (s, h) => h.num(s.RisingTests), sub: (s, h) => `most abnormal: ${h.esc(s.MostAbnormalTest || '—')}` }
+        ],
+        groups: [
+            { key: 'byTest', label: 'Test', rowField: 'InvestigationID', byId: true, name: (r, h) => h.esc(r.GroupName) + (r.Signal === 'RISING' ? rising : '') },
+            { key: 'byWeek', label: 'Week', rowField: 'WeekKey', name: (r, h) => weekOf(r.GroupName, h) },
+            { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true }
+        ],
+        groupCols: [
+            { field: 'Results', label: 'Results', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'High', label: 'High', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Low', label: 'Low', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Normal', label: 'Normal', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'CriticalPanic', label: 'Critical / panic', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : dash },
+            { field: 'AbnormalText', label: 'Abnormal (text)', num: true, fmt: (v, h) => Number(v) ? h.num(v) : dash },
+            { field: 'HighPct', label: '% high', num: true, total: 'none', fmt: (v) => pct(v) },
+            { field: 'LowPct', label: '% low', num: true, total: 'none', fmt: (v) => pct(v) },
+            { field: 'NormalPct', label: '% normal', num: true, total: 'none', fmt: (v) => pct(v) },
+            { field: 'LatestVsEarlierPts', label: 'Latest week vs earlier', num: true, total: 'none', fmt: (v) => pts(v) }
+        ],
+        shareOf: 'Results',
+        cols: [
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}${r.Signal === 'RISING' ? rising : ''}</div><div class="text-muted fs-9">${h.esc(r.TestCode || '')} · ${h.esc(r.Department)}</div>`,
+              text: r => `${r.TestName}${r.Signal === 'RISING' ? ' [Rising]' : ''}` },
+            { label: 'Week', cls: 'text-nowrap', html: (r, h) => weekOf(r.WeekStart, h), text: (r, h) => weekOf(r.WeekStart, h) },
+            { label: 'Results', cls: 'text-end', html: (r, h) => h.num(r.Results), text: r => Number(r.Results) || 0 },
+            { label: 'High', cls: 'text-end', html: (r, h) => h.num(r.High), text: r => Number(r.High) || 0 },
+            { label: 'Low', cls: 'text-end', html: (r, h) => h.num(r.Low), text: r => Number(r.Low) || 0 },
+            { label: 'Normal', cls: 'text-end', html: (r, h) => h.num(r.Normal), text: r => Number(r.Normal) || 0 },
+            { label: 'Critical / panic', cls: 'text-end', html: (r, h) => Number(r.CriticalPanic) ? `<span class="text-danger fw-semibold">${h.num(r.CriticalPanic)}</span>` : dash, text: r => Number(r.CriticalPanic) || 0 },
+            { label: '% high', cls: 'text-end', html: (r) => pct(r.HighPct), text: r => pct(r.HighPct) },
+            { label: '% low', cls: 'text-end', html: (r) => pct(r.LowPct), text: r => pct(r.LowPct) },
+            { label: '% normal', cls: 'text-end', html: (r) => pct(r.NormalPct), text: r => pct(r.NormalPct) },
+            { label: 'Out of range vs previous week', cls: 'text-end', html: (r) => pts(r.ChangePts), text: r => r.ChangePts === null || r.ChangePts === undefined ? '' : `${Number(r.ChangePts).toFixed(1)} pts` }
+        ]
+    });
+})();
+</script>
+}

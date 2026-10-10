@@ -45,6 +45,10 @@ public class PrintBillViewModel
     public string? CreatedByUsername { get; set; }
     public string? PrintedByName { get; set; }
     public bool IsB2B { get; set; }
+    /// <summary>False = no hospital header / footer: printed from the application on pre-printed letterhead
+    /// (B2C bill, Hospital Settings > LAB > Required B2C Bill Print Header, SQLScripts/2206). The bill link sent by
+    /// email / WhatsApp (PrintBillAnonymous) always keeps them.</summary>
+    public bool ShowHeaderFooter { get; set; } = true;
     public string? PartnerName { get; set; }
     public string? PartnerCode { get; set; }
 
@@ -118,4 +122,21 @@ public class PrintBillPaymentRow
     public decimal PaidAmount { get; set; }
     public string? TransactionRef { get; set; }
     public string? ReceiptNo { get; set; }
+    public DateTime? PaymentDate { get; set; }
+    public string? ChequeNo { get; set; }
+    public string? BankName { get; set; }
+    public string? UPIRefNo { get; set; }
+    public string? CardLast4 { get; set; }
+    public string? ReceivedByName { get; set; }
+    public bool IsDueCollection { get; set; }
+
+    /// <summary>Mode details for the receipts table: UPI ref, card, cheque, bank, transaction ref.</summary>
+    public string ModeDetails => string.Join(", ", new[]
+    {
+        string.IsNullOrWhiteSpace(UPIRefNo) ? null : "UPI Ref " + UPIRefNo.Trim(),
+        string.IsNullOrWhiteSpace(CardLast4) ? null : "Card xxxx " + CardLast4.Trim(),
+        string.IsNullOrWhiteSpace(ChequeNo) ? null : "Cheque No " + ChequeNo.Trim(),
+        string.IsNullOrWhiteSpace(BankName) ? null : BankName.Trim(),
+        string.IsNullOrWhiteSpace(TransactionRef) ? null : "Ref " + TransactionRef.Trim()
+    }.Where(x => x != null));
 }

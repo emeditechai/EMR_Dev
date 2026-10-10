@@ -94,6 +94,10 @@
     .vital-label { font-size: .8rem; font-weight: 600; color: #374151; margin-bottom: .25rem; }
     .vital-label .unit { font-size: .7rem; font-weight: 400; color: #6b7280; margin-left: 2px; }
     .vital-hint  { font-size: .68rem; color: #9ca3af; margin-top: .15rem; }
+    /* Soft check: an unusual value is flagged, never blocked */
+    .vital-unusual { font-size: .7rem; color: #b45309; margin-top: .15rem; display: none; }
+    .vital-unusual.show { display: block; }
+    .form-control.is-unusual { border-color: #f59e0b; box-shadow: 0 0 0 .15rem rgba(245,158,11,.15); }
 
     /* BMI card */
     #bmiCard {
@@ -115,11 +119,11 @@
     /* Pain scale visual */
     .pain-bar { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; margin-top: .3rem; }
     .pain-bar .pip {
-        width: 20px; height: 20px; border-radius: 50%;
+        width: 28px; height: 28px; border-radius: 50%;
         border: 1px solid #d1d5db; background: #f9fafb;
         cursor: pointer;
         display: flex; align-items: center; justify-content: center;
-        font-size: .6rem; font-weight: 700; color: #6b7280;
+        font-size: .72rem; font-weight: 700; color: #6b7280;
         transition: all .15s;
     }
     .pain-bar .pip.active   { border-color: transparent; color: #fff; }
@@ -129,14 +133,19 @@
     .pain-bar .pip[data-v="6"].active,.pip[data-v="7"].active { background: #f59e0b; }
     .pain-bar .pip[data-v="8"].active,.pip[data-v="9"].active,.pip[data-v="10"].active { background: #ef4444; }
 
-    /* Action bar */
+    /* Sections side by side on wide screens */
+    .vital-grid > [class*="col-"] > .vital-section { height: 100%; margin-bottom: 0; }
+
+    /* Action bar: stays in view at the bottom while the form scrolls */
     .action-bar {
         background: #fff; border: 1px solid #e5e7eb;
         border-radius: 12px; padding: 0.8rem 1.1rem;
-        display: flex; justify-content: flex-end; gap: .6rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,.02);
+        display: flex; justify-content: flex-end; align-items: center; gap: .6rem; flex-wrap: wrap;
+        margin: 1rem 0;
+        box-shadow: 0 -4px 16px rgba(15,23,42,.08);
+        position: sticky; bottom: 8px; z-index: 5;
     }
+    .action-bar .action-hint { margin-right: auto; font-size: .74rem; color: #64748b; }
 
     /* Guard overlay */
     #formGuard { pointer-events: none; opacity: .4; transition: opacity .3s; }
@@ -178,14 +187,14 @@
 </div>
 
 <div class="row g-3">
-    @* ── LEFT COLUMN: SEARCH & FORM ── *@
-    <div class="col-12 col-lg-5">
+    @* ── SEARCH, PATIENT & FORM (full width; sections two by two) ── *@
+    <div class="col-12">
         @* ═══════════════════════════════════════════════════
            PATIENT SEARCH PANEL  (hidden on edit mode)
            ═══════════════════════════════════════════════════ *@
         @if (!isEdit)
         {
-        <div class="search-panel" id="searchPanel">
+        <div class="search-panel @(hasPatient ? "d-none" : "")" id="searchPanel">
             <div class="search-label-strip">
                 <i class="bi bi-search fs-6"></i>
                 Search Existing Patient
@@ -245,8 +254,8 @@
 
         @if (!isEdit)
         {
-        <div id="noPatientNotice" class="alert alert-info d-flex align-items-center gap-2 mb-3 py-2 small" role="alert"
-             style="@(hasPatient ? "display:none" : "")">
+        @* d-flex / d-none (not style=display): Bootstrap's d-flex is !important and would always show it *@
+        <div id="noPatientNotice" class="alert alert-info align-items-center gap-2 mb-3 py-2 small @(hasPatient ? "d-none" : "d-flex")" role="alert">
             <i class="bi bi-person-circle fs-5"></i>
             <span>Search and select a patient to enable the vitals entry form.</span>
         </div>
@@ -266,7 +275,9 @@
                 @* ── Validation summary ── *@
                 <div asp-validation-summary="ModelOnly" class="alert alert-danger small py-2 mb-3" style="display:@(ViewData.ModelState.ErrorCount > 0 ? "" : "none")"></div>
 
+                <div class="row g-3 vital-grid">
                 @* ════════════ SECTION 1: Anthropometric ════════════ *@
+                <div class="col-12 col-xl-6">
                 <div class="vital-section">
                     <div class="vital-section-header">
                         <div class="sec-icon blue"><i class="bi bi-rulers"></i></div>
@@ -280,24 +291,24 @@
                             <div class="col-6">
                                 <label class="vital-label" for="Height">Height <span class="unit">cm</span></label>
                                 <div class="vital-input-wrap">
-                                    <input asp-for="Height" id="Height" type="number" step="any" min="30" max="250"
+                                    <input asp-for="Height" id="Height" type="number" step="any" min="0" data-plausible="30-250"
                                            class="form-control form-control-sm fw-semibold pe-4"
                                            placeholder="e.g. 168.5" />
                                     <span id="heightStatus" class="vital-status"></span>
                                 </div>
                                 <span asp-validation-for="Height" class="text-danger small" style="font-size: 0.7rem;"></span>
-                                <div class="vital-hint">Normal: 140–200 cm</div>
+                                <div class="vital-hint">BMI is calculated below</div>
                             </div>
                             <div class="col-6">
                                 <label class="vital-label" for="Weight">Weight <span class="unit">kg</span></label>
                                 <div class="vital-input-wrap">
-                                    <input asp-for="Weight" id="Weight" type="number" step="any" min="1" max="300"
+                                    <input asp-for="Weight" id="Weight" type="number" step="any" min="0" data-plausible="1-300"
                                            class="form-control form-control-sm fw-semibold pe-4"
                                            placeholder="e.g. 70.0" />
                                     <span id="weightStatus" class="vital-status"></span>
                                 </div>
                                 <span asp-validation-for="Weight" class="text-danger small" style="font-size: 0.7rem;"></span>
-                                <div class="vital-hint">Normal: 40–150 kg</div>
+                                <div class="vital-hint">&nbsp;</div>
                             </div>
                             <div class="col-12 mt-2">
                                 <label class="vital-label">BMI <span class="unit">kg/m²</span></label>
@@ -312,7 +323,9 @@
                     </div>
                 </div>
 
+                </div>
                 @* ════════════ SECTION 2: Cardiovascular ════════════ *@
+                <div class="col-12 col-xl-6">
                 <div class="vital-section">
                     <div class="vital-section-header">
                         <div class="sec-icon red"><i class="bi bi-heart-pulse-fill"></i></div>
@@ -327,16 +340,16 @@
                                 <label class="vital-label">Blood Pressure <span class="unit">mmHg</span></label>
                                 <div class="row g-1 align-items-center">
                                     <div class="col vital-input-wrap">
-                                        <input asp-for="BPSystolic" id="BPSystolic" type="number" min="50" max="250"
-                                               class="form-control form-control-sm fw-semibold text-center pe-4"
-                                               placeholder="SYS" />
+                                        <input asp-for="BPSystolic" id="BPSystolic" type="number" step="any" min="0" data-plausible="50-250"
+                                               class="form-control form-control-sm fw-semibold pe-4"
+                                               placeholder="SYS e.g. 120" />
                                         <span id="sysStatus" class="vital-status"></span>
                                     </div>
                                     <div class="col-auto fw-bold text-muted px-1">/</div>
                                     <div class="col vital-input-wrap">
-                                        <input asp-for="BPDiastolic" id="BPDiastolic" type="number" min="30" max="150"
-                                               class="form-control form-control-sm fw-semibold text-center pe-4"
-                                               placeholder="DIA" />
+                                        <input asp-for="BPDiastolic" id="BPDiastolic" type="number" step="any" min="0" data-plausible="30-150"
+                                               class="form-control form-control-sm fw-semibold pe-4"
+                                               placeholder="DIA e.g. 80" />
                                         <span id="diaStatus" class="vital-status"></span>
                                     </div>
                                 </div>
@@ -347,30 +360,32 @@
                             <div class="col-6 mt-1">
                                 <label class="vital-label" for="PulseRate">Pulse <span class="unit">bpm</span></label>
                                 <div class="vital-input-wrap">
-                                    <input asp-for="PulseRate" id="PulseRate" type="number" min="20" max="250"
-                                           class="form-control form-control-sm fw-semibold text-center pe-4"
-                                           placeholder="72" />
+                                    <input asp-for="PulseRate" id="PulseRate" type="number" step="any" min="0" data-plausible="20-250"
+                                           class="form-control form-control-sm fw-semibold pe-4"
+                                           placeholder="e.g. 72" />
                                     <span id="pulseStatus" class="vital-status"></span>
                                 </div>
                                 <span asp-validation-for="PulseRate" class="text-danger small" style="font-size: 0.7rem;"></span>
-                                <div class="vital-hint">60–100 bpm</div>
+                                <div class="vital-hint">Normal: 60–100 bpm</div>
                             </div>
                             <div class="col-6 mt-1">
                                 <label class="vital-label" for="SpO2">SpO₂ <span class="unit">%</span></label>
                                 <div class="vital-input-wrap">
-                                    <input asp-for="SpO2" id="SpO2" type="number" step="any" min="50" max="100"
-                                           class="form-control form-control-sm fw-semibold text-center pe-4"
-                                           placeholder="99" />
+                                    <input asp-for="SpO2" id="SpO2" type="number" step="any" min="0" data-plausible="50-100"
+                                           class="form-control form-control-sm fw-semibold pe-4"
+                                           placeholder="e.g. 98" />
                                     <span id="spo2Status" class="vital-status"></span>
                                 </div>
                                 <span asp-validation-for="SpO2" class="text-danger small" style="font-size: 0.7rem;"></span>
-                                <div class="vital-hint">Normal: ≥95%</div>
+                                <div class="vital-hint">Normal: 95–100%</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                </div>
                 @* ════════════ SECTION 3: General ════════════ *@
+                <div class="col-12 col-xl-6">
                 <div class="vital-section">
                     <div class="vital-section-header">
                         <div class="sec-icon green"><i class="bi bi-thermometer-half"></i></div>
@@ -384,9 +399,9 @@
                             <div class="col-6">
                                 <label class="vital-label" for="Temperature">Temp <span class="unit">°F</span></label>
                                 <div class="vital-input-wrap">
-                                    <input asp-for="Temperature" id="Temperature" type="number" step="any" min="90" max="115"
+                                    <input asp-for="Temperature" id="Temperature" type="number" step="any" min="0" data-plausible="90-115"
                                            class="form-control form-control-sm fw-semibold pe-4"
-                                           placeholder="98.6" />
+                                           placeholder="e.g. 98.6" />
                                     <span id="tempStatus" class="vital-status"></span>
                                 </div>
                                 <span asp-validation-for="Temperature" class="text-danger small" style="font-size: 0.7rem;"></span>
@@ -395,9 +410,9 @@
                             <div class="col-6">
                                 <label class="vital-label" for="RespiratoryRate">Resp Rate <span class="unit">rpm</span></label>
                                 <div class="vital-input-wrap">
-                                    <input asp-for="RespiratoryRate" id="RespiratoryRate" type="number" min="1" max="80"
+                                    <input asp-for="RespiratoryRate" id="RespiratoryRate" type="number" step="any" min="0" data-plausible="1-80"
                                            class="form-control form-control-sm fw-semibold pe-4"
-                                           placeholder="16" />
+                                           placeholder="e.g. 16" />
                                     <span id="rrStatus" class="vital-status"></span>
                                 </div>
                                 <span asp-validation-for="RespiratoryRate" class="text-danger small" style="font-size: 0.7rem;"></span>
@@ -407,7 +422,9 @@
                     </div>
                 </div>
 
+                </div>
                 @* ════════════ SECTION 4: Optional ════════════ *@
+                <div class="col-12 col-xl-6">
                 <div class="vital-section">
                     <div class="vital-section-header">
                         <div class="sec-icon orange"><i class="bi bi-droplet-fill"></i></div>
@@ -421,9 +438,9 @@
                             <div class="col-6">
                                 <label class="vital-label" for="BloodGlucose">Glucose <span class="unit">mg/dL</span></label>
                                 <div class="vital-input-wrap">
-                                    <input asp-for="BloodGlucose" id="BloodGlucose" type="number" step="any" min="20" max="600"
+                                    <input asp-for="BloodGlucose" id="BloodGlucose" type="number" step="any" min="0" data-plausible="20-600"
                                            class="form-control form-control-sm fw-semibold pe-4"
-                                           placeholder="100" />
+                                           placeholder="e.g. 100" />
                                     <span id="glucoseStatus" class="vital-status"></span>
                                 </div>
                                 <span asp-validation-for="BloodGlucose" class="text-danger small" style="font-size: 0.7rem;"></span>
@@ -462,8 +479,12 @@
                     </div>
                 </div>
 
+                </div>
+                </div>@* /vital-grid *@
+
                 @* ── Action bar ── *@
                 <div class="action-bar">
+                    <span class="action-hint"><i class="bi bi-info-circle me-1"></i>Values outside the usual range are flagged - you can still save them.</span>
                     <button type="submit" name="returnAction" value="history"
                             class="btn btn-primary btn-sm px-4 fw-semibold" id="btnSave">
                         <i class="bi bi-floppy-fill me-2"></i>@(isEdit ? "Update Record" : "Save Vitals")
@@ -487,9 +508,9 @@
         </form>
     </div>
 
-    @* ── RIGHT COLUMN: DYNAMIC HISTORY TABLE ── *@
-    <div class="col-12 col-lg-7">
-        <div class="card border-0 shadow-sm rounded-12 h-100">
+    @* ── HISTORY TABLE (below the form) ── *@
+    <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-12">
             <div class="card-header history-card-header rounded-top-12 py-2 px-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="fw-bold mb-0">
@@ -628,6 +649,7 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/emr-suggest-keys.js" asp-append-version="true"></script>
 @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
 <script>
 (function () {
@@ -741,18 +763,104 @@
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // SOFT CHECKS - a value outside the plausible range (data-plausible="lo-hi") is flagged under the field and
+    // listed before saving; it never blocks the save. Normal-range colours are the status icons further down.
+    // ══════════════════════════════════════════════════════════════════════
+    const fieldName = el => (document.querySelector(`label[for="${el.id}"]`)?.childNodes[0]?.textContent || el.id).trim();
+    const fieldUnit = el => (document.querySelector(`label[for="${el.id}"] .unit`)?.textContent || '').trim();
+
+    function unusualReason(el) {
+        if (!el.dataset.plausible || !el.value.trim()) return null;
+        const v = parseFloat(el.value);
+        if (isNaN(v)) return null;
+        const [lo, hi] = el.dataset.plausible.split('-').map(Number);
+        if (v < lo || v > hi) return `usually ${lo}–${hi}${fieldUnit(el) ? ' ' + fieldUnit(el) : ''}`;
+        return null;
+    }
+
+    function bpReason() {
+        const sys = parseFloat(document.getElementById('BPSystolic').value), dia = parseFloat(document.getElementById('BPDiastolic').value);
+        return !isNaN(sys) && !isNaN(dia) && dia >= sys ? `Diastolic (${dia}) is not lower than systolic (${sys})` : null;
+    }
+
+    function markUnusual(el) {
+        const wrap = el.closest('.vital-input-wrap') || el;
+        let note = wrap.parentElement.querySelector(`.vital-unusual[data-for="${el.id}"]`);
+        if (!note) {
+            note = document.createElement('div');
+            note.className = 'vital-unusual';
+            note.dataset.for = el.id;
+            wrap.insertAdjacentElement('afterend', note);
+        }
+        const why = unusualReason(el);
+        el.classList.toggle('is-unusual', !!why);
+        note.classList.toggle('show', !!why);
+        note.innerHTML = why ? `<i class="bi bi-exclamation-triangle me-1"></i>Unusual value - ${why}. Please re-check.` : '';
+    }
+
+    function markBp() {
+        const dia = document.getElementById('BPDiastolic');
+        const why = bpReason();
+        let note = document.getElementById('bpUnusual');
+        if (!note) {
+            note = document.createElement('div');
+            note.id = 'bpUnusual';
+            note.className = 'vital-unusual';
+            dia.closest('.row').insertAdjacentElement('afterend', note);
+        }
+        note.classList.toggle('show', !!why);
+        note.innerHTML = why ? `<i class="bi bi-exclamation-triangle me-1"></i>${why}. Please re-check.` : '';
+    }
+
+    function collectUnusualValues() {
+        const list = [];
+        document.querySelectorAll('#vitalsForm input[data-plausible]').forEach(el => {
+            const why = unusualReason(el);
+            if (why) list.push(`<b>${fieldName(el)}</b>: ${el.value}${fieldUnit(el) ? ' ' + fieldUnit(el) : ''} (${why})`);
+        });
+        const bp = bpReason();
+        if (bp) list.push(`<b>Blood pressure</b>: ${bp}`);
+        return list;
+    }
+
+    document.querySelectorAll('#vitalsForm input[data-plausible]').forEach(el => {
+        el.addEventListener('input', () => { markUnusual(el); if (el.id === 'BPSystolic' || el.id === 'BPDiastolic') markBp(); });
+        if (el.value) markUnusual(el);
+    });
+    markBp();
+
+    // ══════════════════════════════════════════════════════════════════════
     // FORM AJAX SUBMISSION
     // ══════════════════════════════════════════════════════════════════════
     const form = document.getElementById('vitalsForm');
     form.addEventListener('submit', async function (e) {
         e.preventDefault();
 
+        const submitBtn = e.submitter || document.activeElement;
+        const isAnother = submitBtn && submitBtn.value === 'another';
+
+        // hard checks: only what cannot be stored (negative, too large)
         if (typeof $ !== 'undefined' && $(form).length && !$(form).valid()) {
             return;
         }
 
-        const submitBtn = document.activeElement;
-        const isAnother = submitBtn && submitBtn.value === 'another';
+        // soft checks: unusual values are listed and the user decides
+        const unusual = collectUnusualValues();
+        if (unusual.length) {
+            const res = await Swal.fire({
+                icon: 'warning',
+                title: 'Please check these values',
+                html: '<div class="text-start small">Some readings are outside the usual range:<ul class="mt-2 mb-2">' +
+                      unusual.map(u => `<li>${u}</li>`).join('') +
+                      '</ul>Save them as entered?</div>',
+                showCancelButton: true,
+                confirmButtonText: '<i class="bi bi-check2 me-1"></i>Save anyway',
+                cancelButtonText: 'Review',
+                confirmButtonColor: '#0d6efd',
+                focusCancel: true
+            });
+            if (!res.isConfirmed) return;
+        }
 
         const saveBtn = document.getElementById('btnSave');
         const saveAnotherBtn = document.getElementById('btnSaveAnother');
@@ -840,6 +948,8 @@
         document.querySelectorAll('.field-validation-error').forEach(el => {
             el.innerHTML = '';
         });
+        document.querySelectorAll('#vitalsForm .is-unusual').forEach(el => el.classList.remove('is-unusual'));
+        document.querySelectorAll('#vitalsForm .vital-unusual').forEach(el => { el.classList.remove('show'); el.innerHTML = ''; });
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -905,6 +1015,7 @@
     });
 
     searchInput.addEventListener('keypress', e => { if (e.key==='Enter') { e.preventDefault(); document.getElementById('btnSearch').click(); } });
+    emrSuggestKeys(searchInput, autoDrop);   // ↓ ↑ Enter Esc on the suggestion list (wwwroot/js/emr-suggest-keys.js)
 
     autoDrop.addEventListener('click', async e => {
         const item = e.target.closest('.suggest-item'); if (!item) return;
@@ -915,6 +1026,13 @@
     document.addEventListener('click', e => {
         if (document.getElementById('searchPanel') && !document.getElementById('searchPanel').contains(e.target)) closeDrop();
     });
+
+    function showNoPatientNotice(show) {
+        const el = document.getElementById('noPatientNotice');
+        if (!el) return;
+        el.classList.toggle('d-none', !show);
+        el.classList.toggle('d-flex', show);
+    }
 
     async function loadPatient(id) {
         const p = await fetchJson(opdBase + 'GetPatientDetails?id=' + id);
@@ -932,7 +1050,8 @@
         }
         document.getElementById('formGuard').classList.add('unlocked');
         document.getElementById('patientInfoCard').style.display = '';
-        document.getElementById('noPatientNotice').style.display = 'none';
+        showNoPatientNotice(false);
+        document.getElementById('searchPanel')?.classList.add('d-none');   // the patient card replaces the search
         searchInput.value = '';
 
         loadHistoryPage(1);
@@ -942,7 +1061,9 @@
         document.getElementById('hdnPatientId').value = '';
         document.getElementById('formGuard').classList.remove('unlocked');
         document.getElementById('patientInfoCard').style.display = 'none';
-        document.getElementById('noPatientNotice').style.display = '';
+        showNoPatientNotice(true);
+        document.getElementById('searchPanel')?.classList.remove('d-none');
+        document.getElementById('searchInput')?.focus();
         
         const container = document.getElementById('historyTableContainer');
         if (container) {

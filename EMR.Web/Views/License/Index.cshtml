@@ -1,0 +1,120 @@
+@model EMR.Web.Services.Licensing.LicenseOverview
+@using EMR.Web.Services.Licensing
+@{
+    ViewData["Title"] = "Licence";
+    var l = Model.License;
+    var ok = Model.Status == LicenseGateStatus.Valid;
+    var daysLeft = l != null ? (l.ExpiryDate.Date - DateTime.Today).Days : 0;
+    string Mask(string key) => string.IsNullOrEmpty(key) || key.Length < 12 ? key : new string('•', key.Length - 12) + key[^12..];
+    bool Same(string a, string b) => MachineFingerprintProvider.Normalize(a) == MachineFingerprintProvider.Normalize(b);
+}
+
+<style>
+    .li-card { background:#fff; border:1px solid #e6e9f2; border-radius:16px; padding:1.1rem 1.25rem; box-shadow:0 6px 18px rgba(15,23,42,.04); height:100%; }
+    .li-card h3 { font-size:.95rem; font-weight:700; margin:0 0 .75rem; color:#0f172a; }
+    .li-grid { display:grid; grid-template-columns: minmax(130px, auto) 1fr; gap:.4rem 1rem; font-size:.86rem; }
+    .li-grid span { color:#64748b; }
+    .li-grid b { color:#0f172a; word-break:break-all; }
+    .li-status { border-radius:16px; padding:1.1rem 1.25rem; color:#fff; display:flex; gap:1rem; align-items:center; }
+    .li-status.ok { background:linear-gradient(120deg,#065f46,#059669); }
+    .li-status.bad { background:linear-gradient(120deg,#7f1d1d,#dc2626); }
+    .li-status.off { background:linear-gradient(120deg,#334155,#64748b); }
+    .li-status i.big { font-size:2rem; }
+    .li-hw td, .li-hw th { font-size:.84rem; vertical-align:middle; }
+</style>
+
+<div class="container-fluid px-0">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1 small"><li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li><li class="breadcrumb-item">Settings</li><li class="breadcrumb-item active">Licence</li></ol></nav>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h1 class="h3 fw-bold mb-0" style="color:var(--emr-primary,#1e3a8a)"><i class="bi bi-shield-check me-2 text-primary"></i>@Model.ProductType licence</h1>
+        @if (Model.Enabled)
+        {
+            <form method="post" asp-action="ClearCache">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Re-check with licence server now</button>
+            </form>
+        }
+    </div>
+
+    @if (TempData["SuccessMessage"] != null) { <div class="alert alert-success py-2">@TempData["SuccessMessage"]</div> }
+    @if (TempData["ErrorMessage"] != null) { <div class="alert alert-danger py-2">@TempData["ErrorMessage"]</div> }
+
+    @if (!Model.Enabled)
+    {
+        <div class="li-status off mb-3"><i class="bi bi-toggle-off big"></i>
+            <div><div class="fw-bold fs-5">Licensing is switched off on this server</div>
+                <div class="small opacity-75">Licensing:Enabled is false, so the application is not gated. Set the licence secrets, then switch it on to enforce the licence.</div></div></div>
+    }
+    else
+    {
+        <div class="li-status @(ok ? "ok" : "bad") mb-3"><i class="bi @(ok ? "bi-patch-check-fill" : "bi-exclamation-octagon-fill") big"></i>
+            <div><div class="fw-bold fs-5">@(ok ? "Licence valid" : "Licence not valid: " + Model.Status)</div>
+                <div class="small opacity-75">@(ok ? (l != null ? $"Valid until {l.ExpiryDate:dd MMM yyyy} · {daysLeft} day(s) left" : "") : Model.Reason)</div></div></div>
+    }
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-6">
+            <div class="li-card">
+                <h3><i class="bi bi-file-earmark-lock me-2 text-primary"></i>Licence</h3>
+                @if (l == null)
+                {
+                    <div class="text-muted small">No licence is stored on this server yet.</div>
+                }
+                else
+                {
+                    <div class="li-grid">
+                        <span>Client code</span><b>@l.ClientCode</b>
+                        <span>Client name</span><b>@l.ClientName</b>
+                        <span>Contact · e-mail</span><b>@(l.ContactNumber ?? "—") · @(l.EmailID ?? "—")</b>
+                        <span>Licence key</span><b class="font-monospace">@Mask(l.LicenseKey)</b>
+                        <span>Product</span><b>@l.ProductType</b>
+                        <span>Registered for</span><b>@l.AppUrl</b>
+                        <span>Valid</span><b>@l.StartDate.ToString("dd MMM yyyy") → @l.ExpiryDate.ToString("dd MMM yyyy") <span class="@(daysLeft <= (int)ViewBag.ExpiryWarningDays ? "text-danger" : "text-success") fw-semibold">(@daysLeft day(s) left)</span></b>
+                        <span>AMC until</span><b>@(l.AmcExpiredDate?.ToString("dd MMM yyyy") ?? "—")</b>
+                        <span>Active · activated</span><b>@(l.IsActive ? "Yes" : "No") · @(l.OtpVerified ? "Yes" : "No")</b>
+                        <span>Last central check</span><b>@(l.LastRemoteValidatedAt?.ToString("dd MMM yyyy, hh:mm tt") ?? "never") <span class="text-muted fw-normal">(the server is asked once a day)</span></b>
+                        <span>Local copy</span><b>@(Model.SignatureTrusted ? "Signed and trusted" : "Not trusted: the next request checks with the licence server")</b>
+                        <span>Offline grace</span><b>@((int)ViewBag.OfflineGraceDays == 0 ? "Off: an unreachable licence server blocks the application" : $"{ViewBag.OfflineGraceDays} day(s)")</b>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="col-12 col-xl-6">
+            <div class="li-card">
+                <h3><i class="bi bi-cpu me-2 text-primary"></i>This server</h3>
+                <table class="table table-sm li-hw mb-2">
+                    <thead><tr><th></th><th>Detected now</th><th>Registered</th><th></th></tr></thead>
+                    <tbody>
+                        <tr><th>MAC address</th><td class="font-monospace">@Model.Machine.ServerMacID</td><td class="font-monospace">@(l?.ServerMacID ?? "—")</td><td>@if (l != null) { <i class="bi @(Same(Model.Machine.ServerMacID, l.ServerMacID) ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger")"></i> }</td></tr>
+                        <tr><th>Hard disk</th><td class="font-monospace">@Model.Machine.HardDiskNumber</td><td class="font-monospace">@(l?.HardDiskNumber ?? "—")</td><td>@if (l != null) { <i class="bi @(Same(Model.Machine.HardDiskNumber, l.HardDiskNumber) ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger")"></i> }</td></tr>
+                        <tr><th>Motherboard</th><td class="font-monospace">@Model.Machine.MotherboardNumber</td><td class="font-monospace">@(l?.MotherboardNumber ?? "—")</td><td>@if (l != null) { <i class="bi @(Same(Model.Machine.MotherboardNumber, l.MotherboardNumber) ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger")"></i> }</td></tr>
+                    </tbody>
+                </table>
+                <div class="li-grid"><span>Server</span><b>@Environment.MachineName</b><span>Application URL</span><b>@Model.AppUrl</b></div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="li-card">
+                <h3><i class="bi bi-clock-history me-2 text-primary"></i>Recent licence checks</h3>
+                @if (!Model.RecentChecks.Any())
+                {
+                    <div class="text-muted small">No checks recorded yet.</div>
+                }
+                else
+                {
+                    <div class="table-responsive"><table class="table table-sm mb-0">
+                        <thead><tr><th>When</th><th>Result</th><th>Licence server</th><th>Detail</th><th>From</th></tr></thead>
+                        <tbody>
+                        @foreach (var c in Model.RecentChecks)
+                        {
+                            <tr><td class="text-nowrap">@c.ValidatedAt.ToString("dd MMM yyyy, hh:mm:ss tt")</td>
+                                <td><span class="badge @(c.Result == "Valid" ? "text-bg-success" : "text-bg-danger")">@c.Result</span>@if (c.IsOfflineGrace) { <span class="badge text-bg-warning ms-1">offline grace</span> }</td>
+                                <td>@(c.IsRemoteReachable ? "reached" : "unreachable")</td><td class="small">@c.FailureReason</td><td class="small text-muted">@c.RequestIp</td></tr>
+                        }
+                        </tbody>
+                    </table></div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

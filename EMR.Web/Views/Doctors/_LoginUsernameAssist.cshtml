@@ -1,0 +1,74 @@
+@* Doctor Master > Login Account: suggests free usernames from the doctor's name / e-mail and checks the one typed.
+   Needs #isLoginRequired, #LoginUsername (enabled), #FullName, #EmailId, #usernameStatus and #usernameSuggestions. *@
+@model EMR.Web.Models.ViewModels.DoctorFormViewModel
+<script>
+(function () {
+    const input = document.getElementById('LoginUsername');
+    const toggle = document.getElementById('isLoginRequired');
+    if (!input || input.disabled || !toggle) return;          // an existing login keeps its username
+    const nameEl = document.getElementById('FullName'), emailEl = document.getElementById('EmailId');
+    const statusEl = document.getElementById('usernameStatus'), chipsEl = document.getElementById('usernameSuggestions');
+    const url = '@Url.Action("SuggestLoginUsernames", "Doctors")';
+    const doctorId = @(Model.DoctorId > 0 ? Model.DoctorId : 0);
+    let autoFilled = false, seq = 0, timer = null;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function setStatus(ok, text) {
+        statusEl.className = 'small mt-1 ' + (ok === null ? 'text-muted' : ok ? 'text-success' : 'text-danger');
+        statusEl.innerHTML = text ? `<i class="bi ${ok === null ? 'bi-hourglass-split' : ok ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} me-1"></i>${esc(text)}` : '';
+        input.classList.toggle('is-valid', ok === true);
+        input.classList.toggle('is-invalid', ok === false);
+    }
+
+    function renderChips(list) {
+        chipsEl.innerHTML = list.length
+            ? '<span class="small text-muted me-1">Suggested:</span>' + list.map(u =>
+                `<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill uname-chip" data-u="${esc(u)}">${esc(u)}</button>`).join('')
+            : '';
+    }
+
+    function load(checkTyped) {
+        if (!toggle.checked) return;
+        const my = ++seq, typed = input.value.trim();
+        if (checkTyped && typed) setStatus(null, 'Checking...');
+        const q = new URLSearchParams({ fullName: nameEl?.value || '', email: emailEl?.value || '', doctorId: doctorId });
+        if (checkTyped && typed) q.set('check', typed);
+        fetch(url + '?' + q, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then(res => {
+                if (my !== seq) return;
+                const list = (res.suggestions || []).filter(u => u.toLowerCase() !== typed.toLowerCase());
+                renderChips(list);
+                // nothing typed yet: take the first free suggestion
+                if (!typed && res.suggestions?.length) {
+                    input.value = res.suggestions[0]; autoFilled = true;
+                    renderChips(res.suggestions.slice(1));
+                    setStatus(true, 'Username is available.');
+                    return;
+                }
+                if (res.check) setStatus(res.check.available, res.check.message);
+                else if (!typed) setStatus(null, '');
+            })
+            .catch(() => { if (my === seq) setStatus(null, ''); });
+    }
+
+    input.addEventListener('input', () => {
+        autoFilled = false;
+        clearTimeout(timer);
+        if (!input.value.trim()) { setStatus(null, ''); timer = setTimeout(() => load(false), 300); return; }
+        timer = setTimeout(() => load(true), 350);
+    });
+    chipsEl.addEventListener('click', e => {
+        const b = e.target.closest('.uname-chip'); if (!b) return;
+        input.value = b.dataset.u; autoFilled = false; load(true); input.focus();
+    });
+    toggle.addEventListener('change', () => { if (toggle.checked) load(!!input.value.trim()); });
+    // a new name / e-mail gives new suggestions; a username we filled in follows them
+    [nameEl, emailEl].forEach(el => el?.addEventListener('change', () => {
+        if (!toggle.checked) return;
+        if (autoFilled) input.value = '';
+        load(!!input.value.trim());
+    }));
+    if (toggle.checked) load(!!input.value.trim());
+})();
+</script>

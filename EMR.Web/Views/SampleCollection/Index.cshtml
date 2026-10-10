@@ -245,7 +245,7 @@
                                         _ => "Unpaid"
                                     };
 
-                                    <tr class="order-header-row cursor-pointer @statusPatternClass" data-id="@h.LabOrderId" id="orderRow_@h.LabOrderId">
+                                    <tr class="order-header-row cursor-pointer @statusPatternClass @(h.IsUrgent ? "is-urgent" : "")" data-id="@h.LabOrderId" id="orderRow_@h.LabOrderId">
                                         <!-- Booking Date & Status -->
                                         <td>
                                             <div class="fw-bold text-dark fs-8">
@@ -257,6 +257,10 @@
                                             <div class="mt-1">
                                                 <span class="badge @overallBadge fs-9">@h.OverallStatus</span>
                                             </div>
+                                            @if (h.IsUrgent)
+                                            {
+                                                <div class="mt-1"><span class="urgent-flag" title="This order has urgent test(s) - collect first"><i class="bi bi-lightning-charge-fill"></i>URGENT</span></div>
+                                            }
                                         </td>
 
                                         <!-- Token / Bill No / Payment -->
@@ -266,9 +270,6 @@
                                             </div>
                                             <div class="text-muted fs-9 text-truncate" style="max-width: 110px;" title="Bill: @h.BillNo">
                                                 @h.BillNo
-                                                @if(h.IsUrgent) {
-                                                    <span class="badge bg-danger ms-1 px-1 py-0 shadow-2xs" style="font-size:0.6rem;"><i class="bi bi-exclamation-circle"></i> Urgent</span>
-                                                }
                                             </div>
                                             <div class="d-flex align-items-center gap-1 mt-1">
                                                 <span class="custom-badge @payBadge fs-9">@payText</span>
@@ -628,6 +629,25 @@
         letter-spacing: 0.5px;
     }
 
+    /* ── Urgent orders: always on top (server order) and clearly marked - overrides the status colour ── */
+    .order-header-row.is-urgent {
+        border-left: 6px solid #dc2626 !important;
+        background: linear-gradient(90deg, #fee2e2 0%, #fff5f5 45%, #ffffff 100%) !important;
+    }
+    .order-header-row.is-urgent:hover { background: linear-gradient(90deg, #fecaca 0%, #fee2e2 45%, #fff 100%) !important; }
+    .urgent-flag {
+        display: inline-flex; align-items: center; gap: .25rem;
+        background: #dc2626; color: #fff; font-weight: 800; font-size: .62rem; letter-spacing: .06em;
+        padding: .15rem .45rem; border-radius: .35rem; box-shadow: 0 0 0 0 rgba(220, 38, 38, .55);
+        animation: urgentPulse 1.8s ease-out infinite;
+    }
+    @@keyframes urgentPulse {
+        0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, .55); }
+        70%  { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    }
+    @@media (prefers-reduced-motion: reduce) { .urgent-flag { animation: none; } }
+
     /* ── Status-based colour patterns on Header Grid (Requirement 4) ── */
     .order-header-row {
         transition: background-color 0.15s ease, border-left-color 0.15s ease;
@@ -932,9 +952,11 @@
                 $('#workspaceDetails').removeClass('d-none');
                 $('#workspaceActionButtons').removeClass('d-none');
 
-                const rawBookingDate = detail.bookingDateTime || detail.orderDate;
-                // Minimum allowed collection date-time (yyyy-MM-ddTHH:mm) = the booking date-time
+                // Allowed collection date-time (yyyy-MM-ddTHH:mm): from the bill (when it was made, or its booking time when
+                // earlier) up to now - a later booking slot (home collection) does not hold it back (SQLScripts/2203)
+                const rawBookingDate = detail.earliestCollectionOn || detail.bookingDateTime || detail.orderDate;
                 const minCollectionDt = toInputDateTime(rawBookingDate);
+                const maxCollectionDt = toInputDateTime(new Date(Date.now() + 5 * 60000));
 
                 // Header Subtitle
                 $('#lblWorkspaceSubtitle').text(`${detail.tokenNo || ''} — ${detail.patientName || ''}`);
@@ -1192,7 +1214,7 @@
                                             <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!canEditProfile ? 'disabled' : ''}>
                                                 ${profileStatusOptionsHtml}
                                             </select>
-                                            <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
+                                            <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}" max="${maxCollectionDt}"
                                                    data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
                                             <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditProfile ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                     data-grpid="${grpId}"
@@ -1210,7 +1232,7 @@
                                         <select class="form-select form-select-sm fs-9 py-0 sel-profile-status" style="width: auto; height: 28px;" data-grpid="${grpId}" ${!canEditProfile ? 'disabled' : ''}>
                                             ${profileStatusOptionsHtml}
                                         </select>
-                                        <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}"
+                                        <input type="datetime-local" class="form-control form-control-sm fs-9 py-0 txt-profile-datetime" style="width: 165px; height: 28px;" min="${minCollectionDt}" max="${maxCollectionDt}"
                                                data-grpid="${grpId}" value="${defaultProfileDt}" ${!canEditProfile ? 'disabled' : ''} />
                                         <button data-permission="LAB.SAMPLECOLLECTION:COLLECT" type="button" class="btn btn-sm ${canEditProfile && !profileNeedsManualBarcode ? 'btn-success' : 'btn-secondary'} py-0 px-2 fs-9 btn-save-profile" style="height: 28px;"
                                                 data-grpid="${grpId}"
@@ -1393,7 +1415,7 @@
                                 </div>
                                 <div class="row-edit-action d-none mt-1">
                                     <div class="d-flex flex-column gap-1">
-                                        <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" min="${minCollectionDt}"
+                                        <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" min="${minCollectionDt}" max="${maxCollectionDt}"
                                                data-id="${test.samplecollectionID}" 
                                                value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                                ${!canEditTest ? 'disabled' : ''} />
@@ -1416,7 +1438,7 @@
 
                             actionCellHtml = `
                                 <div class="d-flex flex-column gap-1">
-                                    <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" min="${minCollectionDt}"
+                                    <input type="datetime-local" class="form-control form-control-sm fs-9 txt-collection-datetime" min="${minCollectionDt}" max="${maxCollectionDt}"
                                            data-id="${test.samplecollectionID}" 
                                            value="${getFormattedDateTimeForInput(test.samplecollectiondate, test.samplecollectiontime)}"
                                            ${!canEditTest ? 'disabled' : ''} />
@@ -2249,11 +2271,12 @@
                     }
 
                     const rowHtml = `
-                        <tr class="order-header-row cursor-pointer ${statusPatternClass}" data-id="${h.labOrderId}" id="orderRow_${h.labOrderId}">
+                        <tr class="order-header-row cursor-pointer ${statusPatternClass} ${h.isUrgent ? 'is-urgent' : ''}" data-id="${h.labOrderId}" id="orderRow_${h.labOrderId}">
                             <td>
                                 <div class="fw-bold text-dark fs-8">${h.bookingDateTime ? formatDate(h.bookingDateTime) : '—'}</div>
                                 <div class="text-muted fs-9"><i class="bi bi-clock me-1"></i>${h.bookingDateTime ? formatTime(h.bookingDateTime) : '—'}</div>
                                 <div class="mt-1"><span class="badge ${overallBadge} fs-9">${escapeHtml(h.overallStatus)}</span></div>
+                                ${h.isUrgent ? '<div class="mt-1"><span class="urgent-flag" title="This order has urgent test(s) - collect first"><i class="bi bi-lightning-charge-fill"></i>URGENT</span></div>' : ''}
                             </td>
                             <td>
                                 <div class="fw-bold text-primary fs-8"><i class="bi bi-ticket-perforated me-1"></i>${escapeHtml(h.tokenNo || '—')}</div>
@@ -2354,16 +2377,19 @@
                 return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
             }
 
-            // Collection date-time must not be earlier than the booking date-time (to the minute).
+            // Collection date-time (to the minute): not earlier than the bill (when it was made, or its booking time when
+            // earlier) and not in the future. A later booking slot does not hold it back (SQLScripts/2203).
             // A blank value means "now" (the server stamps the current time). Returns an error message or null.
             function validateCollectionDateTime(dtVal) {
                 if (!currentDetailData) return null;
-                const rawBooking = currentDetailData.bookingDateTime || currentDetailData.orderDate;
-                const booking = toInputDateTime(rawBooking);
-                if (!booking) return null;
+                const rawEarliest = currentDetailData.earliestCollectionOn || currentDetailData.bookingDateTime || currentDetailData.orderDate;
+                const earliest = toInputDateTime(rawEarliest);
                 const collect = dtVal ? toInputDateTime(dtVal) : toInputDateTime(new Date());
-                if (collect && collect < booking) {
-                    return `Sample collection date and time (${collect.replace('T', ' ')}) cannot be earlier than the booking date and time (${booking.replace('T', ' ')}).`;
+                if (earliest && collect && collect < earliest) {
+                    return `Sample collection date and time (${collect.replace('T', ' ')}) cannot be earlier than the bill date and time (${earliest.replace('T', ' ')}).`;
+                }
+                if (collect && collect > toInputDateTime(new Date(Date.now() + 5 * 60000))) {
+                    return `Sample collection date and time (${collect.replace('T', ' ')}) cannot be in the future.`;
                 }
                 return null;
             }

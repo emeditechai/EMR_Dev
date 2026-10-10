@@ -56,7 +56,31 @@ namespace EMR.Web.Models.ViewModels
         /// to the Pathologist Dashboard and this screen must not offer an Approve button.
         /// </summary>
         public bool PathologistApprovalRequired { get; set; }
+
+        /// <summary>
+        /// Which reporting screen renders the shared Entry page. Lab Report Entry keeps the defaults; Microbiology
+        /// Report Entry (Reporting Type Template) posts to its own controller and checks its own page permissions.
+        /// </summary>
+        public LabReportingScreen Screen { get; set; } = LabReportingScreen.Numeric;
+
+        /// <summary>Picklist answers of every Select parameter on the order, by Test_ID (Lab Parameter Option Master).</summary>
+        public Dictionary<int, List<LabPicklistOption>> PicklistOptions { get; set; } = new();
+
+        /// <summary>Default narrative (Lab Descriptive Test Template) of each descriptive parameter not reported yet, by sample.</summary>
+        public Dictionary<long, string> DescriptiveDefaults { get; set; } = new();
     }
+
+    /// <summary>The controller, page code and titles of a reporting screen that uses the shared Entry page.</summary>
+    public sealed record LabReportingScreen(string Controller, string PageCode, string ListTitle, string ReportingType, bool MixedTypes)
+    {
+        public static readonly LabReportingScreen Numeric =
+            new("LabReporting", "LAB.LABREPORTING", "Lab Reporting Entry", "Numeric", false);
+        public static readonly LabReportingScreen Microbiology =
+            new("MicrobiologyReporting", "LAB.MICROBIOLOGYREPORTING", "Microbiology Report Entry", "Template", true);
+    }
+
+    /// <summary>One answer of a Select (picklist) parameter.</summary>
+    public sealed record LabPicklistOption(string Text, bool IsAbnormal, bool IsDefault);
 
     /// <summary>Initial filter values of the Lab Report Dispatch dashboard.</summary>
     public class LabReportDispatchPageViewModel

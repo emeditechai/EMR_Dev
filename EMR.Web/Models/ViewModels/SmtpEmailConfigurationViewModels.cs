@@ -45,6 +45,11 @@ public class SmtpConfigFormViewModel
     [Display(Name = "Sender Display Name")]
     public string? SenderDisplayName { get; set; }
 
+    [MaxLength(300)]
+    [Url(ErrorMessage = "Please enter a valid URL, e.g. https://emr.yourhospital.com")]
+    [Display(Name = "Application Base URL")]
+    public string? ApplicationBaseUrl { get; set; }
+
     [Required(ErrorMessage = "Username is required.")]
     [MaxLength(200)]
     [Display(Name = "Username")]

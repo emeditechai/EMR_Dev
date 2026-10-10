@@ -1,0 +1,153 @@
+@model EMR.Web.Models.ViewModels.LicenseRegisterViewModel
+@{
+    Layout = "_AuthLayout";
+    ViewData["Title"] = "Register licence";
+    // this page is public: show only the end of each hardware id (the vendor's approval e-mail carries them in full)
+    string Mask(string v) => string.IsNullOrEmpty(v) || v.Length <= 4 ? v : new string('•', Math.Min(8, v.Length - 4)) + v[^4..];
+}
+<partial name="_LicenseStyles" />
+
+<div class="lic-card">
+    <div class="lic-head">
+        <div class="lic-head-icon"><i class="bi bi-shield-lock"></i></div>
+        <div>
+            <h1>Register @Model.ProductName licence</h1>
+            <p>This server has no licence yet. Register it once; the vendor approves it with a one-time code.</p>
+        </div>
+    </div>
+
+    @if (Model.MovedClientCode != null)
+    {
+        <div class="lic-body">
+            <div class="alert alert-warning d-flex gap-2 mb-0">
+                <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                <div>This server already holds licence <b>@Model.MovedClientCode</b> for <b>@Model.MovedAppUrl</b>.
+                    A licence cannot be registered again under a new address: contact the vendor to move it to <b>@Model.AppUrl</b>.
+                    @if (!string.IsNullOrWhiteSpace(Model.VendorContact)) { <div class="mt-1">Vendor: <b>@Model.VendorContact</b></div> }</div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="lic-steps">
+            <div class="lic-step active" id="stepDetails"><span>1</span>Client details</div>
+            <div class="lic-step-line"></div>
+            <div class="lic-step" id="stepOtp"><span>2</span>Vendor OTP</div>
+        </div>
+        <div class="lic-body">
+            @Html.AntiForgeryToken()
+            <div id="licMsg" class="alert d-none" role="alert"></div>
+
+            <form id="regForm" autocomplete="off" novalidate>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="lic-label" for="clientName">Client / hospital name <span class="text-danger">*</span></label>
+                        <input class="form-control" id="clientName" maxlength="100" required placeholder="As it should appear on the licence" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="lic-label" for="contact">Contact number <span class="text-danger">*</span></label>
+                        <input class="form-control" id="contact" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" required placeholder="10-digit mobile" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="lic-label" for="email">E-mail <span class="text-muted fw-normal">(licence key is sent here)</span></label>
+                        <input class="form-control" id="email" type="email" maxlength="100" placeholder="admin@hospital.com" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="lic-label" for="endDate">Licence end date <span class="text-danger">*</span></label>
+                        <input class="form-control" id="endDate" type="date" required value="@Model.DefaultEndDate.ToString("yyyy-MM-dd")"
+                               min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")" max="@Model.MaxEndDate.ToString("yyyy-MM-dd")" />
+                        <div class="form-text">Up to @Model.MaxEndDate.ToString("dd MMM yyyy"); the vendor sees it before approving.</div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="lic-label" for="amcDate">AMC end date</label>
+                        <input class="form-control" id="amcDate" type="date" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                        <div class="form-text">Support contract, if any.</div>
+                    </div>
+                </div>
+
+                <div class="lic-hw mt-3">
+                    <div class="lic-hw-title"><i class="bi bi-cpu me-1"></i>This server (detected, cannot be changed)</div>
+                    <div class="lic-hw-grid">
+                        <span>Server</span><b>@Model.ServerName</b>
+                        <span>Application URL</span><b>@Model.AppUrl</b>
+                        <span>MAC address</span><b class="font-monospace">@Mask(Model.ServerMacID)</b>
+                        <span>Hard disk</span><b class="font-monospace">@Mask(Model.HardDiskNumber)</b>
+                        <span>Motherboard</span><b class="font-monospace">@Mask(Model.MotherboardNumber)</b>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn lic-btn w-100 mt-3" id="btnSend"><i class="bi bi-send me-1"></i>Request vendor OTP</button>
+            </form>
+
+            <div id="otpPanel" class="d-none">
+                <div class="lic-otp-note"><i class="bi bi-telephone-forward me-2"></i>The OTP was e-mailed to the vendor, not to you. Call the vendor to approve this registration and read you the code.</div>
+                <label class="lic-label mt-3" for="otp">One-time code</label>
+                <input class="form-control lic-otp" id="otp" maxlength="@Model.OtpLength" inputmode="numeric" autocomplete="one-time-code" placeholder="@(new string('•', Model.OtpLength))" />
+                <div class="d-flex justify-content-between small mt-1"><span class="text-muted" id="otpTimer"></span><a href="#" id="btnResend" class="d-none">Request a new OTP</a></div>
+                <button type="button" class="btn lic-btn w-100 mt-3" id="btnVerify"><i class="bi bi-check2-circle me-1"></i>Verify and register</button>
+                <button type="button" class="btn btn-link w-100 mt-1 text-decoration-none" id="btnBack"><i class="bi bi-arrow-left me-1"></i>Change details</button>
+            </div>
+        </div>
+    }
+    <div class="lic-foot"><i class="bi bi-lock me-1"></i>@Model.ProductName · licence bound to this server's hardware and address</div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const msg = (text, kind) => { const m = document.getElementById('licMsg'); if (!m) return; m.className = 'alert alert-' + kind; m.textContent = text; };
+    const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token() }, body: JSON.stringify(body) })
+        .then(r => r.status === 429 ? { success: false, message: 'Too many OTP requests from this network. Wait 15 minutes and try again.' } : r.json());
+    const form = document.getElementById('regForm');
+    if (!form) return;
+    let timer = null;
+
+    function startTimer(seconds) {
+        clearInterval(timer);
+        const until = Date.now() + seconds * 1000;
+        const t = document.getElementById('otpTimer'), resend = document.getElementById('btnResend');
+        resend.classList.add('d-none');
+        timer = setInterval(() => {
+            const left = Math.max(0, Math.round((until - Date.now()) / 1000));
+            t.textContent = left > 0 ? `Code valid for ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Code expired.';
+            if (left === 0) { clearInterval(timer); resend.classList.remove('d-none'); }
+        }, 500);
+    }
+    function showOtp(on) {
+        form.classList.toggle('d-none', on);
+        document.getElementById('otpPanel').classList.toggle('d-none', !on);
+        document.getElementById('stepDetails').classList.toggle('done', on);
+        document.getElementById('stepOtp').classList.toggle('active', on);
+        if (on) document.getElementById('otp').focus();
+    }
+    async function send() {
+        const body = { clientName: clientName.value.trim(), contactNumber: contact.value.trim(), emailID: email.value.trim() || null,
+                       endDate: endDate.value || null, amcDate: amcDate.value || null };
+        if (!body.clientName || !/^\d{10}$/.test(body.contactNumber) || !body.endDate) { msg('Enter the client name, a 10-digit contact number and the licence end date.', 'warning'); return; }
+        const b = document.getElementById('btnSend'); b.disabled = true; b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending OTP to the vendor...';
+        try {
+            const r = await post('@Url.Action("StartRegistrationOtp")', body);
+            msg(r.message, r.success ? 'success' : 'danger');
+            if (r.success) { showOtp(true); startTimer(@Model.OtpLifetimeSeconds); }
+        } catch { msg('The server could not be reached. Try again.', 'danger'); }
+        b.disabled = false; b.innerHTML = '<i class="bi bi-send me-1"></i>Request vendor OTP';
+    }
+    form.addEventListener('submit', e => { e.preventDefault(); send(); });
+    document.getElementById('btnResend').addEventListener('click', e => { e.preventDefault(); send(); });
+    document.getElementById('btnBack').addEventListener('click', () => showOtp(false));
+    document.getElementById('btnVerify').addEventListener('click', async function () {
+        const otp = document.getElementById('otp').value.trim();
+        if (otp.length !== @Model.OtpLength) { msg('Enter the @Model.OtpLength-digit code from the vendor.', 'warning'); return; }
+        this.disabled = true;
+        try {
+            const r = await post('@Url.Action("VerifyRegistrationOtp")', { otp });
+            msg(r.message, r.success ? 'success' : 'danger');
+            if (r.success) { clearInterval(timer); setTimeout(() => location.href = r.redirect, 1500); return; }
+            if (/new OTP/i.test(r.message)) { document.getElementById('btnResend').classList.remove('d-none'); }
+        } catch { msg('The server could not be reached. Try again.', 'danger'); }
+        this.disabled = false;
+    });
+})();
+</script>
+}

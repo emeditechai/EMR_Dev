@@ -1,0 +1,115 @@
+@model EMR.Web.Models.ViewModels.LicenseBlockedViewModel
+@using EMR.Web.Services.Licensing
+@{
+    Layout = "_AuthLayout";
+    ViewData["Title"] = Model.Title;
+    var tone = Model.Status is LicenseGateStatus.RemoteUnavailable or LicenseGateStatus.HardwareMismatch or LicenseGateStatus.PendingActivation ? "warning" : "danger";
+    var icon = Model.Status switch
+    {
+        LicenseGateStatus.Expired => "bi-calendar-x",
+        LicenseGateStatus.Inactive => "bi-slash-circle",
+        LicenseGateStatus.HardwareMismatch => "bi-cpu",
+        LicenseGateStatus.RemoteUnavailable => "bi-cloud-slash",
+        LicenseGateStatus.PendingActivation => "bi-hourglass-split",
+        _ => "bi-shield-exclamation"
+    };
+}
+<partial name="_LicenseStyles" />
+
+<div class="lic-card">
+    <div class="lic-head @tone">
+        <div class="lic-head-icon"><i class="bi @icon"></i></div>
+        <div>
+            <h1>@Model.Title</h1>
+            <p>@Model.ProductName cannot be used on this server until this is resolved.</p>
+        </div>
+    </div>
+    <div class="lic-body">
+        @Html.AntiForgeryToken()
+        <p class="mb-2">@Model.Message</p>
+        @if (!string.IsNullOrWhiteSpace(Model.Detail))
+        {
+            <div class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>@Model.Detail</div>
+        }
+        <div class="lic-meta mb-3">
+            <span>Status</span><b>@Model.Status</b>
+            <span>Server</span><b>@Model.ServerName</b>
+            <span>Application URL</span><b>@Model.AppUrl</b>
+            @if (Model.LastCheck != null)
+            {
+                <span>Last checked</span><b>@Model.LastCheck.ValidatedAt.ToString("dd MMM yyyy, hh:mm tt") · @Model.LastCheck.Result</b>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.VendorContact))
+            {
+                <span>Vendor</span><b>@Model.VendorContact</b>
+            }
+        </div>
+
+        <div id="licMsg" class="alert d-none" role="alert"></div>
+
+        @if (Model.CanRetry)
+        {
+            <form method="post" asp-action="RetryValidation">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn lic-btn w-100"><i class="bi bi-arrow-repeat me-1"></i>Retry validation</button>
+            </form>
+        }
+
+        @if (Model.CanRenew)
+        {
+            <div id="renewKeyPanel">
+                <label class="lic-label" for="licKey">Licence key</label>
+                <input class="form-control font-monospace" id="licKey" maxlength="36" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" autocomplete="off" />
+                <div class="form-text">From the welcome e-mail sent when the licence was registered.</div>
+                <button type="button" class="btn lic-btn w-100 mt-3" id="btnRenewSend"><i class="bi bi-arrow-left-right me-1"></i>Re-new licence for this server</button>
+            </div>
+            <div id="renewOtpPanel" class="d-none">
+                <div class="lic-otp-note"><i class="bi bi-telephone-forward me-2"></i>The renewal OTP was e-mailed to the vendor. Call the vendor to approve moving the licence and read you the code.</div>
+                <label class="lic-label mt-3" for="otp">One-time code</label>
+                <input class="form-control lic-otp" id="otp" maxlength="@Model.OtpLength" inputmode="numeric" autocomplete="one-time-code" placeholder="@(new string('•', Model.OtpLength))" />
+                <button type="button" class="btn lic-btn w-100 mt-3" id="btnRenewVerify"><i class="bi bi-check2-circle me-1"></i>Verify and move licence</button>
+                <button type="button" class="btn btn-link w-100 mt-1 text-decoration-none" id="btnRenewBack"><i class="bi bi-arrow-left me-1"></i>Back</button>
+            </div>
+            <form method="post" asp-action="RetryValidation" class="mt-2">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-secondary w-100 btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Retry validation</button>
+            </form>
+        }
+    </div>
+    <div class="lic-foot"><i class="bi bi-lock me-1"></i>@Model.ProductName licensing · sign-in opens once the licence is valid</div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const send = document.getElementById('btnRenewSend');
+    if (!send) return;
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const msg = (text, kind) => { const m = document.getElementById('licMsg'); m.className = 'alert alert-' + kind; m.textContent = text; };
+    const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token() }, body: JSON.stringify(body) })
+        .then(r => r.status === 429 ? { success: false, message: 'Too many OTP requests from this network. Wait 15 minutes and try again.' } : r.json());
+    const showOtp = on => { document.getElementById('renewKeyPanel').classList.toggle('d-none', on); document.getElementById('renewOtpPanel').classList.toggle('d-none', !on); if (on) document.getElementById('otp').focus(); };
+    send.addEventListener('click', async function () {
+        const key = document.getElementById('licKey').value.trim();
+        if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(key)) { msg('Enter the licence key exactly as in the welcome e-mail.', 'warning'); return; }
+        this.disabled = true;
+        try { const r = await post('@Url.Action("StartRenewalOtp")', { licenseKey: key }); msg(r.message, r.success ? 'success' : 'danger'); if (r.success) showOtp(true); }
+        catch { msg('The server could not be reached. Try again.', 'danger'); }
+        this.disabled = false;
+    });
+    document.getElementById('btnRenewBack').addEventListener('click', () => showOtp(false));
+    document.getElementById('btnRenewVerify').addEventListener('click', async function () {
+        const otp = document.getElementById('otp').value.trim();
+        if (otp.length !== @Model.OtpLength) { msg('Enter the @Model.OtpLength-digit code from the vendor.', 'warning'); return; }
+        this.disabled = true;
+        try {
+            const r = await post('@Url.Action("VerifyRenewalOtp")', { otp });
+            msg(r.message, r.success ? 'success' : 'danger');
+            if (r.success) { setTimeout(() => location.href = r.redirect, 1500); return; }
+            if (/new OTP/i.test(r.message)) showOtp(false);
+        } catch { msg('The server could not be reached. Try again.', 'danger'); }
+        this.disabled = false;
+    });
+})();
+</script>
+}

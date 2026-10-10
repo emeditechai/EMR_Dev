@@ -16,7 +16,8 @@ public interface IPathologistDashboardService
     Task<PathologistApproveResult> ApproveAsync(PathologistApproveRequest request);
 }
 
-public class PathologistDashboardService(IDbConnectionFactory connectionFactory) : IPathologistDashboardService
+public class PathologistDashboardService(IDbConnectionFactory connectionFactory, ILabCriticalCommunicationService criticalCommunication)
+    : IPathologistDashboardService
 {
     public async Task<PathologistAccessResult> GetAccessAsync(int userId, int branchId)
     {
@@ -79,6 +80,11 @@ public class PathologistDashboardService(IDbConnectionFactory connectionFactory)
 
     public async Task<PathologistApproveResult> ApproveAsync(PathologistApproveRequest request)
     {
+        // NABL: a Critical / Panic result at its final level needs its communication recorded first (SQLScripts/2202)
+        var block = await criticalCommunication.GetSignoffBlockAsync(request.BranchId, request.LabOrderId, request.SamplecollectionIds,
+            "SIGNOFF", request.UserId, isSuperAdmin: false);
+        if (block != null) throw new InvalidOperationException(block);
+
         using var db = connectionFactory.CreateConnection();
         try
         {

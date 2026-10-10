@@ -12,8 +12,10 @@ public class VitalService(IDbConnectionFactory db) : IVitalService
     private static decimal? CalcBMI(decimal? height, decimal? weight)
     {
         if (height is null or <= 0 || weight is null or <= 0) return null;
-        var bmi = weight.Value / ((height.Value / 100) * (height.Value / 100));
-        return Math.Round(bmi, 2);
+        var bmi = Math.Round(weight.Value / ((height.Value / 100) * (height.Value / 100)), 2);
+        // PatientVitals.BMI is decimal(5,2): an implausible height / weight (saved after the user confirmed it) must
+        // not make the save fail - the BMI is left empty instead
+        return bmi < 1000m ? bmi : null;
     }
 
     private static string? GetBMICategory(decimal? bmi) => bmi switch

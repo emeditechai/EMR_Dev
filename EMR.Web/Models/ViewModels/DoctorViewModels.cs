@@ -73,6 +73,12 @@ public class DoctorFormViewModel
     /// <summary>FK to Users.Id — populated when editing a doctor that already has a login.</summary>
     public int? LinkedUserId { get; set; }
 
+    /// <summary>
+    /// The doctor's own login (Users.User_Type = 'D', ReferenceUserID = DoctorId), whether switched on or not.
+    /// Set by the server only; a switched-off login is re-activated, never duplicated.
+    /// </summary>
+    public int? LoginAccountId { get; set; }
+
     /// <summary>Login username for the doctor's system account.</summary>
     [MaxLength(100)]
     [Display(Name = "Username")]

@@ -1,356 +1,598 @@
 @{
-    ViewData["Title"] = "Daily Collection Register";
+    ViewData["Title"] = "OPD Daily Collection Register";
+    var branchName = User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? "";
 }
-<!-- Include external libraries for Excel/PDF export -->
-<script src="~/lib/xlsx/xlsx.full.min.js"></script>
-<script src="~/lib/jspdf/jspdf.umd.min.js"></script>
-<script src="~/lib/jspdf-autotable/jspdf.plugin.autotable.min.js"></script>
 
+@section HeadStyles {
 <style>
-    .kpi-card {
-        border-radius: 12px;
-        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-        border: none;
-        overflow: hidden;
-    }
-    .kpi-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
-    }
-    .kpi-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-    }
-    .bg-gradient-primary { background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white; }
-    .bg-gradient-success { background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%); color: white; }
-    .bg-gradient-warning { background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%); color: white; }
-    .bg-gradient-info { background: linear-gradient(135deg, #36b9cc 0%, #258391 100%); color: white; }
-    
-    .filter-panel {
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-        padding: 1.25rem;
-        border: 1px solid rgba(0,0,0,0.05);
-    }
-    
-    .table-custom {
-        border-collapse: separate;
-        border-spacing: 0;
-        width: 100%;
-    }
-    .table-custom thead th {
-        background: #f8f9fc;
-        color: #5a5c69;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.75rem;
-        letter-spacing: 0.5px;
-        padding: 12px 15px;
-        border-bottom: 2px solid #e3e6f0;
-    }
-    .table-custom tbody tr {
-        transition: all 0.2s;
-    }
-    .table-custom tbody tr:hover {
-        background-color: #f1f3f9;
-    }
-    .table-custom tbody td {
-        padding: 12px 15px;
-        vertical-align: middle;
-        border-bottom: 1px solid #e3e6f0;
-        font-size: 0.85rem;
+    /* same look as Reports > LAB > B2C Collection Register */
+    .cr-wrap { --cr-line:#e2e8f0; --cr-muted:#64748b; --cr-ink:#0f172a; }
+    .cr-wrap .fs-7 { font-size:.85rem !important; } .cr-wrap .fs-8 { font-size:.78rem !important; } .cr-wrap .fs-9 { font-size:.7rem !important; }
+    .cr-card { background:#fff;border:1px solid var(--cr-line);border-radius:.75rem; }
+    .cr-kpi { position:relative;overflow:hidden;padding:.9rem 1rem;border-left:4px solid var(--k); }
+    .cr-kpi .k-label { font-size:.66rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+    .cr-kpi .k-val { font-size:1.45rem;font-weight:800;color:var(--cr-ink);line-height:1.2; }
+    .cr-kpi .k-sub { font-size:.7rem;color:var(--cr-muted); }
+    .cr-kpi .k-ico { position:absolute;right:.8rem;top:.8rem;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+                     background:var(--kb);color:var(--k);font-size:1.1rem; }
+    .cr-section-title { font-size:.72rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+    .btn-quick.active, .btn-view.active, .btn-who.active { background:#0f766e;border-color:#0f766e;color:#fff; }
+    .mode-row { display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px dashed #eef2f6;font-size:.78rem; }
+    .mode-row:last-child { border-bottom:0; }
+    .mode-dot { width:10px;height:10px;border-radius:3px;flex-shrink:0; }
+    .mode-bar { height:5px;border-radius:3px;background:#eef2f6;overflow:hidden;margin-top:3px; }
+    .mode-bar > span { display:block;height:100%; }
+    .cr-table thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--cr-muted);font-size:.66rem;font-weight:700;
+                         letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--cr-line);cursor:pointer;user-select:none; }
+    .cr-table thead th.no-sort { cursor:default; }
+    .cr-table tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6; }
+    .cr-table tfoot td { font-size:.8rem;font-weight:800;background:#f8fafc; }
+    .rcpt-no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;color:#0f766e; }
+    .amt { font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .tbl-scroll { max-height:62vh;overflow:auto; }
+    .sort-ind { font-size:.6rem;margin-left:2px;opacity:.5; }
+    tr.row-cancelled td { background:#fff7f7; }
+    @@media print {
+        .emr-topbar, footer, .no-print, .cr-charts { display:none !important; }
+        .tbl-scroll { max-height:none;overflow:visible; }
+        .cr-card { border:0; }
+        body { background:#fff !important; }
     }
 </style>
+}
 
-<div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-graph-up-arrow text-primary me-2"></i>Daily Collection Dashboard</h1>
-    <div class="d-flex gap-2" id="exportButtons" style="display: none !important;">
-        <button class="btn btn-sm btn-outline-success shadow-sm" onclick="exportToExcel()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Export Excel</button>
-        <button class="btn btn-sm btn-outline-danger shadow-sm" onclick="exportToPdf()"><i class="bi bi-file-earmark-pdf-fill me-1"></i>Export PDF</button>
+<div class="container-fluid px-3 py-2 cr-wrap">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-cash-stack text-success me-2"></i>OPD Daily Collection Register</h1>
+            <div class="text-muted fs-8">Reports &rsaquo; OPD &middot; money receipts collected on OPD bills
+                @if (!string.IsNullOrWhiteSpace(branchName)) { <span>&middot; Branch <strong>@branchName</strong></span> }
+                &middot; <span id="lblRange"></span></div>
+            <div class="fs-9 mt-1 text-muted"><i class="bi bi-info-circle me-1"></i>One line per receipt; OPD refunds paid out are shown apart. LAB payments are not included.</div>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            <button type="button" class="btn btn-sm btn-outline-success" id="btnExcel" disabled><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="btnPdf" disabled><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPrint" disabled><i class="bi bi-printer me-1"></i>Print</button>
+        </div>
     </div>
-</div>
 
-<!-- KPI Cards Row -->
-<div class="row mb-4">
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Transactions</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiTotalBills">0</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-primary shadow-sm"><i class="bi bi-receipt"></i></div>
-                    </div>
+    <!-- Filters -->
+    <div class="cr-card p-2 px-3 mb-2 no-print">
+        <div class="row g-2 align-items-end">
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">From</label>
+                <input type="date" id="txtFrom" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">To</label>
+                <input type="date" id="txtTo" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Quick select</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="today">Today</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="yesterday">Yesterday</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="week">7 Days</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="month">This Month</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="lastmonth">Last Month</button>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Payment mode</label>
+                <select id="selMode" class="form-select form-select-sm" autocomplete="off"><option value="">All modes</option></select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Collected by</label>
+                <select id="selCollector" class="form-select form-select-sm" autocomplete="off"><option value="">All users</option></select>
+            </div>
+            <div class="col-12 col-md-8">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" id="txtSearch" class="form-control" autocomplete="off"
+                           placeholder="Receipt No, Bill No, Token, Patient ID, name, mobile or doctor..." />
+                </div>
+            </div>
+            <div class="col-12 col-md-4 d-flex gap-2 justify-content-md-end">
+                <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none" id="btnReset"><i class="bi bi-x-circle me-1"></i>Reset</button>
+                <button type="button" class="btn btn-sm btn-success px-4" id="btnApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="stateError" class="alert alert-danger fs-8 d-none"></div>
+
+    <!-- KPIs -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#0f766e;--kb:#ccfbf1;"><div class="k-ico"><i class="bi bi-cash-stack"></i></div>
+            <div class="k-label">Total collection</div><div class="k-val amt" id="kTotal">&mdash;</div><div class="k-sub">amount received</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#2563eb;--kb:#dbeafe;"><div class="k-ico"><i class="bi bi-receipt"></i></div>
+            <div class="k-label">Money receipts</div><div class="k-val" id="kReceipts">&mdash;</div><div class="k-sub">payments collected</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#7c3aed;--kb:#ede9fe;"><div class="k-ico"><i class="bi bi-journal-text"></i></div>
+            <div class="k-label">Bills</div><div class="k-val" id="kBills">&mdash;</div><div class="k-sub">OPD bills paid against</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#db2777;--kb:#fce7f3;"><div class="k-ico"><i class="bi bi-people"></i></div>
+            <div class="k-label">Patients</div><div class="k-val" id="kPatients">&mdash;</div><div class="k-sub">distinct patients</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#d97706;--kb:#fef3c7;"><div class="k-ico"><i class="bi bi-arrow-counterclockwise"></i></div>
+            <div class="k-label">Refunds paid</div><div class="k-val amt" id="kRefunds">&mdash;</div><div class="k-sub"><span id="kRefundCnt">0</span> refund(s) paid out</div></div></div>
+        <div class="col-6 col-lg-2"><div class="cr-card cr-kpi" style="--k:#15803d;--kb:#dcfce7;"><div class="k-ico"><i class="bi bi-wallet2"></i></div>
+            <div class="k-label">Net collection</div><div class="k-val amt" id="kNet">&mdash;</div><div class="k-sub">avg <span id="kAvg" class="fw-semibold">&mdash;</span> &middot; highest <span id="kHigh" class="fw-semibold">&mdash;</span></div></div></div>
+    </div>
+
+    <!-- Breakdown -->
+    <div class="row g-2 mb-2 cr-charts">
+        <div class="col-12 col-xl-4">
+            <div class="cr-card p-3 h-100">
+                <div class="cr-section-title mb-2"><i class="bi bi-pie-chart me-1"></i>Collection by payment mode</div>
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:140px;height:140px;flex-shrink:0;"><canvas id="chMode"></canvas></div>
+                    <div class="flex-grow-1" id="modeList"></div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Gross Amount</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiGrossAmt">₹0.00</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-info shadow-sm"><i class="bi bi-currency-rupee"></i></div>
+        <div class="col-12 col-xl-5">
+            <div class="cr-card p-3 h-100">
+                <div class="cr-section-title mb-2"><i class="bi bi-bar-chart me-1"></i>Day-wise collection</div>
+                <div style="height:160px;"><canvas id="chDay"></canvas></div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-3">
+            <div class="cr-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="cr-section-title" id="lblWho"><i class="bi bi-person-badge me-1"></i>Collector-wise</div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-who active py-0 fs-9" data-who="collector">Collector</button>
+                        <button type="button" class="btn btn-outline-secondary btn-who py-0 fs-9" data-who="doctor">Doctor</button>
                     </div>
                 </div>
+                <div id="whoList" class="fs-8"></div>
             </div>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Discount</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiDiscount">₹0.00</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-warning shadow-sm"><i class="bi bi-tag"></i></div>
-                    </div>
+
+    <!-- Receipts / bills -->
+    <div class="cr-card mb-2">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
+            <div class="d-flex align-items-center gap-2">
+                <div class="fw-semibold" id="lblTable"><i class="bi bi-list-ul me-1"></i>Money receipts</div>
+                <span class="badge bg-secondary-subtle text-secondary border" id="lblCount">0</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 no-print fs-8">
+                <div class="btn-group btn-group-sm me-2" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-view active" data-view="receipt">Receipt wise</button>
+                    <button type="button" class="btn btn-outline-secondary btn-view" data-view="bill">Bill wise</button>
                 </div>
+                <span class="text-muted">Rows</span>
+                <select id="selPageSize" class="form-select form-select-sm" style="width:auto;">
+                    <option>25</option><option selected>50</option><option>100</option><option value="0">All</option>
+                </select>
             </div>
+        </div>
+        <div class="tbl-scroll">
+            <table class="table table-hover mb-0 cr-table" id="tblMain">
+                <thead></thead>
+                <tbody></tbody>
+                <tfoot></tfoot>
+            </table>
+        </div>
+        <div id="stateEmpty" class="text-center text-muted py-5 d-none">
+            <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>No money receipts found for the selected filters.
+        </div>
+        <div id="stateLoading" class="text-center text-muted py-5 d-none">
+            <span class="spinner-border spinner-border-sm me-2"></span>Loading collection register&hellip;
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top no-print">
+            <div class="text-muted fs-8" id="lblShowing"></div>
+            <nav><ul class="pagination pagination-sm mb-0" id="pager"></ul></nav>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Net Collection</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiNetCollection">₹0.00</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-success shadow-sm"><i class="bi bi-wallet2"></i></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Filter Panel -->
-<div class="filter-panel mb-4">
-    <form id="filterForm" class="row g-3 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label text-muted small fw-bold text-uppercase">From Date</label>
-            <input type="date" class="form-control form-control-sm" id="fromDate" name="fromDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+    <!-- Refunds paid out -->
+    <div class="cr-card d-none" id="refundCard">
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+            <div class="fw-semibold"><i class="bi bi-arrow-counterclockwise text-warning me-1"></i>Refunds paid out in the period
+                <span class="badge bg-warning-subtle text-warning-emphasis border ms-1" id="lblRefundCount">0</span></div>
         </div>
-        <div class="col-md-3">
-            <label class="form-label text-muted small fw-bold text-uppercase">To Date</label>
-            <input type="date" class="form-control form-control-sm" id="toDate" name="toDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label text-muted small fw-bold text-uppercase d-block">Report Type</label>
-            <div class="btn-group w-100" role="group">
-                <input type="radio" class="btn-check" name="reportType" id="typeSummary" value="summary" checked>
-                <label class="btn btn-outline-primary btn-sm" for="typeSummary">Summary (Bill Wise)</label>
-
-                <input type="radio" class="btn-check" name="reportType" id="typeDetail" value="detail">
-                <label class="btn btn-outline-primary btn-sm" for="typeDetail">Details (Item Wise)</label>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <button type="button" class="btn btn-primary btn-sm w-100 shadow-sm" id="btnSearch">
-                <i class="bi bi-search me-1"></i> Generate
-            </button>
-        </div>
-    </form>
-</div>
-
-<!-- Data Table Card -->
-<div class="card shadow-sm border-0 mb-4" style="border-radius: 12px; overflow: hidden;">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table-custom" id="reportTable">
-                <thead id="tableHead">
-                    <!-- Dynamic Headers -->
-                </thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox fs-1 text-light mb-3 d-block"></i>Please click generate to load data.</td></tr>
-                </tbody>
+        <div class="tbl-scroll">
+            <table class="table table-hover mb-0 cr-table" id="tblRefunds">
+                <thead><tr>
+                    <th class="ps-3 no-sort">#</th><th class="no-sort">Refund Date &amp; Time</th><th class="no-sort">Bill No / Token</th><th class="no-sort">Patient</th>
+                    <th class="no-sort">Mode</th><th class="no-sort">Reference</th><th class="no-sort text-end">Refund</th><th class="no-sort">Paid By</th>
+                </tr></thead>
+                <tbody></tbody>
+                <tfoot></tfoot>
             </table>
         </div>
     </div>
 </div>
 
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script>
-    let currentData = [];
-    let isDetailedView = false;
+(function () {
+    const dataUrl = '@Url.Action("GetDailyCollectionData", "Reports")';
+    const billUrl = '@Url.Action("PrintBill", "OPD")';
+    const branchName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(branchName))';
+    const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#b91c1c', '#475569'];
 
-    document.getElementById('btnSearch').addEventListener('click', function() {
-        const fromDate = document.getElementById('fromDate').value;
-        const toDate = document.getElementById('toDate').value;
-        isDetailedView = document.getElementById('typeDetail').checked;
+    // all rows of the period come from the server once; mode / collector / search filter them here
+    let allReceipts = [], allRefunds = [], receipts = [], refunds = [], view = [];
+    let mode = 'receipt', who = 'collector', page = 1, sortKey = 'paymentDate', sortDir = -1, loadSeq = 0;
+    let chMode = null, chDay = null;
 
-        const btn = this;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading...';
-        btn.disabled = true;
+    const pad = n => String(n).padStart(2, '0');
+    const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const money = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtDT = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); };
+    const fmtD = s => { if (!s) return ''; const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); };
+    const sum = (list, f) => list.reduce((t, r) => t + (Number(f(r)) || 0), 0);
+    const statusText = s => s === 'P' ? 'Paid' : (s === 'R' ? 'Partial' : 'Due');
+    const statusBadge = (s, c) => {
+        const cls = s === 'P' ? 'bg-success-subtle text-success border-success-subtle'
+                  : s === 'R' ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle' : 'bg-danger-subtle text-danger border-danger-subtle';
+        return `<span class="badge border ${cls}">${statusText(s)}</span>` + cancelBadge(c);
+    };
+    const cancelBadge = c => c === 'F' ? ' <span class="badge bg-danger">Bill cancelled</span>' : (c === 'P' ? ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Part cancelled</span>' : '');
+    const cancelText = c => c === 'F' ? ' (Bill cancelled)' : (c === 'P' ? ' (Part cancelled)' : '');
 
-        fetch(`/Reports/GetDailyCollectionData?fromDate=${fromDate}&toDate=${toDate}&isDetailed=${isDetailedView}`)
-            .then(res => res.json())
-            .then(res => {
-                if(res.success) {
-                    currentData = res.data;
-                    renderTable();
-                    updateKPIs();
-                    document.getElementById('exportButtons').style.display = currentData.length > 0 ? 'flex' : 'none';
-                } else {
-                    Swal.fire('Error', res.message || 'Failed to fetch report data', 'error');
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                Swal.fire('Error', 'Failed to fetch report.', 'error');
-            })
-            .finally(() => {
-                btn.innerHTML = '<i class="bi bi-search me-1"></i> Generate';
-                btn.disabled = false;
-            });
-    });
+    function setRange(range) {
+        const t = new Date(); let f = new Date(t), to = new Date(t);
+        if (range === 'yesterday') { f.setDate(t.getDate() - 1); to = new Date(f); }
+        else if (range === 'week') { f.setDate(t.getDate() - 6); }
+        else if (range === 'month') { f = new Date(t.getFullYear(), t.getMonth(), 1); }
+        else if (range === 'lastmonth') { f = new Date(t.getFullYear(), t.getMonth() - 1, 1); to = new Date(t.getFullYear(), t.getMonth(), 0); }
+        $('#txtFrom').val(iso(f)); $('#txtTo').val(iso(to));
+        $('.btn-quick').removeClass('active').filter(`[data-range="${range}"]`).addClass('active');
+    }
 
-    function updateKPIs() {
-        let totalBills = 0;
-        let grossAmt = 0;
-        let totalDiscount = 0;
-        let netCollection = 0;
+    function load() {
+        const seq = ++loadSeq;
+        const from = $('#txtFrom').val(), to = $('#txtTo').val();
+        if (!from || !to) return;
+        $('#stateError').addClass('d-none');
+        $('#stateLoading').removeClass('d-none'); $('#stateEmpty').addClass('d-none');
+        $('#tblMain tbody, #tblMain tfoot').empty(); $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', true);
+        $('#lblRange').text(fmtD(from) + (from === to ? '' : ' – ' + fmtD(to)));
 
-        if (currentData && currentData.length > 0) {
-            if (isDetailedView) {
-                let uniqueBills = new Set();
-                currentData.forEach(r => {
-                    uniqueBills.add(r.opdBillNo);
-                    grossAmt += (r.serviceCharges || 0);
-                    totalDiscount += (r.itemDiscount || 0);
-                    netCollection += (r.itemTotalAmount || 0);
-                });
-                totalBills = uniqueBills.size;
-            } else {
-                totalBills = currentData.length;
-                currentData.forEach(r => {
-                    grossAmt += (r.totalAmount || 0);
-                    totalDiscount += (r.discountAmount || 0);
-                    netCollection += (r.totalPaid || 0);
-                });
-            }
-        }
+        $.get(dataUrl, { fromDate: from, toDate: to, isDetailed: true })
+        .done(function (res) {
+            if (seq !== loadSeq) return;
+            $('#stateLoading').addClass('d-none');
+            if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+            const rows = res.data || [];
+            allReceipts = rows.filter(r => r.entryType !== 'REFUND');
+            allRefunds = rows.filter(r => r.entryType === 'REFUND');
+            fillFilters();
+            applyFilters();
+        })
+        .fail(function () {
+            if (seq !== loadSeq) return;
+            $('#stateLoading').addClass('d-none');
+            $('#stateError').text('Server error while loading the report. Please try again.').removeClass('d-none');
+        });
+    }
 
-        document.getElementById('kpiTotalBills').innerText = totalBills;
-        document.getElementById('kpiGrossAmt').innerText = '₹' + grossAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById('kpiDiscount').innerText = '₹' + totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById('kpiNetCollection').innerText = '₹' + netCollection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // filter lists from the data of the period; the current choice is kept
+    function fillFilters() {
+        const fill = (sel, first, values) => {
+            const $s = $(sel), cur = $s.val();
+            $s.html(`<option value="">${first}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join(''));
+            if (cur && values.includes(cur)) $s.val(cur); else if (cur) $s.append(`<option value="${esc(cur)}">${esc(cur)}</option>`).val(cur);
+        };
+        const uniq = list => [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        fill('#selMode', 'All modes', uniq(allReceipts.map(r => r.paymentMode)));
+        fill('#selCollector', 'All users', uniq(allReceipts.concat(allRefunds).map(r => r.collectedBy)));
+    }
+
+    function applyFilters() {
+        const m = $('#selMode').val(), c = $('#selCollector').val(), q = $('#txtSearch').val().trim().toLowerCase();
+        const match = r => (!m || r.paymentMode === m) && (!c || r.collectedBy === c) &&
+            (!q || [r.receiptNo, r.billNo, r.tokenNo, r.patientCode, r.patientName, r.phoneNumber, r.doctorName, r.reference]
+                    .some(v => String(v ?? '').toLowerCase().includes(q)));
+        receipts = allReceipts.filter(match);
+        refunds = allRefunds.filter(match);
+        renderKpis(); renderModes(); renderDays(); renderWho(); renderRefunds();
+        page = 1; buildView();
+    }
+
+    function renderKpis() {
+        const total = sum(receipts, r => r.amount), refunded = sum(refunds, r => r.amount);
+        $('#kTotal').text(money(total));
+        $('#kReceipts').text(receipts.length.toLocaleString('en-IN'));
+        $('#kBills').text(new Set(receipts.map(r => r.paymentHeaderId)).size.toLocaleString('en-IN'));
+        $('#kPatients').text(new Set(receipts.map(r => r.patientCode).filter(Boolean)).size.toLocaleString('en-IN'));
+        $('#kRefunds').text(money(refunded)); $('#kRefundCnt').text(refunds.length);
+        $('#kNet').text(money(total - refunded));
+        $('#kAvg').text(money(receipts.length ? total / receipts.length : 0));
+        $('#kHigh').text(money(receipts.length ? Math.max(...receipts.map(r => Number(r.amount) || 0)) : 0));
+    }
+
+    function groupBy(list, key) {
+        const map = new Map();
+        list.forEach(r => { const k = key(r) || 'Unknown'; const g = map.get(k) || { name: k, amount: 0, count: 0 }; g.amount += Number(r.amount) || 0; g.count++; map.set(k, g); });
+        return [...map.values()].sort((a, b) => b.amount - a.amount);
+    }
+
+    function renderModes() {
+        const list = groupBy(receipts, r => r.paymentMode), total = sum(list, m => m.amount);
+        $('#modeList').html(list.length ? list.map((m, i) => {
+            const pct = total ? (m.amount / total * 100) : 0, c = palette[i % palette.length];
+            return `<div class="mode-row"><span class="mode-dot" style="background:${c}"></span>
+                <div class="flex-grow-1"><div class="d-flex justify-content-between"><span class="fw-semibold">${esc(m.name)}</span>
+                <span class="amt fw-bold">${money(m.amount)}</span></div>
+                <div class="d-flex justify-content-between text-muted fs-9"><span>${m.count} receipt(s)</span><span>${pct.toFixed(1)}%</span></div>
+                <div class="mode-bar"><span style="width:${pct}%;background:${c}"></span></div></div></div>`;
+        }).join('') : '<div class="text-muted fs-8">No collection.</div>');
+
+        if (chMode) chMode.destroy();
+        chMode = new Chart(document.getElementById('chMode'), {
+            type: 'doughnut',
+            data: { labels: list.map(m => m.name), datasets: [{ data: list.map(m => m.amount), backgroundColor: list.map((_, i) => palette[i % palette.length]), borderWidth: 1 }] },
+            options: { cutout: '62%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${money(c.raw)}` } } }, maintainAspectRatio: false }
+        });
+    }
+
+    function renderDays() {
+        const map = new Map();
+        receipts.forEach(r => { const k = iso(new Date(r.paymentDate)); const g = map.get(k) || { amount: 0, count: 0 }; g.amount += Number(r.amount) || 0; g.count++; map.set(k, g); });
+        const list = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        if (chDay) chDay.destroy();
+        chDay = new Chart(document.getElementById('chDay'), {
+            type: 'bar',
+            data: { labels: list.map(([d]) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })),
+                    datasets: [{ data: list.map(([, g]) => g.amount), backgroundColor: '#14b8a6', borderRadius: 4, maxBarThickness: 36 }] },
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false },
+                       tooltip: { callbacks: { label: c => ` ${money(c.raw)} · ${list[c.dataIndex][1].count} receipt(s)` } } },
+                       scales: { y: { beginAtZero: true, ticks: { callback: v => '₹' + Number(v).toLocaleString('en-IN') } }, x: { grid: { display: false } } } }
+        });
+    }
+
+    function renderWho() {
+        const isDoc = who === 'doctor';
+        $('#lblWho').html(isDoc ? '<i class="bi bi-person-vcard me-1"></i>Doctor-wise' : '<i class="bi bi-person-badge me-1"></i>Collector-wise');
+        const list = groupBy(receipts, r => isDoc ? r.doctorName : r.collectedBy);
+        const max = Math.max(1, ...list.map(c => c.amount));
+        $('#whoList').html(list.length ? list.map(c => `<div class="mb-2">
+            <div class="d-flex justify-content-between"><span class="fw-semibold text-truncate me-2"><i class="bi ${isDoc ? 'bi-person-vcard' : 'bi-person-circle'} me-1 text-muted"></i>${esc(c.name)}</span>
+            <span class="amt fw-bold">${money(c.amount)}</span></div>
+            <div class="d-flex justify-content-between text-muted fs-9"><span>${c.count} receipt(s)</span></div>
+            <div class="mode-bar"><span style="width:${(c.amount / max * 100).toFixed(1)}%;background:${isDoc ? '#0891b2' : '#6366f1'}"></span></div></div>`).join('')
+            : '<div class="text-muted">No collection.</div>');
+    }
+
+    // ── main table: receipt wise (one line per receipt) or bill wise (one line per bill) ──
+    const receiptCols = [
+        ['receiptNo', 'Receipt No'], ['paymentDate', 'Receipt Date &amp; Time'], ['billNo', 'Bill No / Token'], ['patientName', 'Patient'],
+        ['doctorName', 'Doctor'], ['paymentMode', 'Payment Mode'], ['amount', 'Amount Collected', 1], ['netAmount', 'Bill Net', 1],
+        ['billPaid', 'Bill Paid', 1], ['balanceDue', 'Balance', 1], ['paymentStatus', 'Status'], ['collectedBy', 'Collected By']];
+    const billCols = [
+        ['paymentDate', 'Payment Date'], ['receiptNo', 'Receipt No'], ['billNo', 'Bill No / Token'], ['patientName', 'Patient'], ['doctorName', 'Doctor'],
+        ['billAmount', 'Bill Amt', 1], ['discountAmount', 'Discount', 1], ['gstAmount', 'GST', 1], ['netAmount', 'Net Bill', 1],
+        ['amount', 'Collected', 1], ['balanceDue', 'Balance Due', 1], ['paymentStatus', 'Status'], ['paymentMode', 'Pay Mode'],
+        ['receiptCount', 'Receipts', 1], ['collectedBy', 'Collected By']];
+
+    function bills() {
+        const map = new Map();
+        receipts.forEach(r => {
+            let b = map.get(r.paymentHeaderId);
+            if (!b) { b = { ...r, amount: 0, modes: new Set(), receiptNos: [], users: new Set(), receiptCount: 0 }; map.set(r.paymentHeaderId, b); }
+            b.amount += Number(r.amount) || 0; b.receiptCount++;
+            b.modes.add(r.paymentMode || 'Unknown');
+            if (r.receiptNo) b.receiptNos.push(r.receiptNo);
+            if (r.collectedBy) b.users.add(r.collectedBy);
+            if (new Date(r.paymentDate) > new Date(b.paymentDate)) b.paymentDate = r.paymentDate;   // latest payment of the bill
+        });
+        return [...map.values()].map(b => ({ ...b, receiptNo: b.receiptNos.join(', '), paymentMode: [...b.modes].join(', '), collectedBy: [...b.users].join(', ') }));
+    }
+
+    function buildView() {
+        const base = mode === 'bill' ? bills() : receipts.map(r => ({ ...r, billPaid: (Number(r.netAmount) || 0) - (Number(r.balanceDue) || 0) }));
+        view = base.sort((a, b) => {
+            let x = a[sortKey], y = b[sortKey];
+            if (sortKey === 'paymentDate') { x = new Date(x).getTime(); y = new Date(y).getTime(); }
+            if (typeof x === 'string' || typeof y === 'string') return String(x ?? '').localeCompare(String(y ?? '')) * sortDir;
+            return ((x ?? 0) - (y ?? 0)) * sortDir;
+        });
+        const cols = mode === 'bill' ? billCols : receiptCols;
+        $('#tblMain thead').html('<tr><th class="ps-3 no-sort">#</th>' + cols.map(([k, t, n]) =>
+            `<th data-sort="${k}" class="${n ? 'text-end' : ''}">${t}${k === sortKey ? `<i class="bi ${sortDir > 0 ? 'bi-caret-up-fill' : 'bi-caret-down-fill'} sort-ind"></i>` : ''}</th>`).join('')
+            + '<th class="no-sort text-center no-print">Bill</th></tr>');
+        $('#lblTable').html(mode === 'bill' ? '<i class="bi bi-journal-text me-1"></i>Bills collected against' : '<i class="bi bi-list-ul me-1"></i>Money receipts');
+        renderTable();
+    }
+
+    function billCell(r) {
+        return `<div class="fw-semibold font-monospace">${esc(r.billNo || '—')}</div><div class="text-muted fs-9">${esc(r.tokenNo || '')}${r.tokenNo && r.billDate ? ' &middot; ' : ''}${fmtD(r.billDate)}</div>`;
+    }
+    function patientCell(r) {
+        return `<div class="fw-semibold">${esc(r.patientName || '—')}</div><div class="text-muted fs-9">${esc(r.patientCode || '')}${r.phoneNumber ? ' &middot; ' + esc(r.phoneNumber) : ''}</div>`;
+    }
+    function printCell(r) {
+        return `<td class="text-center no-print">${r.moduleRefId ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?id=${r.moduleRefId}"><i class="bi bi-printer"></i></a>` : ''}</td>`;
     }
 
     function renderTable() {
-        const thead = document.getElementById('tableHead');
-        const tbody = document.getElementById('tableBody');
-        
-        let headHtml = '';
-        if(isDetailedView) {
-            headHtml = `<tr>
-                <th>Date</th>
-                <th>Bill No</th>
-                <th>Patient Name</th>
-                <th>Item / Service</th>
-                <th>Service Type</th>
-                <th class="text-end">Charges (₹)</th>
-                <th class="text-end">Discount (₹)</th>
-                <th class="text-end">GST %</th>
-                <th class="text-end">GST (₹)</th>
-                <th class="text-end">Net Amount (₹)</th>
-                <th>Username</th>
-            </tr>`;
+        const size = parseInt($('#selPageSize').val()) || 0;
+        const pages = size ? Math.max(1, Math.ceil(view.length / size)) : 1;
+        page = Math.min(page, pages);
+        const start = size ? (page - 1) * size : 0;
+        const slice = size ? view.slice(start, start + size) : view;
+
+        $('#lblCount').text(view.length);
+        $('#stateEmpty').toggleClass('d-none', view.length > 0);
+        $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', view.length === 0 && refunds.length === 0);
+
+        $('#tblMain tbody').html(slice.map((r, i) => {
+            const cancelled = r.cancellationType === 'F' ? 'row-cancelled' : '';
+            const bal = `<td class="text-end amt ${r.balanceDue > 0 ? 'text-danger fw-semibold' : 'text-muted'}">${money(r.balanceDue)}</td>`;
+            if (mode === 'bill') return `<tr class="${cancelled}">
+                <td class="ps-3 text-muted">${start + i + 1}</td>
+                <td class="text-nowrap">${fmtDT(r.paymentDate)}</td>
+                <td><span class="rcpt-no">${esc(r.receiptNo || '—')}</span></td>
+                <td>${billCell(r)}</td><td>${patientCell(r)}</td>
+                <td>${esc(r.doctorName || '—')}</td>
+                <td class="text-end amt">${money(r.billAmount)}</td>
+                <td class="text-end amt text-danger">${money(r.discountAmount)}</td>
+                <td class="text-end amt">${money(r.gstAmount)}</td>
+                <td class="text-end amt fw-semibold">${money(r.netAmount)}</td>
+                <td class="text-end amt fw-bold text-success">${money(r.amount)}</td>
+                ${bal}
+                <td>${statusBadge(r.paymentStatus, r.cancellationType)}</td>
+                <td>${esc(r.paymentMode)}</td>
+                <td class="text-end">${r.receiptCount}</td>
+                <td class="text-nowrap">${esc(r.collectedBy || '—')}</td>
+                ${printCell(r)}</tr>`;
+            return `<tr class="${cancelled}">
+                <td class="ps-3 text-muted">${start + i + 1}</td>
+                <td><span class="rcpt-no">${esc(r.receiptNo || '—')}</span></td>
+                <td class="text-nowrap">${fmtDT(r.paymentDate)}</td>
+                <td>${billCell(r)}</td><td>${patientCell(r)}</td>
+                <td>${esc(r.doctorName || '—')}</td>
+                <td><div>${esc(r.paymentMode)}</div>${r.reference ? `<div class="text-muted fs-9">${esc(r.reference)}</div>` : ''}</td>
+                <td class="text-end amt fw-bold text-success">${money(r.amount)}</td>
+                <td class="text-end amt">${money(r.netAmount)}</td>
+                <td class="text-end amt">${money(r.billPaid)}</td>
+                ${bal}
+                <td>${statusBadge(r.paymentStatus, r.cancellationType)}</td>
+                <td class="text-nowrap">${esc(r.collectedBy || '—')}</td>
+                ${printCell(r)}</tr>`;
+        }).join(''));
+
+        const collected = sum(view, r => r.amount);
+        $('#tblMain tfoot').html(!view.length ? '' : mode === 'bill'
+            ? `<tr><td colspan="6" class="ps-3 text-end">Total (${view.length} bills)</td>
+                <td class="text-end amt">${money(sum(view, r => r.billAmount))}</td><td class="text-end amt text-danger">${money(sum(view, r => r.discountAmount))}</td>
+                <td class="text-end amt">${money(sum(view, r => r.gstAmount))}</td><td class="text-end amt">${money(sum(view, r => r.netAmount))}</td>
+                <td class="text-end amt text-success">${money(collected)}</td><td class="text-end amt">${money(sum(view, r => r.balanceDue))}</td>
+                <td colspan="2"></td><td class="text-end">${sum(view, r => r.receiptCount)}</td><td colspan="2"></td></tr>`
+            : `<tr><td colspan="7" class="ps-3 text-end">Total (${view.length} receipts)</td>
+                <td class="text-end amt text-success">${money(collected)}</td><td colspan="6"></td></tr>`);
+        $('#lblShowing').text(view.length ? `Showing ${start + 1}–${start + slice.length} of ${view.length}` : '');
+
+        const $p = $('#pager').empty();
+        if (size && pages > 1) {
+            const add = (label, p, dis, act) => $p.append(`<li class="page-item ${dis ? 'disabled' : ''} ${act ? 'active' : ''}"><a class="page-link" href="#" data-p="${p}">${label}</a></li>`);
+            add('&laquo;', page - 1, page === 1);
+            for (let p = Math.max(1, page - 2); p <= Math.min(pages, page + 2); p++) add(p, p, false, p === page);
+            add('&raquo;', page + 1, page === pages);
+        }
+    }
+
+    function renderRefunds() {
+        $('#refundCard').toggleClass('d-none', refunds.length === 0);
+        $('#lblRefundCount').text(refunds.length);
+        $('#tblRefunds tbody').html(refunds.map((r, i) => `<tr>
+            <td class="ps-3 text-muted">${i + 1}</td>
+            <td class="text-nowrap">${fmtDT(r.paymentDate)}</td>
+            <td>${billCell(r)}</td><td>${patientCell(r)}</td>
+            <td>${esc(r.paymentMode || '—')}</td><td>${esc(r.reference || '—')}</td>
+            <td class="text-end amt fw-bold text-danger">${money(r.amount)}</td>
+            <td class="text-nowrap">${esc(r.collectedBy || '—')}</td></tr>`).join(''));
+        $('#tblRefunds tfoot').html(refunds.length ? `<tr><td colspan="6" class="ps-3 text-end">Total (${refunds.length} refunds)</td>
+            <td class="text-end amt text-danger">${money(sum(refunds, r => r.amount))}</td><td></td></tr>` : '');
+    }
+
+    // ── export ──
+    function exportRows() {
+        if (mode === 'bill') return view.map((r, i) => ({
+            '#': i + 1, 'Payment Date': fmtDT(r.paymentDate), 'Receipt No': r.receiptNo, 'Bill No': r.billNo, 'Token': r.tokenNo, 'Bill Date': fmtD(r.billDate),
+            'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mobile': r.phoneNumber, 'Doctor': r.doctorName,
+            'Bill Amt': r.billAmount, 'Discount': r.discountAmount, 'GST': r.gstAmount, 'Net Bill': r.netAmount, 'Collected': r.amount,
+            'Balance Due': r.balanceDue, 'Status': statusText(r.paymentStatus) + cancelText(r.cancellationType), 'Pay Mode': r.paymentMode,
+            'Receipts': r.receiptCount, 'Collected By': r.collectedBy }));
+        return view.map((r, i) => ({
+            '#': i + 1, 'Receipt No': r.receiptNo, 'Receipt Date': fmtDT(r.paymentDate), 'Bill No': r.billNo, 'Token': r.tokenNo, 'Bill Date': fmtD(r.billDate),
+            'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mobile': r.phoneNumber, 'Doctor': r.doctorName,
+            'Payment Mode': r.paymentMode, 'Reference': r.reference, 'Amount Collected': r.amount, 'Bill Net': r.netAmount, 'Bill Paid': r.billPaid,
+            'Balance': r.balanceDue, 'Status': statusText(r.paymentStatus) + cancelText(r.cancellationType), 'Collected By': r.collectedBy }));
+    }
+    const refundRows = () => refunds.map((r, i) => ({ '#': i + 1, 'Refund Date': fmtDT(r.paymentDate), 'Bill No': r.billNo, 'Token': r.tokenNo,
+        'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mode': r.paymentMode, 'Reference': r.reference, 'Refund': r.amount, 'Paid By': r.collectedBy }));
+    function fileBase() { return `OPD_Daily_Collection_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`; }
+
+    $('#btnExcel').on('click', function () {
+        const wb = XLSX.utils.book_new();
+        const data = exportRows();
+        data.push(mode === 'bill' ? { 'Doctor': 'TOTAL', 'Collected': sum(view, r => r.amount) } : { 'Payment Mode': 'TOTAL', 'Amount Collected': sum(view, r => r.amount) });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), mode === 'bill' ? 'Bills' : 'Receipts');
+        if (refunds.length) {
+            const rf = refundRows(); rf.push({ 'Reference': 'TOTAL', 'Refund': sum(refunds, r => r.amount) });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rf), 'Refunds');
+        }
+        XLSX.writeFile(wb, fileBase() + '.xlsx');
+    });
+
+    $('#btnPdf').on('click', function () {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        const rs = s => s.replace(/₹/g, 'Rs. ');
+        doc.setFontSize(13); doc.text('OPD Daily Collection Register', 40, 36);
+        doc.setFontSize(9);
+        doc.text(`${branchName ? 'Branch: ' + branchName + '   ' : ''}Period: ${$('#lblRange').text()}   Collected: ${rs($('#kTotal').text())}   Refunds: ${rs($('#kRefunds').text())}   Net: ${rs($('#kNet').text())}   Receipts: ${receipts.length}`, 40, 52);
+        const f2 = n => (Number(n) || 0).toFixed(2);
+        const opts = { styles: { fontSize: 7.5, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] }, footStyles: { fillColor: [241, 245, 249], textColor: 20, fontStyle: 'bold' } };
+        if (mode === 'bill') {
+            doc.autoTable({ ...opts, startY: 62,
+                head: [['#', 'Payment Date', 'Receipt No', 'Bill No', 'Patient', 'Doctor', 'Bill Amt', 'Discount', 'GST', 'Net Bill', 'Collected', 'Balance', 'Status', 'Mode', 'Collected By']],
+                body: view.map((r, i) => [i + 1, fmtDT(r.paymentDate), r.receiptNo || '', (r.billNo || '') + (r.tokenNo ? '\n' + r.tokenNo : ''), r.patientName + '\n' + (r.patientCode || ''),
+                    r.doctorName || '', f2(r.billAmount), f2(r.discountAmount), f2(r.gstAmount), f2(r.netAmount), f2(r.amount), f2(r.balanceDue),
+                    statusText(r.paymentStatus) + cancelText(r.cancellationType), r.paymentMode, r.collectedBy || '']),
+                foot: [['', '', '', '', '', 'TOTAL', f2(sum(view, r => r.billAmount)), f2(sum(view, r => r.discountAmount)), f2(sum(view, r => r.gstAmount)),
+                        f2(sum(view, r => r.netAmount)), f2(sum(view, r => r.amount)), f2(sum(view, r => r.balanceDue)), '', '', '']],
+                columnStyles: { 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' }, 10: { halign: 'right' }, 11: { halign: 'right' } } });
         } else {
-            headHtml = `<tr>
-                <th>Date</th>
-                <th>Bill No</th>
-                <th>Patient Name</th>
-                <th class="text-end">Base Amt (₹)</th>
-                <th class="text-end">Discount (₹)</th>
-                <th class="text-end">GST (₹)</th>
-                <th class="text-end">Net Amt (₹)</th>
-                <th class="text-end">Total Paid (₹)</th>
-                <th>Status</th>
-                <th>Pay Mode</th>
-                <th>Username</th>
-            </tr>`;
+            doc.autoTable({ ...opts, startY: 62,
+                head: [['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Doctor', 'Mode', 'Collected', 'Bill Net', 'Balance', 'Status', 'Collected By']],
+                body: view.map((r, i) => [i + 1, r.receiptNo || '', fmtDT(r.paymentDate), (r.billNo || '') + (r.tokenNo ? '\n' + r.tokenNo : ''), r.patientName + '\n' + (r.patientCode || ''),
+                    r.doctorName || '', r.paymentMode + (r.reference ? '\n' + r.reference : ''), f2(r.amount), f2(r.netAmount), f2(r.balanceDue),
+                    statusText(r.paymentStatus) + cancelText(r.cancellationType), r.collectedBy || '']),
+                foot: [['', '', '', '', '', '', 'TOTAL', f2(sum(view, r => r.amount)), '', '', '', '']],
+                columnStyles: { 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' } } });
         }
-        thead.innerHTML = headHtml;
-
-        if(!currentData || currentData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox fs-1 text-light mb-3 d-block"></i>No records found for the selected date range.</td></tr>`;
-            return;
+        if (refunds.length) {
+            doc.text('Refunds paid out', 40, doc.lastAutoTable.finalY + 18);
+            doc.autoTable({ ...opts, startY: doc.lastAutoTable.finalY + 24, headStyles: { fillColor: [192, 57, 43] },
+                head: [['#', 'Refund Date', 'Bill No', 'Patient', 'Mode', 'Reference', 'Refund', 'Paid By']],
+                body: refunds.map((r, i) => [i + 1, fmtDT(r.paymentDate), r.billNo || '', r.patientName + '\n' + (r.patientCode || ''), r.paymentMode || '', r.reference || '', f2(r.amount), r.collectedBy || '']),
+                foot: [['', '', '', '', '', 'TOTAL', f2(sum(refunds, r => r.amount)), '']],
+                columnStyles: { 6: { halign: 'right' } } });
         }
+        doc.save(fileBase() + '.pdf');
+    });
 
-        let bodyHtml = '';
-        currentData.forEach(r => {
-            if(isDetailedView) {
-                bodyHtml += `<tr>
-                    <td>${new Date(r.paymentDate).toLocaleDateString('en-GB')}</td>
-                    <td class="fw-medium text-dark">${r.opdBillNo}</td>
-                    <td>${r.patientName}</td>
-                    <td>${r.itemName || '—'}</td>
-                    <td><span class="badge bg-light text-secondary border">${r.serviceType || '—'}</span></td>
-                    <td class="text-end">${r.serviceCharges?.toFixed(2) || '0.00'}</td>
-                    <td class="text-end text-danger">${r.itemDiscount?.toFixed(2) || '0.00'}</td>
-                    <td class="text-end">${r.gstPercentage?.toFixed(2) || '0.00'}%</td>
-                    <td class="text-end">${r.itemGstAmount?.toFixed(2) || '0.00'}</td>
-                    <td class="text-end fw-bold text-primary">${r.itemTotalAmount?.toFixed(2) || '0.00'}</td>
-                    <td><div class="d-flex align-items-center"><div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width:24px;height:24px;font-size:10px;">${(r.collectedBy||'U').charAt(0).toUpperCase()}</div>${r.collectedBy || '—'}</div></td>
-                </tr>`;
-            } else {
-                let statusBadge = r.paymentStatus === 'P' ? '<span class="badge bg-success bg-opacity-10 text-success border border-success">Paid</span>' : (r.paymentStatus === 'R' ? '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning">Partial</span>' : '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger">Unpaid</span>');
-                bodyHtml += `<tr>
-                    <td>${new Date(r.paymentDate).toLocaleDateString('en-GB')}</td>
-                    <td class="fw-medium text-dark">${r.opdBillNo}</td>
-                    <td>${r.patientName}</td>
-                    <td class="text-end">${r.totalAmount.toFixed(2)}</td>
-                    <td class="text-end text-danger">${r.discountAmount.toFixed(2)}</td>
-                    <td class="text-end">${r.gstAmount.toFixed(2)}</td>
-                    <td class="text-end fw-semibold">${r.netAmount.toFixed(2)}</td>
-                    <td class="text-end fw-bold text-success">${r.totalPaid.toFixed(2)}</td>
-                    <td>${statusBadge}</td>
-                    <td>${r.paymentModes}</td>
-                    <td><div class="d-flex align-items-center"><div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width:24px;height:24px;font-size:10px;">${(r.collectedBy||'U').charAt(0).toUpperCase()}</div>${r.collectedBy || '—'}</div></td>
-                </tr>`;
-            }
-        });
-        tbody.innerHTML = bodyHtml;
-    }
+    $('#btnPrint').on('click', function () { $('#selPageSize').val('0'); renderTable(); setTimeout(() => window.print(), 150); });
 
-    function exportToExcel() {
-        const table = document.getElementById("reportTable");
-        const wb = XLSX.utils.table_to_book(table, {sheet: "Daily Collection"});
-        XLSX.writeFile(wb, `Daily_Collection_${new Date().getTime()}.xlsx`);
-    }
+    // ── events ──
+    $('.btn-quick').on('click', function () { setRange($(this).data('range')); load(); });
+    $('#txtFrom, #txtTo').on('change', function () {
+        $('.btn-quick').removeClass('active');
+        if ($('#txtFrom').val() && $('#txtTo').val() && $('#txtTo').val() < $('#txtFrom').val()) $('#txtTo').val($('#txtFrom').val());
+        load();
+    });
+    $('#selMode, #selCollector').on('change', applyFilters);
+    $('#btnApply').on('click', load);
+    $('#txtSearch').on('keydown', e => { if (e.key === 'Enter') applyFilters(); });
+    $('#btnReset').on('click', function () { $('#selMode, #selCollector').val(''); $('#txtSearch').val(''); setRange('today'); load(); });
+    $('.btn-view').on('click', function () {
+        mode = $(this).data('view'); $('.btn-view').removeClass('active'); $(this).addClass('active');
+        sortKey = 'paymentDate'; sortDir = -1; page = 1; buildView();
+    });
+    $('.btn-who').on('click', function () { who = $(this).data('who'); $('.btn-who').removeClass('active'); $(this).addClass('active'); renderWho(); });
+    $('#selPageSize').on('change', function () { page = 1; renderTable(); });
+    $('#pager').on('click', 'a', function (e) { e.preventDefault(); const p = parseInt($(this).data('p')); if (p) { page = p; renderTable(); } });
+    $('#tblMain thead').on('click', 'th[data-sort]', function () {
+        const k = $(this).data('sort');
+        const numeric = ['paymentDate', 'amount', 'netAmount', 'billPaid', 'balanceDue', 'billAmount', 'discountAmount', 'gstAmount', 'receiptCount'].includes(k);
+        sortDir = (k === sortKey) ? -sortDir : (numeric ? -1 : 1);
+        sortKey = k; buildView();
+    });
+    window.addEventListener('pageshow', e => { if (e.persisted) { setRange('today'); load(); } });
 
-    function exportToPdf() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('landscape');
-        
-        doc.text("Daily Collection Dashboard Report", 14, 15);
-        doc.setFontSize(10);
-        doc.text(`Date Range: ${document.getElementById('fromDate').value} to ${document.getElementById('toDate').value}`, 14, 22);
-        
-        doc.autoTable({
-            html: '#reportTable',
-            startY: 28,
-            theme: 'grid',
-            styles: { fontSize: 8 },
-            headStyles: { fillColor: [41, 128, 185] }
-        });
-        
-        doc.save(`Daily_Collection_${new Date().getTime()}.pdf`);
-    }
+    setRange('today');
+    load();
+})();
 </script>
+}

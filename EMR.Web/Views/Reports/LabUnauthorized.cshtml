@@ -1,0 +1,81 @@
+@{
+    ViewData["Title"] = "Un-authorized & Amended Reports";
+    ViewData["ReportSubtitle"] = "approved results that were withdrawn, why, who had approved them, and whether they were corrected and approved again";
+    ViewData["ReportIcon"] = "bi-arrow-counterclockwise";
+    ViewData["ReportAccent"] = "#9f1239";
+    ViewData["DateLabel"] = "withdrawal date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const OUTCOME = { REAPPROVED: ['Approved again', 'bg-success-subtle text-success border-success-subtle'], OPEN: ['Still open', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'] };
+    const ACTION = { RETEST: 'Re-test', RECOLLECT: 'Re-collect' };
+    const pillOf = (map, v, h) => { const x = map[v] || [v, '']; return h.pill(x[0], x[1]); };
+    const hrs = (v) => v === null || v === undefined ? '—' : (Number(v) >= 48 ? `${(Number(v) / 24).toLocaleString('en-IN', { maximumFractionDigits: 1 })} d` : `${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })} h`);
+    const val = (v, h) => v ? `<span class="fw-semibold">${h.esc(v.length > 40 ? v.slice(0, 40) + '…' : v)}</span>` : '<span class="text-muted">—</span>';
+    LabReport.init({
+        report: 'unauthorized', title: 'Un-authorized & Amended Reports', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient, test or reason...',
+        filters: [
+            { id: 'withdrawAction', label: 'Withdrawn for', allLabel: 'Re-test or re-collect', options: [['RETEST', 'Re-test'], ['RECOLLECT', 'Re-collect']] },
+            { id: 'outcome', label: 'Outcome', allLabel: 'All', options: [['OPEN', 'Still open'], ['REAPPROVED', 'Approved again']] },
+            { id: 'amended', label: 'Value changed', allLabel: 'Either', options: [['YES', 'Yes - amended'], ['NO', 'No - same value']] },
+            { id: 'unapprovedBy', label: 'Withdrawn by', allLabel: 'Anyone', fromOptions: 'unapprovedBy', adminOnly: true },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Results withdrawn', color: '#9f1239', value: (s, h) => h.num(s.Withdrawals), sub: (s, h) => `${h.num(s.Bills)} bill(s) · ${h.num(s.Retest)} re-test · ${h.num(s.Recollect)} re-collect` },
+            { label: 'Withdrawal rate', color: '#b91c1c', value: (s) => s.WithdrawalRatePct === null || s.WithdrawalRatePct === undefined ? '—' : `${Number(s.WithdrawalRatePct).toLocaleString('en-IN', { maximumFractionDigits: 2 })}%`,
+              sub: (s, h) => s.ApprovedInPeriod === null || s.ApprovedInPeriod === undefined ? 'branch figure, for Administrators' : `of ${h.num(s.ApprovedInPeriod)} result(s) approved in the period` },
+            { label: 'Approved again', color: '#15803d', value: (s, h) => h.num(s.ReApproved), sub: (s, h) => `${h.num(s.StillOpen)} still open · average ${hrs(s.AvgHoursToReApprove)}` },
+            { label: 'Amended', color: '#b45309', value: (s, h) => h.num(s.Amended), sub: () => 'approved again with a different value' },
+            { label: 'Revised report emailed', color: '#0369a1', value: (s, h) => h.num(s.RevisedEmailed), sub: (s) => `top reason: ${(s.TopReason || '—').slice(0, 40)}` }
+        ],
+        groups: [
+            { key: 'byReason', label: 'Reason', rowField: 'Reason' },
+            { key: 'byUnapprovedBy', label: 'Withdrawn by', rowField: 'UnapprovedById', byId: true },
+            { key: 'byApprovedBy', label: 'Approved by', rowField: 'ApprovedById', byId: true },
+            { key: 'byTest', label: 'Test', rowField: 'TestName' },
+            { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byDate', label: 'Withdrawal date', rowField: 'UnapprovedDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'Withdrawals', label: 'Withdrawn', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Recollect', label: 'Re-collect', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'ReApproved', label: 'Approved again', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'StillOpen', label: 'Still open', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Amended', label: 'Amended', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'RevisedEmailed', label: 'Revised emailed', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'AvgHoursToReApprove', label: 'Average to re-approve', num: true, total: 'none', fmt: (v) => hrs(v) }
+        ],
+        shareOf: 'Withdrawals',
+        rowClass: r => r.Outcome === 'OPEN' ? 'table-warning' : '',
+        cols: [
+            { label: 'Withdrawn', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.UnapprovedOn)}<div class="text-muted fs-9">by ${h.esc(r.UnapprovedByName || '—')} · ${h.esc(ACTION[r.WithdrawAction] || r.WithdrawAction)}</div>`,
+              text: (r, h) => `${h.fmtDT(r.UnapprovedOn)} by ${r.UnapprovedByName || ''}` },
+            { label: 'Bill No', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Test', html: (r, h) => `<div class="fw-semibold">${h.esc(r.TestName)}</div><div class="text-muted fs-9">${h.esc(r.ProfileName ? r.ProfileName + ' · ' : '')}${h.esc(r.Department)}</div>`, text: r => r.TestName },
+            { label: 'Reason', html: (r, h) => `<span class="fs-8">${h.esc(r.Reason)}</span>`, text: r => r.Reason },
+            { label: 'Had been approved', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.PreviousApprovedOn) || '—'}<div class="text-muted fs-9">${h.esc(r.ApprovedByName || 'approver not recorded')}${r.ApprovedByFromAudit ? ' (audit trail)' : ''}</div>`,
+              text: (r, h) => `${h.fmtDT(r.PreviousApprovedOn)} ${r.ApprovedByName || ''}` },
+            { label: 'Value: withdrawn → approved', html: (r, h) => `${val(r.ValueWithdrawn, h)} <i class="bi bi-arrow-right text-muted"></i> ${r.ReApprovedOn ? val(r.ValueApproved, h) : '<span class="text-muted">—</span>'}${r.IsAmended ? ' <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">amended</span>' : ''}`,
+              text: r => `${r.ValueWithdrawn || ''} -> ${r.ValueApproved || ''}` },
+            { label: 'Outcome', cls: 'text-nowrap', html: (r, h) => pillOf(OUTCOME, r.Outcome, h) + (r.ReApprovedOn ? `<div class="text-muted fs-9">${h.fmtDT(r.ReApprovedOn)} · ${hrs(r.HoursToReApprove)} later${r.ReApprovedByName ? ' · ' + h.esc(r.ReApprovedByName) : ''}</div>` : ''),
+              text: (r, h) => r.ReApprovedOn ? `Approved again ${h.fmtDT(r.ReApprovedOn)}` : 'Still open' },
+            { label: 'Revised report', cls: 'text-nowrap', html: (r, h) => r.RevisedEmailedOn ? `<span class="text-success fs-9"><i class="bi bi-envelope-check me-1"></i>emailed ${h.fmtDT(r.RevisedEmailedOn)}</span>` : '<span class="text-muted fs-9">not emailed</span>',
+              text: (r, h) => r.RevisedEmailedOn ? 'Emailed ' + h.fmtDT(r.RevisedEmailedOn) : '' }
+        ]
+    });
+})();
+</script>
+}

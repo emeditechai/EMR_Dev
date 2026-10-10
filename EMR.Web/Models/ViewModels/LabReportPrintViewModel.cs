@@ -13,6 +13,10 @@ public class LabReportPrintViewModel
     public string? HospitalWebsite { get; set; }
     public string? RegistrationNumber { get; set; }
     public string? NabhLine { get; set; }
+    /// <summary>False = no letterhead header / footer, for pre-printed letterhead paper (in-app B2C report print,
+    /// Hospital Settings > LAB > Required B2C Lab Report Print Header, SQLScripts/2206). Emailed / WhatsApp copies set it back to true.</summary>
+    public bool ShowLetterhead { get; set; } = true;
+    public bool IsB2B { get; set; }
 
     // ── Patient ───────────────────────────────────────────────────────────────
     public string PatientName { get; set; } = string.Empty;
@@ -117,6 +121,8 @@ public class LabReportRow
     /// <summary>False when the row is validated but not yet approved.</summary>
     public bool IsApproved { get; set; }
     public bool IsLongText { get; set; }
+    /// <summary>A written (descriptive) report: printed full width under the test name, not in the Result column.</summary>
+    public bool IsNarrative { get; set; }
 }
 
 public class LabReportSignatory

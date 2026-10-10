@@ -9,10 +9,15 @@ namespace EMR.Web.Controllers;
 public class ReportsController : Controller
 {
     private readonly IReportApiClient _reportApi;
+    private readonly EMR.Shared.Security.IActionPermissionGuard _permissionGuard;
+    private readonly EMR.Web.Services.IAuditLogService _auditLog;
 
-    public ReportsController(IReportApiClient reportApi)
+    public ReportsController(IReportApiClient reportApi, EMR.Shared.Security.IActionPermissionGuard permissionGuard,
+        EMR.Web.Services.IAuditLogService auditLog)
     {
         _reportApi = reportApi;
+        _permissionGuard = permissionGuard;
+        _auditLog = auditLog;
     }
 
     [HttpGet]
@@ -35,7 +40,8 @@ public class ReportsController : Controller
         if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
         if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
 
-        var result = await _reportApi.GetDailyCollectionRegisterAsync(branchId, fDate, tDate, isDetailed, companyId);
+        // Reports > OPD > Daily Collection: OPD receipts only (LAB has its own collection register)
+        var result = await _reportApi.GetDailyCollectionRegisterAsync(branchId, fDate, tDate, isDetailed, companyId, "OPD");
         if (result.IsSuccess)
         {
             return Json(new { success = true, data = result.Data });
@@ -132,9 +138,29 @@ public class ReportsController : Controller
         ["patient-orders"]      = new[] { "reportStatus", "createdBy" },
         ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy" },
         // B2B partner-account reports: branch-wide for every user of the branch
-        ["b2b-partner-billing"] = new[] { "partnerType", "partner" },
+        ["b2b-partner-billing"] = new[] { "partnerType", "partner", "paymentMethod" },
         ["franchise-wallet"]    = new[] { "transactionType", "franchiseId" },
         ["b2b-outstanding"]     = new[] { "partnerType", "ageBucket" },
+        // Sample stage (LR-10 / LR-11 / LR-12)
+        ["samples-pending"]     = new[] { "collectionType", "waitBand", "pendingStatus", "createdBy", "phlebotomistId" },
+        ["sample-rejection"]    = new[] { "outcome", "reasonId", "collectedBy" },
+        ["sample-transfer"]     = new[] { "direction", "transferStatus", "otherBranchId" },
+        ["outsourced-tests"]    = new[] { "outsourceStatus", "outsideLab" },
+        // LR-03, LR-14 to LR-18 (SQLScripts/2201)
+        ["cashier-closing"]     = new[] { "paymentMethodId", "collectedBy" },
+        ["work-pending"]        = new[] { "stage", "waitBand", "departmentId" },
+        ["turnaround"]          = new[] { "tatStatus", "departmentId" },
+        ["critical-values"]     = new[] { "severity", "resultStatus", "communication", "departmentId" },
+        ["delta-check"]         = new[] { "deltaLimit", "direction", "departmentId" },
+        ["abnormal-results"]    = new[] { "signal", "departmentId" },
+        // LR-19 / LR-20 / LR-22 (SQLScripts/2209)
+        ["sign-off"]            = new[] { "show", "level", "source", "pathologistId", "departmentId" },
+        ["dispatch-print"]      = new[] { "dispatchStatus", "billingType", "printedBy" },
+        ["unauthorized"]        = new[] { "withdrawAction", "outcome", "amended", "unapprovedBy", "departmentId" },
+        // LR-24 / LR-26 / LR-27 (SQLScripts/2210)
+        ["revenue-trend"]       = new[] { "billingType", "createdBy" },
+        ["patient-analytics"]   = new[] { "patientType", "ageBand", "gender", "createdBy" },
+        ["staff-productivity"]  = new[] { "activity", "staffId" },
     };
 
     private IActionResult LabReportPage(string viewName)
@@ -150,11 +176,179 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabB2BPartnerBilling() => LabReportPage("LabB2BPartnerBilling");
     [HttpGet] public IActionResult LabFranchiseWallet() => LabReportPage("LabFranchiseWallet");
     [HttpGet] public IActionResult LabB2BOutstanding() => LabReportPage("LabB2BOutstanding");
+    [HttpGet] public IActionResult LabSamplesPending() => LabReportPage("LabSamplesPending");
+    [HttpGet] public IActionResult LabSampleRejection() => LabReportPage("LabSampleRejection");
+    [HttpGet] public IActionResult LabSampleTransfer() => LabReportPage("LabSampleTransfer");
+    [HttpGet] public IActionResult LabOutsourcedTests() => LabReportPage("LabOutsourcedTests");
+    [HttpGet] public IActionResult LabCashierClosing() => LabReportPage("LabCashierClosing");
+    [HttpGet] public IActionResult LabWorkPending() => LabReportPage("LabWorkPending");
+    [HttpGet] public IActionResult LabTurnaroundTime() => LabReportPage("LabTurnaroundTime");
+    [HttpGet]
+    public async Task<IActionResult> LabCriticalValues([FromServices] EMR.Web.Data.ApplicationDbContext db)
+    {
+        // Communication columns only when the branch uses the feature (Hospital Settings > LAB, SQLScripts/2202);
+        // rows then offer "Record communication" to users allowed the page's CRITICAL_COMM control
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        var enabled = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            db.HospitalSettings.Where(s => s.BranchId == branchId).Select(s => (bool?)s.CriticalValueCommunicationRequired)) ?? false;
+        ViewBag.CriticalCommEnabled = enabled;
+        ViewBag.CanRecordCritical = enabled && await _permissionGuard.AllowsAsync(HttpContext, "REPORTS.LABCRITICAL", "CRITICAL_COMM");
+        return LabReportPage("LabCriticalValues");
+    }
+    [HttpGet] public IActionResult LabDeltaCheck() => LabReportPage("LabDeltaCheck");
+    [HttpGet] public IActionResult LabAbnormalResults() => LabReportPage("LabAbnormalResults");
+    [HttpGet] public IActionResult LabSignOff() => LabReportPage("LabSignOff");
+    [HttpGet] public IActionResult LabDispatchPrint() => LabReportPage("LabDispatchPrint");
+    [HttpGet] public IActionResult LabUnauthorized() => LabReportPage("LabUnauthorized");
+    [HttpGet] public IActionResult LabRevenueTrend() => LabReportPage("LabRevenueTrend");
+    [HttpGet] public IActionResult LabPatientAnalytics() => LabReportPage("LabPatientAnalytics");
+    [HttpGet] public IActionResult LabStaffProductivity() => LabReportPage("LabStaffProductivity");
+
+    /// <summary>LF-18 Owner MIS & Test Revenue: one management view of the lab for a period (revenue view; cost comes with LF-07).</summary>
+    [HttpGet]
+    public IActionResult LabOwnerMis() => View();
 
     [HttpGet]
-    public async Task<IActionResult> GetLabReportData(string report, string fromDate, string toDate, string? search)
+    public async Task<IActionResult> GetLabOwnerMisData(string fromDate, string toDate, string? scope)
     {
-        if (string.IsNullOrWhiteSpace(report) || !LabReportFilters.TryGetValue(report, out var filters))
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
+        if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
+        if (tDate < fDate) (fDate, tDate) = (tDate, fDate);
+        if ((tDate - fDate).TotalDays > 366)
+            return Json(new { success = false, message = "Please select a date range of up to one year." });
+
+        // who is asking always comes from the login; "all" covers only the branches the user works in
+        var query = new Dictionary<string, string?>
+        {
+            ["branchId"] = branchId.ToString(),
+            ["fromDate"] = fDate.ToString("yyyy-MM-dd"),
+            ["toDate"] = tDate.ToString("yyyy-MM-dd"),
+            ["allBranches"] = string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase) ? "true" : "false",
+            ["userId"] = User.GetUserId().ToString(),
+            ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+        };
+        var result = await _reportApi.GetLabOwnerMisRawAsync(query);
+        if (!result.IsSuccess)
+            return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
+        return Content("{\"success\":true,\"data\":" + result.Data + "}", "application/json");
+    }
+
+    // ── LR-13 Outsourced Test Register: Mark sent / Mark result received ──
+    // Each is its own control of the page (Settings > Security); the procedure validates the test and the dates.
+    private const string OutsourcedPage = "REPORTS.LABOUTSOURCED";
+
+    public sealed class OutsourceActionInput
+    {
+        public int LabOrderId { get; set; }
+        public string SampleIds { get; set; } = string.Empty;
+        public string? BillNo { get; set; }
+        public string? TestName { get; set; }
+        public string? OutsideLab { get; set; }
+        public string? ExternalRefNo { get; set; }
+        public DateTime? ActionOn { get; set; }
+        public string? Remarks { get; set; }
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> MarkOutsourceSent([FromBody] OutsourceActionInput input) =>
+        OutsourceActionAsync("sent", "OUTSOURCE_SEND", input);
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> MarkOutsourceReceived([FromBody] OutsourceActionInput input) =>
+        OutsourceActionAsync("received", "OUTSOURCE_RESULT", input);
+
+    private async Task<IActionResult> OutsourceActionAsync(string action, string control, OutsourceActionInput input)
+    {
+        if (input == null || input.LabOrderId <= 0 || string.IsNullOrWhiteSpace(input.SampleIds))
+            return Json(new { success = false, message = "Select the outsourced test first." });
+        if (!await _permissionGuard.AllowsAsync(HttpContext, OutsourcedPage, control))
+            return Json(new { success = false, code = "FORBIDDEN", message = action == "sent"
+                ? "You do not have permission to mark samples as sent to an outside lab."
+                : "You do not have permission to record outside-lab results." });
+
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        var result = await _reportApi.LabOutsourceActionAsync(action, new LabOutsourceActionModel
+        {
+            BranchId = branchId, LabOrderId = input.LabOrderId, SampleIds = input.SampleIds,
+            OutsideLab = input.OutsideLab, ExternalRefNo = input.ExternalRefNo, ActionOn = input.ActionOn, Remarks = input.Remarks,
+            UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
+        });
+        if (!result.IsSuccess)
+            return Json(new { success = false, message = result.ErrorMessage ?? "The action was not accepted." });
+
+        try
+        {
+            await _auditLog.LogActivityAsync(
+                eventType: "Lab Outsourcing",
+                actionName: action == "sent" ? "LAB.OutsourceSent" : "LAB.OutsourceResultReceived",
+                description: action == "sent"
+                    ? $"{input.TestName} of bill {input.BillNo} sent to outside lab {input.OutsideLab}{(string.IsNullOrWhiteSpace(input.ExternalRefNo) ? "" : $" (ref {input.ExternalRefNo})")}."
+                    : $"Outside-lab result of {input.TestName} of bill {input.BillNo} received.",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "LAB",
+                referenceNo: input.BillNo,
+                referenceId: input.LabOrderId,
+                metadata: new { input.LabOrderId, input.SampleIds, input.TestName, input.OutsideLab, input.ExternalRefNo, input.ActionOn, input.Remarks });
+        }
+        catch { /* audit only */ }
+
+        return Json(new { success = true, message = action == "sent" ? "Marked as sent to the outside lab." : "Outside-lab result recorded." });
+    }
+
+    [HttpGet]
+    public Task<IActionResult> GetLabReportData(string report, string fromDate, string toDate, string? search)
+        => RegisterDataAsync(LabReportFilters, _reportApi.RunLabReportRawAsync, report, fromDate, toDate, search);
+
+    // ── Reports > OPD registers (OPD Reports Roadmap, SQLScripts/2211): same page, script and rules as the LAB ones ──
+    private static readonly Dictionary<string, string[]> OpdReportFilters = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["billing-register"]    = new[] { "paymentStatus", "doctorId", "createdBy" },
+        ["cashier-closing"]     = new[] { "paymentMethodId", "collectedBy" },
+        ["outstanding-dues"]    = new[] { "ageBucket", "doctorId", "createdBy" },
+        ["discount-register"]   = new[] { "reasonStatus", "approvedBy", "doctorId", "enteredBy" },
+        ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy" },
+        // OR-24 / OR-25 / OR-26 (SQLScripts/2212)
+        ["revenue-trend"]          = new[] { "visitMode", "doctorId", "createdBy" },
+        ["patient-analytics"]      = new[] { "patientType", "ageBand", "gender", "doctorId", "createdBy" },
+        ["speciality-performance"] = new[] { "visitMode", "specialityId", "doctorId" },
+        // OR-31 to OR-36 doctor payout (SQLScripts/2214)
+        ["doctor-share"]           = new[] { "lineType", "settleStatus", "doctorId" },
+        ["doctor-payout"]          = new[] { "status", "paymentMode", "doctorId" },
+        ["doctor-payable"]         = new[] { "stage", "ageBucket", "doctorId" },
+        ["doctor-statement"]       = new[] { "entryType", "doctorId" },
+        ["doctor-tds"]             = new[] { "panStatus", "doctorId" },
+        ["doctor-revenue-share"]   = new[] { "ruleStatus", "specialityId", "doctorId" },
+    };
+
+    [HttpGet] public IActionResult OpdBillingRegister() => LabReportPage("OpdBillingRegister");
+    [HttpGet] public IActionResult OpdCashierClosing() => LabReportPage("OpdCashierClosing");
+    [HttpGet] public IActionResult OpdOutstandingDues() => LabReportPage("OpdOutstandingDues");
+    [HttpGet] public IActionResult OpdDiscountRegister() => LabReportPage("OpdDiscountRegister");
+    [HttpGet] public IActionResult OpdCancellationRefund() => LabReportPage("OpdCancellationRefund");
+    [HttpGet] public IActionResult OpdRevenueTrend() => LabReportPage("OpdRevenueTrend");
+    [HttpGet] public IActionResult OpdPatientAnalytics() => LabReportPage("OpdPatientAnalytics");
+    [HttpGet] public IActionResult OpdSpecialityPerformance() => LabReportPage("OpdSpecialityPerformance");
+    [HttpGet] public IActionResult OpdDoctorShareRegister() => LabReportPage("OpdDoctorShareRegister");
+    [HttpGet] public IActionResult OpdDoctorPayoutRegister() => LabReportPage("OpdDoctorPayoutRegister");
+    [HttpGet] public IActionResult OpdDoctorPayable() => LabReportPage("OpdDoctorPayable");
+    [HttpGet] public IActionResult OpdDoctorStatement() => LabReportPage("OpdDoctorStatement");
+    [HttpGet] public IActionResult OpdDoctorTdsRegister() => LabReportPage("OpdDoctorTdsRegister");
+    [HttpGet] public IActionResult OpdDoctorRevenueShare() => LabReportPage("OpdDoctorRevenueShare");
+
+    [HttpGet]
+    public Task<IActionResult> GetOpdReportData(string report, string fromDate, string toDate, string? search)
+        => RegisterDataAsync(OpdReportFilters, _reportApi.RunOpdReportRawAsync, report, fromDate, toDate, search);
+
+    /// <summary>One data action shape for every register: only known reports and their own filters are passed on.</summary>
+    private async Task<IActionResult> RegisterDataAsync(Dictionary<string, string[]> known,
+        Func<string, IDictionary<string, string?>, Task<ReportApiResult<string>>> run,
+        string report, string fromDate, string toDate, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(report) || !known.TryGetValue(report, out var filters))
             return Json(new { success = false, message = "Unknown report." });
 
         var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
@@ -178,7 +372,7 @@ public class ReportsController : Controller
         };
         foreach (var f in filters) query[f] = Request.Query[f].ToString();
 
-        var result = await _reportApi.RunLabReportRawAsync(report, query);
+        var result = await run(report, query);
         if (!result.IsSuccess)
             return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
         return Content("{\"success\":true,\"scope\":\"" + (seeAll ? "ALL" : "SELF") + "\",\"data\":" + result.Data + "}", "application/json");

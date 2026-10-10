@@ -7,11 +7,12 @@
  *   report, dataUrl, title, defaultRange ('today' | 'month' ...), seeAll, branchName, searchPlaceholder,
  *   filters:   [{ id, label, options: [[value, text]], fromOptions: 'createdBy', allLabel, adminOnly }],
  *   kpis:      [{ label, color, value: (s, h) => html, sub: (s, h) => html }],
- *   groups:    [{ key, label, rowField, byId, name: (group, h) => html, adminOnly }],
+ *   groups:    [{ key, label, rowField, byId, name: (group, h) => html, adminOnly, noDrill }],   noDrill: its lines don't open the Detail
  *   groupCols: [{ field, label, money, total: 'sum' | 'max' | 'none', fmt: (v, h) => html }],
  *   shareOf:   field used for the "share" bar in Summary,
  *   cols:      [{ label, cls, html: (row, h) => html, text: (row, h) => export value, sum: field, money }],
- *   rowClass:  row => css class
+ *   rowClass:  row => css class,
+ *   afterLoad: (data, h) => void   optional: draws the page's own panel (#lrExtra) after each load
  * }
  */
 window.LabReport = (function () {
@@ -68,6 +69,7 @@ window.LabReport = (function () {
                 if (!res || !res.success) { $('#lrError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
                 data = res.data || {}; drill = null;
                 fillOptions(); renderKpis(); render();
+                if (cfg.afterLoad) cfg.afterLoad(data, h);
             }).fail(() => {
                 if (my !== seq) return;
                 $('#lrLoading').addClass('d-none');
@@ -127,7 +129,7 @@ window.LabReport = (function () {
                 const v = c.total === 'max' ? Math.max(0, ...vals) : vals.reduce((a, b) => a + b, 0);
                 return `<td class="text-end amt">${c.money ? h.money(v) : (c.fmt ? c.fmt(v, h) : h.num(v))}</td>`;
             }).join('') + (cfg.shareOf ? '<td></td>' : '') + '</tr>');
-            $('#lrCount').text(`${rows.length} group(s) · click a line to see its records`);
+            $('#lrCount').text(`${rows.length} group(s)${groupDef().noDrill ? '' : ' · click a line to see its records'}`);
         }
 
         function renderDetail() {
@@ -185,6 +187,7 @@ window.LabReport = (function () {
         $('#lrGroup').on('change', render);
         $('#lrSummary tbody').on('click', 'tr.grp-row', function () {
             const g = groupDef(), r = groupRows()[parseInt($(this).data('i'))];
+            if (g.noDrill) return;
             drill = { field: g.rowField, value: g.byId ? r.GroupId : r.GroupName, label: g.label, display: g.name ? g.name(r, h) : h.esc(r.GroupName) };
             view = 'detail'; $('.btn-view').removeClass('active').filter('[data-view="detail"]').addClass('active'); render();
         });

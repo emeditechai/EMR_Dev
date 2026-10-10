@@ -20,7 +20,8 @@ public class AccountController(
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasherService,
     IAuditLogService auditLogService,
-    ILoginSecurity loginSecurity) : Controller
+    ILoginSecurity loginSecurity,
+    IHomeDashboardService home) : Controller
 {
     /// <summary>Sign-in attempts per client address per minute (clinics share one address, so this is generous).</summary>
     public const string SignInRateLimit = "signin";
@@ -141,7 +142,18 @@ public class AccountController(
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> SelectBranch()
+    public Task<IActionResult> SelectBranch() => BranchSelectionView(isSwitch: false);
+
+    /// <summary>
+    /// Profile menu > Switch Branch: move the signed-in session to another of the user's branches without signing in
+    /// again. The sign-in cookie is re-issued for the new branch (same "remember me"); the active role is kept when the
+    /// user holds it there, otherwise the role is chosen as at sign-in.
+    /// </summary>
+    [HttpGet]
+    [Authorize]
+    public Task<IActionResult> SwitchBranch() => BranchSelectionView(isSwitch: true);
+
+    private async Task<IActionResult> BranchSelectionView(bool isSwitch)
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!int.TryParse(userIdClaim, out var userId))
@@ -166,13 +178,27 @@ public class AccountController(
                 x.BranchId.ToString()))
             .ToList();
 
+        var currentBranchId = User.GetCurrentBranchId();
+        if (isSwitch && branchOptions.Count <= 1)
+        {
+            TempData["Warning"] = "You have access to only one branch.";
+            return RedirectToAction("Index", "Dashboard");
+        }
+
+        // at sign-in the branch the user last worked in is pre-selected (none on a first sign-in)
+        var lastBranchId = isSwitch ? null : await LastBranchIdAsync(userId, branchOptions.Select(x => int.Parse(x.Value)));
+
         var viewModel = new BranchSelectionViewModel
         {
             DisplayName = string.IsNullOrWhiteSpace(user.FullName) ? user.Username : user.FullName,
-            Branches = branchOptions
+            Branches = branchOptions,
+            IsSwitch = isSwitch && currentBranchId.HasValue,
+            CurrentBranchName = User.FindFirstValue("BranchName"),
+            BranchId = isSwitch ? currentBranchId ?? 0 : lastBranchId ?? 0,
+            IsLastUsedBranch = lastBranchId.HasValue
         };
 
-        return View(viewModel);
+        return View("SelectBranch", viewModel);
     }
 
     [HttpPost]
@@ -190,6 +216,18 @@ public class AccountController(
         if (user is null)
         {
             return RedirectToAction(nameof(Login));
+        }
+
+        var currentBranchId = User.GetCurrentBranchId();
+        if (model.IsSwitch && currentBranchId.HasValue)
+        {
+            if (model.BranchId == currentBranchId.Value)
+                return RedirectToAction("Index", "Dashboard");   // nothing to switch
+
+            // same session: keep "remember me" and, where the user holds it there, the active role
+            var current = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return await CompleteBranchSelection(userId, model.BranchId, current.Properties?.IsPersistent ?? false,
+                switchedFrom: User.FindFirstValue("BranchName"), preferredRole: User.GetActiveRole());
         }
 
         return await CompleteBranchSelection(userId, model.BranchId, false);
@@ -214,8 +252,10 @@ public class AccountController(
         return RedirectToAction(nameof(Login));
     }
 
-    private async Task<IActionResult> CompleteBranchSelection(int userId, int branchId, bool rememberMe)
+    private async Task<IActionResult> CompleteBranchSelection(int userId, int branchId, bool rememberMe,
+        string? switchedFrom = null, string? preferredRole = null)
     {
+        var isSwitch = switchedFrom is not null;
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId);
         if (user is null)
         {
@@ -231,7 +271,7 @@ public class AccountController(
         {
             _ = auditLogService.LogAsync("AuthFailure", "SelectBranch", $"Invalid branch selection: {branchId}", userId, branchId);
             TempData["Error"] = "Invalid branch selection.";
-            return RedirectToAction(nameof(SelectBranch));
+            return RedirectToAction(isSwitch ? nameof(SwitchBranch) : nameof(SelectBranch));
         }
 
         var roleNames = await dbContext.UserRoles
@@ -247,9 +287,35 @@ public class AccountController(
 
         if (!isSuperAdmin && roleNames.Count == 0)
         {
+            if (isSwitch)
+            {
+                // a switch must never end the session: stay in the current branch
+                TempData["Error"] = $"You have no active role in {allowedBranch.Branch.BranchName}. Ask an administrator to add one in User Master.";
+                return RedirectToAction("Index", "Dashboard");
+            }
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             TempData["Error"] = "No active role mapping found for selected branch.";
             return RedirectToAction(nameof(Login));
+        }
+
+        if (isSwitch)
+        {
+            // keep the role the user is working in when they hold it in the new branch
+            var keepRole = isSuperAdmin ? "Administrator"
+                : roleNames.Count == 1 ? roleNames[0]
+                : roleNames.FirstOrDefault(r => string.Equals(r, preferredRole, StringComparison.OrdinalIgnoreCase));
+            await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, roleNames, keepRole);
+            await RememberBranchAsync(userId, branchId, keepRole);
+            await auditLogService.LogAsync("Auth", "SwitchBranch",
+                $"Switched branch from {switchedFrom} to {allowedBranch.Branch.BranchName}" + (keepRole is null ? "" : $" (role: {keepRole})"),
+                userId, branchId);
+            if (keepRole is null)
+            {
+                TempData["RememberMe"] = rememberMe;
+                return RedirectToAction(nameof(SelectRole));
+            }
+            TempData["Success"] = $"Switched to {allowedBranch.Branch.BranchName}.";
+            return RedirectToAction("Index", "Dashboard");
         }
 
         // Sign in, then record the login. This is awaited on purpose: fired and forgotten it ran after the
@@ -259,7 +325,7 @@ public class AccountController(
         {
             var activeRole = isSuperAdmin ? "Administrator" : (roleNames.Count == 1 ? roleNames[0] : null);
             await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, roleNames, activeRole);
-            await FinalizeLoginAsync(user, allowedBranch, userId);
+            await FinalizeLoginAsync(user, allowedBranch, userId, activeRole);
             return RedirectToAction("Index", "Dashboard");
         }
 
@@ -270,8 +336,9 @@ public class AccountController(
         return RedirectToAction(nameof(SelectRole));
     }
 
-    private async Task FinalizeLoginAsync(User user, UserBranch allowedBranch, int userId)
+    private async Task FinalizeLoginAsync(User user, UserBranch allowedBranch, int userId, string? activeRole = null)
     {
+        await RememberBranchAsync(userId, allowedBranch.BranchId, activeRole);
         try
         {
             user.LastLoginDate = DateTime.Now;
@@ -329,8 +396,12 @@ public class AccountController(
         var displayName = User.FindFirstValue("DisplayName") ?? User.Identity?.Name ?? string.Empty;
         var branchName = User.FindFirstValue("BranchName") ?? string.Empty;
 
+        // the role the user last worked in at this branch is pre-selected (none on a first sign-in)
+        var lastRole = await LastRoleNameAsync(userId, branchId.Value);
+
         var model = new RoleSelectionViewModel
         {
+            LastRoleName = roleNames.Select(r => r.Name).FirstOrDefault(n => string.Equals(n, lastRole, StringComparison.OrdinalIgnoreCase)),
             DisplayName = displayName,
             BranchName = branchName,
             ProfilePicturePath = User.FindFirstValue("ProfilePicturePath"),
@@ -344,6 +415,30 @@ public class AccountController(
         };
 
         return View(model);
+    }
+
+    /// <summary>
+    /// Select Role: what the signed-in user can do in the current branch with one of their roles there - the modules,
+    /// screens and key actions the menu will offer (same catalogue and permissions as the navbar). Only for a role the
+    /// user holds in the branch. Named under /Account/SelectRole... so the session guard (Program.cs) lets it through
+    /// before a role is chosen.
+    /// </summary>
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> SelectRoleSummaryJson(string role)
+    {
+        var userId = User.GetUserId();
+        var branchId = User.GetCurrentBranchId();
+        if (userId == 0 || branchId is null || string.IsNullOrWhiteSpace(role)) return BadRequest();
+
+        var holds = await dbContext.UserRoles
+            .Where(x => x.UserId == userId && x.IsActive && (x.Branch_ID == null || x.Branch_ID == branchId))
+            .Join(dbContext.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+            .AnyAsync(n => n == role);
+        if (!holds && !User.IsSuperAdmin()) return NotFound();
+
+        var subject = new PermissionSubject(userId, branchId.Value, User.GetCompanyId(), role);
+        return Json(await home.GetRoleAccessSummaryAsync(HttpContext, subject));
     }
 
     [HttpPost]
@@ -404,9 +499,108 @@ public class AccountController(
         }
 
         await SignInUserAsync(user, allowedBranch.Branch, isSuperAdmin, rememberMe, allRoleNames, selectedRole);
+        await RememberBranchAsync(userId, branchId, selectedRole);
 
         await auditLogService.LogAsync("Auth", "SelectRole", $"Active role set to: {selectedRole}", userId, branchId);
         return RedirectToAction("Index", "Dashboard");
+    }
+
+    // ---- Change password (profile menu / Home) ----------------------------------------------------------------------
+
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword()
+    {
+        var userId = User.GetUserId();
+        var user = userId > 0 ? await dbContext.Users.FindAsync(userId) : null;
+        if (user is null) return RedirectToAction(nameof(Login));
+        return View(new ChangePasswordViewModel { PasswordLastChanged = user.PasswordLastChanged });
+    }
+
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
+    {
+        var userId = User.GetUserId();
+        var user = userId > 0 ? await dbContext.Users.FindAsync(userId) : null;
+        if (user is null) return RedirectToAction(nameof(Login));
+        model.PasswordLastChanged = user.PasswordLastChanged;
+
+        if (!ModelState.IsValid) return View(model);
+
+        if (!passwordHasherService.VerifyPassword(model.CurrentPassword, user.PasswordHash))
+        {
+            await auditLogService.LogAsync("AuthFailure", "ChangePassword", "Password change refused: the current password was wrong.", user.Id);
+            ModelState.AddModelError(nameof(model.CurrentPassword), "The current password is not correct.");
+            return View(model);
+        }
+        if (passwordHasherService.VerifyPassword(model.NewPassword, user.PasswordHash))
+        {
+            ModelState.AddModelError(nameof(model.NewPassword), "Choose a password different from the current one.");
+            return View(model);
+        }
+
+        var (hash, salt) = passwordHasherService.HashPassword(model.NewPassword);
+        user.PasswordHash = hash;
+        user.Salt = salt;
+        user.PasswordLastChanged = DateTime.Now;
+        user.MustChangePassword = false;
+        user.LastModifiedDate = DateTime.Now;
+        await dbContext.SaveChangesAsync();
+
+        await auditLogService.LogAsync("Auth", "ChangePassword", "Password changed by the user.", user.Id);
+        TempData["Success"] = "Your password has been changed.";
+        return RedirectToAction("Index", "Dashboard");
+    }
+
+    // ---- Last branch / role (UserBranchLastLogin, script 2187) --------------------------------------------------------
+    // A convenience only: a failure here never blocks or changes a sign-in.
+
+    /// <summary>Records that the user is working in the branch now, and the role when known (null keeps the last one).</summary>
+    private async Task RememberBranchAsync(int userId, int branchId, string? roleName)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"EXEC dbo.usp_UserBranchLastLogin_Save @UserId = {userId}, @BranchId = {branchId}, @RoleName = {roleName}");
+        }
+        catch
+        {
+            // non-critical
+        }
+    }
+
+    /// <summary>The branch, among those offered, that the user last worked in; null when there is none (first sign-in).</summary>
+    private async Task<int?> LastBranchIdAsync(int userId, IEnumerable<int> offeredBranchIds)
+    {
+        try
+        {
+            var offered = offeredBranchIds.ToHashSet();
+            var recent = await dbContext.Database
+                .SqlQuery<int>($"SELECT BranchId AS Value FROM dbo.UserBranchLastLogin WHERE UserId = {userId} ORDER BY LastLoginDate DESC")
+                .ToListAsync();
+            return recent.Where(offered.Contains).Select(id => (int?)id).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The role the user last worked in at the branch; null when there is none.</summary>
+    private async Task<string?> LastRoleNameAsync(int userId, int branchId)
+    {
+        try
+        {
+            return (await dbContext.Database
+                .SqlQuery<string>($"SELECT LastRoleName AS Value FROM dbo.UserBranchLastLogin WHERE UserId = {userId} AND BranchId = {branchId} AND LastRoleName IS NOT NULL")
+                .ToListAsync()).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string MapRoleIcon(string roleName) => roleName.ToLowerInvariant() switch
@@ -453,8 +647,13 @@ public class AccountController(
 
             HttpContext.Session.SetString("IsHOBranch", branch.IsHOBranch.ToString().ToLower());
             HttpContext.Session.SetInt32("BranchId", branch.BranchId);
+            HttpContext.Session.SetInt32("SelectedBranchId", branch.BranchId);
             HttpContext.Session.SetString("BranchName", branch.BranchName);
         }
+
+        // how many branches the user may work in - the profile menu offers "Switch Branch" only when there is a choice
+        var branchCount = await dbContext.UserBranches.CountAsync(x => x.UserId == user.Id && x.IsActive && x.Branch.IsActive);
+        claims.Add(new Claim("BranchCount", branchCount.ToString()));
 
 
         if (!string.IsNullOrWhiteSpace(activeRole))
@@ -478,11 +677,21 @@ public class AccountController(
 
         var authProperties = new AuthenticationProperties
         {
-            IsPersistent = rememberMe,
-            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+            IsPersistent = rememberMe
         };
+        if (rememberMe)
+        {
+            authProperties.ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8);
+        }
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
+
+        HttpContext.Response.Cookies.Append("__emr_fresh_login", "1", new CookieOptions
+        {
+            HttpOnly = false,
+            SameSite = SameSiteMode.Strict,
+            Path = "/"
+        });
     }
 
     // Super admin is a flag on the account, set only in the database (Users.IsSuperAdmin), never from a screen.

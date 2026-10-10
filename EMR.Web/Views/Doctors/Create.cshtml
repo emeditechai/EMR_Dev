@@ -173,9 +173,11 @@
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-person"></i></span>
                     <input asp-for="LoginUsername" class="form-control" maxlength="100"
-                           placeholder="e.g. dr.smith" autocomplete="off" />
+                           placeholder="e.g. dr.smith" autocomplete="emr-no-autofill" spellcheck="false" />
                 </div>
                 <span asp-validation-for="LoginUsername" class="text-danger small"></span>
+                <div id="usernameStatus" class="small mt-1"></div>
+                <div id="usernameSuggestions" class="d-flex flex-wrap align-items-center gap-1 mt-1"></div>
             </div>
             <div class="col-md-4">
                 <label asp-for="LoginPassword" class="form-label fw-semibold">
@@ -259,4 +261,5 @@
         loginToggle.addEventListener('change', syncLoginPanel);
         syncLoginPanel(); // run on page load in case of server-side validation error
     </script>
+    <partial name="_LoginUsernameAssist" model="Model" />
 }

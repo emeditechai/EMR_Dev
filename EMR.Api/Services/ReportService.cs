@@ -15,12 +15,14 @@ public class ReportService : IReportService
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
     }
 
-    public async Task<IEnumerable<DailyCollectionRegisterItem>> GetDailyCollectionRegisterAsync(int? companyId, int branchId, DateTime fromDate, DateTime toDate, bool isDetailed)
+    public async Task<IEnumerable<DailyCollectionRegisterItem>> GetDailyCollectionRegisterAsync(int? companyId, int branchId, DateTime fromDate, DateTime toDate, bool isDetailed, string? moduleCode = null)
     {
+        // payments only: one row per receipt taken (and refund paid out) in the period - script 2192
+        var module = moduleCode?.Trim().ToUpperInvariant() is "OPD" or "LAB" ? moduleCode.Trim().ToUpperInvariant() : null;
         using var connection = new SqlConnection(_connectionString);
         return await connection.QueryAsync<DailyCollectionRegisterItem>(
             "usp_Api_Report_DailyCollectionRegister",
-            new { CompanyId = companyId, BranchId = branchId, FromDate = fromDate, ToDate = toDate, IsDetailed = isDetailed },
+            new { CompanyId = companyId, BranchId = branchId, FromDate = fromDate, ToDate = toDate, IsDetailed = isDetailed, ModuleCode = module },
             commandType: CommandType.StoredProcedure
         );
     }
@@ -112,5 +114,28 @@ public class ReportService : IReportService
         result.Rows = (await multi.ReadAsync()).Select(Row).ToList();
         if (!multi.IsConsumed) result.Options = (await multi.ReadAsync()).Select(Row).ToList();
         return result;
+    }
+
+    public async Task<Dictionary<string, List<Dictionary<string, object?>>>> RunLabSectionsAsync(string storedProcedure,
+        IDictionary<string, object?> parameters, IReadOnlyList<string> sections)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        using var multi = await connection.QueryMultipleAsync(storedProcedure, new DynamicParameters(parameters),
+            commandType: CommandType.StoredProcedure, commandTimeout: 90);
+
+        var result = new Dictionary<string, List<Dictionary<string, object?>>>();
+        foreach (var name in sections)
+        {
+            if (multi.IsConsumed) { result[name] = new(); continue; }
+            result[name] = (await multi.ReadAsync()).Select(r => new Dictionary<string, object?>((IDictionary<string, object?>)r)).ToList();
+        }
+        return result;
+    }
+
+    public async Task<int> ExecuteLabActionAsync(string storedProcedure, IDictionary<string, object?> parameters)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        return await connection.ExecuteScalarAsync<int>(storedProcedure, new DynamicParameters(parameters),
+            commandType: CommandType.StoredProcedure, commandTimeout: 60);
     }
 }

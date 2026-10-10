@@ -189,7 +189,7 @@
                                         </a>
                                         @if (inv.Status != "P")
                                         {
-                                            <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@inv.PartnerType,agentId=@inv.PartnerId" class="btn btn-outline-success" title="Settle in Payment Screen">
+                                            <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@inv.PartnerType&agentId=@inv.PartnerId" class="btn btn-outline-success" title="Settle in Payment Screen">
                                                 <i class="bi bi-wallet2"></i>
                                             </a>
                                         }

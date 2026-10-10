@@ -1,0 +1,71 @@
+@{
+    ViewData["Title"] = "Staff Productivity";
+    ViewData["ReportSubtitle"] = "how much each person handled, and the re-collects and un-authorizations against them";
+    ViewData["ReportIcon"] = "bi-person-workspace";
+    ViewData["ReportAccent"] = "#0e7490";
+    ViewData["DateLabel"] = "action date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const UNIT = { BILL: 'bill', RECEIPT: 'receipt', SAMPLE: 'specimen(s)', ENTERED: 'result(s)', VALIDATED: 'result(s)', APPROVED: 'result(s) signed', PRINTED: 'print(s)', RECOLLECT: 'specimen(s)', UNAUTHORIZED: 'result(s)' };
+    const rate = (v) => v === null || v === undefined ? '—' : `${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%`;
+    const n = (v, h) => Number(v) ? h.num(v) : '<span class="text-muted">—</span>';
+    LabReport.init({
+        report: 'staff-productivity', title: 'Staff Productivity', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, patient or person...',
+        filters: [
+            { id: 'activity', label: 'Activity', allLabel: 'All activities', options: [['BILL', 'Bills raised'], ['RECEIPT', 'Money receipts'], ['SAMPLE', 'Specimens collected'], ['ENTERED', 'Results entered'],
+                ['VALIDATED', 'Results validated'], ['APPROVED', 'Results signed'], ['PRINTED', 'Reports printed'], ['RECOLLECT', 'Re-collects (errors)'], ['UNAUTHORIZED', 'Un-authorizations (errors)']] },
+            { id: 'staffId', label: 'Person', allLabel: 'Everyone', fromOptions: 'staffId', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Front desk', color: '#0e7490', value: (s, h) => `${h.num(s.Bills)} · ${h.num(s.Receipts)}`, sub: (s, h) => `bills · receipts (${h.money(s.Collected)})` },
+            { label: 'Specimens collected', color: '#15803d', value: (s, h) => h.num(s.Samples), sub: (s, h) => `${h.num(s.Recollects)} re-collected · ${rate(s.RecollectRatePct)}` },
+            { label: 'Bench', color: '#1d4ed8', value: (s, h) => `${h.num(s.Entered)} · ${h.num(s.Validated)}`, sub: () => 'results entered · validated' },
+            { label: 'Signed', color: '#7c3aed', value: (s, h) => h.num(s.Approved), sub: (s, h) => `${h.num(s.Unauthorized)} withdrawn later · ${rate(s.UnauthorizedRatePct)}` },
+            { label: 'Most active', color: '#b45309', value: (s, h) => `<span class="fs-6">${h.esc(s.BusiestStaff || '—')}</span>`, sub: (s, h) => `${h.num(s.Staff)} person(s) · ${h.num(s.Printed)} report print(s)` }
+        ],
+        groups: [
+            { key: 'byStaff', label: 'Person', rowField: 'StaffId', byId: true },
+            { key: 'byActivity', label: 'Activity', rowField: 'ActivityOrder', byId: true },
+            { key: 'byDate', label: 'Date', rowField: 'Day', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'Bills', label: 'Bills', num: true, fmt: (v, h) => n(v, h) },
+            { field: 'Receipts', label: 'Receipts', num: true, fmt: (v, h) => n(v, h) },
+            { field: 'Collected', label: 'Received', money: true },
+            { field: 'Samples', label: 'Specimens', num: true, fmt: (v, h) => n(v, h) },
+            { field: 'Entered', label: 'Entered', num: true, fmt: (v, h) => n(v, h) },
+            { field: 'Validated', label: 'Validated', num: true, fmt: (v, h) => n(v, h) },
+            { field: 'Approved', label: 'Signed', num: true, fmt: (v, h) => n(v, h) },
+            { field: 'Printed', label: 'Printed', num: true, fmt: (v, h) => n(v, h) },
+            { field: 'Recollects', label: 'Re-collects', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : n(v, h) },
+            { field: 'Unauthorized', label: 'Un-authorized', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger fw-semibold">${h.num(v)}</span>` : n(v, h) },
+            { field: 'RecollectRatePct', label: 'Re-collect rate', num: true, total: 'none', fmt: (v) => rate(v) },
+            { field: 'UnauthorizedRatePct', label: 'Un-authorized rate', num: true, total: 'none', fmt: (v) => rate(v) }
+        ],
+        shareOf: 'Quantity',
+        rowClass: r => r.IsError ? 'table-danger' : '',
+        cols: [
+            { label: 'When', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.OccurredOn), text: (r, h) => h.fmtDT(r.OccurredOn) },
+            { label: 'Person', html: (r, h) => `<div class="fw-semibold">${h.esc(r.StaffName)}</div>${r.StaffRole ? `<div class="text-muted fs-9">${h.esc(r.StaffRole)}</div>` : ''}`, text: r => r.StaffName },
+            { label: 'Activity', html: (r, h) => h.pill(r.ActivityName, r.IsError ? 'bg-danger-subtle text-danger border-danger-subtle' : 'bg-light text-dark border-secondary-subtle'), text: r => r.ActivityName },
+            { label: 'Bill No', html: (r, h) => r.BillNo ? `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>` : '—', text: r => r.BillNo || '' },
+            { label: 'Patient', html: (r, h) => r.PatientName ? `<div>${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode || '')}</div>` : '—', text: r => r.PatientName || '' },
+            { label: 'How many', cls: 'text-end text-nowrap', html: (r, h) => `<span class="fw-bold">${h.num(r.Qty)}</span> <span class="text-muted fs-9">${UNIT[r.Activity] || ''}</span>`, text: r => r.Qty },
+            { label: 'Amount', cls: 'text-end', money: true, sum: 'Amount', html: (r, h) => r.Amount === null || r.Amount === undefined ? '<span class="text-muted">—</span>' : h.money(r.Amount), text: r => Number(r.Amount) || 0 }
+        ]
+    });
+})();
+</script>
+}

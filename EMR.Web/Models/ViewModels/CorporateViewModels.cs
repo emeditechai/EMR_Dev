@@ -91,10 +91,11 @@ public class CorporateFormViewModel
     [Display(Name = "Contact Number")]
     public string Contact_No { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Email Address is mandatory.")]
     [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
     [MaxLength(150)]
     [Display(Name = "Email Address")]
-    public string? Email { get; set; }
+    public string Email { get; set; } = string.Empty;
 
     [MaxLength(500)]
     [Display(Name = "Address")]

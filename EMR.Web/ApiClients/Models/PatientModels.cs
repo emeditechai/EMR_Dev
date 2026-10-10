@@ -18,6 +18,15 @@ public class PatientListItem
     public int       TotalCount            { get; set; }   // populated by paged SP
 }
 
+/// <summary>Patient Master list summary cards (GET api/patients/stats, SQLScripts/2207).</summary>
+public class PatientStats
+{
+    public int TotalPatients       { get; set; }
+    public int ActivePatients      { get; set; }
+    public int InactivePatients    { get; set; }
+    public int RegisteredToday     { get; set; }
+    public int RegisteredThisMonth { get; set; }
+}
 
 public class PatientDetail : PatientListItem
 {

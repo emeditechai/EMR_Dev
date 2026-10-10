@@ -1,4 +1,5 @@
 @model EMR.Web.Models.ViewModels.LoginViewModel
+@inject EMR.Web.Services.Licensing.ILicensingService Licensing
 @{
     Layout = "_AuthLayout";
     ViewData["Title"] = "Login";
@@ -49,6 +50,11 @@
                     <p class="auth-right-sub">Sign in to your eClinicPlus+ account</p>
                 </div>
 
+                @if (TempData["LicenseMessage"] is string licenseMessage)
+                {
+                    <div class="alert alert-success py-2 small mb-3"><i class="bi bi-patch-check-fill me-1"></i>@licenseMessage</div>
+                }
+
                 <form asp-action="Login" method="post" novalidate>
                     @Html.AntiForgeryToken()
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small mb-3"></div>
@@ -92,6 +98,17 @@
                     <i class="bi bi-shield-lock-fill me-1"></i>
                     Secured &amp; HIPAA-compliant access
                 </p>
+
+                @if (Licensing.Enabled)
+                {
+                    @* checks every licence value with the licence server now (registration / renewal OTP if needed) *@
+                    <form asp-controller="License" asp-action="Revalidate" method="post" class="text-center mt-2" id="licRevalidateForm">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none small" id="licRevalidateBtn">
+                            <i class="bi bi-arrow-repeat me-1"></i>Re-validate licence with the licence server
+                        </button>
+                    </form>
+                }
             </div>
         </div>
 
@@ -101,6 +118,11 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        document.getElementById('licRevalidateForm')?.addEventListener('submit', function () {
+            const b = document.getElementById('licRevalidateBtn');
+            b.disabled = true;
+            b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking with the licence server...';
+        });
         function togglePassword() {
             const input = document.getElementById('passwordInput');
             const icon  = document.getElementById('eyeIcon');

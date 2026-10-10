@@ -105,6 +105,18 @@ public class LabReportPdfDocument : IDocument
     {
         container.Column(col =>
         {
+            // Pre-printed letterhead paper (in-app B2C print, Required B2C Lab Report Print Header = No): the letterhead
+            // area stays blank (the duplicate flag is still printed). Emailed / WhatsApp copies always have it.
+            if (!vm.ShowLetterhead)
+            {
+                col.Item().Height(30, Unit.Millimetre).AlignBottom().AlignRight().Element(c =>
+                {
+                    if (vm.IsDuplicate)
+                        c.Border(0.6f).BorderColor(Crimson).PaddingHorizontal(3).PaddingVertical(1)
+                            .Text($"DUPLICATE COPY · Print #{vm.PrintSequence}").FontSize(6.5f).Bold().FontColor(Crimson).LetterSpacing(0.05f);
+                });
+            }
+            else
             // Letterhead
             col.Item().PaddingBottom(4).BorderBottom(1.6f).BorderColor(Navy).Row(row =>
             {
@@ -287,6 +299,28 @@ public class LabReportPdfDocument : IDocument
     {
         IContainer Cell() => table.Cell().BorderBottom(Line).BorderRight(Line).BorderColor(Ink).PaddingHorizontal(4).PaddingVertical(3).AlignMiddle();
 
+        // Written report (Microbiology descriptive parameter): the test name, then its text across the whole row.
+        if (row.IsNarrative)
+        {
+            table.Cell().ColumnSpan(5).BorderBottom(Line).BorderRight(Line).BorderColor(Ink).PaddingHorizontal(6).PaddingVertical(4).Column(col =>
+            {
+                col.Item().PaddingBottom(2).Text(t =>
+                {
+                    t.Span(row.TestName).Bold().FontSize(9.5f);
+                    if (vm.ShowNotApprovedWatermark && !row.IsApproved)
+                        t.Span(" ‡").Bold().FontColor(Amber);
+                });
+                foreach (var line in row.Result.Split('\n'))
+                {
+                    // a section heading of the template ("MICROSCOPY FINDINGS:") is printed bold
+                    bool heading = line.EndsWith(':') && line.Length <= 48 && line == line.ToUpperInvariant();
+                    var text = col.Item().PaddingTop(heading ? 3 : 0).Text(line).FontSize(9);
+                    if (heading) text.Bold();
+                }
+            });
+            return;
+        }
+
         // Test name (‡ = validated but not yet approved, only on provisional copies)
         Cell().Text(t =>
         {
@@ -418,6 +452,14 @@ public class LabReportPdfDocument : IDocument
                         row.RelativeItem().Text(string.Empty);
                     }
                 });
+            }
+
+            // Pre-printed letterhead (in-app B2C print, Required B2C Lab Report Print Header = No): no footer lines,
+            // the bottom strip stays blank for the letterhead's own footer. The signatures above are still printed.
+            if (!vm.ShowLetterhead)
+            {
+                col.Item().Height(15, Unit.Millimetre);
+                return;
             }
 
             var lab = vm.ProcessingLabName ?? vm.HospitalName;

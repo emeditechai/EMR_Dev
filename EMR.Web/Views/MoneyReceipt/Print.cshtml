@@ -1,0 +1,280 @@
+@model EMR.Web.Models.ViewModels.MoneyReceiptViewModel
+@{
+    Layout = null;
+    var printDate = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt");
+    var fullyPaid = Model.BalanceAfter <= 0;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Money Receipt — @Model.ReceiptNo</title>
+    <style>
+        /* A5 portrait (148 × 210 mm) money receipt of a due collection (SQLScripts/2204). The sheet is exactly A5 and
+           carries its own 7 mm inner margin, so it prints the same whatever Margins is chosen in the print dialog. */
+        @@page { size: 148mm 210mm; margin: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            color: #111;
+            background: #e2e8f0;
+        }
+
+        .page-wrap {
+            width: 148mm;
+            height: 210mm;
+            margin: 56px auto 24px;
+            padding: 7mm;
+            background: #fff;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .paper-tag {
+            position: absolute; top: -26px; left: 0; font-size: 11px; font-weight: bold; color: #475569; letter-spacing: 0.3px;
+        }
+        .receipt-frame {
+            border: 1.5px solid #0f172a;
+            border-radius: 4px;
+            padding: 5mm 5mm 4mm;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Print Actions (hidden on print) ── */
+        .print-actions { position: fixed; top: 12px; right: 20px; z-index: 999; display: flex; gap: 10px; }
+        .btn-print {
+            background: #1e3a8a; color: #fff; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer;
+            font-size: 13px; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        }
+        .btn-print:hover { background: #172554; }
+        .btn-close-tab {
+            background: #475569; color: #fff; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;
+            font-size: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .btn-close-tab:hover { background: #334155; }
+
+        /* ── Hospital Header ── */
+        .receipt-header { display: flex; align-items: center; gap: 12px; padding-bottom: 3.5mm; border-bottom: 2px solid #0f172a; }
+        .hosp-logo { height: 52px; max-width: 110px; object-fit: contain; }
+        .hosp-info { flex: 1; min-width: 0; }
+        .hosp-name { font-size: 19px; font-weight: 900; color: #1e3a8a; letter-spacing: 0.4px; line-height: 1.2; }
+        .hosp-lines { font-size: 10px; color: #334155; line-height: 1.5; margin-top: 3px; }
+        .hosp-lines span + span::before { content: " · "; color: #94a3b8; }
+
+        /* ── Title ── */
+        .title-row { display: flex; justify-content: center; margin: 5mm 0 4mm; }
+        .title-main {
+            font-size: 16px; font-weight: 900; letter-spacing: 3px; color: #1e3a8a; text-transform: uppercase;
+            border: 2px solid #1e3a8a; background: #eff6ff; padding: 4px 24px; border-radius: 4px;
+        }
+
+        /* ── Receipt No / Date ── */
+        .meta-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; margin-bottom: 4mm; }
+        .meta-row .lbl { color: #64748b; font-weight: bold; text-transform: uppercase; font-size: 10px; letter-spacing: 0.3px; }
+        .meta-row .no { font-family: 'Courier New', monospace; font-weight: bold; color: #1a56db; font-size: 14px; }
+        .meta-row .val { font-weight: bold; color: #0f172a; }
+
+        /* ── Classic receipt wording ── */
+        .receipt-body { line-height: 1.7; font-size: 13px; }
+        .rline { display: flex; align-items: baseline; gap: 7px; border-bottom: 1px dotted #64748b; padding: 2px 0 1px; }
+        .rline + .rline { margin-top: 4.5mm; }
+        .rlbl { flex-shrink: 0; color: #475569; font-size: 12px; }
+        .rval { flex: 1; min-width: 0; color: #0f172a; font-weight: bold; }
+        .rval.name { font-size: 15px; color: #1e3a8a; font-weight: 900; }
+        .rval.words { font-style: italic; color: #1e40af; font-size: 14px; }
+        .rsub { font-weight: normal; color: #475569; font-size: 11px; }
+
+        /* ── Payment details ── */
+        .pay-table { width: 100%; border-collapse: collapse; margin-top: 6mm; font-size: 12px; }
+        .pay-table th { background: #f1f5f9; color: #475569; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; text-align: left; padding: 5px 7px; border: 1px solid #cbd5e1; }
+        .pay-table td { padding: 5px 7px; border: 1px solid #cbd5e1; color: #0f172a; vertical-align: top; }
+        .pay-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .pay-table tfoot td { font-weight: 900; background: #f8fafc; }
+
+        /* ── Amount + bill position ── */
+        .bottom-grid { display: flex; gap: 4mm; margin-top: 6mm; align-items: stretch; }
+        .amount-box {
+            flex: 0 0 45%; border: 2px solid #166534; background: #f0fdf4; border-radius: 4px; padding: 4mm 2mm;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+        }
+        .ab-title { font-size: 10px; font-weight: 800; color: #15803d; text-transform: uppercase; letter-spacing: 0.8px; }
+        .ab-figures { font-size: 25px; font-weight: 900; color: #14532d; font-family: 'Courier New', monospace; margin-top: 2px; }
+        .bill-pos { flex: 1; border: 1px dashed #94a3b8; border-radius: 4px; padding: 2.5mm 3.5mm; font-size: 11.5px; }
+        .bp-title { font-weight: bold; color: #1e293b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; margin-bottom: 4px; }
+        .bp-row { display: flex; justify-content: space-between; color: #334155; padding: 1.5px 0; font-variant-numeric: tabular-nums; }
+        .bp-row.this { color: #166534; font-weight: bold; }
+        .bp-row.bal { border-top: 1px solid #e2e8f0; margin-top: 3px; padding-top: 4px; font-weight: 900; color: #b91c1c; }
+        .bp-row.bal.nil { color: #166534; }
+
+        /* ── Signatures ── */
+        .signatures { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding-top: 12mm; }
+        .sig-block { text-align: center; width: 42%; }
+        .sig-name { font-size: 11.5px; font-weight: bold; color: #0f172a; min-height: 14px; }
+        .sig-line { border-top: 1.2px solid #334155; margin: 3px 0 4px; }
+        .sig-title { font-size: 10px; font-weight: 800; color: #1e293b; text-transform: uppercase; }
+
+        .receipt-footer {
+            margin-top: 4mm; border-top: 1px solid #e2e8f0; padding-top: 2mm; font-size: 9px; color: #64748b;
+            display: flex; justify-content: space-between; gap: 8px;
+        }
+
+        .msg-box {
+            width: min(520px, calc(100% - 32px)); margin: 60px auto; background: #fff; border: 1px solid #fecaca;
+            border-left: 4px solid #dc2626; border-radius: 6px; padding: 18px 20px; font-size: 13px; color: #334155; line-height: 1.6;
+        }
+        .msg-box h1 { font-size: 15px; color: #991b1b; margin-bottom: 6px; }
+
+        @@media print {
+            .print-actions, .paper-tag { display: none !important; }
+            html, body { width: 148mm; background: #fff; }
+            /* a hair under 210 mm so rounding never spills a blank second page */
+            .page-wrap { margin: 0; width: 148mm; height: 209.5mm; box-shadow: none; overflow: hidden; }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+<body>
+    <div class="msg-box">
+        <h1>Money Receipt not available</h1>
+        <div>@Model.Message</div>
+    </div>
+</body>
+}
+else
+{
+<body onload="window.print()">
+
+<div class="print-actions">
+    <button class="btn-print" onclick="window.print()">🖨 Print</button>
+    <button class="btn-close-tab" onclick="window.close()">✕ Close</button>
+</div>
+
+<div class="page-wrap">
+<div class="paper-tag">A5 · 148 × 210 mm</div>
+<div class="receipt-frame">
+
+    <!-- ══ HOSPITAL / LAB HEADER ══ -->
+    <div class="receipt-header">
+        @if (!string.IsNullOrWhiteSpace(Model.HospitalLogoPath))
+        {
+            <img src="@Model.HospitalLogoPath" class="hosp-logo" alt="Logo" />
+        }
+        <div class="hosp-info">
+            <div class="hosp-name">@Model.HospitalName</div>
+            <div class="hosp-lines">
+                @if (!string.IsNullOrWhiteSpace(Model.HospitalAddress)) { <div>@Model.HospitalAddress</div> }
+                <div>
+                    @if (!string.IsNullOrWhiteSpace(Model.HospitalPhone)) { <span>Ph: @Model.HospitalPhone</span> }
+                    @if (!string.IsNullOrWhiteSpace(Model.HospitalEmail)) { <span>@Model.HospitalEmail</span> }
+                    @if (!string.IsNullOrWhiteSpace(Model.HospitalGSTIN)) { <span>GSTIN: @Model.HospitalGSTIN</span> }
+                    @if (!string.IsNullOrWhiteSpace(Model.RegistrationNumber)) { <span>Reg: @Model.RegistrationNumber</span> }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ TITLE ══ -->
+    <div class="title-row"><div class="title-main">Money Receipt</div></div>
+
+    <div class="meta-row">
+        <div><span class="lbl">Receipt No&nbsp;</span> <span class="no">@Model.ReceiptNo</span></div>
+        <div><span class="lbl">Date&nbsp;</span> <span class="val">@Model.ReceiptOn.ToString("dd-MMM-yyyy hh:mm tt")</span></div>
+    </div>
+
+    <!-- ══ RECEIPT WORDING ══ -->
+    <div class="receipt-body">
+        <div class="rline">
+            <span class="rlbl">Received with thanks from</span>
+            <span class="rval name">@Model.PatientName
+                @if (!string.IsNullOrWhiteSpace(Model.PatientCode)) { <span class="rsub">(@Model.PatientCode@(string.IsNullOrWhiteSpace(Model.PatientPhone) ? "" : ", " + Model.PatientPhone))</span> }
+            </span>
+        </div>
+        <div class="rline">
+            <span class="rlbl">the sum of Rupees</span>
+            <span class="rval words">@Model.AmountInWords</span>
+        </div>
+        <div class="rline">
+            <span class="rlbl">by</span>
+            <span class="rval">@string.Join(" + ", Model.Lines.Select(l => l.MethodName ?? "Payment").Distinct())</span>
+        </div>
+        <div class="rline">
+            <span class="rlbl">against</span>
+            <span class="rval">@Model.ModuleTitle Bill No @Model.BillNo
+                <span class="rsub">@(Model.BillDate.HasValue ? "dated " + Model.BillDate.Value.ToString("dd-MMM-yyyy") : "") (balance due)</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- ══ PAYMENT DETAILS ══ -->
+    <table class="pay-table">
+        <thead><tr><th style="width:8%;">#</th><th style="width:30%;">Payment Mode</th><th>Reference</th><th class="num" style="width:24%;">Amount (₹)</th></tr></thead>
+        <tbody>
+        @for (var i = 0; i < Model.Lines.Count; i++)
+        {
+            var l = Model.Lines[i];
+            var refs = new List<string>();
+            if (!string.IsNullOrWhiteSpace(l.UPIRefNo)) refs.Add("UPI Ref " + l.UPIRefNo);
+            if (!string.IsNullOrWhiteSpace(l.CardLast4)) refs.Add("Card xxxx " + l.CardLast4);
+            if (!string.IsNullOrWhiteSpace(l.ChequeNo)) refs.Add("Cheque No " + l.ChequeNo);
+            if (!string.IsNullOrWhiteSpace(l.BankName)) refs.Add(l.BankName!);
+            if (!string.IsNullOrWhiteSpace(l.TransactionRef)) refs.Add("Ref " + l.TransactionRef);
+            <tr>
+                <td>@(i + 1)</td>
+                <td>@(l.MethodName ?? "Payment")</td>
+                <td>@(refs.Count > 0 ? string.Join(", ", refs) : "—")</td>
+                <td class="num">@l.PaidAmount.ToString("N2")</td>
+            </tr>
+        }
+        </tbody>
+        <tfoot><tr><td colspan="3" style="text-align:right;">Total Received</td><td class="num">@Model.Amount.ToString("N2")</td></tr></tfoot>
+    </table>
+
+    <!-- ══ AMOUNT + BILL POSITION ══ -->
+    <div class="bottom-grid">
+        <div class="amount-box">
+            <div class="ab-title">Amount Received</div>
+            <div class="ab-figures">₹ @Model.Amount.ToString("N2")</div>
+        </div>
+        <div class="bill-pos">
+            <div class="bp-title">Bill Position</div>
+            <div class="bp-row"><span>Bill amount</span><span>₹ @Model.NetAmount.ToString("N2")</span></div>
+            <div class="bp-row"><span>Received earlier</span><span>₹ @Model.PaidBefore.ToString("N2")</span></div>
+            <div class="bp-row this"><span>This receipt</span><span>₹ @Model.Amount.ToString("N2")</span></div>
+            <div class="bp-row bal @(fullyPaid ? "nil" : "")"><span>Balance due</span><span>@(fullyPaid ? "NIL — Fully Paid" : "₹ " + Model.BalanceAfter.ToString("N2"))</span></div>
+        </div>
+    </div>
+
+    <!-- ══ SIGNATURES ══ -->
+    <div class="signatures">
+        <div class="sig-block">
+            <div class="sig-name"></div>
+            <div class="sig-line"></div>
+            <div class="sig-title">Payer's Signature</div>
+        </div>
+        <div class="sig-block">
+            <div class="sig-name">@Model.ReceivedByName</div>
+            <div class="sig-line"></div>
+            <div class="sig-title">Received By (Cashier)</div>
+        </div>
+    </div>
+
+    <div class="receipt-footer">
+        <div>* Cheque / DD subject to realisation. Computer-generated receipt.</div>
+        <div style="white-space: nowrap;">@(string.IsNullOrWhiteSpace(Model.BranchName) ? "" : Model.BranchName + " · ")Printed: @printDate</div>
+    </div>
+
+</div>
+</div>
+
+</body>
+}
+</html>

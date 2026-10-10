@@ -8,7 +8,7 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
 {
     private readonly HttpClient _http = factory.CreateClient("EmrApi");
 
-    public async Task<ReportApiResult<List<DailyCollectionRegisterItem>>> GetDailyCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool isDetailed, int? companyId = null)
+    public async Task<ReportApiResult<List<DailyCollectionRegisterItem>>> GetDailyCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, bool isDetailed, int? companyId = null, string? moduleCode = null)
     {
         try
         {
@@ -17,6 +17,7 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
             {
                 url += $"&companyId={companyId.Value}";
             }
+            if (!string.IsNullOrWhiteSpace(moduleCode)) url += $"&moduleCode={Uri.EscapeDataString(moduleCode)}";
             var response = await _http.GetAsync(url);
             
             if (response.IsSuccessStatusCode)
@@ -117,13 +118,20 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
         }
     }
 
-    public async Task<ReportApiResult<string>> RunLabReportRawAsync(string report, IDictionary<string, string?> query)
+    public Task<ReportApiResult<string>> RunLabReportRawAsync(string report, IDictionary<string, string?> query)
+        => RunRegisteredReportRawAsync("lab", report, query);
+
+    /// <summary>Reports > OPD registers (SQLScripts/2211): same shape as the LAB registers.</summary>
+    public Task<ReportApiResult<string>> RunOpdReportRawAsync(string report, IDictionary<string, string?> query)
+        => RunRegisteredReportRawAsync("opd", report, query);
+
+    private async Task<ReportApiResult<string>> RunRegisteredReportRawAsync(string module, string report, IDictionary<string, string?> query)
     {
         try
         {
             var qs = string.Join("&", query.Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
                                            .Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value!)}"));
-            var response = await _http.GetAsync($"/api/reports/lab/run/{Uri.EscapeDataString(report)}?{qs}");
+            var response = await _http.GetAsync($"/api/reports/{module}/run/{Uri.EscapeDataString(report)}?{qs}");
             if (response.IsSuccessStatusCode)
                 return ReportApiResult<string>.SuccessResult(await response.Content.ReadAsStringAsync());
             if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.NotFound)
@@ -136,6 +144,51 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
         catch (Exception ex)
         {
             return ReportApiResult<string>.FailureResult(ex.Message);
+        }
+    }
+
+    public async Task<ReportApiResult<string>> GetLabOwnerMisRawAsync(IDictionary<string, string?> query)
+    {
+        try
+        {
+            var qs = string.Join("&", query.Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
+                                           .Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value!)}"));
+            var response = await _http.GetAsync($"/api/reports/lab/owner-mis?{qs}");
+            if (response.IsSuccessStatusCode)
+                return ReportApiResult<string>.SuccessResult(await response.Content.ReadAsStringAsync());
+            if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest)
+            {
+                var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+                return ReportApiResult<string>.FailureResult(body?.GetValueOrDefault("message") ?? "You do not have access to this report.");
+            }
+            return ReportApiResult<string>.FailureResult($"Failed with status {response.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            return ReportApiResult<string>.FailureResult(ex.Message);
+        }
+    }
+
+    public async Task<ReportApiResult<int>> LabOutsourceActionAsync(string action, LabOutsourceActionModel request)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync($"/api/reports/lab/outsource/{(action == "received" ? "received" : "sent")}", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var ok = await response.Content.ReadFromJsonAsync<Dictionary<string, int>>();
+                return ReportApiResult<int>.SuccessResult(ok?.GetValueOrDefault("rows") ?? 0);
+            }
+            if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest)
+            {
+                var body = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                return ReportApiResult<int>.FailureResult(body?.GetValueOrDefault("message")?.ToString() ?? "The action was not accepted.");
+            }
+            return ReportApiResult<int>.FailureResult($"Failed with status {response.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            return ReportApiResult<int>.FailureResult(ex.Message);
         }
     }
 }

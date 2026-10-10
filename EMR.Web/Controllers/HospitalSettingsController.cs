@@ -285,6 +285,10 @@ public class HospitalSettingsController(
             existing.LabReportEmailNotificationRequired = model.LabReportEmailNotificationRequired;
             existing.PathologistApprovalRequired = model.PathologistApprovalRequired;
             existing.ShowLabReportPrintOnList = model.ShowLabReportPrintOnList;
+            existing.CriticalValueCommunicationRequired = model.CriticalValueCommunicationRequired;
+            existing.CriticalValueInformMinutes = model.CriticalValueInformMinutes;
+            existing.LabB2CBillPrintHeaderRequired = model.LabB2CBillPrintHeaderRequired;
+            existing.LabB2CReportPrintHeaderRequired = model.LabB2CReportPrintHeaderRequired;
             existing.DoctorIpComputeMode = model.DoctorIpComputeMode;
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.IsActive = model.IsActive;
@@ -338,6 +342,10 @@ public class HospitalSettingsController(
             LabReportEmailNotificationRequired = s.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = s.PathologistApprovalRequired,
             ShowLabReportPrintOnList = s.ShowLabReportPrintOnList,
+            CriticalValueCommunicationRequired = s.CriticalValueCommunicationRequired,
+            CriticalValueInformMinutes = s.CriticalValueInformMinutes,
+            LabB2CBillPrintHeaderRequired = s.LabB2CBillPrintHeaderRequired,
+            LabB2CReportPrintHeaderRequired = s.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = string.IsNullOrWhiteSpace(s.DoctorIpComputeMode) ? "Manual" : s.DoctorIpComputeMode,
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             IsActive = s.IsActive,
@@ -378,6 +386,10 @@ public class HospitalSettingsController(
             LabReportEmailNotificationRequired = m.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = m.PathologistApprovalRequired,
             ShowLabReportPrintOnList = m.ShowLabReportPrintOnList,
+            CriticalValueCommunicationRequired = m.CriticalValueCommunicationRequired,
+            CriticalValueInformMinutes = m.CriticalValueInformMinutes,
+            LabB2CBillPrintHeaderRequired = m.LabB2CBillPrintHeaderRequired,
+            LabB2CReportPrintHeaderRequired = m.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = m.DoctorIpComputeMode,
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             IsActive = m.IsActive,

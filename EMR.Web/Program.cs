@@ -42,6 +42,12 @@ builder.Services.AddScoped<IDoctorSubSpecialityService, DoctorSubSpecialityServi
 builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IClinicalUnitService, ClinicalUnitService>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
+// LAB billing AI assist: Tesseract OCR on this server + ML.NET test matching (PrescriptionAssist section)
+builder.Services.Configure<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions>(builder.Configuration.GetSection(EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions.SectionName));
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IHandwritingRecognizer, EMR.Web.Services.PrescriptionAssist.HandwritingRecognizer>();
+builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine, EMR.Web.Services.PrescriptionAssist.TesseractOcrEngine>();
+builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher, EMR.Web.Services.PrescriptionAssist.PrescriptionTestMatcher>();
 
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 
@@ -116,6 +122,22 @@ builder.Services.AddHttpClient("Whereby", client =>
 builder.Services.AddScoped<IWherebyService, WherebyService>();
 builder.Services.AddScoped<IVideoConsultationService, VideoConsultationService>();
 
+// eCare360 licensing (Services/Licensing). Enforced on every machine (server or local, any environment) with no switch;
+// the rules, approvers, mailbox and licence server are compiled in (LicensingPolicy), not read from appsettings.json.
+// A missing password blocks every page with "Licensing not configured" instead of stopping the application.
+var licensingOptions = new EMR.Web.Services.Licensing.LicensingOptions();
+builder.Configuration.GetSection(EMR.Web.Services.Licensing.LicensingOptions.Section).Bind(licensingOptions);
+EMR.Web.Services.Licensing.LicensingOptions.LoadSecretsAndValidate(licensingOptions, builder.Configuration, builder.Environment.ContentRootPath);
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(licensingOptions));
+// the licensing mailbox (OTP and welcome e-mails only), separate from the hospital's own mail settings
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailSender, EMR.Web.Services.Licensing.LicenseMailSender>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.IMachineFingerprintProvider, EMR.Web.Services.Licensing.MachineFingerprintProvider>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseCrypto, EMR.Web.Services.Licensing.LicenseCrypto>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralLicenseRepository, EMR.Web.Services.Licensing.CentralLicenseRepository>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILocalLicenseRepository, EMR.Web.Services.Licensing.LocalLicenseRepository>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailer, EMR.Web.Services.Licensing.LicenseMailer>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicensingService, EMR.Web.Services.Licensing.LicensingService>();
+
 // Sign-in throttling per client address (staff and patient portal sign-in; accounts also lock after repeated wrong passwords)
 builder.Services.AddRateLimiter(o =>
 {
@@ -123,11 +145,18 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy(EMR.Web.Controllers.AccountController.SignInRateLimit, http =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // licence OTP sends per client address (registration and hardware renewal)
+    o.AddPolicy(EMR.Web.Controllers.LicenseController.OtpRateLimit, http =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter("otp:" + (http.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = Math.Max(1, licensingOptions.OtpSendsPerIpPer15Min), Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     o.OnRejected = async (ctx, ct) =>
     {
-        ctx.HttpContext.Response.Headers.RetryAfter = "60";
+        var isLicense = ctx.HttpContext.Request.Path.StartsWithSegments("/License", StringComparison.OrdinalIgnoreCase);
+        ctx.HttpContext.Response.Headers.RetryAfter = isLicense ? "900" : "60";
         ctx.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
-        await ctx.HttpContext.Response.WriteAsync("Too many sign-in attempts from this network. Wait a minute and try again.", ct);
+        await ctx.HttpContext.Response.WriteAsync(isLicense
+            ? "Too many OTP requests from this network. Wait 15 minutes and try again."
+            : "Too many sign-in attempts from this network. Wait a minute and try again.", ct);
     };
 });
 
@@ -135,6 +164,7 @@ builder.Services.AddRateLimiter(o =>
 builder.Services.AddTransient<EMR.Web.ApiClients.EmrApiTokenHandler>();
 builder.Services.AddScoped<IAdministratorCheck, AdministratorCheck>();
 builder.Services.AddScoped<ILabReportingEligibility, LabReportingEligibility>();
+builder.Services.AddScoped<IHomeDashboardService, HomeDashboardService>();
 builder.Services.AddHttpClient("EmrApi", client =>
 {
     var baseUrl = builder.Configuration["ApiSettings:BaseUrl"] ?? "https://localhost:5125";
@@ -174,6 +204,7 @@ builder.Services.AddScoped<IShiftMasterApiClient,        ShiftMasterApiClient>()
 builder.Services.AddScoped<IHousekeepingApiClient,       HousekeepingApiClient>();
 builder.Services.AddScoped<IConsentMasterApiClient,      ConsentMasterApiClient>();
 builder.Services.AddScoped<IDoctorCommissionApiClient,   DoctorCommissionApiClient>();
+builder.Services.AddScoped<IDoctorPayoutApiClient,       DoctorPayoutApiClient>();
 builder.Services.AddScoped<IGeneralMasterApiClient,     GeneralMasterApiClient>();
 builder.Services.AddScoped<IOpdMasterApiClient,        OpdMasterApiClient>();
 builder.Services.AddScoped<ILabTestCategoryApiClient,   LabTestCategoryApiClient>();
@@ -205,11 +236,13 @@ builder.Services.AddScoped<ILabReportingConditionApiClient,   LabReportingCondit
 builder.Services.AddScoped<ILabReportDispatchApiClient,       LabReportDispatchApiClient>();
 builder.Services.AddScoped<ILabUnapproveApiClient,             LabUnapproveApiClient>();
 builder.Services.AddScoped<IPathologistDashboardApiClient,    PathologistDashboardApiClient>();
+builder.Services.AddScoped<ILabCriticalApiClient,             LabCriticalApiClient>();
 builder.Services.AddScoped<ILabDefaultSignatoryApiClient,     LabDefaultSignatoryApiClient>();
 builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowApiClient>();
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
 builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
+builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotificationService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 
 builder.Services.AddHttpContextAccessor();
@@ -243,6 +276,27 @@ builder.Services.AddAuthorization();
 builder.Services.AddSingleton<IQueryStringEncryptionService, QueryStringEncryptionService>();
 
 var app = builder.Build();
+
+if (!app.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(licensingOptions.EmailPickupDirectory))
+    app.Logger.LogWarning("Licensing:EmailPickupDirectory is ignored outside Development; licence e-mails are sent by SMTP.");
+if (licensingOptions.ConfigurationProblem != null)
+    app.Logger.LogError("eCare360 licensing is not configured, every page is blocked until it is: {Problem}", licensingOptions.ConfigurationProblem);
+app.Logger.LogInformation("eCare360 licensing: licence database {Database} (login from {LoginSource}); local keys {KeyLocation}.",
+    licensingOptions.CentralDatabase, licensingOptions.CentralLoginSource, licensingOptions.LocalKeyLocation ?? "from configuration");
+
+// licensing on: read the hardware fingerprint and make sure the local licence tables exist, off the request path
+if (licensingOptions.Enabled)
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            _ = app.Services.GetRequiredService<EMR.Web.Services.Licensing.IMachineFingerprintProvider>().Current;
+            await app.Services.GetRequiredService<EMR.Web.Services.Licensing.ILocalLicenseRepository>().EnsureSchemaAsync();
+        }
+        catch (Exception ex) { app.Logger.LogWarning(ex, "Licensing warm-up failed; it is retried on the first request."); }
+    });
+}
 
 // Configure the HTTP request pipeline.
 
@@ -351,6 +405,9 @@ app.Use(async (context, next) =>
 
     await next();
 });
+
+// eCare360 licence gate: after sign-in (so a blocked licence signs the user out), before authorization
+app.UseMiddleware<EMR.Web.Middleware.LicensingMiddleware>();
 
 app.UseAuthorization();
 

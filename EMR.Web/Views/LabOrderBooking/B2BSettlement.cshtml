@@ -362,6 +362,9 @@
                 resetPartnerUI();
                 $('#tblBillsBody').html(`<tr><td colspan="10" class="text-center py-4 text-danger">Error connecting to server.</td></tr>`);
             });
+            }, function() {
+                resetPartnerUI();
+                $('#tblBillsBody').html(`<tr><td colspan="10" class="text-center py-4 text-danger">Error connecting to server.</td></tr>`);
             });
         }
 
