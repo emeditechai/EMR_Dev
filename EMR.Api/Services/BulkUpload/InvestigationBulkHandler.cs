@@ -65,7 +65,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             [
                 new() { Header = CCode, Note = "Leave blank to create a new investigation (code is generated, e.g. LAB-00012). Fill with an existing code to update it.", Width = 14 },
                 new() { Header = CName, Required = true, Note = "Unique within the department. Max 200 characters.", Width = 36 },
-                new() { Header = CReportingName, AllowNone = true, Note = "Optional. Name printed on reports; blank uses the Test Name. Max 200 characters.", Width = 36 },
+                new() { Header = CReportingName, AllowNone = true, Note = "Optional. Name printed on reports. Blank on a new test saves the Test Name; on an existing test it keeps the current value, and NONE resets it to the Test Name. Max 200 characters.", Width = 36 },
                 new() { Header = CDept, RefSheet = RefDept, Note = "Optional: taken from the Test Category when blank. If given, it must match the category's department.", Width = 26 },
                 new() { Header = CCat, Required = true, RefSheet = RefCat, Note = "Must belong to the department.", Width = 30 },
                 new() { Header = CSub, AllowNone = true, RefSheet = RefSub, Note = "Must belong to the Test Category (see REF_SubCategory).", Width = 30 },
