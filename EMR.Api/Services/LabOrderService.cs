@@ -55,6 +55,13 @@ namespace EMR.Api.Services
             p.Add("@AgentType", request.AgentType);
             p.Add("@B2BTotal", request.B2BTotal);
             p.Add("@ReferralDoctorId", request.ReferralDoctorId is > 0 ? request.ReferralDoctorId : null);
+            // misc charges (SQLScripts/2240): only ids and quantities - the procedure prices them from the master
+            var miscTable = new DataTable();
+            miscTable.Columns.Add("MiscChargeId", typeof(int));
+            miscTable.Columns.Add("Quantity", typeof(int));
+            foreach (var m in request.MiscCharges ?? [])
+                if (m.MiscChargeId > 0) miscTable.Rows.Add(m.MiscChargeId, m.Quantity);
+            p.Add("@MiscCharges", miscTable.AsTableValuedParameter("dbo.udt_LabOrderMiscCharge"));
             p.Add("@LabOrderId", dbType: DbType.Int32, direction: ParameterDirection.Output);
             p.Add("@BillNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
             p.Add("@TokenNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
@@ -118,7 +125,7 @@ namespace EMR.Api.Services
             return await connection.QueryAsync<SubCategoryDto>("dbo.usp_GetLabSubCategories", new { CategoryId = categoryId }, commandType: CommandType.StoredProcedure);
         }
 
-        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null)
+        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null)
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -131,7 +138,11 @@ namespace EMR.Api.Services
                     Search = search,
                     PageNumber = pageNumber,
                     PageSize = pageSize,
-                    IsB2B = isB2B
+                    IsB2B = isB2B,
+                    DateType = dateType is "B" or "C" ? dateType : null,  // script 2220; anything else = order date
+                    PaymentFilter = paymentFilter is "DUE" or "PARTIAL" or "PAID" or "PCAN" or "FCAN" ? paymentFilter : null,  // script 2233
+                    AgentType = agentType is "F" or "C" ? agentType : null,                                                 // script 2234
+                    AgentId = agentId is > 0 ? agentId : null
                 },
                 commandType: CommandType.StoredProcedure
             );

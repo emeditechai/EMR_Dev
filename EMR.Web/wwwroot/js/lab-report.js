@@ -13,7 +13,12 @@
  *   cols:      [{ label, cls, html: (row, h) => html, text: (row, h) => export value, sum: field, money }],
  *   rowClass:  row => css class,
  *   afterLoad: (data, h) => void   optional: draws the page's own panel (#lrExtra) after each load
+ *   params:    () => ({ key: value })   optional: extra query values sent with every load (e.g. a page tab)
+ *   cols[].when / groups[].when: () => bool   optional: the column / group is shown only while it returns true
+ *   expand:    { has: (row, data) => bool, html: (row, data, h) => html }   optional: rows open to show their lines
+ *   exportExtra: (rows, data, h) => ({ sheet, title, head, rows })   optional: an extra Excel sheet / PDF page (Detail view)
  * }
+ * init returns { reload } so a page can reload after changing what params() returns.
  */
 window.LabReport = (function () {
     const h = {
@@ -29,7 +34,10 @@ window.LabReport = (function () {
 
     function init(cfg) {
         let data = null, view = 'summary', drill = null, seq = 0;
-        const groups = cfg.groups.filter(g => !g.adminOnly || cfg.seeAll);
+        const allGroups = cfg.groups.filter(g => !g.adminOnly || cfg.seeAll);
+        let groups = allGroups.filter(g => !g.when || g.when());
+        const cols = () => cfg.cols.filter(c => !c.when || c.when());
+        const open = new Set();   // expanded rows (expand option)
         const filters = (cfg.filters || []).filter(f => !f.adminOnly || cfg.seeAll);
 
         // report-specific filters, before the search box
@@ -40,8 +48,14 @@ window.LabReport = (function () {
                 .insertBefore('#lrSearchCol');
         });
         $('#lrSearch').attr('placeholder', cfg.searchPlaceholder || 'Search...');
-        $('#lrGroup').html(groups.map(g => `<option value="${g.key}">${h.esc(g.label)}</option>`).join(''));
-        $('#lrDetail thead').html('<tr><th class="ps-3">#</th>' + cfg.cols.map(c => `<th class="${c.cls || ''}">${h.esc(c.label)}</th>`).join('') + '</tr>');
+        function buildChrome() {
+            const keep = $('#lrGroup').val();
+            groups = allGroups.filter(g => !g.when || g.when());
+            $('#lrGroup').html(groups.map(g => `<option value="${g.key}">${h.esc(g.label)}</option>`).join(''));
+            if (keep && groups.some(g => g.key === keep)) $('#lrGroup').val(keep);
+            $('#lrDetail thead').html('<tr><th class="ps-3">#</th>' + cols().map(c => `<th class="${c.cls || ''}">${h.esc(c.label)}</th>`).join('') + '</tr>');
+        }
+        buildChrome();
 
         function setRange(r) {
             const t = new Date(); let f = new Date(t), to = new Date(t);
@@ -59,23 +73,34 @@ window.LabReport = (function () {
             if (!from || !to) return;
             const q = { report: cfg.report, fromDate: from, toDate: to, search: $('#lrSearch').val() };
             $('.lr-filter').each(function () { q[$(this).data('id')] = $(this).val(); });
-            $('#lrError').addClass('d-none'); $('#lrLoading').removeClass('d-none'); $('#lrEmpty').addClass('d-none');
+            if (cfg.params) Object.assign(q, cfg.params() || {});
+            buildChrome(); open.clear();
+            $('#lrError').addClass('d-none'); $('#lrEmpty').addClass('d-none');
+            // shimmer placeholders in the three zones: widgets, graphs (pages that draw one), list
+            $('#lrKpis').html(EmrShimmer.kpiCards(cfg.kpis.length));
+            if (cfg.afterLoad) $('#lrExtra').html(EmrShimmer.chartBlock(220));
+            $('#lrLoading').html(EmrShimmer.listBlock(8, 6)).removeClass('d-none');
             $('#lrSummary tbody, #lrDetail tbody, #lrSummary tfoot, #lrDetail tfoot').empty();
             $('#lrExcel, #lrPdf, #lrPrint').prop('disabled', true);
             $('#lrRange').text(h.fmtD(from) + (from === to ? '' : ' – ' + h.fmtD(to)));
             $.get(cfg.dataUrl, q).done(res => {
                 if (my !== seq) return;
-                $('#lrLoading').addClass('d-none');
-                if (!res || !res.success) { $('#lrError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+                if (!res || !res.success) { clearShimmer(); $('#lrError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
                 data = res.data || {}; drill = null;
-                fillOptions(); renderKpis(); render();
-                if (cfg.afterLoad) cfg.afterLoad(data, h);
+                // one paint each, in reading order: widgets, then the graphs, then the list
+                EmrShimmer.stage([
+                    () => { fillOptions(); renderKpis(); },
+                    () => { if (cfg.afterLoad) cfg.afterLoad(data, h); },
+                    () => { $('#lrLoading').addClass('d-none').empty(); render(); }
+                ], () => my === seq);
             }).fail(() => {
                 if (my !== seq) return;
-                $('#lrLoading').addClass('d-none');
+                clearShimmer();
                 $('#lrError').text('Server error while loading the report. Please try again.').removeClass('d-none');
             });
         }
+
+        function clearShimmer() { $('#lrKpis, #lrExtra').empty(); $('#lrLoading').addClass('d-none').empty(); }
 
         function fillOptions() {
             filters.filter(f => f.fromOptions).forEach(f => {
@@ -135,14 +160,21 @@ window.LabReport = (function () {
         function renderDetail() {
             const rows = detailRows();
             if (!rows.length) {
-                $('#lrDetail tbody').html(`<tr><td colspan="${cfg.cols.length + 1}" class="text-center text-muted py-4">No records in this group for the selected period.</td></tr>`);
+                $('#lrDetail tbody').html(`<tr><td colspan="${cols().length + 1}" class="text-center text-muted py-4">No records in this group for the selected period.</td></tr>`);
                 $('#lrDetail tfoot').empty(); $('#lrCount').text('0 record(s)');
                 return;
             }
-            $('#lrDetail tbody').html(rows.map((r, i) => `<tr class="${cfg.rowClass ? cfg.rowClass(r) : ''}"><td class="ps-3 text-muted">${i + 1}</td>` +
-                cfg.cols.map(c => `<td class="${c.cls || ''}">${c.html(r, h)}</td>`).join('') + '</tr>').join(''));
-            const hasSums = cfg.cols.some(c => c.sum);
-            $('#lrDetail tfoot').html(hasSums ? '<tr><td class="ps-3"></td>' + cfg.cols.map((c, i) => {
+            const cc = cols(), ex = cfg.expand;
+            $('#lrDetail tbody').html(rows.map((r, i) => {
+                const can = ex && ex.has(r, data), isOpen = can && open.has(i);
+                return `<tr class="${cfg.rowClass ? cfg.rowClass(r) : ''} ${can ? 'lr-has-lines' : ''} ${isOpen ? 'lr-open' : ''}" data-i="${i}">
+                    <td class="ps-3 text-muted text-nowrap">${can ? '<button type="button" class="lr-tog" title="Show the lines" aria-label="Show the lines"><i class="bi bi-chevron-right"></i></button>' : ''}${i + 1}</td>` +
+                    cc.map(c => `<td class="${c.cls || ''}">${c.html(r, h)}</td>`).join('') + '</tr>' +
+                    (can ? `<tr class="lr-lines ${isOpen ? '' : 'd-none'}" data-for="${i}"><td colspan="${cc.length + 1}">${ex.html(r, data, h)}</td></tr>` : '');
+            }).join(''));
+            $('#lrExpandBox').toggleClass('d-none', !(ex && rows.some(r => ex.has(r, data))));
+            const hasSums = cc.some(c => c.sum);
+            $('#lrDetail tfoot').html(hasSums ? '<tr><td class="ps-3"></td>' + cc.map((c, i) => {
                 if (c.sum) return `<td class="text-end amt">${h.money(rows.reduce((a, r) => a + (Number(r[c.sum]) || 0), 0))}</td>`;
                 return i === 0 ? `<td>Total (${rows.length})</td>` : '<td></td>';
             }).join('') + '</tr>' : '');
@@ -157,23 +189,33 @@ window.LabReport = (function () {
                          rows: groupRows().map(r => [$('<div>').html(g.name ? g.name(r, h) : h.esc(r.GroupName)).text(),
                                                      ...cfg.groupCols.map(c => c.money || c.num ? (Number(r[c.field]) || 0) : $('<div>').html(c.fmt ? c.fmt(r[c.field], h) : h.esc(r[c.field] ?? '')).text())]) };
             }
-            const ec = cfg.cols.filter(c => !c.noExport);   // buttons / links are left out of exports
+            const ec = cols().filter(c => !c.noExport);   // buttons / links are left out of exports
             return { head: ec.map(c => c.label),
                      rows: detailRows().map(r => ec.map(c => c.text ? c.text(r, h) : $('<div>').html(c.html(r, h)).text().trim())) };
         }
         const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_${$('#lrFrom').val()}_to_${$('#lrTo').val()}`;
-        $('#lrExcel').on('click', () => {
+        // the export libraries are fetched on the first Excel / PDF click, not with the page
+        $('#lrExcel').on('click', function () { EmrExportLibs.run(this, 'excel', () => {
             const t = exportTable(); const ws = XLSX.utils.aoa_to_sheet([t.head, ...t.rows]);
-            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Report'); XLSX.writeFile(wb, fileBase() + '.xlsx');
-        });
-        $('#lrPdf').on('click', () => {
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Report');
+            const extra = view === 'detail' && cfg.exportExtra ? cfg.exportExtra(detailRows(), data, h) : null;
+            if (extra && extra.rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([extra.head, ...extra.rows]), extra.sheet || 'Lines');
+            XLSX.writeFile(wb, fileBase() + '.xlsx');
+        }); });
+        $('#lrPdf').on('click', function () { EmrExportLibs.run(this, 'pdf', () => {
             const t = exportTable(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
             doc.setFontSize(13); doc.text(cfg.title, 40, 36);
             doc.setFontSize(9); doc.text(`${cfg.branchName ? 'Branch: ' + cfg.branchName + '   ' : ''}Period: ${$('#lrRange').text()}   View: ${view === 'summary' ? 'Summary by ' + groupDef().label : 'Detail'}`, 40, 52);
             doc.autoTable({ startY: 62, head: [t.head], body: t.rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(2) : String(v ?? ''))),
                             styles: { fontSize: 7, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] } });
+            const extra = view === 'detail' && cfg.exportExtra ? cfg.exportExtra(detailRows(), data, h) : null;
+            if (extra && extra.rows.length) {
+                doc.addPage(); doc.setFontSize(12); doc.text(extra.title || extra.sheet || 'Lines', 40, 36);
+                doc.autoTable({ startY: 46, head: [extra.head], body: extra.rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(2) : String(v ?? ''))),
+                                styles: { fontSize: 7, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] } });
+            }
             doc.save(fileBase() + '.pdf');
-        });
+        }); });
         $('#lrPrint').on('click', () => window.print());
 
         // ── events ──
@@ -192,10 +234,23 @@ window.LabReport = (function () {
             view = 'detail'; $('.btn-view').removeClass('active').filter('[data-view="detail"]').addClass('active'); render();
         });
         $(document).on('click', '#lrClearDrill', e => { e.preventDefault(); drill = null; render(); });
+        function toggleRow(i, show) {
+            const on = show ?? !open.has(i);
+            if (on) open.add(i); else open.delete(i);
+            $(`#lrDetail tr.lr-has-lines[data-i="${i}"]`).toggleClass('lr-open', on);
+            $(`#lrDetail tr.lr-lines[data-for="${i}"]`).toggleClass('d-none', !on);
+        }
+        $('#lrDetail').on('click', 'tr.lr-has-lines', function (e) {
+            if ($(e.target).closest('a').length) return;   // links in the row keep working
+            toggleRow(parseInt($(this).data('i')));
+        });
+        $(document).on('click', '#lrExpandAll', () => $('#lrDetail tr.lr-has-lines').each(function () { toggleRow(parseInt($(this).data('i')), true); }));
+        $(document).on('click', '#lrCollapseAll', () => $('#lrDetail tr.lr-has-lines').each(function () { toggleRow(parseInt($(this).data('i')), false); }));
         window.addEventListener('pageshow', e => { if (e.persisted) { setRange(cfg.defaultRange || 'today'); load(); } });
 
         setRange(cfg.defaultRange || 'today');
         load();
+        return { reload: load };
     }
 
     return { init, helpers: h };

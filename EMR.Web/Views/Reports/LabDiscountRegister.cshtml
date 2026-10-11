@@ -26,6 +26,21 @@
     .bar { height:5px;border-radius:3px;background:#f1f5f9;overflow:hidden;margin-top:3px;min-width:80px; }
     .bar > span { display:block;height:100%;background:#d97706; }
     tr.row-cancelled td { background:#fff7f7; }
+    /* Detail: bill-wise, test-wise discount (expandable) */
+    .dr-tog { border:0;background:transparent;padding:0 4px 0 0;color:#b45309;font-size:.8rem;line-height:1; }
+    .dr-tog .bi { transition:transform .15s ease; display:inline-block; }
+    tr.bill-row.open .dr-tog .bi { transform:rotate(90deg); }
+    tr.bill-row.has-lines { cursor:pointer; } tr.bill-row.has-lines:hover td { background:#fffbeb; }
+    tr.bill-row.open td { background:#fff7ed; }
+    tr.dr-lines > td { background:#fffbf5 !important; padding:.35rem .75rem .75rem 2.4rem !important; }
+    .dr-sub { width:100%; border:1px solid #fde7c7; border-radius:.5rem; overflow:hidden; background:#fff; }
+    .dr-sub th { font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--dr-muted);background:#fff7ed;padding:.35rem .6rem;white-space:nowrap; }
+    .dr-sub td { font-size:.76rem;padding:.3rem .6rem;border-top:1px solid #f5ecdf; }
+    .dr-sub tfoot td { font-weight:800;background:#fffaf2; }
+    .dr-sub .head-chip { font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:999px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;white-space:nowrap; }
+    .dr-sub .head-chip.pkg { background:#f0fdf4;color:#166534;border-color:#bbf7d0; }
+    .dr-sub tr.line-cancelled td { color:#94a3b8;text-decoration:line-through; }
+    .dr-note { font-size:.7rem;color:#92400e;margin-top:.35rem; }
     @@media print { .emr-topbar, footer, .no-print { display:none !important; } .tbl-scroll { max-height:none;overflow:visible; } }
 </style>
 }
@@ -117,7 +132,13 @@
                 </div>
                 <span id="drillChip" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle d-none"></span>
             </div>
-            <span class="fs-8 text-muted" id="lblCount"></span>
+            <div class="d-flex align-items-center gap-2">
+                <div id="expandBox" class="btn-group btn-group-sm no-print d-none" role="group" aria-label="Test-wise rows">
+                    <button type="button" class="btn btn-outline-secondary py-0" id="btnExpandAll" title="Show the test-wise discount of every bill"><i class="bi bi-arrows-expand me-1"></i>Expand all</button>
+                    <button type="button" class="btn btn-outline-secondary py-0" id="btnCollapseAll"><i class="bi bi-arrows-collapse me-1"></i>Collapse all</button>
+                </div>
+                <span class="fs-8 text-muted" id="lblCount"></span>
+            </div>
         </div>
         <div class="tbl-scroll">
             <table class="table table-hover mb-0 dr-table" id="tblSummary">
@@ -132,17 +153,17 @@
             </table>
         </div>
         <div id="stateEmpty" class="text-center text-muted py-5 d-none"><i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>No discounted bills for the selected filters.</div>
-        <div id="stateLoading" class="text-center text-muted py-5 d-none"><span class="spinner-border spinner-border-sm me-2"></span>Loading discount register&hellip;</div>
+        @* filled with a shimmer list while loading *@
+        <div id="stateLoading" class="d-none" role="status" aria-label="Loading discount register"></div>
     </div>
 </div>
 
 @section Scripts {
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/emr-shimmer.js" asp-append-version="true"></script>
 <script>
 (function () {
     const dataUrl = '@Url.Action("GetLabDiscountRegisterData", "Reports")';
+    const exportUrl = '@Url.Action("ExportLabDiscountRegister", "Reports")';
     const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
     const branchName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(branchName))';
     const GROUP_LABEL = { byApprover: 'Approved by', byReason: 'Reason', byEnteredBy: 'Entered by', byDate: 'Bill date' };
@@ -164,22 +185,29 @@
         $('.btn-quick').removeClass('active').filter(`[data-range="${r}"]`).addClass('active');
     }
 
+    function clearShimmer() { EmrShimmer.off('.dr-kpi'); $('#stateLoading').addClass('d-none').empty(); }
+
     function load() {
         const seq = ++loadSeq, from = $('#txtFrom').val(), to = $('#txtTo').val();
         if (!from || !to) return;
-        $('#stateError').addClass('d-none'); $('#stateLoading').removeClass('d-none'); $('#stateEmpty').addClass('d-none');
+        $('#stateError').addClass('d-none'); $('#stateEmpty').addClass('d-none');
+        // shimmer placeholders: widgets, then the list (this report has no graphs)
+        EmrShimmer.on('.dr-kpi'); $('#stateLoading').html(EmrShimmer.listBlock(8, 6)).removeClass('d-none');
         $('#tbSummary, #tbDetail').empty(); $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', true);
         $('#lblRange').text(fmtD(from) + (from === to ? '' : ' – ' + fmtD(to)));
         $.get(dataUrl, { fromDate: from, toDate: to, billingType: $('#selType').val(), approvedBy: $('#selApprover').val() || null,
                          enteredBy: $('#selEntered').val() || null, search: $('#txtSearch').val() })
         .done(res => {
             if (seq !== loadSeq) return;
-            $('#stateLoading').addClass('d-none');
-            if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
-            data = res.data; drill = null;
-            fillFilters(); renderKpis(); render();
+            if (!res || !res.success) { clearShimmer(); $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+            data = res.data; drill = null; open.clear(); indexLines();
+            // one paint each, in reading order: widgets, then the list
+            EmrShimmer.stage([
+                () => { fillFilters(); renderKpis(); EmrShimmer.off('.dr-kpi'); },
+                () => { $('#stateLoading').addClass('d-none').empty(); render(); }
+            ], () => seq === loadSeq);
         })
-        .fail(() => { if (seq !== loadSeq) return; $('#stateLoading').addClass('d-none'); $('#stateError').text('Server error while loading the report. Please try again.').removeClass('d-none'); });
+        .fail(() => { if (seq !== loadSeq) return; clearShimmer(); $('#stateError').text('Server error while loading the report. Please try again.').removeClass('d-none'); });
     }
 
     function fillFilters() {
@@ -207,6 +235,50 @@
         return iso(new Date(b.billDate)) === name;
     }
 
+    // ── test-wise discount of one bill (RS7) ──
+    let linesByBill = new Map();
+    const open = new Set();
+    function indexLines() {
+        linesByBill = new Map();
+        (data?.lines || []).forEach(l => { if (!linesByBill.has(l.labOrderId)) linesByBill.set(l.labOrderId, []); linesByBill.get(l.labOrderId).push(l); });
+    }
+    // what a line's discount is: a department-wise % / ₹, or its share of the bill's overall discount
+    function lineDiscLabel(b, l) {
+        if (!(l.discountAmount > 0)) return '—';
+        if (b.discountType === 'D') {
+            if (l.lineDiscountType === 'P') return Number(l.lineDiscountValue || 0) + '% of ' + esc(l.headName);
+            if (l.lineDiscountType === 'F') return money(l.lineDiscountValue) + ' on ' + esc(l.headName);
+        }
+        return 'share of bill discount';
+    }
+    function linesTable(b) {
+        const ls = linesByBill.get(b.labOrderId) || [];
+        if (!ls.length) return '<div class="text-muted fs-8">No test details recorded for this bill.</div>';
+        const t = ls.reduce((a, l) => l.isActive ? { m: a.m + l.mrp, d: a.d + l.discountAmount, n: a.n + l.netAmount } : a, { m: 0, d: 0, n: 0 });
+        let note = '';
+        if (b.discountAmount > 0 && t.d === 0) note = 'The discount was given on the bill total, not split by test.';
+        else if (Math.abs(t.d - b.discountAmount) >= 0.01) note = `The tests carry ${money(t.d)} of the bill's ${money(b.discountAmount)} discount.`;
+        return `<table class="dr-sub"><thead><tr><th>#</th><th>Test</th><th>Department / head</th><th class="text-end">MRP</th><th>Discount given as</th>
+                    <th class="text-end">Discount</th><th class="text-end">Net</th></tr></thead><tbody>` +
+            ls.map((l, i) => `<tr class="${l.isActive ? '' : 'line-cancelled'}">
+                <td class="text-muted">${i + 1}</td>
+                <td><span class="fw-semibold">${esc(l.itemName)}</span> <span class="text-muted fs-9">${esc(l.itemType || '')}${l.isActive ? '' : ' · cancelled'}</span></td>
+                <td><span class="head-chip ${l.headName === 'Packages' ? 'pkg' : ''}">${esc(l.headName)}</span></td>
+                <td class="text-end amt">${money(l.mrp)}</td>
+                <td class="fs-8">${lineDiscLabel(b, l)}</td>
+                <td class="text-end amt fw-bold ${l.discountAmount > 0 ? 'text-warning-emphasis' : 'text-muted'}">${l.discountAmount > 0 ? '−' + money(l.discountAmount) : '—'}</td>
+                <td class="text-end amt">${money(l.netAmount)}</td></tr>`).join('') +
+            `</tbody><tfoot><tr><td></td><td colspan="2" class="text-end">Total</td><td class="text-end amt">${money(t.m)}</td><td></td>
+                <td class="text-end amt text-warning-emphasis">${t.d > 0 ? '−' + money(t.d) : '—'}</td><td class="text-end amt">${money(t.n)}</td></tr></tfoot></table>` +
+            (note ? `<div class="dr-note"><i class="bi bi-info-circle me-1"></i>${note}</div>` : '');
+    }
+    function toggleBill(id, show) {
+        const on = show ?? !open.has(id);
+        if (on) open.add(id); else open.delete(id);
+        $(`#tbDetail tr.bill-row[data-id="${id}"]`).toggleClass('open', on);
+        $(`#tbDetail tr.dr-lines[data-for="${id}"]`).toggleClass('d-none', !on);
+    }
+
     function render() {
         const bills = (data?.bills || []).filter(b => !drill || inGroup(b, drill.key, drill.name));
         const empty = !(data?.bills || []).length;
@@ -215,6 +287,7 @@
         $('#tblSummary').toggleClass('d-none', view !== 'summary' || empty);
         $('#tblDetail').toggleClass('d-none', view !== 'detail' || empty);
         $('#grpBox').toggleClass('d-none', view !== 'summary');
+        $('#expandBox').toggleClass('d-none', view !== 'detail' || empty || !(data?.lines || []).length);
         $('#drillChip').toggleClass('d-none', !(view === 'detail' && drill))
             .html(drill ? `${esc(GROUP_LABEL[drill.key])}: <strong>${esc(drill.key === 'byDate' ? fmtD(drill.name) : drill.name)}</strong> <a href="#" id="clearDrill" class="ms-1 text-reset">×</a>` : '');
         if (empty) { $('#lblCount').text(''); return; }
@@ -231,14 +304,14 @@
             $('#fsBills').text(tot.b); $('#fsGross').text(money(tot.g)); $('#fsDisc').text(money(tot.d)); $('#fsPct').text(pct(tot.d, tot.g));
             $('#lblCount').text(`${rows.length} group(s) · click a line to see its bills`);
         } else {
-            $('#tbDetail').html(bills.map((b, i) => `<tr class="${b.isBillActive ? '' : 'row-cancelled'}">
-                <td class="ps-3 text-muted">${i + 1}</td>
+            $('#tbDetail').html(bills.map((b, i) => `<tr class="bill-row ${linesByBill.has(b.labOrderId) ? 'has-lines' : ''} ${open.has(b.labOrderId) ? 'open' : ''} ${b.isBillActive ? '' : 'row-cancelled'}" data-id="${b.labOrderId}">
+                <td class="ps-3 text-muted text-nowrap">${linesByBill.has(b.labOrderId) ? '<button type="button" class="dr-tog" title="Show the test-wise discount" aria-label="Show tests"><i class="bi bi-chevron-right"></i></button>' : ''}${i + 1}</td>
                 <td><div class="fw-semibold font-monospace">${esc(b.billNo)}</div><div class="text-muted fs-9">${esc(b.tokenNo || '')}${b.isBillActive ? '' : ' · <span class="text-danger">cancelled</span>'}</div></td>
                 <td class="text-nowrap">${fmtD(b.billDate)}</td>
                 <td><div class="fw-semibold">${esc(b.patientName)}</div><div class="text-muted fs-9">${esc(b.patientCode)}${b.phoneNumber ? ' · ' + esc(b.phoneNumber) : ''}</div></td>
                 <td>${esc(b.billingType)}</td>
                 <td class="text-end amt">${money(b.grossAmount)}</td>
-                <td class="text-end amt fw-bold text-warning-emphasis">${money(b.discountAmount)}<div class="text-muted fs-9">${b.discountType === 'P' && b.discountValue ? Number(b.discountValue) + '%' : (b.discountType === 'F' ? 'fixed' : '')}</div></td>
+                <td class="text-end amt fw-bold text-warning-emphasis">${money(b.discountAmount)}<div class="text-muted fs-9">${b.discountType === 'P' && b.discountValue ? Number(b.discountValue) + '%' : (b.discountType === 'F' ? 'fixed' : (b.discountType === 'D' ? 'by department' : ''))}</div></td>
                 <td class="text-end">${(Number(b.discountPercent) || 0).toFixed(1)}%</td>
                 <td class="text-end amt">${money(b.netAmount)}</td>
                 <td class="text-end amt ${b.balanceDue > 0 ? 'text-danger' : 'text-muted'}">${money(b.balanceDue)}</td>
@@ -246,34 +319,50 @@
                 <td>${b.approvedBy ? esc(b.approvedBy) + (b.approvedDate ? `<div class="text-muted fs-9">${fmtD(b.approvedDate)}</div>` : '') : '<span class="reason-none">Not recorded</span>'}</td>
                 <td class="text-nowrap">${esc(b.enteredBy || '')}</td>
                 <td class="text-center no-print"><a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${b.labOrderId}"><i class="bi bi-printer"></i></a></td>
-            </tr>`).join(''));
+            </tr>` + (linesByBill.has(b.labOrderId)
+                ? `<tr class="dr-lines ${open.has(b.labOrderId) ? '' : 'd-none'}" data-for="${b.labOrderId}"><td colspan="14">${linesTable(b)}</td></tr>` : '')).join(''));
             const g = bills.reduce((a, b) => a + (b.grossAmount || 0), 0), d = bills.reduce((a, b) => a + (b.discountAmount || 0), 0);
             $('#fdCount').text(bills.length); $('#fdGross').text(money(g)); $('#fdDisc').text(money(d));
             $('#lblCount').text(`${bills.length} bill(s)`);
         }
     }
 
-    // ── export (whichever view is on screen) ──
-    function exportRows() {
-        if (view === 'summary') {
-            const key = $('#selGroup').val();
-            return { head: [GROUP_LABEL[key], 'Bills', 'Gross', 'Discount', 'Discount %'],
-                     rows: (data[key] || []).map(r => [key === 'byDate' ? fmtD(r.groupName) : r.groupName, r.billCount, r.grossAmount, r.discountAmount, pct(r.discountAmount, r.grossAmount)]) };
-        }
-        const bills = (data.bills || []).filter(b => !drill || inGroup(b, drill.key, drill.name));
-        return { head: ['Bill No', 'Token', 'Bill Date', 'Patient', 'Patient ID', 'Type', 'Gross', 'Discount', 'Discount %', 'Net', 'Balance', 'Reason', 'Approved By', 'Entered By'],
-                 rows: bills.map(b => [b.billNo, b.tokenNo, fmtD(b.billDate), b.patientName, b.patientCode, b.billingType, b.grossAmount, b.discountAmount,
-                                       (Number(b.discountPercent) || 0).toFixed(1) + '%', b.netAmount, b.balanceDue, b.discountReason || 'Not recorded', b.approvedBy || 'Not recorded', b.enteredBy]) };
+    // ── export: built on the server (Excel / PDF), bill by bill with each bill's tests and their discount ──
+    // same filters as the data on screen; from the Detail tab of a Summary line, only that group's bills
+    function exportParams(format) {
+        const p = { format, fromDate: $('#txtFrom').val(), toDate: $('#txtTo').val(), billingType: $('#selType').val() || '',
+                    approvedBy: $('#selApprover').val() || '', enteredBy: $('#selEntered').val() || '', search: $('#txtSearch').val() || '' };
+        if (view === 'detail' && drill) { p.drillKey = drill.key; p.drillName = drill.name; }
+        return new URLSearchParams(p).toString();
     }
-    const fileBase = () => `Discount_Register_${view}_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`;
-    $('#btnExcel').on('click', () => { const x = exportRows(); const ws = XLSX.utils.aoa_to_sheet([x.head, ...x.rows]); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Discount Register'); XLSX.writeFile(wb, fileBase() + '.xlsx'); });
-    $('#btnPdf').on('click', () => {
-        const x = exportRows(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-        doc.setFontSize(13); doc.text('Discount Register', 40, 36);
-        doc.setFontSize(9); doc.text(`${branchName ? 'Branch: ' + branchName + '   ' : ''}Period: ${$('#lblRange').text()}   Total discount: ${$('#kTotal').text().replace('₹', 'Rs. ')}`, 40, 52);
-        doc.autoTable({ startY: 62, head: [x.head], body: x.rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(2) : (v ?? ''))), styles: { fontSize: 7.5, cellPadding: 3 }, headStyles: { fillColor: [180, 83, 9] } });
-        doc.save(fileBase() + '.pdf');
-    });
+    async function downloadExport(format, $btn) {
+        const html = $btn.html();
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>' + (format === 'pdf' ? 'PDF' : 'Excel'));
+        try {
+            const res = await fetch(exportUrl + '?' + exportParams(format), { credentials: 'same-origin' });
+            const type = res.headers.get('content-type') || '';
+            if (!res.ok || type.includes('json') || type.includes('text/html')) {
+                let msg = 'Unable to export the report. Please try again.';
+                if (type.includes('json')) { try { msg = (await res.json()).message || msg; } catch { } }
+                else if (res.status === 403) msg = 'You do not have permission to export this report.';
+                $('#stateError').text(msg).removeClass('d-none');
+                return;
+            }
+            const cd = res.headers.get('content-disposition') || '';
+            const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+            const name = m ? decodeURIComponent(m[1] || m[2]) : `Discount_Register.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+            const url = URL.createObjectURL(await res.blob());
+            const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            $('#stateError').addClass('d-none');
+        } catch {
+            $('#stateError').text('Server error while exporting the report. Please try again.').removeClass('d-none');
+        } finally {
+            $btn.prop('disabled', false).html(html);
+        }
+    }
+    $('#btnExcel').on('click', function () { downloadExport('excel', $(this)); });
+    $('#btnPdf').on('click', function () { downloadExport('pdf', $(this)); });
     $('#btnPrint').on('click', () => window.print());
 
     // ── events ──
@@ -290,6 +379,12 @@
         view = 'detail'; $('.btn-view').removeClass('active').filter('[data-view="detail"]').addClass('active'); render();
     });
     $(document).on('click', '#clearDrill', e => { e.preventDefault(); drill = null; render(); });
+    $('#tbDetail').on('click', 'tr.bill-row.has-lines', function (e) {
+        if ($(e.target).closest('a').length) return;   // the print button opens the bill
+        toggleBill(parseInt($(this).data('id')));
+    });
+    $('#btnExpandAll').on('click', () => $('#tbDetail tr.bill-row.has-lines').each(function () { toggleBill(parseInt($(this).data('id')), true); }));
+    $('#btnCollapseAll').on('click', () => $('#tbDetail tr.bill-row.has-lines').each(function () { toggleBill(parseInt($(this).data('id')), false); }));
     window.addEventListener('pageshow', e => { if (e.persisted) { setRange('month'); load(); } });
 
     setRange('month');

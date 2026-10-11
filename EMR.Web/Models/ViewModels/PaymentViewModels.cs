@@ -47,6 +47,11 @@ public class PaymentSummaryViewModel
     public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TotalPaid { get; set; }
+    /// <summary>What the bill's receipts add up to (PaymentDetail) - the figure a payment is checked against.</summary>
+    public decimal PaidFromReceipts { get; set; }
+    // membership benefit already on the bill (SQLScripts/2241); a benefit on tests blocks a manual discount
+    public decimal MembershipDiscountAmount { get; set; }
+    public decimal MembershipTestDiscount { get; set; }
     public decimal BalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
     public string? ReceiptNos { get; set; }
@@ -98,6 +103,35 @@ public class SavePaymentRequest
 
     // Line items (sent from client for snapshot + future line-level discount)
     public List<PaymentLineItemRow> LineItems { get; set; } = [];
+
+    /// <summary>B2C LAB department-wise discount (HeaderDiscountType "D"): one row per discount head - a department or
+    /// "PKG" for packages. The server recalculates every line from these; not sent = the overall discount as before.</summary>
+    public List<DepartmentDiscountRow>? DepartmentDiscounts { get; set; }
+
+    /// <summary>Double-payment guard: what the bill had received when the payment screen was opened (0 for a new bill).
+    /// When sent, the payment is refused if the bill's receipts no longer add up to this - another payment was saved
+    /// meanwhile (a second click, a retried request, another counter). Not sent = not checked (as before).</summary>
+    public decimal? ExpectedTotalPaid { get; set; }
+
+    /// <summary>Membership points paying part of a B2C LAB bill (SQLScripts/2236): the card, the points and the OTP
+    /// sent to the card holder for exactly these points. Not sent = no redemption.</summary>
+    public PointsRedeemRequest? PointsRedeem { get; set; }
+}
+
+public class PointsRedeemRequest
+{
+    public int CardId { get; set; }
+    public decimal Points { get; set; }
+    public int OtpId { get; set; }
+    public string? OtpCode { get; set; }
+}
+
+/// <summary>One discount head of a department-wise discount: GroupKey "D{DeptId}" or "PKG", Type "P" (%) or "F" (₹).</summary>
+public class DepartmentDiscountRow
+{
+    public string GroupKey { get; set; } = string.Empty;
+    public string Type { get; set; } = "P";
+    public decimal Value { get; set; }
 }
 
 public class PaymentDetailRow
@@ -132,6 +166,12 @@ public class PaymentLineItemRow
     public decimal SgstAmount { get; set; }
     public decimal IgstAmount { get; set; }
     public bool IsDiscountAllowed { get; set; } = true;
+    /// <summary>A LAB misc charge line (SQLScripts/2240): set by the server, never taken from the page.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int? LabOrderMiscChargeId { get; set; }
+    /// <summary>Membership benefit on the line (SQLScripts/2241): set by the server, part of LineDiscountAmount.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public decimal MembershipDiscountAmount { get; set; }
 }
 
 // ── Bill Payment Summary (for PrintBill view) ───────────────────────────────
@@ -197,4 +237,10 @@ public class SavePaymentResult
     public string? TokenNo { get; set; }
     /// <summary>Receipt number of the PaymentDetail rows saved by this call (NULL when nothing was collected).</summary>
     public string? ReceiptNo { get; set; }
+    // membership points on this bill (SQLScripts/2236)
+    public string? MembershipCardNo { get; set; }
+    public decimal PointsRedeemed { get; set; }
+    public decimal PointsRedeemedAmount { get; set; }
+    public decimal PointsEarned { get; set; }
+    public decimal PointsBalance { get; set; }
 }

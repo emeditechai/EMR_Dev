@@ -1,0 +1,35 @@
+@model EMR.Web.Models.ViewModels.MembershipPlanFormViewModel
+
+@{
+    ViewData["Title"] = "Edit Membership Plan";
+    ViewData["PageIcon"] = "bi-pencil-square";
+    ViewData["Breadcrumb"] = new[] { "Master", "General", "Membership Plan", "Edit" };
+}
+
+<div class="card emr-card">
+    <div class="card-body">
+        <form asp-action="Edit" asp-route-id="@Model.PlanId" method="post" id="planForm">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            @if (Model.CardsIssued > 0)
+            {
+                <div class="alert alert-warning py-2 small">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    @Model.CardsIssued card(s) are issued on this plan. Changes to fee and validity apply to cards issued from now on; benefit rules apply to every card of the plan.
+                </div>
+            }
+
+            <partial name="_Form" model="Model" />
+
+            <div class="mt-4 pt-3 border-top d-flex gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle me-1"></i>Update</button>
+                <a asp-action="Index" class="btn btn-light">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <partial name="_FormScripts" model="Model" />
+}

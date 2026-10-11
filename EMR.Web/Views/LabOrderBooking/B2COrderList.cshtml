@@ -1,8 +1,11 @@
 @model EMR.Web.Models.ViewModels.LabOrderPagedListViewModel
 @{
     ViewData["Title"] = "B2C Order List";
-    var fromDate = Model.FromDate ?? DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
+    var fromDate = Model.FromDate ?? DateTime.Today.ToString("yyyy-MM-dd");
     var toDate   = Model.ToDate   ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var dateType = Model.DateType == "C" ? "C" : "B";
+    var payStatus = (ViewBag.PaymentStatus as string) ?? string.Empty;   // payment status filter (script 2233)
+    var today    = DateTime.Today.ToString("yyyy-MM-dd");
     var from     = Model.TotalCount > 0 ? (Model.Page - 1) * Model.PageSize + 1 : 0;
     var to       = Math.Min(Model.Page * Model.PageSize, Model.TotalCount);
 }
@@ -94,18 +97,14 @@
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body py-2 px-3">
         <form method="get" asp-action="B2COrderList" class="row g-2 align-items-end">
-            @if (ViewBag.Branches is IEnumerable<SelectListItem> branchList && branchList.Any())
-            {
-                <div class="col-auto">
-                    <label class="form-label small fw-semibold mb-1">Branch</label>
-                    <select name="branchId" class="form-select form-select-sm" onchange="this.form.submit()">
-                        @foreach (var b in branchList)
-                        {
-                            <option value="@b.Value" selected="@(b.Selected ? "selected" : null)">@b.Text</option>
-                        }
-                    </select>
-                </div>
-            }
+            @* orders of the signed-in branch only; the date range applies to the booking or the bill date *@
+            <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1" for="ddlDateType">Date Filter</label>
+                <select name="dateType" id="ddlDateType" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="B" selected="@(dateType == "B" ? "selected" : null)">Booking Date</option>
+                    <option value="C" selected="@(dateType == "C" ? "selected" : null)">Bill Date (Created)</option>
+                </select>
+            </div>
             <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">From Date</label>
                 <input type="date" name="fromDate" value="@fromDate" class="form-control form-control-sm" />
@@ -128,6 +127,15 @@
                 </div>
             </div>
             <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1" for="ddlPaymentStatus">Payment Status</label>
+                <select name="paymentStatus" id="ddlPaymentStatus" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var (val, text) in new[] { ("", "All"), ("DUE", "Full Due"), ("PARTIAL", "Partial Due"), ("PAID", "Paid"), ("PCAN", "Partial Cancelled"), ("FCAN", "Full Cancelled") })
+                    {
+                        <option value="@val" selected="@(payStatus == val ? "selected" : null)">@text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">Per page</label>
                 <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
                     @foreach (var ps in new[] { 10, 25, 50, 100 })
@@ -142,11 +150,11 @@
                     <i class="bi bi-funnel-fill me-1"></i>Filter
                 </button>
                 <a asp-action="B2COrderList"
-                   asp-route-branchId="@Model.BranchId"
-                   asp-route-fromDate="@DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd")"
-                   asp-route-toDate="@DateTime.Today.ToString("yyyy-MM-dd")"
+                   asp-route-dateType="B"
+                   asp-route-fromDate="@today"
+                   asp-route-toDate="@today"
                    asp-route-pageSize="@Model.PageSize"
-                   class="btn btn-sm btn-outline-secondary">Reset</a>
+                   class="btn btn-sm btn-outline-secondary" title="Today's bookings">Reset</a>
             </div>
         </form>
     </div>
@@ -196,7 +204,7 @@
                             var payText  = o.PaymentStatus switch { "P" => "Paid", "R" => "Partial", _ => "Unpaid" };
                             var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
                             <tr data-search="@searchText">
-                                <td class="text-nowrap">@o.OrderDate.ToString("dd MMM yyyy HH:mm")</td>
+                                <td class="text-nowrap">@((o.CreatedDate > DateTime.MinValue ? o.CreatedDate : o.OrderDate).ToString("dd MMM yyyy HH:mm"))</td>
                                 <td class="text-nowrap">@(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")</td>
                                 <td>
                                     <span class="badge text-bg-light font-monospace border">@(o.BillNo ?? "—")</span>
@@ -238,9 +246,55 @@
                                         <span class="text-muted small">—</span>
                                     }
                                 </td>
-                                <td class="text-center"><span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span></td>
+                                @{
+                                    // tests cancelled after billing / refunds (Services/LabBillAdjustments)
+                                    var adjMap = ViewBag.Adjustments as Dictionary<int, EMR.Web.Services.LabBillAdjustment>;
+                                    var adj = adjMap != null && adjMap.TryGetValue(o.LabOrderId, out var a0) ? a0 : null;
+                                    var partlyCancelled = o.IsActive && adj is { CancelledTests: > 0 };
+                                }
+                                <td class="text-center">
+                                    @if (partlyCancelled)
+                                    {
+                                        <span class="badge rounded-pill bg-light text-dark border" title="@adj!.ActiveTests active, @adj.CancelledTests cancelled">@adj.ActiveTests</span>
+                                        <div class="text-danger" style="font-size:.66rem;">+@adj.CancelledTests cancelled</div>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span>
+                                    }
+                                </td>
                                 <td class="text-end fw-semibold @(o.PaymentStatus == "P" ? "text-success" : (o.PaymentStatus == "R" ? "text-warning-emphasis" : "text-danger"))">
-                                    ₹@o.TotalAmount.ToString("N2")
+                                    @{ var miscOnBill = (adj?.MiscAmount ?? 0m) + (adj?.MiscGstAmount ?? 0m); }
+                                    @if (partlyCancelled)
+                                    {
+                                        <div>₹@((adj!.ActiveAmount + miscOnBill).ToString("N2"))</div>
+                                        <div class="text-muted fw-normal" style="font-size:.68rem;"><s>₹@o.TotalAmount.ToString("N2")</s> &middot; −₹@adj.CancelledAmount.ToString("N2") cancelled</div>
+                                    }
+                                    else
+                                    {
+                                        <text>₹@((o.TotalAmount + miscOnBill).ToString("N2"))</text>
+                                    }
+                                    @if (miscOnBill > 0)
+                                    {
+                                        <div class="text-muted fw-normal" style="font-size:.68rem;" title="Misc charges (with GST) on this bill">incl. misc ₹@miscOnBill.ToString("N2")</div>
+                                    }
+                                    @if (o.IsActive && o.BalanceDue > 0)
+                                    {
+                                        <div class="text-danger fw-semibold" style="font-size:.72rem;" title="Balance due">(Due ₹@o.BalanceDue.ToString("N2"))</div>
+                                    }
+                                    @if (adj is { RefundedAmount: > 0 })
+                                    {
+                                        <div class="text-danger fw-normal" style="font-size:.68rem;">₹@adj.RefundedAmount.ToString("N2") refunded</div>
+                                    }
+                                    @if (adj is { HasPoints: true })
+                                    {
+                                        <div class="fw-normal" style="font-size:.68rem;color:#b45309;" title="Membership card @adj.MembershipCardNo">
+                                            <i class="bi bi-award"></i>
+                                            @if (adj.PointsRedeemed > 0) { <text>@adj.PointsRedeemed.ToString("0") pts used</text> }
+                                            @if (adj.PointsRedeemed > 0 && adj.PointsEarned > 0) { <text>&middot;</text> }
+                                            @if (adj.PointsEarned > 0) { <text>+@adj.PointsEarned.ToString("0") earned</text> }
+                                        </div>
+                                    }
                                 </td>
                                 <td>
                                     @if (!o.IsActive)
@@ -329,10 +383,10 @@
                                        asp-action="B2COrderList"
                                        asp-route-page="@(Model.Page - 1)"
                                        asp-route-pageSize="@Model.PageSize"
-                                       asp-route-branchId="@Model.BranchId"
+                                       asp-route-dateType="@dateType"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search">
+                                       asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">
                                         <i class="bi bi-chevron-left"></i>
                                     </a>
                                 </li>
@@ -344,8 +398,8 @@
                                 {
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="1"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
+                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">1</a>
                                     </li>
                                     @if (startPage > 2)
                                     {
@@ -356,8 +410,8 @@
                                 {
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@pg"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
+                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">@pg</a>
                                     </li>
                                 }
                                 @if (endPage < Model.TotalPages)
@@ -368,8 +422,8 @@
                                     }
                                     <li class="page-item">
                                         <a class="page-link" asp-action="B2COrderList" asp-route-page="@Model.TotalPages"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-branchId="@Model.BranchId"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
+                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">@Model.TotalPages</a>
                                     </li>
                                 }
                                 <li class="page-item @(!Model.HasNext ? "disabled" : "")">
@@ -377,10 +431,10 @@
                                        asp-action="B2COrderList"
                                        asp-route-page="@(Model.Page + 1)"
                                        asp-route-pageSize="@Model.PageSize"
-                                       asp-route-branchId="@Model.BranchId"
+                                       asp-route-dateType="@dateType"
                                        asp-route-fromDate="@fromDate"
                                        asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search">
+                                       asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
                                 </li>
@@ -555,7 +609,15 @@
             }
 
             let payHtml = '';
-            if (d.payments && d.payments.length > 0) {
+            const refundRows = (d.adjustments?.refunds || []).map(r => `
+                <tr class="table-danger">
+                    <td>${r.refundDate ? new Date(r.refundDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
+                    <td><span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle">Refund · ${escHtml(r.mode || '—')}</span></td>
+                    <td><span class="font-monospace">${escHtml(r.cancellationNo || '—')}</span></td>
+                    <td class="small text-muted">${escHtml(r.transactionRef || '—')}</td>
+                    <td class="text-end font-monospace fw-bold text-danger">-₹${(r.amount || 0).toFixed(2)}</td>
+                </tr>`).join('');
+            if ((d.payments && d.payments.length > 0) || refundRows) {
                 payHtml = `
                     <div class="mt-4">
                         <h6 class="fw-bold text-dark mb-2"><i class="bi bi-credit-card-2-front me-2 text-success"></i>Payment History</h6>
@@ -571,7 +633,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${d.payments.map(p => `
+                                    ${(d.payments || []).map(p => `
                                         <tr>
                                             <td>${p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '—'}</td>
                                             <td><span class="badge bg-light text-dark border">${p.methodName ?? '—'}</span></td>
@@ -580,6 +642,7 @@
                                             <td class="text-end font-monospace fw-bold text-success">₹${(p.paidAmount || 0).toFixed(2)}</td>
                                         </tr>
                                     `).join('')}
+                                    ${refundRows}
                                 </tbody>
                             </table>
                         </div>
@@ -587,6 +650,11 @@
                 `;
             }
 
+            // tests cancelled after billing, cancellation notes and refunds (Services/LabBillAdjustments)
+            const adj = d.adjustments || null;
+            const money2 = n => '₹' + (Number(n) || 0).toFixed(2);
+            const fmtDT = s => s ? new Date(s).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
+            const cancelNotes = (adj?.cancellations || []).map(c => `${escHtml(c.cancellationNo || '')} · ${fmtDT(c.cancellationDate)} · ${money2(c.amount)}${c.reason ? ' · ' + escHtml(c.reason) : ''}`).join('<br>');
             const cancelledBanner = d.isActive === false
                 ? `<div class="alert alert-danger py-2 mb-3 fw-bold text-center"><i class="bi bi-x-circle-fill me-2"></i>This order has been cancelled.</div>`
                 : '';
@@ -622,7 +690,7 @@
                                 <div class="col-4 text-muted">Token No:</div>
                                 <div class="col-8 fw-bold font-monospace text-warning-emphasis">${d.tokenNo ?? 'Pending Payment'}</div>
                                 <div class="col-4 text-muted">Bill Date:</div>
-                                <div class="col-8">${d.orderDate ? new Date(d.orderDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
+                                <div class="col-8">${(d.createdDate || d.orderDate) ? new Date(d.createdDate || d.orderDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
                                 <div class="col-4 text-muted">Booking Date:</div>
                                 <div class="col-8 fw-semibold text-danger">${d.bookingDate ? new Date(d.bookingDate).toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}</div>
                                 <div class="col-4 text-muted">Collection:</div>
@@ -641,7 +709,8 @@
                 </div>
 
                 <div class="mt-3">
-                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-checklist me-2 text-primary"></i>Investigation Tests (${d.items?.length || 0})</h6>
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-checklist me-2 text-primary"></i>Investigation Tests (${adj && adj.cancelledTests > 0 && d.isActive !== false
+                        ? `${adj.activeTests} active · <span class="text-danger">${adj.cancelledTests} cancelled</span>` : (d.items?.length || 0)})</h6>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover table-bordered align-middle">
                             <thead class="table-light">
@@ -662,6 +731,23 @@
                         </table>
                     </div>
                 </div>
+                ${adj && (adj.miscLines || []).length ? `
+                <div class="mt-2">
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-cash-coin me-2 text-primary"></i>Misc Charges (${adj.miscLines.length})</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle">
+                            <thead class="table-light"><tr><th>#</th><th>Charge</th><th>Type</th><th class="text-end">Amount (₹)</th><th class="text-end">Discount</th><th class="text-end">GST</th><th class="text-end">Net (₹)</th></tr></thead>
+                            <tbody>${adj.miscLines.map((m, i) => `<tr class="${m.isActive ? '' : 'text-decoration-line-through text-muted'}">
+                                <td>${i + 1}</td>
+                                <td class="fw-semibold">${escHtml(m.displayName)}${m.isActive ? '' : ' <span class="badge bg-danger ms-1">Cancelled</span>'}</td>
+                                <td>${escHtml(m.chargeType)}</td>
+                                <td class="text-end font-monospace">${money2(m.amount)}</td>
+                                <td class="text-end font-monospace">${m.discountAmount > 0 ? '-' + money2(m.discountAmount) : '—'}</td>
+                                <td class="text-end font-monospace">${m.isGstRequired ? money2(m.gstAmount) + ` <span class="text-muted small">(${m.gstPercentage}%)</span>` : '—'}</td>
+                                <td class="text-end font-monospace fw-semibold">${money2(m.netAmount)}</td></tr>`).join('')}</tbody>
+                        </table>
+                    </div>
+                </div>` : ''}
 
                 <div class="d-flex justify-content-end mt-3">
                     <div class="border rounded p-3 bg-light" style="min-width: 260px;">
@@ -669,6 +755,27 @@
                             <span class="text-muted">Sub Total:</span>
                             <span class="fw-bold font-monospace">₹${(d.totalAmount || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.miscAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">Misc charges:</span>
+                                <span class="font-monospace">+${money2(adj.miscAmount)}</span>
+                            </div>` : ''}
+                        ${adj && adj.miscGstAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">GST on misc (CGST ${money2(adj.miscCgstAmount)} + SGST ${money2(adj.miscSgstAmount)}):</span>
+                                <span class="font-monospace">+${money2(adj.miscGstAmount)}</span>
+                            </div>` : ''}
+                        ${adj && adj.cancelledAmount > 0 && d.isActive !== false ? `
+                            <div class="d-flex justify-content-between mb-1 small text-danger">
+                                <span>Less: Cancelled tests (${adj.cancelledTests}):</span>
+                                <span class="font-monospace">-${money2(adj.cancelledAmount)}</span>
+                            </div>
+                            ${cancelNotes ? `<div class="mb-2 px-2 py-1 rounded border border-danger-subtle bg-danger-subtle text-danger-emphasis" style="font-size:.72rem;">${cancelNotes}</div>` : ''}` : ''}
+                        ${adj && adj.membershipDiscountAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small text-danger">
+                                <span>Membership discount${adj.membershipCardNo ? ' (' + escHtml(adj.membershipCardNo) + ')' : ''}:</span>
+                                <span class="font-monospace">-${money2(adj.membershipDiscountAmount)}</span>
+                            </div>` : ''}
                         ${d.discountAmount > 0 ? `
                             <div class="d-flex justify-content-between mb-1 small text-danger">
                                 <span>Discount:</span>
@@ -686,14 +793,31 @@
                             <span class="text-muted">Net Amount:</span>
                             <span class="fw-bold font-monospace text-primary">₹${(d.netAmount || d.totalAmount || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.refundedAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small text-success">
+                                <span>Paid:</span>
+                                <span class="font-monospace">${money2((d.totalPaid || 0) + adj.refundedAmount)}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1 small text-danger">
+                                <span>Less: Refunded:</span>
+                                <span class="font-monospace">-${money2(adj.refundedAmount)}</span>
+                            </div>` : ''}
                         <div class="d-flex justify-content-between mb-1 small text-success">
-                            <span>Paid Amount:</span>
+                            <span>${adj && adj.refundedAmount > 0 ? 'Net Paid' : 'Paid Amount'}:</span>
                             <span class="fw-bold font-monospace">₹${(d.totalPaid || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.pointsRedeemedAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small" style="color:#b45309;">
+                                <span>incl. Membership Points (${Math.round(adj.pointsRedeemed)} pts):</span>
+                                <span class="font-monospace">${money2(adj.pointsRedeemedAmount)}</span>
+                            </div>` : ''}
                         <div class="d-flex justify-content-between border-top pt-1 mt-1 fw-bold ${d.balanceDue > 0 ? 'text-danger' : 'text-success'}">
                             <span>Balance Due:</span>
                             <span class="font-monospace">₹${(d.balanceDue || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.membershipCardNo && (adj.pointsRedeemed > 0 || adj.pointsEarned > 0) ? `
+                            <div class="small text-muted mt-2"><i class="bi bi-award me-1" style="color:#b45309;"></i>Membership Card
+                                <span class="font-monospace">${escHtml(adj.membershipCardNo)}</span>${adj.pointsEarned > 0 ? ` &middot; ${Math.round(adj.pointsEarned)} points earned on this bill` : ''}</div>` : ''}
                     </div>
                 </div>
 

@@ -79,11 +79,15 @@ namespace EMR.Api.Controllers
             [FromQuery] string? search,
             [FromQuery] int pageNumber = 1,
             [FromQuery] int pageSize = 10,
-            [FromQuery] bool? isB2B = null)
+            [FromQuery] bool? isB2B = null,
+            [FromQuery] string? dateType = null,
+            [FromQuery] string? paymentFilter = null,
+            [FromQuery] string? agentType = null,
+            [FromQuery] int? agentId = null)
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
-            var data = await labOrderService.GetPagedOrdersAsync(branchId, fromDate, toDate, search, pageNumber, pageSize, isB2B);
+            var data = await labOrderService.GetPagedOrdersAsync(branchId, fromDate, toDate, search, pageNumber, pageSize, isB2B, dateType, paymentFilter, agentType, agentId);
             return Ok(data);
         }
 

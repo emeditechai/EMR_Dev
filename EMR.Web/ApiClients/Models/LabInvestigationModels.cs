@@ -6,6 +6,9 @@ public class LabInvestigationModel
     public int CompanyId { get; set; }
     public string Test_Code { get; set; } = string.Empty;
     public string Test_Name { get; set; } = string.Empty;
+    public string? Reporting_Name { get; set; }
+    /// <summary>Reporting_Name, or Test_Name when no reporting name was given.</summary>
+    public string? Reporting_Display_Name { get; set; }
     public int Department_ID { get; set; }
     public string Department_Name { get; set; } = string.Empty;
     public string Department_Code { get; set; } = string.Empty;
@@ -61,6 +64,7 @@ public class LabInvestigationCreateRequestModel
     public int? Method_ID { get; set; }
     public int? Unit_ID { get; set; }
     public string Test_Name { get; set; } = string.Empty;
+    public string? Reporting_Name { get; set; }
     public string Reporting_Type { get; set; } = "Numeric";
     public int TAT_Hours { get; set; } = 24;
     public bool NABL_Accredited { get; set; }
@@ -95,6 +99,7 @@ public class LabInvestigationUpdateRequestModel
     public int? Method_ID { get; set; }
     public int? Unit_ID { get; set; }
     public string Test_Name { get; set; } = string.Empty;
+    public string? Reporting_Name { get; set; }
     public string Reporting_Type { get; set; } = "Numeric";
     public int TAT_Hours { get; set; } = 24;
     public bool NABL_Accredited { get; set; }

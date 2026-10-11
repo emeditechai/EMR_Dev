@@ -1,0 +1,107 @@
+@model EMR.Web.ApiClients.Models.LabMiscChargeModel
+
+@{
+    ViewData["Title"] = "Misc Charge Details";
+    var gstAmount = Model.Is_GST_Required && Model.GST_Percentage.HasValue ? Math.Round(Model.Amount * Model.GST_Percentage.Value / 100m, 2) : 0m;
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Misc Charges Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Details</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-eye me-2"></i>Misc Charge Details</h4>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-permission="MASTER.LABMISCCHARGES:EDIT" asp-action="Edit" asp-encrypted-id="@Model.Misc_Charge_ID" class="btn btn-primary px-3 shadow-sm">
+                <i class="bi bi-pencil me-1"></i> Edit
+            </a>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3"><i class="bi bi-arrow-left me-1"></i> Back to List</a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-primary text-white p-3">
+                    <h5 class="card-title mb-0 fw-semibold"><i class="bi bi-cash-coin me-2"></i>@Model.Charge_Name</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Charge Type</label>
+                            <span class="fw-bold">@Model.Charge_Type</span>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Amount</label>
+                            <span class="fw-bold fs-5 font-monospace">₹@Model.Amount.ToString("N2")</span>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Status</label>
+                            @if (Model.Status)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
+                            }
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Is Discountable</label>
+                            <span class="fw-bold">@(Model.Is_Discountable ? "Yes" : "No")</span>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Is GST Required</label>
+                            <span class="fw-bold">@(Model.Is_GST_Required ? "Yes" : "No")</span>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">GST Percentage</label>
+                            @if (Model.Is_GST_Required)
+                            {
+                                <span class="fw-bold">@Model.GST_Percentage?.ToString("0.##")%</span>
+                                <div class="text-muted small">₹@gstAmount.ToString("N2") on ₹@Model.Amount.ToString("N2")</div>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Display Order</label>
+                            <span class="badge bg-secondary rounded-pill px-3 py-2">@Model.Display_Order</span>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Description</label>
+                            <span>@(string.IsNullOrWhiteSpace(Model.Description) ? "—" : Model.Description)</span>
+                        </div>
+
+                        <div class="col-12"><hr class="my-2" /></div>
+
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Created</label>
+                            <span class="text-secondary"><i class="bi bi-calendar3 me-1"></i>@Model.CreatedDate.ToString("dd MMM yyyy, hh:mm tt")@(string.IsNullOrEmpty(Model.CreatedByName) ? "" : " · " + Model.CreatedByName)</span>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Modified</label>
+                            @if (Model.ModifiedDate.HasValue)
+                            {
+                                <span class="text-secondary"><i class="bi bi-calendar3 me-1"></i>@Model.ModifiedDate.Value.ToString("dd MMM yyyy, hh:mm tt")@(string.IsNullOrEmpty(Model.ModifiedByName) ? "" : " · " + Model.ModifiedByName)</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted fst-italic">Never modified</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

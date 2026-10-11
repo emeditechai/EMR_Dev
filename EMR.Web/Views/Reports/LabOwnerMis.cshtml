@@ -223,12 +223,13 @@
 </div>
 
 @section Scripts {
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/emr-shimmer.js" asp-append-version="true"></script>
+<script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
 <script>
 (function () {
+    // Excel / PDF libraries are fetched on the first export click, not with the page
+    EmrExportLibs.guard('#btnExcel', 'excel'); EmrExportLibs.guard('#btnPdf', 'pdf');
     const dataUrl = '@Url.Action("GetLabOwnerMisData", "Reports")';
     const branchName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(branchName))';
     const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#b91c1c', '#475569'];
@@ -272,22 +273,27 @@
         const seq = ++loadSeq;
         const from = $('#txtFrom').val(), to = $('#txtTo').val();
         if (!from || !to) return;
-        $('#stateError').addClass('d-none'); $('#stateLoading').removeClass('d-none');
+        $('#stateError').addClass('d-none');
+        // the page frame shows at once with shimmer over its three zones: widgets, graphs, lists
+        $('#misBody').removeClass('d-none');
+        const sk = shimmerZones(); EmrShimmer.on(sk.kpis); EmrShimmer.on(sk.graphs); EmrShimmer.on(sk.lists);
         $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', true);
         $('#lblRange').text(fmtD(from) + (from === to ? '' : ' – ' + fmtD(to)));
         $.get(dataUrl, { fromDate: from, toDate: to, scope: scope })
         .done(function (res) {
             if (seq !== loadSeq) return;
-            $('#stateLoading').addClass('d-none');
-            if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+            if (!res || !res.success) { clearShimmer(sk); $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
             data = res.data || {};
-            $('#misBody').removeClass('d-none');   // visible first, so the chart gets its size
-            render();
-            $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', false);
+            // one paint each, in reading order: widgets, then the graphs, then the lists
+            EmrShimmer.stage([
+                () => { renderWidgets(); EmrShimmer.off(sk.kpis); },
+                () => { renderGraphs(); EmrShimmer.off(sk.graphs); },
+                () => { renderLists(); EmrShimmer.off(sk.lists); $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', false); }
+            ], () => seq === loadSeq);
         })
         .fail(function (xhr) {
             if (seq !== loadSeq) return;
-            $('#stateLoading').addClass('d-none');
+            clearShimmer(sk);
             $('#stateError').text(xhr.status === 403 ? 'You do not have access to this report.' : 'Server error while loading the report. Please try again.').removeClass('d-none');
         });
     }
@@ -298,8 +304,22 @@
         const s = S();
         $('#lblScope').text(scope === 'all' ? `All my branches (${num(s.BranchCount)})` : (branchName ? 'Branch ' + branchName : 'This branch'));
         $('#lblPrev').html(s.PrevFrom ? `<span class="fs-9">&middot; compared with ${esc(fmtD(s.PrevFrom))} – ${esc(fmtD(s.PrevTo))}</span>` : '');
-        renderKpis(s); renderBridge(s); renderTrend(); renderModes(); renderQuality(s); renderCollection(s); renderAgeing();
-        Object.keys(tables).forEach(renderTable);
+        renderKpis(s);
+    }
+    function renderWidgets() { render(); }
+    function renderGraphs() { const s = S(); renderBridge(s); renderTrend(); renderModes(); renderQuality(s); renderCollection(s); renderAgeing(); }
+    function renderLists() { Object.keys(tables).forEach(renderTable); }
+
+    // the cards of the page by zone: KPI cards, the card holding the ranking tables, and everything else (graphs and panels)
+    function shimmerZones() {
+        const cards = Array.from(document.querySelectorAll('#misBody .cr-card'));
+        const kpis = cards.filter(c => c.classList.contains('cr-kpi'));
+        const lists = cards.filter(c => c.querySelector('table[data-section]'));
+        return { kpis, lists, graphs: cards.filter(c => !kpis.includes(c) && !lists.includes(c)) };
+    }
+    function clearShimmer(sk) {
+        EmrShimmer.off(sk.kpis); EmrShimmer.off(sk.graphs); EmrShimmer.off(sk.lists);
+        if (!data) $('#misBody').addClass('d-none');   // nothing loaded yet: do not leave an empty frame behind an error
     }
 
     function renderKpis(s) {

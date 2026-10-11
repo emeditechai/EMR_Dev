@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace EMR.Web.Services;
 
-public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerService, ILogger<CancellationService> logger) : ICancellationService
+public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerService, IMembershipPointsWhatsAppService pointsWhatsApp, ILogger<CancellationService> logger) : ICancellationService
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
@@ -79,20 +79,18 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
             int    cancellationId  = p.Get<int>("@CancellationId");
             string cancellationNo  = p.Get<string>("@CancellationNo");
             decimal totalCancelled = request.Items.Sum(x => x.Amount);
-            bool   isFull          = request.Items.Count == await GetTotalActiveItemsAsync(con, request.ModuleCode, request.ModuleRefId);
+            // full / partial as the procedure decided it (it counts tests and misc charge lines alike)
+            bool   isFull          = await con.QuerySingleOrDefaultAsync<string>(
+                                         "SELECT CancellationType FROM dbo.BillCancellation WHERE CancellationId = @Id", new { Id = cancellationId }) == "F";
 
             // Fetch bill no for ledger narration
             string billNo = await GetBillNoAsync(con, request.ModuleCode, request.ModuleRefId);
 
-            // Post reversal ledger entry
-            await ledgerService.PostCancellationReversalAsync(
-                request.ModuleCode, request.ModuleRefId,
-                totalCancelled,
-                request.BranchId, companyId, userId,
-                billNo, cancellationNo
-            );
+            // The reversal ledger entry is posted by usp_Bill_Cancel itself (usp_Ledger_PostBillMoney 'CANCEL', SQLScripts/2232),
+            // before the bill's discount entry is re-checked - so it is not posted here any more.
 
             logger.LogInformation("Bill cancelled: {ModuleCode} #{ModuleRefId} → {CancellationNo} Amount={CancelledAmount}", request.ModuleCode, request.ModuleRefId, cancellationNo, totalCancelled);
+            await QueuePointsWhatsAppAsync(con, request.ModuleCode, request.ModuleRefId, userId);
 
             return new BillCancellationResponseDto
             {
@@ -154,6 +152,7 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
             int refundId = p.Get<int>("@RefundId");
 
             logger.LogInformation("Refund processed: {ModuleCode} #{ModuleRefId} RefundId={RefundId} Amount={Amount}", request.ModuleCode, request.ModuleRefId, refundId, request.RefundAmount);
+            await QueuePointsWhatsAppAsync(con, request.ModuleCode, request.ModuleRefId, userId);
 
             return new BillRefundResponseDto
             {
@@ -212,6 +211,19 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+    /// <summary>A cancellation can leave a LAB bill fully paid, which earns its points: WhatsApp them (SQLScripts/2243).</summary>
+    private async Task QueuePointsWhatsAppAsync(IDbConnection con, string moduleCode, int moduleRefId, int? userId)
+    {
+        if (!string.Equals(moduleCode, "LAB", StringComparison.OrdinalIgnoreCase)) return;
+        try
+        {
+            var headerId = await con.QueryFirstOrDefaultAsync<int?>(
+                "SELECT TOP 1 PaymentHeaderId FROM dbo.PaymentHeader WHERE ModuleCode = 'LAB' AND ModuleRefId = @Id AND IsActive = 1", new { Id = moduleRefId });
+            if (headerId is > 0) pointsWhatsApp.QueueForPayment(headerId.Value, userId);
+        }
+        catch (Exception ex) { logger.LogError(ex, "Points WhatsApp could not be queued for LAB #{Id}", moduleRefId); }
+    }
+
     private static async Task<int> GetTotalActiveItemsAsync(IDbConnection con, string moduleCode, int moduleRefId)
     {
         if (moduleCode == "LAB")

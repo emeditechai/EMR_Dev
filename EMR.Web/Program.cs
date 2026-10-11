@@ -103,6 +103,9 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 // Ledger (Dapper)
 builder.Services.AddScoped<ILedgerService, LedgerService>();
 
+// Utility > Accounts: petty cash, vouchers, ledger reports (Dapper)
+builder.Services.AddScoped<IAccountsService, AccountsService>();
+
 // Cancellation & Refund (Dapper)
 builder.Services.AddScoped<ICancellationService, CancellationService>();
 
@@ -112,6 +115,10 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 
 // WhatsApp Notification Service
 builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
+// OPD follow-up reminders (e-mail + WhatsApp, 7 days and 1 day before; Hospital Settings > OPD; SQLScripts/2229)
+builder.Services.AddHostedService<FollowUpReminderService>();
+// membership points: expire points not used by their expiry date (SQLScripts/2236)
+builder.Services.AddHostedService<MembershipPointsExpiryService>();
 
 // Video Consultation (Whereby)
 builder.Services.AddHttpClient("Whereby", client =>
@@ -122,7 +129,8 @@ builder.Services.AddHttpClient("Whereby", client =>
 builder.Services.AddScoped<IWherebyService, WherebyService>();
 builder.Services.AddScoped<IVideoConsultationService, VideoConsultationService>();
 
-// eCare360 licensing (Services/Licensing). Enforced on every machine (server or local, any environment) with no switch;
+// eCare360 licensing (Services/Licensing). A Release build enforces it on every machine (any environment) with no switch;
+// a developer's Debug build skips it unless Licensing:EnforceInDebug is true;
 // the rules, approvers, mailbox and licence server are compiled in (LicensingPolicy), not read from appsettings.json.
 // A missing password blocks every page with "Licensing not configured" instead of stopping the application.
 var licensingOptions = new EMR.Web.Services.Licensing.LicensingOptions();
@@ -193,6 +201,7 @@ builder.Services.AddScoped<IReportApiClient, ReportApiClient>();
 builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();
 builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>();
+builder.Services.AddScoped<EMR.Web.Services.IPatientPortalLoginService, EMR.Web.Services.PatientPortalLoginService>();
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
 builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();
@@ -226,6 +235,7 @@ builder.Services.AddScoped<ILabBreakpointApiClient, LabBreakpointApiClient>();
 builder.Services.AddScoped<IDoctorIpApiClient, DoctorIpApiClient>();
 builder.Services.AddScoped<IDoctorIpCommissionApiClient, DoctorIpCommissionApiClient>();
 builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectionReasonApiClient>();
+builder.Services.AddScoped<ILabMiscChargeApiClient, LabMiscChargeApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabFranchiseBarcodeApiClient,     LabFranchiseBarcodeApiClient>();
 builder.Services.AddScoped<ILabBulkUploadApiClient,           LabBulkUploadApiClient>();
@@ -242,8 +252,12 @@ builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowA
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
 builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
+builder.Services.AddScoped<IMembershipPointsWhatsAppService, MembershipPointsWhatsAppService>();
 builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotificationService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
+builder.Services.AddScoped<IMembershipApiClient,          MembershipApiClient>();
+builder.Services.AddScoped<IMembershipCardDeliveryService, MembershipCardDeliveryService>();
+builder.Services.AddHostedService<MembershipRenewalReminderBackgroundService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>
@@ -279,10 +293,15 @@ var app = builder.Build();
 
 if (!app.Environment.IsDevelopment() && !string.IsNullOrWhiteSpace(licensingOptions.EmailPickupDirectory))
     app.Logger.LogWarning("Licensing:EmailPickupDirectory is ignored outside Development; licence e-mails are sent by SMTP.");
-if (licensingOptions.ConfigurationProblem != null)
-    app.Logger.LogError("eCare360 licensing is not configured, every page is blocked until it is: {Problem}", licensingOptions.ConfigurationProblem);
-app.Logger.LogInformation("eCare360 licensing: licence database {Database} (login from {LoginSource}); local keys {KeyLocation}.",
-    licensingOptions.CentralDatabase, licensingOptions.CentralLoginSource, licensingOptions.LocalKeyLocation ?? "from configuration");
+if (!licensingOptions.Enabled)
+    app.Logger.LogWarning("eCare360 licensing is skipped: Debug build (developer run). Set Licensing__EnforceInDebug=true to test it; a Release build always enforces it.");
+else
+{
+    if (licensingOptions.ConfigurationProblem != null)
+        app.Logger.LogError("eCare360 licensing is not configured, every page is blocked until it is: {Problem}", licensingOptions.ConfigurationProblem);
+    app.Logger.LogInformation("eCare360 licensing: licence database {Database} (login from {LoginSource}); local keys {KeyLocation}.",
+        licensingOptions.CentralDatabase, licensingOptions.CentralLoginSource, licensingOptions.LocalKeyLocation ?? "from configuration");
+}
 
 // licensing on: read the hardware fingerprint and make sure the local licence tables exist, off the request path
 if (licensingOptions.Enabled)
@@ -317,6 +336,32 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// A static file asked for with a version in its address (…?v=<hash> from asp-append-version, a library version,
+// or the hash a stylesheet puts on its font files) never changes under that address, so the browser may keep it
+// instead of re-checking it with the server on every page. A new build changes the address, so nothing goes stale.
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method) && context.Request.QueryString.HasValue)
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        var isFont = path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase);
+        var isVersionedAsset = context.Request.Query.ContainsKey("v")
+            && (path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".css", StringComparison.OrdinalIgnoreCase));
+        if (isFont || isVersionedAsset)
+        {
+            context.Response.OnStarting(() =>
+            {
+                if (context.Response.StatusCode == StatusCodes.Status200OK)
+                    context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+                return Task.CompletedTask;
+            });
+        }
+    }
+
+    await next();
+});
+
 app.UseRouting();
 app.UseRateLimiter();
 app.UseMiddleware<EMR.Web.Middleware.QueryStringDecryptionMiddleware>();

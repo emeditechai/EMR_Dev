@@ -207,12 +207,12 @@
 </div>
 
 @section Scripts {
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
 <script>
 (function () {
+    // Excel / PDF libraries are fetched on the first export click, not with the page
+    EmrExportLibs.guard('#btnExcel', 'excel'); EmrExportLibs.guard('#btnPdf', 'pdf');
     const dataUrl = '@Url.Action("GetDailyCollectionData", "Reports")';
     const billUrl = '@Url.Action("PrintBill", "OPD")';
     const branchName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(branchName))';

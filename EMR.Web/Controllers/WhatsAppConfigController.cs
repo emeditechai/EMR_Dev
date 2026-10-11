@@ -62,6 +62,8 @@ public class WhatsAppConfigController(
                     VideoDoctorMessageTemplate = defaultConfig.VideoDoctorMessageTemplate,
                     LabReportApprovedNotificationEnabled = defaultConfig.LabReportApprovedNotificationEnabled,
                     LabReportApprovedMessageTemplate = defaultConfig.LabReportApprovedMessageTemplate,
+                    MembershipPointsNotificationEnabled = defaultConfig.MembershipPointsNotificationEnabled,
+                    MembershipPointsMessageTemplate = defaultConfig.MembershipPointsMessageTemplate,
                     IsDefault = false,
                     IsActive = true
                 };
@@ -109,11 +111,13 @@ public class WhatsAppConfigController(
             LabNotificationEnabled = config?.LabNotificationEnabled ?? true,
             VideoNotificationEnabled = config?.VideoNotificationEnabled ?? true,
             LabReportApprovedNotificationEnabled = config?.LabReportApprovedNotificationEnabled ?? true,
+            MembershipPointsNotificationEnabled = config?.MembershipPointsNotificationEnabled ?? true,
             OpdMessageTemplate = config?.OpdMessageTemplate ?? "Dear {PatientName}, thank you for visiting {HospitalName}. Your OPD Bill {BillNo} of Rs. {Amount} has been generated. Token: {TokenNo}, Doctor: {DoctorName}. Wish you a speedy recovery!",
             LabMessageTemplate = config?.LabMessageTemplate ?? "Dear {PatientName}, thank you for choosing {HospitalName}. Your Lab Order {BillNo} of Rs. {Amount} has been registered. Token: {TokenNo}. Please find your bill attached. Thank you!",
             VideoPatientMessageTemplate = config?.VideoPatientMessageTemplate ?? "Dear {PatientName}, your Video Consultation with Dr. {DoctorName} on {Date} at {Time} is confirmed. Join using: {Link}",
             VideoDoctorMessageTemplate = config?.VideoDoctorMessageTemplate ?? "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}",
             LabReportApprovedMessageTemplate = config?.LabReportApprovedMessageTemplate ?? "Dear {PatientName}, your report for Bill {BillNo} at {HospitalName} has been approved. Please find your report attached. Thank you for choosing us!",
+            MembershipPointsMessageTemplate = string.IsNullOrWhiteSpace(config?.MembershipPointsMessageTemplate) ? "Dear {CardHolderName}, {PointsEarned} points (worth Rs. {PointsValue}) have been added to your {HospitalName} membership card {CardNo} for Bill {BillNo}. Your balance is now {PointsBalance} points (Rs. {BalanceValue}). These points are valid till {ExpiryDate}. Thank you!" : config!.MembershipPointsMessageTemplate,
             LastTestedDate = config?.LastTestedDate,
             LastTestResult = config?.LastTestResult,
             RecentLogs = recentLogs
@@ -191,6 +195,8 @@ public class WhatsAppConfigController(
         config.VideoPatientMessageTemplate = model.VideoPatientMessageTemplate.Trim();
         config.VideoDoctorMessageTemplate = model.VideoDoctorMessageTemplate.Trim();
         config.LabReportApprovedMessageTemplate = model.LabReportApprovedMessageTemplate.Trim();
+        config.MembershipPointsNotificationEnabled = model.MembershipPointsNotificationEnabled;
+        config.MembershipPointsMessageTemplate = (model.MembershipPointsMessageTemplate ?? string.Empty).Trim();
         config.IsActive = true;
         config.ModifiedBy = User.Identity?.Name;
         config.ModifiedDate = DateTime.Now;
@@ -291,6 +297,8 @@ public class WhatsAppConfigController(
             targetConfig.VideoPatientMessageTemplate = hoConfig.VideoPatientMessageTemplate;
             targetConfig.VideoDoctorMessageTemplate = hoConfig.VideoDoctorMessageTemplate;
             targetConfig.LabReportApprovedMessageTemplate = hoConfig.LabReportApprovedMessageTemplate;
+            targetConfig.MembershipPointsNotificationEnabled = hoConfig.MembershipPointsNotificationEnabled;
+            targetConfig.MembershipPointsMessageTemplate = hoConfig.MembershipPointsMessageTemplate;
             targetConfig.IsActive = true;
             targetConfig.ModifiedBy = User.Identity?.Name;
             targetConfig.ModifiedDate = DateTime.Now;

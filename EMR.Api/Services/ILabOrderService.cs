@@ -10,7 +10,8 @@ namespace EMR.Api.Services
         Task<IEnumerable<DepartmentDto>> GetDepartmentsAsync();
         Task<IEnumerable<CategoryDto>> GetCategoriesAsync(int? departmentId = null);
         Task<IEnumerable<SubCategoryDto>> GetSubCategoriesAsync(int? categoryId = null);
-        Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null);
+        /// <param name="dateType">'B' = range on the booking date, 'C' = on the bill (created) date; null = order date as before.</param>
+        Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null);
         Task<LabOrderDetailDto?> GetOrderDetailAsync(int labOrderId);
         Task<int> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId, int userId);
     }

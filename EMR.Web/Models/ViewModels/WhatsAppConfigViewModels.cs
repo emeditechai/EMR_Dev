@@ -63,6 +63,12 @@ public class WhatsAppConfigViewModel
     [Display(Name = "B2C Approved Report Message Template")]
     public string LabReportApprovedMessageTemplate { get; set; } = "Dear {PatientName}, your report for Bill {BillNo} at {HospitalName} has been approved. Please find your report attached. Thank you for choosing us!";
 
+    [Display(Name = "Send WhatsApp when Membership Points are Earned")]
+    public bool MembershipPointsNotificationEnabled { get; set; } = true;
+
+    [Display(Name = "Membership Points Earned Message Template")]
+    public string MembershipPointsMessageTemplate { get; set; } = "Dear {CardHolderName}, {PointsEarned} points (worth Rs. {PointsValue}) have been added to your {HospitalName} membership card {CardNo} for Bill {BillNo}. Your balance is now {PointsBalance} points (Rs. {BalanceValue}). These points are valid till {ExpiryDate}. Thank you!";
+
     public bool IsHOBranch { get; set; }
     public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> TargetBranches { get; set; } = new();
 

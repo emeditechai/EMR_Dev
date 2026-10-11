@@ -18,6 +18,14 @@ namespace EMR.Api.Models
         public int? ReferralDoctorId { get; set; }
         public int? CreatedBy { get; set; }
         public List<LabOrderItemRequest> Items { get; set; } = new();
+        /// <summary>Misc charges (Misc Charges Master, SQLScripts/2240): priced from the master by usp_CreateLabOrder.</summary>
+        public List<LabOrderMiscChargeRequest> MiscCharges { get; set; } = new();
+    }
+
+    public class LabOrderMiscChargeRequest
+    {
+        public int MiscChargeId { get; set; }
+        public int Quantity { get; set; } = 1;
     }
 
     public class LabOrderItemRequest

@@ -1,0 +1,79 @@
+@model EMR.Web.Models.ViewModels.LabMiscChargeFormViewModel
+
+@{
+    ViewData["Title"] = "Add Misc Charge";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item"><a asp-action="Index">Misc Charges Master</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Add New</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary">
+                <i class="bi bi-plus-circle me-2"></i>Add New Misc Charge
+            </h4>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h6 class="card-title fw-bold mb-0 text-dark">
+                        <i class="bi bi-cash-coin me-2 text-primary"></i>Misc Charge Information
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Create" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <partial name="_Form" model="Model" />
+
+                        <hr class="my-4" />
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4">
+                                <i class="bi bi-x-lg me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 shadow-sm">
+                                <i class="bi bi-save me-1"></i> Save Misc Charge
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var gst = document.getElementById('gstSwitch'), box = document.getElementById('gstPctBox'),
+                pct = document.getElementById('GST_Percentage'), gstLbl = document.getElementById('gstLabel'),
+                disc = document.getElementById('discSwitch'), discLbl = document.getElementById('discLabel');
+            function syncGst() {
+                var on = gst.checked;
+                box.classList.toggle('d-none', !on);
+                pct.disabled = !on;            // not posted (and not validated) when GST is not applicable
+                if (!on) pct.value = '';
+                gstLbl.textContent = on ? 'Yes' : 'No';
+            }
+            gst.addEventListener('change', function () { syncGst(); if (gst.checked) pct.focus(); });
+            disc.addEventListener('change', function () { discLbl.textContent = disc.checked ? 'Yes' : 'No'; });
+            syncGst();
+        });
+    </script>
+}

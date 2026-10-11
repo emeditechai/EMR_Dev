@@ -39,6 +39,7 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@Method_ID", req.Method_ID);
         p.Add("@Unit_ID", req.Unit_ID);
         p.Add("@Test_Name", req.Test_Name);
+        p.Add("@Reporting_Name", string.IsNullOrWhiteSpace(req.Reporting_Name) ? null : req.Reporting_Name.Trim());
         p.Add("@Reporting_Type", req.Reporting_Type);
         p.Add("@TAT_Hours", req.TAT_Hours);
         p.Add("@NABL_Accredited", req.NABL_Accredited);
@@ -77,6 +78,7 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@Method_ID", req.Method_ID);
         p.Add("@Unit_ID", req.Unit_ID);
         p.Add("@Test_Name", req.Test_Name);
+        p.Add("@Reporting_Name", string.IsNullOrWhiteSpace(req.Reporting_Name) ? null : req.Reporting_Name.Trim());
         p.Add("@Reporting_Type", req.Reporting_Type);
         p.Add("@TAT_Hours", req.TAT_Hours);
         p.Add("@NABL_Accredited", req.NABL_Accredited);

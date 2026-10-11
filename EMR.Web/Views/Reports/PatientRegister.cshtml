@@ -1,10 +1,8 @@
 @{
     ViewData["Title"] = "Patient Register";
 }
-<!-- Include external libraries for Excel/PDF export -->
-<script src="~/lib/xlsx/xlsx.full.min.js"></script>
-<script src="~/lib/jspdf/jspdf.umd.min.js"></script>
-<script src="~/lib/jspdf-autotable/jspdf.plugin.autotable.min.js"></script>
+@* Excel / PDF libraries are fetched on the first export click, not with the page *@
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
 
 <style>
     .kpi-card {
@@ -330,4 +328,6 @@
         
         doc.save(`Patient_Register_${new Date().getTime()}.pdf`);
     }
+
+    EmrExportLibs.guard('[onclick="exportToExcel()"]', 'excel'); EmrExportLibs.guard('[onclick="exportToPdf()"]', 'pdf');
 </script>

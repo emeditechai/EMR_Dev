@@ -81,13 +81,17 @@ namespace EMR.Web.ApiClients
             return await response.Content.ReadFromJsonAsync<IEnumerable<SubCategoryDto>>();
         }
 
-        public async Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null)
+        public async Task<LabOrderPagedResult?> GetPagedOrdersAsync(int branchId, string? fromDate, string? toDate, string? search, int page = 1, int pageSize = 10, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null)
         {
             string query = $"?branchId={branchId}&pageNumber={page}&pageSize={pageSize}";
             if (!string.IsNullOrEmpty(fromDate)) query += $"&fromDate={fromDate}";
             if (!string.IsNullOrEmpty(toDate)) query += $"&toDate={toDate}";
             if (!string.IsNullOrEmpty(search)) query += $"&search={System.Uri.EscapeDataString(search)}";
             if (isB2B.HasValue) query += $"&isB2B={isB2B.Value}";
+            if (!string.IsNullOrEmpty(dateType)) query += $"&dateType={System.Uri.EscapeDataString(dateType)}";
+            if (!string.IsNullOrEmpty(paymentFilter)) query += $"&paymentFilter={System.Uri.EscapeDataString(paymentFilter)}";
+            if (!string.IsNullOrEmpty(agentType)) query += $"&agentType={System.Uri.EscapeDataString(agentType)}";
+            if (agentId is > 0) query += $"&agentId={agentId.Value}";
 
             var response = await httpClient.GetAsync($"api/LabOrders/paged{query}");
             response.EnsureSuccessStatusCode();

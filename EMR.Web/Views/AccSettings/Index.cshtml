@@ -1,0 +1,125 @@
+@model EMR.Web.Models.ViewModels.AccSettingsPageViewModel
+@{
+    ViewData["Title"] = "Accounts Settings";
+    ViewData["AccIcon"] = "bi-gear";
+    ViewData["AccSubtitle"] = "Limits and rules apply to every branch of the company. The books are locked branch by branch.";
+    const string Page = "UTILITY.ACCOUNTS.SETTINGS";
+    string[] months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+
+    <form asp-action="Save" method="post">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3"><h6 class="fw-bold mb-0"><i class="bi bi-receipt me-2 text-primary"></i>Petty Expense</h6></div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input asp-for="Settings.PettyApprovalRequired" class="form-check-input" type="checkbox" role="switch">
+                            <label asp-for="Settings.PettyApprovalRequired" class="form-check-label fw-semibold">Approval required</label>
+                            <div class="form-text">Off: every petty expense posts as soon as it is saved.</div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="Settings.PettyAutoApproveLimit" class="form-label fw-semibold">Auto-approve up to</label>
+                                <div class="input-group"><span class="input-group-text">₹</span><input asp-for="Settings.PettyAutoApproveLimit" type="number" step="0.01" min="0" class="form-control" /></div>
+                                <div class="form-text">At or below this amount no approver is needed.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Settings.PettyMaxPerVoucher" class="form-label fw-semibold">Maximum per voucher</label>
+                                <div class="input-group"><span class="input-group-text">₹</span><input asp-for="Settings.PettyMaxPerVoucher" type="number" step="0.01" min="1" class="form-control" /></div>
+                                <div class="form-text">Larger payments go through a Payment voucher.</div>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mt-3">
+                            <input asp-for="Settings.AllowPettyOverdraw" class="form-check-input" type="checkbox" role="switch">
+                            <label asp-for="Settings.AllowPettyOverdraw" class="form-check-label fw-semibold">Allow an expense above the counter balance</label>
+                        </div>
+                        <div class="form-check form-switch mt-3">
+                            <input asp-for="Settings.PettyGstInputCredit" class="form-check-input" type="checkbox" role="switch">
+                            <label asp-for="Settings.PettyGstInputCredit" class="form-check-label fw-semibold">Claim GST input credit on petty bills</label>
+                            <div class="form-text">On: the GST part of a bill is entered on the expense line and posted to GST Input Credit, not to the expense. Off: the whole bill is the expense.</div>
+                        </div>
+                        <div class="form-check form-switch mt-3">
+                            <input asp-for="Settings.AllowSelfApproval" class="form-check-input" type="checkbox" role="switch">
+                            <label asp-for="Settings.AllowSelfApproval" class="form-check-label fw-semibold">A user may approve their own entry</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3"><h6 class="fw-bold mb-0"><i class="bi bi-journal-check me-2 text-primary"></i>Vouchers and Books</h6></div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input asp-for="Settings.VoucherApprovalRequired" class="form-check-input" type="checkbox" role="switch">
+                            <label asp-for="Settings.VoucherApprovalRequired" class="form-check-label fw-semibold">Manual vouchers need approval before posting</label>
+                            <div class="form-text">Off: Payment, Receipt, Contra and Journal vouchers post on save.</div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="Settings.BackDateDays" class="form-label fw-semibold">Back-dated entry allowed (days)</label>
+                                <input asp-for="Settings.BackDateDays" type="number" min="0" max="365" class="form-control" />
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Settings.FinancialYearStartMonth" class="form-label fw-semibold">Financial year starts in</label>
+                                <select asp-for="Settings.FinancialYearStartMonth" class="form-select">
+                                    @for (var i = 1; i <= 12; i++)
+                                    {
+                                        <option value="@i">@months[i - 1]</option>
+                                    }
+                                </select>
+                                <div class="form-text">Voucher numbers restart each financial year.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+            <button asp-permission="@(Page + ":EDIT")" type="submit" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-save me-1"></i>Save Settings</button>
+        </div>
+    </form>
+
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-lock me-2 text-primary"></i>Books Lock - Branch-wise</h6>
+            <div class="small text-muted">A locked branch takes no petty expense, float, closing or voucher dated on or before its lock date. Other branches are not affected.</div>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="bg-light"><tr><th class="ps-4">Branch</th><th>Status</th><th>Last Changed</th><th style="width:380px;" class="pe-4">Lock up to</th></tr></thead>
+                <tbody>
+                    @foreach (var k in Model.Locks)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-semibold">@k.BranchName</td>
+                            <td>
+                                @if (k.LockedUpTo.HasValue) { <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3"><i class="bi bi-lock-fill me-1"></i>Locked up to @k.LockedUpTo.Value.ToString("dd-MMM-yyyy")</span> }
+                                else { <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3"><i class="bi bi-unlock me-1"></i>Open</span> }
+                            </td>
+                            <td class="small text-muted">@(k.ModifiedDate.HasValue ? $"{k.ModifiedByName}, {k.ModifiedDate:dd-MMM-yyyy HH:mm}" : "-")</td>
+                            <td class="pe-4">
+                                <form asp-action="SaveLock" method="post" class="d-flex gap-2" asp-permission="@(Page + ":LOCK")">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="branchId" value="@k.BranchId" />
+                                    <input type="date" name="lockedUpTo" class="form-control form-control-sm" value="@k.LockedUpTo?.ToString("yyyy-MM-dd")" max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap" onclick="if (!this.form.lockedUpTo.value) { alert('Choose the date to lock up to.'); return false; } return confirm('Lock the books of @k.BranchName up to this date?');"><i class="bi bi-lock me-1"></i>Lock</button>
+                                    @if (k.LockedUpTo.HasValue)
+                                    {
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap" onclick="this.form.lockedUpTo.value = ''; return confirm('Unlock the books of @k.BranchName?');"><i class="bi bi-unlock me-1"></i>Unlock</button>
+                                    }
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

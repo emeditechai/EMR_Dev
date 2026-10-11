@@ -65,6 +65,7 @@ builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IDoctorService,           DoctorService>();
 
 builder.Services.AddScoped<IDiscountTypeService,     DiscountTypeService>();
+builder.Services.AddScoped<IMembershipService,       MembershipService>();
 builder.Services.AddScoped<IPatientService,          PatientService>();
 builder.Services.AddScoped<IReportService,           ReportService>();
 builder.Services.AddScoped<IServiceBookingService,   ServiceBookingService>();
@@ -110,6 +111,7 @@ builder.Services.AddScoped<ILabBreakpointService, LabBreakpointService>();
 builder.Services.AddScoped<IDoctorIpService, DoctorIpService>();
 builder.Services.AddScoped<IDoctorIpCommissionService, DoctorIpCommissionService>();
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
+builder.Services.AddScoped<ILabMiscChargeService, LabMiscChargeService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();
 builder.Services.AddScoped<ILabReferenceRangeService,        LabReferenceRangeService>();

@@ -487,6 +487,60 @@
         .reporting-entry-wrapper #pillValidated .pill-label, .reporting-entry-wrapper #pillValidated .pill-val, .reporting-entry-wrapper #pillValidated i { color: var(--st-validated) !important; }
         .reporting-entry-wrapper #pillApproved  .pill-label, .reporting-entry-wrapper #pillApproved  .pill-val, .reporting-entry-wrapper #pillApproved  i { color: var(--st-approved) !important; }
 
+        /* ── Banner cards: one even grid - every card the same width and height, label / value sizes alike, columns
+              aligned across both rows (the two row wrappers are display: contents, so live-added pills join the grid) ── */
+        .reporting-entry-wrapper .banner-tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 8px;
+        }
+        .reporting-entry-wrapper .banner-tiles-row { display: contents; }
+        .reporting-entry-wrapper .banner-tiles .pill-client { grid-column: span 2; }   /* franchise / company names are long */
+        @@media (max-width: 575.98px) {   /* phone: two columns, text wraps instead of being cut */
+            .reporting-entry-wrapper .banner-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .reporting-entry-wrapper .banner-tiles .pill-val,
+            .reporting-entry-wrapper .banner-tiles .pill-label { white-space: normal !important; overflow-wrap: anywhere; }
+        }
+        @@media (min-width: 992px) {   /* patient block takes what it needs; the cards get the rest of the row */
+            .reporting-entry-wrapper .banner-identity { flex: 0 0 270px; width: 270px; max-width: 270px; }
+            .reporting-entry-wrapper .banner-tiles-col { flex: 1 1 0; width: auto; max-width: none; }
+        }
+        .reporting-entry-wrapper .banner-tiles .info-pill {
+            min-width: 0;
+            min-height: 52px;
+            padding: 6px 8px;
+            justify-content: center;
+            gap: 3px;
+        }
+        .reporting-entry-wrapper .banner-tiles .pill-label {
+            font-size: 0.64rem;
+            line-height: 1.15;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .reporting-entry-wrapper .banner-tiles .pill-label i { margin-right: 4px; }
+        .reporting-entry-wrapper .banner-tiles .pill-val {
+            font-size: 0.76rem;
+            line-height: 1.25;
+            max-width: 100% !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: inherit !important;   /* dates and names in the page font, so every card reads the same size */
+        }
+        .reporting-entry-wrapper .banner-tiles .pill-token .pill-val,
+        .reporting-entry-wrapper .banner-tiles .pill-bill .pill-val {
+            font-family: SFMono-Regular, Menlo, Consolas, monospace !important;   /* codes stay monospaced */
+            font-size: 0.76rem;
+        }
+        .reporting-entry-wrapper .banner-tiles .info-pill .badge {
+            font-size: 0.72rem !important;
+            padding: 2px 8px !important;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle;
+        }
+
         /* ── Progress + colour legend strip ── */
         .reporting-entry-wrapper .workflow-strip {
             background: #ffffff;
@@ -694,7 +748,7 @@
     <div class="patient-banner shadow-sm mb-3">
         <div class="row g-2 align-items-center">
             <!-- Patient Identity -->
-            <div class="col-xl-3 col-lg-4 col-12 d-flex align-items-center gap-2.5">
+            <div class="col-xl-3 col-lg-4 col-12 banner-identity d-flex align-items-center gap-2.5">
                 <div class="patient-avatar-box gender-@genderKey flex-shrink-0">
                     <i class="bi bi-person-fill"></i>
                 </div>
@@ -722,10 +776,10 @@
             </div>
 
             <!-- Order / Token identifiers & status pills (2 Rows) -->
-            <div class="col-xl-9 col-lg-8 col-12">
-                <div class="d-flex flex-column gap-1.5">
-                    <!-- Row 1: Key Metadata Pills -->
-                    <div class="d-flex flex-wrap gap-1.5 justify-content-lg-end align-items-center">
+            <div class="col-xl-9 col-lg-8 col-12 banner-tiles-col">
+                <div class="banner-tiles">
+                    <!-- Row 1: Key Metadata Pills (one even grid with row 2: same width / height, columns aligned) -->
+                    <div class="banner-tiles-row">
                         <div class="info-pill pill-token">
                             <span class="pill-label">Token No</span>
                             <span class="pill-val font-monospace">@(d.TokenNo ?? "LAB")</span>
@@ -796,7 +850,7 @@
                     </div>
 
                     <!-- Row 2: Workflow Milestones & Timestamps -->
-                    <div class="d-flex flex-wrap flex-lg-nowrap gap-1.5 justify-content-lg-end align-items-center" id="rowBannerStatusTimeline">
+                    <div class="banner-tiles-row" id="rowBannerStatusTimeline">
                         <div class="info-pill" id="pillOrderStatus">
                             <span class="pill-label"><i class="bi bi-shield-check text-primary me-0.5"></i>Report Status</span>
                             <div>

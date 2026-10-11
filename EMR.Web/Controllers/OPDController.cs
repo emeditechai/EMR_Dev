@@ -41,7 +41,8 @@ public class OPDController(
     ILabReportEmailService labReportEmailService,
     ILabReportWhatsAppService labReportWhatsAppService,
     EMR.Shared.Security.IActionPermissionGuard permissionGuard,
-    IAdministratorCheck administratorCheck) : Controller
+    IAdministratorCheck administratorCheck,
+    IPatientPortalLoginService portalLoginService) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -147,6 +148,8 @@ public class OPDController(
             }
         }
         ViewBag.DoctorRoomMap = doctorRoomMap;
+        // roster button: a doctor opens their own roster (My Roster); an administrator the full Doctor Roster if allowed
+        ViewBag.CanOpenFullRoster = ViewBag.IsDoctor != true && await permissionGuard.ShowsAsync(HttpContext, "OPD.DOCTORROSTER", "VIEW");
 
         ViewData["Title"] = "Doctor Dashboard";
         return View();
@@ -438,8 +441,11 @@ public class OPDController(
             model.PhotoPath = $"/uploads/patients/{fileName}";
         }
 
-        // ── Uniqueness: Phone Number + Relation must be unique per active patient ──
-        if (model.RelationId.HasValue)
+        // ── Uniqueness: one active "Self" patient per phone number / e-mail; every other relation (Brother, Son, ...)
+        //    may repeat on the same phone and e-mail (script 2221 applies the same rule in the database) ──
+        var isSelfRelation = model.RelationId.HasValue && await dbContext.RelationMasters
+            .AnyAsync(r => r.RelationId == model.RelationId && r.RelationName == "Self");
+        if (isSelfRelation)
         {
             var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
                 p.PhoneNumber == model.PhoneNumber.Trim() &&
@@ -460,8 +466,7 @@ public class OPDController(
             }
         }
 
-        // ── Uniqueness: Email ID + Relation must be unique per active patient ──
-        if (!string.IsNullOrWhiteSpace(model.EmailId) && model.RelationId.HasValue)
+        if (!string.IsNullOrWhiteSpace(model.EmailId) && isSelfRelation)
         {
             var dupEmailExists = await dbContext.PatientMasters.AnyAsync(p =>
                 p.EmailId == model.EmailId.Trim() &&
@@ -1924,6 +1929,120 @@ public class OPDController(
         }
     }
 
+    // ─── My Roster: the Doctor Roster page for the signed-in doctor only ─────
+    // Opened from the Doctor Dashboard and part of that page's permission (script 2217). Every look-up below uses the
+    // doctor linked to this login, whatever the browser sends, so no other doctor's roster or bookings can be read here.
+
+    [HttpGet]
+    public async Task<IActionResult> MyRoster()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId == null)
+        {
+            TempData["Error"] = "Please select a branch first.";
+            return RedirectToAction("SelectBranch", "Account");
+        }
+
+        // administrators see every doctor on the full Doctor Roster (and are never matched to a doctor here)
+        if (await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext)) return RedirectToAction("Index", "DoctorRoster");
+
+        var own = await OwnDoctorAsync();
+        var doctors = new List<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>();
+        if (own is not null)
+        {
+            // same entry the full roster shows (name format), else the Doctor Master row
+            var opd = (await patientService.GetOpdDoctorsAsync(branchId.Value)).Where(d => d.DoctorId == own.DoctorId).ToList();
+            doctors.Add(opd.Count > 0 ? opd[0] : (own.DoctorId, own.FullName, own.PrimarySpecialityId, own.Gender ?? ""));
+        }
+
+        ViewBag.SelfRoster = true;
+        ViewBag.SelfDoctorName = doctors.Count > 0 ? doctors[0].FullName : null;
+        ViewBag.Doctors = doctors;
+        ViewBag.Specialities = await specialityService.GetActiveAsync();
+        ViewBag.CanConfigureScheduler = await permissionGuard.ShowsAsync(HttpContext, "MASTER.DOCTORS", "CONFIGURE_SCHEDULER");
+        return View("~/Views/DoctorRoster/Index.cshtml");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> MyRosterSchedules()
+    {
+        var own = await MyRosterDoctorAsync();
+        if (own is null) return Json(new { schedules = Array.Empty<object>(), exceptions = Array.Empty<object>() });
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            var schedules = await scheduleApiClient.GetByDoctorAsync(own.DoctorId, branchId);
+            var exceptions = await scheduleApiClient.GetExceptionsAsync(own.DoctorId, branchId);
+            return Json(new { schedules, exceptions });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Open bookings per day between two dates (yyyy-MM-dd) for the signed-in doctor.</summary>
+    [HttpGet]
+    public async Task<IActionResult> MyRosterBookingCounts(string from, string to)
+    {
+        if (!DateOnly.TryParse(from, out var f) || !DateOnly.TryParse(to, out var t) || t < f || t.DayNumber - f.DayNumber > 400)
+            return BadRequest(new { error = "Invalid date range" });
+        var own = await MyRosterDoctorAsync();
+        if (own is null) return Json(Array.Empty<object>());
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            var rows = await patientService.GetRosterBookingCountsAsync(branchId, f, t);
+            return Json(rows.Where(r => r.DoctorId == own.DoctorId)
+                .Select(r => new { doctorId = r.DoctorId, date = r.VisitDate.ToString("yyyy-MM-dd"), count = r.Bookings }));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>The signed-in doctor's bookings on one day (a doctorId sent by the page is ignored).</summary>
+    [HttpGet]
+    public async Task<IActionResult> MyRosterDateBookings(string date)
+    {
+        if (!DateOnly.TryParse(date, out var dateOnly)) return BadRequest(new { error = "Invalid date" });
+        var own = await MyRosterDoctorAsync();
+        if (own is null) return Json(new { bookings = Array.Empty<object>() });
+        var branchId = User.GetCurrentBranchId() ?? 1;
+        try
+        {
+            var bookings = await patientService.GetBookingsByDoctorDateAsync(own.DoctorId, dateOnly, branchId);
+            return Json(new { bookings });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>The signed-in doctor's free slots on one day (a doctorId sent by the page is ignored).</summary>
+    [HttpGet]
+    public async Task<IActionResult> MyRosterSlots(string date)
+    {
+        var own = await MyRosterDoctorAsync();
+        if (own is null || !DateTime.TryParse(date, out var dt))
+            return Json(new { hasException = false, slots = Array.Empty<object>() });
+        var branchId = User.GetCurrentBranchId() ?? 0;
+        try
+        {
+            return Json(await scheduleApiClient.GetAvailableSlotsAsync(own.DoctorId, branchId, dt));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>The doctor My Roster shows: the login's own doctor; none for administrators (they use the full roster).</summary>
+    private async Task<OwnDoctorRow?> MyRosterDoctorAsync() =>
+        await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext) ? null : await OwnDoctorAsync();
+
     // ─── Print Bill (via EMR.Api) ─────────────────────────────────────────────
 
     [HttpGet]
@@ -2483,6 +2602,72 @@ public class OPDController(
         return View("PrintPrescription", vm);
     }
 
+    // ── EMR: Refer To Doctor (speciality -> doctor) and Follow-Up Date (SQLScripts/2229) ─────────────────────────
+    /// <summary>Specialities that have at least one active doctor other than the consulting doctor.</summary>
+    [HttpGet]
+    public async Task<IActionResult> EmrReferSpecialities(int? excludeDoctorId)
+    {
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync(@"
+            SELECT sp.SpecialityId AS id, sp.SpecialityName AS name
+            FROM dbo.DoctorSpecialityMaster sp
+            WHERE sp.IsActive = 1 AND sp.CompanyId = @CompanyId
+              AND EXISTS (SELECT 1 FROM dbo.DoctorMaster d
+                          WHERE d.IsActive = 1 AND ISNULL(d.IsReferralDoctor, 0) = 0 AND d.CompanyId = @CompanyId
+                            AND (d.PrimarySpecialityId = sp.SpecialityId OR d.SecondarySpecialityId = sp.SpecialityId)
+                            AND (@Exclude IS NULL OR d.DoctorId <> @Exclude))
+            ORDER BY sp.SpecialityName",
+            new { CompanyId = User.GetCompanyId(), Exclude = excludeDoctorId is > 0 ? excludeDoctorId : null });
+        return Json(rows);
+    }
+
+    /// <summary>Active doctors of a speciality (primary or secondary), the consulting doctor left out.</summary>
+    [HttpGet]
+    public async Task<IActionResult> EmrReferDoctors(int specialityId, int? excludeDoctorId)
+    {
+        if (specialityId <= 0) return Json(Array.Empty<object>());
+        using var con = db.CreateConnection();
+        var rows = await con.QueryAsync(@"
+            SELECT d.DoctorId AS id, LTRIM(RTRIM(ISNULL(d.NamePrefix + ' ', '') + d.FullName)) AS name,
+                   CASE WHEN d.PrimarySpecialityId = @SpecialityId THEN 1 ELSE 0 END AS isPrimary
+            FROM dbo.DoctorMaster d
+            WHERE d.IsActive = 1 AND ISNULL(d.IsReferralDoctor, 0) = 0 AND d.CompanyId = @CompanyId
+              AND (d.PrimarySpecialityId = @SpecialityId OR d.SecondarySpecialityId = @SpecialityId)
+              AND (@Exclude IS NULL OR d.DoctorId <> @Exclude)
+            ORDER BY CASE WHEN d.PrimarySpecialityId = @SpecialityId THEN 0 ELSE 1 END, d.FullName",
+            new { SpecialityId = specialityId, CompanyId = User.GetCompanyId(), Exclude = excludeDoctorId is > 0 ? excludeDoctorId : null });
+        return Json(rows);
+    }
+
+    /// <summary>Both are optional. A referral needs a speciality and an active doctor of it (not the consulting doctor);
+    /// a follow-up date must be after the visit and within a year.</summary>
+    private async Task<string?> ValidateReferAndFollowUpAsync(SaveConsultationRequest req)
+    {
+        if (req.ReferToSpecialityId is not > 0) req.ReferToSpecialityId = null;
+        if (req.ReferToDoctorId is not > 0) req.ReferToDoctorId = null;
+        if (req.ReferToSpecialityId != null && req.ReferToDoctorId == null)
+            return "Select the doctor to refer to, or clear the speciality.";
+        if (req.ReferToDoctorId != null)
+        {
+            if (req.ReferToSpecialityId == null) return "Select the speciality of the doctor to refer to.";
+            if (req.ReferToDoctorId == req.DoctorId) return "A patient cannot be referred to the consulting doctor.";
+            using var con = db.CreateConnection();
+            var ok = await con.ExecuteScalarAsync<bool>(@"
+                SELECT CAST(COUNT(1) AS BIT) FROM dbo.DoctorMaster d
+                WHERE d.DoctorId = @DoctorId AND d.IsActive = 1 AND ISNULL(d.IsReferralDoctor, 0) = 0 AND d.CompanyId = @CompanyId
+                  AND (d.PrimarySpecialityId = @SpecialityId OR d.SecondarySpecialityId = @SpecialityId)",
+                new { DoctorId = req.ReferToDoctorId, SpecialityId = req.ReferToSpecialityId, CompanyId = User.GetCompanyId() });
+            if (!ok) return "The selected doctor is not an active doctor of the selected speciality.";
+        }
+        if (req.FollowUpDate is { } f)
+        {
+            req.FollowUpDate = f.Date;
+            if (f.Date <= DateTime.Today) return "The follow-up date must be after today.";
+            if (f.Date > DateTime.Today.AddYears(1)) return "The follow-up date can be at most one year ahead.";
+        }
+        return null;
+    }
+
     [HttpPost]
     public async Task<IActionResult> SavePatientConsultation([FromBody] SaveConsultationRequest req)
     {
@@ -2492,6 +2677,10 @@ public class OPDController(
             return Json(new { success = false, message = "This patient is not in your queue." });
         if (!await administratorCheck.IsSuperAdminOrAdministratorAsync(HttpContext))
             req.DoctorId = (await OwnDoctorAsync())!.DoctorId;
+
+        var referFollowUpError = await ValidateReferAndFollowUpAsync(req);
+        if (referFollowUpError != null)
+            return Json(new { success = false, message = referFollowUpError });
 
         var userId = User.GetUserId();
         
@@ -2838,115 +3027,9 @@ public class OPDController(
             Console.WriteLine($"Error scheduling booking email: {ex}");
         }
     }
-    private async Task TryGeneratePatientLoginAsync(int patientId, string patientCode, string phone, string email, string name, int branchId)
-    {
-        if (string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(email))
-            return;
-
-        var isAlreadyGenerated = await dbContext.PatientMasters
-            .Where(p => p.PatientId == patientId)
-            .Select(p => p.IsLoginGenerated)
-            .FirstOrDefaultAsync();
-
-        if (isAlreadyGenerated)
-            return;
-
-
-        TriggerPatientLoginEmail(branchId, patientId, patientCode, name, email);
-    }
-
-    // ─── Email: Patient Login Credential ────────────────────────────────────────────
-    private void TriggerPatientLoginEmail(int activeBranchId, int patientId, string patientCode, string patientName, string patientEmail)
-    {
-        try
-        {
-            var scopeFactory = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var scope = scopeFactory.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    var emailSvc = scope.ServiceProvider.GetRequiredService<IEmailService>();
-                    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasherService>();
-
-                    // Generate Password
-                    var password = $"{patientCode}{DateTime.Now.Year}";
-                    var (Hash, Salt) = passwordHasher.HashPassword(password);
-
-                    // Update DB directly
-                    var rowsAffected = await db.Database.GetDbConnection().ExecuteAsync(
-                        @"UPDATE PatientMaster 
-                          SET IsLoginGenerated = 1, PasswordHash = @Hash, Salt = @Salt, IsPasswordchanged = 0 
-                          WHERE PatientId = @Id AND IsLoginGenerated = 0",
-                        new { Hash, Salt, Id = patientId }
-                    );
-
-                    if (rowsAffected > 0)
-                    {
-                        var hospital = await db.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
-                        var hospitalName = hospital?.HospitalName ?? "Our Hospital";
-
-                        var subject = $"Welcome to {hospitalName} - Your Login Credentials";
-                        var htmlBody = $@"
-                        <div style='font-family: ""Helvetica Neue"", Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);'>
-                            
-                            <!-- Header -->
-                            <div style='background-color: #0056b3; padding: 30px; text-align: center;'>
-                                <h1 style='color: #ffffff; margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px;'>Welcome to {hospitalName}</h1>
-                            </div>
-                            
-                            <!-- Body -->
-                            <div style='padding: 40px 30px;'>
-                                <h2 style='color: #333333; font-size: 20px; margin-top: 0;'>Dear {patientName},</h2>
-                                <p style='color: #555555; font-size: 16px; line-height: 1.6; margin-bottom: 25px;'>
-                                    Thank you for registering with us! We have successfully created a secure patient portal account for you. You can use this account to book appointments, view your health records, and stay connected with our care team.
-                                </p>
-                                
-                                <div style='background-color: #f4f7f6; border-left: 4px solid #0056b3; padding: 20px; border-radius: 4px; margin: 30px 0;'>
-                                    <h3 style='color: #333333; margin-top: 0; margin-bottom: 15px; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;'>Your Login Credentials</h3>
-                                    <table style='width: 100%; border-collapse: collapse;'>
-                                        <tr>
-                                            <td style='padding: 8px 0; color: #555555; width: 100px;'><strong>Username:</strong></td>
-                                            <td style='padding: 8px 0; color: #333333; font-size: 16px; font-weight: 600;'>{patientEmail}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style='padding: 8px 0; color: #555555;'><strong>Password:</strong></td>
-                                            <td style='padding: 8px 0; color: #333333; font-size: 16px; font-weight: 600;'>{password}</td>
-                                        </tr>
-                                    </table>
-                                </div>
-                                
-                                <p style='color: #555555; font-size: 15px; line-height: 1.5; margin-bottom: 0;'>
-                                    <em>For security purposes, we strongly recommend changing your password immediately after your first login.</em>
-                                </p>
-                            </div>
-                            
-                            <!-- Footer -->
-                            <div style='background-color: #f9f9f9; padding: 20px 30px; text-align: center; border-top: 1px solid #eeeeee;'>
-                                <p style='color: #999999; font-size: 12px; margin: 0; line-height: 1.5;'>
-                                    This is an automated message generated by {hospitalName}.<br>
-                                    Please do not reply directly to this email.
-                                </p>
-                            </div>
-                        </div>";
-
-                        await emailSvc.SendEmailAsync(activeBranchId, patientEmail, subject, htmlBody);
-                        Console.WriteLine($"[DEBUG-LOGIN-EMAIL] Sent login credentials to PatientId: {patientId}, Email: {patientEmail}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[DEBUG-LOGIN-EMAIL] Error generating/sending login credentials: {ex}");
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[DEBUG-LOGIN-EMAIL] Error in TriggerPatientLoginEmail setup: {ex}");
-        }
-    }
+    // portal login + credentials e-mail: shared with B2C LAB booking (Services/PatientPortalLoginService)
+    private Task TryGeneratePatientLoginAsync(int patientId, string patientCode, string phone, string email, string name, int branchId) =>
+        portalLoginService.TryGenerateAsync(patientId, patientCode, phone, email, name, branchId);
 }
 
 public class SaveConsultationRequest
@@ -2964,5 +3047,10 @@ public class SaveConsultationRequest
     public string VisitType { get; set; } = "New";
     public string ConsultationType { get; set; } = string.Empty;
     public string EmrDataJson { get; set; } = string.Empty;
+    /// <summary>Refer To Doctor (optional): the speciality and a doctor of it (SQLScripts/2229).</summary>
+    public int? ReferToSpecialityId { get; set; }
+    public int? ReferToDoctorId { get; set; }
+    /// <summary>Follow-Up Date (optional); reminders 7 days and 1 day before when the branch has them on.</summary>
+    public DateTime? FollowUpDate { get; set; }
     public int RequestedByUserId { get; set; }
 }

@@ -1,0 +1,64 @@
+@model EMR.Web.Models.ViewModels.AccReportViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["AccIcon"] = "bi-shield-check";
+    ViewData["AccSubtitle"] = "Every bill, receipt, refund, petty cash movement and voucher of the period against its ledger entry.";
+    var clean = Model.AuditIssues.Count == 0;
+}
+
+<div class="container-fluid px-4 py-3 acc-rpt">
+    <div class="mb-3 acc-noprint"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+    <partial name="_Filter" model="Model" />
+
+    <div class="alert @(clean ? "alert-success" : "alert-danger") shadow-sm">
+        <i class="bi @(clean ? "bi-check-circle-fill" : "bi-exclamation-octagon-fill") me-2"></i>
+        @if (clean) { <span>Clean: all @Model.AuditSummary.Sum(s => s.Checked).ToString("N0") documents checked are posted correctly.</span> }
+        else { <span><strong>@Model.AuditIssues.Count problem(s)</strong> worth ₹@Model.AuditIssues.Sum(i => i.Amount).ToString("N2") in @Model.AuditSummary.Sum(s => s.Checked).ToString("N0") documents checked.</span> }
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2 fw-bold">What was checked</div>
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th class="ps-3">Source</th><th class="num">Checked</th><th class="num pe-3">Problems</th></tr></thead>
+                    <tbody>
+                        @foreach (var s in Model.AuditSummary)
+                        {
+                            <tr><td class="ps-3">@s.Source</td><td class="num">@s.Checked.ToString("N0")</td>
+                                <td class="num pe-3">@if (s.Problems > 0) { <span class="badge bg-danger">@s.Problems</span> } else { <i class="bi bi-check-lg text-success"></i> }</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2 fw-bold">Problems</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead><tr><th class="ps-3">Source</th><th>Document</th><th>Date</th><th>Branch</th><th class="num">Amount</th><th class="pe-3">Problem</th></tr></thead>
+                        <tbody>
+                            @if (clean)
+                            {
+                                <tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-shield-check display-6 d-block mb-2 text-success"></i>Nothing to fix in this period.</td></tr>
+                            }
+                            @foreach (var i in Model.AuditIssues)
+                            {
+                                <tr>
+                                    <td class="ps-3 text-nowrap">@i.Source</td>
+                                    <td class="font-monospace small text-nowrap">@if (i.TransactionId.HasValue) { <a asp-action="Voucher" asp-route-id="@i.TransactionId">@i.DocNo</a> } else { @i.DocNo }</td>
+                                    <td class="text-nowrap">@i.DocDate.ToString("dd-MMM-yyyy")</td>
+                                    <td>@(i.BranchName ?? "-")</td>
+                                    <td class="num">@i.Amount.ToString("N2")</td>
+                                    <td class="pe-3 text-danger">@i.Issue</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

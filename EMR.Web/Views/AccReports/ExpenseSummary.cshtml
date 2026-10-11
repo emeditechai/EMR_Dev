@@ -1,0 +1,61 @@
+@model EMR.Web.Models.ViewModels.AccReportViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["AccIcon"] = "bi-pie-chart";
+    var rows = Model.ExpenseSummary;
+    var months = rows.Select(r => r.YearMonth).Distinct().OrderBy(m => m).ToList();
+    var heads = rows.GroupBy(r => r.HeadName).Select(g => (Head: g.Key, Total: g.Sum(x => x.Amount), ByMonth: g.GroupBy(x => x.YearMonth).ToDictionary(m => m.Key, m => m.Sum(x => x.Amount)))).OrderByDescending(h => h.Total).ToList();
+    var branches = rows.GroupBy(r => r.BranchName ?? "-").Select(g => (Branch: g.Key, Total: g.Sum(x => x.Amount))).OrderByDescending(b => b.Total).ToList();
+    var grand = rows.Sum(r => r.Amount);
+    string Month(string ym) => DateTime.ParseExact(ym + "-01", "yyyy-MM-dd", null).ToString("MMM yy");
+}
+
+<div class="container-fluid px-4 py-3 acc-rpt">
+    <div class="mb-3 acc-noprint"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+    <partial name="_Filter" model="Model" />
+
+    <div class="row g-3">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2 fw-bold">By expense head and month <span class="fw-normal text-muted small">(approved petty expenses)</span></div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead><tr><th class="ps-3">Expense Head</th>@foreach (var m in months) { <th class="num">@Month(m)</th> }<th class="num">Total</th><th class="num pe-3">Share</th></tr></thead>
+                        <tbody>
+                            @if (heads.Count == 0)
+                            {
+                                <tr><td colspan="@(months.Count + 3)" class="text-center py-5 text-muted"><i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>No approved petty expenses in this period.</td></tr>
+                            }
+                            @foreach (var h in heads)
+                            {
+                                <tr>
+                                    <td class="ps-3 fw-semibold">@h.Head</td>
+                                    @foreach (var m in months) { <td class="num">@(h.ByMonth.TryGetValue(m, out var a) ? a.ToString("N2") : "")</td> }
+                                    <td class="num fw-semibold">@h.Total.ToString("N2")</td>
+                                    <td class="num pe-3 text-muted">@(grand > 0 ? (h.Total / grand * 100).ToString("0.0") + "%" : "")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot><tr><td class="ps-3">Total</td>@foreach (var m in months) { <td class="num">@rows.Where(r => r.YearMonth == m).Sum(r => r.Amount).ToString("N2")</td> }<td class="num">@grand.ToString("N2")</td><td></td></tr></tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-2 fw-bold">By branch</div>
+                <table class="table table-sm align-middle mb-0">
+                    <tbody>
+                        @foreach (var b in branches)
+                        {
+                            <tr><td class="ps-3">@b.Branch</td><td class="num pe-3">@b.Total.ToString("N2")</td></tr>
+                        }
+                        @if (branches.Count == 0) { <tr><td class="text-center text-muted py-3">-</td></tr> }
+                    </tbody>
+                    <tfoot><tr><td class="ps-3">Total</td><td class="num pe-3">@grand.ToString("N2")</td></tr></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

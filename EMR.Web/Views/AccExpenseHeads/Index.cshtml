@@ -1,0 +1,119 @@
+@model EMR.Web.Models.ViewModels.AccExpenseHeadsPageViewModel
+@{
+    ViewData["Title"] = "Expense Heads";
+    ViewData["AccIcon"] = "bi-tags";
+    ViewData["AccSubtitle"] = "What staff pick on a petty expense. Each head posts to one ledger.";
+    const string Page = "UTILITY.ACCOUNTS.EXPENSEHEADS";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><partial name="_AccHeader" /></div>
+        <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-primary shadow-sm" data-acc-head="new"><i class="bi bi-plus-lg me-1"></i>Add Expense Head</button>
+    </div>
+    <partial name="_AccAlerts" />
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light border-bottom">
+                    <tr>
+                        <th class="ps-4">Expense Head</th><th>Posts to Ledger</th><th class="text-end">Limit per Voucher</th><th class="text-end">Bill No. Required Above</th>
+                        <th class="text-center">Status</th><th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Heads.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>No expense heads yet.</td></tr>
+                    }
+                    @foreach (var h in Model.Heads)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-semibold">@h.HeadName</td>
+                            <td>@h.LedgerName</td>
+                            <td class="text-end font-monospace">@(h.MaxPerVoucher.HasValue ? "₹" + h.MaxPerVoucher.Value.ToString("N2") : "Company limit")</td>
+                            <td class="text-end font-monospace">@(h.BillRequiredAbove.HasValue ? "₹" + h.BillRequiredAbove.Value.ToString("N2") : "-")</td>
+                            <td class="text-center">
+                                @if (h.IsActive) { <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3">Active</span> }
+                                else { <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3">Inactive</span> }
+                            </td>
+                            <td class="text-end pe-4">
+                                <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-sm btn-outline-primary" title="Edit" data-acc-head="edit" data-id="@h.ExpenseHeadId" data-name="@h.HeadName"
+                                        data-ledger="@h.LedgerId" data-max="@h.MaxPerVoucher?.ToString("0.00")" data-bill="@h.BillRequiredAbove?.ToString("0.00")" data-active="@(h.IsActive ? "1" : "0")"><i class="bi bi-pencil"></i></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="headModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form asp-action="Save" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ExpenseHeadId" id="hdId" value="0" />
+            <div class="modal-header"><h5 class="modal-title" id="hdTitle">Add Expense Head</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold required-field">Expense Head</label>
+                        <input name="HeadName" id="hdName" class="form-control" maxlength="100" required autocomplete="off" placeholder="e.g. Courier and Sample Transport" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Posts to Ledger</label>
+                        <select name="LedgerId" id="hdLedger" class="form-select">
+                            <option value="">-- Create a new expense ledger with this name --</option>
+                            @foreach (var l in Model.Ledgers)
+                            {
+                                <option value="@l.Id">@l.Name (@l.Extra)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Limit per Voucher</label>
+                        <div class="input-group"><span class="input-group-text">₹</span><input name="MaxPerVoucher" id="hdMax" type="number" step="0.01" min="0.01" class="form-control" placeholder="Company limit" /></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Bill No. Required Above</label>
+                        <div class="input-group"><span class="input-group-text">₹</span><input name="BillRequiredAbove" id="hdBill" type="number" step="0.01" min="0" class="form-control" placeholder="Never" /></div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="IsActive" value="false" />
+                            <input class="form-check-input" type="checkbox" role="switch" name="IsActive" id="hdActive" value="true" checked>
+                            <label class="form-check-label fw-semibold" for="hdActive">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var $ = function (id) { return document.getElementById(id); }, modal = new bootstrap.Modal($('headModal'));
+            document.querySelectorAll('[data-acc-head]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var d = btn.dataset, edit = d.accHead === 'edit';
+                    $('hdTitle').textContent = edit ? 'Edit Expense Head' : 'Add Expense Head';
+                    $('hdId').value = edit ? d.id : 0;
+                    $('hdName').value = edit ? d.name : '';
+                    $('hdLedger').value = edit ? d.ledger : '';
+                    $('hdMax').value = edit ? (d.max || '') : '';
+                    $('hdBill').value = edit ? (d.bill || '') : '';
+                    $('hdActive').checked = edit ? d.active === '1' : true;
+                    modal.show();
+                });
+            });
+        });
+    </script>
+}

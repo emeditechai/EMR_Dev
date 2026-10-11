@@ -37,7 +37,16 @@
                 <span class="badge bg-primary bg-opacity-10 text-primary font-monospace fs-6 px-3 py-2 border border-primary border-opacity-25 rounded-pill">
                     @Model.Test_Code
                 </span>
-                <h5 class="fw-bold mb-0 text-dark">@Model.Test_Name</h5>
+                <div>
+                    <h5 class="fw-bold mb-0 text-dark">@Model.Test_Name</h5>
+                    <div class="small text-muted">
+                        <i class="bi bi-file-earmark-text me-1"></i>Reporting name: <span class="fw-semibold text-dark">@(string.IsNullOrWhiteSpace(Model.Reporting_Name) ? Model.Test_Name : Model.Reporting_Name)</span>
+                        @if (string.IsNullOrWhiteSpace(Model.Reporting_Name) || string.Equals(Model.Reporting_Name.Trim(), Model.Test_Name.Trim(), StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span>(same as test name)</span>
+                        }
+                    </div>
+                </div>
             </div>
             <div>
                 @if (Model.Status)

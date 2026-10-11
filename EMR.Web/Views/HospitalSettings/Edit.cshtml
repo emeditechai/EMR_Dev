@@ -315,6 +315,20 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c2410c;--lp-bg:#ffedd5;">
+                        <div class="lp-icon"><i class="bi bi-bell-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Follow up Notification Required</div>
+                            <div class="lp-desc">Yes: the patient gets a follow-up reminder by e-mail and WhatsApp 7 days and 1 day before the follow-up date set in the EMR. No: no reminders.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="OpdFollowUpNotificationRequired">
+                                <label class="form-check-label" asp-for="OpdFollowUpNotificationRequired">Send follow-up reminders</label>
+                            </div>
+                            <span asp-validation-for="OpdFollowUpNotificationRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>
@@ -534,6 +548,24 @@
                     </div>
                 </div>
             </div>
+
+            <div class="lab-section-title">Patient Access</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-person-badge-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Required Patient Portal</div>
+                            <div class="lp-desc">Yes: a B2C lab booking creates the patient's Patient Portal login and e-mails the credentials (once per patient, when the patient has a mobile number and an e-mail). No: lab bookings do not create portal logins. B2B bookings are never affected.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="LabPatientPortalRequired">
+                                <label class="form-check-label" asp-for="LabPatientPortalRequired">Create Patient Portal login for B2C patients</label>
+                            </div>
+                            <span asp-validation-for="LabPatientPortalRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <script>
                 (function () {
                     var sel = document.getElementById('selDoctorIpMode'), box = document.getElementById('divDoctorIpRunTime');
@@ -541,6 +573,147 @@
                     sel.addEventListener('change', sync); sync();
                 })();
             </script>
+
+            <div class="lab-section-title">Membership Card</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-credit-card-2-front-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Card Number Prefix</div>
+                            <div class="lp-desc">Letters put before the running number of a new membership card, e.g. MC000001.</div>
+                            <input asp-for="MembershipCardNoPrefix" class="form-control form-control-sm mt-2 text-uppercase" maxlength="10" />
+                            <span asp-validation-for="MembershipCardNoPrefix" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-whatsapp"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Send Card by WhatsApp</div>
+                            <div class="lp-desc">Yes: the card PDF goes to the primary member's mobile through this branch's WhatsApp configuration.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipCardWhatsAppRequired">
+                                <label class="form-check-label" asp-for="MembershipCardWhatsAppRequired">Send the card on WhatsApp</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-envelope-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Send Card by Email</div>
+                            <div class="lp-desc">Yes: the card PDF is emailed to the primary member through this branch's SMTP configuration.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipCardEmailRequired">
+                                <label class="form-check-label" asp-for="MembershipCardEmailRequired">Send the card by email</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-send-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Send Card on Issue</div>
+                            <div class="lp-desc">Yes: the card is sent as soon as it is issued. No: it is sent only from the Send button on the card.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipCardAutoSendOnIssue">
+                                <label class="form-check-label" asp-for="MembershipCardAutoSendOnIssue">Send automatically on issue</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#be185d;--lp-bg:#fce7f3;">
+                        <div class="lp-icon"><i class="bi bi-arrow-repeat"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Renewal Window (days)</div>
+                            <div class="lp-desc">A card can be renewed from this many days before it expires, and any time after. Lifetime cards are never renewed.</div>
+                            <input asp-for="MembershipRenewalWindowDays" type="number" min="0" max="365" class="form-control form-control-sm mt-2" />
+                            <span asp-validation-for="MembershipRenewalWindowDays" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b91c1c;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-percent"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Manual Discount with Membership</div>
+                            <div class="lp-desc">No: a member's bill takes the membership discount or a manual discount, not both. Yes: a manual discount (with its reason and approver) may be added on top.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipDiscountWithManualDiscount">
+                                <label class="form-check-label" asp-for="MembershipDiscountWithManualDiscount">Allow both on one bill</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#1d4ed8;--lp-bg:#dbeafe;">
+                        <div class="lp-icon"><i class="bi bi-shield-lock-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">OTP for Points Redemption</div>
+                            <div class="lp-desc">Yes: paying part of a bill with points needs an OTP sent to the primary member's mobile. No: the cashier redeems without one.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipRedeemOtpRequired">
+                                <label class="form-check-label" asp-for="MembershipRedeemOtpRequired">Ask for an OTP</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#475569;--lp-bg:#e2e8f0;">
+                        <div class="lp-icon"><i class="bi bi-hourglass-bottom"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Points Expiry Run Time</div>
+                            <div class="lp-desc">Time of day (server time) at which points past their expiry date are removed from card balances.</div>
+                            <input asp-for="MembershipPointsExpiryTime" type="time" class="form-control form-control-sm mt-2" />
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-bell-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Renewal Reminder Emails</div>
+                            <div class="lp-desc">Yes: the primary member is emailed before the card expires, on the days below. Lifetime, renewed, blocked and expired cards get none.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="MembershipRenewalReminderEnabled">
+                                <label class="form-check-label" asp-for="MembershipRenewalReminderEnabled">Send renewal reminders</label>
+                            </div>
+                            <label class="form-label small text-muted mt-2 mb-0">Days before expiry (0 = last day)</label>
+                            <input asp-for="MembershipRenewalReminderDays" class="form-control form-control-sm" placeholder="30,15,1" maxlength="50" />
+                            <span asp-validation-for="MembershipRenewalReminderDays" class="text-danger small d-block mt-1"></span>
+                            <label class="form-label small text-muted mt-2 mb-0">Send from (server time)</label>
+                            <input asp-for="MembershipRenewalReminderTime" type="time" class="form-control form-control-sm" />
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-xl-9">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-envelope-paper-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Renewal Reminder Message</div>
+                            <div class="lp-desc">Text of the reminder email. Placeholders: {PatientName}, {HospitalName}, {PlanName}, {CardNo}, {ValidTo}, {DaysLeft}, {Points}. Leave blank for the standard message.</div>
+                            <textarea asp-for="MembershipRenewalReminderTemplate" class="form-control form-control-sm mt-2" rows="3" maxlength="1000"></textarea>
+                            <span asp-validation-for="MembershipRenewalReminderTemplate" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-xl-9">
+                    <div class="lab-param" style="--lp:#475569;--lp-bg:#e2e8f0;">
+                        <div class="lp-icon"><i class="bi bi-chat-left-text-fill"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">Card Message</div>
+                            <div class="lp-desc">Text sent with the card on WhatsApp and email. Placeholders: {PatientName}, {HospitalName}, {PlanName}, {CardNo}, {ValidFrom}, {ValidTo}. Leave blank for the standard message.</div>
+                            <textarea asp-for="MembershipCardMessageTemplate" class="form-control form-control-sm mt-2" rows="2" maxlength="1000"></textarea>
+                            <span asp-validation-for="MembershipCardMessageTemplate" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">

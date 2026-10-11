@@ -54,6 +54,14 @@
                         <span asp-validation-for="Test_Name" class="text-danger small"></span>
                     </div>
 
+                    <!-- Reporting Name (optional) -->
+                    <div class="col-md-6">
+                        <label asp-for="Reporting_Name" class="form-label fw-semibold"></label>
+                        <input asp-for="Reporting_Name" class="form-control" placeholder="Name to print on reports" maxlength="200" />
+                        <span class="form-text text-muted small">Optional. If left blank, the Test Name is saved here.</span>
+                        <span asp-validation-for="Reporting_Name" class="text-danger small"></span>
+                    </div>
+
                     <!-- Department -->
                     <div class="col-md-6">
                         <label asp-for="Department_ID" class="form-label fw-semibold"></label> <span class="text-danger">*</span>

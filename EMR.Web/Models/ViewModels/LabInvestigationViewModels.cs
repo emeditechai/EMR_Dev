@@ -32,6 +32,10 @@ public class LabInvestigationFormViewModel
     [Display(Name = "Test Name")]
     public string Test_Name { get; set; } = string.Empty;
 
+    [StringLength(200, ErrorMessage = "Reporting Name cannot exceed 200 characters.")]
+    [Display(Name = "Reporting Name")]
+    public string? Reporting_Name { get; set; }
+
     [Required(ErrorMessage = "Department is required.")]
     [Display(Name = "Department")]
     public int Department_ID { get; set; }

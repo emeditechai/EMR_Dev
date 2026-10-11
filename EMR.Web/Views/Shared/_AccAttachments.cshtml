@@ -1,0 +1,45 @@
+@model EMR.Web.Models.ViewModels.AccAttachmentsViewModel
+@* Bill photos / scans of a petty expense or a voucher (details page). Files are served by the document's own controller,
+   which checks the branch. Add / remove needs the page's ATTACH control and a document that is not cancelled. *@
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white py-3"><h6 class="fw-bold mb-0"><i class="bi bi-paperclip me-2 text-primary"></i>Bills Attached <span class="badge bg-secondary ms-1">@Model.Items.Count</span></h6></div>
+    <div class="card-body">
+        @if (Model.Items.Count == 0)
+        {
+            <div class="text-muted small mb-2">No bill attached.</div>
+        }
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            @foreach (var a in Model.Items)
+            {
+                var url = Url.Action("Attachment", Model.Controller, new { id = a.AttachmentId });
+                <div class="border rounded p-1 text-center position-relative" style="width:118px;">
+                    <a href="@url" target="_blank" title="@a.FileName - added by @a.CreatedByName, @a.CreatedDate.ToString("dd-MMM-yyyy HH:mm")" class="text-decoration-none d-block">
+                        @if (a.IsImage) { <img src="@url" alt="@a.FileName" loading="lazy" style="width:100%;height:78px;object-fit:cover;border-radius:4px;" /> }
+                        else { <div style="height:78px;" class="d-flex align-items-center justify-content-center bg-light rounded"><i class="bi bi-file-earmark-pdf fs-1 text-danger"></i></div> }
+                        <div class="small text-truncate text-dark">@a.FileName</div>
+                        <div class="text-muted" style="font-size:.7rem;">@a.SizeText</div>
+                    </a>
+                    @if (Model.CanChange)
+                    {
+                        <form asp-permission="@(Model.PageCode + ":ATTACH")" asp-controller="@Model.Controller" asp-action="DeleteAttachment" asp-encrypted-id="@Model.RefId" method="post" class="position-absolute top-0 end-0">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="attachmentId" value="@a.AttachmentId" />
+                            <button type="submit" class="btn btn-sm btn-danger py-0 px-1" title="Remove" onclick="return confirm('Remove this attachment?');"><i class="bi bi-x"></i></button>
+                        </form>
+                    }
+                </div>
+            }
+        </div>
+        @if (Model.CanChange && Model.Items.Count < 5)
+        {
+            <form asp-permission="@(Model.PageCode + ":ATTACH")" asp-controller="@Model.Controller" asp-action="AddAttachment" asp-encrypted-id="@Model.RefId" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="input-group input-group-sm">
+                    <input type="file" name="files" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple required />
+                    <button type="submit" class="btn btn-outline-primary"><i class="bi bi-upload me-1"></i>Attach</button>
+                </div>
+                <div class="form-text">JPG, PNG, WEBP or PDF. 5 MB each, up to 5 files.</div>
+            </form>
+        }
+    </div>
+</div>
