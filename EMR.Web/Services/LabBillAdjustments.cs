@@ -38,6 +38,7 @@ public sealed class LabBillAdjustment
     public decimal PointsRedeemed { get; set; }
     public decimal PointsRedeemedAmount { get; set; }
     public decimal PointsEarned { get; set; }
+    public decimal MembershipDiscountAmount { get; set; }   // plan benefits on the bill (SQLScripts/2241)
     public bool HasPoints => PointsRedeemed > 0 || PointsEarned > 0;
     // misc charges of the bill (SQLScripts/2240), cancelled ones included
     public List<LabOrderMiscLine> MiscLines { get; set; } = [];
@@ -88,14 +89,14 @@ public static class LabBillAdjustments
                 a.RefundedAmount += r.RefundAmount;
             }
 
-        var points = await con.QueryAsync<(int ModuleRefId, string? CardNo, decimal PointsRedeemed, decimal PointsRedeemedAmount, decimal PointsEarned)>(@"
-            SELECT ph.ModuleRefId, c.CardNo, ISNULL(ph.PointsRedeemed, 0), ISNULL(ph.PointsRedeemedAmount, 0), ISNULL(ph.PointsEarned, 0)
+        var points = await con.QueryAsync<(int ModuleRefId, string? CardNo, decimal PointsRedeemed, decimal PointsRedeemedAmount, decimal PointsEarned, decimal MemDisc)>(@"
+            SELECT ph.ModuleRefId, c.CardNo, ISNULL(ph.PointsRedeemed, 0), ISNULL(ph.PointsRedeemedAmount, 0), ISNULL(ph.PointsEarned, 0), ISNULL(ph.MembershipDiscountAmount, 0)
             FROM dbo.PaymentHeader ph LEFT JOIN dbo.MembershipCard c ON c.CardId = ph.MembershipCardId
             WHERE ph.ModuleCode = 'LAB' AND ph.ModuleRefId IN @Ids AND ph.MembershipCardId IS NOT NULL
             ORDER BY ph.IsActive, ph.PaymentHeaderId", new { Ids = ids });
         var misc = await con.QueryAsync<LabOrderMiscLine>(@"
             SELECT LabOrderMiscChargeId, LabOrderId, MiscChargeId, ChargeName, ChargeType, Quantity, UnitAmount, Amount, IsDiscountable,
-                   IsGstRequired, GstPercentage, DiscountAmount, CgstAmount, SgstAmount, GstAmount, NetAmount, IsActive
+                   IsGstRequired, GstPercentage, DiscountAmount, CgstAmount, SgstAmount, GstAmount, NetAmount, IsActive, MembershipDiscountAmount
             FROM dbo.LabOrderMiscCharge WHERE LabOrderId IN @Ids ORDER BY LabOrderMiscChargeId", new { Ids = ids });
         foreach (var m in misc)
             if (map.TryGetValue(m.LabOrderId, out var a)) a.MiscLines.Add(m);
@@ -107,6 +108,7 @@ public static class LabBillAdjustments
                 a.PointsRedeemed = pt.PointsRedeemed;
                 a.PointsRedeemedAmount = pt.PointsRedeemedAmount;
                 a.PointsEarned = pt.PointsEarned;
+                a.MembershipDiscountAmount = pt.MemDisc;
             }
         return map;
     }

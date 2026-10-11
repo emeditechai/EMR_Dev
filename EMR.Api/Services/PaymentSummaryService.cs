@@ -42,6 +42,9 @@ public class PaymentSummaryService(IDbConnectionFactory db) : IPaymentSummarySer
             summary.TotalPaid     = (decimal)existing.TotalPaid;
             summary.BalanceDue    = (decimal)existing.BalanceDue;
             summary.PaymentStatus = (string)existing.PaymentStatus;
+            var exDict = (IDictionary<string, object>)existing;
+            summary.MembershipDiscountAmount = exDict.TryGetValue("MembershipDiscountAmount", out var md) && md != null ? Convert.ToDecimal(md) : 0m;
+            summary.MembershipTestDiscount = exDict.TryGetValue("MembershipTestDiscount", out var mt) && mt != null ? Convert.ToDecimal(mt) : 0m;
 
             // what the bill's receipts add up to - the payment is checked against this (double-payment guard)
             using var con2 = db.CreateConnection();

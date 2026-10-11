@@ -67,6 +67,7 @@ public class PrintBillViewModel
     public decimal PointsRedeemed { get; set; }
     public decimal PointsRedeemedAmount { get; set; }
     public decimal PointsEarned { get; set; }
+    public decimal MembershipDiscountAmount { get; set; }   // plan benefits (SQLScripts/2241), besides the manual Discount
     // GST on misc charges (SQLScripts/2240): added on top of the bill
     public decimal MiscCgstAmount { get; set; }
     public decimal MiscSgstAmount { get; set; }

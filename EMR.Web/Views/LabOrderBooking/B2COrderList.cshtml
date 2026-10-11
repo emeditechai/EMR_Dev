@@ -771,6 +771,11 @@
                                 <span class="font-monospace">-${money2(adj.cancelledAmount)}</span>
                             </div>
                             ${cancelNotes ? `<div class="mb-2 px-2 py-1 rounded border border-danger-subtle bg-danger-subtle text-danger-emphasis" style="font-size:.72rem;">${cancelNotes}</div>` : ''}` : ''}
+                        ${adj && adj.membershipDiscountAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small text-danger">
+                                <span>Membership discount${adj.membershipCardNo ? ' (' + escHtml(adj.membershipCardNo) + ')' : ''}:</span>
+                                <span class="font-monospace">-${money2(adj.membershipDiscountAmount)}</span>
+                            </div>` : ''}
                         ${d.discountAmount > 0 ? `
                             <div class="d-flex justify-content-between mb-1 small text-danger">
                                 <span>Discount:</span>

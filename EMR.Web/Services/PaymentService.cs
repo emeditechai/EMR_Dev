@@ -247,6 +247,17 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
 
     /// <summary>A bill discount split over the discountable lines in proportion to their amount, the last line taking the
     /// rounding remainder - exactly the split the line snapshot uses (and the payment screen shows).</summary>
+    /// <summary>Adds each line's membership benefit to its discount (lines with a benefit took no manual share).</summary>
+    private static void ApplyMembership(List<PaymentLineItemRow> lines)
+    {
+        foreach (var li in lines.Where(x => x.MembershipDiscountAmount > 0))
+        {
+            li.LineDiscountAmount = Math.Min(li.OriginalAmount, li.LineDiscountAmount + li.MembershipDiscountAmount);
+            li.NetLineAmount = Math.Max(0, li.OriginalAmount - li.LineDiscountAmount);
+            li.LineDiscountType ??= "M";
+        }
+    }
+
     private static void AllocateDiscount(List<PaymentLineItemRow> lines, decimal hDiscAmt, decimal discountableSubTotal)
     {
         var eligible = lines.Where(x => x.IsDiscountAllowed).ToList();
@@ -590,7 +601,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 SELECT PaymentHeaderId, ModuleCode, ModuleRefId, OPDServiceId, BranchId, PatientId,
                        SubTotal, LineDiscountTotal, HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
                        TotalCgstAmount, TotalSgstAmount, TotalIgstAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
-                       DiscountReason, DiscountApprovedBy
+                       DiscountReason, DiscountApprovedBy,
+                       ISNULL(MembershipDiscountAmount, 0) AS MembershipDiscountAmount, ISNULL(MembershipTestDiscount, 0) AS MembershipTestDiscount
                 FROM   PaymentHeader WITH (UPDLOCK, HOLDLOCK)
                 WHERE  ModuleCode = @ModuleCode AND ModuleRefId = @ModuleRefId AND IsActive = 1",
                 new { request.ModuleCode, request.ModuleRefId }, tx);
@@ -627,10 +639,18 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
 
                 // A bill is discounted only once: once it carries a discount, a later payment (due collection) cannot
                 // add, raise, lower or replace it. Repeating the same discount is not a new one and is accepted.
-                decimal existingDiscount = Math.Max((decimal)existingHeader.HeaderDiscountAmount, (decimal)existingHeader.LineDiscountTotal);
+                // the membership benefit (SQLScripts/2241) is not a manual discount
+                decimal existingMemDisc = (decimal)existingHeader.MembershipDiscountAmount;
+                decimal existingDiscount = Math.Max((decimal)existingHeader.HeaderDiscountAmount, (decimal)existingHeader.LineDiscountTotal - existingMemDisc);
+                bool memTestBlocks = (decimal)existingHeader.MembershipTestDiscount > 0;
+                if (request.ModuleCode == "LAB" && !labIsB2B)
+                    discountableSubTotal -= labMisc.Where(m => m.IsDiscountable && !m.IsGstRequired && m.MembershipDiscountAmount > 0).Sum(m => m.Amount);
                 bool requestHasDiscount = request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0;
 
                 // Recompute net amount if new discount is applied, or maintain current net amount
+                if (requestHasDiscount && memTestBlocks)
+                    return new SavePaymentResult { Success = false, Error = LabMembershipBenefits.ManualDiscountBlockedMessage };
+
                 if (requestHasDiscount)
                 {
                     decimal hDiscAmt = 0m;
@@ -662,7 +682,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     if (discountChanged && !approvalGiven)
                         return new SavePaymentResult { Success = false, Error = DiscountApprovalRequiredMessage };
 
-                    decimal totalDisc = Math.Min(dbSubTotal, hDiscAmt > 0 ? hDiscAmt : lineDiscountTotal);
+                    // + the membership benefit already on the bill (0 for every other bill)
+                    decimal manualPart = hDiscAmt > 0 ? hDiscAmt : (existingMemDisc > 0 ? (decimal)existingHeader.HeaderDiscountAmount : lineDiscountTotal);
+                    decimal totalDisc = Math.Min(dbSubTotal, manualPart + existingMemDisc);
                     decimal unroundedNet = Math.Max(0, dbSubTotal - totalDisc + totalCgst + totalSgst + totalIgst);
                     decimal roundedNet = Math.Round(unroundedNet, 0, MidpointRounding.AwayFromZero);
                     decimal roundOff = roundedNet - unroundedNet;
@@ -691,7 +713,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                             request.HeaderDiscountType,
                             request.HeaderDiscountValue,
                             HeaderDiscountAmount = hDiscAmt,
-                            LineDiscountTotal = (hDiscAmt > 0 ? hDiscAmt : lineDiscountTotal),
+                            LineDiscountTotal = manualPart + existingMemDisc,
                             RoundOffAmount = roundOff,
                             NetAmount = realTimeNetAmount,
                             ModifiedBy = userId,
@@ -724,29 +746,63 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 if (hDiscAmt > 0 && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0))
                     return new SavePaymentResult { Success = false, Error = DiscountApprovalRequiredMessage };
 
+                // ── Membership benefits (B2C LAB, SQLScripts/2241): benefit rules on tests and Free Home Collection, from the
+                //    member's plan; a line with a benefit takes no share of a manual discount, and benefit rules block one ──
+                LabMemberBenefit? memBenefit = null;
+                decimal memTotal = 0m, memTests = 0m;
+                if (request.ModuleCode == "LAB" && !labIsB2B && request.LineItems != null)
+                {
+                    memBenefit = await LabMembershipBenefits.ForOrderAsync(con, request.ModuleRefId, tx);
+                    if (memBenefit != null)
+                    {
+                        foreach (var li in request.LineItems)
+                        {
+                            var key = li.LabOrderMiscChargeId is > 0 ? "M" + li.LabOrderMiscChargeId : "I" + li.ModuleLineRefId;
+                            if (!memBenefit.Lines.TryGetValue(key, out var b) || b.Discount <= 0) continue;
+                            li.MembershipDiscountAmount = Math.Min(b.Discount, li.OriginalAmount);
+                            if (li.IsDiscountAllowed) { li.IsDiscountAllowed = false; }
+                            if (li.LabOrderMiscChargeId is > 0) memTotal += li.MembershipDiscountAmount;
+                            else { memTotal += li.MembershipDiscountAmount; memTests += li.MembershipDiscountAmount; }
+                        }
+                        if (memTests > 0 && (deptMode || hDiscAmt > 0))
+                            return new SavePaymentResult { Success = false, Error = LabMembershipBenefits.ManualDiscountBlockedMessage };
+                        if (hDiscAmt > 0)
+                        {
+                            // the manual discount is worked out on the lines without a benefit
+                            var freeBase = request.LineItems.Where(li => li.MembershipDiscountAmount > 0 && li.LabOrderMiscChargeId is > 0)
+                                .Join(labMisc.Where(m => m.IsDiscountable), li => li.LabOrderMiscChargeId, m => m.LabOrderMiscChargeId, (li, m) => m.Amount).Sum();
+                            discountableSubTotal = Math.Max(0, discountableSubTotal - freeBase);
+                            if (request.HeaderDiscountType == "P") hDiscAmt = Math.Round(discountableSubTotal * (request.HeaderDiscountValue / 100m), 2);
+                            else hDiscAmt = Math.Min(discountableSubTotal, hDiscAmt);
+                        }
+                    }
+                }
+
                 // LAB B2C misc lines: each line's share of the discount (the same split the lines get below), then GST on
                 // what is left of it; the bill's GST and its misc lines follow
                 if (request.ModuleCode == "LAB" && !labIsB2B && labMisc.Count > 0)
                 {
                     if (!deptMode) AllocateDiscount(request.LineItems!, hDiscAmt, discountableSubTotal);
+                    ApplyMembership(request.LineItems!);
                     totalCgst = 0m; totalSgst = 0m;
                     foreach (var li in request.LineItems!.Where(x => x.LabOrderMiscChargeId is > 0))
                     {
                         var m = labMisc.First(x => x.LabOrderMiscChargeId == li.LabOrderMiscChargeId);
-                        if (deptMode) { li.LineDiscountAmount = 0m; li.NetLineAmount = li.OriginalAmount; }
+                        if (deptMode) { li.LineDiscountAmount = li.MembershipDiscountAmount; li.NetLineAmount = Math.Max(0, li.OriginalAmount - li.LineDiscountAmount); }
                         var half = m.IsGstRequired ? LabMiscCharges.HalfGst(li.NetLineAmount, m.GstPercentage) : 0m;
                         li.CgstAmount = half; li.SgstAmount = half;
                         totalCgst += half; totalSgst += half;
                         await con.ExecuteAsync(@"
                             UPDATE LabOrderMiscCharge SET DiscountAmount = @Disc, CgstAmount = @Half, SgstAmount = @Half, GstAmount = @Half * 2,
-                                   NetAmount = Amount - @Disc + @Half * 2
+                                   NetAmount = Amount - @Disc + @Half * 2, MembershipDiscountAmount = @Mem
                             WHERE LabOrderMiscChargeId = @Id",
-                            new { Disc = li.LineDiscountAmount, Half = half, Id = m.LabOrderMiscChargeId }, tx);
+                            new { Disc = li.LineDiscountAmount, Half = half, Id = m.LabOrderMiscChargeId, Mem = li.MembershipDiscountAmount }, tx);
                     }
                     await con.ExecuteAsync("dbo.usp_LabOrder_MiscSyncTotals", new { LabOrderId = request.ModuleRefId }, tx, commandType: CommandType.StoredProcedure);
                 }
 
-                decimal totalDisc = Math.Min(dbSubTotal, hDiscAmt > 0 ? hDiscAmt : lineDiscountTotal);
+                decimal manualDisc = hDiscAmt > 0 ? hDiscAmt : (memTotal > 0 ? 0m : lineDiscountTotal);
+                decimal totalDisc = Math.Min(dbSubTotal, manualDisc + memTotal);
                 decimal unroundedNet = Math.Max(0, dbSubTotal - totalDisc + totalCgst + totalSgst + totalIgst);
                 decimal roundedNet = Math.Round(unroundedNet, 0, MidpointRounding.AwayFromZero);
                 decimal roundOff = roundedNet - unroundedNet;
@@ -760,7 +816,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                          TotalCgstAmount, TotalSgstAmount, TotalIgstAmount,
                          RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
                          Notes, CreatedDate, CreatedBy, IsActive,
-                         DiscountReason, DiscountApprovedBy, DiscountApprovedDate, DiscountEnteredBy)
+                         DiscountReason, DiscountApprovedBy, DiscountApprovedDate, DiscountEnteredBy,
+                         MembershipDiscountAmount, MembershipTestDiscount, MembershipCardId)
                     VALUES
                         (@ModuleCode, @ModuleRefId, @OPDServiceId, @BranchId, @PatientId,
                          @SubTotal, @LineDiscountTotal,
@@ -769,7 +826,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                          @RoundOffAmount, @NetAmount, 0, @NetAmount, 'U',
                          @Notes, GETDATE(), @CreatedBy, 1,
                          @DiscountReason, @DiscountApprovedBy, CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE GETDATE() END,
-                         CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE @CreatedBy END);
+                         CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE @CreatedBy END,
+                         @MembershipDiscountAmount, @MembershipTestDiscount, @MembershipCardId);
                     SELECT SCOPE_IDENTITY();",
                     new
                     {
@@ -779,8 +837,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         request.BranchId,
                         request.PatientId,
                         SubTotal = dbSubTotal,
-                        LineDiscountTotal = (hDiscAmt > 0 ? hDiscAmt : lineDiscountTotal),
-                        HeaderDiscountType  = request.HeaderDiscountType,
+                        LineDiscountTotal = manualDisc + memTotal,
+                        // a bill discounted only by the membership benefit is marked 'M' with its card as the reason
+                        HeaderDiscountType  = hDiscAmt <= 0 && memTotal > 0 ? "M" : request.HeaderDiscountType,
                         HeaderDiscountValue  = request.HeaderDiscountValue,
                         HeaderDiscountAmount = hDiscAmt,
                         TotalCgstAmount = totalCgst,
@@ -790,9 +849,26 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         NetAmount = realTimeNetAmount,
                         request.Notes,
                         CreatedBy = userId,
-                        DiscountReason = hDiscAmt > 0 ? request.DiscountReason?.Trim() : null,
-                        DiscountApprovedBy = hDiscAmt > 0 ? request.DiscountApprovedBy : null
+                        DiscountReason = hDiscAmt > 0 ? request.DiscountReason?.Trim() : (memTotal > 0 ? memBenefit!.Reason : null),
+                        DiscountApprovedBy = hDiscAmt > 0 ? request.DiscountApprovedBy : null,
+                        MembershipDiscountAmount = memTotal,
+                        MembershipTestDiscount = memTests,
+                        MembershipCardId = memTotal > 0 ? memBenefit!.CardId : (int?)null
                     }, tx);
+
+                // the card's history: the benefit given on this bill
+                if (memTotal > 0)
+                    await con.ExecuteAsync(@"
+                        INSERT INTO dbo.MembershipLedger (CardId, PatientId, BranchId, PaymentHeaderId, TxnType, Points, Amount, BalanceAfter, Narration, CreatedBy)
+                        SELECT c.CardId, @PatientId, @BranchId, @HeaderId, 'DISCOUNT', 0, @Amt, c.PointsBalance,
+                               CONCAT('Membership benefit Rs ', CAST(@Amt AS VARCHAR(20)), ' on LAB bill ', lo.BillNo,
+                                      CASE WHEN @Tests > 0 THEN CONCAT(' (tests Rs ', CAST(@Tests AS VARCHAR(20)), ')') ELSE '' END,
+                                      CASE WHEN @Amt - @Tests > 0 THEN CONCAT(' (free home collection Rs ', CAST(@Amt - @Tests AS VARCHAR(20)), ')') ELSE '' END),
+                               @UserId
+                        FROM dbo.MembershipCard c CROSS JOIN dbo.LabOrder lo
+                        WHERE c.CardId = @CardId AND lo.LabOrderId = @LabOrderId",
+                        new { memBenefit!.CardId, request.PatientId, request.BranchId, HeaderId = paymentHeaderId, Amt = memTotal, Tests = memTests,
+                              UserId = userId ?? 1, LabOrderId = request.ModuleRefId }, tx);
 
                 // Insert line items snapshot
                 if (request.LineItems != null && request.LineItems.Any())
@@ -861,6 +937,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                         }
                     }
 
+                    // membership benefit on its lines (after the manual split, which gives them no share)
+                    if (request.ModuleCode == "LAB") ApplyMembership(request.LineItems);
+
                     foreach (var li in request.LineItems)
                     {
                         await con.ExecuteAsync(@"
@@ -869,13 +948,13 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                                  OriginalAmount, LineDiscountType, LineDiscountValue,
                                  LineDiscountAmount, NetLineAmount, 
                                  IsGstApplicable, GstPercentage, CgstAmount, SgstAmount, IgstAmount,
-                                 CreatedDate, CreatedBy, IsActive, LabOrderMiscChargeId)
+                                 CreatedDate, CreatedBy, IsActive, LabOrderMiscChargeId, MembershipDiscountAmount)
                             VALUES
                                 (@PaymentHeaderId, @ModuleLineRefId, @ItemDescription, @ServiceType,
                                  @OriginalAmount, @LineDiscountType, @LineDiscountValue,
                                  @LineDiscountAmount, @NetLineAmount,
                                  @IsGstApplicable, @GstPercentage, @CgstAmount, @SgstAmount, @IgstAmount,
-                                 GETDATE(), @CreatedBy, 1, @LabOrderMiscChargeId)",
+                                 GETDATE(), @CreatedBy, 1, @LabOrderMiscChargeId, @MembershipDiscountAmount)",
                             new
                             {
                                 PaymentHeaderId = paymentHeaderId,
@@ -893,7 +972,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                                 li.SgstAmount,
                                 li.IgstAmount,
                                 CreatedBy = userId,
-                                li.LabOrderMiscChargeId
+                                li.LabOrderMiscChargeId,
+                                li.MembershipDiscountAmount
                             }, tx);
                     }
                 }

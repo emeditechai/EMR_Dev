@@ -2311,6 +2311,41 @@ namespace EMR.Web.Controllers
             return Json(new { success = true, data = row });
         }
 
+        // ── Membership benefits preview (SQLScripts/2241): the payment screen of a new B2C bill shows what the plan gives;
+        //    the payment works it out again from the saved bill ──
+        public sealed class MemberBenefitPreviewRequest
+        {
+            public int PatientId { get; set; }
+            public List<MemberBenefitPreviewLine> Items { get; set; } = [];
+        }
+        public sealed class MemberBenefitPreviewLine
+        {
+            public string Key { get; set; } = "";
+            public string Kind { get; set; } = "T";   // T test / profile, P package, M misc charge
+            public int ItemId { get; set; }
+            public decimal Price { get; set; }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> MembershipBenefitPreview([FromBody] MemberBenefitPreviewRequest req)
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (req == null || req.PatientId <= 0 || branchId == null) return Json(new { success = true, data = (object?)null });
+            var lines = (req.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.ItemId > 0)
+                .Select(i => new EMR.Web.Services.LabBenefitLineInput(i.Key, (i.Kind ?? "T").ToUpperInvariant() is "P" or "M" ? i.Kind!.ToUpperInvariant() : "T", i.ItemId, i.Price));
+            var b = await EMR.Web.Services.LabMembershipBenefits.ComputeAsync(dbContext.Database.GetDbConnection(), req.PatientId, branchId.Value, lines);
+            if (b == null) return Json(new { success = true, data = (object?)null });
+            return Json(new
+            {
+                success = true,
+                data = new
+                {
+                    b.CardNo, b.PlanName, b.FreeHomeCollection, b.TestDiscount, b.MiscDiscount, b.Total,
+                    lines = b.Lines.Select(kv => new { key = kv.Key, discount = kv.Value.Discount, rule = kv.Value.Rule })
+                }
+            });
+        }
+
         // ── Misc charges (Misc Charges Master, SQLScripts/2239 / 2240) ──────────────────────────────────────────
         /// <summary>Active misc charges offered on the booking screens (Home Collection first).</summary>
         [HttpGet]
@@ -2625,6 +2660,7 @@ namespace EMR.Web.Controllers
                 PointsRedeemed       = detail.IsB2B ? 0m : (printAdj?.PointsRedeemed ?? 0m),
                 PointsRedeemedAmount = detail.IsB2B ? 0m : (printAdj?.PointsRedeemedAmount ?? 0m),
                 PointsEarned         = detail.IsB2B ? 0m : (printAdj?.PointsEarned ?? 0m),
+                MembershipDiscountAmount = detail.IsB2B ? 0m : (printAdj?.MembershipDiscountAmount ?? 0m),
                 GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.NetAmount,
                 ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.TotalPaid,
                 Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
@@ -3397,6 +3433,7 @@ namespace EMR.Web.Controllers
                 PointsRedeemed       = detail.IsB2B ? 0m : (printAdj?.PointsRedeemed ?? 0m),
                 PointsRedeemedAmount = detail.IsB2B ? 0m : (printAdj?.PointsRedeemedAmount ?? 0m),
                 PointsEarned         = detail.IsB2B ? 0m : (printAdj?.PointsEarned ?? 0m),
+                MembershipDiscountAmount = detail.IsB2B ? 0m : (printAdj?.MembershipDiscountAmount ?? 0m),
                 GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.NetAmount,
                 ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.TotalPaid,
                 Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,

@@ -25,6 +25,7 @@ public sealed class LabOrderMiscLine
     public decimal GstAmount { get; set; }
     public decimal NetAmount { get; set; }
     public bool IsActive { get; set; }
+    public decimal MembershipDiscountAmount { get; set; }   // Free Home Collection (SQLScripts/2241), part of DiscountAmount
 
     /// <summary>The ModuleLineRefId of its payment line: negative, so it never matches a LabOrderItemId / InvestigationId.</summary>
     public int LineRefId => -LabOrderMiscChargeId;
@@ -92,7 +93,7 @@ public static class LabMiscCharges
     public static async Task<List<LabOrderMiscLine>> LoadAsync(IDbConnection con, int labOrderId, IDbTransaction? tx = null, bool activeOnly = true) =>
         (await con.QueryAsync<LabOrderMiscLine>(@"
             SELECT LabOrderMiscChargeId, LabOrderId, MiscChargeId, ChargeName, ChargeType, Quantity, UnitAmount, Amount, IsDiscountable,
-                   IsGstRequired, GstPercentage, DiscountAmount, CgstAmount, SgstAmount, GstAmount, NetAmount, IsActive
+                   IsGstRequired, GstPercentage, DiscountAmount, CgstAmount, SgstAmount, GstAmount, NetAmount, IsActive, MembershipDiscountAmount
             FROM dbo.LabOrderMiscCharge
             WHERE LabOrderId = @LabOrderId AND (@ActiveOnly = 0 OR IsActive = 1)
             ORDER BY LabOrderMiscChargeId",
