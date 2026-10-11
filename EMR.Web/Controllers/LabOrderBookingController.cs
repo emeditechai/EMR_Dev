@@ -3529,7 +3529,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> FranchiseWalletStatement(int franchiseId, DateTime? fromDate, DateTime? toDate)
         {
-            if (User.GetFranchiseId() is int ownFranchiseId) franchiseId = ownFranchiseId;
+            if (User.IsFranchiseUser()) return Forbid();   // the wallet screens stay with the lab
             try
             {
                 var statement = await b2bBillingApiClient.GetWalletStatementAsync(franchiseId, fromDate, toDate);

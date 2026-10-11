@@ -1081,6 +1081,10 @@
         const opdBase = '@Url.Content("~/OPD/")';
         var lineItems = [];
         var currentAgentType = '@Model.AgentType' || 'F';
+        // a franchise login cannot top up its own wallet: it is told to ask the lab
+        var walletTopUpHint = @(User.IsFranchiseUser() ? "true" : "false")
+            ? 'Please contact the lab to top up your wallet'
+            : 'Top up the franchise wallet in <b>Utility &rsaquo; Franchise Top-Up</b>';
         var currentAgentId = parseInt($('#SelectedB2BAgentId').val()) || 0;
 
         // Prescription / OVD Document / Consent upload gate for this bill
@@ -1921,7 +1925,7 @@
                                 Swal.fire({
                                     icon: 'warning',
                                     title: 'Insufficient Wallet Balance',
-                                    html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>Top up the franchise wallet in <b>Utility &rsaquo; Franchise Top-Up</b> and save again, or switch to Spot Payment.`,
+                                    html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>${walletTopUpHint} and save again, or switch to Spot Payment.`,
                                     showCloseButton: true,          // ✕ button — closes popup, no action (user can edit the form)
                                     showCancelButton: true,
                                     confirmButtonText: '<i class="bi bi-cash-coin me-1"></i>Spot Payment',
@@ -2411,7 +2415,7 @@
                     if (partnerCreditData.walletBalance < b2bTotal) {
                         var shortfall = b2bTotal - partnerCreditData.walletBalance;
                         alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
-                            .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. Top up the wallet in Utility &rsaquo; Franchise Top-Up, or uncheck to collect spot payment.`);
+                            .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. ${walletTopUpHint}, or uncheck to collect spot payment.`);
                         $('#btnSaveB2BSubmit').prop('disabled', false);
                         return;
                     } else {
