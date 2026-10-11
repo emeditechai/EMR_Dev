@@ -31,7 +31,7 @@
                 <label class="form-label small text-muted mb-1">Status</label>
                 <select name="status" class="form-select form-select-sm">
                     <option value="">All</option>
-                    @foreach (var s in new[] { "Active", "Expired", "Blocked", "Cancelled" })
+                    @foreach (var s in new[] { "Active", "Expired", "Blocked", "Renewed", "Cancelled" })
                     {
                         <option value="@s" selected="@(Model.Status == s)">@s</option>
                     }
@@ -76,16 +76,22 @@
                     {
                         foreach (var c in Model.Cards)
                         {
-                            var badge = c.Status switch { "Active" => "success", "Expired" => "secondary", "Blocked" => "warning", _ => "danger" };
+                            var badge = c.Status switch { "Active" => "success", "Expired" => "secondary", "Renewed" => "info", "Blocked" => "warning", _ => "danger" };
                             <tr>
-                                <td class="font-monospace fw-semibold">@c.CardNo</td>
+                                <td class="font-monospace fw-semibold">
+                                    @c.CardNo
+                                    @if (c.IsRenewal)
+                                    {
+                                        <i class="bi bi-arrow-repeat text-info ms-1" title="Issued in renewal of an earlier card"></i>
+                                    }
+                                </td>
                                 <td>@c.PlanName</td>
                                 <td>
                                     @c.PatientName
                                     <div class="small text-muted">@c.PatientCode@(string.IsNullOrWhiteSpace(c.PhoneNumber) ? "" : " | " + c.PhoneNumber)</div>
                                 </td>
                                 <td class="text-end">@c.MemberCount</td>
-                                <td data-order="@c.ValidTo.ToString("yyyyMMdd")">@c.ValidFrom.ToString("dd MMM yyyy") - @c.ValidTo.ToString("dd MMM yyyy")</td>
+                                <td data-order="@c.ValidTo.ToString("yyyyMMdd")">@c.ValidFrom.ToString("dd MMM yyyy") - @(c.IsLifetime ? "Lifetime" : c.ValidTo.ToString("dd MMM yyyy"))</td>
                                 <td class="text-end">₹@c.FeeAmount.ToString("N2")</td>
                                 <td class="font-monospace small">@(c.ReceiptNo ?? "-")</td>
                                 <td>

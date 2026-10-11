@@ -46,7 +46,9 @@ public class MembershipService(IDbConnectionFactory db) : IMembershipService
         return new MembershipBenefitScopes
         {
             Departments = (await multi.ReadAsync<MembershipScopeOption>()).ToList(),
-            Categories = (await multi.ReadAsync<MembershipScopeOption>()).ToList()
+            Categories = (await multi.ReadAsync<MembershipScopeOption>()).ToList(),
+            Tests = (await multi.ReadAsync<MembershipScopeOption>()).ToList(),
+            Packages = (await multi.ReadAsync<MembershipScopeOption>()).ToList()
         };
     }
 
@@ -74,6 +76,8 @@ public class MembershipService(IDbConnectionFactory db) : IMembershipService
         parameters.Add("@BenefitsJson", JsonSerializer.Serialize(
             request.Benefits.Select(b => new { b.Scope, b.ScopeRefId, b.DiscountFlag, b.DiscountValue, b.IsExcluded, b.FreeQuantity }), CamelCase));
         parameters.Add("@UserId", request.UserId);
+        parameters.Add("@IsLifetime", request.IsLifetime);
+        parameters.Add("@MinRedeemBillAmount", request.MinRedeemBillAmount);
 
         return await conn.QuerySingleAsync<int>(
             "dbo.usp_Api_MembershipPlan_Save", parameters, commandType: CommandType.StoredProcedure);
@@ -99,6 +103,15 @@ public class MembershipService(IDbConnectionFactory db) : IMembershipService
             commandType: CommandType.StoredProcedure);
     }
 
+    public async Task<IEnumerable<MembershipPatientSearchItem>> GetFamilyAsync(int companyId, int patientId)
+    {
+        using var conn = db.CreateConnection();
+        return await conn.QueryAsync<MembershipPatientSearchItem>(
+            "dbo.usp_Api_MembershipCard_GetFamily",
+            new { CompanyId = companyId, PatientId = patientId },
+            commandType: CommandType.StoredProcedure);
+    }
+
     public async Task<MembershipCardIssueResult> IssueCardAsync(MembershipCardIssueRequest request)
     {
         using var conn = db.CreateConnection();
@@ -114,6 +127,7 @@ public class MembershipService(IDbConnectionFactory db) : IMembershipService
         parameters.Add("@TransactionRef", request.TransactionRef);
         parameters.Add("@Remarks", request.Remarks);
         parameters.Add("@UserId", request.UserId);
+        parameters.Add("@RenewFromCardId", request.RenewFromCardId);
 
         return await conn.QuerySingleAsync<MembershipCardIssueResult>(
             "dbo.usp_Api_MembershipCard_Issue", parameters, commandType: CommandType.StoredProcedure);

@@ -52,8 +52,12 @@
     </div>
     <div class="col-md-3">
         <label asp-for="ValidityDays" class="form-label required"></label>
-        <input asp-for="ValidityDays" class="form-control" type="number" step="1" min="1" />
+        <input asp-for="ValidityDays" class="form-control" type="number" step="1" min="1" id="ValidityDays" />
         <span asp-validation-for="ValidityDays" class="text-danger"></span>
+        <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" asp-for="IsLifetime" role="switch" id="IsLifetime">
+            <label class="form-check-label small" asp-for="IsLifetime"></label>
+        </div>
     </div>
     <div class="col-md-3">
         <label asp-for="MaxMembers" class="form-label required"></label>
@@ -85,7 +89,7 @@
 <div class="row g-3">
     <div class="col-md">
         <label asp-for="WelcomePoints" class="form-label"></label>
-        <input asp-for="WelcomePoints" class="form-control" type="number" step="1" min="0" />
+        <input asp-for="WelcomePoints" class="form-control" type="number" step="0.01" min="0" />
         <span asp-validation-for="WelcomePoints" class="text-danger"></span>
     </div>
     <div class="col-md">
@@ -104,6 +108,11 @@
         <span asp-validation-for="MaxRedeemPercent" class="text-danger"></span>
     </div>
     <div class="col-md">
+        <label asp-for="MinRedeemBillAmount" class="form-label"></label>
+        <input asp-for="MinRedeemBillAmount" class="form-control" type="number" step="0.01" min="0" />
+        <span asp-validation-for="MinRedeemBillAmount" class="text-danger"></span>
+    </div>
+    <div class="col-md">
         <label asp-for="PointsExpiryDays" class="form-label"></label>
         <input asp-for="PointsExpiryDays" class="form-control" type="number" step="1" min="1" />
         <span asp-validation-for="PointsExpiryDays" class="text-danger"></span>
@@ -114,13 +123,13 @@
     <h6 class="mb-0 text-muted text-uppercase small fw-bold">Benefit rules</h6>
     <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddBenefit"><i class="bi bi-plus-lg me-1"></i>Add rule</button>
 </div>
-<div class="form-text mb-2">A category rule overrides its department's rule, which overrides the "All tests" rule. Mark a rule Excluded to give no benefit on that department or category.</div>
+<div class="form-text mb-2">The most specific rule wins: a test or package rule overrides its category's rule, which overrides the department's, which overrides "All tests". Mark a rule Excluded to give no benefit on that item.</div>
 <div class="table-responsive">
     <table class="table table-sm align-middle emr-table mb-0" id="benefitTable">
         <thead>
             <tr>
                 <th style="width:18%">Applies to</th>
-                <th style="width:30%">Department / Category</th>
+                <th style="width:30%">Department / Category / Test / Package</th>
                 <th style="width:16%">Discount type</th>
                 <th style="width:16%">Value</th>
                 <th style="width:12%" class="text-center">Excluded</th>

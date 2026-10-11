@@ -16,6 +16,9 @@ public interface IMembershipCardDeliveryService
     /// <summary>Which channels Hospital Settings has switched on for the branch.</summary>
     Task<(bool WhatsApp, bool Email, bool AutoSendOnIssue)> GetChannelsAsync(int branchId);
 
+    /// <summary>Hospital Settings: how many days before expiry a card can be renewed.</summary>
+    Task<int> GetRenewalWindowDaysAsync(int branchId);
+
     /// <summary>The card as a PDF (front and back), with the branch's name, logo and contact.</summary>
     Task<byte[]> BuildPdfAsync(MembershipCardDetailViewModel card, int branchId);
 
@@ -34,6 +37,9 @@ public class MembershipCardDeliveryService(
     IMembershipApiClient apiClient,
     ILogger<MembershipCardDeliveryService> logger) : IMembershipCardDeliveryService
 {
+    public async Task<int> GetRenewalWindowDaysAsync(int branchId) =>
+        (await GetSettingsAsync(branchId))?.MembershipRenewalWindowDays ?? 30;
+
     public async Task<(bool WhatsApp, bool Email, bool AutoSendOnIssue)> GetChannelsAsync(int branchId)
     {
         var s = await GetSettingsAsync(branchId);
@@ -87,7 +93,7 @@ public class MembershipCardDeliveryService(
             .Replace("{PlanName}", card.PlanName)
             .Replace("{CardNo}", card.CardNo)
             .Replace("{ValidFrom}", card.ValidFrom.ToString("dd MMM yyyy"))
-            .Replace("{ValidTo}", card.ValidTo.ToString("dd MMM yyyy"))
+            .Replace("{ValidTo}", card.ValidToText)
             .Trim();
         string fileName = $"Membership_Card_{card.CardNo}.pdf";
 
@@ -137,7 +143,7 @@ public class MembershipCardDeliveryService(
             string body = $"<p>{WebUtility.HtmlEncode(message).Replace("\n", "<br/>")}</p>"
                         + $"<p style=\"color:#475569;font-size:13px\">Card No: <b>{WebUtility.HtmlEncode(card.CardNo)}</b><br/>"
                         + $"Plan: {WebUtility.HtmlEncode(card.PlanName)}<br/>"
-                        + $"Valid: {card.ValidFrom:dd MMM yyyy} to {card.ValidTo:dd MMM yyyy}</p>";
+                        + $"Valid: {card.ValidFrom:dd MMM yyyy} to {card.ValidToText}</p>";
 
             using var stream = new MemoryStream(pdf);
             using var attachment = new Attachment(stream, fileName, "application/pdf");

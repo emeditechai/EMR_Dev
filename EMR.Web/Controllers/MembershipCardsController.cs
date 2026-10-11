@@ -100,7 +100,22 @@ public class MembershipCardsController(
         return View(model);
     }
 
-    /// <summary>Patient lookup for the issue form and the Add member dialog (code, name or mobile).</summary>
+    /// <summary>The family of a head: the other patients registered on the head's mobile number, with their relation.</summary>
+    [HttpGet]
+    public async Task<IActionResult> FamilyMembers(int patientId)
+    {
+        if (patientId <= 0) return Json(Array.Empty<object>());
+        try
+        {
+            return Json(await apiClient.GetFamilyAsync(User.GetCompanyId(), patientId));
+        }
+        catch (Exception)
+        {
+            return Json(Array.Empty<object>());
+        }
+    }
+
+    /// <summary>Head-of-family lookup for the issue form (code, name or mobile): patients registered with relation Self.</summary>
     [HttpGet]
     public async Task<IActionResult> PatientSearch(string? term)
     {
@@ -126,6 +141,13 @@ public class MembershipCardsController(
             var channels = await deliveryService.GetChannelsAsync(User.GetCurrentBranchId() ?? card.IssueBranchId);
             card.WhatsAppEnabled = channels.WhatsApp;
             card.EmailEnabled = channels.Email;
+
+            if (card.CanRenew)
+            {
+                card.RenewalWindowDays = await deliveryService.GetRenewalWindowDaysAsync(User.GetCurrentBranchId() ?? card.IssueBranchId);
+                card.Plans = await apiClient.GetPlansAsync(User.GetCompanyId(), status: true);
+                card.PaymentMethods = (await paymentService.GetActiveMethodsAsync()).ToList();
+            }
             return View(card);
         }
         catch (Exception ex)
@@ -133,6 +155,54 @@ public class MembershipCardsController(
             TempData["Error"] = "Failed to load the membership card. " + ex.Message;
             return RedirectToAction(nameof(Index));
         }
+    }
+
+    /// <summary>
+    /// Renews a card: the API issues the next card (same members, points carried forward, fee and ledger posted
+    /// like a fresh issue) and closes this one as Renewed. planId 0 keeps the plan.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Renew(int id, int planId, int? paymentMethodId, string? transactionRef, string? remarks)
+    {
+        var branchId = User.GetCurrentBranchId();
+        try
+        {
+            if (branchId is null or <= 0) throw new MembershipApiException("Select a working branch before renewing a card.");
+            var companyId = User.GetCompanyId();
+            var result = await apiClient.RenewCardAsync(id, planId, paymentMethodId, transactionRef, remarks, companyId, branchId.Value, User.GetUserId());
+            await auditLogService.LogAsync("Membership Cards", "Renew",
+                $"Renewed membership card #{id} as {result.CardNo} (fee ₹{result.FeeAmount:N2}, receipt {result.ReceiptNo ?? "-"})");
+
+            var notes = new List<string> { $"Card renewed as {result.CardNo}; points carried forward." };
+            if (!string.IsNullOrWhiteSpace(result.ReceiptNo)) notes.Add($"Receipt {result.ReceiptNo} for ₹{result.FeeAmount:N2}.");
+            try
+            {
+                var channels = await deliveryService.GetChannelsAsync(branchId.Value);
+                if (channels.AutoSendOnIssue && (channels.WhatsApp || channels.Email))
+                {
+                    var card = await apiClient.GetCardAsync(result.CardId, companyId);
+                    if (card != null)
+                        notes.AddRange((await deliveryService.SendAsync(card, branchId.Value)).Select(Describe));
+                }
+            }
+            catch (Exception ex)
+            {
+                notes.Add("The new card could not be sent automatically: " + ex.Message);
+            }
+
+            TempData["Success"] = string.Join(" ", notes);
+            return RedirectToAction(nameof(Details), new { id = result.CardId });
+        }
+        catch (MembershipApiException ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = "Failed to renew the card. " + ex.Message;
+        }
+        return RedirectToAction(nameof(Details), new { id });
     }
 
     /// <summary>The card PDF, shown inline for printing (each open counts as a print) or downloaded with download=true.</summary>
@@ -182,14 +252,15 @@ public class MembershipCardsController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddMember(int id, int patientId, string? relation)
+    public async Task<IActionResult> AddMember(int id, int patientId)
     {
+        string? relation = null;   // taken from the patient's own record by the API
         try
         {
             if (patientId <= 0) throw new MembershipApiException("Select the patient to add.");
             var branchId = User.GetCurrentBranchId() ?? 0;
             await apiClient.AddMemberAsync(id, User.GetCompanyId(), branchId, patientId, relation, User.GetUserId());
-            await auditLogService.LogAsync("Membership Cards", "Add Member", $"Added patient #{patientId} ({relation}) to membership card #{id}");
+            await auditLogService.LogAsync("Membership Cards", "Add Member", $"Added patient #{patientId} to membership card #{id}");
             TempData["Success"] = "Member added. Print or send the card again so the new member is on it.";
         }
         catch (MembershipApiException ex)

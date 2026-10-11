@@ -9,7 +9,8 @@
         var $body = $('#benefitTable tbody');
 
         function targetOptions(scope, selected) {
-            var list = scope === 'Department' ? scopes.departments : scope === 'Category' ? scopes.categories : [];
+            var list = scope === 'Department' ? scopes.departments : scope === 'Category' ? scopes.categories
+                     : scope === 'Test' ? scopes.tests : scope === 'Package' ? scopes.packages : [];
             var html = '<option value="">Select...</option>';
             list.forEach(function (o) {
                 html += '<option value="' + o.id + '"' + (String(o.id) === String(selected) ? ' selected' : '') + '>' + $('<span>').text(o.name).html() + '</option>';
@@ -21,7 +22,8 @@
             b = b || { scope: 'All', scopeRefId: null, discountFlag: 'P', discountValue: '', isExcluded: false };
             var $tr = $('<tr>');
             $tr.append('<td><select class="form-select form-select-sm b-scope">' +
-                '<option value="All">All tests</option><option value="Department">Department</option><option value="Category">Test category</option></select></td>');
+                '<option value="All">All tests</option><option value="Department">Department</option><option value="Category">Test category</option>' +
+                '<option value="Test">Single test</option><option value="Package">Package / profile</option></select></td>');
             $tr.append('<td><select class="form-select form-select-sm b-target"></select></td>');
             $tr.append('<td><select class="form-select form-select-sm b-flag"><option value="P">Percentage (%)</option><option value="A">Amount (₹)</option></select></td>');
             $tr.append('<td><input type="number" class="form-control form-control-sm b-value" step="0.01" min="0" /></td>');
@@ -63,17 +65,25 @@
         $body.on('click', '.b-remove', function () { $(this).closest('tr').remove(); syncEmpty(); });
         $('#PlanType').on('change', syncMembers);
 
+        function syncLifetime() {
+            var lifetime = $('#IsLifetime').is(':checked');
+            if (lifetime && !(parseInt($('#ValidityDays').val() || '0', 10) >= 1)) $('#ValidityDays').val(365);
+            $('#ValidityDays').prop('readonly', lifetime).toggleClass('bg-light text-muted', lifetime);
+        }
+        $('#IsLifetime').on('change', syncLifetime);
+        syncLifetime();
+
         $('#planForm').on('submit', function (e) {
             var rows = [], error = null, seen = {};
             $body.children('tr').each(function () {
                 var $tr = $(this), scope = $tr.find('.b-scope').val(), target = $tr.find('.b-target').val();
                 var excluded = $tr.find('.b-excluded').is(':checked'), flag = $tr.find('.b-flag').val();
                 var value = parseFloat($tr.find('.b-value').val() || '0');
-                if (scope !== 'All' && !target) error = 'Pick the department or category for every benefit rule.';
+                if (scope !== 'All' && !target) error = 'Pick the department, category, test or package for every benefit rule.';
                 else if (!excluded && !(value > 0)) error = 'Enter the discount for every benefit rule, or mark it Excluded.';
                 else if (!excluded && flag === 'P' && value > 100) error = 'A percentage discount cannot exceed 100.';
                 var key = scope + ':' + (scope === 'All' ? '' : target);
-                if (seen[key]) error = 'The same department or category appears in more than one benefit rule.';
+                if (seen[key]) error = 'The same department, category, test or package appears in more than one benefit rule.';
                 seen[key] = true;
                 rows.push({ scope: scope, scopeRefId: scope === 'All' ? null : parseInt(target, 10), discountFlag: flag, discountValue: excluded ? 0 : value, isExcluded: excluded });
             });

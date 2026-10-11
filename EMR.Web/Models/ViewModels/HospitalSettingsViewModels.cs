@@ -144,6 +144,33 @@ public class HospitalSettingsViewModel
     [Display(Name = "Send Membership Card on Issue")]
     public bool MembershipCardAutoSendOnIssue { get; set; } = true;
 
+    [Display(Name = "Membership Renewal Window (days)")]
+    [Range(0, 365, ErrorMessage = "Enter between 0 and 365 days.")]
+    public int MembershipRenewalWindowDays { get; set; } = 30;
+
+    [Display(Name = "Manual Discount with Membership Discount")]
+    public bool MembershipDiscountWithManualDiscount { get; set; } = false;
+
+    [Display(Name = "OTP for Points Redemption")]
+    public bool MembershipRedeemOtpRequired { get; set; } = true;
+
+    [Display(Name = "Points Expiry Run Time")]
+    public string? MembershipPointsExpiryTime { get; set; } = "01:00";   // "HH:mm" string for HTML time input
+
+    [Display(Name = "Send Renewal Reminder Emails")]
+    public bool MembershipRenewalReminderEnabled { get; set; } = true;
+
+    [Display(Name = "Renewal Reminder Days")]
+    [RegularExpression(@"^\s*\d{1,3}(\s*,\s*\d{1,3}){0,9}\s*$", ErrorMessage = "Enter days before expiry separated by commas, e.g. 30,15,1.")]
+    public string? MembershipRenewalReminderDays { get; set; } = "30,15,1";
+
+    [Display(Name = "Renewal Reminder Time")]
+    public string? MembershipRenewalReminderTime { get; set; } = "10:00";   // "HH:mm" string for HTML time input
+
+    [Display(Name = "Renewal Reminder Message")]
+    [StringLength(1000, ErrorMessage = "Message cannot exceed 1000 characters.")]
+    public string? MembershipRenewalReminderTemplate { get; set; }
+
     [Display(Name = "Membership Card Message")]
     [StringLength(1000, ErrorMessage = "Message cannot exceed 1000 characters.")]
     public string? MembershipCardMessageTemplate { get; set; }

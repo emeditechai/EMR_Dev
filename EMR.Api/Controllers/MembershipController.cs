@@ -45,9 +45,26 @@ public class MembershipController(IMembershipService service, ILogger<Membership
     public Task<IActionResult> SearchPatients([FromQuery] int companyId, [FromQuery] string search) =>
         Run(async () => Ok(await service.SearchPatientsAsync(companyId, search ?? string.Empty)));
 
+    [HttpGet("patients/{id:int}/family")]
+    public Task<IActionResult> GetFamily(int id, [FromQuery] int companyId) =>
+        Run(async () => Ok(await service.GetFamilyAsync(companyId, id)));
+
     [HttpPost("cards")]
     public Task<IActionResult> IssueCard([FromBody] MembershipCardIssueRequest request) =>
-        Run(async () => Ok(await service.IssueCardAsync(request)));
+        Run(async () =>
+        {
+            request.RenewFromCardId = null;   // a renewal only comes through cards/{id}/renew
+            return Ok(await service.IssueCardAsync(request));
+        });
+
+    /// <summary>Issues the next card in renewal of this one: same members, points carried forward (PlanId 0 keeps the plan).</summary>
+    [HttpPost("cards/{id:int}/renew")]
+    public Task<IActionResult> RenewCard(int id, [FromBody] MembershipCardIssueRequest request) =>
+        Run(async () =>
+        {
+            request.RenewFromCardId = id;
+            return Ok(await service.IssueCardAsync(request));
+        });
 
     [HttpGet("cards")]
     public Task<IActionResult> GetCards(

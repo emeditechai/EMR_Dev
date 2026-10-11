@@ -31,7 +31,7 @@
             </div>
             <div class="col-md-3">
                 <label class="form-label text-muted small mb-1">Validity</label>
-                <div class="fw-medium">@Model.ValidityDays days</div>
+                <div class="fw-medium">@(Model.IsLifetime ? "Lifetime (never expires, no renewal)" : Model.ValidityDays + " days")</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label text-muted small mb-1">Maximum Members</label>
@@ -54,7 +54,7 @@
                 <div class="fw-medium">
                     @if (Model.PointsEarnPercent > 0 || Model.WelcomePoints > 0)
                     {
-                        <span>Earn @Model.PointsEarnPercent.ToString("0.##")%, 1 point = ₹@Model.PointValue.ToString("0.##"), redeem up to @Model.MaxRedeemPercent.ToString("0.##")%, expire in @Model.PointsExpiryDays days</span>
+                        <span>Earn @Model.PointsEarnPercent.ToString("0.##")%, 1 point = ₹@Model.PointValue.ToString("0.##"), redeem up to @Model.MaxRedeemPercent.ToString("0.##")%@(Model.MinRedeemBillAmount > 0 ? $" on bills of ₹{Model.MinRedeemBillAmount:N0} or more" : ""), expire in @Model.PointsExpiryDays days</span>
                         @if (Model.WelcomePoints > 0)
                         {
                             <span>, @Model.WelcomePoints.ToString("0.##") welcome points</span>
@@ -77,12 +77,12 @@
         {
             <div class="table-responsive">
                 <table class="table table-sm align-middle emr-table mb-0">
-                    <thead><tr><th>Applies to</th><th>Department / Category</th><th class="text-end">Benefit</th></tr></thead>
+                    <thead><tr><th>Applies to</th><th>Department / Category / Test / Package</th><th class="text-end">Benefit</th></tr></thead>
                     <tbody>
                         @foreach (var b in Model.Benefits)
                         {
                             <tr>
-                                <td>@(b.Scope == "All" ? "All tests" : b.Scope == "Category" ? "Test category" : b.Scope)</td>
+                                <td>@(b.Scope switch { "All" => "All tests", "Category" => "Test category", "Test" => "Single test", "Package" => "Package / profile", _ => b.Scope })</td>
                                 <td>@(b.Scope == "All" ? "-" : b.ScopeName)</td>
                                 <td class="text-end">
                                     @if (b.IsExcluded)

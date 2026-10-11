@@ -21,15 +21,18 @@
     <div class="row g-3">
         <div class="col-lg-8">
             <div class="card emr-card mb-3">
-                <div class="card-header"><h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Primary Member</h6></div>
+                <div class="card-header"><h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Primary Member (Head of Family)</h6></div>
                 <div class="card-body">
-                    <div asp-validation-summary="All" class="alert alert-danger py-2 small" role="alert"></div>
+                    @if (!ViewData.ModelState.IsValid)
+                    {
+                        <div asp-validation-summary="All" class="alert alert-danger py-2 small" role="alert"></div>
+                    }
 
                     <div class="position-relative" id="primarySearchBox">
-                        <label class="form-label required">Patient</label>
+                        <label class="form-label required">Head of family</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
-                            <input type="text" class="form-control mc-search" id="primarySearch" placeholder="Type patient code, name or mobile number..." />
+                            <input type="text" class="form-control mc-search" id="primarySearch" placeholder="Type the head's patient code, name or mobile number..." />
                         </div>
                         <div class="mc-results"></div>
                     </div>
@@ -43,7 +46,7 @@
                             <button type="button" class="btn btn-light btn-sm" id="btnClearPrimary"><i class="bi bi-x-lg"></i> Change</button>
                         </div>
                     </div>
-                    <div class="form-text">The patient must be registered first (Patient Master).</div>
+                    <div class="form-text">Only a patient registered with relation <b>Self</b> in Patient Master can hold a card. Family members are the other patients registered on the same mobile number.</div>
                 </div>
             </div>
 
@@ -53,29 +56,14 @@
                     <span class="small text-muted" id="memberCount"></span>
                 </div>
                 <div class="card-body">
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-7 position-relative" id="memberSearchBox">
-                            <label class="form-label small text-muted mb-1">Patient</label>
-                            <input type="text" class="form-control form-control-sm mc-search" id="memberSearch" placeholder="Type patient code, name or mobile number..." />
-                            <div class="mc-results"></div>
-                        </div>
-                        <div class="col-md-5">
-                            <label class="form-label small text-muted mb-1">Relation (for the next member added)</label>
-                            <select class="form-select form-select-sm" id="memberRelation">
-                                @foreach (var r in new[] { "Spouse", "Son", "Daughter", "Father", "Mother", "Brother", "Sister", "Father-in-law", "Mother-in-law", "Employee", "Other" })
-                                {
-                                    <option value="@r">@r</option>
-                                }
-                            </select>
-                        </div>
-                    </div>
-                    <div class="table-responsive mt-3">
+                    <div class="form-text mt-0 mb-2">Patients registered on the head's mobile number. They are ticked to go on the card; untick anyone to leave out. The relation is the one in Patient Master.</div>
+                    <div class="table-responsive">
                         <table class="table table-sm align-middle emr-table mb-0" id="memberTable">
-                            <thead><tr><th>Patient</th><th>Mobile</th><th>Relation</th><th></th></tr></thead>
+                            <thead><tr><th style="width:8%">Add</th><th>Patient</th><th>Mobile</th><th>Relation</th><th></th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
-                    <div class="text-muted small pt-2" id="memberEmpty">No family members added. They can also be added later from the card.</div>
+                    <div class="text-muted small pt-2" id="memberEmpty">No other patient is registered on this mobile number.</div>
                 </div>
             </div>
         </div>
@@ -147,7 +135,9 @@
         (function () {
             var plans = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Plans, jsonOptions));
             var searchUrl = '@Url.Action("PatientSearch")';
-            var primary = null, members = [], timer = null;
+            var familyUrl = '@Url.Action("FamilyMembers")';
+            var primary = null, members = [], family = [], timer = null;
+            var autoPick = false;   // tick the whole family once, when a multi-member plan is first chosen for this head
 
             function esc(s) { return $('<span>').text(s == null ? '' : s).html(); }
             function plan() { var id = parseInt($('#PlanId').val() || '0', 10); return plans.filter(function (p) { return p.planId === id; })[0] || null; }
@@ -168,11 +158,12 @@
                 timer = setTimeout(function () {
                     $.getJSON(searchUrl, { term: term }).done(function (rows) {
                         $list.empty();
-                        if (!rows.length) $list.append('<div class="mc-none">No registered patient matches.</div>');
+                        if (!rows.length) $list.append('<div class="mc-none">No head of family matches. The patient must be registered with relation Self.</div>');
                         rows.forEach(function (p) {
                             var $item = $('<div class="mc-item">').data('patient', p);
                             $item.append('<div class="fw-semibold">' + esc(p.patientName) + '</div>');
                             $item.append('<div class="small text-muted">' + esc(meta(p)) + '</div>');
+                            $item.append('<div class="small text-muted">Head of family' + (p.familyCount ? ' | ' + p.familyCount + ' other patient(s) on this mobile number' : '') + '</div>');
                             if (p.activeCardNo) $item.append('<div class="small text-warning-emphasis">On card ' + esc(p.activeCardNo) + ' (' + esc(p.activePlanName) + ')</div>');
                             $list.append($item);
                         });
@@ -184,24 +175,23 @@
 
             $('#primarySearchBox').on('click', '.mc-item', function () {
                 primary = $(this).data('patient');
-                members = members.filter(function (m) { return m.patientId !== primary.patientId; });
+                members = []; family = []; autoPick = true;
                 $('#primarySearch').val(''); $('.mc-results').hide();
                 render();
+                $.getJSON(familyUrl, { patientId: primary.patientId }).done(function (rows) { family = rows || []; render(); });
             });
-            $('#btnClearPrimary').on('click', function () { primary = null; render(); $('#primarySearch').focus(); });
+            $('#btnClearPrimary').on('click', function () { primary = null; members = []; family = []; render(); $('#primarySearch').focus(); });
 
-            $('#memberSearchBox').on('click', '.mc-item', function () {
-                var p = $(this).data('patient'), pl = plan();
-                $('#memberSearch').val(''); $('.mc-results').hide();
-                if (primary && p.patientId === primary.patientId) return warn('This patient is the primary member.');
-                if (members.some(function (m) { return m.patientId === p.patientId; })) return warn('This patient is already added.');
-                if (pl && members.length + 1 >= pl.maxMembers) return warn('This plan covers at most ' + pl.maxMembers + ' member(s), including the primary member.');
-                members.push({ patientId: p.patientId, relation: $('#memberRelation').val(), name: p.patientName, code: p.patientCode, phone: p.phoneNumber });
-                render();
-            });
-            $('#memberTable').on('click', '.m-remove', function () {
-                var id = $(this).data('id');
-                members = members.filter(function (m) { return m.patientId !== id; });
+            // Family: only the patients on the head's mobile number; relation comes from Patient Master
+            $('#memberTable').on('change', '.m-pick', function () {
+                var id = $(this).data('id'), pl = plan();
+                autoPick = false;
+                if (this.checked) {
+                    if (pl && members.length + 1 >= pl.maxMembers) { this.checked = false; return warn('This plan covers at most ' + pl.maxMembers + ' member(s), including the primary member.'); }
+                    members.push(id);
+                } else {
+                    members = members.filter(function (m) { return m !== id; });
+                }
                 render();
             });
 
@@ -225,17 +215,23 @@
 
                 // Family members
                 var allowed = pl ? pl.maxMembers : 1;
+                if (autoPick && allowed > 1 && family.length) {
+                    members = family.map(function (m) { return m.patientId; }).slice(0, allowed - 1);
+                    autoPick = false;
+                }
                 if (allowed <= 1) members = [];
                 else if (members.length > allowed - 1) members = members.slice(0, allowed - 1);
-                $('#familyCard').toggle(allowed > 1);
+                $('#familyCard').toggle(!!primary && allowed > 1);
                 $('#memberCount').text((members.length + 1) + ' of ' + allowed + ' members');
                 var $tb = $('#memberTable tbody').empty();
-                members.forEach(function (m) {
-                    $tb.append('<tr><td>' + esc(m.name) + '<div class="small text-muted">' + esc(m.code) + '</div></td><td>' + esc(m.phone || '-') + '</td><td>' + esc(m.relation) +
-                        '</td><td class="text-end"><button type="button" class="btn btn-light btn-sm text-danger m-remove" data-id="' + m.patientId + '"><i class="bi bi-trash"></i></button></td></tr>');
+                family.forEach(function (m) {
+                    var picked = members.indexOf(m.patientId) >= 0;
+                    $tb.append('<tr><td><input type="checkbox" class="form-check-input m-pick" data-id="' + m.patientId + '"' + (picked ? ' checked' : '') + ' /></td><td>' + esc(m.patientName) +
+                        '<div class="small text-muted">' + esc(m.patientCode) + '</div></td><td>' + esc(m.phoneNumber || '-') + '</td><td>' + esc(m.relationName) + '</td><td class="small text-warning-emphasis">' +
+                        (m.activeCardNo ? 'On card ' + esc(m.activeCardNo) + ' (' + esc(m.activePlanName) + ')' : '') + '</td></tr>');
                 });
-                $('#memberEmpty').toggle(members.length === 0);
-                $('#MembersJson').val(JSON.stringify(members.map(function (m) { return { patientId: m.patientId, relation: m.relation }; })));
+                $('#memberEmpty').toggle(family.length === 0);
+                $('#MembersJson').val(JSON.stringify(members.map(function (id) { return { patientId: id }; })));
 
                 // Plan summary and payment
                 $('#planSummary').toggle(!!pl);
@@ -244,7 +240,8 @@
                     var gstPct = pl.gstPercent || 0, half = Math.round(pl.cardFee * gstPct / 2) / 100, gst = half * 2;
                     total = Math.round(pl.cardFee + gst);
                     var from = new Date($('#ValidFrom').val());
-                    if (!isNaN(from)) {
+                    if (pl.isLifetime) $('#sumValidTo').text('Lifetime');
+                    else if (!isNaN(from)) {
                         var to = new Date(from); to.setDate(to.getDate() + pl.validityDays - 1);
                         $('#sumValidTo').text(to.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
                     }

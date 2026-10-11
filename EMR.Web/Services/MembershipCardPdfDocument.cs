@@ -83,7 +83,7 @@ public static class MembershipCardPdfDocument
                             r.AutoItem().AlignRight().Column(c =>
                             {
                                 c.Item().AlignRight().Text("VALID").FontSize(5).FontColor(Grey);
-                                c.Item().AlignRight().Text($"{card.ValidFrom:dd MMM yyyy} - {card.ValidTo:dd MMM yyyy}").FontSize(7).Bold().FontColor(Ink);
+                                c.Item().AlignRight().Text(card.IsLifetime ? $"LIFETIME (from {card.ValidFrom:dd MMM yyyy})" : $"{card.ValidFrom:dd MMM yyyy} - {card.ValidTo:dd MMM yyyy}").FontSize(7).Bold().FontColor(Ink);
                             });
                         });
 
