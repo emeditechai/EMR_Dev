@@ -10,6 +10,16 @@ public static class ClaimsPrincipalExtensions
         return int.TryParse(claim, out var userId) ? userId : 0;
     }
 
+    /// <summary>The franchise a franchise login belongs to (Users.User_Type 'F', ReferenceUserID); null for every other user.</summary>
+    public static int? GetFranchiseId(this ClaimsPrincipal user)
+    {
+        if (!string.Equals(user.FindFirstValue("UserType"), "F", StringComparison.OrdinalIgnoreCase)) return null;
+        return int.TryParse(user.FindFirstValue("ReferenceUserId"), out var id) && id > 0 ? id : null;
+    }
+
+    /// <summary>A login created from the Franchise master: it only ever sees and bills for its own franchise.</summary>
+    public static bool IsFranchiseUser(this ClaimsPrincipal user) => user.GetFranchiseId().HasValue;
+
     public static int? GetCurrentBranchId(this ClaimsPrincipal user)
     {
         var claim = user.FindFirstValue("BranchId");

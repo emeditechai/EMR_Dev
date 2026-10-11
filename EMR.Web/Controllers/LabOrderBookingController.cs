@@ -48,6 +48,25 @@ namespace EMR.Web.Controllers
         EMR.Shared.Security.IActionPermissionGuard permissionGuard,
         IPatientPortalLoginService portalLoginService) : Controller
     {
+        /// <summary>For a franchise login the partner on a B2B bill is always its own franchise, whatever the form posted.</summary>
+        private void LockToOwnFranchise(LabOrderBookingViewModel model)
+        {
+            if (User.GetFranchiseId() is not int ownFranchiseId) return;
+            model.IsB2B = true;
+            model.AgentType = "F";
+            model.B2BAgentId = ownFranchiseId;
+        }
+
+        /// <summary>True unless a franchise login asks for a bill that is not its own.</summary>
+        private async Task<bool> FranchiseOwnsOrderAsync(int labOrderId)
+        {
+            if (User.GetFranchiseId() is not int ownFranchiseId) return true;
+            var owned = await dbContext.Database
+                .SqlQuery<int>($"SELECT COUNT(1) AS Value FROM dbo.LabOrder WHERE LabOrderId = {labOrderId} AND AgentType = 'F' AND B2BAgentID = {ownFranchiseId}")
+                .SingleAsync();
+            return owned > 0;
+        }
+
         [HttpGet]
         public async Task<IActionResult> B2BBooking(int? patientId)
         {
@@ -57,6 +76,11 @@ namespace EMR.Web.Controllers
                 AgentType = "F",
                 CollectionType = "B2BCollector"
             };
+            // a franchise login bills only for its own franchise: preselected, and the selector is locked in the view
+            if (User.GetFranchiseId() is int ownFranchiseId)
+            {
+                model.B2BAgentId = ownFranchiseId;
+            }
 
             if (patientId.HasValue && patientId > 0)
             {
@@ -101,6 +125,7 @@ namespace EMR.Web.Controllers
             IFormFile? consentFile, string? consentRemarks)
         {
             model.IsB2B = true;
+            LockToOwnFranchise(model);
             var branchId = User.GetCurrentBranchId();
             if (branchId is null)
             {
@@ -1106,6 +1131,7 @@ namespace EMR.Web.Controllers
             [FromForm] IFormFile? consentFile,
             [FromForm] string? consentRemarks)
         {
+            LockToOwnFranchise(model);
             try
             {
             var branchId = User.GetCurrentBranchId();
@@ -1804,6 +1830,8 @@ namespace EMR.Web.Controllers
                 try
                 {
                     var franchises = await franchiseApiClient.GetListAsync(status: null, isActive: true);
+                    if (User.GetFranchiseId() is int onlyFranchiseId)
+                        franchises = franchises.Where(f => f.Franchise_ID == onlyFranchiseId).ToList();
                     model.FranchiseOptions = franchises
                         .OrderBy(f => f.Franchise_Name)
                         .Select(f => new SelectListItem { Value = f.Franchise_ID.ToString(), Text = $"{f.Franchise_Name} ({f.Franchise_Code})" })
@@ -1817,6 +1845,7 @@ namespace EMR.Web.Controllers
                 try
                 {
                     var corporates = await corporateApiClient.GetListAsync(type: null, status: true);
+                    if (User.IsFranchiseUser()) corporates = [];   // a franchise login never bills for a company
                     model.CorporateOptions = corporates
                         .Where(c => string.IsNullOrEmpty(c.Corporate_Type) || c.Corporate_Type == "ALL" || c.Corporate_Type == "LAB" || c.Corporate_Type == "OPD" || c.Corporate_Type == "MED")
                         .OrderBy(c => c.Corporate_Name)
@@ -1918,6 +1947,9 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAvailableInvestigations(int? branchId, int? departmentId, int? categoryId, int? subCategoryId, string? gender = null, int? ageInYears = null, string? rateType = "B2C", int? agentId = null)
         {
+            // a franchise login always prices from its own franchise rate list
+            if (User.GetFranchiseId() is int ownFranchiseId) { rateType = "Franchise"; agentId = ownFranchiseId; }
+
             int resolvedBranchId = branchId.HasValue && branchId.Value > 0
                 ? branchId.Value
                 : (HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 1);
@@ -2510,6 +2542,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetOrderDetail(int id)
         {
             if (id <= 0) return BadRequest("Invalid order ID.");
+            if (!await FranchiseOwnsOrderAsync(id)) return Forbid();
             var detail = await labOrderApiClient.GetOrderDetailAsync(id);
             if (detail == null) return NotFound();
             // + cancelled tests, cancellation notes and refunds, so the order details add up after a cancellation
@@ -2539,6 +2572,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> PrintBill(int labOrderId)
         {
             if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
+            if (!await FranchiseOwnsOrderAsync(labOrderId)) return Forbid();
 
             var detail = await labOrderApiClient.GetOrderDetailAsync(labOrderId);
             if (detail == null) return NotFound("Lab order not found.");
@@ -3473,6 +3507,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetPartnerCreditStatus(string agentType, int agentId)
         {
+            if (User.GetFranchiseId() is int ownFranchiseId) { agentType = "F"; agentId = ownFranchiseId; }
             try
             {
                 var branchId = User.GetCurrentBranchId();
@@ -3494,6 +3529,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> FranchiseWalletStatement(int franchiseId, DateTime? fromDate, DateTime? toDate)
         {
+            if (User.GetFranchiseId() is int ownFranchiseId) franchiseId = ownFranchiseId;
             try
             {
                 var statement = await b2bBillingApiClient.GetWalletStatementAsync(franchiseId, fromDate, toDate);

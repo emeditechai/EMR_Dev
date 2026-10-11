@@ -595,6 +595,26 @@ public class LabFranchisesController(
             CreatedBy   = User.GetUserId(),
             ModifiedBy  = User.GetUserId()
         });
+
+        // a login cannot sign in without a role: every franchise login carries the "Franchise" role
+        var franchiseRole = await dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Franchise" && r.CompanyId == companyId);
+        if (franchiseRole is null)
+        {
+            franchiseRole = new Role { Name = "Franchise", Description = "Franchise-level access", IconClass = "fas fa-building", CompanyId = companyId };
+            dbContext.Roles.Add(franchiseRole);
+            await dbContext.SaveChangesAsync();
+        }
+        dbContext.UserRoles.Add(new UserRole
+        {
+            UserId       = newUser.Id,
+            RoleId       = franchiseRole.Id,
+            Branch_ID    = branchId,
+            IsActive     = true,
+            AssignedDate = DateTime.Now,
+            AssignedBy   = User.GetUserId(),
+            CreatedBy    = User.GetUserId(),
+            CreatedDate  = DateTime.Now
+        });
         await dbContext.SaveChangesAsync();
 
         await SendCredentialsEmailAsync(branchId, model.Franchise_Name, email, defaultPassword);

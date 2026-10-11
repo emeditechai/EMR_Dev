@@ -19,6 +19,12 @@ public class DashboardController(ApplicationDbContext dbContext, IHomeDashboardS
             return RedirectToAction("SelectBranch", "Account");
         }
 
+        // a franchise login lands on its own dashboard
+        if (User.IsFranchiseUser())
+        {
+            return RedirectToAction("Index", "FranchiseDashboard");
+        }
+
         var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
         var branchId = int.TryParse(User.FindFirstValue("BranchId"), out var bid) ? bid : 0;
 

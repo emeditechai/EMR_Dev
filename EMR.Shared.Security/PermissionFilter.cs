@@ -45,7 +45,10 @@ public sealed class PermissionFilter(
         if (context.ActionDescriptor is not ControllerActionDescriptor action) return;
         var alwaysEnforce = context.ActionDescriptor.EndpointMetadata.OfType<AlwaysEnforceAttribute>().Any()
                             || action.ControllerTypeInfo.GetCustomAttribute<AlwaysEnforceAttribute>(true) != null;
-        if (opts.Mode == AuthorizationMode.Off && !alwaysEnforce) return;
+        // A partner login (franchise 'F' / corporate 'C') is an outside party: what it has not been granted is
+        // refused whatever the roll-out stage (Mode, EnforceModules) - audit-only is for the lab's own staff.
+        var externalLogin = IsExternalLogin(context.HttpContext.User);
+        if (opts.Mode == AuthorizationMode.Off && !alwaysEnforce && !externalLogin) return;
 
         // Public and anonymous endpoints are outside the model; unauthenticated requests are left to [Authorize].
         if (IsPublic(context, action)) return;
@@ -61,7 +64,8 @@ public sealed class PermissionFilter(
         context.HttpContext.Items["EmrAuthorization.Decision"] = decision;
         if (decision.IsAllowed) return;
 
-        var enforce = alwaysEnforce || ShouldEnforce(opts, decision);
+        var enforce = alwaysEnforce || ShouldEnforce(opts, decision)
+                      || (externalLogin && decision.Outcome is EndpointOutcome.Denied or EndpointOutcome.Inactive);
         log.Enqueue(new DecisionLogEntry
         {
             App = app.Name,
@@ -82,6 +86,8 @@ public sealed class PermissionFilter(
         if (!enforce) return;
         context.Result = BuildRefusal(context, decision, app);
     }
+
+    private static bool IsExternalLogin(ClaimsPrincipal user) => user.FindFirstValue("UserType") is "F" or "C";
 
     private static bool ShouldEnforce(EmrAuthorizationOptions opts, EndpointDecision decision)
     {

@@ -212,8 +212,9 @@
         <small class="text-muted">Create B2B franchise &amp; corporate bookings with automated contracted rate cards</small>
     </div>
     <div class="d-flex gap-2 align-items-center">
-        <a asp-action="B2BRegistration" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
-            <i class="bi bi-journal-text me-1"></i>B2B Order List
+        @* a franchise login has no order list page: its dashboard's sale register is its list *@
+        <a href="@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
+            <i class="bi bi-journal-text me-1"></i>@(User.IsFranchiseUser() ? "My Dashboard" : "B2B Order List")
         </a>
     </div>
 </div>
@@ -276,10 +277,13 @@
                     <i class="bi bi-shop me-1"></i>Franchise
                 </label>
 
-                <input type="radio" class="btn-check" name="AgentType" id="toggleCompany" value="C" @(Model.AgentType == "C" ? "checked" : "") onchange="onPartnerTypeChanged('C')">
-                <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleCompany">
-                    <i class="bi bi-building me-1"></i>Company
-                </label>
+                @if (!User.IsFranchiseUser())
+                {
+                    <input type="radio" class="btn-check" name="AgentType" id="toggleCompany" value="C" @(Model.AgentType == "C" ? "checked" : "") onchange="onPartnerTypeChanged('C')">
+                    <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleCompany">
+                        <i class="bi bi-building me-1"></i>Company
+                    </label>
+                }
             </div>
         </div>
 
@@ -289,7 +293,7 @@
                 <label class="form-label fw-semibold small text-primary">
                     <i class="bi bi-shop me-1"></i>Choose Franchise <span class="text-danger">*</span>
                 </label>
-                <select id="ddlFranchise" class="form-select s2-basic" data-placeholder="-- Select Franchise --">
+                <select id="ddlFranchise" class="form-select s2-basic" data-placeholder="-- Select Franchise --" disabled="@(User.IsFranchiseUser() ? "disabled" : null)">
                     <option value="">-- Select Franchise --</option>
                     @if (Model.FranchiseOptions != null && Model.FranchiseOptions.Any())
                     {
@@ -865,8 +869,8 @@
     <div class="action-bar shadow-sm">
         @* the whole bill the partner is charged: tests (B2B rate) + misc charges with GST *@
         <div class="me-auto small text-secondary align-self-center" id="billTotalBreakup"></div>
-        <a asp-action="B2BRegistration" class="btn btn-outline-secondary px-3 fw-semibold">
-            <i class="bi bi-arrow-left me-1"></i>Back to List
+        <a href="@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))" class="btn btn-outline-secondary px-3 fw-semibold">
+            <i class="bi bi-arrow-left me-1"></i>@(User.IsFranchiseUser() ? "Back to Dashboard" : "Back to List")
         </a>
         <button type="button" class="btn btn-outline-secondary px-3 fw-semibold" id="btnResetForm">
             <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
@@ -884,7 +888,7 @@
     <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
         <div class="modal-content border-0 shadow-lg" style="border-radius:14px;">
             <div class="modal-body text-center py-4 px-4 position-relative">
-                <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close" onclick="window.location.href='@Url.Action("B2BRegistration", "LabOrderBooking")'"></button>
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close" onclick="window.location.href='@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))'"></button>
                 <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
                      style="width:68px;height:68px;background:#e6f4ea;color:#137333;">
                     <i class="bi bi-check-circle-fill fs-1"></i>
@@ -915,8 +919,8 @@
                 </div>
 
                 <div class="d-flex gap-2 justify-content-center flex-wrap">
-                    <a href="@Url.Action("B2BRegistration", "LabOrderBooking")" class="btn btn-outline-secondary btn-sm px-3">
-                        <i class="bi bi-list-check me-1"></i> B2B Order List
+                    <a href="@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))" class="btn btn-outline-secondary btn-sm px-3">
+                        <i class="bi bi-list-check me-1"></i> @(User.IsFranchiseUser() ? "My Dashboard" : "B2B Order List")
                     </a>
                     <a href="#" id="btnPrintBill" target="_blank" class="btn btn-outline-success btn-sm px-3">
                         <i class="bi bi-printer me-1"></i> Print Bill

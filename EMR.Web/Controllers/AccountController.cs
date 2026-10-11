@@ -638,6 +638,13 @@ public class AccountController(
             claims.Add(new Claim("ProfilePicturePath", user.ProfilePicturePath));
         }
 
+        // what the login is and, for a franchise / doctor / corporate login, the record it belongs to
+        claims.Add(new Claim("UserType", user.UserType ?? UserTypes.General));
+        if (user.ReferenceUserId is > 0)
+        {
+            claims.Add(new Claim("ReferenceUserId", user.ReferenceUserId.Value.ToString()));
+        }
+
         if (branch is not null)
         {
             claims.Add(new Claim("BranchId", branch.BranchId.ToString()));
