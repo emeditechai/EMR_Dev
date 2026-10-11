@@ -1,0 +1,128 @@
+@model EMR.Web.Models.ViewModels.AccPettyExpenseDto
+@using EMR.Web.Models.ViewModels
+@{
+    ViewData["Title"] = "Petty Expense " + Model.DisplayNo;
+    ViewData["AccIcon"] = "bi-receipt";
+    const string Page = "UTILITY.ACCOUNTS.PETTYEXPENSE";
+    var selfBlocked = Model.CreatedBy == (int)ViewBag.CurrentUserId && !(bool)ViewBag.AllowSelfApproval;
+    var gst = Model.Lines.Sum(l => l.GstAmount);
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><partial name="_AccHeader" /></div>
+        <div class="d-flex gap-2">
+            <a asp-permission="@(Page + ":PRINT")" asp-action="Print" asp-encrypted-id="@Model.ExpenseId" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a>
+            <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to List</a>
+        </div>
+    </div>
+    <partial name="_AccAlerts" />
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <div><span class="font-monospace fw-bold fs-5">@Model.DisplayNo</span> <span class="text-muted ms-2">@Model.ExpenseDate.ToString("dd-MMM-yyyy")</span></div>
+                    <span class="badge @AccStatus.Badge(Model.Status) rounded-pill px-3 py-2">@AccStatus.Name(Model.Status)</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4"><div class="text-muted small">Counter</div><div class="fw-semibold">@Model.CounterName</div><div class="small text-muted">@Model.BranchName</div></div>
+                        <div class="col-md-4"><div class="text-muted small">Paid To</div><div class="fw-semibold">@(Model.PayeeName ?? "-")</div></div>
+                        <div class="col-md-4"><div class="text-muted small">Bill</div><div class="fw-semibold">@(Model.BillNo ?? "-") @(Model.BillDate.HasValue ? "(" + Model.BillDate.Value.ToString("dd-MMM-yyyy") + ")" : "")</div></div>
+                        @if (!string.IsNullOrEmpty(Model.Narration))
+                        {
+                            <div class="col-12"><div class="text-muted small">Narration</div><div>@Model.Narration</div></div>
+                        }
+                    </div>
+                    <table class="table align-middle mb-0">
+                        <thead class="bg-light"><tr><th>Expense Head</th><th>Remarks</th>@if (gst > 0) { <th class="text-end">GST (input credit)</th> }<th class="text-end">Amount Paid</th></tr></thead>
+                        <tbody>
+                            @foreach (var l in Model.Lines)
+                            {
+                                <tr><td class="fw-semibold">@l.HeadName</td><td class="text-muted">@l.Remarks</td>@if (gst > 0) { <td class="text-end font-monospace text-muted">@(l.GstAmount > 0 ? "₹" + l.GstAmount.ToString("N2") : "-")</td> }<td class="text-end font-monospace">₹@l.Amount.ToString("N2")</td></tr>
+                            }
+                        </tbody>
+                        <tfoot><tr class="bg-light"><td colspan="2" class="text-end fw-semibold">Total</td>@if (gst > 0) { <td class="text-end font-monospace">₹@gst.ToString("N2")</td> }<td class="text-end font-monospace fw-bold fs-5">₹@Model.TotalAmount.ToString("N2")</td></tr></tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <partial name="_AccAttachments" model="@(new AccAttachmentsViewModel { Controller = "PettyExpense", PageCode = Page, RefId = Model.ExpenseId, CanChange = Model.Status != AccStatus.Cancelled, Items = Model.Attachments })" />
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-3"><h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Trail</h6></div>
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item"><i class="bi bi-pencil-square me-2 text-muted"></i>Entered by <strong>@Model.CreatedByName</strong><div class="text-muted ms-4">@Model.CreatedDate.ToString("dd-MMM-yyyy HH:mm")</div></li>
+                    @if (Model.ApprovedDate.HasValue)
+                    {
+                        <li class="list-group-item"><i class="bi bi-check-circle me-2 text-success"></i>@(Model.IsAutoApproved ? "Auto-approved (within limit)" : "Approved by") <strong>@(Model.IsAutoApproved ? "" : Model.ApprovedByName)</strong>
+                            <div class="text-muted ms-4">@Model.ApprovedDate.Value.ToString("dd-MMM-yyyy HH:mm") - posted as @Model.VoucherNo</div></li>
+                    }
+                    @if (Model.Status == AccStatus.Rejected)
+                    {
+                        <li class="list-group-item"><i class="bi bi-x-circle me-2 text-danger"></i>Rejected by <strong>@Model.RejectedByName</strong>
+                            <div class="text-muted ms-4">@Model.RejectedDate?.ToString("dd-MMM-yyyy HH:mm")</div><div class="ms-4 text-danger">@Model.RejectReason</div></li>
+                    }
+                    @if (Model.Status == AccStatus.Cancelled)
+                    {
+                        <li class="list-group-item"><i class="bi bi-slash-circle me-2 text-secondary"></i>Cancelled by <strong>@Model.CancelledByName</strong>
+                            <div class="text-muted ms-4">@Model.CancelledDate?.ToString("dd-MMM-yyyy HH:mm")</div><div class="ms-4">@Model.CancelReason</div></li>
+                    }
+                </ul>
+            </div>
+
+            @if (Model.Status == AccStatus.Submitted)
+            {
+                <div class="card border-0 shadow-sm mb-3" asp-permission="@(Page + ":APPROVE")">
+                    <div class="card-body">
+                        @if (selfBlocked)
+                        {
+                            <div class="alert alert-light border small mb-0"><i class="bi bi-info-circle me-1"></i>You entered this expense, so another user has to approve it.</div>
+                        }
+                        else
+                        {
+                            <form asp-action="Approve" asp-encrypted-id="@Model.ExpenseId" method="post" class="d-grid mb-2">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-success" onclick="return confirm('Approve and post this expense of ₹@Model.TotalAmount.ToString("N2")?');"><i class="bi bi-check2-circle me-1"></i>Approve and Post</button>
+                            </form>
+                            <form asp-action="Reject" asp-encrypted-id="@Model.ExpenseId" method="post">
+                                @Html.AntiForgeryToken()
+                                <div class="input-group">
+                                    <input name="reason" class="form-control" maxlength="300" placeholder="Reason for rejection" required />
+                                    <button type="submit" class="btn btn-outline-danger">Reject</button>
+                                </div>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (Model.Status is AccStatus.Submitted or AccStatus.Rejected)
+            {
+                <a asp-permission="@(Page + ":EDIT")" asp-action="Edit" asp-encrypted-id="@Model.ExpenseId" class="btn btn-outline-primary w-100 mb-3"><i class="bi bi-pencil me-1"></i>@(Model.Status == AccStatus.Rejected ? "Correct and Resubmit" : "Edit")</a>
+            }
+
+            @if (Model.Status != AccStatus.Cancelled)
+            {
+                <div class="card border-0 shadow-sm" asp-permission="@(Page + ":CANCEL")">
+                    <div class="card-body">
+                        <form asp-action="Cancel" asp-encrypted-id="@Model.ExpenseId" method="post">
+                            @Html.AntiForgeryToken()
+                            <label class="form-label small fw-semibold text-muted">Cancel this expense</label>
+                            <div class="input-group">
+                                <input name="reason" class="form-control" maxlength="300" placeholder="Reason" required />
+                                <button type="submit" class="btn btn-outline-danger" onclick="return confirm('@(Model.Status == AccStatus.Approved ? "Cancel this expense? A reversal voucher will be posted." : "Cancel this expense?")');">Cancel Expense</button>
+                            </div>
+                            @if (Model.Status == AccStatus.Approved)
+                            {
+                                <div class="form-text">A reversal voucher is posted today and the cash returns to the counter. Nothing is deleted.</div>
+                            }
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>

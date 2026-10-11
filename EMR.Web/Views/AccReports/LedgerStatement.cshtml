@@ -1,0 +1,61 @@
+@model EMR.Web.Models.ViewModels.AccReportViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["AccIcon"] = Model.Report switch { "CashBook" => "bi-cash-stack", "BankBook" => "bi-bank", "PettyCashBook" => "bi-safe", _ => "bi-list-columns-reverse" };
+    string Bal(decimal v) => v == 0 ? "0.00" : $"{Math.Abs(v):N2} {(v > 0 ? "Dr" : "Cr")}";
+    var opening = Model.Statement?.OpeningBalance ?? 0;
+    var closing = Model.StatementRows.Count > 0 ? Model.StatementRows[^1].RunningBalance : opening;
+}
+
+<div class="container-fluid px-4 py-3 acc-rpt">
+    <div class="mb-3 acc-noprint"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+    <partial name="_Filter" model="Model" />
+
+    @if (Model.Statement is null)
+    {
+        <div class="card border-0 shadow-sm"><div class="card-body text-center py-5 text-muted"><i class="bi bi-list-columns-reverse display-6 d-block mb-2 text-secondary"></i>
+            @(Model.Ledgers.Count == 0 ? "No ledger of this kind yet." : "Select a ledger and press Show.")</div></div>
+    }
+    else
+    {
+        <div class="row g-3 mb-3 acc-noprint">
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-3"><div class="text-muted small text-uppercase fw-semibold">Opening</div><div class="fs-5 fw-bold font-monospace">₹@Bal(opening)</div></div></div></div>
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-3"><div class="text-muted small text-uppercase fw-semibold">Debit</div><div class="fs-5 fw-bold font-monospace">₹@Model.StatementRows.Sum(r => r.DebitAmount).ToString("N2")</div></div></div></div>
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-3"><div class="text-muted small text-uppercase fw-semibold">Credit</div><div class="fs-5 fw-bold font-monospace">₹@Model.StatementRows.Sum(r => r.CreditAmount).ToString("N2")</div></div></div></div>
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-3"><div class="text-muted small text-uppercase fw-semibold">Closing</div><div class="fs-5 fw-bold font-monospace text-primary">₹@Bal(closing)</div></div></div></div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-2 small acc-noprint"><strong>@Model.Statement.LedgerName</strong> <span class="text-muted">@Model.Statement.LedgerCode | @Model.Statement.GroupName (@Model.Statement.GroupType)</span></div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead><tr><th class="ps-3">Date</th><th>Voucher No.</th><th>Type</th><th>Particulars</th><th>Narration</th><th class="num">Debit</th><th class="num">Credit</th><th class="num pe-3">Balance</th></tr></thead>
+                    <tbody>
+                        <tr class="acc-total"><td class="ps-3" colspan="7">Opening balance</td><td class="num pe-3">@Bal(opening)</td></tr>
+                        @if (Model.StatementRows.Count == 0)
+                        {
+                            <tr><td colspan="8" class="text-center py-4 text-muted">No entries in this period.</td></tr>
+                        }
+                        @foreach (var r in Model.StatementRows)
+                        {
+                            <tr class="@(r.Status == "C" || r.IsReversal ? "text-muted" : "")">
+                                <td class="ps-3 text-nowrap">@r.TransactionDate.ToString("dd-MMM-yyyy")</td>
+                                <td class="font-monospace small text-nowrap"><a asp-action="Voucher" asp-route-id="@r.TransactionId">@r.VoucherNo</a></td>
+                                <td class="text-nowrap">@r.VoucherTypeName @if (r.IsReversal) { <span class="badge bg-secondary">Reversal</span> } else if (r.Status == "C") { <span class="badge bg-secondary">Cancelled</span> }</td>
+                                <td>@r.Particulars</td>
+                                <td class="small">@r.Narration</td>
+                                <td class="num">@(r.DebitAmount != 0 ? r.DebitAmount.ToString("N2") : "")</td>
+                                <td class="num">@(r.CreditAmount != 0 ? r.CreditAmount.ToString("N2") : "")</td>
+                                <td class="num pe-3">@Bal(r.RunningBalance)</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr><td class="ps-3" colspan="5">Total / closing balance</td><td class="num">@Model.StatementRows.Sum(r => r.DebitAmount).ToString("N2")</td><td class="num">@Model.StatementRows.Sum(r => r.CreditAmount).ToString("N2")</td><td class="num pe-3">@Bal(closing)</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    }
+</div>
