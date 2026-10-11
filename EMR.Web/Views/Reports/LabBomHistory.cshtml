@@ -1,0 +1,85 @@
+@{
+    ViewData["Title"] = "BOM Change History";
+    ViewData["ReportSubtitle"] = "BOMs created, revised and stopped, who did it, and what changed line by line";
+    ViewData["ReportIcon"] = "bi-clock-history";
+    ViewData["ReportAccent"] = "#475569";
+    ViewData["DateLabel"] = "change date";
+    ViewData["ScopeNote"] = "Company BOM master · audit trail";
+}
+@* SQLScripts/2248 #4: every version saved (created / revised) and every BOM stopped in the period; costs at today's item cost *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const tone = { CREATED: 'good', REVISED: 'info', STOPPED: 'bad' };
+    const changeTone = { 'Added': 'good', 'Removed': 'bad', 'Quantity changed': 'warn', 'Unchanged': 'muted' };
+    const linesOf = (r, data) => (data.lines || []).filter(l => l.EventKey === r.EventKey);
+    const what = r => r.EventType !== 'REVISED' ? `${r.LineCount} lines`
+        : [r.LinesAdded ? `${r.LinesAdded} added` : '', r.LinesRemoved ? `${r.LinesRemoved} removed` : '', r.QtyChanged ? `${r.QtyChanged} qty changed` : '', r.PctChange || '']
+            .filter(Boolean).join(' · ') || 'remarks only';
+    LabReport.init({
+        report: 'bom-history', title: 'BOM Change History', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name or code...',
+        filters: [
+            { id: 'eventType', label: 'Change', allLabel: 'All changes', options: [['CREATED', 'Created'], ['REVISED', 'Revised'], ['STOPPED', 'Stopped']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' },
+            { id: 'changedBy', label: 'Changed by', allLabel: 'Everyone', fromOptions: 'changedBy' }
+        ],
+        kpis: [
+            { label: 'Changes', color: '#475569', value: (s, h) => h.num(s.Events), sub: (s, h) => `${h.num(s.TestsChanged)} tests` },
+            { label: 'Created', color: '#15803d', value: (s, h) => h.num(s.Created), sub: () => 'first BOM of a test' },
+            { label: 'Revised', color: '#1d4ed8', value: (s, h) => h.num(s.Revised), sub: (s, h) => `${h.num(s.CostUp)} costlier · ${h.num(s.CostDown)} cheaper` },
+            { label: 'Stopped', color: '#b91c1c', value: (s, h) => h.num(s.Stopped), sub: () => 'closed with no newer version' },
+            { label: 'Net cost change', color: '#b45309', value: (s, h) => h.money(s.NetCostChange), sub: () => 'per test, summed over revisions' }
+        ],
+        groups: [
+            { key: 'byEvent', label: 'Change', rowField: 'EventLabel' },
+            { key: 'byDate', label: 'Date', rowField: 'EventDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byUser', label: 'Changed by', rowField: 'ChangedById', byId: true },
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentId', byId: true }
+        ],
+        groupCols: [
+            { field: 'Events', label: 'Changes', num: true },
+            { field: 'Tests', label: 'Tests', num: true },
+            { field: 'CostChange', label: 'Cost change', money: true }
+        ],
+        shareOf: 'Events',
+        cols: [
+            { label: 'When', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.EventDate), text: r => r.EventDate },
+            { label: 'Change', html: (r, h) => QcRep.pill(r.EventLabel, tone[r.EventType], h), text: r => r.EventLabel },
+            { label: 'Test', html: (r, h) => QcRep.name(r.TestName, r.TestCode, h), text: r => `${r.TestName} (${r.TestCode || ''})` },
+            { label: 'Applies to', html: (r, h) => `<span class="fs-9">${h.esc(r.AppliesTo)}</span>`, text: r => r.AppliesTo },
+            { label: 'Version', cls: 'text-nowrap', html: r => r.EventType === 'REVISED' ? `v${r.PrevVersionNo} → v${r.VersionNo}` : `v${r.VersionNo}`, text: r => `v${r.VersionNo}` },
+            { label: 'What changed', html: (r, h) => `<span class="fs-9">${h.esc(what(r))}</span>`, text: r => what(r) },
+            { label: 'Old cost', cls: 'text-end amt', html: (r, h) => QcRep.money(r.OldCost, h), text: r => r.OldCost ?? '' },
+            { label: 'New cost', cls: 'text-end amt', html: (r, h) => QcRep.money(r.NewCost, h), text: r => r.NewCost ?? '' },
+            { label: 'Change', cls: 'text-end amt fw-semibold', html: (r, h) => r.CostChange == null ? '—'
+                  : `<span class="${r.CostChange > 0 ? 'text-danger' : r.CostChange < 0 ? 'text-success' : ''}">${r.CostChange > 0 ? '+' : ''}${h.money(r.CostChange)}</span>`,
+              text: r => r.CostChange ?? '', sum: 'CostChange' },
+            { label: 'By', cls: 'text-nowrap', html: (r, h) => h.esc(r.ChangedByName), text: r => r.ChangedByName },
+            { label: 'Remarks', html: (r, h) => `<span class="fs-9">${h.esc(r.Remarks || '')}</span>`, text: r => r.Remarks || '' }
+        ],
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => QcRep.lines(linesOf(r, data), [
+                { label: 'Line', html: l => QcRep.pill(l.Change, changeTone[l.Change], h) },
+                { label: 'Item', html: l => `<span class="font-monospace text-muted me-1">${h.esc(l.ItemCode)}</span>${h.esc(l.ItemName)}` },
+                { label: 'Old qty', cls: 'text-end', html: l => l.OldQty == null ? '—' : `${QcRep.qty(l.OldQty)} ${h.esc(l.Unit)}` },
+                { label: 'New qty', cls: 'text-end', html: l => l.NewQty == null ? '—' : `${QcRep.qty(l.NewQty)} ${h.esc(l.Unit)}` },
+                { label: 'Cost effect', cls: 'text-end', html: l => l.CostEffect ? (l.CostEffect > 0 ? '+' : '') + h.money(l.CostEffect) : '—' }
+            ])
+        },
+        exportExtra: (rows, data) => ({
+            sheet: 'Line changes', title: 'Line changes',
+            head: ['When', 'Test', 'Applies to', 'Version', 'Line', 'Item code', 'Item', 'Old qty', 'New qty', 'Unit', 'Cost effect'],
+            rows: rows.flatMap(r => linesOf(r, data).map(l => [r.EventDate, r.TestName, r.AppliesTo, 'v' + r.VersionNo, l.Change, l.ItemCode, l.ItemName, l.OldQty ?? '', l.NewQty ?? '', l.Unit, l.CostEffect]))
+        })
+    });
+})();
+</script>
+}

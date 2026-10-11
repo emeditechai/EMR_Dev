@@ -14,6 +14,7 @@
  *   rowClass:  row => css class,
  *   afterLoad: (data, h) => void   optional: draws the page's own panel (#lrExtra) after each load
  *   params:    () => ({ key: value })   optional: extra query values sent with every load (e.g. a page tab)
+ *   noDates:   true   optional: a snapshot "as on today" (master data); the date filters are hidden
  *   cols[].when / groups[].when: () => bool   optional: the column / group is shown only while it returns true
  *   expand:    { has: (row, data) => bool, html: (row, data, h) => html }   optional: rows open to show their lines
  *   exportExtra: (rows, data, h) => ({ sheet, title, head, rows })   optional: an extra Excel sheet / PDF page (Detail view)
@@ -48,6 +49,7 @@ window.LabReport = (function () {
                 .insertBefore('#lrSearchCol');
         });
         $('#lrSearch').attr('placeholder', cfg.searchPlaceholder || 'Search...');
+        if (cfg.noDates) $('#lrFrom, #lrTo, .btn-quick').closest('#lrFilterRow > div').addClass('d-none');
         function buildChrome() {
             const keep = $('#lrGroup').val();
             groups = allGroups.filter(g => !g.when || g.when());
@@ -82,7 +84,7 @@ window.LabReport = (function () {
             $('#lrLoading').html(EmrShimmer.listBlock(8, 6)).removeClass('d-none');
             $('#lrSummary tbody, #lrDetail tbody, #lrSummary tfoot, #lrDetail tfoot').empty();
             $('#lrExcel, #lrPdf, #lrPrint').prop('disabled', true);
-            $('#lrRange').text(h.fmtD(from) + (from === to ? '' : ' – ' + h.fmtD(to)));
+            $('#lrRange').text(cfg.noDates ? 'As on ' + h.fmtD(iso(new Date())) : h.fmtD(from) + (from === to ? '' : ' – ' + h.fmtD(to)));
             $.get(cfg.dataUrl, q).done(res => {
                 if (my !== seq) return;
                 if (!res || !res.success) { clearShimmer(); $('#lrError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
@@ -193,7 +195,7 @@ window.LabReport = (function () {
             return { head: ec.map(c => c.label),
                      rows: detailRows().map(r => ec.map(c => c.text ? c.text(r, h) : $('<div>').html(c.html(r, h)).text().trim())) };
         }
-        const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_${$('#lrFrom').val()}_to_${$('#lrTo').val()}`;
+        const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_` + (cfg.noDates ? iso(new Date()) : `${$('#lrFrom').val()}_to_${$('#lrTo').val()}`);
         // the export libraries are fetched on the first Excel / PDF click, not with the page
         $('#lrExcel').on('click', function () { EmrExportLibs.run(this, 'excel', () => {
             const t = exportTable(); const ws = XLSX.utils.aoa_to_sheet([t.head, ...t.rows]);
@@ -205,7 +207,7 @@ window.LabReport = (function () {
         $('#lrPdf').on('click', function () { EmrExportLibs.run(this, 'pdf', () => {
             const t = exportTable(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
             doc.setFontSize(13); doc.text(cfg.title, 40, 36);
-            doc.setFontSize(9); doc.text(`${cfg.branchName ? 'Branch: ' + cfg.branchName + '   ' : ''}Period: ${$('#lrRange').text()}   View: ${view === 'summary' ? 'Summary by ' + groupDef().label : 'Detail'}`, 40, 52);
+            doc.setFontSize(9); doc.text(`${cfg.branchName ? 'Branch: ' + cfg.branchName + '   ' : ''}${cfg.noDates ? '' : 'Period: '}${$('#lrRange').text()}   View: ${view === 'summary' ? 'Summary by ' + groupDef().label : 'Detail'}`, 40, 52);
             doc.autoTable({ startY: 62, head: [t.head], body: t.rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(2) : String(v ?? ''))),
                             styles: { fontSize: 7, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] } });
             const extra = view === 'detail' && cfg.exportExtra ? cfg.exportExtra(detailRows(), data, h) : null;

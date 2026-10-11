@@ -1,0 +1,84 @@
+@{
+    ViewData["Title"] = "BOM Consumption Register";
+    ViewData["ReportSubtitle"] = "Reagents and consumables consumed automatically when results are submitted, at the branch that ran the test";
+    ViewData["ReportIcon"] = "bi-box-arrow-right";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["DateLabel"] = "consumed on";
+    ViewData["ScopeNote"] = "Tests run at this branch (including samples received from other branches)";
+}
+@* SQLScripts/2249: one row per test run (a profile test once); a re-collected sample submitted again is a new run.
+   Open a row for its items; Summary "Item" gives the quantity and cost of every item consumed. *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const tone = { FIRST: 'good', RERUN: 'warn', NOBOM: 'muted' };
+    const linesOf = (r, data) => (data.lines || []).filter(l => l.ConsumptionId === r.ConsumptionId);
+    LabReport.init({
+        report: 'bom-consumption', title: 'BOM Consumption Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test, Bill No, patient code or name...',
+        filters: [
+            { id: 'runType', label: 'Run', allLabel: 'All runs', options: [['FIRST', 'First runs'], ['RERUN', 'Re-runs (re-collected)'], ['NOBOM', 'Run without BOM']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' },
+            { id: 'itemId', label: 'Item', allLabel: 'All items', fromOptions: 'itemId' }
+        ],
+        kpis: [
+            { label: 'Test runs', color: '#0f766e', value: (s, h) => h.num(s.Runs), sub: (s, h) => `${h.num(s.Bills)} bills · ${h.num(s.TransferredRuns)} from other branches` },
+            { label: 'Material consumed', color: '#b45309', value: (s, h) => h.money(s.MaterialCost), sub: (s, h) => `${h.num(s.ItemsUsed)} items` },
+            { label: 'Costliest item', color: '#7c3aed', value: (s, h) => s.TopItem ? h.money(s.TopItemCost) : '—', sub: (s, h) => h.esc(s.TopItem || '') },
+            { label: 'Re-runs', color: '#1d4ed8', value: (s, h) => h.num(s.Reruns), sub: () => 'samples re-collected and tested again' },
+            { label: 'Runs without BOM', color: '#b91c1c', value: (s, h) => h.num(s.NoBomRuns), sub: () => 'nothing consumed: define their BOM' }
+        ],
+        groups: [
+            { key: 'byItem', label: 'Item', rowField: 'ItemId', noDrill: true },
+            { key: 'byTest', label: 'Test', rowField: 'TestId', byId: true },
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byDate', label: 'Date', rowField: 'ConsumedDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byRunType', label: 'Run', rowField: 'RunLabel' }
+        ],
+        groupCols: [
+            { field: 'Runs', label: 'Runs / uses', num: true },
+            { field: 'QtyText', label: 'Quantity', total: 'none', fmt: (v, h) => h.esc(v || '') },
+            { field: 'Cost', label: 'Cost', money: true }
+        ],
+        shareOf: 'Cost',
+        rowClass: r => r.RunType === 'NOBOM' ? 'row-muted' : '',
+        cols: [
+            { label: 'Consumed', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.ConsumedOn), text: r => r.ConsumedOn },
+            { label: 'Bill', html: (r, h) => `<div class="font-monospace">${h.esc(r.BillNo || '')}</div><div class="text-muted fs-9">${h.fmtD(r.BillDate)}</div>`, text: r => r.BillNo || '' },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName || '—')}</div><div class="text-muted fs-9">${h.esc(r.PatientCode || '')}</div>`, text: r => `${r.PatientName || ''} (${r.PatientCode || ''})` },
+            { label: 'Test', html: (r, h) => QcRep.name(r.TestName, r.TestCode, h, (r.Kind === 'Profile' ? QcRep.kind('Profile', h) : '') + (r.PackageName ? ` <span class="text-muted fs-9">in ${h.esc(r.PackageName)}</span>` : '')),
+              text: r => `${r.TestName} (${r.TestCode || ''})` },
+            { label: 'Run', html: (r, h) => QcRep.pill(r.RunLabel, tone[r.RunType], h) + (r.TransferredFrom ? `<div class="text-muted fs-9">sample from ${h.esc(r.TransferredFrom)}</div>` : ''), text: r => r.RunLabel },
+            { label: 'BOM', cls: 'text-nowrap', html: (r, h) => r.BomVersionNo ? `v${r.BomVersionNo}<div class="text-muted fs-9">${h.esc(r.AppliesTo || '')}</div>` : '—', text: r => r.BomVersionNo ? 'v' + r.BomVersionNo : '' },
+            { label: 'Items', cls: 'text-end', html: r => r.LineCount, text: r => r.LineCount },
+            { label: 'Material cost', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.MaterialCost), text: r => r.MaterialCost, sum: 'MaterialCost' },
+            { label: 'Submitted', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.SubmittedOn)}<div class="text-muted fs-9">${h.esc(r.ConsumedByName)}</div>`, text: r => r.SubmittedOn || '' },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true,
+              html: r => r.LabOrderId ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` : '' }
+        ],
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => QcRep.lines(linesOf(r, data), [
+                { label: 'Item', html: l => `<span class="font-monospace text-muted me-1">${h.esc(l.ItemCode)}</span>${h.esc(l.ItemName)}` },
+                { label: 'BOM qty', cls: 'text-end', html: l => `${QcRep.qty(l.BomQty)} ${h.esc(l.Unit)}` },
+                { label: 'Consumed', cls: 'text-end', html: l => `${QcRep.qty(l.Qty)} ${h.esc(l.Unit)}` },
+                { label: 'Unit cost', cls: 'text-end', html: l => QcRep.unitCost(l.UnitCost) },
+                { label: 'Cost', cls: 'text-end', html: l => QcRep.unitCost(l.LineCost) }
+            ])
+        },
+        exportExtra: (rows, data) => ({
+            sheet: 'Items consumed', title: 'Items consumed',
+            head: ['Consumed', 'Bill No', 'Test', 'Run', 'Item code', 'Item', 'BOM qty', 'Consumed qty', 'Unit', 'Unit cost', 'Cost'],
+            rows: rows.flatMap(r => linesOf(r, data).map(l => [r.ConsumedOn, r.BillNo || '', r.TestName, r.RunLabel, l.ItemCode, l.ItemName, l.BomQty, l.Qty, l.Unit, l.UnitCost, l.LineCost]))
+        })
+    });
+})();
+</script>
+}

@@ -1,0 +1,61 @@
+@{
+    ViewData["Title"] = "Loss / Low-Margin Alert";
+    ViewData["ReportSubtitle"] = "Fully costed tests, profiles and packages priced below cost or below the chosen margin, with the rate needed";
+    ViewData["ReportIcon"] = "bi-exclamation-triangle";
+    ViewData["ReportAccent"] = "#b91c1c";
+    ViewData["ScopeNote"] = "Company BOM master · B2C rates of this branch · as on today";
+}
+@* SQLScripts/2248 #7: items with a missing BOM or no rate are not judged (their cost is not complete); they are counted in the KPIs *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    LabReport.init({
+        report: 'margin-alert', title: 'Loss and Low-Margin Alert', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test, profile or package name / code...',
+        filters: [
+            { id: 'threshold', label: 'Alert when margin', allLabel: 'Below 30% (default)',
+              options: [['0', 'Loss only'], ['10', 'Below 10%'], ['20', 'Below 20%'], ['40', 'Below 40%'], ['50', 'Below 50%'], ['60', 'Below 60%'], ['70', 'Below 70%']] },
+            { id: 'kind', label: 'Type', allLabel: 'All types', options: [['Test', 'Tests'], ['Profile', 'Profile tests'], ['Package', 'Packages']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Alerts', color: '#b91c1c', value: (s, h) => h.num(s.Alerts), sub: (s, h) => `of ${h.num(s.CheckedItems)} fully costed items, minimum ${QcRep.pct(s.ThresholdPct, 0)}` },
+            { label: 'Loss-making', color: '#7f1d1d', value: (s, h) => h.num(s.LossItems), sub: () => 'cost above the B2C rate' },
+            { label: 'Low margin', color: '#b45309', value: (s, h) => h.num(s.LowItems), sub: s => `below ${QcRep.pct(s.ThresholdPct, 0)}` },
+            { label: 'Rate increase needed', color: '#1d4ed8', value: (s, h) => h.money(s.TotalRateGap), sub: () => 'sum over the alerts, to reach the minimum' },
+            { label: 'Not checked', color: '#64748b', value: (s, h) => h.num(s.NotChecked), sub: () => 'BOM missing or no B2C rate' }
+        ],
+        groups: [
+            { key: 'bySeverity', label: 'Alert', rowField: 'SeverityLabel' },
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentName' },
+            { key: 'byKind', label: 'Type', rowField: 'Kind' }
+        ],
+        groupCols: [
+            { field: 'Items', label: 'Items', num: true },
+            { field: 'RateGap', label: 'Rate increase needed', money: true },
+            { field: 'AvgMarginPct', label: 'Avg margin', num: true, total: 'none', fmt: v => QcRep.marginPct(v) }
+        ],
+        shareOf: 'Items',
+        rowClass: r => r.Severity === 'LOSS' ? 'row-muted' : '',
+        cols: [
+            { label: 'Alert', html: (r, h) => QcRep.pill(r.SeverityLabel, r.Severity === 'LOSS' ? 'bad' : 'warn', h), text: r => r.SeverityLabel },
+            { label: 'Type', html: (r, h) => QcRep.kind(r.Kind, h), text: r => r.Kind },
+            { label: 'Name', html: (r, h) => QcRep.name(r.Name, r.Code, h), text: r => `${r.Name} (${r.Code || ''})` },
+            { label: 'Department', html: (r, h) => `<span class="fs-9">${h.esc(r.DepartmentName || '—')}</span>`, text: r => r.DepartmentName || '' },
+            { label: 'Total cost', cls: 'text-end amt', html: (r, h) => h.money(r.TotalCost), text: r => r.TotalCost },
+            { label: 'B2C rate', cls: 'text-end amt', html: (r, h) => h.money(r.Rate), text: r => r.Rate },
+            { label: 'Margin', cls: 'text-end amt', html: (r, h) => QcRep.margin(r.Margin, r.MarginPct, h), text: r => r.Margin },
+            { label: 'Margin %', cls: 'text-end', html: r => QcRep.marginPct(r.MarginPct), text: r => r.MarginPct },
+            { label: 'Rate needed', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.RateNeeded), text: r => r.RateNeeded },
+            { label: 'Increase', cls: 'text-end amt', html: (r, h) => `+${h.money(r.RateGap)}`, text: r => r.RateGap, sum: 'RateGap' }
+        ]
+    });
+})();
+</script>
+}
