@@ -30,6 +30,10 @@ namespace EMR.Web.Models.ViewModels
         public decimal PaidBefore { get; set; }
         public decimal Amount { get; set; }
         public decimal BalanceAfter { get; set; }
+        // membership points (B2C LAB, SQLScripts/2236): the card of the bill, points earned on it so far, the card's balance now
+        public string? MembershipCardNo { get; set; }
+        public decimal PointsEarned { get; set; }
+        public decimal PointsBalance { get; set; }
         public string? ReceivedByName { get; set; }
         public List<MoneyReceiptLine> Lines { get; set; } = new();
 
@@ -101,6 +105,7 @@ namespace EMR.Web.Models.ViewModels
 
     public class MoneyReceiptLine
     {
+        public bool IsPoints => string.Equals(MethodCode, "POINTS", StringComparison.OrdinalIgnoreCase);
         public string? MethodName { get; set; }
         public string? MethodCode { get; set; }
         public decimal PaidAmount { get; set; }

@@ -338,6 +338,21 @@ namespace EMR.Web.Controllers
             decimal totalAmount = lineItems!.Sum(x => x.Price);
             decimal b2bTotal = lineItems!.Sum(x => x.B2BRate ?? x.Price);
 
+            // ── Misc charges (SQLScripts/2240): the partner is charged them with their GST - priced from the master here
+            //    for the credit / wallet checks; the order procedure prices them again and adds them to the B2B total ──
+            var (b2bMisc, b2bMiscError) = EMR.Web.Services.LabMiscCharges.Parse(model.MiscChargesJson);
+            var b2bMiscPrices = new List<EMR.Web.Services.LabMiscChargePrice>();
+            if (b2bMiscError == null && b2bMisc.Count > 0)
+                (b2bMiscPrices, b2bMiscError) = await EMR.Web.Services.LabMiscCharges.PriceAsync(dbContext.Database.GetDbConnection(), branchId.Value, b2bMisc);
+            if (b2bMiscError != null)
+            {
+                ModelState.AddModelError(string.Empty, b2bMiscError);
+                await PopulateSelectLists(model);
+                return View(model);
+            }
+            decimal b2bTestsTotal = b2bTotal;
+            b2bTotal += b2bMiscPrices.Sum(x => x.Total);
+
             // ── Fetch Partner Credit Status & Enforce Credit Facility Policies ──
             var creditStatus = await b2bBillingApiClient.GetPartnerCreditStatusAsync(model.AgentType, model.B2BAgentId!.Value, branchId);
             if (creditStatus != null)
@@ -409,9 +424,10 @@ namespace EMR.Web.Controllers
                 IsB2B = true,
                 B2BAgentId = model.B2BAgentId,
                 AgentType = model.AgentType,
-                B2BTotal = b2bTotal,
+                B2BTotal = b2bTestsTotal,            // the procedure adds the misc charges (with GST)
                 CreatedBy = User.GetUserId(),
-                Items = lineItems!
+                Items = lineItems!,
+                MiscCharges = b2bMisc
             };
 
             LabOrderResponseDto labOrderRes;
@@ -433,7 +449,11 @@ namespace EMR.Web.Controllers
             // Post B2B Bill Ledger (Dr Franchise Receivable or Corporate Receivable, Cr LAB Revenue)
             // NOTE: b2bShowPrintBarcode is resolved after payment processing below (same ordering as B2C).
             bool b2bShowPrintBarcode = false;
-            await ledgerService.PostB2BLabBillLedgerAsync(labOrderRes.LabOrderId, b2bTotal, model.AgentType, model.B2BAgentId.Value, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
+            // misc charges: the bill's own B2B total; its GST goes to GST Output Payable, not to revenue
+            var b2bMiscTotals = await ReadLabMiscTotalsAsync(labOrderRes.LabOrderId);
+            if (b2bMiscTotals.B2BTotal > 0) b2bTotal = b2bMiscTotals.B2BTotal;
+            await ledgerService.PostB2BLabBillLedgerAsync(labOrderRes.LabOrderId, b2bTotal - b2bMiscTotals.MiscGst, model.AgentType, model.B2BAgentId.Value, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
+            await SyncLabGstAsync(labOrderRes.LabOrderId);
 
             string paymentModeUsed = "Credit (Postpaid)";
 
@@ -991,6 +1011,15 @@ namespace EMR.Web.Controllers
                 CreatedBy = User.GetUserId(),
                 Items = lineItems!
             };
+            // misc charges (SQLScripts/2240)
+            var (legacyMisc, legacyMiscError) = EMR.Web.Services.LabMiscCharges.Parse(model.MiscChargesJson);
+            if (legacyMiscError != null)
+            {
+                ModelState.AddModelError(string.Empty, legacyMiscError);
+                await PopulateSelectLists(model);
+                return View(model);
+            }
+            labOrderReq.MiscCharges = legacyMisc;
 
             LabOrderResponseDto labOrderRes;
             try
@@ -1007,7 +1036,9 @@ namespace EMR.Web.Controllers
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
 
             decimal totalAmount = lineItems!.Sum(x => x.Price);
-            await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
+            var legacyMiscTotals = await ReadLabMiscTotalsAsync(labOrderRes.LabOrderId);
+            await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount + legacyMiscTotals.MiscAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
+            await SyncLabGstAsync(labOrderRes.LabOrderId);
 
             string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
             await auditLogService.LogActivityAsync(
@@ -1094,6 +1125,10 @@ namespace EMR.Web.Controllers
                 if (PaymentService.HasDiscount(discountCheck)
                     && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2CBOOKING", EMR.Shared.Security.PermissionControls.Discount))
                     return Json(new { success = false, error = PaymentService.DiscountNotPermittedMessage });
+                // membership points: a wrong / expired OTP is refused before the order is created
+                var otpError = await paymentService.VerifyRedeemOtpAsync(discountCheck);
+                if (otpError != null)
+                    return Json(new { success = false, error = otpError });
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;
@@ -1133,6 +1168,11 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, error = "Please select at least one investigation test." });
             }
+
+            // misc charges (SQLScripts/2240): ids and quantities only - priced from the master by the order procedure
+            var (bookingMisc, bookingMiscError) = EMR.Web.Services.LabMiscCharges.Parse(model.MiscChargesJson);
+            if (bookingMiscError != null)
+                return Json(new { success = false, error = bookingMiscError });
 
             // Save uploaded files
             if (identificationFile != null && identificationFile.Length > 0)
@@ -1260,7 +1300,8 @@ namespace EMR.Web.Controllers
                 AgentType = model.AgentType,
                 B2BTotal = model.B2BTotal ?? (model.IsB2B ? lineItems.Sum(x => x.B2BRate ?? x.Price) : null),
                 CreatedBy = User.GetUserId(),
-                Items = lineItems
+                Items = lineItems,
+                MiscCharges = bookingMisc
             };
 
             LabOrderResponseDto labOrderRes;
@@ -1278,7 +1319,10 @@ namespace EMR.Web.Controllers
                 prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
 
             decimal totalAmount = lineItems.Sum(x => x.Price);
-            await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
+            // revenue = tests + misc charges (taxable); the misc GST goes to GST Output Payable
+            var bookingMiscTotals = await ReadLabMiscTotalsAsync(labOrderRes.LabOrderId);
+            await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount + bookingMiscTotals.MiscAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
+            await SyncLabGstAsync(labOrderRes.LabOrderId);
 
             string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
             await auditLogService.LogActivityAsync(
@@ -1331,6 +1375,7 @@ namespace EMR.Web.Controllers
                     {
                         foreach (var li in paymentReq.LineItems)
                         {
+                            if (string.Equals(li.ServiceType, EMR.Web.Services.LabMiscCharges.ServiceType, StringComparison.OrdinalIgnoreCase)) continue;   // misc lines are rebuilt by the payment
                             var matchingCreated = createdItems.FirstOrDefault(ci => (int)ci.InvestigationId == li.ModuleLineRefId);
                             if (matchingCreated != null)
                             {
@@ -2243,6 +2288,122 @@ namespace EMR.Web.Controllers
         /// "Packages", each line's head and whether the B2C rate card allows a discount on it. For a saved bill
         /// (labOrderId, own branch only) or for the tests of a bill still being booked (items). B2B bills: isB2B = true.
         /// </summary>
+        // ── Membership points on B2C LAB billing (SQLScripts/2236) ────────────────────────────────────────────
+        /// <summary>The active, in-date membership card of the bill's patient - by patient, or by the patient's phone
+        /// number - with its points balance and the plan's points settings. data = null when there is none.</summary>
+        [HttpGet]
+        public async Task<IActionResult> MembershipForBilling(int? patientId, string? phone, int? labOrderId)
+        {
+            phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+            if (labOrderId is > 0)
+            {
+                // a saved bill: its own patient; points are for B2C bills only
+                var bill = await dbContext.Database.GetDbConnection().QueryFirstOrDefaultAsync<(int PatientId, bool IsB2B)>(
+                    "SELECT PatientId, CAST(ISNULL(IsB2B, 0) AS BIT) FROM dbo.LabOrder WHERE LabOrderId = @Id", new { Id = labOrderId });
+                if (bill.PatientId <= 0 || bill.IsB2B) return Json(new { success = true, data = (object?)null });
+                patientId = bill.PatientId;
+            }
+            if (patientId is not > 0 && phone == null) return Json(new { success = true, data = (object?)null });
+            var row = await dbContext.Database.GetDbConnection().QueryFirstOrDefaultAsync(
+                "dbo.usp_Membership_CardForBilling",
+                new { PatientId = patientId is > 0 ? patientId : null, Phone = phone, CompanyId = User.GetCompanyId() },
+                commandType: System.Data.CommandType.StoredProcedure);
+            return Json(new { success = true, data = row });
+        }
+
+        // ── Misc charges (Misc Charges Master, SQLScripts/2239 / 2240) ──────────────────────────────────────────
+        /// <summary>Active misc charges offered on the booking screens (Home Collection first).</summary>
+        [HttpGet]
+        public async Task<IActionResult> MiscChargesForBilling()
+        {
+            var rows = await dbContext.Database.GetDbConnection().QueryAsync("dbo.usp_LabMiscCharge_ForBilling",
+                new { CompanyId = User.GetCompanyId() }, commandType: System.Data.CommandType.StoredProcedure);
+            return Json(new { success = true, data = rows });
+        }
+
+        /// <summary>A saved bill's misc taxable amount, misc GST and B2B total.</summary>
+        private async Task<(decimal MiscAmount, decimal MiscGst, decimal B2BTotal)> ReadLabMiscTotalsAsync(int labOrderId) =>
+            await dbContext.Database.GetDbConnection().QueryFirstOrDefaultAsync<(decimal, decimal, decimal)>(
+                "SELECT ISNULL(MiscAmount, 0), ISNULL(MiscGstAmount, 0), ISNULL(B2BTotal, 0) FROM dbo.LabOrder WHERE LabOrderId = @Id", new { Id = labOrderId });
+
+        /// <summary>GST Output Payable follows the bill's misc GST (idempotent).</summary>
+        private async Task SyncLabGstAsync(int labOrderId)
+        {
+            try
+            {
+                await dbContext.Database.GetDbConnection().ExecuteAsync("dbo.usp_Ledger_SyncLabGst",
+                    new { LabOrderId = labOrderId, UserId = User.GetUserId() }, commandType: System.Data.CommandType.StoredProcedure);
+            }
+            catch (Exception ex) { logger.LogError(ex, "GST ledger sync failed for LabOrderId {LabOrderId}", labOrderId); }
+        }
+
+        public sealed class MembershipOtpRequest { public int CardId { get; set; } public decimal Points { get; set; } }
+
+        /// <summary>Sends a one-time code for redeeming these points to the card holder (primary member) by WhatsApp,
+        /// and by e-mail when the holder has one. The code is valid 10 minutes and for these points only.</summary>
+        [HttpPost]
+        public async Task<IActionResult> MembershipSendRedeemOtp([FromBody] MembershipOtpRequest? request)
+        {
+            if (request is null || request.CardId <= 0 || request.Points <= 0)
+                return Json(new { success = false, message = "Enter the points to redeem." });
+            var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+            var p = new DynamicParameters();
+            p.Add("@CardId", request.CardId);
+            p.Add("@Points", request.Points);
+            p.Add("@BranchId", branchId);
+            p.Add("@UserId", User.GetUserId());
+            p.Add("@OtpId", dbType: System.Data.DbType.Int32, direction: System.Data.ParameterDirection.Output);
+            p.Add("@Code", dbType: System.Data.DbType.String, size: 6, direction: System.Data.ParameterDirection.Output);
+            p.Add("@SentTo", dbType: System.Data.DbType.String, size: 30, direction: System.Data.ParameterDirection.Output);
+            p.Add("@Email", dbType: System.Data.DbType.String, size: 200, direction: System.Data.ParameterDirection.Output);
+            p.Add("@Name", dbType: System.Data.DbType.String, size: 200, direction: System.Data.ParameterDirection.Output);
+            p.Add("@CardNo", dbType: System.Data.DbType.String, size: 50, direction: System.Data.ParameterDirection.Output);
+            p.Add("@ValueRs", dbType: System.Data.DbType.Decimal, precision: 12, scale: 2, direction: System.Data.ParameterDirection.Output);
+            try
+            {
+                await dbContext.Database.GetDbConnection().ExecuteAsync("dbo.usp_Membership_RedeemOtpCreate", p, commandType: System.Data.CommandType.StoredProcedure);
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number >= 50000)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+
+            int otpId = p.Get<int>("@OtpId");
+            string code = p.Get<string>("@Code"), sentTo = p.Get<string>("@SentTo"), name = p.Get<string?>("@Name") ?? "Member";
+            string? email = p.Get<string?>("@Email");
+            string cardNo = p.Get<string>("@CardNo");
+            decimal value = p.Get<decimal>("@ValueRs");
+            var text = $"Dear {name}, your OTP to redeem {request.Points:0} membership points (Rs {value:0.00}) on card {cardNo} is {code}. " +
+                       "It is valid for 10 minutes. Do not share it with anyone except the billing counter.";
+
+            var channels = new List<string>();
+            try
+            {
+                var wa = await HttpContext.RequestServices.GetRequiredService<IWhatsAppService>()
+                    .SendTextMessageAsync(sentTo, text, branchId, "MEM_OTP", otpId);
+                if (wa.Success) channels.Add("WhatsApp");
+            }
+            catch (Exception ex) { logger.LogWarning(ex, "Membership OTP WhatsApp failed for card {CardNo}", cardNo); }
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                try
+                {
+                    var (ok, _) = await HttpContext.RequestServices.GetRequiredService<IEmailService>()
+                        .SendEmailAsync(branchId, email!, $"OTP to redeem membership points - card {cardNo}",
+                            $"<p>Dear {System.Net.WebUtility.HtmlEncode(name)},</p><p>Your OTP to redeem <strong>{request.Points:0} points</strong> " +
+                            $"(Rs {value:0.00}) on membership card <strong>{System.Net.WebUtility.HtmlEncode(cardNo)}</strong> is:</p>" +
+                            $"<p style=\"font-size:24px;font-weight:bold;letter-spacing:4px\">{code}</p><p>It is valid for 10 minutes. Do not share it with anyone except the billing counter.</p>");
+                    if (ok) channels.Add("e-mail");
+                }
+                catch (Exception ex) { logger.LogWarning(ex, "Membership OTP e-mail failed for card {CardNo}", cardNo); }
+            }
+            if (channels.Count == 0)
+                return Json(new { success = false, message = "The OTP could not be sent (WhatsApp / e-mail not available for this branch or the card holder). Please try again." });
+
+            var masked = sentTo.Length >= 4 ? new string('x', sentTo.Length - 4) + sentTo[^4..] : sentTo;
+            return Json(new { success = true, otpId, sentTo = masked, channels = string.Join(" and ", channels), value, expiresInSeconds = 600 });
+        }
+
         [HttpPost]
         public async Task<IActionResult> DiscountHeads([FromBody] DiscountHeadsRequest? request)
         {
@@ -2381,6 +2542,24 @@ namespace EMR.Web.Controllers
                 };
             }).ToList();
 
+            // misc charges (SQLScripts/2240) print after the investigations: amount, its discount, cancelled ones struck through;
+            // their GST is a row of its own in the summary
+            foreach (var m in printAdj?.MiscLines ?? [])
+                lineItems.Add(new PrintBillLineItem
+                {
+                    TestCode = m.ChargeType == "Home Collection" ? "HOME-COLL" : "MISC",
+                    TestName = m.DisplayName + (m.IsGstRequired ? $" (GST {m.GstPercentage:0.##}%)" : ""),
+                    SampleType = m.ChargeType == "Home Collection" ? "Home Collection" : "Misc Charge",
+                    MRP = detail.IsB2B ? m.Amount : m.Amount,
+                    DiscountAmount = detail.IsB2B ? 0 : m.DiscountAmount,
+                    IsActive = m.IsActive
+                });
+            decimal miscGross = printAdj?.MiscLines.Sum(m => m.Amount) ?? 0m;
+            decimal miscCancelled = printAdj?.MiscLines.Where(m => !m.IsActive).Sum(m => m.Amount) ?? 0m;
+            decimal miscGst = printAdj?.MiscGstAmount ?? 0m;
+            grossAmount += miscGross;
+            cancelledAmount += miscCancelled;
+
             // franchise B2B bill: the franchise's Report Header Required decides (null for B2C / company B2B)
             var franchiseHeader = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId);
 
@@ -2439,9 +2618,15 @@ namespace EMR.Web.Controllers
                 DiscountAmount  = headerDiscount,
                 RoundOffAmount  = detail.RoundOffAmount,
                 CancelledAmount = cancelledAmount,
+                MiscCgstAmount  = printAdj?.MiscCgstAmount ?? 0m,
+                MiscSgstAmount  = printAdj?.MiscSgstAmount ?? 0m,
                 RefundedAmount  = detail.IsB2B ? 0m : (printAdj?.RefundedAmount ?? 0m),
-                GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
-                ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
+                MembershipCardNo     = detail.IsB2B ? null : printAdj?.MembershipCardNo,
+                PointsRedeemed       = detail.IsB2B ? 0m : (printAdj?.PointsRedeemed ?? 0m),
+                PointsRedeemedAmount = detail.IsB2B ? 0m : (printAdj?.PointsRedeemedAmount ?? 0m),
+                PointsEarned         = detail.IsB2B ? 0m : (printAdj?.PointsEarned ?? 0m),
+                GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.NetAmount,
+                ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.TotalPaid,
                 Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
                 PaymentStatus   = detail.IsB2B ? "P" : detail.PaymentStatus,
 
@@ -2452,6 +2637,8 @@ namespace EMR.Web.Controllers
                           {
                               var row = ToPrintBillPaymentRow(p);
                               row.PaidAmount = grossAmount - headerDiscount + detail.RoundOffAmount;
+                              row.ReceivedByName ??= detail.CreatedByName ?? detail.CreatedByUsername;
+                              row.PaymentDate ??= detail.CreatedDate;
                               return row;
                           }).ToList()
                         : new List<PrintBillPaymentRow>
@@ -2460,7 +2647,10 @@ namespace EMR.Web.Controllers
                               {
                                   MethodName     = "B2B Partner Credit",
                                   PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
-                                  ReceiptNo      = detail.BillNo
+                                  ReceiptNo      = detail.BillNo,
+                                  // the partner's account is charged when the bill is booked: by whom and when
+                                  ReceivedByName = detail.CreatedByName ?? detail.CreatedByUsername,
+                                  PaymentDate    = detail.CreatedDate
                               }
                           })
                     : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
@@ -3130,6 +3320,24 @@ namespace EMR.Web.Controllers
                 };
             }).ToList();
 
+            // misc charges (SQLScripts/2240) print after the investigations: amount, its discount, cancelled ones struck through;
+            // their GST is a row of its own in the summary
+            foreach (var m in printAdj?.MiscLines ?? [])
+                lineItems.Add(new PrintBillLineItem
+                {
+                    TestCode = m.ChargeType == "Home Collection" ? "HOME-COLL" : "MISC",
+                    TestName = m.DisplayName + (m.IsGstRequired ? $" (GST {m.GstPercentage:0.##}%)" : ""),
+                    SampleType = m.ChargeType == "Home Collection" ? "Home Collection" : "Misc Charge",
+                    MRP = detail.IsB2B ? m.Amount : m.Amount,
+                    DiscountAmount = detail.IsB2B ? 0 : m.DiscountAmount,
+                    IsActive = m.IsActive
+                });
+            decimal miscGross = printAdj?.MiscLines.Sum(m => m.Amount) ?? 0m;
+            decimal miscCancelled = printAdj?.MiscLines.Where(m => !m.IsActive).Sum(m => m.Amount) ?? 0m;
+            decimal miscGst = printAdj?.MiscGstAmount ?? 0m;
+            grossAmount += miscGross;
+            cancelledAmount += miscCancelled;
+
             var vm = new PrintBillViewModel
             {
                 IsActive              = detail.IsActive,
@@ -3182,9 +3390,15 @@ namespace EMR.Web.Controllers
                 DiscountAmount  = headerDiscount,
                 RoundOffAmount  = detail.RoundOffAmount,
                 CancelledAmount = cancelledAmount,
+                MiscCgstAmount  = printAdj?.MiscCgstAmount ?? 0m,
+                MiscSgstAmount  = printAdj?.MiscSgstAmount ?? 0m,
                 RefundedAmount  = detail.IsB2B ? 0m : (printAdj?.RefundedAmount ?? 0m),
-                GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.NetAmount,
-                ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + detail.RoundOffAmount) : detail.TotalPaid,
+                MembershipCardNo     = detail.IsB2B ? null : printAdj?.MembershipCardNo,
+                PointsRedeemed       = detail.IsB2B ? 0m : (printAdj?.PointsRedeemed ?? 0m),
+                PointsRedeemedAmount = detail.IsB2B ? 0m : (printAdj?.PointsRedeemedAmount ?? 0m),
+                PointsEarned         = detail.IsB2B ? 0m : (printAdj?.PointsEarned ?? 0m),
+                GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.NetAmount,
+                ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.TotalPaid,
                 Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
                 PaymentStatus   = detail.IsB2B ? "P" : detail.PaymentStatus,
 
@@ -3195,6 +3409,8 @@ namespace EMR.Web.Controllers
                           {
                               var row = ToPrintBillPaymentRow(p);
                               row.PaidAmount = grossAmount - headerDiscount + detail.RoundOffAmount;
+                              row.ReceivedByName ??= detail.CreatedByName ?? detail.CreatedByUsername;
+                              row.PaymentDate ??= detail.CreatedDate;
                               return row;
                           }).ToList()
                         : new List<PrintBillPaymentRow>
@@ -3203,7 +3419,10 @@ namespace EMR.Web.Controllers
                               {
                                   MethodName     = "B2B Partner Credit",
                                   PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
-                                  ReceiptNo      = detail.BillNo
+                                  ReceiptNo      = detail.BillNo,
+                                  // the partner's account is charged when the bill is booked: by whom and when
+                                  ReceivedByName = detail.CreatedByName ?? detail.CreatedByUsername,
+                                  PaymentDate    = detail.CreatedDate
                               }
                           })
                     : detail.Payments.Select(ToPrintBillPaymentRow).ToList()

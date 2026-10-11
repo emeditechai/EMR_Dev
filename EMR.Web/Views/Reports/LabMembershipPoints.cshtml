@@ -1,0 +1,85 @@
+@{
+    ViewData["Title"] = "Membership Points Register";
+    ViewData["ReportSubtitle"] = "Membership card points earned, redeemed, given back, taken back and expired on B2C LAB bills";
+    ViewData["ReportIcon"] = "bi-award";
+    ViewData["ReportAccent"] = "#b45309";
+    ViewData["DateLabel"] = "transaction date";
+}
+@* SQLScripts/2237: every points movement of the branch (MembershipLedger), with card, plan, patient, bill and receipt *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const pts = n => (Math.round(n || 0)).toLocaleString('en-IN');
+    const typeCls = {
+        EARN: 'bg-success-subtle text-success border-success-subtle',
+        REDEEM: 'bg-primary-subtle text-primary border-primary-subtle',
+        RESTORE: 'bg-info-subtle text-info-emphasis border-info-subtle',
+        REVERSE: 'bg-warning-subtle text-warning-emphasis border-warning-subtle',
+        EXPIRE: 'bg-secondary-subtle text-secondary border-secondary-subtle'
+    };
+    const typePill = (code, label, h) => h.pill(label, typeCls[code] || 'bg-light text-dark border');
+    LabReport.init({
+        report: 'membership-points', title: 'Membership Points Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Card No, Bill No, Receipt No, patient or mobile...',
+        filters: [
+            { id: 'txnType', label: 'Type', allLabel: 'All movements',
+              options: [['EARN', 'Earned'], ['REDEEM', 'Redeemed'], ['RESTORE', 'Given back'], ['REVERSE', 'Taken back'], ['EXPIRE', 'Expired']] },
+            { id: 'planId', label: 'Plan', allLabel: 'All plans', fromOptions: 'planId' },
+            { id: 'createdBy', label: 'User', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Earned', color: '#15803d', value: (s, h) => pts(s.EarnedPoints) + ' pts',
+              sub: (s, h) => `worth ${h.money(s.EarnedValue)} · ${h.num(s.BillCount)} bills, ${h.num(s.CardCount)} cards` },
+            { label: 'Redeemed', color: '#1d4ed8', value: (s, h) => pts(s.RedeemedPoints) + ' pts',
+              sub: (s, h) => `${h.money(s.RedeemedValue)} paid with points` + (s.RestoredPoints > 0 ? ` · ${pts(s.RestoredPoints)} given back` : '') },
+            { label: 'Taken back / expired', color: '#b45309', value: (s, h) => pts((s.ReversedPoints || 0) + (s.ExpiredPoints || 0)) + ' pts',
+              sub: (s, h) => `${pts(s.ReversedPoints)} taken back (cancelled bills) · ${pts(s.ExpiredPoints)} expired` },
+            { label: 'Outstanding today', color: '#7c2d12', value: (s, h) => h.money(s.OutstandingValue),
+              sub: (s, h) => `${pts(s.OutstandingPoints)} pts on ${h.num(s.OutstandingCards)} cards issued here (liability)` }
+        ],
+        groups: [
+            { key: 'byType', label: 'Movement', rowField: 'TxnLabel' },
+            { key: 'byDate', label: 'Date', rowField: 'TxnDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byPlan', label: 'Plan', rowField: 'PlanId', byId: true },
+            { key: 'byCreatedBy', label: 'User', rowField: 'CreatedById', byId: true, adminOnly: true }
+        ],
+        groupCols: [
+            { field: 'TxnCount', label: 'Entries', num: true },
+            { field: 'PointsIn', label: 'Points in', num: true },
+            { field: 'PointsOut', label: 'Points out', num: true },
+            { field: 'Amount', label: 'Value', money: true }
+        ],
+        shareOf: 'Amount',
+        cols: [
+            { label: 'Date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.TxnDate), text: r => r.TxnDate },
+            { label: 'Movement', html: (r, h) => typePill(r.TxnType, r.TxnLabel, h), text: r => r.TxnLabel },
+            { label: 'Card', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.CardNo)}</div><div class="text-muted fs-9">${h.esc(r.PlanName || '')}</div>`, text: r => `${r.CardNo} (${r.PlanName || ''})` },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName || '—')}</div><div class="text-muted fs-9">${h.esc(r.PatientCode || '')}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName || ''} (${r.PatientCode || ''})` },
+            { label: 'Bill / receipt', html: (r, h) => r.BillNo
+                  ? `<div class="font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${r.ReceiptNo ? 'receipt ' + h.esc(r.ReceiptNo) : 'billed ' + h.fmtD(r.BillDate)}</div>`
+                  : '<span class="text-muted">—</span>',
+              text: r => [r.BillNo, r.ReceiptNo].filter(Boolean).join(' / ') },
+            { label: 'Points', cls: 'text-end amt fw-semibold',
+              html: r => `<span class="${r.Points >= 0 ? 'text-success' : 'text-danger'}">${r.Points >= 0 ? '+' : '−'}${pts(Math.abs(r.Points))}</span>`,
+              text: r => r.Points },
+            { label: 'Value', cls: 'text-end amt', html: (r, h) => h.money(r.Amount), text: r => r.Amount, sum: 'Amount' },
+            { label: 'Balance after', cls: 'text-end amt', html: r => pts(r.BalanceAfter), text: r => r.BalanceAfter },
+            { label: 'Details', html: (r, h) => `<span class="fs-9">${h.esc(r.Narration || '')}</span>` + (r.ExpiresOn ? `<div class="text-muted fs-9">expires ${h.fmtD(r.ExpiresOn)}</div>` : ''), text: r => r.Narration || '' },
+            { label: 'By', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedByName || ''), text: r => r.CreatedByName || '' },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true,
+              html: r => r.LabOrderId ? `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` : '' }
+        ]
+    });
+})();
+</script>
+}

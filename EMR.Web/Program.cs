@@ -114,6 +114,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
 // OPD follow-up reminders (e-mail + WhatsApp, 7 days and 1 day before; Hospital Settings > OPD; SQLScripts/2229)
 builder.Services.AddHostedService<FollowUpReminderService>();
+// membership points: expire points not used by their expiry date (SQLScripts/2236)
+builder.Services.AddHostedService<MembershipPointsExpiryService>();
 
 // Video Consultation (Whereby)
 builder.Services.AddHttpClient("Whereby", client =>
@@ -230,6 +232,7 @@ builder.Services.AddScoped<ILabBreakpointApiClient, LabBreakpointApiClient>();
 builder.Services.AddScoped<IDoctorIpApiClient, DoctorIpApiClient>();
 builder.Services.AddScoped<IDoctorIpCommissionApiClient, DoctorIpCommissionApiClient>();
 builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectionReasonApiClient>();
+builder.Services.AddScoped<ILabMiscChargeApiClient, LabMiscChargeApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabFranchiseBarcodeApiClient,     LabFranchiseBarcodeApiClient>();
 builder.Services.AddScoped<ILabBulkUploadApiClient,           LabBulkUploadApiClient>();

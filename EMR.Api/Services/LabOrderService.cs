@@ -55,6 +55,13 @@ namespace EMR.Api.Services
             p.Add("@AgentType", request.AgentType);
             p.Add("@B2BTotal", request.B2BTotal);
             p.Add("@ReferralDoctorId", request.ReferralDoctorId is > 0 ? request.ReferralDoctorId : null);
+            // misc charges (SQLScripts/2240): only ids and quantities - the procedure prices them from the master
+            var miscTable = new DataTable();
+            miscTable.Columns.Add("MiscChargeId", typeof(int));
+            miscTable.Columns.Add("Quantity", typeof(int));
+            foreach (var m in request.MiscCharges ?? [])
+                if (m.MiscChargeId > 0) miscTable.Rows.Add(m.MiscChargeId, m.Quantity);
+            p.Add("@MiscCharges", miscTable.AsTableValuedParameter("dbo.udt_LabOrderMiscCharge"));
             p.Add("@LabOrderId", dbType: DbType.Int32, direction: ParameterDirection.Output);
             p.Add("@BillNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
             p.Add("@TokenNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);

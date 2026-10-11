@@ -245,6 +245,26 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
         && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0)
         && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0);
 
+    /// <summary>A bill discount split over the discountable lines in proportion to their amount, the last line taking the
+    /// rounding remainder - exactly the split the line snapshot uses (and the payment screen shows).</summary>
+    private static void AllocateDiscount(List<PaymentLineItemRow> lines, decimal hDiscAmt, decimal discountableSubTotal)
+    {
+        var eligible = lines.Where(x => x.IsDiscountAllowed).ToList();
+        if (hDiscAmt > 0 && discountableSubTotal > 0 && eligible.Count > 0)
+        {
+            decimal running = 0m;
+            for (int i = 0; i < eligible.Count; i++)
+            {
+                var el = eligible[i];
+                if (i == eligible.Count - 1) el.LineDiscountAmount = Math.Max(0, hDiscAmt - running);
+                else { el.LineDiscountAmount = Math.Round(hDiscAmt * (el.OriginalAmount / discountableSubTotal), 2); running += el.LineDiscountAmount; }
+                el.NetLineAmount = Math.Max(0, el.OriginalAmount - el.LineDiscountAmount);
+            }
+        }
+        else foreach (var el in eligible) { el.LineDiscountAmount = 0m; el.NetLineAmount = el.OriginalAmount; }
+        foreach (var nonEl in lines.Where(x => !x.IsDiscountAllowed)) { nonEl.LineDiscountAmount = 0m; nonEl.NetLineAmount = nonEl.OriginalAmount; }
+    }
+
     /// <summary>Department-wise discount given at due collection: writes each test's discount onto the bill's existing
     /// line rows (matched by lab order item, or by investigation for older rows).</summary>
     private static async Task UpdateLabLineDiscountsAsync(System.Data.IDbConnection con, System.Data.IDbTransaction tx, int paymentHeaderId,
@@ -330,10 +350,40 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
         return null;
     }
 
+    /// <summary>Checks the membership points OTP of a payment (null = fine or no points redeemed). A verified OTP
+    /// stays valid for the same points until it expires, so the booking screen checks it before the order is created
+    /// and the payment checks it again.</summary>
+    public async Task<string?> VerifyRedeemOtpAsync(SavePaymentRequest? request)
+    {
+        var redeem = request?.PointsRedeem is { Points: > 0 } pr ? pr : null;
+        if (redeem == null) return null;
+        if (request!.ModuleCode is { Length: > 0 } mc && mc != "LAB")
+            return "Membership points can be redeemed on LAB bills only.";
+        if (redeem.CardId <= 0 || redeem.OtpId <= 0 || string.IsNullOrWhiteSpace(redeem.OtpCode))
+            return "Send the OTP to the card holder and enter it to redeem points.";
+        try
+        {
+            using var otpCon = db.CreateConnection();
+            await otpCon.ExecuteAsync("dbo.usp_Membership_RedeemOtpVerify",
+                new { redeem.OtpId, redeem.CardId, redeem.Points, Code = redeem.OtpCode!.Trim() }, commandType: CommandType.StoredProcedure);
+            return null;
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number >= 50000)
+        {
+            return ex.Message;
+        }
+    }
+
     public async Task<SavePaymentResult> SavePaymentAsync(SavePaymentRequest request, int? userId)
     {
         try
         {
+            // ── Membership points (B2C LAB, SQLScripts/2236): the OTP is checked first, on its own, so a wrong code
+            //    counts as an attempt even though the payment is not saved ──
+            var redeem = request.PointsRedeem is { Points: > 0 } pr ? pr : null;
+            var otpError = await VerifyRedeemOtpAsync(request);
+            if (otpError != null) return new SavePaymentResult { Success = false, Error = otpError };
+
             using var con = db.CreateConnection();
             con.Open();
             using var tx = con.BeginTransaction();
@@ -415,6 +465,52 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 dbSubTotal = request.SubTotal;
             }
 
+            // ── LAB misc charges (SQLScripts/2240): the bill's own misc lines, never the page's. B2C: their amount is part of
+            //    the subtotal and GST is added on top; B2B: the partner's B2BTotal already includes them with GST ──
+            List<LabOrderMiscLine> labMisc = [];
+            bool labIsB2B = false;
+            if (request.ModuleCode == "LAB")
+            {
+                labIsB2B = await con.ExecuteScalarAsync<bool>(
+                    "SELECT CAST(ISNULL(IsB2B, 0) AS BIT) FROM LabOrder WHERE LabOrderId = @Id", new { Id = request.ModuleRefId }, tx);
+                labMisc = await LabMiscCharges.LoadAsync(con, request.ModuleRefId, tx);
+                if (!labIsB2B && labMisc.Count > 0)
+                {
+                    var activeTests = await con.QuerySingleOrDefaultAsync<decimal?>(
+                        "SELECT SUM(Price) FROM LabOrderItem WHERE LabOrderId = @Id AND IsActive = 1", new { Id = request.ModuleRefId }, tx) ?? 0m;
+                    dbSubTotal = activeTests + labMisc.Sum(m => m.Amount);
+                }
+
+                // payment lines: misc lines rebuilt from the bill, in the order the payment screen listed them (the discount
+                // split gives the rounding remainder to the last line - the screen and the server must agree); lab tests carry no GST
+                request.LineItems ??= [];
+                var screenMiscOrder = request.LineItems
+                    .Where(li => li.ModuleLineRefId < 0 || string.Equals(li.ServiceType, LabMiscCharges.ServiceType, StringComparison.OrdinalIgnoreCase))
+                    .Select(li => li.ModuleLineRefId).ToList();
+                labMisc = labMisc
+                    .Select(m => (m, k: screenMiscOrder.FindIndex(r => r == -m.LabOrderMiscChargeId || r == m.MiscChargeId)))
+                    .OrderBy(x => x.k < 0 ? int.MaxValue : x.k).ThenBy(x => x.m.LabOrderMiscChargeId)
+                    .Select(x => x.m).ToList();
+                request.LineItems.RemoveAll(li => li.ModuleLineRefId < 0 || string.Equals(li.ServiceType, LabMiscCharges.ServiceType, StringComparison.OrdinalIgnoreCase));
+                foreach (var li in request.LineItems) { li.IsGstRequired = false; li.CgstAmount = 0; li.SgstAmount = 0; li.IgstAmount = 0; }
+                foreach (var m in labMisc)
+                    request.LineItems.Add(new PaymentLineItemRow
+                    {
+                        ModuleLineRefId = m.LineRefId,
+                        LabOrderMiscChargeId = m.LabOrderMiscChargeId,
+                        ItemDescription = m.DisplayName,
+                        ServiceType = LabMiscCharges.ServiceType,
+                        OriginalAmount = labIsB2B ? m.Amount + m.GstAmount : m.Amount,
+                        NetLineAmount = labIsB2B ? m.Amount + m.GstAmount : m.Amount - m.DiscountAmount,
+                        LineDiscountAmount = labIsB2B ? 0 : m.DiscountAmount,
+                        IsDiscountAllowed = !labIsB2B && m.IsDiscountable,
+                        IsGstRequired = !labIsB2B && m.IsGstRequired,
+                        GstPercentage = labIsB2B ? null : m.GstPercentage,
+                        CgstAmount = labIsB2B ? 0 : m.CgstAmount,
+                        SgstAmount = labIsB2B ? 0 : m.SgstAmount
+                    });
+            }
+
             if (dbSubTotal <= 0 && request.SubTotal > 0)
             {
                 dbSubTotal = request.SubTotal;
@@ -445,6 +541,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     new { ModuleRefId = request.ModuleRefId }, tx);
 
                 discountableSubTotal = eligibleSum ?? 0m;
+                if (!labIsB2B) discountableSubTotal += labMisc.Where(m => m.IsDiscountable).Sum(m => m.Amount);
             }
 
             // ── B2C LAB department-wise discount (type "D"): every line's discount comes from its head - its department,
@@ -505,6 +602,12 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             decimal totalCgst = request.LineItems?.Sum(li => li.CgstAmount) ?? 0m;
             decimal totalSgst = request.LineItems?.Sum(li => li.SgstAmount) ?? 0m;
             decimal totalIgst = request.LineItems?.Sum(li => li.IgstAmount) ?? 0m;
+            if (request.ModuleCode == "LAB")
+            {
+                totalCgst = labIsB2B ? 0m : labMisc.Sum(m => m.CgstAmount);
+                totalSgst = labIsB2B ? 0m : labMisc.Sum(m => m.SgstAmount);
+                totalIgst = 0m;
+            }
 
             if (existingHeader != null)
             {
@@ -517,6 +620,10 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                          - ISNULL((SELECT SUM(RefundAmount) FROM BillRefund
                                    WHERE ModuleCode = @ModuleCode AND ModuleRefId = @ModuleRefId AND IsActive = 1), 0)",
                     new { PaymentHeaderId = paymentHeaderId, ModuleCode = (string)existingHeader.ModuleCode, ModuleRefId = (int)existingHeader.ModuleRefId }, tx);
+
+                // LAB misc lines with GST: their GST was fixed at billing, so a due-collection discount does not apply to them
+                if (request.ModuleCode == "LAB" && !labIsB2B)
+                    discountableSubTotal -= labMisc.Where(m => m.IsDiscountable && m.IsGstRequired).Sum(m => m.Amount);
 
                 // A bill is discounted only once: once it carries a discount, a later payment (due collection) cannot
                 // add, raise, lower or replace it. Repeating the same discount is not a new one and is accepted.
@@ -616,6 +723,28 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
 
                 if (hDiscAmt > 0 && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0))
                     return new SavePaymentResult { Success = false, Error = DiscountApprovalRequiredMessage };
+
+                // LAB B2C misc lines: each line's share of the discount (the same split the lines get below), then GST on
+                // what is left of it; the bill's GST and its misc lines follow
+                if (request.ModuleCode == "LAB" && !labIsB2B && labMisc.Count > 0)
+                {
+                    if (!deptMode) AllocateDiscount(request.LineItems!, hDiscAmt, discountableSubTotal);
+                    totalCgst = 0m; totalSgst = 0m;
+                    foreach (var li in request.LineItems!.Where(x => x.LabOrderMiscChargeId is > 0))
+                    {
+                        var m = labMisc.First(x => x.LabOrderMiscChargeId == li.LabOrderMiscChargeId);
+                        if (deptMode) { li.LineDiscountAmount = 0m; li.NetLineAmount = li.OriginalAmount; }
+                        var half = m.IsGstRequired ? LabMiscCharges.HalfGst(li.NetLineAmount, m.GstPercentage) : 0m;
+                        li.CgstAmount = half; li.SgstAmount = half;
+                        totalCgst += half; totalSgst += half;
+                        await con.ExecuteAsync(@"
+                            UPDATE LabOrderMiscCharge SET DiscountAmount = @Disc, CgstAmount = @Half, SgstAmount = @Half, GstAmount = @Half * 2,
+                                   NetAmount = Amount - @Disc + @Half * 2
+                            WHERE LabOrderMiscChargeId = @Id",
+                            new { Disc = li.LineDiscountAmount, Half = half, Id = m.LabOrderMiscChargeId }, tx);
+                    }
+                    await con.ExecuteAsync("dbo.usp_LabOrder_MiscSyncTotals", new { LabOrderId = request.ModuleRefId }, tx, commandType: CommandType.StoredProcedure);
+                }
 
                 decimal totalDisc = Math.Min(dbSubTotal, hDiscAmt > 0 ? hDiscAmt : lineDiscountTotal);
                 decimal unroundedNet = Math.Max(0, dbSubTotal - totalDisc + totalCgst + totalSgst + totalIgst);
@@ -740,13 +869,13 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                                  OriginalAmount, LineDiscountType, LineDiscountValue,
                                  LineDiscountAmount, NetLineAmount, 
                                  IsGstApplicable, GstPercentage, CgstAmount, SgstAmount, IgstAmount,
-                                 CreatedDate, CreatedBy, IsActive)
+                                 CreatedDate, CreatedBy, IsActive, LabOrderMiscChargeId)
                             VALUES
                                 (@PaymentHeaderId, @ModuleLineRefId, @ItemDescription, @ServiceType,
                                  @OriginalAmount, @LineDiscountType, @LineDiscountValue,
                                  @LineDiscountAmount, @NetLineAmount,
                                  @IsGstApplicable, @GstPercentage, @CgstAmount, @SgstAmount, @IgstAmount,
-                                 GETDATE(), @CreatedBy, 1)",
+                                 GETDATE(), @CreatedBy, 1, @LabOrderMiscChargeId)",
                             new
                             {
                                 PaymentHeaderId = paymentHeaderId,
@@ -763,7 +892,8 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                                 li.CgstAmount,
                                 li.SgstAmount,
                                 li.IgstAmount,
-                                CreatedBy = userId
+                                CreatedBy = userId,
+                                li.LabOrderMiscChargeId
                             }, tx);
                     }
                 }
@@ -797,7 +927,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
             {
                 // Nothing is due on a saved bill: an amount or a discount entered now is refused, and nothing is saved
                 // (it used to report success while saving nothing - or keeping only the discount).
-                bool collecting = incomingPaidTotal > 0;
+                bool collecting = incomingPaidTotal > 0 || redeem != null;
                 bool discounting = existingHeader != null && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0);
                 if (collecting || discounting)
                 {
@@ -855,7 +985,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
 
             // ── Insert PaymentDetail rows for valid payment ──────────────────────────
             string? savedReceiptNo = null;
-            if (incomingPaidTotal > 0 && request.Payments != null)
+            if (incomingPaidTotal > 0 || redeem != null)
             {
                 // Receipt number: <Branch Code><FY><8-digit serial>, e.g. HO262700000001 - one generator for every module (script 2193)
                 var receiptParams = new DynamicParameters();
@@ -865,7 +995,7 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 string batchReceiptNo = receiptParams.Get<string>("@ReceiptNo");
                 savedReceiptNo = batchReceiptNo;
 
-                foreach (var p in request.Payments)
+                foreach (var p in request.Payments ?? [])
                 {
                     if (p.PaidAmount <= 0) continue;
 
@@ -897,6 +1027,22 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     // ledger: Dr Cash / Bank, Cr the bill's receivable (SQLScripts/2232)
                     await con.ExecuteAsync("dbo.usp_Ledger_PostBillMoney",
                         new { Kind = "RECEIPT", RefId = paymentDetailId, UserId = userId ?? 1 }, tx, commandType: CommandType.StoredProcedure);
+                }
+
+                // membership points pay part of the bill: checked against the plan (Max Redeem %, Min Redeem Bill
+                // Amount, Point Value), the card's balance, what is still due and the verified OTP; same receipt
+                if (redeem != null)
+                {
+                    var rp = new DynamicParameters();
+                    rp.Add("@PaymentHeaderId", paymentHeaderId);
+                    rp.Add("@CardId", redeem.CardId);
+                    rp.Add("@Points", redeem.Points);
+                    rp.Add("@OtpId", redeem.OtpId);
+                    rp.Add("@ReceiptNo", batchReceiptNo);
+                    rp.Add("@BranchId", request.BranchId);
+                    rp.Add("@UserId", userId ?? 1);
+                    rp.Add("@RedeemAmount", dbType: DbType.Decimal, precision: 12, scale: 2, direction: ParameterDirection.Output);
+                    await con.ExecuteAsync("dbo.usp_Membership_RedeemOnBill", rp, tx, commandType: CommandType.StoredProcedure);
                 }
             }
 
@@ -930,11 +1076,24 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     PaymentHeaderId = paymentHeaderId
                 }, tx);
 
+            // membership points of a B2C LAB bill: earned once the bill is fully paid (SQLScripts/2236)
+            if (request.ModuleCode == "LAB")
+                await con.ExecuteAsync("dbo.usp_Membership_SyncBill", new { PaymentHeaderId = paymentHeaderId, UserId = userId ?? 1 }, tx,
+                    commandType: CommandType.StoredProcedure);
+
             // ledger: discount / round-off entries follow the bill (SQLScripts/2232)
             await con.ExecuteAsync("dbo.usp_Ledger_PostBillMoney",
                 new { Kind = "ADJUST", RefId = paymentHeaderId, UserId = userId ?? 1 }, tx, commandType: CommandType.StoredProcedure);
 
             tx.Commit();
+
+            // what the bill did with membership points
+            (string? CardNo, decimal Redeemed, decimal RedeemedAmount, decimal Earned, decimal Balance) mem = default;
+            if (request.ModuleCode == "LAB")
+                mem = await con.QueryFirstOrDefaultAsync<(string?, decimal, decimal, decimal, decimal)>(@"
+                    SELECT c.CardNo, ph.PointsRedeemed, ph.PointsRedeemedAmount, ph.PointsEarned, ISNULL(c.PointsBalance, 0)
+                    FROM PaymentHeader ph LEFT JOIN MembershipCard c ON c.CardId = ph.MembershipCardId
+                    WHERE ph.PaymentHeaderId = @Id", new { Id = paymentHeaderId });
 
             // ── Assign token on full payment ──────────────────────────────────
             string? assignedToken = null;
@@ -992,7 +1151,12 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                 BalanceDue      = newBalanceDue,
                 PaymentStatus   = status,
                 TokenNo         = assignedToken,
-                ReceiptNo       = savedReceiptNo
+                ReceiptNo       = savedReceiptNo,
+                MembershipCardNo     = mem.CardNo,
+                PointsRedeemed       = mem.Redeemed,
+                PointsRedeemedAmount = mem.RedeemedAmount,
+                PointsEarned         = mem.Earned,
+                PointsBalance        = mem.Balance
             };
         }
         catch (Exception ex)

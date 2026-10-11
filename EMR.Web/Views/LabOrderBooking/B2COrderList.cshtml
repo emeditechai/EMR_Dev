@@ -264,18 +264,36 @@
                                     }
                                 </td>
                                 <td class="text-end fw-semibold @(o.PaymentStatus == "P" ? "text-success" : (o.PaymentStatus == "R" ? "text-warning-emphasis" : "text-danger"))">
+                                    @{ var miscOnBill = (adj?.MiscAmount ?? 0m) + (adj?.MiscGstAmount ?? 0m); }
                                     @if (partlyCancelled)
                                     {
-                                        <div>₹@adj!.ActiveAmount.ToString("N2")</div>
+                                        <div>₹@((adj!.ActiveAmount + miscOnBill).ToString("N2"))</div>
                                         <div class="text-muted fw-normal" style="font-size:.68rem;"><s>₹@o.TotalAmount.ToString("N2")</s> &middot; −₹@adj.CancelledAmount.ToString("N2") cancelled</div>
                                     }
                                     else
                                     {
-                                        <text>₹@o.TotalAmount.ToString("N2")</text>
+                                        <text>₹@((o.TotalAmount + miscOnBill).ToString("N2"))</text>
+                                    }
+                                    @if (miscOnBill > 0)
+                                    {
+                                        <div class="text-muted fw-normal" style="font-size:.68rem;" title="Misc charges (with GST) on this bill">incl. misc ₹@miscOnBill.ToString("N2")</div>
+                                    }
+                                    @if (o.IsActive && o.BalanceDue > 0)
+                                    {
+                                        <div class="text-danger fw-semibold" style="font-size:.72rem;" title="Balance due">(Due ₹@o.BalanceDue.ToString("N2"))</div>
                                     }
                                     @if (adj is { RefundedAmount: > 0 })
                                     {
                                         <div class="text-danger fw-normal" style="font-size:.68rem;">₹@adj.RefundedAmount.ToString("N2") refunded</div>
+                                    }
+                                    @if (adj is { HasPoints: true })
+                                    {
+                                        <div class="fw-normal" style="font-size:.68rem;color:#b45309;" title="Membership card @adj.MembershipCardNo">
+                                            <i class="bi bi-award"></i>
+                                            @if (adj.PointsRedeemed > 0) { <text>@adj.PointsRedeemed.ToString("0") pts used</text> }
+                                            @if (adj.PointsRedeemed > 0 && adj.PointsEarned > 0) { <text>&middot;</text> }
+                                            @if (adj.PointsEarned > 0) { <text>+@adj.PointsEarned.ToString("0") earned</text> }
+                                        </div>
                                     }
                                 </td>
                                 <td>
@@ -713,6 +731,23 @@
                         </table>
                     </div>
                 </div>
+                ${adj && (adj.miscLines || []).length ? `
+                <div class="mt-2">
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-cash-coin me-2 text-primary"></i>Misc Charges (${adj.miscLines.length})</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle">
+                            <thead class="table-light"><tr><th>#</th><th>Charge</th><th>Type</th><th class="text-end">Amount (₹)</th><th class="text-end">Discount</th><th class="text-end">GST</th><th class="text-end">Net (₹)</th></tr></thead>
+                            <tbody>${adj.miscLines.map((m, i) => `<tr class="${m.isActive ? '' : 'text-decoration-line-through text-muted'}">
+                                <td>${i + 1}</td>
+                                <td class="fw-semibold">${escHtml(m.displayName)}${m.isActive ? '' : ' <span class="badge bg-danger ms-1">Cancelled</span>'}</td>
+                                <td>${escHtml(m.chargeType)}</td>
+                                <td class="text-end font-monospace">${money2(m.amount)}</td>
+                                <td class="text-end font-monospace">${m.discountAmount > 0 ? '-' + money2(m.discountAmount) : '—'}</td>
+                                <td class="text-end font-monospace">${m.isGstRequired ? money2(m.gstAmount) + ` <span class="text-muted small">(${m.gstPercentage}%)</span>` : '—'}</td>
+                                <td class="text-end font-monospace fw-semibold">${money2(m.netAmount)}</td></tr>`).join('')}</tbody>
+                        </table>
+                    </div>
+                </div>` : ''}
 
                 <div class="d-flex justify-content-end mt-3">
                     <div class="border rounded p-3 bg-light" style="min-width: 260px;">
@@ -720,6 +755,16 @@
                             <span class="text-muted">Sub Total:</span>
                             <span class="fw-bold font-monospace">₹${(d.totalAmount || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.miscAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">Misc charges:</span>
+                                <span class="font-monospace">+${money2(adj.miscAmount)}</span>
+                            </div>` : ''}
+                        ${adj && adj.miscGstAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">GST on misc (CGST ${money2(adj.miscCgstAmount)} + SGST ${money2(adj.miscSgstAmount)}):</span>
+                                <span class="font-monospace">+${money2(adj.miscGstAmount)}</span>
+                            </div>` : ''}
                         ${adj && adj.cancelledAmount > 0 && d.isActive !== false ? `
                             <div class="d-flex justify-content-between mb-1 small text-danger">
                                 <span>Less: Cancelled tests (${adj.cancelledTests}):</span>
@@ -756,10 +801,18 @@
                             <span>${adj && adj.refundedAmount > 0 ? 'Net Paid' : 'Paid Amount'}:</span>
                             <span class="fw-bold font-monospace">₹${(d.totalPaid || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.pointsRedeemedAmount > 0 ? `
+                            <div class="d-flex justify-content-between mb-1 small" style="color:#b45309;">
+                                <span>incl. Membership Points (${Math.round(adj.pointsRedeemed)} pts):</span>
+                                <span class="font-monospace">${money2(adj.pointsRedeemedAmount)}</span>
+                            </div>` : ''}
                         <div class="d-flex justify-content-between border-top pt-1 mt-1 fw-bold ${d.balanceDue > 0 ? 'text-danger' : 'text-success'}">
                             <span>Balance Due:</span>
                             <span class="font-monospace">₹${(d.balanceDue || 0).toFixed(2)}</span>
                         </div>
+                        ${adj && adj.membershipCardNo && (adj.pointsRedeemed > 0 || adj.pointsEarned > 0) ? `
+                            <div class="small text-muted mt-2"><i class="bi bi-award me-1" style="color:#b45309;"></i>Membership Card
+                                <span class="font-monospace">${escHtml(adj.membershipCardNo)}</span>${adj.pointsEarned > 0 ? ` &middot; ${Math.round(adj.pointsEarned)} points earned on this bill` : ''}</div>` : ''}
                     </div>
                 </div>
 

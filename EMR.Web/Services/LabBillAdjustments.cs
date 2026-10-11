@@ -33,6 +33,19 @@ public sealed class LabBillAdjustment
     public int ActiveTests { get; set; }
     public decimal ActiveAmount { get; set; }      // MRP of the tests still on the bill
     public decimal RefundedAmount { get; set; }
+    // membership points of a B2C bill (SQLScripts/2236): points used as payment (net of points given back) and points earned
+    public string? MembershipCardNo { get; set; }
+    public decimal PointsRedeemed { get; set; }
+    public decimal PointsRedeemedAmount { get; set; }
+    public decimal PointsEarned { get; set; }
+    public bool HasPoints => PointsRedeemed > 0 || PointsEarned > 0;
+    // misc charges of the bill (SQLScripts/2240), cancelled ones included
+    public List<LabOrderMiscLine> MiscLines { get; set; } = [];
+    public decimal MiscAmount => MiscLines.Where(m => m.IsActive).Sum(m => m.Amount);            // taxable, active
+    public decimal MiscGstAmount => MiscLines.Where(m => m.IsActive).Sum(m => m.GstAmount);
+    public decimal MiscCgstAmount => MiscLines.Where(m => m.IsActive).Sum(m => m.CgstAmount);
+    public decimal MiscSgstAmount => MiscLines.Where(m => m.IsActive).Sum(m => m.SgstAmount);
+    public decimal MiscTotal => MiscLines.Where(m => m.IsActive).Sum(m => m.NetAmount);           // after discount, with GST
     public List<LabBillCancellationRow> Cancellations { get; set; } = [];
     public List<LabBillRefundRow> Refunds { get; set; } = [];
 }
@@ -73,6 +86,27 @@ public static class LabBillAdjustments
             {
                 a.Refunds.Add(new LabBillRefundRow { Amount = r.RefundAmount, Mode = r.RefundMode, RefundDate = r.RefundDate, TransactionRef = r.TransactionRef, CancellationNo = r.CancellationNo });
                 a.RefundedAmount += r.RefundAmount;
+            }
+
+        var points = await con.QueryAsync<(int ModuleRefId, string? CardNo, decimal PointsRedeemed, decimal PointsRedeemedAmount, decimal PointsEarned)>(@"
+            SELECT ph.ModuleRefId, c.CardNo, ISNULL(ph.PointsRedeemed, 0), ISNULL(ph.PointsRedeemedAmount, 0), ISNULL(ph.PointsEarned, 0)
+            FROM dbo.PaymentHeader ph LEFT JOIN dbo.MembershipCard c ON c.CardId = ph.MembershipCardId
+            WHERE ph.ModuleCode = 'LAB' AND ph.ModuleRefId IN @Ids AND ph.MembershipCardId IS NOT NULL
+            ORDER BY ph.IsActive, ph.PaymentHeaderId", new { Ids = ids });
+        var misc = await con.QueryAsync<LabOrderMiscLine>(@"
+            SELECT LabOrderMiscChargeId, LabOrderId, MiscChargeId, ChargeName, ChargeType, Quantity, UnitAmount, Amount, IsDiscountable,
+                   IsGstRequired, GstPercentage, DiscountAmount, CgstAmount, SgstAmount, GstAmount, NetAmount, IsActive
+            FROM dbo.LabOrderMiscCharge WHERE LabOrderId IN @Ids ORDER BY LabOrderMiscChargeId", new { Ids = ids });
+        foreach (var m in misc)
+            if (map.TryGetValue(m.LabOrderId, out var a)) a.MiscLines.Add(m);
+
+        foreach (var pt in points)   // the active (latest) header wins
+            if (map.TryGetValue(pt.ModuleRefId, out var a))
+            {
+                a.MembershipCardNo = pt.CardNo;
+                a.PointsRedeemed = pt.PointsRedeemed;
+                a.PointsRedeemedAmount = pt.PointsRedeemedAmount;
+                a.PointsEarned = pt.PointsEarned;
             }
         return map;
     }

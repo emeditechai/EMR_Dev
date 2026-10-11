@@ -728,7 +728,12 @@
         <div class="reg-section-header">
             <div class="sec-icon blue me-2"><i class="bi bi-search"></i></div>
             <div>
-                <h6 class="mb-0 fw-bold text-dark">Search &amp; Add Investigation / Profile <span class="text-danger">*</span></h6>
+                <h6 class="mb-0 fw-bold text-dark">Search &amp; Add Investigation / Profile <span class="text-danger">*</span>
+                    @* misc charges (Home Collection / Misc) charged to the partner with GST - SQLScripts/2240 *@
+                    <button type="button" id="btnMiscCharges" class="btn btn-sm btn-outline-success ms-2 py-0 px-2 fw-normal" title="Add Home Collection / Misc charges to this bill">
+                        <i class="bi bi-cash-coin me-1"></i>Misc Charges
+                    </button>
+                </h6>
                 <small class="text-muted">Filter by department or category, or search directly</small>
             </div>
             <div class="ms-auto d-flex align-items-center gap-2">
@@ -843,7 +848,7 @@
                             </div>
                         </div>
                         <div class="text-end">
-                            <span class="fw-bold text-dark text-uppercase small">B2B Total:</span>
+                            <span class="fw-bold text-dark text-uppercase small">B2B Test Total:</span>
                             <div class="bg-success-subtle border border-success-subtle rounded-3 px-3 py-1">
                                 <span class="fs-5 fw-bold text-success font-monospace" id="lblB2BTotalAmount">₹ 0.00</span>
                             </div>
@@ -852,11 +857,14 @@
                 </div>
             </div>
             <span asp-validation-for="LineItemsJson" class="text-danger fw-bold small"></span>
+            <partial name="_LabMiscChargesPicker" model="@("B2B")" />
         </div>
     </div>
 
     @* ── Actions ── *@
     <div class="action-bar shadow-sm">
+        @* the whole bill the partner is charged: tests (B2B rate) + misc charges with GST *@
+        <div class="me-auto small text-secondary align-self-center" id="billTotalBreakup"></div>
         <a asp-action="B2BRegistration" class="btn btn-outline-secondary px-3 fw-semibold">
             <i class="bi bi-arrow-left me-1"></i>Back to List
         </a>
@@ -1816,7 +1824,7 @@
                 $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Validating...');
 
                 function restoreBtn() {
-                    $btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Save & Book B2B Order');
+                    $btn.prop('disabled', false).html(b2bSaveLabel());
                 }
 
                 function doSubmit() {
@@ -1934,7 +1942,7 @@
 
                 }).fail(function() {
                     // Credit re-fetch failed — fall back to cached data, proceed to server-side validation
-                    $btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Save & Book B2B Order');
+                    $btn.prop('disabled', false).html(b2bSaveLabel());
                     $('#LineItemsJson').val(JSON.stringify(lineItems));
                     document.getElementById('frmB2BBooking').submit();
                 });
@@ -2439,10 +2447,10 @@
                             isGstRequired: false,
                             isDiscountAllowed: false
                         };
-                    }),
+                    }).concat(window.LabMisc ? window.LabMisc.paymentItems() : []),
                     onCancel: function () {
                         var $btn = $('#btnSaveB2BSubmit');
-                        $btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Save & Book B2B Order');
+                        $btn.prop('disabled', false).html(b2bSaveLabel());
                     },
                     onSave: function (paymentData) {
                         $('#hdnPaymentDataJson').val(JSON.stringify(paymentData));
@@ -3326,6 +3334,29 @@
         }
 
         // ── Render Line Items Table ──
+        // misc charges: open the picker; any change re-totals the bill (B2B total, credit / wallet checks)
+        $(function () {
+            $('#btnMiscCharges').on('click', function () { window.LabMisc && window.LabMisc.open($('input[name="CollectionType"]:checked').val()); });
+            window.LabMisc && window.LabMisc.onChange(function () { renderTable(); });
+        });
+
+        function b2bFmt(n) { return (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        // Save button text with the bill total (restored with it after validation / a cancelled payment)
+        function b2bSaveLabel() {
+            var t = parseFloat($('#B2BTotal').val()) || 0;
+            return '<i class="bi bi-check2-circle me-1"></i>Save &amp; Book B2B Order' + (t > 0 ? ' · ₹' + b2bFmt(t) : '');
+        }
+        function updateB2BBillTotal(tests, misc) {
+            var bill = (tests || 0) + (misc || 0);
+            $('#billTotalBreakup').html(bill > 0
+                ? 'Bill Total <b class="text-dark fs-6 font-monospace">₹' + b2bFmt(bill) + '</b>' +
+                  (misc > 0 ? ' <span class="ms-1">(Tests ₹' + b2bFmt(tests) + ' + Misc ₹' + b2bFmt(misc) + (window.LabMisc && window.LabMisc.gstTotal() > 0 ? ' incl. GST ₹' + b2bFmt(window.LabMisc.gstTotal()) : '') + ')</span>' : '')
+                : '');
+            var $btn = $('#btnSaveB2BSubmit');
+            if ($btn.find('.spinner-border').length === 0)   // not while it is saving
+                $btn.html('<i class="bi bi-check2-circle me-1"></i>Save &amp; Book B2B Order' + (bill > 0 ? ' · ₹' + b2bFmt(bill) : ''));
+        }
+
         function renderTable() {
             var $tbody = $('#tblLineItemsBody');
             $tbody.empty();
@@ -3340,8 +3371,10 @@
                         </td>
                     </tr>`);
                 $('#lblStandardTotal').text('₹ 0.00');
+                var miscOnly = window.LabMisc ? window.LabMisc.total() : 0;   // misc charges with GST
                 $('#lblB2BTotalAmount').text('₹ 0.00');
-                $('#B2BTotal').val('0.00');
+                $('#B2BTotal').val(miscOnly.toFixed(2));
+                updateB2BBillTotal(0, miscOnly);
                 $('#badgeSelectedCount').text('0 Tests Selected');
                 validateCreditPolicy();
                 if (window.LabComplianceDocsController) window.LabComplianceDocsController.onLineItemsChanged();
@@ -3391,7 +3424,11 @@
             });
 
             $('#lblStandardTotal').text('₹ ' + standardTotal.toFixed(2));
+            // tests at B2B rate on the card; B2BTotal (credit / wallet checks, the bill) = tests + misc charges with GST
+            var b2bMiscTotal = window.LabMisc ? window.LabMisc.total() : 0;
             $('#lblB2BTotalAmount').text('₹ ' + b2bTotal.toFixed(2));
+            updateB2BBillTotal(b2bTotal, b2bMiscTotal);
+            b2bTotal += b2bMiscTotal;
             $('#B2BTotal').val(b2bTotal.toFixed(2));
             $('#badgeSelectedCount').text(lineItems.length + (lineItems.length === 1 ? ' Test Selected' : ' Tests Selected'));
             $('#LineItemsJson').val(JSON.stringify(lineItems));

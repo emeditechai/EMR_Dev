@@ -238,7 +238,8 @@ else
             if (!string.IsNullOrWhiteSpace(l.CardLast4)) refs.Add("Card xxxx " + l.CardLast4);
             if (!string.IsNullOrWhiteSpace(l.ChequeNo)) refs.Add("Cheque No " + l.ChequeNo);
             if (!string.IsNullOrWhiteSpace(l.BankName)) refs.Add(l.BankName!);
-            if (!string.IsNullOrWhiteSpace(l.TransactionRef)) refs.Add("Ref " + l.TransactionRef);
+            if (l.IsPoints) refs.Add("Membership Card " + (l.TransactionRef ?? "").Replace("MC:", ""));
+            else if (!string.IsNullOrWhiteSpace(l.TransactionRef)) refs.Add("Ref " + l.TransactionRef);
             <tr>
                 <td>@(i + 1)</td>
                 <td>@(l.MethodName ?? "Payment")</td>
@@ -275,6 +276,15 @@ else
             <div class="bp-row"><span>Received earlier</span><span>₹ @Model.PaidBefore.ToString("N2")</span></div>
             <div class="bp-row this"><span>This receipt</span><span>₹ @Model.Amount.ToString("N2")</span></div>
             <div class="bp-row bal @(fullyPaid ? "nil" : "")"><span>Balance due</span><span>@(fullyPaid ? "NIL — Fully Paid" : "₹ " + Model.BalanceAfter.ToString("N2"))</span></div>
+            @if (!string.IsNullOrEmpty(Model.MembershipCardNo))
+            {
+                <div class="bp-row"><span>Membership Card</span><span>@Model.MembershipCardNo</span></div>
+                @if (Model.PointsEarned > 0)
+                {
+                    <div class="bp-row"><span>Points earned on this bill</span><span>@Model.PointsEarned.ToString("0")</span></div>
+                }
+                <div class="bp-row"><span>Points balance</span><span>@Model.PointsBalance.ToString("0")</span></div>
+            }
         </div>
     </div>
 

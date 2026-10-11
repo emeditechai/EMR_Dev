@@ -200,6 +200,7 @@ public class ReportsController : Controller
         ["outstanding-dues"]    = new[] { "ageBucket", "createdBy" },
         ["patient-orders"]      = new[] { "reportStatus", "createdBy" },
         ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy", "billingType" },
+        ["membership-points"]   = new[] { "txnType", "planId", "createdBy" },
         // B2B partner-account reports: branch-wide for every user of the branch
         ["b2b-partner-billing"] = new[] { "partnerType", "partner", "paymentMethod" },
         ["franchise-wallet"]    = new[] { "transactionType", "franchiseId" },
@@ -236,6 +237,7 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabOutstandingDues() => LabReportPage("LabOutstandingDues");
     [HttpGet] public IActionResult LabPatientOrders() => LabReportPage("LabPatientOrders");
     [HttpGet] public IActionResult LabCancellationRefund() => LabReportPage("LabCancellationRefund");
+    [HttpGet] public IActionResult LabMembershipPoints() => LabReportPage("LabMembershipPoints");
     [HttpGet] public IActionResult LabB2BPartnerBilling() => LabReportPage("LabB2BPartnerBilling");
     [HttpGet] public IActionResult LabFranchiseWallet() => LabReportPage("LabFranchiseWallet");
     [HttpGet] public IActionResult LabB2BOutstanding() => LabReportPage("LabB2BOutstanding");

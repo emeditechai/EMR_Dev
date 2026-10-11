@@ -79,7 +79,9 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
             int    cancellationId  = p.Get<int>("@CancellationId");
             string cancellationNo  = p.Get<string>("@CancellationNo");
             decimal totalCancelled = request.Items.Sum(x => x.Amount);
-            bool   isFull          = request.Items.Count == await GetTotalActiveItemsAsync(con, request.ModuleCode, request.ModuleRefId);
+            // full / partial as the procedure decided it (it counts tests and misc charge lines alike)
+            bool   isFull          = await con.QuerySingleOrDefaultAsync<string>(
+                                         "SELECT CancellationType FROM dbo.BillCancellation WHERE CancellationId = @Id", new { Id = cancellationId }) == "F";
 
             // Fetch bill no for ledger narration
             string billNo = await GetBillNoAsync(con, request.ModuleCode, request.ModuleRefId);

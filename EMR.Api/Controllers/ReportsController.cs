@@ -109,6 +109,8 @@ public class ReportsController : ControllerBase
             ["outstanding-dues"]    = ("dbo.usp_Api_LabReport_OutstandingDues",    new[] { "AgeBucket" },                          new[] { "CreatedBy" }),
             ["patient-orders"]      = ("dbo.usp_Api_LabReport_PatientOrders",      new[] { "ReportStatus" },                       new[] { "CreatedBy" }),
             ["cancellation-refund"] = ("dbo.usp_Api_LabReport_CancellationRefund", new[] { "CancellationType", "RefundStatus", "BillingType" }, new[] { "CancelledBy" }),
+            // membership points earned / redeemed / given back / taken back / expired on B2C LAB bills (SQLScripts/2237)
+            ["membership-points"]   = ("dbo.usp_Api_LabReport_MembershipPoints",   new[] { "TxnType" },                            new[] { "PlanId", "CreatedBy" }),
             // B2B partner-account reports: branch-wide, not limited to the user's own records (SQLScripts/2125)
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
             ["franchise-wallet"]    = ("dbo.usp_Api_LabReport_FranchiseWallet",    new[] { "TransactionType" },                     new[] { "FranchiseId" }),

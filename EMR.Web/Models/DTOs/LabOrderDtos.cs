@@ -17,6 +17,16 @@ namespace EMR.Web.Models.DTOs
         public int? ReferralDoctorId { get; set; }
         public int? CreatedBy { get; set; }
         public List<LabOrderItemRequestDto> Items { get; set; } = new();
+        /// <summary>Misc charges (SQLScripts/2240): ids and quantities only - priced from the master by the procedure.</summary>
+        public List<LabOrderMiscChargeRequestDto> MiscCharges { get; set; } = new();
+    }
+
+    public class LabOrderMiscChargeRequestDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("miscChargeId")]
+        public int MiscChargeId { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("quantity")]
+        public int Quantity { get; set; } = 1;
     }
 
     public class LabOrderItemRequestDto

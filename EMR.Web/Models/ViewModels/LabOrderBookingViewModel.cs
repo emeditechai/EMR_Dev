@@ -159,6 +159,8 @@ namespace EMR.Web.Models.ViewModels
 
         /// <summary>Line items — serialised to JSON and sent as a single hidden field.</summary>
         public string LineItemsJson { get; set; } = "[]";
+        /// <summary>Misc charges picked on the booking screen: [{ miscChargeId, quantity }] (SQLScripts/2240).</summary>
+        public string? MiscChargesJson { get; set; }
         
         public bool DemographicsOnly { get; set; }
 
