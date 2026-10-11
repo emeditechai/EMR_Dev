@@ -220,9 +220,17 @@
         }
         .footer {
             margin-top: 50px;
-            text-align: right;
             padding-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 20px;
         }
+        .follow-up span, .refer-box span { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #6c757d; }
+        .follow-up strong { font-size: 14px; color: #212529; }
+        .refer-box { margin: 0 0 18px; padding: 10px 14px; border: 1px solid #c7d2fe; border-left: 4px solid #4f46e5;
+                     border-radius: 6px; background: #eef2ff; font-size: 13px; }
+        .refer-box span { color: #4338ca; }
         .signature-line {
             display: inline-block;
             width: 200px;
@@ -284,6 +292,16 @@
             <strong>@b.Status</strong>
         </div>
     </div>
+
+    @{ var sc = Model.EmrData?.SavedConsultation; }
+    @if (sc?.ReferToDoctorId is > 0 && !string.IsNullOrWhiteSpace(sc.ReferToDoctorName))
+    {
+        @* Refer To Doctor (SQLScripts/2229) *@
+        <div class="refer-box">
+            <span>Referred to</span>
+            <strong>@sc.ReferToDoctorName</strong>@if (!string.IsNullOrWhiteSpace(sc.ReferToSpecialityName)) {<text> &mdash; @sc.ReferToSpecialityName</text>}
+        </div>
+    }
 
     <div class="main-layout">
         <div class="left-col">
@@ -355,6 +373,10 @@
     </div>
 
     <div class="footer">
+        <div class="follow-up">
+            <span>Follow-up Date</span>
+            <strong>@(sc?.FollowUpDate is { } fu ? fu.ToString("dd MMM yyyy, dddd") : "____________________")</strong>
+        </div>
         <div class="signature-line">
             Signature<br/>
             Dr. @d.FullName

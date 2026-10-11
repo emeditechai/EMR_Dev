@@ -77,7 +77,7 @@ public class LicenseController(
         if (gate.IsAllowed) return RedirectToAction("Login", "Account");
         if (gate.Status == LicenseGateStatus.Unregistered) return RedirectToAction(nameof(Register));
         var vm = Describe(gate.Status, gate.Reason);
-        vm.LastCheck = await licensing.LastCheckAsync();
+        vm.LastCheck = await licensing.LastCheckAsync(HttpContext);
         return View(vm);
     }
 

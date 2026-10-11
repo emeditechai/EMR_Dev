@@ -25,6 +25,7 @@ public interface ICentralLicenseRepository
     Task UpdateOtpChallengeAsync(Guid challengeId, bool isValidated, DateTime? validatedAt, string? failureReason,
         string? clientCode = null, string? licenseKey = null);                                     // C11
     Task<string?> GetMailboxPasswordAsync(string smtpUsername);                                    // C12 (read-only)
+    Task<(string ProductType, string? AppUrl)?> FindAnyProductAsync(string clientCode, string? licenseKey); // read-only diagnosis
 }
 
 public sealed class CentralLicenseRepository(IOptions<LicensingOptions> options) : ICentralLicenseRepository
@@ -193,6 +194,18 @@ SET IsValidated = @IsValidated, ValidatedAt = @ValidatedAt, FailureReason = @Fai
     ClientCode = COALESCE(@ClientCode, ClientCode), LicenseKey = COALESCE(@LicenseKey, LicenseKey)
 WHERE ChallengeId = @ChallengeId",
             new { ChallengeId = challengeId, IsValidated = isValidated, ValidatedAt = validatedAt, FailureReason = Cut(failureReason, 500), ClientCode = clientCode, LicenseKey = licenseKey });
+    }
+
+    // read-only diagnosis when this product's lookup finds nothing: is the code recorded under another product (the vendor
+    // admin app saves unknown products as eRestoPOS) or for another address?
+    public async Task<(string ProductType, string? AppUrl)?> FindAnyProductAsync(string clientCode, string? licenseKey)
+    {
+        await using var cn = Open();
+        var row = await cn.QueryFirstOrDefaultAsync<(string ProductType, string? AppUrl)?>(@"
+SELECT TOP 1 ISNULL(ProductType, '') AS ProductType, appurl AS AppUrl FROM dbo.ClientAppLicense
+WHERE ClientCode = @C AND (@K IS NULL OR LicenseKey = @K) ORDER BY Id DESC", new { C = clientCode, K = licenseKey },
+            commandTimeout: _o.RemoteConnectionTimeoutSeconds * 2);
+        return row;
     }
 
     // C12: the licensing mailbox password from the vendor's central mail configuration (as eRestoPOS reads it). Only

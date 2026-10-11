@@ -1,0 +1,227 @@
+@* Misc charges on a LAB bill (Misc Charges Master, SQLScripts/2239 / 2240) - shared by the B2C and B2B booking pages.
+   Renders: the "Misc Charges" card (its own stack under the selected investigations), the picker modal and the hidden
+   MiscChargesJson field (only ids and quantities are posted; the server prices every line from the master again).
+   Model: "B2C" or "B2B". B2C: GST on top of the amount (the payment screen applies the discount and GST);
+   B2B: the partner is charged amount + GST. Script API: window.LabMisc (open, clear, lines, subTotal, total, paymentItems). *@
+@model string
+@{
+    var miscMode = Model == "B2B" ? "B2B" : "B2C";
+}
+<input type="hidden" name="MiscChargesJson" id="miscChargesJson" value="[]" />
+
+<div class="card border border-success-subtle rounded-3 overflow-hidden mb-2 shadow-2xs d-none" id="miscChargesCard">
+    <div class="card-header bg-success-subtle py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+        <span class="fw-bold small text-dark d-flex align-items-center gap-1"><i class="bi bi-cash-coin text-success fs-6"></i> Misc Charges</span>
+        <span class="badge bg-white text-success border border-success-subtle rounded-pill px-2 py-1 small fw-semibold" id="miscChargesCount">0 Charges</span>
+    </div>
+    <div class="table-responsive m-0">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light text-secondary small text-uppercase" style="font-size:.72rem;letter-spacing:.4px;">
+                <tr>
+                    <th style="width:40px;" class="text-center">#</th>
+                    <th>Charge</th>
+                    <th style="width:150px;">Type</th>
+                    <th style="width:90px;" class="text-center">Qty</th>
+                    <th style="width:110px;" class="text-end">Amount (₹)</th>
+                    <th style="width:100px;" class="text-center">Discountable</th>
+                    <th style="width:120px;" class="text-end">GST</th>
+                    <th style="width:120px;" class="text-end">Total (₹)</th>
+                    <th style="width:50px;" class="text-center"></th>
+                </tr>
+            </thead>
+            <tbody id="miscChargesBody"></tbody>
+            <tfoot>
+                <tr class="table-light">
+                    <td colspan="7" class="text-end fw-semibold small text-secondary">Misc Charges Total@(miscMode == "B2B" ? " (with GST)" : " (GST on top, after any discount)"):</td>
+                    <td class="text-end fw-bold font-monospace" id="miscChargesTotal">0.00</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="miscChargesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-cash-coin text-success me-2"></i>Add Misc Charges</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2 mb-2">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control form-control-sm" id="miscPickSearch" placeholder="Search charge..." autocomplete="off" />
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select form-select-sm" id="miscPickType">
+                            <option value="">All types</option>
+                            <option value="Home Collection">Home Collection</option>
+                            <option value="Misc">Misc</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="small text-info-emphasis bg-info-subtle border border-info-subtle rounded px-2 py-1 mb-2 d-none" id="miscPickHomeHint">
+                    <i class="bi bi-house-heart me-1"></i>Collection Type is <b>Home Collection</b> - add the home collection charge if it applies.
+                </div>
+                <div id="miscPickList" class="list-group small"></div>
+                <div id="miscPickEmpty" class="text-center text-muted py-4 d-none">No active misc charges. Add them in Master &rsaquo; Lab Master &rsaquo; Misc Charges Master.</div>
+            </div>
+            <div class="modal-footer py-2">
+                <span class="me-auto small text-muted">Amounts come from the Misc Charges Master and are checked again when the bill is saved.</span>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const MODE = '@miscMode';
+    let master = null;          // active charges from the master
+    let lines = [];             // [{ miscChargeId, chargeName, chargeType, unitAmount, quantity, isDiscountable, isGstRequired, gstPercentage }]
+    const listeners = [];
+    const round2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+    const fmt = n => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const $id = id => document.getElementById(id);
+
+    // GST on top: CGST = SGST = ROUND(amount x % / 200, 2) - the same as the server (before any bill discount)
+    function calc(l) {
+        const amount = round2(l.unitAmount * l.quantity);
+        const half = l.isGstRequired && l.gstPercentage > 0 ? round2(amount * l.gstPercentage / 200) : 0;
+        return { amount, gst: round2(half * 2), total: round2(amount + half * 2) };
+    }
+
+    function render() {
+        const body = $id('miscChargesBody');
+        if (!body) return;
+        $id('miscChargesCard')?.classList.toggle('d-none', lines.length === 0);
+        $id('miscChargesCount').textContent = `${lines.length} Charge${lines.length === 1 ? '' : 's'}`;
+        body.innerHTML = lines.map((l, i) => {
+            const c = calc(l);
+            return `<tr>
+                <td class="text-center text-muted">${i + 1}</td>
+                <td class="fw-semibold">${esc(l.chargeName)}</td>
+                <td>${l.chargeType === 'Home Collection'
+                    ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-house-heart me-1"></i>Home Collection</span>'
+                    : '<span class="badge bg-secondary-subtle text-secondary-emphasis border"><i class="bi bi-box-seam me-1"></i>Misc</span>'}</td>
+                <td class="text-center"><input type="number" min="1" max="99" step="1" class="form-control form-control-sm text-center misc-qty" data-id="${l.miscChargeId}" value="${l.quantity}" style="width:70px;display:inline-block;" /></td>
+                <td class="text-end font-monospace">${fmt(c.amount)}</td>
+                <td class="text-center">${l.isDiscountable ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Yes</span>' : '<span class="badge bg-light text-muted border">No</span>'}</td>
+                <td class="text-end font-monospace">${l.isGstRequired ? fmt(c.gst) + ` <span class="text-muted small">(${Number(l.gstPercentage)}%)</span>` : '<span class="text-muted">—</span>'}</td>
+                <td class="text-end fw-semibold font-monospace">${fmt(c.total)}</td>
+                <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 misc-remove" data-id="${l.miscChargeId}" title="Remove"><i class="bi bi-trash"></i></button></td>
+            </tr>`;
+        }).join('');
+        $id('miscChargesTotal').textContent = fmt(total());
+        $id('miscChargesJson').value = JSON.stringify(lines.map(l => ({ miscChargeId: l.miscChargeId, quantity: l.quantity })));
+        listeners.forEach(f => { try { f(); } catch (e) { } });
+    }
+
+    function subTotal() { return round2(lines.reduce((s, l) => s + calc(l).amount, 0)); }   // before GST
+    function gstTotal() { return round2(lines.reduce((s, l) => s + calc(l).gst, 0)); }
+    function total() { return round2(subTotal() + gstTotal()); }
+
+    function add(id) {
+        const m = (master || []).find(x => x.MiscChargeId === id);
+        if (!m) return;
+        const ex = lines.find(l => l.miscChargeId === id);
+        if (ex) ex.quantity = Math.min(99, ex.quantity + 1);
+        else {
+            if (lines.length >= 20) { alertMsg('A bill can carry at most 20 misc charges.'); return; }
+            lines.push({ miscChargeId: m.MiscChargeId, chargeName: m.ChargeName, chargeType: m.ChargeType, unitAmount: Number(m.Amount) || 0, quantity: 1,
+                         isDiscountable: !!m.IsDiscountable, isGstRequired: !!m.IsGstRequired, gstPercentage: Number(m.GstPercentage) || 0 });
+        }
+        render();
+        renderPick();
+    }
+
+    function alertMsg(msg) {
+        if (window.Swal) Swal.fire({ icon: 'warning', title: 'Misc Charges', text: msg, confirmButtonColor: '#0d6efd' });
+        else console.warn(msg);
+    }
+
+    function renderPick() {
+        const list = $id('miscPickList');
+        if (!list || !master) return;
+        const q = ($id('miscPickSearch').value || '').trim().toLowerCase();
+        const t = $id('miscPickType').value;
+        const rows = master.filter(m => (!t || m.ChargeType === t) && (!q || (m.ChargeName || '').toLowerCase().includes(q)));
+        $id('miscPickEmpty').classList.toggle('d-none', master.length > 0);
+        list.innerHTML = rows.map(m => {
+            const inBill = lines.find(l => l.miscChargeId === m.MiscChargeId);
+            const gst = m.IsGstRequired ? ` · GST ${Number(m.GstPercentage)}% extra` : '';
+            return `<div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                <div class="min-w-0">
+                    <div class="fw-semibold">${esc(m.ChargeName)} ${m.ChargeType === 'Home Collection' ? '<span class="badge bg-info-subtle text-info-emphasis border ms-1">Home Collection</span>' : '<span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">Misc</span>'}</div>
+                    <div class="text-muted">₹${fmt(m.Amount)}${gst} · ${m.IsDiscountable ? 'discountable' : 'not discountable'}${m.Description ? ' · ' + esc(m.Description) : ''}</div>
+                </div>
+                <button type="button" class="btn btn-sm ${inBill ? 'btn-success' : 'btn-outline-success'} misc-add text-nowrap" data-id="${m.MiscChargeId}">
+                    <i class="bi ${inBill ? 'bi-check2' : 'bi-plus-lg'} me-1"></i>${inBill ? 'Added (' + inBill.quantity + ') +1' : 'Add'}
+                </button>
+            </div>`;
+        }).join('');
+    }
+
+    async function open(collectionType) {
+        const modalEl = $id('miscChargesModal');
+        if (!modalEl) return;
+        $id('miscPickHomeHint').classList.toggle('d-none', collectionType !== 'Home Collection');
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        if (!master) {
+            $id('miscPickList').innerHTML = '<div class="text-center text-muted py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>';
+            try {
+                const r = await fetch('/LabOrderBooking/MiscChargesForBilling');
+                const d = await r.json();
+                master = (d && d.data) || [];
+            } catch (e) { master = []; }
+        }
+        renderPick();
+    }
+
+    document.addEventListener('click', function (e) {
+        const addBtn = e.target.closest('.misc-add');
+        if (addBtn) { add(parseInt(addBtn.dataset.id)); return; }
+        const rm = e.target.closest('.misc-remove');
+        if (rm) { lines = lines.filter(l => l.miscChargeId !== parseInt(rm.dataset.id)); render(); renderPick(); }
+    });
+    document.addEventListener('change', function (e) {
+        const q = e.target.closest('.misc-qty');
+        if (!q) return;
+        const l = lines.find(x => x.miscChargeId === parseInt(q.dataset.id));
+        if (!l) return;
+        let v = parseInt(q.value);
+        if (!(v >= 1)) v = 1;
+        if (v > 99) v = 99;
+        l.quantity = v;
+        render();
+    });
+    document.addEventListener('input', function (e) {
+        if (e.target.id === 'miscPickSearch') renderPick();
+    });
+    document.addEventListener('change', function (e) {
+        if (e.target.id === 'miscPickType') renderPick();
+    });
+
+    window.LabMisc = {
+        mode: MODE,
+        open,
+        clear: function () { lines = []; render(); },
+        lines: () => lines.map(l => Object.assign({}, l, calc(l))),
+        subTotal, gstTotal, total,
+        onChange: f => { if (typeof f === 'function') listeners.push(f); },
+        // lines for the payment screen. B2C: amount with the GST flags (the screen applies the discount, then GST);
+        // B2B: what the partner is charged (amount + GST), no discount
+        paymentItems: () => lines.map(l => {
+            const c = calc(l);
+            const name = l.quantity > 1 ? `${l.chargeName} x ${l.quantity}` : l.chargeName;
+            return MODE === 'B2B'
+                ? { lineRefId: l.miscChargeId, itemName: name + (l.isGstRequired ? ' (incl. GST)' : ''), serviceType: 'Misc', originalAmount: c.total,
+                    isGstRequired: false, gstPercentage: 0, isDiscountAllowed: false, isPackage: false }
+                : { lineRefId: l.miscChargeId, itemName: name, serviceType: 'Misc', originalAmount: c.amount,
+                    isGstRequired: l.isGstRequired, gstPercentage: l.isGstRequired ? l.gstPercentage : 0, isDiscountAllowed: l.isDiscountable, isPackage: false };
+        })
+    };
+})();
+</script>

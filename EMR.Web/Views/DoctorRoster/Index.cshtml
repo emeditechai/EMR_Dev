@@ -1,5 +1,8 @@
 @{
-    ViewData["Title"] = "Doctor Roster";
+    // "My Roster" (OPD/MyRoster): the same page for the signed-in doctor only; its look-ups use the OPD/MyRoster* endpoints
+    var selfRoster = ViewBag.SelfRoster is bool self && self;
+    var selfDoctorName = ViewBag.SelfDoctorName as string;
+    ViewData["Title"] = selfRoster ? "My Roster" : "Doctor Roster";
     var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>;
     var specialities = ViewBag.Specialities as IEnumerable<EMR.Web.Models.Entities.DoctorSpecialityMaster>;
     var canConfigureScheduler = ViewBag.CanConfigureScheduler is bool cfg && cfg;
@@ -221,13 +224,30 @@
 }
 
 <div class="roster-page" id="rosterPage">
+    @if (selfRoster && selfDoctorName == null)
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-2">
+            <i class="bi bi-person-exclamation fs-5"></i>
+            <div><b>No doctor is linked to your login.</b> My Roster shows only your own doctor's schedule.
+                Ask an administrator to link your user to your doctor in Doctor Master (Login Account).</div>
+        </div>
+    }
 
     <!-- ── Toolbar: filters, quick toggles, view, print ─────────────────── -->
     <div class="roster-toolbar" id="rosterToolbar">
-        <span class="toolbar-label toolbar-title"><i class="bi bi-calendar2-heart text-primary"></i> Doctor Roster</span>
+        @if (selfRoster)
+        {
+            <a href="@Url.Action("DoctorDashboard", "OPD")" class="btn-compact text-decoration-none" title="Back to the Doctor Dashboard"><i class="bi bi-arrow-left"></i>Dashboard</a>
+            <span class="toolbar-label toolbar-title"><i class="bi bi-calendar2-heart text-primary"></i> My Roster@(selfDoctorName != null ? " · " + selfDoctorName : "")</span>
+        }
+        else
+        {
+            <span class="toolbar-label toolbar-title"><i class="bi bi-calendar2-heart text-primary"></i> Doctor Roster</span>
+        }
         <div class="toolbar-divider"></div>
-        <span class="toolbar-label"><i class="bi bi-grid-1x2"></i>Speciality</span>
-        <div class="toolbar-select-wrap">
+        @* My Roster: one doctor, so the speciality / doctor filters stay hidden (the script still initialises them) *@
+        <span class="toolbar-label" hidden="@selfRoster"><i class="bi bi-grid-1x2"></i>Speciality</span>
+        <div class="toolbar-select-wrap" hidden="@selfRoster">
             <select id="ddlSpecialty" class="form-select form-select-sm" aria-label="Speciality">
                 <option value="">— All Specialities —</option>
                 @foreach (var sp in specialities ?? Enumerable.Empty<EMR.Web.Models.Entities.DoctorSpecialityMaster>())
@@ -236,8 +256,8 @@
                 }
             </select>
         </div>
-        <span class="toolbar-label"><i class="bi bi-person-badge"></i>Doctors</span>
-        <div class="toolbar-select-wrap wide">
+        <span class="toolbar-label" hidden="@selfRoster"><i class="bi bi-person-badge"></i>Doctors</span>
+        <div class="toolbar-select-wrap wide" hidden="@selfRoster">
             <select id="ddlDoctor" class="form-select form-select-sm" multiple aria-label="Doctors">
                 @foreach (var doc in doctors ?? Enumerable.Empty<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>())
                 {
@@ -245,13 +265,13 @@
                 }
             </select>
         </div>
-        <div class="toolbar-divider"></div>
+        <div class="toolbar-divider" hidden="@selfRoster"></div>
         <div class="seg" id="segShow" role="group" aria-label="Show">
             <button type="button" data-show="all" class="active">All shifts</button>
             <button type="button" data-show="free" title="Shifts from today that still have places">Free slots</button>
             <button type="button" data-show="leave" title="Doctors on leave">On leave</button>
         </div>
-        <button type="button" class="chip-toggle" id="btnWorkingToday" aria-pressed="false" title="Only doctors with a shift today">
+        <button type="button" class="chip-toggle" id="btnWorkingToday" aria-pressed="false" title="Only doctors with a shift today" hidden="@selfRoster">
             <i class="bi bi-person-check"></i>Working today
         </button>
         <div class="toolbar-spacer"></div>
@@ -380,7 +400,15 @@
         'use strict';
 
         // ── Server data ─────────────────────────────────────────────────────
-        const URLS = {
+        const SELF = @(selfRoster ? "true" : "false");
+        const URLS = SELF ? {
+            schedules: '@Url.Action("MyRosterSchedules", "OPD")',
+            counts:    '@Url.Action("MyRosterBookingCounts", "OPD")',
+            bookings:  '@Url.Action("MyRosterDateBookings", "OPD")',
+            slots:     '@Url.Action("MyRosterSlots", "OPD")',
+            register:  '@Url.Action("PatientRegistration", "OPD")',
+            configure: '@Url.Action("Configure", "DoctorSchedules")'
+        } : {
             schedules: '@Url.Action("GetDoctorSchedules", "DoctorRoster")',
             counts:    '@Url.Action("GetBookingCounts", "DoctorRoster")',
             bookings:  '@Url.Action("GetDateBookings", "DoctorRoster")',
@@ -416,8 +444,10 @@
         // ── Preferences (per browser): view, filters ───────────────────────
         const isPhone = window.matchMedia('(max-width: 767.98px)').matches;
         const prefs = Object.assign({ view: isPhone ? 'calendar' : 'roster', specialityId: '', doctorIds: [], show: 'all', workingToday: false },
-                                    readStore('rosterPrefs', {}));
-        const savePrefs = () => writeStore('rosterPrefs', prefs);
+                                    readStore(SELF ? 'myRosterPrefs' : 'rosterPrefs', {}));
+        // My Roster keeps its own view choice and never carries the full roster's doctor / speciality filters
+        if (SELF) { prefs.specialityId = ''; prefs.doctorIds = []; prefs.workingToday = false; }
+        const savePrefs = () => writeStore(SELF ? 'myRosterPrefs' : 'rosterPrefs', prefs);
 
         // ── One-screen height ──────────────────────────────────────────────
         function computeOffset() {
@@ -817,7 +847,7 @@
             const shifts = filterShifts(buildShifts(from, to));
             const days = [...Array(7)].map((_, i) => addDays(from, i));
             const docs = [...new Map(shifts.map(s => [s.doctorId, s.doctorName])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
-            let html = `<h2>Doctor Roster${BRANCH ? ' - ' + esc(BRANCH) : ''}</h2>` +
+            let html = `<h2>${SELF ? 'My Roster' : 'Doctor Roster'}${BRANCH ? ' - ' + esc(BRANCH) : ''}</h2>` +
                        `<div class="sub">${days[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} to ${days[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` +
                        ` &middot; printed ${new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>`;
             html += '<table><thead><tr><th>Doctor</th>' + days.map(d => `<th>${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</th>`).join('') + '</tr></thead><tbody>';

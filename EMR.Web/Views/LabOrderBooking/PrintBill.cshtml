@@ -1,7 +1,9 @@
 @model EMR.Web.Models.ViewModels.PrintBillViewModel
 @{
     Layout = null;
-    var billDate    = Model.OrderDate.ToString("dd-MMM-yyyy hh:mm tt");
+    // Bill Date = when the bill was created; the (possibly later) appointment is the Booking Date & Time below.
+    // OrderDate holds the booking time for an advance booking, so it is only the fallback for an old row without CreatedDate.
+    var billDate    = (Model.CreatedDate > DateTime.MinValue ? Model.CreatedDate : Model.OrderDate).ToString("dd-MMM-yyyy hh:mm tt");
     var bookingDate = Model.BookingDate.HasValue
                         ? Model.BookingDate.Value.ToString("dd-MMM-yyyy hh:mm tt")
                         : "—";
@@ -596,10 +598,24 @@
                 <td class="s-lbl" style="width:55%;">Gross Amount :</td>
                 <td class="s-val">@Model.GrossAmount.ToString("N2")</td>
             </tr>
+            @if (Model.CancelledAmount > 0)
+            {
+                <tr>
+                    <td class="s-lbl">Less: Cancelled Items :</td>
+                    <td class="s-val">-@Model.CancelledAmount.ToString("N2")</td>
+                </tr>
+            }
             <tr>
                 <td class="s-lbl">Discount :</td>
                 <td class="s-val">@Model.DiscountAmount.ToString("N2")</td>
             </tr>
+            @if (Model.MiscGstAmount > 0)
+            {
+                <tr>
+                    <td class="s-lbl">GST on Misc Charges (CGST @Model.MiscCgstAmount.ToString("N2") + SGST @Model.MiscSgstAmount.ToString("N2")) :</td>
+                    <td class="s-val">+@Model.MiscGstAmount.ToString("N2")</td>
+                </tr>
+            }
             @if (Model.RoundOffAmount != 0)
             {
                 <tr>
@@ -611,10 +627,28 @@
                 <td class="s-lbl">Grand Total :</td>
                 <td class="s-val">@Model.GrandTotal.ToString("N2")</td>
             </tr>
+            @if (Model.RefundedAmount > 0)
+            {
+                <tr>
+                    <td class="s-lbl">Paid :</td>
+                    <td class="s-val">@((Model.ReceivedAmount + Model.RefundedAmount).ToString("N2"))</td>
+                </tr>
+                <tr>
+                    <td class="s-lbl">Less: Refunded :</td>
+                    <td class="s-val">-@Model.RefundedAmount.ToString("N2")</td>
+                </tr>
+            }
             <tr>
                 <td class="s-lbl">Received Amount :</td>
                 <td class="s-val">@Model.ReceivedAmount.ToString("N2")</td>
             </tr>
+            @if (Model.PointsRedeemedAmount > 0)
+            {
+                <tr>
+                    <td class="s-lbl">&nbsp;&nbsp;incl. Membership Points (@Model.PointsRedeemed.ToString("0") pts) :</td>
+                    <td class="s-val">@Model.PointsRedeemedAmount.ToString("N2")</td>
+                </tr>
+            }
             <tr>
                 <td class="s-lbl">Balance :</td>
                 <td class="s-val">@Model.Balance.ToString("N2")</td>
@@ -623,6 +657,14 @@
         <div class="amount-words">
             <strong>Amount Paid in words :</strong> @Model.AmountInWords
         </div>
+        @if (!string.IsNullOrEmpty(Model.MembershipCardNo) && (Model.PointsRedeemed > 0 || Model.PointsEarned > 0))
+        {
+            <div class="amount-words">
+                <strong>Membership Card :</strong> @Model.MembershipCardNo
+                @if (Model.PointsRedeemed > 0) { <span> &nbsp;|&nbsp; Points redeemed: @Model.PointsRedeemed.ToString("0") (₹@Model.PointsRedeemedAmount.ToString("N2"))</span> }
+                @if (Model.PointsEarned > 0) { <span> &nbsp;|&nbsp; Points earned on this bill: @Model.PointsEarned.ToString("0")</span> }
+            </div>
+        }
     </div>
 
     @if (Model.Payments.Any())

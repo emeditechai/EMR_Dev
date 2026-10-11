@@ -30,8 +30,36 @@ namespace EMR.Web.Models.ViewModels
         public decimal PaidBefore { get; set; }
         public decimal Amount { get; set; }
         public decimal BalanceAfter { get; set; }
+        // membership points (B2C LAB, SQLScripts/2236): the card of the bill, points earned on it so far, the card's balance now
+        public string? MembershipCardNo { get; set; }
+        public decimal PointsEarned { get; set; }
+        public decimal PointsBalance { get; set; }
         public string? ReceivedByName { get; set; }
         public List<MoneyReceiptLine> Lines { get; set; } = new();
+
+        // ── Bill discount (2227) ──────────────────────────────────────────────
+        public decimal GrossAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public string? DiscountType { get; set; }          // P = %, F = fixed, D = by department
+        public decimal? DiscountValue { get; set; }
+        public decimal RoundOffAmount { get; set; }
+        public string? DiscountReason { get; set; }
+        public string? DiscountApprovedByName { get; set; }
+        /// <summary>The discount was given with this receipt (at due collection).</summary>
+        public bool DiscountOnThisReceipt { get; set; }
+
+        public bool HasDiscount => DiscountAmount > 0;
+        /// <summary>What was due just before this receipt's discount: net + discount given now - received earlier.</summary>
+        public decimal DueBeforeDiscount => NetAmount + (DiscountOnThisReceipt ? DiscountAmount : 0) - PaidBefore;
+        public string DiscountLabel => DiscountType switch
+        {
+            "P" when DiscountValue is > 0 => DiscountOnThisReceipt && PaidBefore > 0
+                ? $"{DiscountValue.Value:0.##}% of balance due ₹{DueBeforeDiscount:N2}"
+                : $"{DiscountValue.Value:0.##}%",
+            "D" => "by department",
+            "F" => "fixed",
+            _ => string.Empty
+        };
 
         /// <summary>Set instead of the receipt when it cannot be printed (not found, another branch, not a due collection).</summary>
         public string? Message { get; set; }
@@ -77,6 +105,7 @@ namespace EMR.Web.Models.ViewModels
 
     public class MoneyReceiptLine
     {
+        public bool IsPoints => string.Equals(MethodCode, "POINTS", StringComparison.OrdinalIgnoreCase);
         public string? MethodName { get; set; }
         public string? MethodCode { get; set; }
         public decimal PaidAmount { get; set; }

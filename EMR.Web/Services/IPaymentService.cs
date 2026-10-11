@@ -6,6 +6,7 @@ public interface IPaymentService
 {
     Task<IEnumerable<PaymentMethodViewModel>> GetActiveMethodsAsync();
     Task<PaymentSummaryViewModel?> GetPaymentSummaryAsync(string moduleCode, int moduleRefId);
+    Task<string?> VerifyRedeemOtpAsync(SavePaymentRequest? request);
     Task<SavePaymentResult> SavePaymentAsync(SavePaymentRequest request, int? userId);
     Task<BillPaymentSummary?> GetPaymentForBillAsync(string moduleCode, int moduleRefId);
 }

@@ -255,6 +255,8 @@
                         <span class="badge text-bg-primary ms-2 font-monospace">@Model.PatientCode</span>
                     }
                     <span id="loadedPatientBadge" class="badge text-bg-primary ms-2 font-monospace d-none"></span>
+                    @* membership card of the patient (SQLScripts/2236): card no, points available and their value *@
+                    <span id="loadedMemberBadge" class="badge ms-1 d-none" style="background:#fff7ed;color:#9a3412;border:1px solid #fdba74;font-weight:600;"></span>
                 </h6>
                 <small class="text-muted">Basic personal, contact and address information</small>
             </div>
@@ -766,6 +768,10 @@
                                 <i class="bi bi-stars me-1"></i>AI
                             </button>
                         }
+                        @* misc charges (Home Collection / Misc) billed with the tests - SQLScripts/2240 *@
+                        <button type="button" id="btnMiscCharges" class="btn btn-sm btn-outline-success ms-1 py-0 px-2" title="Add Home Collection / Misc charges to this bill">
+                            <i class="bi bi-cash-coin me-1"></i>Misc Charges
+                        </button>
                     </span>
                     <span class="badge bg-light text-muted border fw-normal" style="font-size:0.75rem;">
                         Use <kbd class="bg-white border text-dark px-1">↑</kbd> <kbd class="bg-white border text-dark px-1">↓</kbd> & <kbd class="bg-white border text-dark px-1">↵ Enter</kbd> or click to add
@@ -811,7 +817,7 @@
                         <i class="bi bi-shield-check text-success me-1"></i>Standard hospital pricing applied
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <span class="fw-bold text-secondary text-uppercase small" style="letter-spacing:0.5px;">Total Amount:</span>
+                        <span class="fw-bold text-secondary text-uppercase small" style="letter-spacing:0.5px;">Test Total:</span>
                         <div class="bg-success-subtle border border-success-subtle rounded-3 px-3 py-1">
                             <span class="fs-5 fw-bold text-success font-monospace" id="lblTotalAmount">₹ 0.00</span>
                         </div>
@@ -819,16 +825,19 @@
                 </div>
             </div>
             <span asp-validation-for="LineItemsJson" class="text-danger fw-bold small"></span>
+            <partial name="_LabMiscChargesPicker" model="@("B2C")" />
         </div>
     </div>
 
     @* ── Actions ── *@
-    <div class="action-bar">
+    <div class="action-bar align-items-center">
+        @* the whole bill: tests + misc charges (with GST, before any discount given on the payment screen) *@
+        <div class="me-auto small text-secondary" id="billTotalBreakup"></div>
         <button type="button" class="btn btn-outline-secondary px-4 fw-semibold" onclick="window.location.reload();">
             <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
         </button>
         <button type="submit" class="btn btn-primary px-5 fw-bold" id="btnSaveSubmit">
-            <i class="bi bi-check2-circle me-1"></i> Save & Book
+            <i class="bi bi-check2-circle me-1"></i> Save & Book<span id="btnSaveTotal"></span>
         </button>
     </div>
 </form>
@@ -1660,6 +1669,22 @@
                 }
             });
 
+            // misc charges: open the picker; the page total = tests + misc charges (with GST)
+            $('#btnMiscCharges').on('click', function () { window.LabMisc && window.LabMisc.open($('input[name="CollectionType"]:checked').val()); });
+            window.LabMisc && window.LabMisc.onChange(function () { updateBillTotal(); });
+
+            // bill total = tests + misc charges (with GST): on the Save button, with the breakup beside it
+            function updateBillTotal() {
+                var tests = lineItems.reduce(function (sum, item) { return sum + (parseFloat(item.price) || 0); }, 0);
+                var misc = window.LabMisc ? window.LabMisc.total() : 0;
+                var fmt = function (n) { return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+                $('#btnSaveTotal').text(tests + misc > 0 ? ` · ₹${fmt(tests + misc)}` : '');
+                $('#billTotalBreakup').html(tests + misc > 0
+                    ? `Bill Total <b class="text-dark fs-6 font-monospace">₹${fmt(tests + misc)}</b>` +
+                      (misc > 0 ? ` <span class="ms-1">(Tests ₹${fmt(tests)} + Misc ₹${fmt(misc)}${window.LabMisc.gstTotal() > 0 ? ' incl. GST ₹' + fmt(window.LabMisc.gstTotal()) : ''})</span>` : '')
+                    : '');
+            }
+
             function renderTable() {
                 var $tbody = $('#tblLineItems tbody');
                 $tbody.empty();
@@ -1727,7 +1752,8 @@
                 }
 
                 $('#badgeSelectedCount').text(`${lineItems.length} Test${lineItems.length === 1 ? '' : 's'} Selected`);
-                $('#lblTotalAmount').text(`₹ ${total.toFixed(2)}`);
+                $('#lblTotalAmount').text(`₹ ${total.toFixed(2)}`);   // tests only; the bill total is on the Save button
+                updateBillTotal();
                 $('#lineItemsJson').val(JSON.stringify(lineItems.map(x => ({
                     investigationId: x.investigationId,
                     type: (x.isPackage ? 'P' : 'I'),
@@ -1962,10 +1988,11 @@
 
                 window.pmOpenPreSave({
                     moduleCode: 'LAB',
+                    isB2C: true,   // department-wise discount is offered on B2C bills
                     patientName: fullName,
                     patientCode: pCode,
                     patientPhone: phone,
-                    subTotal: totalAmount,
+                    subTotal: totalAmount + (window.LabMisc ? window.LabMisc.subTotal() : 0),   // + misc charges (GST is added by the payment screen)
                     items: lineItems.map(function (x) {
                         return {
                             lineRefId: x.investigationId,
@@ -1973,9 +2000,10 @@
                             serviceType: x.isProfileTest ? 'Profile' : 'Test',
                             originalAmount: x.price,
                             isGstRequired: false,
-                            isDiscountAllowed: x.isDiscountAllowed === true
+                            isDiscountAllowed: x.isDiscountAllowed === true,
+                            isPackage: x.isPackage === true   // packages are their own discount head
                         };
-                    }),
+                    }).concat(window.LabMisc ? window.LabMisc.paymentItems() : []),
                     onCancel: function () {
                         // Closed via Red Cross button - absolutely nothing is saved to DB!
                     },
@@ -2986,6 +3014,32 @@
         setupCascade('ddlCity',     'cityId',     'GetAreasByCity',       'ddlArea',     'areaId',     'areaName',     '-- Select Area --');
 
         // ── Auto-populate patient data ─────────────────────────────────────────
+        // ── Membership card of the loaded patient: card no · points available · their value in Rs ──
+        let memberBadgeSeq = 0;
+        async function loadMemberBadge(patientId) {
+            const el = document.getElementById('loadedMemberBadge');
+            if (!el) return;
+            const seq = ++memberBadgeSeq;
+            el.classList.add('d-none'); el.innerHTML = '';
+            if (!(patientId > 0)) return;
+            try {
+                const r = await fetch('/LabOrderBooking/MembershipForBilling?patientId=' + encodeURIComponent(patientId));
+                if (!r.ok || seq !== memberBadgeSeq) return;
+                const d = await r.json();
+                const c = d && d.data;
+                if (seq !== memberBadgeSeq || !c || !(c.CardId > 0)) return;
+                const pts = Math.floor(Number(c.PointsBalance) || 0).toLocaleString('en-IN');
+                const rs = (Number(c.PointsValue) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+                el.innerHTML = `<i class="bi bi-award me-1"></i><span class="font-monospace">${esc(c.CardNo)}</span>`
+                    + ` &middot; ${pts} pts &middot; ₹${rs}`;
+                el.title = `Membership card ${c.CardNo}${c.PlanName ? ' (' + c.PlanName + ')' : ''}`
+                    + (c.PrimaryName ? ` · card holder ${c.PrimaryName}` : '') + ` · ${pts} points available, worth ₹${rs}`;
+                el.classList.remove('d-none');
+            } catch (e) { /* no badge */ }
+        }
+        loadMemberBadge(parseInt(document.getElementById('PatientId')?.value) || 0);
+
         async function populatePatient(patientId) {
             if (phoneDrop) phoneDrop.style.display = 'none';
             if (topSearchDropdown) topSearchDropdown.style.display = 'none';
@@ -3008,6 +3062,7 @@
                 badge.textContent = p.patientCode;
                 badge.classList.remove('d-none');
             }
+            loadMemberBadge(p.patientId);
 
             // Plain text inputs (demographics)
             ['PhoneNumber','SecondaryPhoneNumber','FirstName','MiddleName','LastName',
@@ -3151,6 +3206,8 @@
             const badge = document.getElementById('loadedPatientBadge');
             badge.textContent = '';
             badge.classList.add('d-none');
+            loadMemberBadge(0);
+            window.LabMisc && window.LabMisc.clear();
             // Clear line items
             lineItems = [];
             renderRows();

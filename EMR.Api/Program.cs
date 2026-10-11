@@ -111,6 +111,7 @@ builder.Services.AddScoped<ILabBreakpointService, LabBreakpointService>();
 builder.Services.AddScoped<IDoctorIpService, DoctorIpService>();
 builder.Services.AddScoped<IDoctorIpCommissionService, DoctorIpCommissionService>();
 builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionReasonService>();
+builder.Services.AddScoped<ILabMiscChargeService, LabMiscChargeService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();
 builder.Services.AddScoped<ILabReferenceRangeService,        LabReferenceRangeService>();

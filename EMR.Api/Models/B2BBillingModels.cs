@@ -35,6 +35,8 @@ namespace EMR.Api.Models
         public string? TransactionRef { get; set; }
         public int BranchId { get; set; } = 1;
         public string? Narration { get; set; }
+        /// <summary>Double-payment guard: the wallet balance the screen showed; null = not checked (SQLScripts/2225).</summary>
+        public decimal? ExpectedBalance { get; set; }
     }
 
     public class WalletTopUpResponse

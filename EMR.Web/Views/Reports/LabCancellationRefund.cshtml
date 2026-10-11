@@ -5,6 +5,18 @@
     ViewData["ReportAccent"] = "#9f1239";
     ViewData["DateLabel"] = "cancellation date";
 }
+@* B2C and B2B on separate tabs (SQLScripts/2235): a B2B bill is charged - and cancelled - at the partner's contract rate *@
+<div class="container-fluid px-3 pt-2 no-print">
+    <ul class="nav nav-tabs" id="crTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-semibold" type="button" role="tab" data-type="B2C" aria-selected="true"><i class="bi bi-person me-1"></i>B2C (walk-in)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold" type="button" role="tab" data-type="B2B" aria-selected="false"><i class="bi bi-buildings me-1"></i>B2B (franchise / company)</button>
+        </li>
+    </ul>
+    <div class="fs-8 text-muted mt-1" id="crTabNote">Walk-in bills: cancelled at the bill price, less the share of any discount.</div>
+</div>
 <partial name="_LabReportShell" />
 
 @section Scripts {
@@ -15,9 +27,14 @@
 <script>
 (function () {
     const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    // which tab: B2C (walk-in, bill price) or B2B (franchise / company contract rate)
+    let tab = 'B2C';
+    const isB2B = () => tab === 'B2B';
+    const linesOf = (r, data) => (data?.lines || []).filter(l => l.CancellationId === r.CancellationId);
     const typePill = (v, h) => v === 'Full' ? h.pill('Full', 'bg-danger-subtle text-danger border-danger-subtle') : h.pill('Partial', 'bg-warning-subtle text-warning-emphasis border-warning-subtle');
-    LabReport.init({
+    const report = LabReport.init({
         report: 'cancellation-refund', title: 'Cancellation & Refund Register', defaultRange: 'month',
+        params: () => ({ billingType: tab }),
         dataUrl: '@Url.Action("GetLabReportData", "Reports")',
         seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
         branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
@@ -29,7 +46,8 @@
         ],
         kpis: [
             { label: 'Cancellations', color: '#9f1239', value: (s, h) => h.num(s.CancellationCount), sub: (s, h) => `${h.num(s.FullCount)} full · ${h.num(s.PartialCount)} partial` },
-            { label: 'Net cancelled', color: '#b45309', value: (s, h) => h.money(s.NetCancelled), sub: (s, h) => `${h.num(s.ItemCount)} items on ${h.num(s.BillCount)} bills` },
+            { label: 'Net cancelled', color: '#b45309', value: (s, h) => h.money(s.NetCancelled),
+              sub: (s, h) => `${h.num(s.ItemCount)} tests on ${h.num(s.BillCount)} bills` + (isB2B() ? ` · contract rate (MRP ${h.money(s.MrpTotal)})` : '') },
             { label: 'Refunded', color: '#15803d', value: (s, h) => h.money(s.RefundedAmount), sub: () => 'paid back to patients' },
             { label: 'Refund pending', color: '#b91c1c', value: (s, h) => h.money(s.PendingRefund), sub: (s, h) => `${h.num(s.PendingRefundCount)} cancellation(s) to settle` }
         ],
@@ -37,6 +55,7 @@
             { key: 'byReason', label: 'Reason', rowField: 'Reason' },
             { key: 'byType', label: 'Type', rowField: 'CancellationType', name: (r, h) => typePill(r.GroupName, h) },
             { key: 'byDate', label: 'Cancellation date', rowField: 'CancellationDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byPartner', label: 'Franchise / company', rowField: 'PartnerLabel', when: isB2B },
             { key: 'byCancelledBy', label: 'Cancelled by', rowField: 'CancelledById', byId: true, adminOnly: true }
         ],
         groupCols: [
@@ -45,13 +64,47 @@
             { field: 'PendingRefund', label: 'Refund pending', money: true }
         ],
         shareOf: 'NetCancelled',
+        // Detail: each cancellation opens to the tests cancelled in it
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => {
+                const ls = linesOf(r, data), b2b = r.BillingType === 'B2B';
+                const t = ls.reduce((a, l) => ({ m: a.m + (l.Mrp || 0), d: a.d + (l.LineDiscount || 0), c: a.c + (l.CancelledAmount || 0), n: a.n + (l.NetAmount || 0) }), { m: 0, d: 0, c: 0, n: 0 });
+                return `<table class="lr-sub"><thead><tr><th>#</th><th>Test</th><th>Type</th><th>Department</th><th class="text-end">MRP</th>` +
+                    (b2b ? '<th class="text-end">Contract rate</th>' : '<th class="text-end">Discount</th>') + `<th class="text-end">Net cancelled</th></tr></thead><tbody>` +
+                    ls.map((l, i) => `<tr><td class="text-muted">${i + 1}</td>
+                        <td><span class="fw-semibold">${h.esc(l.TestName)}</span> <span class="text-muted fs-9 font-monospace">${h.esc(l.TestCode || '')}</span></td>
+                        <td>${h.esc(l.ItemType || '')}</td><td>${h.esc(l.Department || '—')}</td>
+                        <td class="text-end amt">${h.money(l.Mrp)}</td>` +
+                        (b2b ? `<td class="text-end amt">${h.money(l.ContractRate)}</td>` : `<td class="text-end amt">${l.LineDiscount > 0 ? '−' + h.money(l.LineDiscount) : '—'}</td>`) +
+                        `<td class="text-end amt fw-semibold">${h.money(l.NetAmount)}</td></tr>`).join('') +
+                    `</tbody><tfoot><tr><td></td><td colspan="3" class="text-end">Total (${ls.length})</td><td class="text-end amt">${h.money(t.m)}</td>` +
+                    (b2b ? `<td class="text-end amt">${h.money(t.c)}</td>` : `<td class="text-end amt">${t.d > 0 ? '−' + h.money(t.d) : '—'}</td>`) +
+                    `<td class="text-end amt">${h.money(t.n)}</td></tr></tfoot></table>`;
+            }
+        },
+        // Excel: a "Test-wise" sheet; PDF: a test-wise page (Detail view)
+        exportExtra: (rows, data, h) => ({
+            sheet: 'Test-wise', title: 'Test-wise cancelled details',
+            head: ['Cancellation No', 'Cancelled on', 'Bill No', isB2B() ? 'Franchise / company' : 'Patient', 'Test', 'Code', 'Type', 'Department', 'MRP',
+                   isB2B() ? 'Contract rate' : 'Discount', 'Net cancelled'],
+            rows: rows.flatMap(r => linesOf(r, data).map(l => [r.CancellationNo, h.fmtD(r.CancellationDate), r.BillNo, isB2B() ? r.PartnerLabel : r.PatientName,
+                   l.TestName, l.TestCode || '', l.ItemType || '', l.Department || '', l.Mrp || 0, isB2B() ? (l.ContractRate || 0) : (l.LineDiscount || 0), l.NetAmount || 0]))
+        }),
         cols: [
             { label: 'Cancellation', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.CancellationNo)}</div><div class="text-muted fs-9">${h.fmtDT(r.CancellationDate)}</div>`, text: r => r.CancellationNo },
             { label: 'Type', html: (r, h) => typePill(r.CancellationType, h), text: r => r.CancellationType },
             { label: 'Bill', html: (r, h) => `<div class="font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">billed ${h.fmtD(r.BillDate)}</div>`, text: r => r.BillNo },
+            { label: 'Franchise / company', when: isB2B,
+              html: (r, h) => `<div class="fw-semibold">${h.esc(r.PartnerName || '—')}</div><div class="text-muted fs-9">${h.esc(r.PartnerType || '')}${r.PartnerCode ? ' · ' + h.esc(r.PartnerCode) : ''}</div>`,
+              text: r => r.PartnerLabel },
             { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
             { label: 'Items cancelled', html: (r, h) => `<span class="badge bg-light text-dark border">${r.ItemCount}</span> <span class="text-muted fs-9 d-inline-block text-truncate align-middle" style="max-width:200px" title="${h.esc(r.ItemNames)}">${h.esc(r.ItemNames)}</span>`, text: r => r.ItemNames },
-            { label: 'Cancelled', cls: 'text-end amt', html: (r, h) => h.money(r.CancelledAmount) + (r.DiscountAdjusted > 0 ? `<div class="text-muted fs-9">disc. −${h.money(r.DiscountAdjusted)}</div>` : ''), text: r => r.CancelledAmount },
+            { label: 'Cancelled', cls: 'text-end amt',
+              html: (r, h) => h.money(r.CancelledAmount)
+                  + (r.BillingType === 'B2B' ? `<div class="text-muted fs-9">contract rate · MRP ${h.money(r.MrpTotal)}</div>` : '')
+                  + (r.DiscountAdjusted > 0 ? `<div class="text-muted fs-9">disc. −${h.money(r.DiscountAdjusted)}</div>` : ''),
+              text: r => r.CancelledAmount },
             { label: 'Net cancelled', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.NetCancelled), text: r => r.NetCancelled, sum: 'NetCancelled' },
             { label: 'Refunded', cls: 'text-end amt text-success', html: (r, h) => h.money(r.RefundedAmount) + (r.RefundModes ? `<div class="text-muted fs-9">${h.esc(r.RefundModes)}${r.LastRefundDate ? ' · ' + h.fmtD(r.LastRefundDate) : ''}</div>` : ''), text: r => r.RefundedAmount, sum: 'RefundedAmount' },
             { label: 'Refund pending', cls: 'text-end amt', html: (r, h) => r.PendingRefund > 0 ? `<span class="text-danger fw-bold">${h.money(r.PendingRefund)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.PendingRefund, sum: 'PendingRefund' },
@@ -59,6 +112,18 @@
             { label: 'Cancelled by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CancelledBy) + (r.RefundedBy ? `<div class="text-muted fs-9">refund: ${h.esc(r.RefundedBy)}</div>` : ''), text: r => r.CancelledBy + (r.RefundedBy ? ' / refund: ' + r.RefundedBy : '') },
             { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
         ]
+    });
+
+    $('#crTabs').on('click', 'button[data-type]', function () {
+        const t = $(this).data('type');
+        if (t === tab) return;
+        tab = t;
+        $('#crTabs .nav-link').removeClass('active').attr('aria-selected', 'false');
+        $(this).addClass('active').attr('aria-selected', 'true');
+        $('#crTabNote').text(isB2B()
+            ? 'Franchise / company bills: tests are cancelled at the partner\'s contract rate (MRP shown for reference).'
+            : 'Walk-in bills: cancelled at the bill price, less the share of any discount.');
+        report.reload();
     });
 })();
 </script>

@@ -58,6 +58,19 @@ public class PrintBillViewModel
     public decimal RoundOffAmount { get; set; }
     public decimal GrandTotal { get; set; }
     public decimal ReceivedAmount { get; set; }
+    /// <summary>MRP of tests cancelled after billing (shown as "Less: Cancelled tests").</summary>
+    public decimal CancelledAmount { get; set; }
+    /// <summary>Money refunded on the bill (ReceivedAmount is already net of it).</summary>
+    public decimal RefundedAmount { get; set; }
+    // membership points (B2C LAB): points used as payment and points earned on this bill
+    public string? MembershipCardNo { get; set; }
+    public decimal PointsRedeemed { get; set; }
+    public decimal PointsRedeemedAmount { get; set; }
+    public decimal PointsEarned { get; set; }
+    // GST on misc charges (SQLScripts/2240): added on top of the bill
+    public decimal MiscCgstAmount { get; set; }
+    public decimal MiscSgstAmount { get; set; }
+    public decimal MiscGstAmount => MiscCgstAmount + MiscSgstAmount;
     public decimal Balance { get; set; }
     public string PaymentStatus { get; set; } = "U";
     public bool IsActive { get; set; }

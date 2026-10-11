@@ -67,6 +67,10 @@ public class HospitalSettings
 
     public bool EmailNotificationRequired { get; set; } = true;
 
+    /// <summary>OPD follow-up reminders (e-mail + WhatsApp) 7 days and 1 day before the follow-up date set in the EMR
+    /// (default No = no reminders). SQLScripts/2229.</summary>
+    public bool OpdFollowUpNotificationRequired { get; set; } = false;
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;
@@ -117,6 +121,9 @@ public class HospitalSettings
         "Dear {PatientName}, welcome to the {PlanName} membership of {HospitalName}. Your card number is {CardNo}, valid from {ValidFrom} to {ValidTo}. Your membership card is attached.";
     /// <summary>Time of day the scheduled Doctor IP commission job runs (Automatic / Both).</summary>
     public TimeSpan? DoctorIpAutoRunTime { get; set; }
+    /// <summary>B2C LAB booking creates the patient's Patient Portal login and e-mails the credentials, as OPD does
+    /// (default No = LAB never creates portal logins). B2B is never affected. SQLScripts/2219.</summary>
+    public bool LabPatientPortalRequired { get; set; }
 
     public bool IsActive { get; set; } = true;
 

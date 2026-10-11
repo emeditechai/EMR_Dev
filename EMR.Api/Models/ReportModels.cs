@@ -184,6 +184,23 @@ public class DiscountRegisterResult
     public List<DiscountRegisterGroupRow> ByEnteredBy { get; set; } = new();
     public List<DiscountRegisterGroupRow> ByDate { get; set; } = new();
     public List<DiscountRegisterBillRow> Bills { get; set; } = new();
+    public List<DiscountRegisterLineRow> Lines { get; set; } = new();
+}
+
+/// <summary>Discount Register, Detail tab: one test of a discounted bill (RS7, script 2223).</summary>
+public class DiscountRegisterLineRow
+{
+    public int LabOrderId { get; set; }
+    public int LabOrderItemId { get; set; }
+    public string? ItemName { get; set; }
+    public string? ItemType { get; set; }
+    public string? HeadName { get; set; }          // the department, or "Packages"
+    public decimal Mrp { get; set; }
+    public string? LineDiscountType { get; set; }  // "P" / "F" for a department-wise discount
+    public decimal? LineDiscountValue { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal NetAmount { get; set; }
+    public bool IsActive { get; set; }
 }
 
 // ── Reports > LAB: generic result of the registered LAB report procedures ──
@@ -193,4 +210,6 @@ public class LabReportResult
     public List<Dictionary<string, object?>> Groups { get; set; } = new();
     public List<Dictionary<string, object?>> Rows { get; set; } = new();
     public List<Dictionary<string, object?>> Options { get; set; } = new();
+    /// <summary>Optional fifth result set: line detail of the rows (e.g. the tests of each cancellation, SQLScripts/2235).</summary>
+    public List<Dictionary<string, object?>> Lines { get; set; } = new();
 }

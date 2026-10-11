@@ -31,12 +31,16 @@ public class PaymentSummaryResult
     public string? ExistingDiscountApprovedByName { get; set; }
     public decimal NetAmount    { get; set; }
     public decimal TotalPaid    { get; set; }
+    /// <summary>What the bill's receipts (PaymentDetail) add up to - a payment is checked against it.</summary>
+    public decimal? PaidFromReceipts { get; set; }
     public decimal BalanceDue   { get; set; }
     public string  PaymentStatus { get; set; } = "U";
 }
 
 public class PaymentLineItem
 {
+    /// <summary>A discount may be given on this item (OPD Service Master / LAB B2C rate card; SQLScripts/2228).</summary>
+    public bool IsDiscountAllowed { get; set; } = true;
     public int     LineRefId           { get; set; }
     public string? ServiceType         { get; set; }
     public string? ItemName            { get; set; }

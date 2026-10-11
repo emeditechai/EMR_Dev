@@ -74,8 +74,33 @@ public class MoneyReceiptController(
                 Amount         = (decimal)head.Amount,
                 BalanceAfter   = (decimal)head.BalanceAfter,
                 ReceivedByName = (string?)head.ReceivedByName,
-                Lines          = lines
+                Lines          = lines,
+                GrossAmount    = (decimal?)head.GrossAmount ?? 0m,
+                DiscountAmount = (decimal?)head.DiscountAmount ?? 0m,
+                DiscountType   = (string?)head.DiscountType,
+                DiscountValue  = (decimal?)head.DiscountValue,
+                RoundOffAmount = (decimal?)head.RoundOffAmount ?? 0m,
+                DiscountReason = (string?)head.DiscountReason,
+                DiscountApprovedByName = (string?)head.DiscountApprovedByName,
+                DiscountOnThisReceipt  = (bool?)head.DiscountOnThisReceipt ?? false
             };
+
+            // membership points of the bill this receipt belongs to (B2C LAB)
+            if (vm.ModuleCode == "LAB")
+            {
+                var mem = await con.QueryFirstOrDefaultAsync<(string? CardNo, decimal Earned, decimal Balance)>(@"
+                    SELECT TOP 1 c.CardNo, ISNULL(ph.PointsEarned, 0), ISNULL(c.PointsBalance, 0)
+                    FROM dbo.PaymentDetail pd
+                    JOIN dbo.PaymentHeader ph ON ph.PaymentHeaderId = pd.PaymentHeaderId
+                    JOIN dbo.MembershipCard c ON c.CardId = ph.MembershipCardId
+                    WHERE pd.ReceiptNo = @ReceiptNo", new { ReceiptNo = receiptNo });
+                if (mem.CardNo != null)
+                {
+                    vm.MembershipCardNo = mem.CardNo;
+                    vm.PointsEarned     = mem.Earned;
+                    vm.PointsBalance    = mem.Balance;
+                }
+            }
         }
         catch (Exception ex)
         {

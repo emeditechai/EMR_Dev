@@ -50,6 +50,12 @@ public class EmrSavedConsultationInfo
     public string VisitType { get; set; } = string.Empty;
     public string ConsultationType { get; set; } = string.Empty;
     public string EmrDataJson { get; set; } = string.Empty;
+    // Refer To Doctor / Follow-Up (SQLScripts/2229)
+    public int? ReferToSpecialityId { get; set; }
+    public string? ReferToSpecialityName { get; set; }
+    public int? ReferToDoctorId { get; set; }
+    public string? ReferToDoctorName { get; set; }
+    public DateTime? FollowUpDate { get; set; }
 }
 
 public class SaveConsultationRequest
@@ -69,6 +75,11 @@ public class SaveConsultationRequest
     public string VisitType { get; set; } = string.Empty;
     public string ConsultationType { get; set; } = string.Empty;
     public string EmrDataJson { get; set; } = string.Empty;
+
+    // Refer To Doctor (optional) and Follow-Up Date (optional) - SQLScripts/2229
+    public int? ReferToSpecialityId { get; set; }
+    public int? ReferToDoctorId { get; set; }
+    public DateTime? FollowUpDate { get; set; }
     
     // For logging/auditing on API side
     public int RequestedByUserId { get; set; }
