@@ -95,6 +95,23 @@ public class HospitalSettings
     public bool MembershipCardWhatsAppRequired { get; set; } = true;
     public bool MembershipCardEmailRequired { get; set; } = true;
     public bool MembershipCardAutoSendOnIssue { get; set; } = true;
+    /// <summary>A card can be renewed from this many days before it expires (script 2225).</summary>
+    public int MembershipRenewalWindowDays { get; set; } = 30;
+
+    // What lab billing will follow for a member's bill (script 2227)
+    /// <summary>No: a bill takes the membership discount OR a manual discount. Yes: a manual discount may be added on top.</summary>
+    public bool MembershipDiscountWithManualDiscount { get; set; } = false;
+    public bool MembershipRedeemOtpRequired { get; set; } = true;
+    public TimeSpan MembershipPointsExpiryTime { get; set; } = new(1, 0, 0);
+
+    // Renewal reminder e-mails, sent by MembershipRenewalReminderBackgroundService (script 2226)
+    public bool MembershipRenewalReminderEnabled { get; set; } = true;
+    /// <summary>Days before expiry, comma separated (0 = on the last day).</summary>
+    public string MembershipRenewalReminderDays { get; set; } = "30,15,1";
+    public TimeSpan MembershipRenewalReminderTime { get; set; } = new(10, 0, 0);
+    public string MembershipRenewalReminderTemplate { get; set; } = DefaultMembershipRenewalReminderMessage;
+    public const string DefaultMembershipRenewalReminderMessage =
+        "Dear {PatientName}, your {PlanName} membership card {CardNo} at {HospitalName} expires {DaysLeft}, on {ValidTo}. Renew it at any of our centres to keep your benefits and carry your {Points} points forward to the new card.";
     public string MembershipCardMessageTemplate { get; set; } = DefaultMembershipCardMessage;
     public const string DefaultMembershipCardMessage =
         "Dear {PatientName}, welcome to the {PlanName} membership of {HospitalName}. Your card number is {CardNo}, valid from {ValidFrom} to {ValidTo}. Your membership card is attached.";

@@ -11,6 +11,8 @@ public class MembershipPlanListItem
     public decimal CardFee { get; set; }
     public decimal? GstPercent { get; set; }
     public int ValidityDays { get; set; }
+    /// <summary>Cards of the plan never expire and are never renewed.</summary>
+    public bool IsLifetime { get; set; }
     public int MaxMembers { get; set; }
     public int? MinAge { get; set; }
     public decimal WelcomePoints { get; set; }
@@ -25,6 +27,8 @@ public class MembershipPlanDetail : MembershipPlanListItem
     public int CompanyId { get; set; }
     public decimal PointValue { get; set; }
     public decimal MaxRedeemPercent { get; set; }
+    /// <summary>Points can be redeemed only on a bill of at least this amount (0 = any bill).</summary>
+    public decimal MinRedeemBillAmount { get; set; }
     public int PointsExpiryDays { get; set; }
     public bool FreeHomeCollection { get; set; }
     public string? Terms { get; set; }
@@ -56,12 +60,14 @@ public class MembershipPlanSaveRequest
     public decimal CardFee { get; set; }
     public decimal? GstPercent { get; set; }
     public int ValidityDays { get; set; } = 365;
+    public bool IsLifetime { get; set; }
     public int MaxMembers { get; set; } = 1;
     public int? MinAge { get; set; }
     public decimal WelcomePoints { get; set; }
     public decimal PointsEarnPercent { get; set; }
     public decimal PointValue { get; set; } = 1;
     public decimal MaxRedeemPercent { get; set; }
+    public decimal MinRedeemBillAmount { get; set; }
     public int PointsExpiryDays { get; set; } = 365;
     public bool FreeHomeCollection { get; set; }
     public string? Terms { get; set; }
@@ -80,6 +86,8 @@ public class MembershipBenefitScopes
 {
     public List<MembershipScopeOption> Departments { get; set; } = [];
     public List<MembershipScopeOption> Categories { get; set; } = [];
+    public List<MembershipScopeOption> Tests { get; set; } = [];
+    public List<MembershipScopeOption> Packages { get; set; } = [];
 }
 
 // ── Membership Cards ─────────────────────────────────────────────────────────
@@ -94,6 +102,10 @@ public class MembershipPatientSearchItem
     public string? Gender { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public int? Age { get; set; }
+    /// <summary>The patient's relation in Patient Master (Self for a head of family).</summary>
+    public string? RelationName { get; set; }
+    /// <summary>For a head: how many other patients are registered on the same mobile number.</summary>
+    public int FamilyCount { get; set; }
     public string? ActiveCardNo { get; set; }
     public string? ActivePlanName { get; set; }
     public DateTime? ActiveValidTo { get; set; }
@@ -117,6 +129,8 @@ public class MembershipCardIssueRequest
     public string? TransactionRef { get; set; }
     public string? Remarks { get; set; }
     public int UserId { get; set; }
+    /// <summary>Set by the renew endpoint: the card this one renews (members and points come from it).</summary>
+    public int? RenewFromCardId { get; set; }
 }
 
 public class MembershipCardIssueResult
@@ -140,6 +154,8 @@ public class MembershipCardListItem
     public int MemberCount { get; set; }
     public DateTime ValidFrom { get; set; }
     public DateTime ValidTo { get; set; }
+    public bool IsLifetime { get; set; }
+    public bool IsRenewal { get; set; }
     public decimal FeeAmount { get; set; }
     public string? ReceiptNo { get; set; }
     public decimal PointsBalance { get; set; }
@@ -174,6 +190,11 @@ public class MembershipCardDetail
     public DateTime? DateOfBirth { get; set; }
     public DateTime ValidFrom { get; set; }
     public DateTime ValidTo { get; set; }
+    public bool IsLifetime { get; set; }
+    public int? RenewedFromCardId { get; set; }
+    public string? RenewedFromCardNo { get; set; }
+    public int? RenewedToCardId { get; set; }
+    public string? RenewedToCardNo { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? StatusReason { get; set; }
     public decimal FeeAmount { get; set; }

@@ -45,12 +45,14 @@ public class MembershipApiClient : IMembershipApiClient
             model.CardFee,
             model.GstPercent,
             model.ValidityDays,
+            model.IsLifetime,
             model.MaxMembers,
             model.MinAge,
             model.WelcomePoints,
             model.PointsEarnPercent,
             model.PointValue,
             model.MaxRedeemPercent,
+            model.MinRedeemBillAmount,
             model.PointsExpiryDays,
             model.FreeHomeCollection,
             model.Terms,
@@ -78,6 +80,10 @@ public class MembershipApiClient : IMembershipApiClient
         await httpClient.GetFromJsonAsync<List<MembershipPatientSearchItemViewModel>>(
             $"api/membership/patients?companyId={companyId}&search={Uri.EscapeDataString(search ?? string.Empty)}") ?? [];
 
+    public async Task<List<MembershipPatientSearchItemViewModel>> GetFamilyAsync(int companyId, int patientId) =>
+        await httpClient.GetFromJsonAsync<List<MembershipPatientSearchItemViewModel>>(
+            $"api/membership/patients/{patientId}/family?companyId={companyId}") ?? [];
+
     public async Task<MembershipCardIssueResultViewModel> IssueCardAsync(MembershipCardIssueViewModel model, List<MembershipCardMemberInput> members, int companyId, int branchId, int userId)
     {
         var payload = new
@@ -97,6 +103,24 @@ public class MembershipApiClient : IMembershipApiClient
         await EnsureOkAsync(response);
         return await response.Content.ReadFromJsonAsync<MembershipCardIssueResultViewModel>()
                ?? throw new MembershipApiException("The card was issued but the API returned no card number.");
+    }
+
+    public async Task<MembershipCardIssueResultViewModel> RenewCardAsync(int cardId, int planId, int? paymentMethodId, string? transactionRef, string? remarks, int companyId, int branchId, int userId)
+    {
+        var payload = new
+        {
+            CompanyId = companyId,
+            BranchId = branchId,
+            PlanId = planId,
+            PaymentMethodId = paymentMethodId,
+            TransactionRef = transactionRef,
+            Remarks = remarks,
+            UserId = userId
+        };
+        var response = await httpClient.PostAsJsonAsync($"api/membership/cards/{cardId}/renew", payload);
+        await EnsureOkAsync(response);
+        return await response.Content.ReadFromJsonAsync<MembershipCardIssueResultViewModel>()
+               ?? throw new MembershipApiException("The card was renewed but the API returned no card number.");
     }
 
     public async Task<List<MembershipCardListItemViewModel>> GetCardsAsync(int companyId, int? branchId, int? planId, string? status, string? search, DateTime? fromDate, DateTime? toDate)

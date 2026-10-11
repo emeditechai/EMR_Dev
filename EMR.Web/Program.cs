@@ -246,6 +246,7 @@ builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotific
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 builder.Services.AddScoped<IMembershipApiClient,          MembershipApiClient>();
 builder.Services.AddScoped<IMembershipCardDeliveryService, MembershipCardDeliveryService>();
+builder.Services.AddHostedService<MembershipRenewalReminderBackgroundService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>

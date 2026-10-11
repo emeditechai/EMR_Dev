@@ -13,7 +13,10 @@ public interface IMembershipService
     Task<bool> DeletePlanAsync(int planId, int companyId, int userId);
 
     // Membership Cards
+    /// <summary>Heads of family only (patients registered with relation Self).</summary>
     Task<IEnumerable<MembershipPatientSearchItem>> SearchPatientsAsync(int companyId, string search);
+    /// <summary>The other patients registered on the head's mobile number, with their relation.</summary>
+    Task<IEnumerable<MembershipPatientSearchItem>> GetFamilyAsync(int companyId, int patientId);
     Task<MembershipCardIssueResult> IssueCardAsync(MembershipCardIssueRequest request);
     Task<IEnumerable<MembershipCardListItem>> GetCardsAsync(int companyId, int? branchId, int? planId, string? status, string? search, DateTime? fromDate, DateTime? toDate);
     Task<MembershipCardDetail?> GetCardAsync(int cardId, int companyId);

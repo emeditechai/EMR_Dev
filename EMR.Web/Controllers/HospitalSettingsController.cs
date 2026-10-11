@@ -294,6 +294,14 @@ public class HospitalSettingsController(
             existing.MembershipCardWhatsAppRequired = model.MembershipCardWhatsAppRequired;
             existing.MembershipCardEmailRequired = model.MembershipCardEmailRequired;
             existing.MembershipCardAutoSendOnIssue = model.MembershipCardAutoSendOnIssue;
+            existing.MembershipRenewalWindowDays = model.MembershipRenewalWindowDays;
+            existing.MembershipDiscountWithManualDiscount = model.MembershipDiscountWithManualDiscount;
+            existing.MembershipRedeemOtpRequired = model.MembershipRedeemOtpRequired;
+            existing.MembershipPointsExpiryTime = TimeSpan.TryParse(model.MembershipPointsExpiryTime, out var expAt) ? expAt : new TimeSpan(1, 0, 0);
+            existing.MembershipRenewalReminderEnabled = model.MembershipRenewalReminderEnabled;
+            existing.MembershipRenewalReminderDays = NormalizeReminderDays(model.MembershipRenewalReminderDays);
+            existing.MembershipRenewalReminderTime = TimeSpan.TryParse(model.MembershipRenewalReminderTime, out var remAt) ? remAt : new TimeSpan(10, 0, 0);
+            existing.MembershipRenewalReminderTemplate = string.IsNullOrWhiteSpace(model.MembershipRenewalReminderTemplate) ? HospitalSettings.DefaultMembershipRenewalReminderMessage : model.MembershipRenewalReminderTemplate.Trim();
             existing.MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(model.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : model.MembershipCardMessageTemplate.Trim();
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.IsActive = model.IsActive;
@@ -356,6 +364,14 @@ public class HospitalSettingsController(
             MembershipCardWhatsAppRequired = s.MembershipCardWhatsAppRequired,
             MembershipCardEmailRequired = s.MembershipCardEmailRequired,
             MembershipCardAutoSendOnIssue = s.MembershipCardAutoSendOnIssue,
+            MembershipRenewalWindowDays = s.MembershipRenewalWindowDays,
+            MembershipDiscountWithManualDiscount = s.MembershipDiscountWithManualDiscount,
+            MembershipRedeemOtpRequired = s.MembershipRedeemOtpRequired,
+            MembershipPointsExpiryTime = s.MembershipPointsExpiryTime.ToString(@"hh\:mm"),
+            MembershipRenewalReminderEnabled = s.MembershipRenewalReminderEnabled,
+            MembershipRenewalReminderDays = s.MembershipRenewalReminderDays,
+            MembershipRenewalReminderTime = s.MembershipRenewalReminderTime.ToString(@"hh\:mm"),
+            MembershipRenewalReminderTemplate = s.MembershipRenewalReminderTemplate,
             MembershipCardMessageTemplate = s.MembershipCardMessageTemplate,
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             IsActive = s.IsActive,
@@ -405,6 +421,14 @@ public class HospitalSettingsController(
             MembershipCardWhatsAppRequired = m.MembershipCardWhatsAppRequired,
             MembershipCardEmailRequired = m.MembershipCardEmailRequired,
             MembershipCardAutoSendOnIssue = m.MembershipCardAutoSendOnIssue,
+            MembershipRenewalWindowDays = m.MembershipRenewalWindowDays,
+            MembershipDiscountWithManualDiscount = m.MembershipDiscountWithManualDiscount,
+            MembershipRedeemOtpRequired = m.MembershipRedeemOtpRequired,
+            MembershipPointsExpiryTime = TimeSpan.TryParse(m.MembershipPointsExpiryTime, out var expAt) ? expAt : new TimeSpan(1, 0, 0),
+            MembershipRenewalReminderEnabled = m.MembershipRenewalReminderEnabled,
+            MembershipRenewalReminderDays = NormalizeReminderDays(m.MembershipRenewalReminderDays),
+            MembershipRenewalReminderTime = TimeSpan.TryParse(m.MembershipRenewalReminderTime, out var remAt) ? remAt : new TimeSpan(10, 0, 0),
+            MembershipRenewalReminderTemplate = string.IsNullOrWhiteSpace(m.MembershipRenewalReminderTemplate) ? HospitalSettings.DefaultMembershipRenewalReminderMessage : m.MembershipRenewalReminderTemplate.Trim(),
             MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(m.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : m.MembershipCardMessageTemplate.Trim(),
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             IsActive = m.IsActive,
@@ -468,5 +492,15 @@ public class HospitalSettingsController(
         {
             System.IO.File.Delete(physicalPath);
         }
+    }
+
+    /// <summary>"30, 15,1,15" -> "30,15,1": distinct days 0..365, largest first; empty falls back to 30,15,1.</summary>
+    private static string NormalizeReminderDays(string? value)
+    {
+        var days = (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(v => int.TryParse(v, out var d) ? d : -1)
+            .Where(d => d is >= 0 and <= 365)
+            .Distinct().OrderByDescending(d => d).ToList();
+        return days.Count == 0 ? "30,15,1" : string.Join(",", days);
     }
 }

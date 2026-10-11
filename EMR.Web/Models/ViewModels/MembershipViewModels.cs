@@ -13,6 +13,7 @@ public class MembershipPlanListItemViewModel
     public decimal CardFee { get; set; }
     public decimal? GstPercent { get; set; }
     public int ValidityDays { get; set; }
+    public bool IsLifetime { get; set; }
     public int MaxMembers { get; set; }
     public int? MinAge { get; set; }
     public decimal WelcomePoints { get; set; }
@@ -32,7 +33,7 @@ public class MembershipPlanIndexViewModel
 public class MembershipBenefitViewModel
 {
     public int BenefitId { get; set; }
-    /// <summary>All | Department | Category</summary>
+    /// <summary>All | Department | Category | Test | Package</summary>
     public string Scope { get; set; } = "All";
     public int? ScopeRefId { get; set; }
     public string? ScopeName { get; set; }
@@ -53,6 +54,8 @@ public class MembershipBenefitScopesViewModel
 {
     public List<MembershipScopeOptionViewModel> Departments { get; set; } = [];
     public List<MembershipScopeOptionViewModel> Categories { get; set; } = [];
+    public List<MembershipScopeOptionViewModel> Tests { get; set; } = [];
+    public List<MembershipScopeOptionViewModel> Packages { get; set; } = [];
 }
 
 public class MembershipPlanFormViewModel
@@ -84,6 +87,9 @@ public class MembershipPlanFormViewModel
     [Display(Name = "Validity (days)")]
     public int ValidityDays { get; set; } = 365;
 
+    [Display(Name = "Lifetime membership (never expires, no renewal)")]
+    public bool IsLifetime { get; set; }
+
     [Range(1, 20, ErrorMessage = "Maximum members must be between 1 and 20.")]
     [Display(Name = "Maximum Members")]
     public int MaxMembers { get; set; } = 1;
@@ -107,6 +113,10 @@ public class MembershipPlanFormViewModel
     [Range(0, 100, ErrorMessage = "Must be between 0 and 100.")]
     [Display(Name = "Max Bill Paid by Points (%)")]
     public decimal MaxRedeemPercent { get; set; }
+
+    [Range(0, 9999999.99, ErrorMessage = "Must be zero or more.")]
+    [Display(Name = "Min Bill to Redeem (₹)")]
+    public decimal MinRedeemBillAmount { get; set; }
 
     [Range(1, 3650, ErrorMessage = "Must be between 1 and 3650 days.")]
     [Display(Name = "Points Expire After (days)")]
@@ -144,6 +154,8 @@ public class MembershipPatientSearchItemViewModel
     public string? Gender { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public int? Age { get; set; }
+    public string? RelationName { get; set; }
+    public int FamilyCount { get; set; }
     public string? ActiveCardNo { get; set; }
     public string? ActivePlanName { get; set; }
     public DateTime? ActiveValidTo { get; set; }
@@ -161,6 +173,8 @@ public class MembershipCardListItemViewModel
     public int MemberCount { get; set; }
     public DateTime ValidFrom { get; set; }
     public DateTime ValidTo { get; set; }
+    public bool IsLifetime { get; set; }
+    public bool IsRenewal { get; set; }
     public decimal FeeAmount { get; set; }
     public string? ReceiptNo { get; set; }
     public decimal PointsBalance { get; set; }
@@ -293,6 +307,13 @@ public class MembershipCardDetailViewModel
     public DateTime? DateOfBirth { get; set; }
     public DateTime ValidFrom { get; set; }
     public DateTime ValidTo { get; set; }
+    public bool IsLifetime { get; set; }
+    /// <summary>"dd MMM yyyy", or "Lifetime" for a card that never expires.</summary>
+    public string ValidToText => IsLifetime ? "Lifetime" : ValidTo.ToString("dd MMM yyyy");
+    public int? RenewedFromCardId { get; set; }
+    public string? RenewedFromCardNo { get; set; }
+    public int? RenewedToCardId { get; set; }
+    public string? RenewedToCardNo { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? StatusReason { get; set; }
     public decimal FeeAmount { get; set; }
@@ -315,4 +336,11 @@ public class MembershipCardDetailViewModel
     // Page data: which delivery channels Hospital Settings has switched on for this branch
     public bool WhatsAppEnabled { get; set; }
     public bool EmailEnabled { get; set; }
+
+    // Page data for the Renew dialog
+    /// <summary>An active or expired card that is not lifetime can be renewed (the renewal window is checked on save).</summary>
+    public bool CanRenew => !IsLifetime && Status is "Active" or "Expired";
+    public int RenewalWindowDays { get; set; } = 30;
+    public List<MembershipPlanListItemViewModel> Plans { get; set; } = [];
+    public List<PaymentMethodViewModel> PaymentMethods { get; set; } = [];
 }

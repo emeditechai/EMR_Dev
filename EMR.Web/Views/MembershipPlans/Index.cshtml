@@ -76,7 +76,7 @@
                                         <div class="small text-muted">+ @item.GstPercent.Value.ToString("0.##")% GST</div>
                                     }
                                 </td>
-                                <td class="text-end">@item.ValidityDays days</td>
+                                <td class="text-end">@(item.IsLifetime ? "Lifetime" : item.ValidityDays + " days")</td>
                                 <td class="text-end">@item.MaxMembers</td>
                                 <td class="text-end">@item.BenefitCount</td>
                                 <td class="text-end">@item.CardsIssued</td>
