@@ -75,23 +75,32 @@ window.LabReport = (function () {
             $('.lr-filter').each(function () { q[$(this).data('id')] = $(this).val(); });
             if (cfg.params) Object.assign(q, cfg.params() || {});
             buildChrome(); open.clear();
-            $('#lrError').addClass('d-none'); $('#lrLoading').removeClass('d-none'); $('#lrEmpty').addClass('d-none');
+            $('#lrError').addClass('d-none'); $('#lrEmpty').addClass('d-none');
+            // shimmer placeholders in the three zones: widgets, graphs (pages that draw one), list
+            $('#lrKpis').html(EmrShimmer.kpiCards(cfg.kpis.length));
+            if (cfg.afterLoad) $('#lrExtra').html(EmrShimmer.chartBlock(220));
+            $('#lrLoading').html(EmrShimmer.listBlock(8, 6)).removeClass('d-none');
             $('#lrSummary tbody, #lrDetail tbody, #lrSummary tfoot, #lrDetail tfoot').empty();
             $('#lrExcel, #lrPdf, #lrPrint').prop('disabled', true);
             $('#lrRange').text(h.fmtD(from) + (from === to ? '' : ' – ' + h.fmtD(to)));
             $.get(cfg.dataUrl, q).done(res => {
                 if (my !== seq) return;
-                $('#lrLoading').addClass('d-none');
-                if (!res || !res.success) { $('#lrError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+                if (!res || !res.success) { clearShimmer(); $('#lrError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
                 data = res.data || {}; drill = null;
-                fillOptions(); renderKpis(); render();
-                if (cfg.afterLoad) cfg.afterLoad(data, h);
+                // one paint each, in reading order: widgets, then the graphs, then the list
+                EmrShimmer.stage([
+                    () => { fillOptions(); renderKpis(); },
+                    () => { if (cfg.afterLoad) cfg.afterLoad(data, h); },
+                    () => { $('#lrLoading').addClass('d-none').empty(); render(); }
+                ], () => my === seq);
             }).fail(() => {
                 if (my !== seq) return;
-                $('#lrLoading').addClass('d-none');
+                clearShimmer();
                 $('#lrError').text('Server error while loading the report. Please try again.').removeClass('d-none');
             });
         }
+
+        function clearShimmer() { $('#lrKpis, #lrExtra').empty(); $('#lrLoading').addClass('d-none').empty(); }
 
         function fillOptions() {
             filters.filter(f => f.fromOptions).forEach(f => {
@@ -185,14 +194,15 @@ window.LabReport = (function () {
                      rows: detailRows().map(r => ec.map(c => c.text ? c.text(r, h) : $('<div>').html(c.html(r, h)).text().trim())) };
         }
         const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_${$('#lrFrom').val()}_to_${$('#lrTo').val()}`;
-        $('#lrExcel').on('click', () => {
+        // the export libraries are fetched on the first Excel / PDF click, not with the page
+        $('#lrExcel').on('click', function () { EmrExportLibs.run(this, 'excel', () => {
             const t = exportTable(); const ws = XLSX.utils.aoa_to_sheet([t.head, ...t.rows]);
             const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Report');
             const extra = view === 'detail' && cfg.exportExtra ? cfg.exportExtra(detailRows(), data, h) : null;
             if (extra && extra.rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([extra.head, ...extra.rows]), extra.sheet || 'Lines');
             XLSX.writeFile(wb, fileBase() + '.xlsx');
-        });
-        $('#lrPdf').on('click', () => {
+        }); });
+        $('#lrPdf').on('click', function () { EmrExportLibs.run(this, 'pdf', () => {
             const t = exportTable(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
             doc.setFontSize(13); doc.text(cfg.title, 40, 36);
             doc.setFontSize(9); doc.text(`${cfg.branchName ? 'Branch: ' + cfg.branchName + '   ' : ''}Period: ${$('#lrRange').text()}   View: ${view === 'summary' ? 'Summary by ' + groupDef().label : 'Detail'}`, 40, 52);
@@ -205,7 +215,7 @@ window.LabReport = (function () {
                                 styles: { fontSize: 7, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] } });
             }
             doc.save(fileBase() + '.pdf');
-        });
+        }); });
         $('#lrPrint').on('click', () => window.print());
 
         // ── events ──

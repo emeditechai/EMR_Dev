@@ -333,6 +333,32 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// A static file asked for with a version in its address (…?v=<hash> from asp-append-version, a library version,
+// or the hash a stylesheet puts on its font files) never changes under that address, so the browser may keep it
+// instead of re-checking it with the server on every page. A new build changes the address, so nothing goes stale.
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method) && context.Request.QueryString.HasValue)
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        var isFont = path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase);
+        var isVersionedAsset = context.Request.Query.ContainsKey("v")
+            && (path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".css", StringComparison.OrdinalIgnoreCase));
+        if (isFont || isVersionedAsset)
+        {
+            context.Response.OnStarting(() =>
+            {
+                if (context.Response.StatusCode == StatusCodes.Status200OK)
+                    context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+                return Task.CompletedTask;
+            });
+        }
+    }
+
+    await next();
+});
+
 app.UseRouting();
 app.UseRateLimiter();
 app.UseMiddleware<EMR.Web.Middleware.QueryStringDecryptionMiddleware>();

@@ -202,9 +202,8 @@
         <div id="stateEmpty" class="text-center text-muted py-5 d-none">
             <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>No money receipts found for the selected filters.
         </div>
-        <div id="stateLoading" class="text-center text-muted py-5 d-none">
-            <span class="spinner-border spinner-border-sm me-2"></span>Loading collection register&hellip;
-        </div>
+        @* filled with a shimmer list while loading *@
+        <div id="stateLoading" class="d-none" role="status" aria-label="Loading collection register"></div>
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top no-print">
             <div class="text-muted fs-8" id="lblShowing"></div>
             <nav><ul class="pagination pagination-sm mb-0" id="pager"></ul></nav>
@@ -213,12 +212,13 @@
 </div>
 
 @section Scripts {
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="~/js/emr-shimmer.js" asp-append-version="true"></script>
+<script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
 <script>
 (function () {
+    // Excel / PDF libraries are fetched on the first export click, not with the page
+    EmrExportLibs.guard('#btnExcel', 'excel'); EmrExportLibs.guard('#btnPdf', 'pdf');
     const dataUrl = '@Url.Action("GetLabB2CCollectionRegisterData", "Reports")';
     const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
     const branchName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(branchName))';
@@ -245,12 +245,18 @@
         $('.btn-quick').removeClass('active').filter(`[data-range="${range}"]`).addClass('active');
     }
 
+    const SK_KPIS = '.cr-kpi', SK_CHARTS = '.cr-charts .cr-card';
+    function clearShimmer() { EmrShimmer.off(SK_KPIS); EmrShimmer.off(SK_CHARTS); $('#stateLoading').addClass('d-none').empty(); }
+
     function load() {
         const seq = ++loadSeq;
         const from = $('#txtFrom').val(), to = $('#txtTo').val();
         if (!from || !to) return;
         $('#stateError').addClass('d-none');
-        $('#stateLoading').removeClass('d-none'); $('#stateEmpty').addClass('d-none');
+        $('#stateEmpty').addClass('d-none');
+        // shimmer placeholders: widgets, graphs, then the receipt list
+        EmrShimmer.on(SK_KPIS); EmrShimmer.on(SK_CHARTS);
+        $('#stateLoading').html(EmrShimmer.listBlock(8, 7)).removeClass('d-none');
         $('#tbodyReceipts').empty(); $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', true);
         $('#lblRange').text(fmtD(from) + (from === to ? '' : ' – ' + fmtD(to)));
 
@@ -258,20 +264,18 @@
                          collectedBy: $('#selCollector').val() || null, search: $('#txtSearch').val() })
         .done(function (res) {
             if (seq !== loadSeq) return;
-            $('#stateLoading').addClass('d-none');
-            if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+            if (!res || !res.success) { clearShimmer(); $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
             const d = res.data || {};
-            fillFilters(d);
-            renderKpis(d.summary || {});
-            renderModes(d.byMode || []);
-            renderDays(d.byDay || []);
-            renderCollectors(d.byCollector || []);
-            rows = d.receipts || [];
-            page = 1; applySort();
+            // one paint each, in reading order: widgets, then the graphs, then the list
+            EmrShimmer.stage([
+                () => { fillFilters(d); renderKpis(d.summary || {}); EmrShimmer.off(SK_KPIS); },
+                () => { renderModes(d.byMode || []); renderDays(d.byDay || []); renderCollectors(d.byCollector || []); EmrShimmer.off(SK_CHARTS); },
+                () => { $('#stateLoading').addClass('d-none').empty(); rows = d.receipts || []; page = 1; applySort(); }
+            ], () => seq === loadSeq);
         })
         .fail(function () {
             if (seq !== loadSeq) return;
-            $('#stateLoading').addClass('d-none');
+            clearShimmer();
             $('#stateError').text('Server error while loading the report. Please try again.').removeClass('d-none');
         });
     }

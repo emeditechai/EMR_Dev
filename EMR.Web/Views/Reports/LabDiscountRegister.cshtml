@@ -153,11 +153,13 @@
             </table>
         </div>
         <div id="stateEmpty" class="text-center text-muted py-5 d-none"><i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>No discounted bills for the selected filters.</div>
-        <div id="stateLoading" class="text-center text-muted py-5 d-none"><span class="spinner-border spinner-border-sm me-2"></span>Loading discount register&hellip;</div>
+        @* filled with a shimmer list while loading *@
+        <div id="stateLoading" class="d-none" role="status" aria-label="Loading discount register"></div>
     </div>
 </div>
 
 @section Scripts {
+<script src="~/js/emr-shimmer.js" asp-append-version="true"></script>
 <script>
 (function () {
     const dataUrl = '@Url.Action("GetLabDiscountRegisterData", "Reports")';
@@ -183,22 +185,29 @@
         $('.btn-quick').removeClass('active').filter(`[data-range="${r}"]`).addClass('active');
     }
 
+    function clearShimmer() { EmrShimmer.off('.dr-kpi'); $('#stateLoading').addClass('d-none').empty(); }
+
     function load() {
         const seq = ++loadSeq, from = $('#txtFrom').val(), to = $('#txtTo').val();
         if (!from || !to) return;
-        $('#stateError').addClass('d-none'); $('#stateLoading').removeClass('d-none'); $('#stateEmpty').addClass('d-none');
+        $('#stateError').addClass('d-none'); $('#stateEmpty').addClass('d-none');
+        // shimmer placeholders: widgets, then the list (this report has no graphs)
+        EmrShimmer.on('.dr-kpi'); $('#stateLoading').html(EmrShimmer.listBlock(8, 6)).removeClass('d-none');
         $('#tbSummary, #tbDetail').empty(); $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', true);
         $('#lblRange').text(fmtD(from) + (from === to ? '' : ' – ' + fmtD(to)));
         $.get(dataUrl, { fromDate: from, toDate: to, billingType: $('#selType').val(), approvedBy: $('#selApprover').val() || null,
                          enteredBy: $('#selEntered').val() || null, search: $('#txtSearch').val() })
         .done(res => {
             if (seq !== loadSeq) return;
-            $('#stateLoading').addClass('d-none');
-            if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
+            if (!res || !res.success) { clearShimmer(); $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
             data = res.data; drill = null; open.clear(); indexLines();
-            fillFilters(); renderKpis(); render();
+            // one paint each, in reading order: widgets, then the list
+            EmrShimmer.stage([
+                () => { fillFilters(); renderKpis(); EmrShimmer.off('.dr-kpi'); },
+                () => { $('#stateLoading').addClass('d-none').empty(); render(); }
+            ], () => seq === loadSeq);
         })
-        .fail(() => { if (seq !== loadSeq) return; $('#stateLoading').addClass('d-none'); $('#stateError').text('Server error while loading the report. Please try again.').removeClass('d-none'); });
+        .fail(() => { if (seq !== loadSeq) return; clearShimmer(); $('#stateError').text('Server error while loading the report. Please try again.').removeClass('d-none'); });
     }
 
     function fillFilters() {

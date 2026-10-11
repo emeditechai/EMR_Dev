@@ -40,6 +40,11 @@
     @@media print { .emr-topbar, footer, .no-print { display:none !important; } .lr-scroll { max-height:none;overflow:visible; } }
 </style>
 
+@* shimmer placeholders while a report loads (no dependencies, so it can load here ahead of the page scripts) *@
+<script src="~/js/emr-shimmer.js" asp-append-version="true"></script>
+@* Excel / PDF libraries are fetched on the first export click (emr-export-libs.js), not with the page *@
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
+
 <div class="container-fluid px-3 py-2 lr-wrap">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <div>
@@ -130,6 +135,7 @@
             <table class="table table-hover mb-0 lr-table d-none" id="lrDetail"><thead></thead><tbody></tbody><tfoot></tfoot></table>
         </div>
         <div id="lrEmpty" class="text-center text-muted py-5 d-none"><i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>Nothing found for the selected filters.</div>
-        <div id="lrLoading" class="text-center text-muted py-5 d-none"><span class="spinner-border spinner-border-sm me-2"></span>Loading&hellip;</div>
+        @* filled with a shimmer list by lab-report.js while loading *@
+        <div id="lrLoading" class="d-none" role="status" aria-label="Loading"></div>
     </div>
 </div>
