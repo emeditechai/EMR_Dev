@@ -1547,6 +1547,17 @@
 
                     phoneDebounce = setTimeout(async () => {
                         const data = await fetchJson(opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val));
+                        // a new number (10 digits that no patient has): Relation defaults to Self, unless one is already chosen
+                        (function (v, list) {
+                            var digits = String(v || '').replace(/\D/g, '');
+                            if (digits.length !== 10) return;
+                            if ((list || []).some(function (p) { return String(p.phoneNumber || '').replace(/\D/g, '').slice(-10) === digits; })) return;
+                            if ((parseInt($('#PatientId').val()) || 0) > 0) return;   // an existing patient is loaded
+                            var $rel = $('#ddlRelation');
+                            if (!$rel.length || $rel.val()) return;
+                            var $self = $rel.find('option').filter(function () { return $(this).text().trim().toLowerCase() === 'self'; }).first();
+                            if ($self.length) $rel.val($self.val()).trigger('change');
+                        })(val, data);
                         if (data?.length) {
                             phoneDrop.innerHTML = data.map((p, idx) => `
                                 <button type="button"

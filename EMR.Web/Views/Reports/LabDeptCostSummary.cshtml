@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "Department Cost Summary";
+    ViewData["ReportSubtitle"] = "Average cost, rate and margin of the tests of each department; click a department for its tests";
+    ViewData["ReportIcon"] = "bi-building";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["ScopeNote"] = "Company BOM master · B2C rates of this branch · as on today";
+}
+@* SQLScripts/2248 #12: tests and profile tests only (packages are not billed under a department); averages over fully costed tests *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    LabReport.init({
+        report: 'dept-cost-summary', title: 'Department Cost Summary', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name or code...',
+        filters: [
+            { id: 'kind', label: 'Type', allLabel: 'Tests and profiles', options: [['Test', 'Tests'], ['Profile', 'Profile tests']] }
+        ],
+        kpis: [
+            { label: 'Departments', color: '#0f766e', value: (s, h) => h.num(s.Departments), sub: (s, h) => `${h.num(s.Costed)} of ${h.num(s.Tests)} tests costed` },
+            { label: 'Best margin', color: '#15803d', value: s => QcRep.marginPct(s.BestMarginPct), sub: (s, h) => h.esc(s.BestDept || '—') },
+            { label: 'Weakest margin', color: '#b45309', value: s => QcRep.marginPct(s.WeakMarginPct), sub: (s, h) => h.esc(s.WeakDept || '—') },
+            { label: 'Loss-making tests', color: '#b91c1c', value: (s, h) => h.num(s.LossTests), sub: () => 'cost above the B2C rate' }
+        ],
+        groups: [
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentName' },
+            { key: 'byKind', label: 'Type', rowField: 'Kind' }
+        ],
+        groupCols: [
+            { field: 'Tests', label: 'Tests', num: true },
+            { field: 'Costed', label: 'Costed', num: true },
+            { field: 'AvgCost', label: 'Avg cost', money: true, total: 'none' },
+            { field: 'AvgRate', label: 'Avg rate', money: true, total: 'none' },
+            { field: 'AvgMarginPct', label: 'Avg margin', num: true, total: 'none', fmt: v => QcRep.marginPct(v) },
+            { field: 'LossTests', label: 'Loss', num: true },
+            { field: 'LowTests', label: 'Below 20%', num: true }
+        ],
+        shareOf: 'Tests',
+        rowClass: r => r.BandOrder === 1 ? 'row-muted' : '',
+        cols: [
+            { label: 'Department', html: (r, h) => h.esc(r.DepartmentName || '—'), text: r => r.DepartmentName || '' },
+            { label: 'Type', html: (r, h) => QcRep.kind(r.Kind, h), text: r => r.Kind },
+            { label: 'Test', html: (r, h) => QcRep.name(r.Name, r.Code, h, r.MissingBom > 0 ? '<span class="badge bg-warning-subtle text-warning-emphasis border">No BOM</span>' : ''), text: r => `${r.Name} (${r.Code || ''})` },
+            { label: 'Material', cls: 'text-end amt', html: (r, h) => QcRep.money(r.MaterialCost, h), text: r => r.MaterialCost ?? '' },
+            { label: 'Kit', cls: 'text-end amt', html: (r, h) => QcRep.money(r.KitCost, h), text: r => r.KitCost ?? '' },
+            { label: 'Total cost', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.TotalCost), text: r => r.TotalCost },
+            { label: 'B2C rate', cls: 'text-end amt', html: (r, h) => QcRep.money(r.Rate, h), text: r => r.Rate ?? '' },
+            { label: 'Margin', cls: 'text-end amt', html: (r, h) => QcRep.margin(r.Margin, r.MarginPct, h), text: r => r.Margin ?? '' },
+            { label: 'Margin %', cls: 'text-end', html: r => QcRep.marginPct(r.MarginPct), text: r => r.MarginPct ?? '' }
+        ]
+    });
+})();
+</script>
+}

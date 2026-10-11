@@ -1,0 +1,95 @@
+@* "Tests of this bill" popup - shared by the B2C Order List and the B2B Order List. A button with
+   class "btn-bill-tests" and data-order-id / data-bill-no opens it; the lines come from LabOrderBooking/GetOrderDetail
+   (tests, profiles and packages of the bill, cancelled ones marked, plus its misc charges). *@
+<div class="modal fade" id="billTestsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-list-check text-primary me-2"></i>Tests on Bill <span class="font-monospace" id="billTestsBillNo"></span></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="billTestsBody"></div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    async function show(orderId, billNo) {
+        const modalEl = document.getElementById('billTestsModal');
+        const body = document.getElementById('billTestsBody');
+        if (!modalEl || !(orderId > 0)) return;
+        document.getElementById('billTestsBillNo').textContent = billNo || '';
+        body.innerHTML = '<div class="text-center py-4"><span class="spinner-border text-primary"></span></div>';
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        try {
+            const r = await fetch('/LabOrderBooking/GetOrderDetail/' + orderId);
+            if (!r.ok) throw new Error('Could not load the bill.');
+            const d = await r.json();
+            const b2b = !!d.isB2B;
+            const items = d.items || [];
+            const active = items.filter(i => i.isActive !== false);
+            const rate = i => b2b ? (i.b2BRate ?? i.b2bRate ?? i.price) : i.price;
+            let html = `<div class="d-flex flex-wrap gap-2 small mb-2">
+                    <span class="badge bg-primary-subtle text-primary border">${active.length} active</span>
+                    ${items.length > active.length ? `<span class="badge bg-danger-subtle text-danger border">${items.length - active.length} cancelled</span>` : ''}
+                    <span class="text-muted">${esc(d.patientName || '')}${d.patientCode ? ' · ' + esc(d.patientCode) : ''}</span>
+                </div>
+                <div class="table-responsive border rounded">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr>
+                        <th class="text-center" style="width:40px;">#</th><th>Code</th><th>Test / Profile / Package</th><th>Department</th><th>Sample</th><th>TAT</th>
+                        <th class="text-end">${b2b ? 'MRP' : 'Price'}</th>${b2b ? '<th class="text-end">B2B Rate</th>' : ''}
+                    </tr></thead><tbody>`;
+            html += items.length ? items.map((i, k) => `<tr class="${i.isActive === false ? 'text-muted text-decoration-line-through' : ''}">
+                        <td class="text-center text-muted">${k + 1}</td>
+                        <td class="font-monospace text-primary">${esc(i.testCode || '—')}</td>
+                        <td><span class="fw-semibold">${esc(i.testName || '—')}</span>
+                            ${i.type === 'P' ? '<span class="badge bg-success ms-1">Package</span>' : ''}
+                            ${i.isUrgent ? '<span class="badge bg-danger-subtle text-danger border ms-1">Urgent</span>' : ''}
+                            ${i.isActive === false ? '<span class="badge bg-danger ms-1">Cancelled</span>' : ''}</td>
+                        <td>${esc(i.departmentName || (i.type === 'P' ? 'Package' : '—'))}</td>
+                        <td>${esc(i.sampleType || '—')}</td>
+                        <td>${i.tatHours || i.tATHours ? esc((i.tatHours || i.tATHours) + ' hrs') : '—'}</td>
+                        <td class="text-end">${money(i.price)}</td>
+                        ${b2b ? `<td class="text-end fw-semibold text-success">${money(rate(i))}</td>` : ''}
+                    </tr>`).join('')
+                : `<tr><td colspan="${b2b ? 8 : 7}" class="text-center text-muted py-3">No tests found.</td></tr>`;
+            const testsTotal = active.reduce((t, i) => t + (Number(rate(i)) || 0), 0);
+            html += `</tbody><tfoot><tr class="table-light fw-semibold"><td colspan="${b2b ? 7 : 6}" class="text-end">Tests total${b2b ? ' (B2B rate)' : ''}</td><td class="text-end">${money(testsTotal)}</td></tr></tfoot></table></div>`;
+
+            const misc = (d.adjustments && d.adjustments.miscLines) || [];
+            if (misc.length) {
+                html += `<div class="fw-bold small mt-3 mb-1"><i class="bi bi-cash-coin text-success me-1"></i>Misc Charges (${misc.length})</div>
+                    <div class="table-responsive border rounded"><table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th class="text-center" style="width:40px;">#</th><th>Charge</th><th>Type</th><th class="text-end">Amount</th><th class="text-end">GST</th></tr></thead><tbody>` +
+                    misc.map((m, k) => `<tr class="${m.isActive ? '' : 'text-muted text-decoration-line-through'}">
+                        <td class="text-center text-muted">${k + 1}</td>
+                        <td class="fw-semibold">${esc(m.displayName)}${m.isActive ? '' : ' <span class="badge bg-danger ms-1">Cancelled</span>'}</td>
+                        <td>${esc(m.chargeType)}</td>
+                        <td class="text-end">${money(m.amount)}</td>
+                        <td class="text-end">${m.isGstRequired ? money(m.gstAmount) + ' <span class="text-muted small">(' + m.gstPercentage + '%)</span>' : '—'}</td>
+                    </tr>`).join('') + `</tbody></table></div>`;
+            }
+            body.innerHTML = html;
+        } catch (e) {
+            body.innerHTML = `<div class="alert alert-danger mb-0">${esc(e.message || 'Could not load the tests of this bill.')}</div>`;
+        }
+    }
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-bill-tests');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        show(parseInt(btn.dataset.orderId) || 0, btn.dataset.billNo || '');
+    });
+    window.showBillTests = show;
+})();
+</script>

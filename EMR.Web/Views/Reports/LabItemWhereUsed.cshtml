@@ -1,0 +1,60 @@
+@{
+    ViewData["Title"] = "Item Where-Used";
+    ViewData["ReportSubtitle"] = "Which test BOMs and sample kits use each item, how much per use, and items used nowhere";
+    ViewData["ReportIcon"] = "bi-box-arrow-in-down-right";
+    ViewData["ReportAccent"] = "#7c3aed";
+    ViewData["ScopeNote"] = "Company Item Master and BOMs · as on today";
+}
+@* SQLScripts/2248 #3: one row per use (a current BOM line or a sample-kit line); an active item used nowhere is listed once *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    LabReport.init({
+        report: 'item-where-used', title: 'Item Where-Used', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Item name / code or test...',
+        filters: [
+            { id: 'usage', label: 'Used in', allLabel: 'Everything', options: [['BOM', 'Test BOMs'], ['KIT', 'Sample kits'], ['UNUSED', 'Not used anywhere']] },
+            { id: 'categoryId', label: 'Category', allLabel: 'All categories', fromOptions: 'categoryId' },
+            { id: 'itemId', label: 'Item', allLabel: 'All items', fromOptions: 'itemId' }
+        ],
+        kpis: [
+            { label: 'Items in use', color: '#7c3aed', value: (s, h) => h.num(s.ItemsUsed), sub: (s, h) => `of ${h.num(s.ActiveItems)} active items` },
+            { label: 'Not used anywhere', color: '#b45309', value: (s, h) => h.num(s.ItemsUnused), sub: () => 'in no BOM and no sample kit' },
+            { label: 'Uses', color: '#1d4ed8', value: (s, h) => h.num((s.BomUses || 0) + (s.KitUses || 0)), sub: (s, h) => `${h.num(s.BomUses)} BOM lines · ${h.num(s.KitUses)} kit lines` },
+            { label: 'Most used item', color: '#0f766e', value: (s, h) => `<span class="fs-6">${h.esc(s.TopItem || '—')}</span>`, sub: (s, h) => s.TopItem ? `${h.num(s.TopItemUses)} uses` : '' }
+        ],
+        groups: [
+            { key: 'byItem', label: 'Item', rowField: 'ItemId', byId: true },
+            { key: 'byCategory', label: 'Category', rowField: 'CategoryId', byId: true },
+            { key: 'byUsage', label: 'Used in', rowField: 'UsageLabel' }
+        ],
+        groupCols: [
+            { field: 'TestUses', label: 'Test BOMs', num: true },
+            { field: 'KitUses', label: 'Sample kits', num: true },
+            { field: 'AvgCostPerUse', label: 'Avg cost per use', money: true, total: 'none' }
+        ],
+        shareOf: 'TestUses',
+        rowClass: r => r.Usage === 'UNUSED' ? 'row-muted' : '',
+        cols: [
+            { label: 'Item', html: (r, h) => QcRep.name(r.ItemName, r.ItemCode, h), text: r => `${r.ItemName} (${r.ItemCode})` },
+            { label: 'Category', html: (r, h) => h.esc(r.CategoryName), text: r => r.CategoryName },
+            { label: 'Used in', html: (r, h) => r.Usage === 'UNUSED' ? QcRep.pill('Not used', 'warn', h)
+                  : `${QcRep.pill(r.UsageLabel, r.Usage === 'KIT' ? 'info' : 'good', h)} <span class="fw-semibold">${h.esc(r.UsedIn)}</span>` + (r.UsedInCode ? `<div class="text-muted fs-9 font-monospace">${h.esc(r.UsedInCode)}</div>` : ''),
+              text: r => r.Usage === 'UNUSED' ? 'Not used' : `${r.UsageLabel}: ${r.UsedIn}` },
+            { label: 'Applies to', html: (r, h) => `<span class="fs-9">${h.esc(r.AppliesTo || '')}</span>`, text: r => r.AppliesTo || '' },
+            { label: 'Department', html: (r, h) => `<span class="fs-9">${h.esc(r.DepartmentName || '')}</span>`, text: r => r.DepartmentName || '' },
+            { label: 'Qty per use', cls: 'text-end text-nowrap', html: (r, h) => r.Qty == null ? '—' : `${QcRep.qty(r.Qty)} ${h.esc(r.Unit)}`, text: r => r.Qty ?? '' },
+            { label: 'Unit cost', cls: 'text-end amt', html: r => QcRep.unitCost(r.UnitCost), text: r => r.UnitCost },
+            { label: 'Cost per use', cls: 'text-end amt fw-semibold', html: r => r.LineCost == null ? '—' : QcRep.unitCost(r.LineCost), text: r => r.LineCost ?? '' },
+            { label: 'Share of items cost', cls: 'text-end', html: r => r.SharePct == null ? '—' : QcRep.pct(r.SharePct), text: r => r.SharePct ?? '' }
+        ]
+    });
+})();
+</script>
+}

@@ -142,6 +142,20 @@ public class ReportsController : ControllerBase
             ["doctorip-business"]     = ("dbo.usp_Api_LabReport_DoctorIpBusiness",     new[] { "CommissionStatus" },      new[] { "DoctorId" }),
             ["doctorip-pending"]      = ("dbo.usp_Api_LabReport_DoctorIpPending",      new[] { "ItemType", "Frequency" }, new[] { "DoctorId" }),
             ["doctorip-unconfigured"] = ("dbo.usp_Api_LabReport_DoctorIpUnconfigured", new[] { "Reason" },                new[] { "DoctorId" }),
+            // Quality & Compliance: BOM & costing, company masters against the branch's B2C rates (SQLScripts/2248)
+            ["bom-consumption"]       = ("dbo.usp_Api_LabReport_BomConsumption",       new[] { "RunType" },               new[] { "DepartmentId", "ItemId" }),   // SQLScripts/2249
+            ["bom-register"]          = ("dbo.usp_Api_LabReport_BomRegister",          new[] { "AppliesTo" },             new[] { "DepartmentId", "CategoryId" }),
+            ["bom-coverage"]          = ("dbo.usp_Api_LabReport_BomCoverage",          new[] { "Coverage" },              new[] { "DepartmentId" }),
+            ["item-where-used"]       = ("dbo.usp_Api_LabReport_ItemWhereUsed",        new[] { "Usage" },                 new[] { "CategoryId", "ItemId" }),
+            ["bom-history"]           = ("dbo.usp_Api_LabReport_BomHistory",           new[] { "EventType" },             new[] { "DepartmentId", "ChangedBy" }),
+            ["test-cost-sheet"]       = ("dbo.usp_Api_LabReport_TestCostSheet",        new[] { "Kind" },                  new[] { "DepartmentId" }),
+            ["price-vs-cost"]         = ("dbo.usp_Api_LabReport_PriceVsCost",          new[] { "Kind", "MarginBand" },    new[] { "DepartmentId" }),
+            ["margin-alert"]          = ("dbo.usp_Api_LabReport_MarginAlert",          new[] { "Threshold", "Kind" },     new[] { "DepartmentId" }),
+            ["package-profitability"] = ("dbo.usp_Api_LabReport_PackageProfitability", new[] { "Kind" },                  Array.Empty<string>()),
+            ["sample-kit-cost"]       = ("dbo.usp_Api_LabReport_SampleKitCost",        new[] { "KitStatus" },             Array.Empty<string>()),
+            ["analyzer-cost"]         = ("dbo.usp_Api_LabReport_AnalyzerCost",         Array.Empty<string>(),             new[] { "AnalyzerId", "DepartmentId" }),
+            ["price-impact"]          = ("dbo.usp_Api_LabReport_PriceImpact",          new[] { "ChangePct" },             new[] { "ItemId", "CategoryId" }),
+            ["dept-cost-summary"]     = ("dbo.usp_Api_LabReport_DeptCostSummary",      new[] { "Kind" },                  Array.Empty<string>()),
         };
 
     /// <summary>LR-13: an outsourced test sent to an outside lab (or its sending details corrected). Validated by the procedure.</summary>

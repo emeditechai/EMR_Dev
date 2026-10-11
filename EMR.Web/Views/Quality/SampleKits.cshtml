@@ -1,0 +1,122 @@
+@{
+    ViewData["Title"] = "Sample Collection Kit";
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+}
+@* Quality & Compliance > Bill of Material > Sample Collection Kit (SQLScripts/2247): what one collected sample of a type uses
+   (tube, needle, swab, label). Added to the cost of every test on that sample type; a package counts one kit per distinct sample type. *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item active">Sample Collection Kit</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-droplet me-2"></i>Sample Collection Kit</h4>
+            <div class="text-muted small">Consumables used to collect one sample of each type</div>
+        </div>
+        <span id="canEdit" class="d-none" asp-permission="QC.BOM.SAMPLEKIT:EDIT"></span>
+        <div class="col-md-3"><input type="text" id="fSearch" class="form-control" placeholder="Filter sample types..." /></div>
+    </div>
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Sample type</th><th>Container</th><th>Kit items</th><th class="text-center">Tests on this type</th><th class="text-end">Kit cost</th><th class="text-end pe-3">Actions</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr></tbody></table>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="kitModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="kitTitle">Sample kit</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div class="mb-2" id="pickRow"><select id="kPick"></select></div>
+        <table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+            <th>Item</th><th style="width:130px">Qty / sample</th><th>Unit</th><th class="text-end">Unit cost</th><th class="text-end">Line cost</th><th></th></tr></thead>
+            <tbody id="kLines"></tbody><tfoot id="kFoot" class="fw-semibold"></tfoot></table>
+        <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>Saving with no items clears the kit for this sample type.</div>
+    </div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="btnSave"><i class="bi bi-save me-1"></i>Save Kit</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js"></script>
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const canEdit = !!document.getElementById('canEdit');
+    const $ = id => document.getElementById(id);
+    const modalEl = $('kitModal'), modal = new bootstrap.Modal(modalEl);
+    let types = [], allLines = [], items = null, cur = null, lines = [];
+
+    function render() {
+        const q = $('fSearch').value.trim().toLowerCase();
+        const list = types.filter(t => !q || (t.SampleType || '').toLowerCase().includes(q) || (t.Container || '').toLowerCase().includes(q));
+        $('rows').innerHTML = list.length ? list.map(t => {
+            const ls = allLines.filter(l => l.SampleTypeId === t.SampleTypeId);
+            return `<tr><td class="ps-3 fw-semibold">${QC.esc(t.SampleType)}</td><td class="small">${QC.esc(t.Container || '—')}</td>
+                <td class="small">${ls.length ? ls.map(l => `${QC.esc(l.ItemName)} × ${QC.qty(l.Qty)}`).join(', ') : '<span class="badge bg-warning-subtle text-warning-emphasis border">No kit</span>'}</td>
+                <td class="text-center">${t.Tests}</td><td class="text-end fw-semibold">${QC.money(t.KitCost)}</td>
+                <td class="text-end pe-3"><button class="btn btn-sm ${canEdit ? 'btn-outline-primary' : 'btn-outline-secondary'} act-open" data-id="${t.SampleTypeId}">
+                    <i class="bi ${canEdit ? 'bi-pencil-square' : 'bi-eye'} me-1"></i>${canEdit ? (ls.length ? 'Edit' : 'Define') : 'View'}</button></td></tr>`;
+        }).join('') : '<tr><td colspan="6" class="text-center text-muted py-4">No sample types.</td></tr>';
+    }
+    async function load() {
+        const r = await QC.get('@Url.Action("List", "QcSampleKits")');
+        if (!r.success) { $('rows').innerHTML = `<tr><td colspan="6" class="text-danger text-center py-4">${QC.esc(r.message)}</td></tr>`; return; }
+        types = r.data.types || []; allLines = r.data.lines || []; render();
+    }
+
+    function renderLines() {
+        $('kLines').innerHTML = lines.length ? lines.map((l, i) => `<tr>
+            <td><span class="font-monospace small text-muted me-1">${QC.esc(l.ItemCode)}</span>${QC.esc(l.ItemName)}</td>
+            <td><input type="number" class="form-control form-control-sm ln-qty" data-i="${i}" min="0" step="0.0001" value="${l.Qty}" ${canEdit ? '' : 'disabled'} /></td>
+            <td class="small">${QC.esc(l.ConsumptionUnit)}</td><td class="text-end">${l.UnitCost == null ? '—' : '₹' + QC.num(l.UnitCost, 4)}</td>
+            <td class="text-end">₹${QC.num((+l.Qty || 0) * (l.UnitCost || 0))}</td>
+            <td class="text-end">${canEdit ? `<button class="btn btn-sm btn-link text-danger ln-del" data-i="${i}"><i class="bi bi-trash"></i></button>` : ''}</td></tr>`).join('')
+            : '<tr><td colspan="6" class="text-center text-muted py-3">No items in this kit.</td></tr>';
+        renderFoot();
+    }
+    function renderFoot() {
+        const t = lines.reduce((s, l) => s + (+l.Qty || 0) * (l.UnitCost || 0), 0);
+        $('kFoot').innerHTML = lines.length ? `<tr class="table-light"><td colspan="4" class="text-end">Kit cost per sample</td><td class="text-end">₹${QC.num(t)}</td><td></td></tr>` : '';
+    }
+    async function openKit(id) {
+        const t = types.find(x => x.SampleTypeId === id);
+        cur = t; lines = allLines.filter(l => l.SampleTypeId === id).map(l => ({ ...l }));
+        $('kitTitle').textContent = `Collection kit: ${t.SampleType}${t.Container ? ' (' + t.Container + ')' : ''}`;
+        $('pickRow').classList.toggle('d-none', !canEdit); $('btnSave').classList.toggle('d-none', !canEdit);
+        renderLines();
+        if (canEdit) {
+            if (!items) { const ir = await QC.get('@Url.Action("Items", "QcSampleKits")'); items = ir.success ? ir.data : []; }
+            QC.itemPicker($('kPick'), items, modalEl, it => {
+                QC.clearPicker($('kPick'));
+                if (lines.some(l => l.ItemId === it.ItemId)) return QC.fail(`${it.ItemName} is already in this kit.`);
+                lines.push({ ItemId: it.ItemId, ItemCode: it.ItemCode, ItemName: it.ItemName, ConsumptionUnit: it.ConsumptionUnit, UnitCost: it.UnitCost, Qty: 1 });
+                renderLines();
+            });
+        }
+        modal.show();
+    }
+    $('kLines').addEventListener('input', e => {
+        if (!e.target.classList.contains('ln-qty')) return;
+        const i = +e.target.dataset.i; lines[i].Qty = e.target.value;
+        e.target.closest('tr').children[4].textContent = '₹' + QC.num((+lines[i].Qty || 0) * (lines[i].UnitCost || 0)); renderFoot();
+    });
+    $('kLines').addEventListener('click', e => { const d = e.target.closest('.ln-del'); if (d) { lines.splice(+d.dataset.i, 1); renderLines(); } });
+    $('btnSave').addEventListener('click', async function () {
+        if (lines.some(l => !(+l.Qty > 0))) return QC.fail('Every kit line needs a quantity more than 0.');
+        if (!lines.length && !await QC.confirm('Clear this kit?', 'Tests on this sample type will carry no collection cost.', 'Clear kit')) return;
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("Save", "QcSampleKits")', { sampleTypeId: cur.SampleTypeId, lines: lines.map(l => ({ itemId: l.ItemId, qty: +l.Qty })) });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        modal.hide(); QC.ok('Sample kit saved'); load();
+    });
+    $('rows').addEventListener('click', e => { const b = e.target.closest('.act-open'); if (b) openKit(+b.dataset.id); });
+    $('fSearch').addEventListener('input', render);
+    load();
+})();
+</script>
+}

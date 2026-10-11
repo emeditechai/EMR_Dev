@@ -225,6 +225,20 @@ public class ReportsController : Controller
         ["revenue-trend"]       = new[] { "billingType", "createdBy" },
         ["patient-analytics"]   = new[] { "patientType", "ageBand", "gender", "createdBy" },
         ["staff-productivity"]  = new[] { "activity", "staffId" },
+        // Quality & Compliance BOM & costing (SQLScripts/2248)
+        ["bom-consumption"]       = new[] { "runType", "departmentId", "itemId" },   // SQLScripts/2249
+        ["bom-register"]          = new[] { "appliesTo", "departmentId", "categoryId" },
+        ["bom-coverage"]          = new[] { "coverage", "departmentId" },
+        ["item-where-used"]       = new[] { "usage", "categoryId", "itemId" },
+        ["bom-history"]           = new[] { "eventType", "departmentId", "changedBy" },
+        ["test-cost-sheet"]       = new[] { "kind", "departmentId" },
+        ["price-vs-cost"]         = new[] { "kind", "marginBand", "departmentId" },
+        ["margin-alert"]          = new[] { "threshold", "kind", "departmentId" },
+        ["package-profitability"] = new[] { "kind" },
+        ["sample-kit-cost"]       = new[] { "kitStatus" },
+        ["analyzer-cost"]         = new[] { "analyzerId", "departmentId" },
+        ["price-impact"]          = new[] { "changePct", "itemId", "categoryId" },
+        ["dept-cost-summary"]     = new[] { "kind" },
     };
 
     private IActionResult LabReportPage(string viewName)
@@ -268,6 +282,21 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabRevenueTrend() => LabReportPage("LabRevenueTrend");
     [HttpGet] public IActionResult LabPatientAnalytics() => LabReportPage("LabPatientAnalytics");
     [HttpGet] public IActionResult LabStaffProductivity() => LabReportPage("LabStaffProductivity");
+
+    // Quality & Compliance > BOM & costing reports (SQLScripts/2248): company masters, the same for every user of the branch
+    [HttpGet] public IActionResult LabBomConsumption() => LabReportPage("LabBomConsumption");
+    [HttpGet] public IActionResult LabBomRegister() => LabReportPage("LabBomRegister");
+    [HttpGet] public IActionResult LabBomCoverage() => LabReportPage("LabBomCoverage");
+    [HttpGet] public IActionResult LabItemWhereUsed() => LabReportPage("LabItemWhereUsed");
+    [HttpGet] public IActionResult LabBomHistory() => LabReportPage("LabBomHistory");
+    [HttpGet] public IActionResult LabTestCostSheet() => LabReportPage("LabTestCostSheet");
+    [HttpGet] public IActionResult LabPriceVsCost() => LabReportPage("LabPriceVsCost");
+    [HttpGet] public IActionResult LabMarginAlert() => LabReportPage("LabMarginAlert");
+    [HttpGet] public IActionResult LabPackageProfitability() => LabReportPage("LabPackageProfitability");
+    [HttpGet] public IActionResult LabSampleKitCost() => LabReportPage("LabSampleKitCost");
+    [HttpGet] public IActionResult LabAnalyzerCost() => LabReportPage("LabAnalyzerCost");
+    [HttpGet] public IActionResult LabPriceImpact() => LabReportPage("LabPriceImpact");
+    [HttpGet] public IActionResult LabDeptCostSummary() => LabReportPage("LabDeptCostSummary");
 
     /// <summary>LF-18 Owner MIS & Test Revenue: one management view of the lab for a period (revenue view; cost comes with LF-07).</summary>
     [HttpGet]

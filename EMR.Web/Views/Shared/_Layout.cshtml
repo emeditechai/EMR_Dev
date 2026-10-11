@@ -247,6 +247,22 @@
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="qualityMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-patch-check-fill me-2"></i>Quality &amp; Compliance
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="qualityMenu">
+                                <li><h6 class="dropdown-header">Masters</h6></li>
+                                <li><a class="dropdown-item" asp-controller="QcItems" asp-action="Index"><i class="bi bi-box-seam me-2"></i>Item Master</a></li>
+                                <li><a class="dropdown-item" asp-controller="QcSuppliers" asp-action="Index"><i class="bi bi-truck me-2"></i>Supplier Master</a></li>
+                                <li><a class="dropdown-item" asp-controller="QcStores" asp-action="Index"><i class="bi bi-building me-2"></i>Store / Location</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Bill of Material</h6></li>
+                                <li><a class="dropdown-item" asp-controller="QcBom" asp-action="Index"><i class="bi bi-diagram-3 me-2"></i>Test BOM</a></li>
+                                <li><a class="dropdown-item" asp-controller="QcSampleKits" asp-action="Index"><i class="bi bi-droplet me-2"></i>Sample Collection Kit</a></li>
+                                <li><a class="dropdown-item" asp-controller="QcCostPreview" asp-action="Index"><i class="bi bi-calculator me-2"></i>BOM Cost Preview</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="settingsMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-gear-fill me-2"></i>Settings
                             </a>
@@ -332,6 +348,21 @@
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabSampleRejection"><i class="bi bi-arrow-repeat me-2"></i>Sample Rejection &amp; Re-collection</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabSampleTransfer"><i class="bi bi-arrow-left-right me-2"></i>Sample Transfer Register</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabOutsourcedTests"><i class="bi bi-send-check me-2"></i>Outsourced Test Register</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">BOM &amp; Costing</h6></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabBomConsumption"><i class="bi bi-box-arrow-right me-2"></i>BOM Consumption Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabBomRegister"><i class="bi bi-diagram-3 me-2"></i>Test BOM Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabBomCoverage"><i class="bi bi-ui-checks-grid me-2"></i>BOM Coverage</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabItemWhereUsed"><i class="bi bi-box-arrow-in-down-right me-2"></i>Item Where-Used</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabBomHistory"><i class="bi bi-clock-history me-2"></i>BOM Change History</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabTestCostSheet"><i class="bi bi-receipt-cutoff me-2"></i>Test Cost Sheet</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabPriceVsCost"><i class="bi bi-graph-up-arrow me-2"></i>Price vs Cost (Margin)</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabMarginAlert"><i class="bi bi-exclamation-triangle me-2"></i>Loss / Low-Margin Alert</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabPackageProfitability"><i class="bi bi-boxes me-2"></i>Package &amp; Profile Profitability</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabSampleKitCost"><i class="bi bi-droplet me-2"></i>Sample Kit Cost Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabAnalyzerCost"><i class="bi bi-cpu me-2"></i>Analyzer-wise Cost Comparison</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabPriceImpact"><i class="bi bi-sliders me-2"></i>Price-Change Impact (What-if)</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabDeptCostSummary"><i class="bi bi-building me-2"></i>Department Cost Summary</a></li>
                                     </ul>
                                 </li>
                                 <li class="dropdown-submenu">

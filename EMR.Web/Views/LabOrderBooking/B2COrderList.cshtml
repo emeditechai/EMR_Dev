@@ -255,12 +255,12 @@
                                 <td class="text-center">
                                     @if (partlyCancelled)
                                     {
-                                        <span class="badge rounded-pill bg-light text-dark border" title="@adj!.ActiveTests active, @adj.CancelledTests cancelled">@adj.ActiveTests</span>
+                                        <span class="badge rounded-pill bg-light text-dark border" title="@adj!.ActiveTests active, @adj.CancelledTests cancelled">@adj.ActiveTests</span><button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline btn-bill-tests" data-order-id="@o.LabOrderId" data-bill-no="@o.BillNo" title="View the tests of this bill"><i class="bi bi-eye"></i></button>
                                         <div class="text-danger" style="font-size:.66rem;">+@adj.CancelledTests cancelled</div>
                                     }
                                     else
                                     {
-                                        <span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span>
+                                        <span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span><button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline btn-bill-tests" data-order-id="@o.LabOrderId" data-bill-no="@o.BillNo" title="View the tests of this bill"><i class="bi bi-eye"></i></button>
                                     }
                                 </td>
                                 <td class="text-end fw-semibold @(o.PaymentStatus == "P" ? "text-success" : (o.PaymentStatus == "R" ? "text-warning-emphasis" : "text-danger"))">
@@ -474,6 +474,8 @@
         </div>
     </div>
 </div>
+
+<partial name="_BillTestsPopup" />
 
 @section Scripts {
     <script src="~/js/lab-compliance-docs-viewer.js"></script>

@@ -1,0 +1,158 @@
+@{
+    ViewData["Title"] = "Item Master";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@* Quality & Compliance > Masters > Item Master (SQLScripts/2247): reagents, kits, controls, tubes and consumables.
+   The consumption unit and pack size drive every BOM quantity and stock figure. *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item active">Item Master</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-box-seam me-2"></i>Item Master</h4>
+            <div class="text-muted small">Reagents, kits, controls, tubes and consumables used by the lab</div>
+        </div>
+        <button type="button" class="btn btn-primary px-3 shadow-sm" id="btnAdd" asp-permission="QC.MASTER.ITEMS:ADD"><i class="bi bi-plus-lg me-1"></i>Add Item</button>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label small fw-semibold text-muted">Search</label>
+                <input type="text" id="fSearch" class="form-control" placeholder="Code, name or manufacturer..." /></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Category</label><select id="fCategory" class="form-select"></select></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Status</label>
+                <select id="fStatus" class="form-select"><option value="">All</option><option value="true" selected>Active</option><option value="false">Inactive</option></select></div>
+            <div class="col-md-2"><button type="button" class="btn btn-secondary w-100" id="btnFilter"><i class="bi bi-funnel me-1"></i>Filter</button></div>
+        </div>
+    </div></div>
+
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light"><tr>
+                <th class="ps-3">Code</th><th>Item</th><th>Category</th><th>Units</th><th class="text-end">Purchase rate</th>
+                <th class="text-end">Cost / unit</th><th class="text-center">GST</th><th class="text-center">Lot / Expiry</th><th class="text-end">Reorder</th>
+                <th class="text-center">In BOMs</th><th class="text-center">Status</th><th class="text-end pe-3">Actions</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="12" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+        </table>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="itemModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="itemModalTitle">Item</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><form id="itemForm" autocomplete="off">
+        <input type="hidden" name="ItemId" data-type="number" />
+        <div class="row g-3">
+            <div class="col-md-8"><label class="form-label fw-semibold">Item name <span class="text-danger">*</span></label><input name="ItemName" class="form-control" maxlength="200" /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Category <span class="text-danger">*</span></label><select name="CategoryId" data-type="number" class="form-select" id="itCategory"></select></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Purchase unit <span class="text-danger">*</span></label><select name="PurchaseUnitId" data-type="number" class="form-select" id="itPUnit"></select></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Consumption unit <span class="text-danger">*</span></label><select name="ConsumptionUnitId" data-type="number" class="form-select" id="itCUnit"></select>
+                <div class="form-text">The unit a BOM uses (e.g. Test, mL, Tube).</div></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Pack size <span class="text-danger">*</span></label><input name="PackSize" data-type="number" type="number" step="0.001" min="0.001" class="form-control" id="itPack" />
+                <div class="form-text" id="itPackHint">Consumption units in one purchase unit.</div></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Purchase rate (₹, before GST)</label><input name="PurchaseRate" data-type="number" type="number" step="0.01" min="0" class="form-control" id="itRate" />
+                <div class="form-text" id="itCostHint"></div></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">GST %</label><input name="GstPercent" data-type="number" type="number" step="0.01" min="0" max="28" class="form-control" list="gstSlabs" />
+                <datalist id="gstSlabs"><option value="5"></option><option value="12"></option><option value="18"></option><option value="28"></option></datalist></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">HSN code</label><input name="HsnCode" class="form-control" maxlength="20" /></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Manufacturer</label><input name="Manufacturer" class="form-control" maxlength="150" /></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Storage temperature</label><input name="StorageTemp" class="form-control" maxlength="50" placeholder="e.g. 2-8 °C" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Open-vial stability (days)</label><input name="OpenStabilityDays" data-type="number" type="number" min="0" max="3650" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Min shelf life at GRN (days)</label><input name="MinShelfLifeDays" data-type="number" type="number" min="0" max="3650" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Reorder level</label><input name="ReorderLevel" data-type="number" type="number" step="0.001" min="0" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Min stock</label><input name="MinStock" data-type="number" type="number" step="0.001" min="0" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Max stock</label><input name="MaxStock" data-type="number" type="number" step="0.001" min="0" class="form-control" /></div>
+            <div class="col-12 form-text mt-0">Reorder, min and max are in purchase units.</div>
+            <div class="col-md-4 form-check form-switch ms-2"><input class="form-check-input" type="checkbox" name="IsLotTracked" id="itLot" /><label class="form-check-label" for="itLot">Lot tracked</label></div>
+            <div class="col-md-4 form-check form-switch"><input class="form-check-input" type="checkbox" name="IsExpiryTracked" id="itExp" /><label class="form-check-label" for="itExp">Expiry tracked</label></div>
+            <div class="col-md-3 form-check form-switch"><input class="form-check-input" type="checkbox" name="Status" id="itStatus" /><label class="form-check-label" for="itStatus">Active</label></div>
+            <div class="col-12"><label class="form-label fw-semibold">Remarks</label><textarea name="Remarks" class="form-control" rows="2" maxlength="500"></textarea></div>
+        </div>
+    </form></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnSave"><i class="bi bi-save me-1"></i>Save Item</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson);
+    const canEdit = !!document.getElementById('btnAdd');
+    const modal = new bootstrap.Modal(document.getElementById('itemModal'));
+    const form = document.getElementById('itemForm');
+    let rows = [];
+    document.getElementById('fCategory').innerHTML = QC.options(L.categories, '', 'All categories');
+    document.getElementById('itCategory').innerHTML = QC.options(L.categories, '', '-- Category --');
+    document.getElementById('itPUnit').innerHTML = QC.options(L.units, '', '-- Unit --');
+    document.getElementById('itCUnit').innerHTML = QC.options(L.units, '', '-- Unit --');
+
+    async function load() {
+        const r = await QC.get('@Url.Action("List", "QcItems")', { search: document.getElementById('fSearch').value, categoryId: document.getElementById('fCategory').value, status: document.getElementById('fStatus').value });
+        const tb = document.getElementById('rows');
+        if (!r.success) { tb.innerHTML = `<tr><td colspan="12" class="text-danger text-center py-4">${QC.esc(r.message)}</td></tr>`; return; }
+        rows = r.data || [];
+        tb.innerHTML = rows.length ? rows.map(i => `<tr>
+            <td class="ps-3 font-monospace small">${QC.esc(i.ItemCode)}</td>
+            <td><div class="fw-semibold">${QC.esc(i.ItemName)}</div><div class="text-muted small">${QC.esc(i.Manufacturer || '')}${i.StorageTemp ? ' · ' + QC.esc(i.StorageTemp) : ''}</div></td>
+            <td>${QC.esc(i.CategoryName)}</td>
+            <td class="small">1 ${QC.esc(i.PurchaseUnit)} = ${QC.qty(i.PackSize)} ${QC.esc(i.ConsumptionUnit)}</td>
+            <td class="text-end">${QC.money(i.PurchaseRate)}<div class="text-muted small">per ${QC.esc(i.PurchaseUnit)}</div></td>
+            <td class="text-end fw-semibold">${QC.money(i.UnitCost)}<div class="text-muted small">per ${QC.esc(i.ConsumptionUnit)}${i.AvgUnitCost != null ? ' · avg' : ''}</div></td>
+            <td class="text-center">${i.GstPercent ? QC.num(i.GstPercent, 0) + '%' : '—'}</td>
+            <td class="text-center small">${i.IsLotTracked ? 'Lot' : '—'} / ${i.IsExpiryTracked ? 'Expiry' : '—'}</td>
+            <td class="text-end">${i.ReorderLevel != null ? QC.qty(i.ReorderLevel) : '—'}</td>
+            <td class="text-center">${i.UsedInTests ? `<span class="badge bg-primary-subtle text-primary border">${i.UsedInTests} test${i.UsedInTests > 1 ? 's' : ''}</span>` : '—'}</td>
+            <td class="text-center">${canEdit ? `<a href="#" class="text-decoration-none act-status" data-id="${i.ItemId}" data-on="${i.Status ? 1 : 0}">${QC.statusBadge(i.Status)}</a>` : QC.statusBadge(i.Status)}</td>
+            <td class="text-end pe-3 text-nowrap">${canEdit ? `<button class="btn btn-sm btn-outline-primary act-edit" data-id="${i.ItemId}" title="Edit"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-outline-danger act-del" data-id="${i.ItemId}" title="Delete"><i class="bi bi-trash"></i></button>` : ''}</td></tr>`).join('')
+            : '<tr><td colspan="12" class="text-center text-muted py-4">No items yet. Add the reagents and consumables the lab uses.</td></tr>';
+    }
+
+    function unitName(id) { return (L.units.find(u => String(u.Id) === String(id)) || {}).Name || ''; }
+    function hints() {
+        const pu = unitName(document.getElementById('itPUnit').value), cu = unitName(document.getElementById('itCUnit').value);
+        const pack = parseFloat(document.getElementById('itPack').value) || 0, rate = parseFloat(document.getElementById('itRate').value) || 0;
+        document.getElementById('itPackHint').textContent = pu && cu ? `How many ${cu} in one ${pu}.` : 'Consumption units in one purchase unit.';
+        document.getElementById('itCostHint').textContent = pack > 0 && rate > 0 && cu ? `= ₹${QC.num(rate / pack, 4)} per ${cu}` : '';
+    }
+    ['itPUnit', 'itCUnit', 'itPack', 'itRate'].forEach(id => document.getElementById(id).addEventListener('input', hints));
+    document.getElementById('itCategory').addEventListener('change', function () {
+        const c = L.categories.find(x => String(x.Id) === this.value);
+        if (c && !form.ItemId.value) { document.getElementById('itLot').checked = !!c.IsLotTracked; document.getElementById('itExp').checked = !!c.IsExpiryTracked; }
+    });
+    document.getElementById('itExp').addEventListener('change', function () { if (this.checked) document.getElementById('itLot').checked = true; });
+    document.getElementById('itLot').addEventListener('change', function () { if (!this.checked) document.getElementById('itExp').checked = false; });
+
+    function open(row) {
+        form.reset();
+        QC.fill(form, row || { Status: true, PackSize: 1, PurchaseRate: 0 });
+        document.getElementById('itemModalTitle').textContent = row ? `Edit item ${row.ItemCode}` : 'Add item';
+        hints();
+        modal.show();
+    }
+    document.getElementById('btnAdd')?.addEventListener('click', () => open(null));
+    document.getElementById('btnFilter').addEventListener('click', load);
+    document.getElementById('fSearch').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+    document.getElementById('btnSave').addEventListener('click', async function () {
+        const body = QC.formData(form);
+        if (!body.ItemName) return QC.fail('Item name is required.');
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("Save", "QcItems")', body);
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        modal.hide(); QC.ok('Item saved'); load();
+    });
+    document.getElementById('rows').addEventListener('click', async function (e) {
+        const ed = e.target.closest('.act-edit'), del = e.target.closest('.act-del'), st = e.target.closest('.act-status');
+        if (ed) open(rows.find(x => x.ItemId === +ed.dataset.id));
+        if (st) { e.preventDefault(); const r = await QC.post('@Url.Action("SetStatus", "QcItems")', { id: +st.dataset.id, status: st.dataset.on !== '1' }); if (!r.success) return QC.fail(r.message); load(); }
+        if (del && await QC.confirm('Delete this item?', 'It will no longer be offered in BOMs or stock screens.', 'Delete')) {
+            const r = await QC.post('@Url.Action("Delete", "QcItems")', { id: +del.dataset.id }); if (!r.success) return QC.fail(r.message); QC.ok('Item deleted'); load();
+        }
+    });
+    load();
+})();
+</script>
+}

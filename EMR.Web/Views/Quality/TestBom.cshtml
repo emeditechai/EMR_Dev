@@ -1,0 +1,216 @@
+@{
+    ViewData["Title"] = "Test BOM";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+}
+@* Quality & Compliance > Bill of Material > Test BOM (SQLScripts/2247): what one run of a test consumes.
+   A default BOM per test, optionally one per analyzer; every change is a new version, an unchanged save keeps the version.
+   Material cost = sum(qty x item unit cost) x (1 + rerun % + dead volume %). *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item active">Test BOM</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-diagram-3 me-2"></i>Test BOM</h4>
+            <div class="text-muted small">Reagents and consumables used by one run of each test, versioned</div>
+        </div>
+        @* Present only for users who may edit; the page reads it to show edit actions *@
+        <span id="canEdit" class="d-none" asp-permission="QC.BOM.TEST:EDIT"></span>
+        <span id="canRemove" class="d-none" asp-permission="QC.BOM.TEST:DELETE"></span>
+        <div class="d-flex gap-2" id="kpis"></div>
+    </div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3"><div class="row g-2 align-items-end">
+        <div class="col-md-4"><label class="form-label small fw-semibold text-muted">Search</label><input type="text" id="fSearch" class="form-control" placeholder="Test name or code..." /></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Department</label><select id="fDept" class="form-select"></select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">BOM</label><select id="fBom" class="form-select"><option value="">All tests</option><option value="WITH">With BOM</option><option value="WITHOUT">Without BOM</option></select></div>
+        <div class="col-md-2"><button type="button" class="btn btn-secondary w-100" id="btnFilter"><i class="bi bi-funnel me-1"></i>Filter</button></div>
+    </div></div></div>
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Code</th><th>Test</th><th>Department</th><th>Sample</th><th class="text-center">BOM</th>
+            <th class="text-end">Material</th><th class="text-end">Kit</th><th class="text-end">Total cost</th><th class="text-end">B2C rate</th><th class="text-end">Margin</th><th class="text-end pe-3">Actions</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="11" class="text-center text-muted py-4">Loading...</td></tr></tbody></table>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="bomModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2">
+        <div><h6 class="modal-title fw-bold mb-0" id="bomTitle">Test BOM</h6><div class="small text-muted" id="bomSub"></div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    <div class="modal-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4"><label class="form-label fw-semibold">Applies to</label><select id="bAnalyzer" class="form-select"></select>
+                <div class="form-text">The default BOM is used unless the run's analyzer has its own.</div></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Reruns %</label><input id="bRerun" type="number" min="0" max="100" step="0.01" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Dead volume %</label><input id="bDead" type="number" min="0" max="100" step="0.01" class="form-control" /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Remarks</label><input id="bRemarks" class="form-control" maxlength="500" /></div>
+        </div>
+        <div class="d-flex align-items-center gap-2 mb-2" id="pickRow">
+            <div class="flex-grow-1"><select id="bPick"></select></div>
+            <a class="btn btn-sm btn-outline-secondary text-nowrap" asp-controller="QcItems" asp-action="Index" target="_blank"><i class="bi bi-box-seam me-1"></i>Item Master</a>
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-2"><thead class="bg-light"><tr>
+            <th>Item</th><th style="width:130px">Qty / run</th><th>Unit</th><th class="text-end">Unit cost</th><th class="text-end">Line cost</th><th>Remarks</th><th></th></tr></thead>
+            <tbody id="bLines"></tbody>
+            <tfoot class="fw-semibold" id="bFoot"></tfoot></table></div>
+        <div class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>Quantity is in the item's consumption unit. Unit cost = average cost when stock exists, else purchase rate ÷ pack size.</div>
+        <h6 class="fw-bold small text-uppercase text-muted mb-2">Version history</h6>
+        <div class="table-responsive"><table class="table table-sm mb-0"><thead class="bg-light"><tr>
+            <th>Applies to</th><th class="text-center">Version</th><th>From</th><th>To</th><th class="text-center">Lines</th><th class="text-end">Reruns / dead %</th><th>By</th></tr></thead>
+            <tbody id="bVersions"></tbody></table></div>
+    </div>
+    <div class="modal-footer py-2 justify-content-between">
+        <button type="button" class="btn btn-outline-danger" id="btnRemove"><i class="bi bi-x-circle me-1"></i>Stop using this BOM</button>
+        <div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="btnSave"><i class="bi bi-save me-1"></i>Save BOM</button></div>
+    </div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js"></script>
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson);
+    const canEdit = !!document.getElementById('canEdit'), canRemove = !!document.getElementById('canRemove');
+    const $ = id => document.getElementById(id);
+    const modalEl = $('bomModal'), modal = new bootstrap.Modal(modalEl);
+    let rows = [], items = null, cur = null, lines = [];
+    $('fDept').innerHTML = QC.options(L.departments, '', 'All departments');
+
+    const marginCell = (rate, cost) => {
+        if (rate == null || cost == null) return '<span class="text-muted">—</span>';
+        const m = rate - cost, pct = rate ? m * 100 / rate : null;
+        return `<span class="${m < 0 ? 'text-danger fw-bold' : 'text-success'}">${QC.money(m)}</span>${pct != null ? `<div class="small text-muted">${QC.num(pct, 1)}%</div>` : ''}`;
+    };
+
+    async function load() {
+        const r = await QC.get('@Url.Action("List", "QcBom")', { search: $('fSearch').value, departmentId: $('fDept').value, bomStatus: $('fBom').value });
+        const tb = $('rows');
+        if (!r.success) { tb.innerHTML = `<tr><td colspan="11" class="text-danger text-center py-4">${QC.esc(r.message)}</td></tr>`; return; }
+        rows = r.data || [];
+        const withBom = rows.filter(t => t.ActiveBoms > 0).length;
+        $('kpis').innerHTML = `<span class="badge bg-light text-dark border px-3 py-2">${rows.length} tests</span>
+            <span class="badge bg-success-subtle text-success border px-3 py-2">${withBom} with BOM</span>
+            <span class="badge bg-warning-subtle text-warning-emphasis border px-3 py-2">${rows.length - withBom} without</span>`;
+        tb.innerHTML = rows.length ? rows.map(t => {
+            const total = t.MaterialCost == null ? null : t.MaterialCost + (t.SampleKitCost || 0);
+            return `<tr>
+            <td class="ps-3 font-monospace small">${QC.esc(t.TestCode || '')}</td>
+            <td><div class="fw-semibold">${QC.esc(t.TestName)}</div>
+                ${t.IsProfileTest ? '<span class="badge bg-info-subtle text-info-emphasis border me-1">Profile</span>' : ''}${t.IsOutsourced ? '<span class="badge bg-secondary-subtle text-secondary border">Outsourced</span>' : ''}</td>
+            <td class="small">${QC.esc(t.DepartmentName || '—')}</td><td class="small">${QC.esc(t.SampleType || '—')}</td>
+            <td class="text-center">${t.BomId ? `<span class="badge bg-success-subtle text-success border">v${t.VersionNo} · ${t.LineCount} items</span>`
+                : (t.ActiveBoms > 0 ? '<span class="badge bg-info-subtle text-info-emphasis border">Analyzer only</span>' : '<span class="badge bg-warning-subtle text-warning-emphasis border">No BOM</span>')}
+                ${t.ActiveBoms > (t.BomId ? 1 : 0) && t.BomId ? `<div class="small text-muted">+${t.ActiveBoms - 1} analyzer</div>` : ''}</td>
+            <td class="text-end">${QC.money(t.MaterialCost)}</td><td class="text-end">${QC.money(t.SampleKitCost)}</td>
+            <td class="text-end fw-semibold">${QC.money(total)}</td><td class="text-end">${QC.money(t.B2CRate)}</td>
+            <td class="text-end">${marginCell(t.B2CRate, total)}</td>
+            <td class="text-end pe-3"><button class="btn btn-sm ${canEdit ? 'btn-outline-primary' : 'btn-outline-secondary'} act-open" data-id="${t.TestId}">
+                <i class="bi ${canEdit ? 'bi-pencil-square' : 'bi-eye'} me-1"></i>${canEdit ? (t.ActiveBoms ? 'Edit' : 'Define') : 'View'}</button></td></tr>`;
+        }).join('') : '<tr><td colspan="11" class="text-center text-muted py-4">No tests match.</td></tr>';
+    }
+
+    // ---- editor ----
+    function renderLines() {
+        const tb = $('bLines');
+        if (!lines.length) { tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No items yet. Search an item above to add it.</td></tr>'; }
+        else tb.innerHTML = lines.map((l, i) => `<tr class="${l.ItemActive === false ? 'table-warning' : ''}">
+            <td><span class="font-monospace small text-muted me-1">${QC.esc(l.ItemCode)}</span>${QC.esc(l.ItemName)}${l.ItemActive === false ? ' <span class="badge bg-warning text-dark">Inactive item</span>' : ''}</td>
+            <td><input type="number" class="form-control form-control-sm ln-qty" data-i="${i}" min="0" step="0.0001" value="${l.Qty}" ${canEdit ? '' : 'disabled'} /></td>
+            <td class="small">${QC.esc(l.ConsumptionUnit)}</td>
+            <td class="text-end">${l.UnitCost == null ? '—' : '₹' + QC.num(l.UnitCost, 4)}</td>
+            <td class="text-end">${'₹' + QC.num((+l.Qty || 0) * (l.UnitCost || 0), 2)}</td>
+            <td><input class="form-control form-control-sm ln-rem" data-i="${i}" maxlength="200" value="${QC.esc(l.Remarks || '')}" ${canEdit ? '' : 'disabled'} /></td>
+            <td class="text-end">${canEdit ? `<button class="btn btn-sm btn-link text-danger ln-del" data-i="${i}"><i class="bi bi-trash"></i></button>` : ''}</td></tr>`).join('');
+        renderFoot();
+    }
+    function renderFoot() {
+        const base = lines.reduce((s, l) => s + (+l.Qty || 0) * (l.UnitCost || 0), 0);
+        const pct = (+$('bRerun').value || 0) + (+$('bDead').value || 0), mat = Math.round(base * (1 + pct / 100) * 100) / 100;
+        const kit = cur?.kitCost, rate = cur?.rate, total = lines.length ? mat + (kit || 0) : null;
+        $('bFoot').innerHTML = lines.length ? `
+            <tr><td colspan="4" class="text-end">Items</td><td class="text-end">₹${QC.num(base)}</td><td colspan="2"></td></tr>
+            <tr><td colspan="4" class="text-end">Material cost per test <span class="text-muted fw-normal">(+${QC.num(pct, 2)}% reruns &amp; dead volume)</span></td><td class="text-end">₹${QC.num(mat)}</td><td colspan="2"></td></tr>
+            <tr><td colspan="4" class="text-end">+ Sample collection kit <span class="text-muted fw-normal">(${QC.esc(cur?.sampleType || 'no sample type')})</span></td><td class="text-end">${QC.money(kit)}</td><td colspan="2"></td></tr>
+            <tr class="table-light"><td colspan="4" class="text-end">Cost per test · B2C rate ${QC.money(rate)}</td><td class="text-end">₹${QC.num(total)}</td>
+                <td colspan="2">${marginCell(rate, total)}</td></tr>` : '';
+    }
+
+    async function openEditor(testId, analyzerId) {
+        const r = await QC.get('@Url.Action("Get", "QcBom")', { testId, analyzerId });
+        if (!r.success) return QC.fail(r.message);
+        const { test, bom, lines: ls, versions } = r.data, row = rows.find(x => x.TestId === testId) || {};
+        cur = { testId, analyzerId: analyzerId || null, bom, kitCost: row.SampleKitCost, rate: row.B2CRate, sampleType: test.SampleType, departmentId: test.DepartmentId };
+        $('bomTitle').textContent = `${test.TestName}${test.TestCode ? ' (' + test.TestCode + ')' : ''}`;
+        $('bomSub').innerHTML = `${QC.esc(test.DepartmentName || '')} · ${QC.esc(test.SampleType || 'No sample type')}` +
+            (bom ? ` · <span class="text-success">current version v${bom.VersionNo} since ${QC.date(bom.EffectiveFrom)}</span>` : ' · <span class="text-warning-emphasis">no BOM yet</span>') +
+            (test.IsOutsourced ? ' · <span class="text-secondary">outsourced test: usually only the collection kit is consumed here</span>' : '');
+        // analyzers of the test's department first; all analyzers when the department has none
+        const own = L.analyzers.filter(a => a.DepartmentId === test.DepartmentId), list = own.length ? own : L.analyzers;
+        $('bAnalyzer').innerHTML = '<option value="">Default (all analyzers)</option>' + list.map(a =>
+            `<option value="${a.Id}" ${String(a.Id) === String(analyzerId || '') ? 'selected' : ''}>${QC.esc(a.Name)}${versions.some(v => v.IsActive && v.AnalyzerId === a.Id) ? ' ✓' : ''}</option>`).join('');
+        $('bRerun').value = bom ? bom.RerunPct : 0; $('bDead').value = bom ? bom.DeadVolumePct : 0; $('bRemarks').value = bom?.Remarks || '';
+        lines = ls.map(l => ({ ...l }));
+        $('bVersions').innerHTML = versions.length ? versions.map(v => `<tr class="${v.IsActive ? 'table-success' : ''}">
+            <td>${QC.esc(v.AnalyzerName || 'Default')}</td><td class="text-center">v${v.VersionNo}${v.IsActive ? ' <span class="badge bg-success">current</span>' : ''}</td>
+            <td class="small">${QC.dateTime(v.EffectiveFrom)}</td><td class="small">${v.EffectiveTo ? QC.dateTime(v.EffectiveTo) : '—'}</td>
+            <td class="text-center">${v.LineCount}</td><td class="text-end">${QC.num(v.RerunPct)} / ${QC.num(v.DeadVolumePct)}</td><td class="small">${QC.esc(v.CreatedByName || '')}</td></tr>`).join('')
+            : '<tr><td colspan="7" class="text-center text-muted">No versions yet.</td></tr>';
+        ['bRerun', 'bDead', 'bRemarks'].forEach(id => $(id).disabled = !canEdit);
+        $('pickRow').classList.toggle('d-none', !canEdit);
+        $('btnSave').classList.toggle('d-none', !canEdit);
+        $('btnRemove').classList.toggle('d-none', !(canRemove && bom));
+        renderLines();
+        if (canEdit) {
+            if (!items) { const ir = await QC.get('@Url.Action("Items", "QcBom")'); items = ir.success ? ir.data : []; }
+            QC.itemPicker($('bPick'), items, modalEl, it => {
+                QC.clearPicker($('bPick'));
+                if (lines.some(l => l.ItemId === it.ItemId)) return QC.fail(`${it.ItemName} is already in this BOM.`);
+                lines.push({ ItemId: it.ItemId, ItemCode: it.ItemCode, ItemName: it.ItemName, ConsumptionUnit: it.ConsumptionUnit, UnitCost: it.UnitCost, Qty: 1, Remarks: '' });
+                renderLines();
+                document.querySelector(`#bLines .ln-qty[data-i="${lines.length - 1}"]`)?.select();
+            });
+        }
+        if (!modalEl.classList.contains('show')) modal.show();
+    }
+
+    $('bAnalyzer').addEventListener('change', function () { openEditor(cur.testId, this.value ? +this.value : null); });
+    ['bRerun', 'bDead'].forEach(id => $(id).addEventListener('input', renderFoot));
+    $('bLines').addEventListener('input', e => {
+        const i = +e.target.dataset.i;
+        if (e.target.classList.contains('ln-qty')) { lines[i].Qty = e.target.value; const cell = e.target.closest('tr').children[4]; cell.textContent = '₹' + QC.num((+lines[i].Qty || 0) * (lines[i].UnitCost || 0)); renderFoot(); }
+        if (e.target.classList.contains('ln-rem')) lines[i].Remarks = e.target.value;
+    });
+    $('bLines').addEventListener('click', e => { const d = e.target.closest('.ln-del'); if (d) { lines.splice(+d.dataset.i, 1); renderLines(); } });
+
+    $('btnSave').addEventListener('click', async function () {
+        if (!lines.length) return QC.fail('Add at least one item to the BOM.');
+        if (lines.some(l => !(+l.Qty > 0))) return QC.fail('Every BOM line needs a quantity more than 0.');
+        const body = { testId: cur.testId, analyzerId: cur.analyzerId, rerunPct: +$('bRerun').value || 0, deadVolumePct: +$('bDead').value || 0,
+            remarks: $('bRemarks').value, lines: lines.map(l => ({ itemId: l.ItemId, qty: +l.Qty, remarks: l.Remarks || null })) };
+        this.disabled = true; const r = await QC.post('@Url.Action("Save", "QcBom")', body); this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        QC.ok(r.data?.changed ? 'BOM saved as a new version' : 'No change in items - version kept');
+        await load(); openEditor(cur.testId, cur.analyzerId);
+    });
+    $('btnRemove').addEventListener('click', async function () {
+        if (!await QC.confirm('Stop using this BOM?', 'The current version is closed and kept in the history. The test will have no material cost until a new BOM is saved.', 'Stop using')) return;
+        const r = await QC.post('@Url.Action("Remove", "QcBom")', { testId: cur.testId, analyzerId: cur.analyzerId });
+        if (!r.success) return QC.fail(r.message);
+        QC.ok('BOM closed'); await load(); openEditor(cur.testId, cur.analyzerId);
+    });
+
+    $('rows').addEventListener('click', e => { const b = e.target.closest('.act-open'); if (b) openEditor(+b.dataset.id, null); });
+    $('btnFilter').addEventListener('click', load);
+    $('fSearch').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+    load();
+})();
+</script>
+}
