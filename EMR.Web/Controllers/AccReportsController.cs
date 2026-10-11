@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 /// <summary>
-/// Reports > Accounts (SQLScripts/2245; menu moved from Utility > Accounts by 2247), page REPORTS.ACCOUNTS: VIEW, EXPORT.
+/// Reports > Accounts (SQLScripts/2245; menu moved from Utility > Accounts by 2250), page REPORTS.ACCOUNTS: VIEW, EXPORT.
 /// Read-only reports over the one ledger that holds billing entries and the petty cash / manual vouchers:
 /// Ledger Statement (also Cash Book, Bank Book and Petty Cash Book - the same statement for a ledger of that type),
 /// Day Book, Voucher Register, Trial Balance, Income and Expense, Petty Expense Summary, Ledger Posting Audit.

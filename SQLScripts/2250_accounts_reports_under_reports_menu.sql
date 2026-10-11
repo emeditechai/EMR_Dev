@@ -1,5 +1,5 @@
 -- ====================================================================================================
--- Script: 2247_accounts_reports_under_reports_menu.sql
+-- Script: 2250_accounts_reports_under_reports_menu.sql
 -- Description: The Accounts reports move from Utility > Accounts to Reports > Accounts. Masters and transactions
 --   (petty expenses, counters, closing, vouchers, ledgers, expense heads, payees, settings) stay under Utility > Accounts.
 --   For a database where script 2246 ran before this change: the page UTILITY.ACCOUNTS.REPORTS is renamed to
@@ -37,5 +37,5 @@ GO
 UPDATE dbo.Users SET Permission_Version = Permission_Version + 1;
 GO
 
-PRINT 'Script 2247 applied: Accounts reports moved to Reports > Accounts.';
+PRINT 'Script 2250 applied: Accounts reports moved to Reports > Accounts.';
 GO
